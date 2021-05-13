@@ -1,17 +1,19 @@
 # TODO
 # Check bei Post Methode ob die Datenstruktur passt
 # Fehlermeldungen (Response usw.)
+# Doku anzeigen lassen (swagger.json oder yaml)
 # eigenen Ref code erstellen falls noch nicht vorhanden
-#
 # anstatts lokalhost -> api.fiat2defi.ch/
 
 
 import ssl
 import pymongo
 
+from flask_swagger import swagger
 from bson.json_util import dumps
 from flask import abort
 from flask import request, Flask, jsonify
+from flask_swagger_ui import get_swaggerui_blueprint
 
 app = Flask(__name__)
 
@@ -20,10 +22,12 @@ client = pymongo.MongoClient(
     "mongodb+srv://apiuser:apiuser@defiexchange.cihof.mongodb.net/defiexchange?retryWrites=true&w=majority",
     ssl_cert_reqs=ssl.CERT_NONE)
 
+app.run()
 
 # Get user information
-@app.route('/userInformation', methods=['GET'])
+@app.route('/api/v1/userInformation', methods=['GET'])
 def getUserInformation():
+    """Returns all user information from legacy address"""
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
     db = client['defiexchange']
@@ -32,7 +36,7 @@ def getUserInformation():
 
 
 # Get account history
-@app.route('/accountHistory', methods=['GET'])
+@app.route('/api/v1/accountHistory', methods=['GET'])
 def getTransactionsHistory():
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
@@ -42,7 +46,7 @@ def getTransactionsHistory():
 
 
 # Get all user information
-@app.route('/allUserInformation', methods=['GET'])
+@app.route('/api/v1/allUserInformation', methods=['GET'])
 def getAllUserInformation():
     query_parameters = request.args
     auth = query_parameters.get('Auth')
@@ -57,7 +61,7 @@ def getAllUserInformation():
 
 
 # Get all account history
-@app.route('/allAccountHistory', methods=['GET'])
+@app.route('/api/v1/allAccountHistory', methods=['GET'])
 def getAllTransactionsHistory():
     query_parameters = request.args
     auth = query_parameters.get('Auth')
@@ -72,8 +76,8 @@ def getAllTransactionsHistory():
 
 
 # Add transaction
-@app.route('/newTransaction', methods=['POST'])
-def insertTransaction():
+@app.route('/api/v1/addTransaction', methods=['POST'])
+def addTransaction():
     if not request.json or not 'iban' in request.json:
         abort(400)
     db = client['defiexchange']
@@ -81,5 +85,8 @@ def insertTransaction():
     coll.insert_one(request.json)
     return jsonify({'success': "true"}), 201
 
+@app.route("/api/swagger.json")
+def create_swagger_spec():
+    return jsonify(spec.to_dict())
 
 app.run()
