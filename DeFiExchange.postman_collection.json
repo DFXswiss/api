@@ -1,0 +1,157 @@
+{
+	"info": {
+		"_postman_id": "f56a6a0c-01ba-4198-80d0-d533f19a0a17",
+		"name": "DeFiExchange",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Account History",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/accountHistory?legacyAddress=81234&Auth=robin123",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"accountHistory"
+					],
+					"query": [
+						{
+							"key": "legacyAddress",
+							"value": "81234"
+						},
+						{
+							"key": "Auth",
+							"value": "robin123"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "User Information",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/accountHistory?legacyAddress=1234",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"accountHistory"
+					],
+					"query": [
+						{
+							"key": "legacyAddress",
+							"value": "1234"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "All Account History",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/allAccountHistory?Auth=robin123",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"allAccountHistory"
+					],
+					"query": [
+						{
+							"key": "Auth",
+							"value": "robin123"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "All User Information",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/allUserInformation",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"allUserInformation"
+					],
+					"query": [
+						{
+							"key": "legacyAddress",
+							"value": "1234",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "New Transaction",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"address\": \"81234\",\r\n    \"iban\": \"DE1234\",\r\n    \"signature\": \"sign\",\r\n    \"asset\": \"DFI\",\r\n    \"amount\": \"1.0234\",\r\n    \"timestamp\": \"2021-05-01 18:00\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/newTransaction",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"newTransaction"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
