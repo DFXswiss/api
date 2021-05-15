@@ -4,6 +4,9 @@
 # Doku anzeigen lassen (swagger.json oder yaml)
 # anstatts lokalhost -> api.fiat2defi.ch/
 # Auth in den Authorization Header
+import dash
+import dash_html_components as html
+
 
 import ssl
 import pymongo
@@ -13,7 +16,8 @@ from flask import abort
 from flask import request, Flask, jsonify
 from datetime import datetime
 
-app = Flask(__name__)
+app = dash.Dash()
+app.layout = html.P('only APIs till now')
 
 # Connect to mongoDB
 client = pymongo.MongoClient(
@@ -21,7 +25,7 @@ client = pymongo.MongoClient(
     ssl_cert_reqs=ssl.CERT_NONE)
 
 # Get user information
-@app.route('/api/v1/userInformation', methods=['GET'])
+@app.server.route('/api/v1/userInformation', methods=['GET'])
 def getUserInformation():
     """Returns all user information from legacy address"""
     query_parameters = request.args
@@ -60,7 +64,7 @@ def getUserInformation():
         return dumps(newUser, indent=2)
 
 # Get wallet registrations
-@app.route('/api/v1/registrations', methods=['GET'])
+@app.server.route('/api/v1/registrations', methods=['GET'])
 def getTransactionsHistory():
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
@@ -74,7 +78,7 @@ def getTransactionsHistory():
         abort(404, 'No registration with requested legacy address found!')
 
 # Add transaction
-@app.route('/api/v1/addRegistration', methods=['POST'])
+@app.server.route('/api/v1/addRegistration', methods=['POST'])
 def addRegistration():
     badFormat = 0
     message = 'Following data are missing:'
@@ -111,7 +115,7 @@ def addRegistration():
     return jsonify({'success': "true"}), 201
 
 # Get all user information
-@app.route('/api/v1/allUsers', methods=['GET'])
+@app.server.route('/api/v1/allUsers', methods=['GET'])
 def getUsers():
     query_parameters = request.args
     auth = query_parameters.get('Auth')
@@ -125,7 +129,7 @@ def getUsers():
         abort(401, 'Unauthorized')
 
 # Get all account history
-@app.route('/api/v1/allRegistrations', methods=['GET'])
+@app.server.route('/api/v1/allRegistrations', methods=['GET'])
 def getRegistrations():
     query_parameters = request.args
     auth = query_parameters.get('Auth')
@@ -138,4 +142,5 @@ def getRegistrations():
     else:
         abort(401, 'Unauthorized')
 
-app.run()
+if __name__ == "__main__":
+    app.run_server(debug=False)
