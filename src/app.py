@@ -16,12 +16,23 @@ from flask import abort
 from flask import request, Flask, jsonify
 from datetime import datetime
 
+intro = [html.H1('API description')]
+descAllUsersAPI = [html.P([html.A('API to get all Users in database:'),
+                           html.Br(),
+                           html.A('/api/v1/allUsers',href="/api/v1/allUsers")])]
+
+descUserInfoAPI = [html.P([html.A('API to get information of specific user:'),
+                           html.A('additional parameters in Format ?legacyAddress=XYZ&signature=SIG needed'),
+                           html.Br(),
+                           html.A('/api/v1/userInformation',href="/api/v1/userInformation?legacyAddress=XYZ&signature=SIG")])]
+
+
 app = dash.Dash()
-app.layout = html.P('only APIs till now')
+app.layout =html.Div(intro+descAllUsersAPI+descUserInfoAPI)
 
 # Connect to mongoDB
 client = pymongo.MongoClient(
-    "mongodb+srv://apiuser:apiuser@defiexchange.cihof.mongodb.net/defiexchange?retryWrites=true&w=majority",
+    "mongodb+srv://apiuser:apiuser@defiexchange.cihof.mongodb.net/defiexchange?retryWrites=true&w=majority",connect=False,
     ssl_cert_reqs=ssl.CERT_NONE)
 
 # Get user information
