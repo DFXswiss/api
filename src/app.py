@@ -2,8 +2,8 @@
 # Fehlermeldungen (Response usw.)
 # Update anstatts delete und insert
 # Doku anzeigen lassen (swagger.json oder yaml)
-# anstatts lokalhost -> api.fiat2defi.ch/
 # Auth in den Authorization Header
+
 import dash
 import dash_html_components as html
 
