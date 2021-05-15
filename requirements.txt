@@ -17,6 +17,12 @@ Flask-SQLAlchemy==2.4.0
 Flask-WTF==0.14.2
 Flask-User==1.0.1.5
 
+dnspython
+
+pymongo==3.11.4
+
+dash
+
 # Automated tests
 pytest==3.0.5
 pytest-cov==2.4.0
