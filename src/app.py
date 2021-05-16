@@ -3,6 +3,8 @@
 # Update anstatts delete und insert
 # Doku anzeigen lassen (swagger.json oder yaml)
 # Auth in den Authorization Header
+# Suchen aller wallet Registrations findet er nur eine ggf. trans.find_one zu find_all?
+# User information zeigt er immer eine an obwohl noch kein Eintrag in der Datenbank ist
 
 import dash
 import dash_html_components as html
@@ -17,18 +19,37 @@ from flask import request, Flask, jsonify
 from datetime import datetime
 
 intro = [html.H1('API description')]
-descAllUsersAPI = [html.P([html.A('API to get all Users in database:'),
+descAllUsersAPI = [html.P([html.A('1. API to get all Users in database:'),
                            html.Br(),
                            html.A('/api/v1/allUsers',href="/api/v1/allUsers")])]
 
-descUserInfoAPI = [html.P([html.A('API to get information of specific user:'),
+descUserInfoAPI = [html.P([html.A('2. API to get information of one specific User:'),
+                           html.Br(),
                            html.A('additional parameters in Format ?legacyAddress=XYZ&signature=SIG needed'),
                            html.Br(),
                            html.A('/api/v1/userInformation',href="/api/v1/userInformation?legacyAddress=XYZ&signature=SIG")])]
 
+descAllRegistrationsInfoAPI = [html.P([html.A('3. API to get all Registrations of all Users:'),
+                                       html.Br(),
+                                       html.A('/api/v1/allRegistrations',href="/api/v1/allRegistrations")])]
+
+descWalletRegistrationsInfoAPI = [html.P([html.A('4. API to get all Registrations of one specific User:'),
+                                          html.Br(),
+                                          html.A('additional parameter in Format ?legacyAddress=XYZ needed'),
+                                          html.Br(),
+                                          html.A('/api/v1/registrations',href="/api/v1/registrations?legacyAddress=XYZ")])]
+
+descAddRegistrationInfoAPI = [html.P([html.A('5. API to post new Registration of one specific User:'),
+                                      html.Br(),
+                                      html.A('additional parameters in Format ?legacyAddress=XYZ&signature=SIG needed'),
+                                      html.Br(),
+                                      html.A('/api/v1/addRegistration',href="/api/v1/addRegistration?legacyAddress=XYZ&signature=SIG")])]
+
+
+
 
 app = dash.Dash()
-app.layout =html.Div(intro+descAllUsersAPI+descUserInfoAPI)
+app.layout =html.Div(intro + descAllUsersAPI + descUserInfoAPI + descAllRegistrationsInfoAPI + descWalletRegistrationsInfoAPI + descAddRegistrationInfoAPI)
 
 # Connect to mongoDB
 client = pymongo.MongoClient(
@@ -86,9 +107,9 @@ def getTransactionsHistory():
     if trans.find_one({"address": legacyAddress}) is not None:
         return dumps(trans.find_one({"address": legacyAddress}), indent=2)
     else:
-        abort(404, 'No registration with requested legacy address found!')
+        abort(404, 'No registrations with requested legacy address found!')
 
-# Add transaction
+# Add Registration
 @app.server.route('/api/v1/addRegistration', methods=['POST'])
 def addRegistration():
     badFormat = 0
@@ -139,7 +160,7 @@ def getUsers():
     else:
         abort(401, 'Unauthorized')
 
-# Get all account history
+# Get all Registrations
 @app.server.route('/api/v1/allRegistrations', methods=['GET'])
 def getRegistrations():
     query_parameters = request.args
