@@ -9,7 +9,6 @@
 import dash
 import dash_html_components as html
 
-
 import ssl
 import pymongo
 
@@ -19,27 +18,27 @@ from flask import request, Flask, jsonify
 from datetime import datetime
 
 intro = [html.H1('API description')]
-descAllUsersAPI = [html.P([html.A('1. API to get all Users in database:'),
-                           html.Br(),
-                           html.A('/api/v1/allUsers',href="/api/v1/allUsers")])]
+#descAllUsersAPI = [html.P([html.A('API to get all Users in database:'),
+#                           html.Br(),
+#                           html.A('/api/v1/allUsers',href="/api/v1/allUsers")])]
 
-descUserInfoAPI = [html.P([html.A('2. API to get information of one specific User:'),
+descUserInfoAPI = [html.P([html.A('API to get information of one specific User:'),
                            html.Br(),
                            html.A('additional parameters in Format ?legacyAddress=XYZ&signature=SIG needed'),
                            html.Br(),
                            html.A('/api/v1/userInformation',href="/api/v1/userInformation?legacyAddress=XYZ&signature=SIG")])]
 
-descAllRegistrationsInfoAPI = [html.P([html.A('3. API to get all Registrations of all Users:'),
-                                       html.Br(),
-                                       html.A('/api/v1/allRegistrations',href="/api/v1/allRegistrations")])]
+#descAllRegistrationsInfoAPI = [html.P([html.A('API to get all Registrations of all Users:'),
+#                                       html.Br(),
+#                                       html.A('/api/v1/allRegistrations',href="/api/v1/allRegistrations")])]
 
-descWalletRegistrationsInfoAPI = [html.P([html.A('4. API to get all Registrations of one specific User:'),
+descWalletRegistrationsInfoAPI = [html.P([html.A('API to get all Registrations of one specific User:'),
                                           html.Br(),
                                           html.A('additional parameter in Format ?legacyAddress=XYZ needed'),
                                           html.Br(),
                                           html.A('/api/v1/registrations',href="/api/v1/registrations?legacyAddress=XYZ")])]
 
-descAddRegistrationInfoAPI = [html.P([html.A('5. API to post new Registration of one specific User:'),
+descAddRegistrationInfoAPI = [html.P([html.A('API to post new Registration of one specific User:'),
                                       html.Br(),
                                       html.A('additional parameters in Format ?legacyAddress=XYZ&signature=SIG needed'),
                                       html.Br(),
@@ -49,7 +48,7 @@ descAddRegistrationInfoAPI = [html.P([html.A('5. API to post new Registration of
 
 
 app = dash.Dash()
-app.layout =html.Div(intro + descAllUsersAPI + descUserInfoAPI + descAllRegistrationsInfoAPI + descWalletRegistrationsInfoAPI + descAddRegistrationInfoAPI)
+app.layout =html.Div(intro  + descUserInfoAPI  + descWalletRegistrationsInfoAPI + descAddRegistrationInfoAPI)
 
 # Connect to mongoDB
 client = pymongo.MongoClient(
@@ -153,7 +152,7 @@ def getUsers():
     auth = query_parameters.get('Auth')
     db = client['defiexchange']
     trans = db['admin']
-    if trans.find_one({"oAuth": auth}) is not None:
+    if trans.find_one({"oAuth": auth}) and auth is not None:
         db = client['defiexchange']
         coll = db['users']
         return dumps(coll.find({}), indent=2)
@@ -167,7 +166,7 @@ def getRegistrations():
     auth = query_parameters.get('Auth')
     db = client['defiexchange']
     trans = db['admin']
-    if trans.find_one({"oAuth": auth}) is not None:
+    if trans.find_one({"oAuth": auth}) and auth is not None:
         db = client['defiexchange']
         coll = db['registations']
         return dumps(coll.find({}), indent=2)
