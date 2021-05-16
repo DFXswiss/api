@@ -2,7 +2,7 @@
 # Doku anzeigen lassen (swagger.json oder yaml)
 # Tabelle Transaktionen -> Fehlt noch was @Robin?
 # Transaktionsgebühren: legacy adresse, signatur, wallet id? -> Robin?
-# Hat funktioniert
+# UpdateServer secret + GitHub webhooks
 import dash
 import dash_html_components as html
 import ssl
@@ -254,7 +254,7 @@ def getRegistrations():
 @app.server.route('/api/v1/update_server', methods=['POST'])
 def webhook():
     if request.method == 'POST':
-        repo = git.Repo('D:\\Projects\\api-fiat2defi')
+        repo = git.Repo('D:\\Projects\\api-fiat2defi_test')
         origin = repo.remotes.origin
         origin.pull()
         return 'Updated PythonAnywhere successfully', 200
