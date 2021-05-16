@@ -5,6 +5,8 @@
 # Auth in den Authorization Header
 # Suchen aller wallet Registrations findet er nur eine ggf. trans.find_one zu find_all?
 # User information zeigt er immer eine an obwohl noch kein Eintrag in der Datenbank ist
+# Tabelle Transaktionen (History)
+# Wallet ID REF anlegen mit DFI Adresse?
 
 import dash
 import dash_html_components as html
