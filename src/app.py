@@ -1,13 +1,13 @@
 # TODO
-# Fehlermeldungen (Response usw.)
 # Doku anzeigen lassen (swagger.json oder yaml)
 # Tabelle Transaktionen -> Fehlt noch was @Robin?
-# Transaktionsgebühren: legacy adresse, signatur, wallet id? -> Robin
-
+# Transaktionsgebühren: legacy adresse, signatur, wallet id? -> Robin?
+# Hat funktioniert
 import dash
 import dash_html_components as html
 import ssl
 import pymongo
+import git
 
 from bson.json_util import dumps
 from flask import abort
@@ -249,6 +249,17 @@ def getRegistrations():
         return dumps(coll.find({}), indent=2)
     else:
         abort(401, 'Unauthorized')
+
+# Update router
+@app.server.route('/api/v1/update_server', methods=['POST'])
+def webhook():
+    if request.method == 'POST':
+        repo = git.Repo('D:\\Projects\\api-fiat2defi')
+        origin = repo.remotes.origin
+        origin.pull()
+        return 'Updated PythonAnywhere successfully', 200
+    else:
+        return 'Wrong event type', 400
 
 if __name__ == "__main__":
     app.run_server(debug=False)
