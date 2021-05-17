@@ -225,11 +225,11 @@ def addTransactiom():
 # Get all user information
 @app.server.route('/api/v1/allUsers', methods=['GET'])
 def getUsers():
-    header = request.headers
-    auth = header.get('Auth')
+    query_parameters = request.args
+    auth = query_parameters.get('Auth')
     db = client['defiexchange']
     trans = db['admin']
-    if trans.find_one({"oAuth": auth}) is not None:
+    if trans.find_one({"oAuth": auth}) and auth is not None:
         db = client['defiexchange']
         coll = db['users']
         return dumps(coll.find({}), indent=2)
@@ -254,7 +254,7 @@ def getRegistrations():
 @app.server.route('/api/v1/update_server', methods=['POST'])
 def webhook():
     if request.method == 'POST':
-        repo = git.Repo('D:\\Projects\\api-fiat2defi_test')
+        repo = git.Repo('/user/RobinTorque/files/home/RobinTorque/api-fiat2defi')
         origin = repo.remotes.origin
         origin.pull()
         return 'Updated PythonAnywhere successfully', 200
