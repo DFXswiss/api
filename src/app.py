@@ -7,7 +7,7 @@ import dash
 import dash_html_components as html
 import ssl
 import pymongo
-import git
+#import git
 
 from bson.json_util import dumps
 from flask import abort
