@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{%block main%}
+    <form method="POST">
+        {{form.legacyAddress}}
+        {{form.signature}}
+        {{form.mail}}
+        {{form.kyc}}
+        {{form.ip}}     
+        {{form.submit}}   
+        {{form.csrf_token}}
+    </form>
+    {% if legacyAddress %}
+        <h1>{{legacyAddress}}</h1>
+    {%endif%}
+    {% if signature %}
+        <h1>{{signature}}</h1>
+    {%endif%}
+    {% if mail %}
+        <h1>{{mail}}</h1>
+    {%endif%}
+    {% if kyc %}
+        <h1>{{kyc}}</h1>
+    {%endif%}
+    {% if ip %}
+        <h1>{{ip}}</h1>
+    {%endif%}    
+{%endblock%}
