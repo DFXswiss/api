@@ -1,18 +1,23 @@
 # TODO
 # Doku anzeigen lassen (swagger.json oder yaml)
-# Tabelle Transaktionen -> Fehlt noch was @Robin?
+# Banküberweisungen ziehen via API: Verwendungszweck,
 # Transaktionsgebühren: legacy adresse, signatur, wallet id? -> Robin?
+#
 # UpdateServer secret + GitHub webhooks
 import dash
 import dash_html_components as html
 import ssl
 import pymongo
-#import git
+import hashlib
+# Module Imports
+import mariadb
+import sys
 
 from bson.json_util import dumps
 from flask import abort
 from flask import request, jsonify
 from datetime import datetime
+
 
 intro = [html.H1('API description')]
 #descAllUsersAPI = [html.P([html.A('API to get all Users in database:'),
@@ -45,10 +50,7 @@ descAddRegistrationInfoAPI = [html.P([html.A('API to post new Registration of on
 app = dash.Dash()
 app.layout =html.Div(intro  + descUserInfoAPI  + descWalletRegistrationsInfoAPI + descAddRegistrationInfoAPI)
 
-# Connect to mongoDB
-client = pymongo.MongoClient(
-    "mongodb+srv://apiuser:apiuser@defiexchange.cihof.mongodb.net/defiexchange?retryWrites=true&w=majority",connect=False,
-    ssl_cert_reqs=ssl.CERT_NONE)
+# Connect to MariaDB Platform
 
 # Get user information
 @app.server.route('/api/v1/userInformation', methods=['GET'])
@@ -144,9 +146,18 @@ def addRegistration():
 
     #Create hash
     _licenseText = "Text"
-    _hash = hash(_licenseText+request.json['fiat']+request.json['address'])
-    request.json['hash'] = str(_hash)
 
+
+    def encrypt_string(hash_string):
+        sha_signature = \
+            hashlib.sha256(hash_string.encode()).hexdigest()
+        return sha_signature
+
+    hash_string = _licenseText+request.json['fiat']+request.json['address']
+    sha_signature = encrypt_string(hash_string)
+
+    request.json['hash'] = str(sha_signature)
+    _hash=str(sha_signature)
     #Add timestamp
     now = datetime.now()
     dateAndTime = now.strftime("%d/%m/%Y %H:%M:%S")
@@ -249,17 +260,6 @@ def getRegistrations():
         return dumps(coll.find({}), indent=2)
     else:
         abort(401, 'Unauthorized')
-
-# Update router
-@app.server.route('/api/v1/update_server', methods=['POST'])
-def webhook():
-    if request.method == 'POST':
-        repo = git.Repo('/user/RobinTorque/files/home/RobinTorque/api-fiat2defi')
-        origin = repo.remotes.origin
-        origin.pull()
-        return 'Updated PythonAnywhere successfully', 200
-    else:
-        return 'Wrong event type', 400
 
 if __name__ == "__main__":
     app.run_server(debug=False)
