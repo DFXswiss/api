@@ -10,13 +10,13 @@ import config_file
 
 # TODO: create User
 
-@app.route("/")
-@app.route("/index")
+@app.server.route("/")
+@app.server.route("/index")
 def index():
     return render_template("index.html")
 
 
-@app.route('/api/v2/userInformation', methods=["POST", "GET"])
+@app.server.route('/api/v1/userInformation', methods=["POST", "GET"])
 def getUserInformation():
     """Returns user's information from legacy address"""
     query_parameters = request.args
@@ -72,7 +72,7 @@ def getUserInformation():
 
 
 # Get wallet registrations
-@app.route('/api/v2/registrations', methods=['GET'])
+@app.server.route('/api/v1/registrations', methods=['GET'])
 def getRegistrations():
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
@@ -112,7 +112,7 @@ def getRegistrations():
 
 
 # Get wallet registrations
-@app.route('/api/v2/allData', methods=['GET'])
+@app.server.route('/api/v1/allData', methods=['GET'])
 def getAllData():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
