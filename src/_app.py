@@ -203,7 +203,6 @@ def addTransactiom():
 
             now = datetime.now()
             dateAndTime = now.strftime("%d/%m/%Y %H:%M:%S")
-
             request.json['timestamp'] = dateAndTime
             db = client['defiexchange']
             coll = db['transactions']
@@ -211,7 +210,6 @@ def addTransactiom():
         else:
             now = datetime.now()
             dateAndTime = now.strftime("%d/%m/%Y %H:%M:%S")
-
             request.json['timestamp'] = dateAndTime
             db = client['defiexchange']
             coll = db['transactions']
