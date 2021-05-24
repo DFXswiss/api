@@ -1,6 +1,6 @@
 from app import app
 from flask import render_template
-import mariadb
+import mysql.connector
 import sys
 import json
 from flask import abort, request
@@ -33,13 +33,13 @@ def getUserInformation():
     if ip is None:
         abort(400, 'IP is missing')
     try:
-        conn = mariadb.connect(
+        conn = mysql.connector.connect(
             user=config_file.user,
             password=config_file.password,
             host=config_file.host,
             port=config_file.port,
             database=config_file.database)
-    except mariadb.Error as e:
+    except mysql.connector.Error as e:
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
 
@@ -79,13 +79,13 @@ def getRegistrations():
     if legacyAddress is None:
         abort(400, 'Legacy address is missing')
     try:
-        conn = mariadb.connect(
+        conn = mysql.connector.connect(
             user=config_file.user,
             password=config_file.password,
             host=config_file.host,
             port=config_file.port,
             database=config_file.database)
-    except mariadb.Error as e:
+    except mysql.connector.Error as e:
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
 
@@ -118,13 +118,13 @@ def getAllData():
     auth = query_parameters.get('oAuth')
 
     try:
-        conn = mariadb.connect(
+        conn = mysql.connector.connect(
             user=config_file.user,
             password=config_file.password,
             host=config_file.host,
             port=config_file.port,
             database=config_file.database)
-    except mariadb.Error as e:
+    except mysql.connector.Error as e:
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
 
