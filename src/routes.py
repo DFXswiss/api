@@ -83,7 +83,7 @@ def getOrCeateUser():
         cur.execute(executeString)
         rv = cur.fetchall()
         ref_int = cur.rowcount
-        newUser["ref"] = str(ref_int+1)
+        newUser["ref"] = ref_int+1
         newUser["signature"] = signature
         if mail is not None: newUser["mail"] = mail
         if wallet_id is not None: newUser["wallet_id"] = wallet_id
@@ -140,10 +140,9 @@ def getRegistrations():
         json_data = []
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
-
         for json_created in json_data:
             json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
-        # return the results!
+
         return json.dumps(json_data, indent=2)
     else:
         abort(404, 'No registrations with requested legacy address found!')
@@ -236,7 +235,7 @@ def getAllData():
             abort(401, 'Unauthorized')
 
 # Add/Update Transaction
-@app.server.route('/api/v1/addTransaction', methods=['POST'])
+@app.server.route('/api/v1/transaction', methods=['POST'])
 def addTransactiom():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -293,9 +292,6 @@ def addTransactiom():
             if badFormat == 1:
                 abort(400, message)
 
-            executeString = "SELECT * FROM users where address"
-            cur.execute(executeString)
-
-
+                return dumps("", indent=2)
     else:
         abort(401, 'Unauthorized')
