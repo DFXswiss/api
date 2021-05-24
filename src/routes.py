@@ -7,8 +7,8 @@ from flask import abort, request
 from bson.json_util import dumps
 import config_file
 
-
-# TODO: create User
+#TODO Swagger Docu
+#
 
 @app.server.route("/")
 @app.server.route("/index")
@@ -16,14 +16,13 @@ def index():
     return render_template("index.html")
 
 
-@app.server.route('/api/v1/userInformation', methods=["POST", "GET"])
+@app.server.route('/api/v1/userInformation', methods=["GET"])
 def getUserInformation():
     """Returns user's information from legacy address"""
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
     signature = query_parameters.get('signature')
     mail = query_parameters.get('mail')
-    kyc = query_parameters.get('kyc')
     ip = query_parameters.get('ip')
 
     if legacyAddress is None:
@@ -46,13 +45,12 @@ def getUserInformation():
     cur = conn.cursor()
     executeString = "SELECT * FROM users where address='" + legacyAddress + "'"
     cur.execute(executeString)
-
-    if cur.arraysize > 0:
+    rv = cur.fetchall()
+    if len(rv) > 0:
         # if mail is not None and kyc is not None:
         # coll.update_one({"address": legacyAddress}, {"$set": {"kyc": kyc, "mail": mail}})
         # serialize results into JSON
         row_headers = [x[0] for x in cur.description]
-        rv = cur.fetchall()
         json_data = []
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
@@ -66,10 +64,26 @@ def getUserInformation():
         newUser["signature"] = signature
         newUser["IP"] = ip
         if mail is not None: newUser["mail"] = mail
-        if kyc is not None:  newUser["kyc"] = kyc
+
+        executeString = "SELECT * FROM users ORDER BY ref DESC LIMIT 1"
+        cur.execute(executeString)
+        rv = cur.fetchall()
+        row_headers = [x[0] for x in cur.description]
+        json_data = []
+        for result in rv:
+            json_data.append(dict(zip(row_headers, result)))
+        ref_int = int(json_data[0]["ref"]) + 1
+        newUser["ref"] = str(ref_int)
+        if mail is None:
+            sql = "INSERT INTO users (address, ref, signature, IP) VALUES (%s, %s, %s, %s)"
+            val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"])
+        else:
+            sql = "INSERT INTO users (address, ref, signature, IP, mail) VALUES (%s, %s, %s, %s, %s)"
+            val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"], newUser["mail"])
+        cur.execute(sql, val)
+        conn.commit()
 
         return dumps(newUser, indent=2)
-
 
 # Get wallet registrations
 @app.server.route('/api/v1/registrations', methods=['GET'])
@@ -111,7 +125,7 @@ def getRegistrations():
         abort(404, 'No registrations with requested legacy address found!')
 
 
-# Get wallet registrations
+# Get all
 @app.server.route('/api/v1/allData', methods=['GET'])
 def getAllData():
     query_parameters = request.args
@@ -164,9 +178,101 @@ def getAllData():
                 for json_created in json_users:
                     json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
 
-            json_all = {"registrations": [], "users": []}
+
+            executeString = "SELECT * from wallets"
+            cur.execute(executeString)
+
+            if cur.arraysize > 0:
+                row_headers = [x[0] for x in cur.description]
+                rv = cur.fetchall()
+                json_wallets = []
+                for result in rv:
+                    json_wallets.append(dict(zip(row_headers, result)))
+                for json_created in json_wallets:
+                    json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+
+            executeString = "SELECT * from transactions"
+            cur.execute(executeString)
+
+            if cur.arraysize > 0:
+                row_headers = [x[0] for x in cur.description]
+                rv = cur.fetchall()
+                json_transactions = []
+                for result in rv:
+                    json_transactions.append(dict(zip(row_headers, result)))
+                for json_created in json_transactions:
+                    json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+
+            json_all = {"registrations": [], "users": [],"wallets": [],"transactions": []}
             json_all['registrations'] = json_registrations
             json_all['users'] = json_users
+            json_all['wallets'] = json_wallets
+            json_all['transactions'] = json_transactions
             return json.dumps(json_all)
         else:
             abort(401, 'Unauthorized')
+
+# Add/Update Transaction
+@app.server.route('/api/v1/addTransaction', methods=['POST'])
+def addTransactiom():
+    query_parameters = request.args
+    auth = query_parameters.get('oAuth')
+
+    try:
+        conn = mysql.connector.connect(
+            user=config_file.user,
+            password=config_file.password,
+            host=config_file.host,
+            port=config_file.port,
+            database=config_file.database)
+    except mysql.connector.Error as e:
+        print(f"Error connecting to MariaDB Platform: {e}")
+        sys.exit(1)
+
+    cur = conn.cursor()
+    executeString = "SELECT * from admin"
+    cur.execute(executeString)
+
+    if cur.arraysize > 0:
+        row_headers = [x[0] for x in cur.description]
+        rv = cur.fetchall()
+        json_admin = []
+        for result in rv:
+            json_admin.append(dict(zip(row_headers, result)))
+
+        if json_admin[0]['oAuth'] == auth:
+
+            badFormat = 0
+            message = 'Following data are missing:'
+            if not request.json:
+                abort(400, 'Data is no JSON')
+            if not 'hash' in request.json:
+                message += ', hash'
+                badFormat = 1
+            if not 'fiat' in request.json:
+                message += ', fiat'
+                badFormat = 1
+            if not 'asset' in request.json:
+                message += ', asset'
+                badFormat = 1
+            if not 'amount' in request.json:
+                message += ', amount'
+                badFormat = 1
+            if not 'fiat_timestamp' in request.json:
+                message += ', fiat_timestamp'
+                badFormat = 1
+            if not 'asset_timestamp' in request.json:
+                message += ', asset_timestamp'
+                badFormat = 1
+            if not 'txid' in request.json:
+                message += ', txid'
+                badFormat = 1
+            if badFormat == 1:
+                abort(400, message)
+
+            executeString = "SELECT * FROM users where address"
+            cur.execute(executeString)
+
+
+    else:
+        abort(401, 'Unauthorized')

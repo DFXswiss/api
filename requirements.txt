@@ -23,6 +23,7 @@ pymongo==3.11.4
 
 dash
 GitPython
+mysql-connector
 
 # Automated tests
 pytest==3.0.5
