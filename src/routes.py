@@ -64,12 +64,12 @@ def getOrCeateUser():
             cur.execute(executeString)
             conn.commit()
         if wallet_id is not None:
-            json_data[0]['wallet_id'] = wallet_id
+            json_data[0]['wallet_id'] = int(wallet_id)
             executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
         if used_ref is not None:
-            json_data[0]['used_ref'] = used_ref
+            json_data[0]['used_ref'] = int(used_ref)
             executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
@@ -86,8 +86,8 @@ def getOrCeateUser():
         newUser["ref"] = ref_int+1
         newUser["signature"] = signature
         if mail is not None: newUser["mail"] = mail
-        if wallet_id is not None: newUser["wallet_id"] = wallet_id
-        if used_ref is not None: newUser["used_ref"] = used_ref
+        if wallet_id is not None: newUser["wallet_id"] = int(wallet_id)
+        if used_ref is not None: newUser["used_ref"] = int(used_ref)
         newUser["IP"] = ip
 
 
