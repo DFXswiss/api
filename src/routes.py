@@ -8,16 +8,14 @@ from bson.json_util import dumps
 import config_file
 
 #TODO Swagger Docu
-#
 
 @app.server.route("/")
 @app.server.route("/index")
 def index():
     return render_template("index.html")
 
-
-@app.server.route('/api/v1/userInformation', methods=["GET"])
-def getUserInformation():
+@app.server.route('/api/v1/user', methods=["GET"])
+def getOrCeateUser():
     """Returns user's information from legacy address"""
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
@@ -27,8 +25,12 @@ def getUserInformation():
 
     if legacyAddress is None:
         abort(400, 'Legacy address is missing')
+    if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
+        abort(400, 'Legacy address is wrong')
     if signature is None:
         abort(400, 'Signature is missing')
+    if not len(signature) == 88 or not signature.endswith('='):
+        abort(400, 'Signature is wrong')
     if ip is None:
         abort(400, 'IP is missing')
     try:
@@ -47,33 +49,32 @@ def getUserInformation():
     cur.execute(executeString)
     rv = cur.fetchall()
     if len(rv) > 0:
-        # if mail is not None and kyc is not None:
-        # coll.update_one({"address": legacyAddress}, {"$set": {"kyc": kyc, "mail": mail}})
-        # serialize results into JSON
         row_headers = [x[0] for x in cur.description]
         json_data = []
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
 
+        if mail is not None: json_data[0]['mail'] = mail
         json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
+
+        executeString = "UPDATE users SET mail = '"+mail +"' WHERE address = '" +legacyAddress+ "'"
+        cur.execute(executeString)
+        conn.commit()
         # return the results!
-        return json.dumps(json_data)
+        return json.dumps(json_data[0], indent=2)
     else:
         newUser = {}
         newUser["address"] = legacyAddress
-        newUser["signature"] = signature
-        newUser["IP"] = ip
-        if mail is not None: newUser["mail"] = mail
-
-        executeString = "SELECT * FROM users ORDER BY ref DESC LIMIT 1"
+        executeString = "SELECT * FROM users"
+        cur = conn.cursor()
         cur.execute(executeString)
         rv = cur.fetchall()
-        row_headers = [x[0] for x in cur.description]
-        json_data = []
-        for result in rv:
-            json_data.append(dict(zip(row_headers, result)))
-        ref_int = int(json_data[0]["ref"]) + 1
-        newUser["ref"] = str(ref_int)
+        ref_int = cur.rowcount
+        newUser["ref"] = str(ref_int+1)
+        newUser["signature"] = signature
+        if mail is not None: newUser["mail"] = mail
+        newUser["IP"] = ip
+
         if mail is None:
             sql = "INSERT INTO users (address, ref, signature, IP) VALUES (%s, %s, %s, %s)"
             val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"])
@@ -92,6 +93,8 @@ def getRegistrations():
     legacyAddress = query_parameters.get('legacyAddress')
     if legacyAddress is None:
         abort(400, 'Legacy address is missing')
+    if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
+        abort(400, 'Legacy address is wrong')
     try:
         conn = mysql.connector.connect(
             user=config_file.user,
@@ -108,9 +111,6 @@ def getRegistrations():
     cur.execute(executeString)
 
     if cur.arraysize > 0:
-        # if mail is not None and kyc is not None:
-        # coll.update_one({"address": legacyAddress}, {"$set": {"kyc": kyc, "mail": mail}})
-        # serialize results into JSON
         row_headers = [x[0] for x in cur.description]
         rv = cur.fetchall()
         json_data = []
@@ -120,12 +120,11 @@ def getRegistrations():
         for json_created in json_data:
             json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
         # return the results!
-        return json.dumps(json_data)
+        return json.dumps(json_data, indent=2)
     else:
         abort(404, 'No registrations with requested legacy address found!')
 
-
-# Get all
+# Get all data
 @app.server.route('/api/v1/allData', methods=['GET'])
 def getAllData():
     query_parameters = request.args
@@ -208,7 +207,7 @@ def getAllData():
             json_all['users'] = json_users
             json_all['wallets'] = json_wallets
             json_all['transactions'] = json_transactions
-            return json.dumps(json_all)
+            return json.dumps(json_all, indent=2)
         else:
             abort(401, 'Unauthorized')
 
