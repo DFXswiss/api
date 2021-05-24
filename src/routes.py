@@ -22,6 +22,8 @@ def getOrCeateUser():
     signature = query_parameters.get('signature')
     mail = query_parameters.get('mail')
     ip = query_parameters.get('ip')
+    wallet_id =query_parameters.get('wallet_id')
+    used_ref = query_parameters.get('used_ref')
 
     if legacyAddress is None:
         abort(400, 'Legacy address is missing')
@@ -54,12 +56,23 @@ def getOrCeateUser():
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
 
-        if mail is not None: json_data[0]['mail'] = mail
         json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
 
-        executeString = "UPDATE users SET mail = '"+mail +"' WHERE address = '" +legacyAddress+ "'"
-        cur.execute(executeString)
-        conn.commit()
+        if mail is not None:
+            json_data[0]['mail'] = mail
+            executeString = "UPDATE users SET mail = '"+mail +"' WHERE address = '" +legacyAddress+ "'"
+            cur.execute(executeString)
+            conn.commit()
+        if wallet_id is not None:
+            json_data[0]['wallet_id'] = wallet_id
+            executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
+            cur.execute(executeString)
+            conn.commit()
+        if used_ref is not None:
+            json_data[0]['used_ref'] = used_ref
+            executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
+            cur.execute(executeString)
+            conn.commit()
         # return the results!
         return json.dumps(json_data[0], indent=2)
     else:
@@ -73,17 +86,28 @@ def getOrCeateUser():
         newUser["ref"] = str(ref_int+1)
         newUser["signature"] = signature
         if mail is not None: newUser["mail"] = mail
+        if wallet_id is not None: newUser["wallet_id"] = wallet_id
+        if used_ref is not None: newUser["used_ref"] = used_ref
         newUser["IP"] = ip
 
-        if mail is None:
-            sql = "INSERT INTO users (address, ref, signature, IP) VALUES (%s, %s, %s, %s)"
-            val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"])
-        else:
-            sql = "INSERT INTO users (address, ref, signature, IP, mail) VALUES (%s, %s, %s, %s, %s)"
-            val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"], newUser["mail"])
+
+        sql = "INSERT INTO users (address, ref, signature, IP) VALUES (%s, %s, %s, %s)"
+        val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"])
         cur.execute(sql, val)
         conn.commit()
 
+        if mail is not None:
+            executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
+            cur.execute(executeString)
+            conn.commit()
+        if wallet_id is not None:
+            executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
+            cur.execute(executeString)
+            conn.commit()
+        if used_ref is not None:
+            executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
+            cur.execute(executeString)
+            conn.commit()
         return dumps(newUser, indent=2)
 
 # Get wallet registrations
