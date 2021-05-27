@@ -1,5 +1,5 @@
 from app import app
-from flask import render_template
+from flask import render_template, jsonify
 import mysql.connector
 import sys
 import json
@@ -115,10 +115,18 @@ def getOrCeateUser():
 def getRegistrations():
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
+    signature = query_parameters.get('signature')
     if legacyAddress is None:
         abort(400, 'Legacy address is missing')
+    if signature is None:
+        abort(400, "Signature not found")
     if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
         abort(400, 'Legacy address is wrong')
+    if signature is None:
+        abort(400, 'Signature is missing')
+    if not len(signature) == 88 or not signature.endswith('='):
+        abort(400, 'Signature is wrong')
+
     try:
         conn = mysql.connector.connect(
             user=config_file.user,
@@ -146,6 +154,64 @@ def getRegistrations():
         return json.dumps(json_data, indent=2)
     else:
         abort(404, 'No registrations with requested legacy address found!')
+
+# Add wallet registrations
+@app.server.route('/api/v1/addRegistration', methods=['POST'])
+def addRegistrations():
+    query_parameters = request.args
+    legacyAddress = query_parameters.get('legacyAddress')
+    signature = query_parameters.get('signature')
+
+    if legacyAddress is None:
+        abort(400, 'Legacy address is missing')
+    if signature is None:
+        abort(400, "Signature not found")
+    if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
+        abort(400, 'Legacy address is wrong')
+    if signature is None:
+        abort(400, 'Signature is missing')
+    if not len(signature) == 88 or not signature.endswith('='):
+        abort(400, 'Signature is wrong')
+
+    badFormat = 0
+    message = 'Following data are missing:'
+    if not request.json:
+        abort(400, 'Data is no JSON')
+    if not 'address' in request.json:
+        message += ', address '
+        badFormat = 1
+    if not 'iban' in request.json:
+        message += ', iban '
+        badFormat = 1
+    if not 'asset' in request.json:
+        message += ', asset '
+        badFormat = 1
+
+    if badFormat == 1:
+        abort(400, message)
+
+    try:
+        conn = mysql.connector.connect(
+            user=config_file.user,
+            password=config_file.password,
+            host=config_file.host,
+            port=config_file.port,
+            database=config_file.database)
+    except mysql.connector.Error as e:
+        print(f"Error connecting to MariaDB Platform: {e}")
+        sys.exit(1)
+
+    cur = conn.cursor()
+    executeString = "SELECT * FROM users where address='" + legacyAddress + "'"
+    cur.execute(executeString)
+    rv = cur.fetchall()
+    if cur.arraysize > 0:
+        sql = "INSERT INTO registrations (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
+        val = (request.json["address"]+request.json["asset"], request.json["address"],request.json["iban"], request.json["asset"], "123")
+        cur.execute(sql, val)
+        conn.commit()
+
+    return jsonify({'success': "true"}), 201
 
 # Get all data
 @app.server.route('/api/v1/allData', methods=['GET'])
