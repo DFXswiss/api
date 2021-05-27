@@ -158,20 +158,6 @@ def getRegistrations():
 # Add wallet registrations
 @app.server.route('/api/v1/addRegistration', methods=['POST'])
 def addRegistrations():
-    query_parameters = request.args
-    legacyAddress = query_parameters.get('legacyAddress')
-    signature = query_parameters.get('signature')
-
-    if legacyAddress is None:
-        abort(400, 'Legacy address is missing')
-    if signature is None:
-        abort(400, "Signature not found")
-    if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
-        abort(400, 'Legacy address is wrong')
-    if signature is None:
-        abort(400, 'Signature is missing')
-    if not len(signature) == 88 or not signature.endswith('='):
-        abort(400, 'Signature is wrong')
 
     badFormat = 0
     message = 'Following data are missing:'
@@ -179,6 +165,9 @@ def addRegistrations():
         abort(400, 'Data is no JSON')
     if not 'address' in request.json:
         message += ', address '
+        badFormat = 1
+    if not 'signature' in request.json:
+        message += ', signature '
         badFormat = 1
     if not 'iban' in request.json:
         message += ', iban '
@@ -189,6 +178,16 @@ def addRegistrations():
 
     if badFormat == 1:
         abort(400, message)
+
+    if request.json["address"] is None:
+        abort(400, 'Legacy address is missing')
+    if not request.json["address"].startswith('8') or not len(request.json["address"]) == 34:
+        abort(400, 'Legacy address is wrong')
+
+    if request.json["signature"] is None:
+        abort(400, "Signature not found")
+    if not len(request.json["signature"]) == 88 or not request.json["signature"].endswith('='):
+        abort(400, 'Signature is wrong')
 
     try:
         conn = mysql.connector.connect(
@@ -202,7 +201,7 @@ def addRegistrations():
         sys.exit(1)
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM users where address='" + legacyAddress + "'"
+    executeString = "SELECT * FROM users where address='" + request.json["address"] + "'"
     cur.execute(executeString)
     rv = cur.fetchall()
     if cur.arraysize > 0:
