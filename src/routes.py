@@ -139,7 +139,7 @@ def getRegistrations():
         sys.exit(1)
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM registrations where address='" + legacyAddress + "'"
+    executeString = "SELECT * FROM registrations where address='" + legacyAddress + "' AND signature='"+request.json["signature"]+"'"
     cur.execute(executeString)
 
     if cur.arraysize > 0:
@@ -201,7 +201,7 @@ def addRegistrations():
         sys.exit(1)
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM users where address='" + request.json["address"] + "'"
+    executeString = "SELECT * FROM users WHERE address='" + request.json["address"] + "' AND signature='"+request.json["signature"]+"'"
     cur.execute(executeString)
     rv = cur.fetchall()
     if cur.arraysize > 0:
