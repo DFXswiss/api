@@ -7,12 +7,14 @@ from flask import abort, request
 from bson.json_util import dumps
 import config_file
 
-#TODO Swagger Docu
+
+# TODO Swagger Docu
 
 @app.server.route("/")
 @app.server.route("/index")
 def index():
     return render_template("index.html")
+
 
 @app.server.route('/api/v1/user', methods=["GET"])
 def getOrCeateUser():
@@ -22,7 +24,7 @@ def getOrCeateUser():
     signature = query_parameters.get('signature')
     mail = query_parameters.get('mail')
     ip = query_parameters.get('ip')
-    wallet_id =query_parameters.get('wallet_id')
+    wallet_id = query_parameters.get('wallet_id')
     used_ref = query_parameters.get('used_ref')
 
     if legacyAddress is None:
@@ -35,16 +37,8 @@ def getOrCeateUser():
         abort(400, 'Signature is wrong')
     if ip is None:
         abort(400, 'IP is missing')
-    try:
-        conn = mysql.connector.connect(
-            user=config_file.user,
-            password=config_file.password,
-            host=config_file.host,
-            port=config_file.port,
-            database=config_file.database)
-    except mysql.connector.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
+
+    conn = createDBConnection()
 
     cur = conn.cursor()
     executeString = "SELECT * FROM users where address='" + legacyAddress + "'"
@@ -60,7 +54,7 @@ def getOrCeateUser():
 
         if mail is not None:
             json_data[0]['mail'] = mail
-            executeString = "UPDATE users SET mail = '"+mail +"' WHERE address = '" +legacyAddress+ "'"
+            executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
         if wallet_id is not None:
@@ -83,13 +77,12 @@ def getOrCeateUser():
         cur.execute(executeString)
         rv = cur.fetchall()
         ref_int = cur.rowcount
-        newUser["ref"] = ref_int+1
+        newUser["ref"] = ref_int + 1
         newUser["signature"] = signature
         if mail is not None: newUser["mail"] = mail
         if wallet_id is not None: newUser["wallet_id"] = int(wallet_id)
         if used_ref is not None: newUser["used_ref"] = int(used_ref)
         newUser["IP"] = ip
-
 
         sql = "INSERT INTO users (address, ref, signature, IP) VALUES (%s, %s, %s, %s)"
         val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"])
@@ -110,6 +103,7 @@ def getOrCeateUser():
             conn.commit()
         return dumps(newUser, indent=2)
 
+
 # Get wallet registrations
 @app.server.route('/api/v1/registrations', methods=['GET'])
 def getRegistrations():
@@ -127,19 +121,11 @@ def getRegistrations():
     if not len(signature) == 88 or not signature.endswith('='):
         abort(400, 'Signature is wrong')
 
-    try:
-        conn = mysql.connector.connect(
-            user=config_file.user,
-            password=config_file.password,
-            host=config_file.host,
-            port=config_file.port,
-            database=config_file.database)
-    except mysql.connector.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
+    conn = createDBConnection()
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM registrations where address='" + legacyAddress + "' AND signature='"+request.json["signature"]+"'"
+    executeString = "SELECT * FROM registrations where address='" + legacyAddress + "' AND signature='" + request.json[
+        "signature"] + "'"
     cur.execute(executeString)
 
     if cur.arraysize > 0:
@@ -155,10 +141,10 @@ def getRegistrations():
     else:
         abort(404, 'No registrations with requested legacy address found!')
 
+
 # Add wallet registrations
 @app.server.route('/api/v1/addRegistration', methods=['POST'])
 def addRegistrations():
-
     badFormat = 0
     message = 'Following data are missing:'
     if not request.json:
@@ -189,28 +175,22 @@ def addRegistrations():
     if not len(request.json["signature"]) == 88 or not request.json["signature"].endswith('='):
         abort(400, 'Signature is wrong')
 
-    try:
-        conn = mysql.connector.connect(
-            user=config_file.user,
-            password=config_file.password,
-            host=config_file.host,
-            port=config_file.port,
-            database=config_file.database)
-    except mysql.connector.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
+    conn = createDBConnection()
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM users WHERE address='" + request.json["address"] + "' AND signature='"+request.json["signature"]+"'"
+    executeString = "SELECT * FROM users WHERE address='" + request.json["address"] + "' AND signature='" + \
+                    request.json["signature"] + "'"
     cur.execute(executeString)
     rv = cur.fetchall()
     if cur.arraysize > 0:
         sql = "INSERT INTO registrations (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
-        val = (request.json["address"]+request.json["asset"], request.json["address"],request.json["iban"], request.json["asset"], "123")
+        val = (request.json["address"] + request.json["asset"], request.json["address"], request.json["iban"],
+               request.json["asset"], "123")
         cur.execute(sql, val)
         conn.commit()
 
     return jsonify({'success': "true"}), 201
+
 
 # Get all data
 @app.server.route('/api/v1/allData', methods=['GET'])
@@ -218,16 +198,7 @@ def getAllData():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
 
-    try:
-        conn = mysql.connector.connect(
-            user=config_file.user,
-            password=config_file.password,
-            host=config_file.host,
-            port=config_file.port,
-            database=config_file.database)
-    except mysql.connector.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
+    conn = createDBConnection()
 
     cur = conn.cursor()
     executeString = "SELECT * from admin"
@@ -265,7 +236,6 @@ def getAllData():
                 for json_created in json_users:
                     json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
 
-
             executeString = "SELECT * from wallets"
             cur.execute(executeString)
 
@@ -290,7 +260,7 @@ def getAllData():
                 for json_created in json_transactions:
                     json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
 
-            json_all = {"registrations": [], "users": [],"wallets": [],"transactions": []}
+            json_all = {"registrations": [], "users": [], "wallets": [], "transactions": []}
             json_all['registrations'] = json_registrations
             json_all['users'] = json_users
             json_all['wallets'] = json_wallets
@@ -299,22 +269,14 @@ def getAllData():
         else:
             abort(401, 'Unauthorized')
 
+
 # Add/Update Transaction
 @app.server.route('/api/v1/transaction', methods=['POST'])
 def addTransactiom():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
 
-    try:
-        conn = mysql.connector.connect(
-            user=config_file.user,
-            password=config_file.password,
-            host=config_file.host,
-            port=config_file.port,
-            database=config_file.database)
-    except mysql.connector.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
+    conn = createDBConnection()
 
     cur = conn.cursor()
     executeString = "SELECT * from admin"
@@ -360,3 +322,17 @@ def addTransactiom():
                 return dumps("", indent=2)
     else:
         abort(401, 'Unauthorized')
+
+
+def createDBConnection():
+    try:
+        conn = mysql.connector.connect(
+            user=config_file.user,
+            password=config_file.password,
+            host=config_file.host,
+            port=config_file.port,
+            database=config_file.database)
+        return conn
+    except mysql.connector.Error as e:
+        print(f"Error connecting to MariaDB Platform: {e}")
+        sys.exit(1)
