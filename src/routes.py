@@ -27,15 +27,15 @@ def getOrCeateUser():
     wallet_id = query_parameters.get('wallet_id')
     used_ref = query_parameters.get('used_ref')
 
-    if legacyAddress is None:
+    if legacyAddress is None or isParameterSQL(legacyAddress):
         abort(400, 'Legacy address is missing')
     if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
         abort(400, 'Legacy address is wrong')
-    if signature is None:
+    if signature is None or isParameterSQL(signature):
         abort(400, 'Signature is missing')
     if not len(signature) == 88 or not signature.endswith('='):
         abort(400, 'Signature is wrong')
-    if ip is None:
+    if ip is None or isParameterSQL(ip):
         abort(400, 'IP is missing')
 
     conn = createDBConnection()
@@ -52,17 +52,17 @@ def getOrCeateUser():
 
         json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
 
-        if mail is not None:
+        if mail is not None and not isParameterSQL(mail):
             json_data[0]['mail'] = mail
             executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
-        if wallet_id is not None:
+        if wallet_id is not None and not isParameterSQL(wallet_id):
             json_data[0]['wallet_id'] = int(wallet_id)
             executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
-        if used_ref is not None:
+        if used_ref is not None and not isParameterSQL(used_ref):
             json_data[0]['used_ref'] = int(used_ref)
             executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
@@ -89,15 +89,15 @@ def getOrCeateUser():
         cur.execute(sql, val)
         conn.commit()
 
-        if mail is not None:
+        if mail is not None and not isParameterSQL(mail):
             executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
-        if wallet_id is not None:
+        if wallet_id is not None and not isParameterSQL(wallet_id):
             executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
-        if used_ref is not None:
+        if used_ref is not None and not isParameterSQL(used_ref):
             executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
             cur.execute(executeString)
             conn.commit()
@@ -110,13 +110,13 @@ def getRegistrations():
     query_parameters = request.args
     legacyAddress = query_parameters.get('legacyAddress')
     signature = query_parameters.get('signature')
-    if legacyAddress is None:
+    if legacyAddress is None or isParameterSQL(legacyAddress):
         abort(400, 'Legacy address is missing')
-    if signature is None:
+    if signature is None or isParameterSQL(signature):
         abort(400, "Signature not found")
     if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
         abort(400, 'Legacy address is wrong')
-    if signature is None:
+    if signature is None or isParameterSQL(signature):
         abort(400, 'Signature is missing')
     if not len(signature) == 88 or not signature.endswith('='):
         abort(400, 'Signature is wrong')
@@ -165,12 +165,12 @@ def addRegistrations():
     if badFormat == 1:
         abort(400, message)
 
-    if request.json["address"] is None:
+    if request.json["address"] is None or isParameterSQL(request.json["address"]):
         abort(400, 'Legacy address is missing')
     if not request.json["address"].startswith('8') or not len(request.json["address"]) == 34:
         abort(400, 'Legacy address is wrong')
 
-    if request.json["signature"] is None:
+    if request.json["signature"] is None or isParameterSQL(request.json["signature"]):
         abort(400, "Signature not found")
     if not len(request.json["signature"]) == 88 or not request.json["signature"].endswith('='):
         abort(400, 'Signature is wrong')
@@ -197,6 +197,8 @@ def addRegistrations():
 def getAllData():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
+    if isParameterSQL(auth):
+        abort(401, 'Unauthorized')
 
     conn = createDBConnection()
 
@@ -275,6 +277,8 @@ def getAllData():
 def addTransactiom():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
+    if isParameterSQL(auth):
+        abort(401, 'Unauthorized')
 
     conn = createDBConnection()
 
@@ -336,3 +340,25 @@ def createDBConnection():
     except mysql.connector.Error as e:
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
+
+
+def isParameterSQL(param):
+    if ('SELECT' in param or
+            'FROM' in param or
+            'WHERE' in param or
+            'ORDER' in param or
+            'BY' in param or
+            'GROUP' in param or
+            'INSERT' in param or
+            'INTO' in param or
+            'DELETE' in param or
+            'UPDATE' in param or
+            'CREATE' in param or
+            'INDEX' in param or
+            'VIEW' in param or
+            'DROP' in param or
+            'TABLE' in param or
+            'ALTER' in param):
+        return True
+    else:
+        return False
