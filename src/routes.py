@@ -102,20 +102,17 @@ def getOrCeateUser():
         conn.commit()
 
         if mail is not None and not isParameterSQL(mail):
-           # executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
-            sql = "UPDATE users SET mail = %s WHERE address = %s"
+            sql = "UPDATE users SET mail =%s WHERE address =%s"
             val = (mail, legacyAddress)
             cur.execute(sql, val)
             conn.commit()
         if wallet_id is not None and not isParameterSQL(wallet_id):
-           # executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
-           sql = "UPDATE users SET wallet_id = %s WHERE address = %s"
+           sql = "UPDATE users SET wallet_id =%s WHERE address =%s"
            val = (wallet_id, legacyAddress)
            cur.execute(sql, val)
            conn.commit()
         if used_ref is not None and not isParameterSQL(used_ref):
-            #executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
-            sql = "UPDATE users SET used_ref = %s WHERE address = %s"
+            sql = "UPDATE users SET used_ref =%s WHERE address =%s"
             val = (used_ref, legacyAddress)
             cur.execute(sql, val)
             conn.commit()
@@ -140,27 +137,31 @@ def getRegistrations():
         abort(400, 'Signature is wrong')
 
     conn = createDBConnection()
-
     cur = conn.cursor()
-   # executeString = "SELECT * FROM registrations where address='" + legacyAddress + "' AND signature='" + request.json[
-   #     "signature"] + "'"
-    sql = "SELECT * FROM registrations where address= %s AND signature= %s"
-    val = (legacyAddress, request.json["signature"])
+    sql = "SELECT * FROM users where address=%s AND signature=%s"
+    val = (legacyAddress, signature)
     cur.execute(sql, val)
 
     if cur.arraysize > 0:
-        row_headers = [x[0] for x in cur.description]
-        rv = cur.fetchall()
-        json_data = []
-        for result in rv:
-            json_data.append(dict(zip(row_headers, result)))
-        for json_created in json_data:
-            json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+        conn.close()
+        connReg = createDBConnection()
+        curReg = connReg.cursor()
+        sqlReg = "SELECT * FROM registrations where address=%s"
+        curReg.execute(sqlReg, (legacyAddress,))
 
-        return json.dumps(json_data, indent=2)
+        if curReg.arraysize > 0:
+            row_headers = [x[0] for x in curReg.description]
+            rv = curReg.fetchall()
+            json_data = []
+            for result in rv:
+                json_data.append(dict(zip(row_headers, result)))
+            for json_created in json_data:
+                json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+            return json.dumps(json_data, indent=2)
+        else:
+            abort(404, 'No registrations with requested legacy address and signature found!')
     else:
-        abort(404, 'No registrations with requested legacy address and signature found!')
-
+        abort(404, 'No User with that legacy address and signature found!')
 
 # Add wallet registrations
 @app.server.route('/api/v1/addRegistration', methods=['POST'])
@@ -198,8 +199,7 @@ def addRegistrations():
     conn = createDBConnection()
 
     cur = conn.cursor()
-    #executeString = "SELECT * FROM users WHERE address='" + request.json["address"] + "' AND signature='" + \
-    #                request.json["signature"] + "'"
+
     sql = "SELECT * FROM users WHERE address= %s AND signature= %s"
     val = (request.json["address"], request.json["signature"])
     cur.execute(sql, val)
