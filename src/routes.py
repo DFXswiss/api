@@ -1,3 +1,5 @@
+from werkzeug.utils import redirect
+
 from app import app
 from flask import render_template, jsonify
 import mysql.connector
@@ -13,7 +15,8 @@ import config_file
 @app.server.route("/")
 @app.server.route("/index")
 def index():
-    return render_template("index.html")
+    return redirect("https://app.swaggerhub.com/apis-docs/meintest/Api-Fiat2Defichain/1")
+    #return render_template("index.html")
 
 
 @app.server.route('/api/v1/user', methods=["GET"])
