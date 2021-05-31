@@ -41,8 +41,11 @@ def getOrCeateUser():
     conn = createDBConnection()
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM users where address='" + legacyAddress + "'"
-    cur.execute(executeString)
+
+    sql = "SELECT * FROM users where address = %s"
+    val = (legacyAddress,)
+    cur.execute(sql, val)
+
     rv = cur.fetchall()
     if len(rv) > 0:
         row_headers = [x[0] for x in cur.description]
@@ -54,18 +57,24 @@ def getOrCeateUser():
 
         if mail is not None and not isParameterSQL(mail):
             json_data[0]['mail'] = mail
-            executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
-            cur.execute(executeString)
+          #  executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
+            sql = "UPDATE users SET mail = %s WHERE address = %s"
+            val = (mail, legacyAddress)
+            cur.execute(sql, val)
             conn.commit()
         if wallet_id is not None and not isParameterSQL(wallet_id):
             json_data[0]['wallet_id'] = int(wallet_id)
-            executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
-            cur.execute(executeString)
+          #  executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
+            sql = "UPDATE users SET wallet_id = %s WHERE address = %s"
+            val = (wallet_id, legacyAddress)
+            cur.execute(sql, val)
             conn.commit()
         if used_ref is not None and not isParameterSQL(used_ref):
             json_data[0]['used_ref'] = int(used_ref)
-            executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
-            cur.execute(executeString)
+            #executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
+            sql = "UPDATE users SET used_ref = %s WHERE address = %s"
+            val = (used_ref, legacyAddress)
+            cur.execute(sql, val)
             conn.commit()
         # return the results!
         return json.dumps(json_data[0], indent=2)
@@ -90,16 +99,22 @@ def getOrCeateUser():
         conn.commit()
 
         if mail is not None and not isParameterSQL(mail):
-            executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
-            cur.execute(executeString)
+           # executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
+            sql = "UPDATE users SET mail = %s WHERE address = %s"
+            val = (mail, legacyAddress)
+            cur.execute(sql, val)
             conn.commit()
         if wallet_id is not None and not isParameterSQL(wallet_id):
-            executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
-            cur.execute(executeString)
-            conn.commit()
+           # executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
+           sql = "UPDATE users SET wallet_id = %s WHERE address = %s"
+           val = (wallet_id, legacyAddress)
+           cur.execute(sql, val)
+           conn.commit()
         if used_ref is not None and not isParameterSQL(used_ref):
-            executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
-            cur.execute(executeString)
+            #executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
+            sql = "UPDATE users SET used_ref = %s WHERE address = %s"
+            val = (used_ref, legacyAddress)
+            cur.execute(sql, val)
             conn.commit()
         return dumps(newUser, indent=2)
 
@@ -124,9 +139,11 @@ def getRegistrations():
     conn = createDBConnection()
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM registrations where address='" + legacyAddress + "' AND signature='" + request.json[
-        "signature"] + "'"
-    cur.execute(executeString)
+   # executeString = "SELECT * FROM registrations where address='" + legacyAddress + "' AND signature='" + request.json[
+   #     "signature"] + "'"
+    sql = "SELECT * FROM registrations where address= %s AND signature= %s"
+    val = (legacyAddress, request.json["signature"])
+    cur.execute(sql, val)
 
     if cur.arraysize > 0:
         row_headers = [x[0] for x in cur.description]
@@ -178,9 +195,11 @@ def addRegistrations():
     conn = createDBConnection()
 
     cur = conn.cursor()
-    executeString = "SELECT * FROM users WHERE address='" + request.json["address"] + "' AND signature='" + \
-                    request.json["signature"] + "'"
-    cur.execute(executeString)
+    #executeString = "SELECT * FROM users WHERE address='" + request.json["address"] + "' AND signature='" + \
+    #                request.json["signature"] + "'"
+    sql = "SELECT * FROM users WHERE address= %s AND signature= %s"
+    val = (request.json["address"], request.json["signature"])
+    cur.execute(sql, val)
     rv = cur.fetchall()
     if cur.arraysize > 0:
         sql = "INSERT INTO registrations (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
