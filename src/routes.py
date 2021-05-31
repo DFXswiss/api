@@ -159,7 +159,7 @@ def getRegistrations():
 
         return json.dumps(json_data, indent=2)
     else:
-        abort(404, 'No registrations with requested legacy address found!')
+        abort(404, 'No registrations with requested legacy address and signature found!')
 
 
 # Add wallet registrations
@@ -206,8 +206,7 @@ def addRegistrations():
     rv = cur.fetchall()
     if cur.arraysize > 0:
         sql = "INSERT INTO registrations (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
-        val = (request.json["address"] + request.json["asset"], request.json["address"], request.json["iban"],
-               request.json["asset"], "123")
+        val = (request.json["address"]+":"+request.json["asset"], request.json["address"],request.json["iban"], request.json["asset"], "123")
         cur.execute(sql, val)
         conn.commit()
 
