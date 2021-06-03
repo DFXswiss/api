@@ -18,7 +18,6 @@ def index():
     return redirect("https://app.swaggerhub.com/apis-docs/meintest/Api-Fiat2Defichain/1")
     #return render_template("index.html")
 
-
 @app.server.route('/api/v1/user', methods=["GET"])
 def getOrCeateUser():
     """Returns user's information from legacy address"""
@@ -60,21 +59,18 @@ def getOrCeateUser():
 
         if mail is not None and not isParameterSQL(mail):
             json_data[0]['mail'] = mail
-          #  executeString = "UPDATE users SET mail = '" + mail + "' WHERE address = '" + legacyAddress + "'"
             sql = "UPDATE users SET mail = %s WHERE address = %s"
             val = (mail, legacyAddress)
             cur.execute(sql, val)
             conn.commit()
         if wallet_id is not None and not isParameterSQL(wallet_id):
             json_data[0]['wallet_id'] = int(wallet_id)
-          #  executeString = "UPDATE users SET wallet_id = '" + wallet_id + "' WHERE address = '" + legacyAddress + "'"
             sql = "UPDATE users SET wallet_id = %s WHERE address = %s"
             val = (wallet_id, legacyAddress)
             cur.execute(sql, val)
             conn.commit()
         if used_ref is not None and not isParameterSQL(used_ref):
             json_data[0]['used_ref'] = int(used_ref)
-            #executeString = "UPDATE users SET used_ref = '" + used_ref + "' WHERE address = '" + legacyAddress + "'"
             sql = "UPDATE users SET used_ref = %s WHERE address = %s"
             val = (used_ref, legacyAddress)
             cur.execute(sql, val)
@@ -91,7 +87,7 @@ def getOrCeateUser():
         ref_int = cur.rowcount
         newUser["ref"] = ref_int + 1
         newUser["signature"] = signature
-        if mail is not None: newUser["mail"] = mail
+        if mail is not None and "@" in mail: newUser["mail"] = mail
         if wallet_id is not None: newUser["wallet_id"] = int(wallet_id)
         if used_ref is not None: newUser["used_ref"] = int(used_ref)
         newUser["IP"] = ip
