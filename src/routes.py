@@ -9,14 +9,12 @@ from flask import abort, request
 from bson.json_util import dumps
 import config_file
 
-
-# TODO Swagger Docu
-
 @app.server.route("/")
 @app.server.route("/index")
 def index():
     return redirect("https://app.swaggerhub.com/apis-docs/meintest/Api-Fiat2Defichain/1")
 
+#GET/POST/PUT address
 @app.server.route('/api/v1/user/<address>', methods=["GET","POST","PUT"])
 def getOrCeateUser(address):
     query_parameters = request.args
@@ -118,125 +116,114 @@ def getOrCeateUser(address):
 
         if mail is not None and not isParameterSQL(mail):
             sql = "UPDATE users SET mail =%s WHERE address =%s"
-            val = (mail, signature)
+            val = (mail, address.split(':')[0])
             cur.execute(sql, val)
             conn.commit()
         if wallet_id is not None and not isParameterSQL(wallet_id):
            sql = "UPDATE users SET wallet_id =%s WHERE address =%s"
-           val = (wallet_id, signature)
+           val = (wallet_id, address.split(':')[0])
            cur.execute(sql, val)
            conn.commit()
         if used_ref is not None and not isParameterSQL(used_ref):
             sql = "UPDATE users SET used_ref =%s WHERE address =%s"
-            val = (used_ref, signature)
+            val = (used_ref, address.split(':')[0])
             cur.execute(sql, val)
             conn.commit()
         return dumps(newUser, indent=2)
 
-# Get wallet registrations
-@app.server.route('/api/v1/registrations', methods=['GET'])
-def getRegistrations():
-    query_parameters = request.args
-    legacyAddress = query_parameters.get('legacyAddress')
-    signature = query_parameters.get('signature')
-    if legacyAddress is None or isParameterSQL(legacyAddress):
-        abort(400, 'Legacy address is missing')
-    if signature is None or isParameterSQL(signature):
-        abort(400, "Signature not found")
-    if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
-        abort(400, 'Legacy address is wrong')
-    if signature is None or isParameterSQL(signature):
-        abort(400, 'Signature is missing')
-    if not len(signature) == 88 or not signature.endswith('='):
-        abort(400, 'Signature is wrong')
+# GET/PUT registrations
+@app.server.route('/api/v1/<address>/registrations', methods=['GET',"PUT"])
+def getRegistrations(address):
+    if request.method == 'GET':
+        query_parameters = request.args
+        signature = query_parameters.get('signature')
+        if address is None or isParameterSQL(address):
+            abort(400, 'Legacy address is missing')
+        if signature is None or isParameterSQL(signature):
+            abort(400, "Signature not found")
+        if not address.startswith('8') or not len(address) == 34:
+            abort(400, 'Legacy address is wrong')
+        if signature is None or isParameterSQL(signature):
+            abort(400, 'Signature is missing')
+        if not len(signature) == 88 or not signature.endswith('='):
+            abort(400, 'Signature is wrong')
 
-    conn = createDBConnection()
-    cur = conn.cursor()
-    sql = "SELECT * FROM users where address=%s AND signature=%s"
-    val = (legacyAddress, signature)
-    cur.execute(sql, val)
-
-    if cur.arraysize > 0:
-        conn.close()
-        connReg = createDBConnection()
-        curReg = connReg.cursor()
-        sqlReg = "SELECT * FROM registrations where address=%s"
-        curReg.execute(sqlReg, (legacyAddress,))
-
-        if curReg.arraysize > 0:
-            row_headers = [x[0] for x in curReg.description]
-            rv = curReg.fetchall()
-            json_data = []
-            for result in rv:
-                json_data.append(dict(zip(row_headers, result)))
-            for json_created in json_data:
-                json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
-            return json.dumps(json_data, indent=2)
-        else:
-            abort(404, 'No registrations with requested legacy address and signature found!')
-    else:
-        abort(404, 'No User with that legacy address and signature found!')
-
-# Add wallet registrations
-@app.server.route('/api/v1/addRegistration', methods=['POST'])
-def addRegistrations():
-    badFormat = 0
-    message = 'Following data are missing:'
-    if not request.json:
-        abort(400, 'Data is no JSON')
-    if not 'address' in request.json:
-        message += ', address '
-        badFormat = 1
-    if not 'signature' in request.json:
-        message += ', signature '
-        badFormat = 1
-    if not 'iban' in request.json:
-        message += ', iban '
-        badFormat = 1
-    if not 'asset' in request.json:
-        message += ', asset '
-        badFormat = 1
-
-    if badFormat == 1:
-        abort(400, message)
-
-    if request.json["address"] is None or isParameterSQL(request.json["address"]):
-        abort(400, 'Legacy address is missing')
-    if not request.json["address"].startswith('8') or not len(request.json["address"]) == 34:
-        abort(400, 'Legacy address is wrong')
-
-    if request.json["signature"] is None or isParameterSQL(request.json["signature"]):
-        abort(400, "Signature not found")
-    if not len(request.json["signature"]) == 88 or not request.json["signature"].endswith('='):
-        abort(400, 'Signature is wrong')
-
-    conn = createDBConnection()
-
-    cur = conn.cursor()
-
-    sql = "SELECT * FROM users WHERE address= %s AND signature= %s"
-    val = (request.json["address"], request.json["signature"])
-    cur.execute(sql, val)
-    rv = cur.fetchall()
-    if cur.arraysize > 0:
-        sql = "INSERT INTO registrations (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
-        val = (request.json["address"]+":"+request.json["asset"], request.json["address"],request.json["iban"], request.json["asset"], "123")
+        conn = createDBConnection()
+        cur = conn.cursor()
+        sql = "SELECT * FROM users where address=%s AND signature=%s"
+        val = (address, signature)
         cur.execute(sql, val)
-        conn.commit()
 
-    return jsonify({'success': "true"}), 201
+        if cur.arraysize > 0:
+            conn.close()
+            connReg = createDBConnection()
+            curReg = connReg.cursor()
+            sqlReg = "SELECT * FROM registrations where address=%s"
+            curReg.execute(sqlReg, (address,))
 
+            if curReg.arraysize > 0:
+                row_headers = [x[0] for x in curReg.description]
+                rv = curReg.fetchall()
+                json_data = []
+                for result in rv:
+                    json_data.append(dict(zip(row_headers, result)))
+                for json_created in json_data:
+                    json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+                return json.dumps(json_data, indent=2)
+            else:
+                abort(404, 'No registrations with requested legacy address and signature found!')
+        else:
+            abort(404, 'No User with that legacy address and signature found!')
+    elif request.method == 'PUT':
+        badFormat = 0
+        message = 'Following data are missing:'
+        if not request.json:
+            abort(400, 'Data is no JSON')
+        if not 'signature' in request.json:
+            message += ', signature '
+            badFormat = 1
+        if not 'iban' in request.json:
+            message += ', iban '
+            badFormat = 1
+        if not 'asset' in request.json:
+            message += ', asset '
+            badFormat = 1
+
+        if badFormat == 1:
+            abort(400, message)
+
+        if address is None or isParameterSQL(address):
+            abort(400, 'Legacy address is missing')
+        if not address.startswith('8') or not len(address) == 34:
+            abort(400, 'Legacy address is wrong')
+        if request.json["signature"] is None or isParameterSQL(request.json["signature"]):
+            abort(400, "Signature not found")
+        if not len(request.json["signature"]) == 88 or not request.json["signature"].endswith('='):
+            abort(400, 'Signature is wrong')
+
+        conn = createDBConnection()
+        cur = conn.cursor()
+        sql = "SELECT * FROM users WHERE address= %s AND signature= %s"
+        val = (address, request.json["signature"])
+        cur.execute(sql, val)
+        rv = cur.fetchall()
+        if cur.arraysize > 0:
+            sql = "INSERT INTO registrations (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
+            val = (address + ":" + request.json["asset"], address, request.json["iban"],
+                   request.json["asset"], "123")
+            cur.execute(sql, val)
+            conn.commit()
+        return jsonify({'success': "true"}), 201
 
 # Get all data
 @app.server.route('/api/v1/allData', methods=['GET'])
 def getAllData():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
+
     if isParameterSQL(auth):
         abort(401, 'Unauthorized')
-
     conn = createDBConnection()
-
     cur = conn.cursor()
     executeString = "SELECT * from admin"
     cur.execute(executeString)
@@ -247,7 +234,6 @@ def getAllData():
         json_admin = []
         for result in rv:
             json_admin.append(dict(zip(row_headers, result)))
-
         if json_admin[0]['oAuth'] == auth:
             executeString = "SELECT * from registrations"
             cur.execute(executeString)
@@ -306,7 +292,6 @@ def getAllData():
         else:
             abort(401, 'Unauthorized')
 
-
 # Add/Update Transaction
 @app.server.route('/api/v1/transaction', methods=['POST'])
 def addTransactiom():
@@ -314,9 +299,7 @@ def addTransactiom():
     auth = query_parameters.get('oAuth')
     if isParameterSQL(auth):
         abort(401, 'Unauthorized')
-
     conn = createDBConnection()
-
     cur = conn.cursor()
     executeString = "SELECT * from admin"
     cur.execute(executeString)
@@ -327,9 +310,7 @@ def addTransactiom():
         json_admin = []
         for result in rv:
             json_admin.append(dict(zip(row_headers, result)))
-
         if json_admin[0]['oAuth'] == auth:
-
             badFormat = 0
             message = 'Following data are missing:'
             if not request.json:
@@ -357,11 +338,9 @@ def addTransactiom():
                 badFormat = 1
             if badFormat == 1:
                 abort(400, message)
-
                 return dumps("", indent=2)
     else:
         abort(401, 'Unauthorized')
-
 
 def createDBConnection():
     try:
@@ -375,7 +354,6 @@ def createDBConnection():
     except mysql.connector.Error as e:
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
-
 
 def isParameterSQL(param):
     if ('SELECT' in param or
