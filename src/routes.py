@@ -16,74 +16,94 @@ import config_file
 @app.server.route("/index")
 def index():
     return redirect("https://app.swaggerhub.com/apis-docs/meintest/Api-Fiat2Defichain/1")
-    #return render_template("index.html")
 
-@app.server.route('/api/v1/user', methods=["GET"])
-def getOrCeateUser():
-    """Returns user's information from legacy address"""
+@app.server.route('/api/v1/user/<address>', methods=["GET","POST","PUT"])
+def getOrCeateUser(address):
     query_parameters = request.args
-    legacyAddress = query_parameters.get('legacyAddress')
-    signature = query_parameters.get('signature')
-    mail = query_parameters.get('mail')
-    ip = query_parameters.get('ip')
-    wallet_id = query_parameters.get('wallet_id')
-    used_ref = query_parameters.get('used_ref')
-
-    if legacyAddress is None or isParameterSQL(legacyAddress):
-        abort(400, 'Legacy address is missing')
-    if not legacyAddress.startswith('8') or not len(legacyAddress) == 34:
-        abort(400, 'Legacy address is wrong')
-    if signature is None or isParameterSQL(signature):
-        abort(400, 'Signature is missing')
-    if not len(signature) == 88 or not signature.endswith('='):
-        abort(400, 'Signature is wrong')
-    if ip is None or isParameterSQL(ip):
-        abort(400, 'IP is missing')
-
-    conn = createDBConnection()
-
-    cur = conn.cursor()
-
-    sql = "SELECT * FROM users where address = %s"
-    val = (legacyAddress,)
-    cur.execute(sql, val)
-
-    rv = cur.fetchall()
-    if len(rv) > 0:
-        row_headers = [x[0] for x in cur.description]
-        json_data = []
-        for result in rv:
-            json_data.append(dict(zip(row_headers, result)))
-
-        json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
-
-        if mail is not None and not isParameterSQL(mail):
-            json_data[0]['mail'] = mail
-            sql = "UPDATE users SET mail = %s WHERE address = %s"
-            val = (mail, legacyAddress)
-            cur.execute(sql, val)
-            conn.commit()
-        if wallet_id is not None and not isParameterSQL(wallet_id):
-            json_data[0]['wallet_id'] = int(wallet_id)
-            sql = "UPDATE users SET wallet_id = %s WHERE address = %s"
-            val = (wallet_id, legacyAddress)
-            cur.execute(sql, val)
-            conn.commit()
-        if used_ref is not None and not isParameterSQL(used_ref):
-            json_data[0]['used_ref'] = int(used_ref)
-            sql = "UPDATE users SET used_ref = %s WHERE address = %s"
-            val = (used_ref, legacyAddress)
-            cur.execute(sql, val)
-            conn.commit()
-        # return the results!
-        return json.dumps(json_data[0], indent=2)
+    if request.method == 'GET':
+        signature = query_parameters.get('signature')
+        conn = createDBConnection()
+        cur = conn.cursor()
+        sql = "SELECT * FROM users where address = %s and signature = %s"
+        val = (address.split(':')[0],signature)
+        cur.execute(sql, val)
+        rv = cur.fetchall()
+        if len(rv) > 0:
+            row_headers = [x[0] for x in cur.description]
+            json_data = []
+            for result in rv:
+                json_data.append(dict(zip(row_headers, result)))
+            json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
+            return json.dumps(json_data[0], indent=2)
+        else:
+            abort(404, 'No User with that legacy address and signature found!')
+    elif request.method == 'POST':
+        signature = query_parameters.get('signature')
+        conn = createDBConnection()
+        cur = conn.cursor()
+        sql = "SELECT * FROM users where address = %s and signature = %s"
+        val = (address.split(':')[0],signature)
+        cur.execute(sql, val)
+        rv = cur.fetchall()
+        if len(rv) > 0:
+            mail = query_parameters.get('mail')
+            wallet_id = query_parameters.get('wallet_id')
+            used_ref = query_parameters.get('used_ref')
+            ip = query_parameters.get('ip')
+            row_headers = [x[0] for x in cur.description]
+            json_data = []
+            for result in rv:
+                json_data.append(dict(zip(row_headers, result)))
+            json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
+            if mail is not None and not isParameterSQL(mail):
+                json_data[0]['mail'] = mail
+                sql = "UPDATE users SET mail = %s WHERE address = %s"
+                val = (mail, address.split(':')[0])
+                cur.execute(sql, val)
+                conn.commit()
+            if wallet_id is not None and not isParameterSQL(wallet_id):
+                json_data[0]['wallet_id'] = int(wallet_id)
+                sql = "UPDATE users SET wallet_id = %s WHERE address = %s"
+                val = (wallet_id, address.split(':')[0])
+                cur.execute(sql, val)
+                conn.commit()
+            if used_ref is not None and not isParameterSQL(used_ref):
+                json_data[0]['used_ref'] = int(used_ref)
+                sql = "UPDATE users SET used_ref = %s WHERE address = %s"
+                val = (used_ref, address.split(':')[0])
+                cur.execute(sql, val)
+                conn.commit()
+            if ip is not None and not isParameterSQL(ip):
+                json_data[0]['ip'] = int(ip)
+                sql = "UPDATE users SET ip = %s WHERE address = %s"
+                val = (ip, address.split(':')[0])
+                cur.execute(sql, val)
+                conn.commit()
+            return json.dumps(json_data[0], indent=2)
     else:
+        signature = query_parameters.get('signature')
+        if address.split(':')[0] is None or isParameterSQL(address.split(':')[0]):
+            abort(400, 'Legacy address is missing')
+        if signature is None or isParameterSQL(signature):
+            abort(400, "Signature not found")
+        if not address.split(':')[0].startswith('8') or not len(address.split(':')[0]) == 34:
+            abort(400, 'Legacy address is wrong')
+        if signature is None or isParameterSQL(signature):
+            abort(400, 'Signature is missing')
+        if not len(signature) == 88 or not signature.endswith('='):
+            abort(400, 'Signature is wrong')
+
         newUser = {}
-        newUser["address"] = legacyAddress
+        mail = query_parameters.get('mail')
+        ip = query_parameters.get('ip')
+        wallet_id = query_parameters.get('wallet_id')
+        used_ref = query_parameters.get('used_ref')
+        newUser["address"] = address.split(':')[0]
         executeString = "SELECT * FROM users"
+        conn = createDBConnection()
         cur = conn.cursor()
         cur.execute(executeString)
-        rv = cur.fetchall()
+        rv =cur.fetchall()
         ref_int = cur.rowcount
         newUser["ref"] = ref_int + 1
         newUser["signature"] = signature
@@ -91,7 +111,6 @@ def getOrCeateUser():
         if wallet_id is not None: newUser["wallet_id"] = int(wallet_id)
         if used_ref is not None: newUser["used_ref"] = int(used_ref)
         newUser["IP"] = ip
-
         sql = "INSERT INTO users (address, ref, signature, IP) VALUES (%s, %s, %s, %s)"
         val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"])
         cur.execute(sql, val)
@@ -99,21 +118,20 @@ def getOrCeateUser():
 
         if mail is not None and not isParameterSQL(mail):
             sql = "UPDATE users SET mail =%s WHERE address =%s"
-            val = (mail, legacyAddress)
+            val = (mail, signature)
             cur.execute(sql, val)
             conn.commit()
         if wallet_id is not None and not isParameterSQL(wallet_id):
            sql = "UPDATE users SET wallet_id =%s WHERE address =%s"
-           val = (wallet_id, legacyAddress)
+           val = (wallet_id, signature)
            cur.execute(sql, val)
            conn.commit()
         if used_ref is not None and not isParameterSQL(used_ref):
             sql = "UPDATE users SET used_ref =%s WHERE address =%s"
-            val = (used_ref, legacyAddress)
+            val = (used_ref, signature)
             cur.execute(sql, val)
             conn.commit()
         return dumps(newUser, indent=2)
-
 
 # Get wallet registrations
 @app.server.route('/api/v1/registrations', methods=['GET'])
