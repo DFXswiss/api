@@ -158,7 +158,7 @@ def getRegistrations(address):
             conn.close()
             connReg = createDBConnection()
             curReg = connReg.cursor()
-            sqlReg = "SELECT * FROM registrations where address=%s"
+            sqlReg = "SELECT * FROM fiat2crypto where address=%s"
             curReg.execute(sqlReg, (address,))
 
             if curReg.arraysize > 0:
@@ -208,11 +208,14 @@ def getRegistrations(address):
         cur.execute(sql, val)
         rv = cur.fetchall()
         if cur.arraysize > 0:
-            sql = "INSERT INTO registrations (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
+            sql = "INSERT INTO fiat2crypto (id, address, iban, asset, hash) VALUES (%s, %s, %s, %s, %s)"
             val = (address + ":" + request.json["asset"], address, request.json["iban"],
                    request.json["asset"], "123")
             cur.execute(sql, val)
             conn.commit()
+        else:
+            abort(404, 'No User with that legacy address and signature found!')
+
         return jsonify({'success': "true"}), 201
 
 # Get all data
