@@ -5,7 +5,7 @@ import sys
 import hashlib
 from flask import abort, request
 from app import app
-from src import config_file
+import config_file
 
 @app.server.route("/")
 @app.server.route("/index")
