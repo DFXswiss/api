@@ -86,9 +86,6 @@ def addUser():
     checkAddressAndSignature(request.json['address'],request.json['signature'])
     newUser = {}
     newUser["address"] = request.json['address']
-    mail = request.json['mail']
-    wallet_id = request.json['wallet_id']
-    used_ref = request.json['used_ref']
     ip = request.json['ip']
     executeString = "SELECT * FROM users"
     conn = createDBConnection()
@@ -98,30 +95,33 @@ def addUser():
     ref_int = cur.rowcount
     newUser["ref"] = ref_int + 1
     newUser["signature"] = request.json['signature']
-    if mail is not None and "@" in mail: newUser["mail"] = mail
-    if wallet_id is not None: newUser["wallet_id"] = int(wallet_id)
-    if used_ref is not None: newUser["used_ref"] = int(used_ref)
     newUser["IP"] = ip
     sql = "INSERT INTO users (address, ref, signature, IP) VALUES (%s, %s, %s, %s)"
     val = (newUser["address"], newUser["ref"], newUser["signature"], newUser["IP"])
     cur.execute(sql, val)
     conn.commit()
 
-    if mail is not None and not isParameterSQL(mail):
-        sql = "UPDATE users SET mail =%s WHERE address =%s"
-        val = (mail, request.json['address'])
-        cur.execute(sql, val)
-        conn.commit()
-    if wallet_id is not None and not isParameterSQL(wallet_id):
-        sql = "UPDATE users SET wallet_id =%s WHERE address =%s"
-        val = (wallet_id, request.json['address'])
-        cur.execute(sql, val)
-        conn.commit()
-    if used_ref is not None and not isParameterSQL(used_ref):
-        sql = "UPDATE users SET used_ref =%s WHERE address =%s"
-        val = (used_ref, request.json['address'])
-        cur.execute(sql, val)
-        conn.commit()
+    if 'mail' in request.json:
+        if not isParameterSQL(request.json['mail']):
+            newUser["mail"] = request.json['mail']
+            sql = "UPDATE users SET mail =%s WHERE address =%s"
+            val = (request.json['mail'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    if 'wallet_id' in request.json:
+        if not isParameterSQL(request.json['wallet_id']):
+            newUser["wallet_id"] = int(request.json['wallet_id'])
+            sql = "UPDATE users SET wallet_id =%s WHERE address =%s"
+            val = (request.json['wallet_id'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    if 'used_ref' in request.json:
+        if not isParameterSQL(request.json['used_ref']):
+            newUser["used_ref"] = int(request.json['used_ref'])
+            sql = "UPDATE users SET used_ref =%s WHERE address =%s"
+            val = (request.json['used_ref'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
     return jsonify(newUser)
 
 # GET registrations
