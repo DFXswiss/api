@@ -13,7 +13,7 @@ def index():
     return redirect("https://app.swaggerhub.com/apis-docs/meintest/Api-Fiat2Defichain/1")
 
 #GET POST PUT User
-@app.server.route('/api/v1/user/<address>', methods=["GET","POST"])
+@app.server.route('/api/v1/user/<address>', methods=['GET','POST'])
 def getOrUpdateUser(address):
 
     query_parameters = request.args
@@ -81,9 +81,8 @@ def getOrUpdateUser(address):
         return jsonify(json_data[0])
 
 #GET POST PUT User
-@app.server.route('/api/v1/user', methods=["PUT"])
+@app.server.route('/api/v1/user', methods=['PUT'])
 def addUser():
-
     checkAddressAndSignature(request.json['address'],request.json['signature'])
     newUser = {}
     newUser["address"] = request.json['address']
