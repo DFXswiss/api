@@ -14,12 +14,9 @@ def index():
 
 #GET User
 @app.server.route('/api/v1/user/<address>', methods=['GET'])
-def getUser(address,internal_signature):
+def getUser(address):
     query_parameters = request.args
-    if internal_signature is None:
-        signature = query_parameters.get('signature').replace(" ","+")
-    else:
-        signature = internal_signature
+    signature = query_parameters.get('signature').replace(" ","+")
     checkAddressAndSignature(address,signature)
     conn = createDBConnection()
     cur = conn.cursor()
@@ -39,8 +36,8 @@ def getUser(address,internal_signature):
     else:
         abort(404, 'No User with that legacy address and signature found!')
 
-#POST User
-@app.server.route('/api/v1/user/<address>', methods=['POST'])
+#Update User
+@app.server.route('/api/v1/user/<address>', methods=['PUT'])
 def updateUser(address):
     query_parameters = request.args
     signature = query_parameters.get('signature').replace(" ","+")
@@ -125,8 +122,8 @@ def updateUser(address):
                 conn.commit()
     return jsonify(getUser(address).json)
 
-#PUT User
-@app.server.route('/api/v1/user', methods=['PUT'])
+#Add User
+@app.server.route('/api/v1/user', methods=['POST'])
 def addUser():
     signature =request.json['signature']
     checkAddressAndSignature(request.json['address'],signature)
@@ -167,7 +164,7 @@ def addUser():
             val = (newUser['used_ref'], request.json['address'])
             cur.execute(sql, val)
             conn.commit()
-    return jsonify(getUser(newUser["address"],newUser["signature"]).json)
+    return jsonify(getUserInternal(newUser["address"],newUser["signature"]).json)
 
 # GET registrations
 @app.server.route('/api/v1/user/<address>/registrations', methods=['GET'])
@@ -245,8 +242,8 @@ def getFiat2CryptoById(address,id):
         abort(404, 'No User with that legacy address and signature found!')
 
 
-# PUT registrations
-@app.server.route('/api/v1/user/<address>/fiat2crypto', methods=['PUT'])
+# POST registrations
+@app.server.route('/api/v1/user/<address>/fiat2crypto', methods=['POST'])
 def addFiat2Crypto(address):
     query_parameters = request.args
     signature = query_parameters.get('signature').replace(" ","+")
@@ -265,8 +262,8 @@ def addFiat2Crypto(address):
         abort(400, message)
     checkAddressAndSignature(address,signature)
     hash = hashlib.sha256((address+signature+str(getAssetByKey(request.json["asset"])[0].json[0]['id'])+str(request.json["iban"])).encode('utf-8')).hexdigest()
-    hash.upper()
-    hash = hash[0:4] + '-' + hash[4:8].upper+ '-' + hash[8:12]
+    hash= hash.upper()
+    hash = hash[0:4] + '-' + hash[4:8]+ '-' + hash[8:12]
     conn = createDBConnection()
     cur = conn.cursor()
     sql = "SELECT * FROM users WHERE address= %s AND signature= %s"
@@ -364,6 +361,10 @@ def getCrypto2FiatByID(address,id):
                 json_data.append(dict(zip(row_headers, result)))
             for json_created in json_data:
                 json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+                if 'deposit_id' in json_created:
+                    if not json_created['deposit_id'] is None:
+                        json_created['deposit_address'] = getDepositByKey(json_created['deposit_id'])[0].json[0]['address']
+                    del json_created['deposit_id']
             return jsonify(json_data)
         else:
             jsonify([]), 404, 'No crypto2fiat with requested legacy address and signature found!'
@@ -371,7 +372,7 @@ def getCrypto2FiatByID(address,id):
         abort(404, 'No User with that legacy address and signature found!')
 
 # GET crypto2fiat
-@app.server.route('/api/v1/user/<address>/crypto2fiat', methods=['PUT'])
+@app.server.route('/api/v1/user/<address>/crypto2fiat', methods=['POST'])
 def addCrypto2Fiat(address):
     query_parameters = request.args
     signature = query_parameters.get('signature').replace(" ","+")
@@ -598,7 +599,7 @@ def getAllData():
         else:
             abort(401, 'Unauthorized')
 
-# Add/Update Transaction
+# Add Transaction
 @app.server.route('/api/v1/transaction', methods=['POST'])
 def addTransactiom():
     query_parameters = request.args
@@ -649,7 +650,7 @@ def addTransactiom():
         abort(401, 'Invalid token')
 
 #PUT asset
-@app.server.route('/api/v1/assets', methods=['PUT'])
+@app.server.route('/api/v1/assets', methods=['POST'])
 def addAsset():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -707,7 +708,7 @@ def addAsset():
             abort(401, 'Unauthorized')
 
 # POST asset with key
-@app.server.route('/api/v1/assets/<key>', methods=['POST'])
+@app.server.route('/api/v1/assets/<key>', methods=['PUT'])
 def updateAsset(key):
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -790,7 +791,7 @@ def updateAsset(key):
                 abort(401, 'Unauthorized')
 
 #PUT asset
-@app.server.route('/api/v1/fiat', methods=['PUT'])
+@app.server.route('/api/v1/fiat', methods=['POST'])
 def addFiat():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -838,7 +839,7 @@ def addFiat():
             abort(401, 'Unauthorized')
 
 # POST asset with key
-@app.server.route('/api/v1/fiat/<key>', methods=['POST'])
+@app.server.route('/api/v1/fiat/<key>', methods=['PUT'])
 def updateFiat(key):
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -907,7 +908,7 @@ def updateFiat(key):
                 abort(401, 'Unauthorized')
 
 # PUT asset
-@app.server.route('/api/v1/deposit', methods=['PUT'])
+@app.server.route('/api/v1/deposit', methods=['POST'])
 def addDeposit():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -944,7 +945,7 @@ def addDeposit():
             abort(401, 'Unauthorized')
 
 # POST asset with key
-@app.server.route('/api/v1/deposit/<key>', methods=['POST'])
+@app.server.route('/api/v1/deposit/<key>', methods=['PUT'])
 def updateDeposit(key):
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -1091,3 +1092,24 @@ def getDepositByKey(key):
         for json_created in json_deposit:
             del json_created['created']
         return jsonify(json_deposit), 201
+
+def getUserInternal(address,internal_signature):
+    signature = internal_signature
+    checkAddressAndSignature(address,signature)
+    conn = createDBConnection()
+    cur = conn.cursor()
+    sql = "SELECT * FROM users WHERE address = %s AND signature = %s"
+    val = (address,signature)
+    cur.execute(sql, val)
+    rv = cur.fetchall()
+    if len(rv) > 0:
+        row_headers = [x[0] for x in cur.description]
+        json_data = []
+        for result in rv:
+            json_data.append(dict(zip(row_headers, result)))
+        json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
+        json_data[0]['ref'] = str(json_data[0]['ref']).zfill(6)[0:3] + '-'+ str(json_data[0]['ref']).zfill(6)[3:7]
+        json_data[0]['used_ref'] = str(json_data[0]['used_ref']).zfill(6)[0:3] + '-' + str(json_data[0]['used_ref']).zfill(6)[3:7]
+        return jsonify(json_data[0])
+    else:
+        abort(404, 'No User with that legacy address and signature found!')
