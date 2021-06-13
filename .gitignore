@@ -131,3 +131,4 @@ dmypy.json
 
 #Config file
 src/config_file.py
+config_file.py

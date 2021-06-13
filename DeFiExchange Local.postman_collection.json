@@ -1,7 +1,7 @@
 {
 	"info": {
-		"_postman_id": "f56a6a0c-01ba-4198-80d0-d533f19a0a17",
-		"name": "DeFiExchange",
+		"_postman_id": "9e92b60e-ed2f-4aa4-b9d0-19de35e2f5d4",
+		"name": "DeFiExchange Local",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -12,15 +12,23 @@
 					"name": "user",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "signature",
+								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
+								"type": "text"
+							}
+						],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -52,13 +60,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -82,7 +92,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"address\": \"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1ys\",\r\n    \"signature\": \"Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU0c=\",\r\n    \"ip\": \"190.190.190\",\r\n    \"firstname\": \"\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"ref\": \"000-001\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
+							"raw": "{\r\n    \"address\": \"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYxv1ys\",\r\n    \"signature\": \"Hwj3sJjBxMOnkPxskGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU0c=\",\r\n    \"ip\": \"190.190.190\",\r\n    \"firstname\": \"\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"ref\": \"000-001\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -90,13 +100,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -118,13 +130,15 @@
 							}
 						],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/registration",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/registration",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -153,13 +167,15 @@
 							}
 						],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -183,13 +199,15 @@
 							}
 						],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -223,13 +241,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -262,13 +282,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/0",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/0",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -298,13 +320,15 @@
 							}
 						],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -328,13 +352,15 @@
 							}
 						],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -360,7 +386,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"iban\": \"DE123\",\r\n\"asset\": \"DFI\"\r\n}",
+							"raw": "{\r\n\"iban\": \"DE123\",\r\n\"fiat\": \"usd\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -368,19 +394,21 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
 								"user",
 								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-								"fiat2crypto"
+								"crypto2fiat"
 							]
 						}
 					},
@@ -407,13 +435,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/0",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/0",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -437,13 +467,15 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/asset",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -459,13 +491,15 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset/DFI",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/asset/DFI",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -487,13 +521,15 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/fiat",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/fiat",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -509,13 +545,15 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/fiat/eur",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/fiat/eur",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -536,26 +574,7 @@
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/allData?oAuth=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",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"allData"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
+						"url": null
 					},
 					"response": []
 				},
@@ -574,13 +593,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset?oAuth=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",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/asset?oAuth=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",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -611,13 +632,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset/DFI?oAuth=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",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/asset/DFI?oAuth=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",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -649,13 +672,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/fiat?oAuth=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",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/fiat?oAuth=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",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -686,13 +711,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset/DFI?oAuth=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",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/asset/DFI?oAuth=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",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -724,13 +751,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/deposit?oAuth=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",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/deposit?oAuth=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",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
@@ -761,13 +790,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/deposit/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv112?oAuth=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",
-							"protocol": "https",
+							"raw": "http://127.0.0.1:8050/api/v1/deposit/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv112?oAuth=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",
+							"protocol": "http",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"127",
+								"0",
+								"0",
+								"1"
 							],
+							"port": "8050",
 							"path": [
 								"api",
 								"v1",
