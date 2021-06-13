@@ -1,3 +1,4 @@
+from flask_cors import cross_origin
 from werkzeug.utils import redirect
 from flask import jsonify
 import mysql.connector
@@ -7,21 +8,24 @@ from flask import abort, request
 from app import app
 import config_file
 
+
 @app.server.route("/")
 @app.server.route("/index")
 def index():
     return redirect("https://app.swaggerhub.com/apis-docs/meintest/Api-Fiat2Defichain/1")
 
-#GET User
+
+# GET User
 @app.server.route('/api/v1/user/<address>', methods=['GET'])
+@cross_origin()
 def getUser(address):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     conn = createDBConnection()
     cur = conn.cursor()
     sql = "SELECT * FROM users WHERE address = %s AND signature = %s"
-    val = (address,signature)
+    val = (address, signature)
     cur.execute(sql, val)
     rv = cur.fetchall()
     if len(rv) > 0:
@@ -30,22 +34,25 @@ def getUser(address):
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
         json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
-        json_data[0]['ref'] = str(json_data[0]['ref']).zfill(6)[0:3] + '-'+ str(json_data[0]['ref']).zfill(6)[3:7]
-        json_data[0]['used_ref'] = str(json_data[0]['used_ref']).zfill(6)[0:3] + '-' + str(json_data[0]['used_ref']).zfill(6)[3:7]
+        json_data[0]['ref'] = str(json_data[0]['ref']).zfill(6)[0:3] + '-' + str(json_data[0]['ref']).zfill(6)[3:7]
+        json_data[0]['used_ref'] = str(json_data[0]['used_ref']).zfill(6)[0:3] + '-' + str(
+            json_data[0]['used_ref']).zfill(6)[3:7]
         return jsonify(json_data[0])
     else:
         abort(404, 'No User with that legacy address and signature found!')
 
-#Update User
+
+# Update User
 @app.server.route('/api/v1/user/<address>', methods=['PUT'])
+@cross_origin()
 def updateUser(address):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     conn = createDBConnection()
     cur = conn.cursor()
     sql = "SELECT * FROM users WHERE address = %s AND signature = %s"
-    val = (address,signature)
+    val = (address, signature)
     cur.execute(sql, val)
     rv = cur.fetchall()
     json_data = []
@@ -54,7 +61,7 @@ def updateUser(address):
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
         json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
-        if 'mail' in  request.json:
+        if 'mail' in request.json:
             if not isParameterSQL(request.json['mail']):
                 if '@' in request.json['mail']:
                     json_data[0]['mail'] = request.json['mail']
@@ -122,14 +129,16 @@ def updateUser(address):
                 conn.commit()
     return jsonify(getUser(address).json)
 
-#Add User
+
+# Add User
 @app.server.route('/api/v1/user', methods=['POST'])
+@cross_origin()
 def addUser():
-    signature =request.json['signature']
-    checkAddressAndSignature(request.json['address'],signature)
+    signature = request.json['signature']
+    checkAddressAndSignature(request.json['address'], signature)
     newUser = {}
     newUser["address"] = request.json['address']
-    ip = request.json['ip']
+    ip = request.remote_addr
     executeString = "SELECT * FROM users"
     conn = createDBConnection()
     cur = conn.cursor()
@@ -164,25 +173,71 @@ def addUser():
             val = (newUser['used_ref'], request.json['address'])
             cur.execute(sql, val)
             conn.commit()
-    return jsonify(getUserInternal(newUser["address"],newUser["signature"]).json)
+    if 'firstname' in request.json:
+        if not isParameterSQL(request.json['firstname']):
+            newUser[0]['firstname'] = request.json['firstname']
+            sql = "UPDATE users SET firstname = %s WHERE address = %s"
+            val = (request.json['firstname'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    if 'surname' in request.json:
+        if not isParameterSQL(request.json['surname']):
+            newUser[0]['surname'] = request.json['surname']
+            sql = "UPDATE users SET surname = %s WHERE address = %s"
+            val = (request.json['surname'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    if 'street' in request.json:
+        if not isParameterSQL(request.json['street']):
+            newUser[0]['street'] = request.json['street']
+            sql = "UPDATE users SET street = %s WHERE address = %s"
+            val = (request.json['street'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    if 'location' in request.json:
+        if not isParameterSQL(request.json['location']):
+            newUser[0]['location'] = request.json['location']
+            sql = "UPDATE users SET location = %s WHERE address = %s"
+            val = (request.json['location'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    if 'zip' in request.json:
+        if not isParameterSQL(request.json['zip']):
+            newUser[0]['zip'] = int(request.json['zip'])
+            sql = "UPDATE users SET zip = %s WHERE address = %s"
+            val = (request.json['zip'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    if 'phone_number' in request.json:
+        if not isParameterSQL(request.json['phone_number']):
+            newUser[0]['phone_number'] = request.json['phone_number']
+            sql = "UPDATE users SET phone_number = %s WHERE address = %s"
+            val = (request.json['phone_number'], request.json['address'])
+            cur.execute(sql, val)
+            conn.commit()
+    return jsonify(getUserInternal(newUser["address"], newUser["signature"]).json)
+
 
 # GET registrations
-@app.server.route('/api/v1/user/<address>/registrations', methods=['GET'])
-def getRegistrations(address):
+@app.server.route('/api/v1/user/<address>/registration', methods=['GET'])
+@cross_origin()
+def getRegistration(address):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
+    signature = query_parameters.get('signature').replace(" ", "+")
     checkAddressAndSignature(address, signature)
     json_all = {"fiat2crypto": [], "crypto2fiat": []}
     json_all['fiat2crypto'] = getFiat2Crypto(address).json
     json_all['crypto2fiat'] = getCrypto2Fiat(address).json
     return jsonify(json_all), 201
 
+
 # GET registrations
 @app.server.route('/api/v1/user/<address>/fiat2crypto', methods=['GET'])
+@cross_origin()
 def getFiat2Crypto(address):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     conn = createDBConnection()
     cur = conn.cursor()
     sql = "SELECT * FROM users WHERE address=%s AND signature=%s"
@@ -202,18 +257,24 @@ def getFiat2Crypto(address):
                 json_data.append(dict(zip(row_headers, result)))
             for json_created in json_data:
                 json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+                if json_created['active'] == 0:
+                    json_created['active'] = False
+                else:
+                    json_created['active'] = True
             return jsonify(json_data)
         else:
             abort(404, 'No registrations with requested legacy address and signature found!')
     else:
         abort(404, 'No User with that legacy address and signature found!')
 
+
 # GET registrations
 @app.server.route('/api/v1/user/<address>/fiat2crypto/<id>', methods=['GET'])
-def getFiat2CryptoById(address,id):
+@cross_origin()
+def getFiat2CryptoById(address, id):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     if isParameterSQL(id):
         abort(400, 'Invalid id')
     conn = createDBConnection()
@@ -226,7 +287,7 @@ def getFiat2CryptoById(address,id):
         connReg = createDBConnection()
         curReg = connReg.cursor()
         sqlReg = "SELECT * FROM fiat2crypto WHERE address=%s AND id=%s"
-        curReg.execute(sqlReg, (address,id))
+        curReg.execute(sqlReg, (address, id))
         if curReg.arraysize > 0:
             row_headers = [x[0] for x in curReg.description]
             rv = curReg.fetchall()
@@ -235,6 +296,10 @@ def getFiat2CryptoById(address,id):
                 json_data.append(dict(zip(row_headers, result)))
             for json_created in json_data:
                 json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+                if json_created['active'] == 0:
+                    json_created['active'] = False
+                else:
+                    json_created['active'] = True
             return jsonify(json_data)
         else:
             abort(404, 'No registrations with requested legacy address and signature found!')
@@ -244,10 +309,11 @@ def getFiat2CryptoById(address,id):
 
 # POST registrations
 @app.server.route('/api/v1/user/<address>/fiat2crypto', methods=['POST'])
+@cross_origin()
 def addFiat2Crypto(address):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     badFormat = 0
     message = 'Following data are missing:'
     if not request.json:
@@ -260,10 +326,11 @@ def addFiat2Crypto(address):
         badFormat = 1
     if badFormat == 1:
         abort(400, message)
-    checkAddressAndSignature(address,signature)
-    hash = hashlib.sha256((address+signature+str(getAssetByKey(request.json["asset"])[0].json[0]['id'])+str(request.json["iban"])).encode('utf-8')).hexdigest()
-    hash= hash.upper()
-    hash = hash[0:4] + '-' + hash[4:8]+ '-' + hash[8:12]
+    checkAddressAndSignature(address, signature)
+    hash = hashlib.sha256((address + signature + str(getAssetByKey(request.json["asset"])[0].json[0]['id']) + str(
+        request.json["iban"])).encode('utf-8')).hexdigest()
+    hash = hash.upper()
+    hash = hash[0:4] + '-' + hash[4:8] + '-' + hash[8:12]
     conn = createDBConnection()
     cur = conn.cursor()
     sql = "SELECT * FROM users WHERE address= %s AND signature= %s"
@@ -272,8 +339,9 @@ def addFiat2Crypto(address):
     rv = cur.fetchall()
     if cur.arraysize > 0:
         sql = "INSERT INTO fiat2crypto (id, address, iban, asset, bank_usage) VALUES (%s, %s, %s, %s, %s)"
-        val = (address + ":" + str(getAssetByKey(request.json["asset"])[0].json[0]['id']), address, request.json["iban"],
-               getAssetByKey(request.json["asset"])[0].json[0]['id'],hash )
+        val = (
+        address + ":" + str(getAssetByKey(request.json["asset"])[0].json[0]['id']), address, request.json["iban"],
+        getAssetByKey(request.json["asset"])[0].json[0]['id'], hash)
         cur.execute(sql, val)
         conn.commit()
     else:
@@ -292,15 +360,16 @@ def addFiat2Crypto(address):
             json_data.append(dict(zip(row_headers, result)))
         for json_created in json_data:
             json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
-    return jsonify(json_data),201
+    return jsonify(json_data), 201
 
 
 # GET crypto2fiat
 @app.server.route('/api/v1/user/<address>/crypto2fiat', methods=['GET'])
+@cross_origin()
 def getCrypto2Fiat(address):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     conn = createDBConnection()
     cur = conn.cursor()
     sql = "SELECT * FROM users WHERE address=%s AND signature=%s"
@@ -322,22 +391,30 @@ def getCrypto2Fiat(address):
                 json_data.append(dict(zip(row_headers, result)))
             for json_created in json_data:
                 json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+                if json_created['active'] == 0:
+                    json_created['active'] = False
+                else:
+                    json_created['active'] = True
                 if 'deposit_id' in json_created:
                     if not json_created['deposit_id'] is None:
-                        json_created['deposit_address'] = getDepositByKey(json_created['deposit_id'])[0].json[0]['address']
+                        json_created['deposit_address'] = getDepositByKey(json_created['deposit_id'])[0].json[0][
+                            'address']
                     del json_created['deposit_id']
+
             return jsonify(json_data)
         else:
             jsonify([]), 404, 'No crypto2fiat with requested legacy address and signature found!'
     else:
         abort(404, 'No User with that legacy address and signature found!')
 
+
 # GET crypto2fiat by id
 @app.server.route('/api/v1/user/<address>/crypto2fiat/<id>', methods=['GET'])
-def getCrypto2FiatByID(address,id):
+@cross_origin()
+def getCrypto2FiatByID(address, id):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     if isParameterSQL(id):
         abort(400, 'Invalid id')
     conn = createDBConnection()
@@ -351,7 +428,7 @@ def getCrypto2FiatByID(address,id):
         connReg = createDBConnection()
         curReg = connReg.cursor()
         sqlReg = "SELECT * FROM crypto2fiat WHERE address=%s AND id=%s"
-        curReg.execute(sqlReg, (address,id))
+        curReg.execute(sqlReg, (address, id))
 
         if curReg.arraysize > 0:
             row_headers = [x[0] for x in curReg.description]
@@ -361,9 +438,14 @@ def getCrypto2FiatByID(address,id):
                 json_data.append(dict(zip(row_headers, result)))
             for json_created in json_data:
                 json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+                if json_created['active'] == 0:
+                    json_created['active'] = False
+                else:
+                    json_created['active'] = True
                 if 'deposit_id' in json_created:
                     if not json_created['deposit_id'] is None:
-                        json_created['deposit_address'] = getDepositByKey(json_created['deposit_id'])[0].json[0]['address']
+                        json_created['deposit_address'] = getDepositByKey(json_created['deposit_id'])[0].json[0][
+                            'address']
                     del json_created['deposit_id']
             return jsonify(json_data)
         else:
@@ -371,12 +453,14 @@ def getCrypto2FiatByID(address,id):
     else:
         abort(404, 'No User with that legacy address and signature found!')
 
+
 # GET crypto2fiat
 @app.server.route('/api/v1/user/<address>/crypto2fiat', methods=['POST'])
+@cross_origin()
 def addCrypto2Fiat(address):
     query_parameters = request.args
-    signature = query_parameters.get('signature').replace(" ","+")
-    checkAddressAndSignature(address,signature)
+    signature = query_parameters.get('signature').replace(" ", "+")
+    checkAddressAndSignature(address, signature)
     badFormat = 0
     message = 'Following data are missing:'
     if not request.json:
@@ -390,9 +474,9 @@ def addCrypto2Fiat(address):
     if badFormat == 1:
         abort(400, message)
 
-    checkAddressAndSignature(address,signature)
+    checkAddressAndSignature(address, signature)
     if getFiatByKey(request.json["fiat"])[0] == '[]':
-       abort(400, 'Fiat is not available')
+        abort(400, 'Fiat is not available')
 
     conn = createDBConnection()
     cur = conn.cursor()
@@ -413,10 +497,11 @@ def addCrypto2Fiat(address):
             del json_created['created']
         if json_deposit != []:
             sql = "INSERT INTO crypto2fiat (id, address, fiat,iban, deposit_id) VALUES (%s, %s, %s, %s, %s)"
-            val = (request.json['iban'] + ":" + str(getFiatByKey(request.json['fiat'])[0].json[0]['id']), address, request.json["fiat"],request.json["iban"],json_deposit[0]['id'])
+            val = (request.json['iban'] + ":" + str(getFiatByKey(request.json['fiat'])[0].json[0]['id']), address,
+                   str(getFiatByKey(request.json['fiat'])[0].json[0]['id']), request.json["iban"], json_deposit[0]['id'])
             cur.execute(sql, val)
             sql = "UPDATE deposit_address SET used =1 WHERE id=%s"
-            val = (json_deposit[0]['id'], )
+            val = (json_deposit[0]['id'],)
             cur.execute(sql, val)
             conn.commit()
         else:
@@ -424,10 +509,13 @@ def addCrypto2Fiat(address):
     else:
         abort(404, 'No User with that legacy address and signature found!')
 
-    return jsonify(getCrypto2FiatByID(address,request.json['iban'] + ":" + str(getFiatByKey(request.json['fiat'])[0].json[0]['id'])).json), 201
+    return jsonify(getCrypto2FiatByID(address, request.json['iban'] + ":" + str(
+        getFiatByKey(request.json['fiat'])[0].json[0]['id'])).json), 201
+
 
 # GET all assets
-@app.server.route('/api/v1/assets', methods=['GET'])
+@app.server.route('/api/v1/asset', methods=['GET'])
+@cross_origin()
 def getAllAssets():
     conn = createDBConnection()
     cur = conn.cursor()
@@ -441,20 +529,30 @@ def getAllAssets():
             json_assets.append(dict(zip(row_headers, result)))
         for json_created in json_assets:
             del json_created['created']
+            if json_created['buyable'] == 0:
+                json_created['buyable'] = False
+            else:
+                json_created['buyable'] = True
+            if json_created['sellable'] == 0:
+                json_created['sellable'] = False
+            else:
+                json_created['sellable'] = True
         return jsonify(json_assets), 201
 
+
 # GET asset with key
-@app.server.route('/api/v1/assets/<key>', methods=['GET'])
+@app.server.route('/api/v1/asset/<key>', methods=['GET'])
+@cross_origin()
 def getAssetByKey(key):
     if key is None or isParameterSQL(key):
         abort(400, 'Invalid key')
     conn = createDBConnection()
     cur = conn.cursor(buffered=True)
-    if IsInt(key):
+    if isInt(key):
         sql = "SELECT * FROM token_info WHERE id= %s"
     else:
         sql = "SELECT * FROM token_info WHERE name= %s"
-    val = (key, )
+    val = (key,)
     cur.execute(sql, val)
     conn.commit()
     if cur.arraysize > 0:
@@ -465,10 +563,20 @@ def getAssetByKey(key):
             json_assets.append(dict(zip(row_headers, result)))
         for json_created in json_assets:
             del json_created['created']
+            if json_created['buyable'] == 0:
+                json_created['buyable'] = False
+            else:
+                json_created['buyable'] = True
+            if json_created['sellable'] == 0:
+                json_created['sellable'] = False
+            else:
+                json_created['sellable'] = True
         return jsonify(json_assets), 201
+
 
 # GET all assets
 @app.server.route('/api/v1/fiat', methods=['GET'])
+@cross_origin()
 def getAllFiat():
     conn = createDBConnection()
     cur = conn.cursor()
@@ -482,21 +590,27 @@ def getAllFiat():
             json_assets.append(dict(zip(row_headers, result)))
         for json_created in json_assets:
             del json_created['created']
+            if json_created['enable'] == 0:
+                json_created['enable'] = False
+            else:
+                json_created['enable'] = True
         return jsonify(json_assets), 201
+
 
 # GET fiat with key
 @app.server.route('/api/v1/fiat/<key>', methods=['GET'])
+@cross_origin()
 def getFiatByKey(key):
     if key is None or isParameterSQL(key):
         abort(400, 'Invalid key')
     conn = createDBConnection()
     cur = conn.cursor(buffered=True)
 
-    if IsInt(key):
+    if isInt(key):
         sql = "SELECT * FROM fiat_info WHERE id= %s"
     else:
         sql = "SELECT * FROM fiat_info WHERE name= %s"
-    val = (key, )
+    val = (key,)
     cur.execute(sql, val)
     conn.commit()
     if cur.arraysize > 0:
@@ -509,8 +623,10 @@ def getFiatByKey(key):
             del json_created['created']
         return jsonify(json_fiat), 201
 
+
 # Get all data
 @app.server.route('/api/v1/allData', methods=['GET'])
+@cross_origin()
 def getAllData():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -539,7 +655,12 @@ def getAllData():
                 for result in rv:
                     json_fiat2crypto.append(dict(zip(row_headers, result)))
                 for json_created in json_fiat2crypto:
+                    if json_created['active'] == 0:
+                        json_created['active'] = False
+                    else:
+                        json_created['active'] = True
                     json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
+
 
             executeString = "SELECT * FROM crypto2fiat"
             cur.execute(executeString)
@@ -551,6 +672,10 @@ def getAllData():
                 for result in rv:
                     json_crypto2fiat.append(dict(zip(row_headers, result)))
                 for json_created in json_crypto2fiat:
+                    if json_created['active'] == 0:
+                        json_created['active'] = False
+                    else:
+                        json_created['active'] = True
                     json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
 
             executeString = "SELECT * FROM users"
@@ -589,18 +714,21 @@ def getAllData():
                 for json_created in json_transactions:
                     json_created['created'] = json_created['created'].strftime("%Y-%m-%dT%H:%M:%S")
 
-            json_all = {"fiat2crypto": [],"crypto2fiat": [], "users": [], "wallets": [], "transactions": []}
+            json_all = {"fiat2crypto": [], "crypto2fiat": [], "users": [], "wallets": [], "transactions": []}
+
             json_all['fiat2crypto'] = json_fiat2crypto
             json_all['crypto2fiat'] = json_crypto2fiat
             json_all['users'] = json_users
             json_all['wallets'] = json_wallets
             json_all['transactions'] = json_transactions
-            return jsonify(json_all),201
+            return jsonify(json_all), 201
         else:
             abort(401, 'Unauthorized')
 
+
 # Add Transaction
 @app.server.route('/api/v1/transaction', methods=['POST'])
+@cross_origin()
 def addTransactiom():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -645,12 +773,14 @@ def addTransactiom():
                 badFormat = 1
             if badFormat == 1:
                 abort(400, message)
-                return jsonify(""),201
+                return jsonify(""), 201
     else:
         abort(401, 'Invalid token')
 
-#PUT asset
-@app.server.route('/api/v1/assets', methods=['POST'])
+
+# PUT asset
+@app.server.route('/api/v1/asset', methods=['POST'])
+@cross_origin()
 def addAsset():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -700,15 +830,18 @@ def addAsset():
                 abort(400, "Sellable must be '0' or '1'")
 
             sql = "INSERT INTO token_info (id, name, type, buyable, sellable) VALUES (%s, %s, %s, %s, %s)"
-            val = (request.json['id'],request.json['name'],request.json['type'],request.json['buyable'],request.json['sellable'])
+            val = (request.json['id'], request.json['name'], request.json['type'], request.json['buyable'],
+                   request.json['sellable'])
             cur.execute(sql, val)
             conn.commit()
-            return getAssetByKey(request.json["id"]),201
+            return getAssetByKey(request.json["id"]), 201
         else:
             abort(401, 'Unauthorized')
 
+
 # POST asset with key
-@app.server.route('/api/v1/assets/<key>', methods=['PUT'])
+@app.server.route('/api/v1/asset/<key>', methods=['PUT'])
+@cross_origin()
 def updateAsset(key):
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -734,64 +867,66 @@ def updateAsset(key):
 
                 if 'id' in request.json:
                     if not isParameterSQL(request.json['id']):
-                            changeID = False
-                            if IsInt(key):
-                                sql = "UPDATE token_info SET id =%s WHERE id= %s"
-                                changeID=True
-                            else:
-                                sql = "UPDATE token_info SET id =%s WHERE name= %s"
-                            val = (request.json['id'],key)
-                            cur.execute(sql, val)
-                            conn.commit()
-                            if changeID: key = request.json['id']
+                        changeID = False
+                        if isInt(key):
+                            sql = "UPDATE token_info SET id =%s WHERE id= %s"
+                            changeID = True
+                        else:
+                            sql = "UPDATE token_info SET id =%s WHERE name= %s"
+                        val = (request.json['id'], key)
+                        cur.execute(sql, val)
+                        conn.commit()
+                        if changeID: key = request.json['id']
                 if 'name' in request.json:
                     if not isParameterSQL(request.json['name']):
                         changeName = False
-                        if IsInt(key):
+                        if isInt(key):
                             sql = "UPDATE token_info SET name =%s WHERE id= %s"
                         else:
                             sql = "UPDATE token_info SET name =%s WHERE name= %s"
                             changeName = True
-                        val = (request.json['name'],key)
+                        val = (request.json['name'], key)
                         cur.execute(sql, val)
                         conn.commit()
                         if changeName: key = request.json['name']
                 if 'type' in request.json:
                     if not isParameterSQL(request.json['type']):
                         if request.json['type'] == 'Coin' or request.json['type'] == 'DAT' or request.json['type'] == 'DCT':
-                            if IsInt(key):
+                            if isInt(key):
                                 sql = "UPDATE token_info SET type =%s WHERE id= %s"
                             else:
                                 sql = "UPDATE token_info SET type =%s WHERE name= %s"
-                            val = (request.json['type'],key)
+                            val = (request.json['type'], key)
                             cur.execute(sql, val)
                             conn.commit()
                 if 'buyable' in request.json:
                     if not isParameterSQL(request.json['buyable']):
                         if request.json['buyable'] == '0' or request.json['buyable'] == '1':
-                            if IsInt(key):
+                            if isInt(key):
                                 sql = "UPDATE token_info SET buyable =%s WHERE id= %s"
                             else:
                                 sql = "UPDATE token_info SET buyable =%s WHERE name= %s"
-                            val = (request.json['buyable'],key)
+                            val = (request.json['buyable'], key)
                             cur.execute(sql, val)
                             conn.commit()
                 if 'sellable' in request.json:
                     if not isParameterSQL(request.json['sellable']):
                         if request.json['sellable'] == '0' or request.json['sellable'] == '1':
-                            if IsInt(key):
+                            if isInt(key):
                                 sql = "UPDATE token_info SET sellable =%s WHERE id= %s"
                             else:
                                 sql = "UPDATE token_info SET sellable =%s WHERE name= %s"
-                            val = (request.json['sellable'],key)
+                            val = (request.json['sellable'], key)
                             cur.execute(sql, val)
                             conn.commit()
-                return getAssetByKey(key),201
+                return getAssetByKey(key), 201
             else:
                 abort(401, 'Unauthorized')
 
-#PUT asset
+
+# PUT asset
 @app.server.route('/api/v1/fiat', methods=['POST'])
+@cross_origin()
 def addFiat():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -831,15 +966,17 @@ def addFiat():
                 abort(400, "Enable must be '0' or '1'")
 
             sql = "INSERT INTO fiat_info (id, name, enable) VALUES (%s, %s, %s)"
-            val = (request.json['id'],request.json['name'],request.json['enable'])
+            val = (request.json['id'], request.json['name'], request.json['enable'])
             cur.execute(sql, val)
             conn.commit()
-            return jsonify(getFiatByKey(request.json["id"])[0].json),201
+            return jsonify(getFiatByKey(request.json["id"])[0].json), 201
         else:
             abort(401, 'Unauthorized')
 
+
 # POST asset with key
 @app.server.route('/api/v1/fiat/<key>', methods=['PUT'])
+@cross_origin()
 def updateFiat(key):
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -867,28 +1004,28 @@ def updateFiat(key):
 
                 if 'id' in request.json:
                     if not isParameterSQL(request.json['id']):
-                            if key != request.json['id']:
-                                if getFiatByKey(request.json['id'])[0].json != []:
-                                    abort(400, "ID already exists")
-                            changeID = False
-                            if IsInt(key):
-                                sql = "UPDATE fiat_info SET id =%s WHERE id= %s"
-                                changeID=True
-                            else:
-                                sql = "UPDATE fiat_info SET id =%s WHERE name= %s"
-                            val = (request.json['id'],key)
-                            cur.execute(sql, val)
-                            conn.commit()
-                            if changeID: key = request.json['id']
+                        if key != request.json['id']:
+                            if getFiatByKey(request.json['id'])[0].json != []:
+                                abort(400, "ID already exists")
+                        changeID = False
+                        if isInt(key):
+                            sql = "UPDATE fiat_info SET id =%s WHERE id= %s"
+                            changeID = True
+                        else:
+                            sql = "UPDATE fiat_info SET id =%s WHERE name= %s"
+                        val = (request.json['id'], key)
+                        cur.execute(sql, val)
+                        conn.commit()
+                        if changeID: key = request.json['id']
                 if 'name' in request.json:
                     if not isParameterSQL(request.json['name']):
                         changeName = False
-                        if IsInt(key):
+                        if isInt(key):
                             sql = "UPDATE fiat_info SET name =%s WHERE id= %s"
                         else:
                             sql = "UPDATE fiat_info SET name =%s WHERE name= %s"
                             changeName = True
-                        val = (request.json['name'],key)
+                        val = (request.json['name'], key)
                         cur.execute(sql, val)
                         conn.commit()
                         if changeName: key = request.json['name']
@@ -896,19 +1033,21 @@ def updateFiat(key):
                     if not isParameterSQL(request.json['enable']):
                         if request.json['enable'] != '0' and request.json['enable'] != '1':
                             abort(400, "Enable must be '0' or '1'")
-                        if IsInt(key):
+                        if isInt(key):
                             sql = "UPDATE fiat_info SET enable =%s WHERE id= %s"
                         else:
                             sql = "UPDATE fiat_info SET enable =%s WHERE name= %s"
-                        val = (request.json['enable'],key)
+                        val = (request.json['enable'], key)
                         cur.execute(sql, val)
                         conn.commit()
-                return jsonify(getFiatByKey(key)[0].json),201
+                return jsonify(getFiatByKey(key)[0].json), 201
             else:
                 abort(401, 'Unauthorized')
 
+
 # PUT asset
 @app.server.route('/api/v1/deposit', methods=['POST'])
+@cross_origin()
 def addDeposit():
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -944,8 +1083,10 @@ def addDeposit():
         else:
             abort(401, 'Unauthorized')
 
+
 # POST asset with key
 @app.server.route('/api/v1/deposit/<key>', methods=['PUT'])
+@cross_origin()
 def updateDeposit(key):
     query_parameters = request.args
     auth = query_parameters.get('oAuth')
@@ -977,7 +1118,7 @@ def updateDeposit(key):
                             if getFiatByKey(request.json['id'])[0].json != []:
                                 abort(400, "ID already exists")
                         changeID = False
-                        if IsInt(key):
+                        if isInt(key):
                             sql = "UPDATE deposit_address SET id =%s WHERE id= %s"
                             changeID = True
                         else:
@@ -989,7 +1130,7 @@ def updateDeposit(key):
                 if 'address' in request.json:
                     if not isParameterSQL(request.json['address']):
                         changeAddress = False
-                        if IsInt(key):
+                        if isInt(key):
                             sql = "UPDATE deposit_address SET address =%s WHERE id= %s"
                         else:
                             sql = "UPDATE deposit_address SET address =%s WHERE address= %s"
@@ -1002,7 +1143,7 @@ def updateDeposit(key):
                     if not isParameterSQL(request.json['enable']):
                         if request.json['used'] != '0' and request.json['used'] != '1':
                             abort(400, "Used must be '0' or '1'")
-                        if IsInt(key):
+                        if isInt(key):
                             sql = "UPDATE deposit_address SET used =%s WHERE id= %s"
                         else:
                             sql = "UPDATE deposit_address SET used =%s WHERE address= %s"
@@ -1013,7 +1154,8 @@ def updateDeposit(key):
             else:
                 abort(401, 'Unauthorized')
 
-#Help functions
+
+# Help functions
 
 def createDBConnection():
     try:
@@ -1027,6 +1169,7 @@ def createDBConnection():
     except mysql.connector.Error as e:
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
+
 
 def isParameterSQL(param):
     param = str(param).upper()
@@ -1050,14 +1193,16 @@ def isParameterSQL(param):
     else:
         return False
 
-def IsInt(s):
+
+def isInt(s):
     try:
         int(s)
         return True
     except ValueError:
         return False
 
-def checkAddressAndSignature(address,signature):
+
+def checkAddressAndSignature(address, signature):
     if address is None or isParameterSQL(address):
         abort(400, 'Legacy address is missing')
     if signature is None or isParameterSQL(signature):
@@ -1070,17 +1215,18 @@ def checkAddressAndSignature(address,signature):
         abort(400, 'Signature is wrong')
     return True
 
+
 def getDepositByKey(key):
     if key is None or isParameterSQL(key):
         abort(400, 'Invalid key')
     conn = createDBConnection()
     cur = conn.cursor(buffered=True)
 
-    if IsInt(key):
+    if isInt(key):
         sql = "SELECT * FROM deposit_address WHERE id= %s"
     else:
         sql = "SELECT * FROM deposit_address WHERE address= %s"
-    val = (key, )
+    val = (key,)
     cur.execute(sql, val)
     conn.commit()
     if cur.arraysize > 0:
@@ -1093,13 +1239,14 @@ def getDepositByKey(key):
             del json_created['created']
         return jsonify(json_deposit), 201
 
-def getUserInternal(address,internal_signature):
+
+def getUserInternal(address, internal_signature):
     signature = internal_signature
-    checkAddressAndSignature(address,signature)
+    checkAddressAndSignature(address, signature)
     conn = createDBConnection()
     cur = conn.cursor()
     sql = "SELECT * FROM users WHERE address = %s AND signature = %s"
-    val = (address,signature)
+    val = (address, signature)
     cur.execute(sql, val)
     rv = cur.fetchall()
     if len(rv) > 0:
@@ -1108,8 +1255,9 @@ def getUserInternal(address,internal_signature):
         for result in rv:
             json_data.append(dict(zip(row_headers, result)))
         json_data[0]['created'] = json_data[0]['created'].strftime("%Y-%m-%dT%H:%M:%S")
-        json_data[0]['ref'] = str(json_data[0]['ref']).zfill(6)[0:3] + '-'+ str(json_data[0]['ref']).zfill(6)[3:7]
-        json_data[0]['used_ref'] = str(json_data[0]['used_ref']).zfill(6)[0:3] + '-' + str(json_data[0]['used_ref']).zfill(6)[3:7]
+        json_data[0]['ref'] = str(json_data[0]['ref']).zfill(6)[0:3] + '-' + str(json_data[0]['ref']).zfill(6)[3:7]
+        json_data[0]['used_ref'] = str(json_data[0]['used_ref']).zfill(6)[0:3] + '-' + str(
+            json_data[0]['used_ref']).zfill(6)[3:7]
         return jsonify(json_data[0])
     else:
         abort(404, 'No User with that legacy address and signature found!')
