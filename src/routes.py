@@ -8,7 +8,6 @@ from flask import abort, request
 from app import app
 import config_file
 
-
 @app.server.route("/")
 @app.server.route("/index")
 @cross_origin()
