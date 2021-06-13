@@ -7,10 +7,11 @@
 # Config von DB in extra File
 import dash
 import dash_html_components as html
+from src.appIndexString import appIndexStringClass
 
 app = dash.Dash(__name__)
 app.layout =html.Div("")
-#app.index_string = appIndexStringClass.getAppIndexString()
+app.index_string = appIndexStringClass.getAppIndexString()
 
 from routes import *
 
