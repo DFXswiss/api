@@ -1345,6 +1345,8 @@ def updateWallet(wallet_id):
 # Update router
 @app.server.route('/api/v1/update_server', methods=['POST'])
 def webhook():
+    x_hub_signature = request.headers.get('X-Hub-Signature')
+
     auth = request.headers.get('oAuth')
     if isParameterSQL(auth):
         abort(401, 'Invalid token')
@@ -1364,7 +1366,7 @@ def webhook():
                     repo = git.Repo('/home/RobinTorque/api-fiat2defi')
                     origin = repo.remotes.origin
                     origin.pull()
-                    return 'Updated PythonAnywhere successfully', 200
+                    return x_hub_signature, 200
                 else:
                     return 'Wrong event type', 400
 
