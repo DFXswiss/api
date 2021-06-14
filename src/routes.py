@@ -1371,10 +1371,6 @@ def webhook():
 
 # Help functions
 
-# Update router
-@app.server.route('/api/v1/test', methods=['GET'])
-def test():
-    return "juhu"
 
 def createDBConnection():
     try:
