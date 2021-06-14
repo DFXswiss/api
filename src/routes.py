@@ -1346,29 +1346,14 @@ def updateWallet(wallet_id):
 @app.server.route('/api/v1/update_server', methods=['POST'])
 def webhook():
     x_hub_signature = request.headers.get('X-Hub-Signature')
- #test
-    auth = request.headers.get('oAuth')
-    if isParameterSQL(auth):
-        abort(401, 'Invalid token')
-    conn = createDBConnection()
-    cur = conn.cursor()
-    executeString = "SELECT * FROM admin"
-    cur.execute(executeString)
 
-    if cur.arraysize > 0:
-        row_headers = [x[0] for x in cur.description]
-        rv = cur.fetchall()
-        json_admin = []
-        for result in rv:
-            json_admin.append(dict(zip(row_headers, result)))
-            if json_admin[0]['oAuth'] == auth:
-                if request.method == 'POST':
-                    repo = git.Repo('/home/RobinTorque/api-fiat2defi')
-                    origin = repo.remotes.origin
-                    origin.pull()
-                    return x_hub_signature, 200
-                else:
-                    return 'Wrong event type', 400
+    if request.method == 'POST':
+        repo = git.Repo('/home/RobinTorque/api-fiat2defi')
+        origin = repo.remotes.origin
+        origin.pull()
+        return x_hub_signature, 200
+    else:
+        return 'Wrong event type', 400
 
 
 # Help functions
