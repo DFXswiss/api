@@ -1569,7 +1569,7 @@ def getCrypto2FiatInternal(address,signature):
     else:
         abort(404, 'No User with that legacy address and signature found!')
 
-
+#124
 def is_valid_signature(x_hub_signature, data, private_key):
     hash_algorithm, github_signature = x_hub_signature.split('=', 1)
     algorithm = hashlib.__dict__.get(hash_algorithm)
