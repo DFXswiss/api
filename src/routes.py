@@ -1361,7 +1361,7 @@ def webhook():
             json_admin.append(dict(zip(row_headers, result)))
             if json_admin[0]['oAuth'] == auth:
                 if request.method == 'POST':
-                    repo = git.Repo('/user/RobinTorque/files/home/RobinTorque/api-fiat2defi')
+                    repo = git.Repo('/home/RobinTorque/api-fiat2defi')
                     origin = repo.remotes.origin
                     origin.pull()
                     return 'Updated PythonAnywhere successfully', 200
