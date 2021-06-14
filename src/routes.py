@@ -3,11 +3,12 @@ from werkzeug.utils import redirect
 from flask import jsonify
 import mysql.connector
 import sys
-import hashlib
 from flask import abort, request
 from app import app
 import config_file
 import git
+import hmac
+import hashlib
 
 @app.server.route("/")
 @app.server.route("/index")
@@ -1554,3 +1555,13 @@ def getCrypto2FiatInternal(address,signature):
             jsonify([]), 404, 'No crypto2fiat with requested legacy address and signature found!'
     else:
         abort(404, 'No User with that legacy address and signature found!')
+
+
+def is_valid_signature(x_hub_signature, data, private_key):
+    # x_hub_signature and data are from the webhook payload
+    # private key is your webhook secret
+    hash_algorithm, github_signature = x_hub_signature.split('=', 1)
+    algorithm = hashlib.__dict__.get(hash_algorithm)
+    encoded_key = bytes(private_key, 'latin-1')
+    mac = hmac.new(encoded_key, msg=data, digestmod=algorithm)
+    return hmac.compare_digest(mac.hexdigest(), github_signature)
