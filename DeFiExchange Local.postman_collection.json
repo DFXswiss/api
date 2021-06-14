@@ -11,16 +11,25 @@
 				{
 					"name": "user",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
+							"raw": "http://127.0.0.1:8050/api/v1/user",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -32,8 +41,7 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG"
+								"user"
 							]
 						}
 					},
@@ -42,17 +50,26 @@
 				{
 					"name": "updateuser",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "PUT",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"firstname\": \"Test\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
+							"raw": "{\r\n    \"firstname\": \"Test\",\r\n    \"location\": \"asdsd\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"123\",\r\n    \"street\": \"asd\",\r\n    \"surname\": \"asdasd\",\r\n    \"used_ref\": \"000-002\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"123\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -60,7 +77,7 @@
 							}
 						},
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
+							"raw": "http://127.0.0.1:8050/api/v1/user/8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -73,7 +90,7 @@
 								"api",
 								"v1",
 								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG"
+								"8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24"
 							]
 						}
 					},
@@ -82,17 +99,26 @@
 				{
 					"name": "adduser",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"address\": \"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYxv1ys\",\r\n    \"signature\": \"Hwj3sJjBxMOnkPxskGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU0c=\",\r\n    \"ip\": \"190.190.190\",\r\n    \"firstname\": \"\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"ref\": \"000-001\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
+							"raw": "{\r\n    \"ip\": \"190.190.190\",\r\n    \"firstname\": \"\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"ref\": \"000-001\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -119,18 +145,27 @@
 					"response": []
 				},
 				{
-					"name": "registrations",
+					"name": "registration",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/registration",
+							"raw": "http://127.0.0.1:8050/api/v1/registration",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -142,8 +177,6 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"registration"
 							]
 						}
@@ -158,6 +191,21 @@
 				{
 					"name": "fiat2crypto",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
 						"header": [
 							{
@@ -167,7 +215,7 @@
 							}
 						],
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
+							"raw": "http://127.0.0.1:8050/api/v1/fiat2crypto",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -179,8 +227,6 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto"
 							]
 						}
@@ -190,16 +236,25 @@
 				{
 					"name": "fiat2cryptobyid",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
+							"raw": "http://127.0.0.1:8050/api/v1/fiat2crypto/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -211,8 +266,6 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto",
 								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0"
 							]
@@ -223,17 +276,26 @@
 				{
 					"name": "addfiat2crypto",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"iban\": \"DE123\",\r\n\"asset\": \"DFI\"\r\n}",
+							"raw": "{\r\n\"iban\": \"DE12346\",\r\n\"asset\": {\r\n            \"buyable\": true,\r\n            \"id\": 0,\r\n            \"name\": \"DFI\",\r\n            \"sellable\": true,\r\n            \"type\": \"Coin\"\r\n        }\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -241,7 +303,7 @@
 							}
 						},
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
+							"raw": "http://127.0.0.1:8050/api/v1/fiat2crypto",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -253,8 +315,6 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto"
 							]
 						}
@@ -264,14 +324,23 @@
 				{
 					"name": "updatefiat2crypto",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "PUT",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
 							"raw": "{\r\n\"active\": true\r\n}",
@@ -282,7 +351,7 @@
 							}
 						},
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/0",
+							"raw": "http://127.0.0.1:8050/api/v1/fiat2crypto/0",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -294,8 +363,6 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto",
 								"0"
 							]
@@ -311,16 +378,25 @@
 				{
 					"name": "crypto2fiat",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
+							"raw": "http://127.0.0.1:8050/api/v1/crypto2fiat",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -332,9 +408,7 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-								"fiat2crypto"
+								"crypto2fiat"
 							]
 						}
 					},
@@ -343,16 +417,25 @@
 				{
 					"name": "crypto2fiatbyid",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
+							"raw": "http://127.0.0.1:8050/api/v1/crypto2fiat/DE123:2",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -364,10 +447,8 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"crypto2fiat",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0"
+								"DE123:2"
 							]
 						}
 					},
@@ -376,17 +457,33 @@
 				{
 					"name": "addcrypto2fiat",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
 						"header": [
 							{
 								"key": "signature",
 								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
+								"type": "text",
+								"disabled": true
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"iban\": \"DE123\",\r\n\"fiat\": \"usd\"\r\n}",
+							"raw": "{\r\n\"iban\": \"DE123\",\r\n\"fiat\": {\r\n            \"enable\": true,\r\n            \"id\": 2,\r\n            \"name\": \"USD\"\r\n        }\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -394,7 +491,7 @@
 							}
 						},
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat",
+							"raw": "http://127.0.0.1:8050/api/v1/crypto2fiat",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -406,8 +503,6 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"crypto2fiat"
 							]
 						}
@@ -417,17 +512,26 @@
 				{
 					"name": "updatecrypto2fiat",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "PUT",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"active\": true\r\n}",
+							"raw": "{\r\n\"active\": false\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -435,7 +539,7 @@
 							}
 						},
 						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/0",
+							"raw": "http://127.0.0.1:8050/api/v1/crypto2fiat/DE123:0",
 							"protocol": "http",
 							"host": [
 								"127",
@@ -447,10 +551,8 @@
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"crypto2fiat",
-								"0"
+								"DE123:0"
 							]
 						}
 					},
@@ -464,6 +566,9 @@
 				{
 					"name": "asset",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -488,6 +593,9 @@
 				{
 					"name": "assetbyid",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -518,6 +626,9 @@
 				{
 					"name": "fiat",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -542,6 +653,9 @@
 				{
 					"name": "fiatbyid",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -559,257 +673,6 @@
 								"v1",
 								"fiat",
 								"eur"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "admin",
-			"item": [
-				{
-					"name": "allData",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": null
-					},
-					"response": []
-				},
-				{
-					"name": "addasset",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"id\": \"24\",\r\n\"name\": \"DFI\",\r\n\"type\": \"Coin\",\r\n\"buyable\": \"1\",\r\n\"sellable\": \"1\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/asset?oAuth=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",
-							"protocol": "http",
-							"host": [
-								"127",
-								"0",
-								"0",
-								"1"
-							],
-							"port": "8050",
-							"path": [
-								"api",
-								"v1",
-								"asset"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "changeasset",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"buyable\": true,\r\n\"sellable\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/asset/DFI?oAuth=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",
-							"protocol": "http",
-							"host": [
-								"127",
-								"0",
-								"0",
-								"1"
-							],
-							"port": "8050",
-							"path": [
-								"api",
-								"v1",
-								"asset",
-								"DFI"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "addfiat",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"id\": \"24\",\r\n\"name\": \"DFI\"\r\n\"enable\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/fiat?oAuth=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",
-							"protocol": "http",
-							"host": [
-								"127",
-								"0",
-								"0",
-								"1"
-							],
-							"port": "8050",
-							"path": [
-								"api",
-								"v1",
-								"fiat"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "changefiat",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"buyable\": true,\r\n\"sellable\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/asset/DFI?oAuth=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",
-							"protocol": "http",
-							"host": [
-								"127",
-								"0",
-								"0",
-								"1"
-							],
-							"port": "8050",
-							"path": [
-								"api",
-								"v1",
-								"asset",
-								"DFI"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "adddeposit",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"address\": \"123\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/deposit?oAuth=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",
-							"protocol": "http",
-							"host": [
-								"127",
-								"0",
-								"0",
-								"1"
-							],
-							"port": "8050",
-							"path": [
-								"api",
-								"v1",
-								"deposit"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "updatedeposit",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"used\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://127.0.0.1:8050/api/v1/deposit/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv112?oAuth=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",
-							"protocol": "http",
-							"host": [
-								"127",
-								"0",
-								"0",
-								"1"
-							],
-							"port": "8050",
-							"path": [
-								"api",
-								"v1",
-								"deposit",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv112"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
 							]
 						}
 					},
