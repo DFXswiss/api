@@ -1357,9 +1357,10 @@ def webhook():
         json_admin = []
         for result in rv:
             json_admin.append(dict(zip(row_headers, result)))
+
     if 'X-Hub-Signature' in request.headers:
         x_hub_signature = request.headers.get('X-Hub-Signature')
-        if not is_valid_signature(x_hub_signature, request.data, json_admin[0]['oAuth']):
+        if is_valid_signature(x_hub_signature, request.data, json_admin[0]['oAuth']):
             if request.method == 'POST':
                 repo = git.Repo('/home/RobinTorque/api-fiat2defi')
                 origin = repo.remotes.origin
@@ -1367,11 +1368,11 @@ def webhook():
                 return "Juhu", 200
             else:
                 return 'Wrong event type', 400
+        return "Not valid"
+    return "No X-Hub-Signature in header"
 
-#123
+
 # Help functions
-
-
 def createDBConnection():
     try:
         conn = mysql.connector.connect(
@@ -1570,8 +1571,6 @@ def getCrypto2FiatInternal(address,signature):
 
 
 def is_valid_signature(x_hub_signature, data, private_key):
-    # x_hub_signature and data are from the webhook payload
-    # private key is your webhook secret
     hash_algorithm, github_signature = x_hub_signature.split('=', 1)
     algorithm = hashlib.__dict__.get(hash_algorithm)
     encoded_key = bytes(private_key, 'latin-1')
