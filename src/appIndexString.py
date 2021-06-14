@@ -11,6 +11,7 @@ class appIndexStringClass:
                   window.dataLayer = window.dataLayer || [];
                   function gtag(){dataLayer.push(arguments);}
                   gtag('js', new Date());
+                  
                   gtag('config', 'UA-194128823-1');
                 </script>
                 {%metas%}
