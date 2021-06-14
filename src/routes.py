@@ -1346,7 +1346,7 @@ def updateWallet(wallet_id):
 @app.server.route('/api/v1/update_server', methods=['POST'])
 def webhook():
     x_hub_signature = request.headers.get('X-Hub-Signature')
-
+ #test
     auth = request.headers.get('oAuth')
     if isParameterSQL(auth):
         abort(401, 'Invalid token')
