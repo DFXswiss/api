@@ -17,10 +17,12 @@ def index():
 
 
 # GET User
-@app.server.route('/api/v1/user/<address>', methods=['GET'])
+@app.server.route('/api/v1/user', methods=['GET'])
 @cross_origin()
-def getUser(address):
-    signature = request.headers.get('signature').replace(" ", "+")
+def getUser():
+
+    address = request.authorization.get('username')
+    signature = request.authorization.get('password').replace(" ", "+")
     checkAddressAndSignature(address, signature)
     conn = createDBConnection()
     cur = conn.cursor()
@@ -256,6 +258,7 @@ def getFiat2Crypto(address):
                     json_created['active'] = False
                 else:
                     json_created['active'] = True
+                json_created['asset'] = getAssetByKey(json_created['asset']).json[0]
             return jsonify(json_data)
         else:
             abort(404, 'No registrations with requested legacy address and signature found!')
@@ -294,6 +297,7 @@ def getFiat2CryptoById(address, id):
                     json_created['active'] = False
                 else:
                     json_created['active'] = True
+                json_created['asset'] = getAssetByKey(json_created['asset']).json[0]
             return jsonify(json_data)
         else:
             abort(404, 'No registrations with requested legacy address and signature found!')
@@ -414,6 +418,7 @@ def getCrypto2Fiat(address):
                     json_created['active'] = False
                 else:
                     json_created['active'] = True
+                json_created['fiat'] = getFiatByKey(json_created['fiat']).json[0]
                 if 'deposit_id' in json_created:
                     if not json_created['deposit_id'] is None:
                         json_created['deposit_address'] = getDepositByKey(json_created['deposit_id']).json[0][
@@ -460,6 +465,7 @@ def getCrypto2FiatByID(address, id):
                     json_created['active'] = False
                 else:
                     json_created['active'] = True
+                json_created['fiat'] = getFiatByKey(json_created['fiat']).json[0]
                 if 'deposit_id' in json_created:
                     if not json_created['deposit_id'] is None:
                         json_created['deposit_address'] = getDepositByKey(json_created['deposit_id']).json[0][
@@ -626,7 +632,7 @@ def getAssetByKey(key):
                 json_created['sellable'] = False
             else:
                 json_created['sellable'] = True
-        return jsonify(json_assets), 201
+        return jsonify(json_assets)
 
 
 # GET all assets
