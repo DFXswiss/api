@@ -1366,12 +1366,17 @@ def webhook():
                 repo = git.Repo('/home/RobinTorque/api-fiat2defi')
                 origin = repo.remotes.origin
                 origin.pull()
+                print("Hello")
+                print(config_file.pa_user)
+                print(config_file.pa_domain)
+                print(config_file.pa_api_token)
                 response = requests.post(
                     'https://www.pythonanywhere.com/api/v0/user/{username}/webapps/{domain_name}/reload/'.format(
                         username=config_file.pa_user, domain_name=config_file.pa_domain
                     ),
                     headers={'Authorization': 'Token {token}'.format(token=config_file.pa_api_token)}
                 )
+                print("Hello2")
                 if response.status_code == 200:
                     return "Pipeline was published successful 123", 200
                 else:
