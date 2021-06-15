@@ -150,14 +150,14 @@ def addUser():
     signature = request.authorization.get('password').replace(" ", "+")
     checkAddressAndSignature(address, signature)
     newUser = {"address": address}
-    ip = ipinfo = IPInfo()
+    ip = IPInfo()
     executeString = "SELECT * FROM users"
     conn = createDBConnection()
     cur = conn.cursor()
     cur.execute(executeString)
     rv = cur.fetchall()
     newUser["signature"] = signature
-    newUser["IP"] = ip
+    newUser["IP"] = ip.ipaddress
     sql = "INSERT INTO users (address, signature, IP) VALUES (%s, %s, %s)"
     val = (newUser["address"], newUser["signature"], newUser["IP"])
     cur.execute(sql, val)
