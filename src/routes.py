@@ -1387,11 +1387,6 @@ def webhook():
     return "No X-Hub-Signature in header"
 
 
-# Update router
-@app.route('/api/v1/test', methods=['GET'])
-def test():
-    return 'yeah'
-
 # Help functions
 def createDBConnection():
     try:
