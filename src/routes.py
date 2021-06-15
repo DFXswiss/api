@@ -1,5 +1,4 @@
 from flask_cors import cross_origin
-from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import redirect
 from flask import jsonify
 import mysql.connector
@@ -27,8 +26,6 @@ def index():
 def getUser():
     if not 'username' in request.authorization and not 'username' in request.authorization:
         abort(401,"Authorization header is missing")
-    ipinfo = IPInfo()
-    return ipinfo.ipaddress
     address = request.authorization.get('username')
     signature = request.authorization.get('password').replace(" ", "+")
     checkAddressAndSignature(address, signature)
@@ -153,7 +150,7 @@ def addUser():
     signature = request.authorization.get('password').replace(" ", "+")
     checkAddressAndSignature(address, signature)
     newUser = {"address": address}
-    ip = request.json['ip']
+    ip = ipinfo = IPInfo()
     executeString = "SELECT * FROM users"
     conn = createDBConnection()
     cur = conn.cursor()
