@@ -11,15 +11,15 @@ import hmac
 import hashlib
 import requests
 
-@app.server.route("/")
-@app.server.route("/index")
+@app.route("/")
+@app.route("/index")
 @cross_origin()
 def index():
     return redirect("https://app.swaggerhub.com/apis-docs/meintest/Api-Fiat2Defichain/1")
 
 
 # GET User
-@app.server.route('/api/v1/user', methods=['GET'])
+@app.route('/api/v1/user', methods=['GET'])
 @cross_origin()
 def getUser():
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -48,7 +48,7 @@ def getUser():
 
 
 # Update User
-@app.server.route('/api/v1/user/<address>', methods=['PUT'])
+@app.route('/api/v1/user/<address>', methods=['PUT'])
 @cross_origin()
 def updateUser(address):
     if address != request.authorization.get('username'):
@@ -139,7 +139,7 @@ def updateUser(address):
 
 
 # Add User
-@app.server.route('/api/v1/user', methods=['POST'])
+@app.route('/api/v1/user', methods=['POST'])
 @cross_origin()
 def addUser():
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -227,7 +227,7 @@ def addUser():
 
 
 # GET registrations
-@app.server.route('/api/v1/registration', methods=['GET'])
+@app.route('/api/v1/registration', methods=['GET'])
 @cross_origin()
 def getRegistration():
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -241,7 +241,7 @@ def getRegistration():
 
 
 # GET registrations
-@app.server.route('/api/v1/fiat2crypto', methods=['GET'])
+@app.route('/api/v1/fiat2crypto', methods=['GET'])
 @cross_origin()
 def getFiat2Crypto():
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -281,7 +281,7 @@ def getFiat2Crypto():
 
 
 # GET registrations
-@app.server.route('/api/v1/fiat2crypto/<id>', methods=['GET'])
+@app.route('/api/v1/fiat2crypto/<id>', methods=['GET'])
 @cross_origin()
 def getFiat2CryptoById(id):
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -323,7 +323,7 @@ def getFiat2CryptoById(id):
 
 
 # POST registrations
-@app.server.route('/api/v1/fiat2crypto', methods=['POST'])
+@app.route('/api/v1/fiat2crypto', methods=['POST'])
 @cross_origin()
 def addFiat2Crypto():
     global json_data
@@ -386,7 +386,7 @@ def addFiat2Crypto():
 
 
 # PUT fiat2crypto
-@app.server.route('/api/v1/fiat2crypto/<asset>', methods=['PUT'])
+@app.route('/api/v1/fiat2crypto/<asset>', methods=['PUT'])
 @cross_origin()
 def updateFiat2Crypto(asset):
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -416,7 +416,7 @@ def updateFiat2Crypto(asset):
 
 
 # GET crypto2fiat
-@app.server.route('/api/v1/crypto2fiat', methods=['GET'])
+@app.route('/api/v1/crypto2fiat', methods=['GET'])
 @cross_origin()
 def getCrypto2Fiat():
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -464,7 +464,7 @@ def getCrypto2Fiat():
 
 
 # GET crypto2fiat by id
-@app.server.route('/api/v1/crypto2fiat/<id>', methods=['GET'])
+@app.route('/api/v1/crypto2fiat/<id>', methods=['GET'])
 @cross_origin()
 def getCrypto2FiatByID(id):
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -513,7 +513,7 @@ def getCrypto2FiatByID(id):
 
 
 # POST crypto2fiat
-@app.server.route('/api/v1/crypto2fiat', methods=['POST'])
+@app.route('/api/v1/crypto2fiat', methods=['POST'])
 @cross_origin()
 def addCrypto2Fiat():
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -589,7 +589,7 @@ def addCrypto2Fiat():
 
 
 # PUT crypto2fiat
-@app.server.route('/api/v1/crypto2fiat/<id>', methods=['PUT'])
+@app.route('/api/v1/crypto2fiat/<id>', methods=['PUT'])
 @cross_origin()
 def updateCrypto2Fiat(id):
     if not 'username' in request.authorization and not 'username' in request.authorization:
@@ -619,7 +619,7 @@ def updateCrypto2Fiat(id):
 
 
 # GET all assets
-@app.server.route('/api/v1/asset', methods=['GET'])
+@app.route('/api/v1/asset', methods=['GET'])
 @cross_origin()
 def getAllAssets():
     conn = createDBConnection()
@@ -646,7 +646,7 @@ def getAllAssets():
 
 
 # GET asset with key
-@app.server.route('/api/v1/asset/<key>', methods=['GET'])
+@app.route('/api/v1/asset/<key>', methods=['GET'])
 @cross_origin()
 def getAssetByKey(key):
     if key is None or isParameterSQL(key):
@@ -680,7 +680,7 @@ def getAssetByKey(key):
 
 
 # GET all assets
-@app.server.route('/api/v1/fiat', methods=['GET'])
+@app.route('/api/v1/fiat', methods=['GET'])
 @cross_origin()
 def getAllFiat():
     conn = createDBConnection()
@@ -703,7 +703,7 @@ def getAllFiat():
 
 
 # GET fiat with key
-@app.server.route('/api/v1/fiat/<key>', methods=['GET'])
+@app.route('/api/v1/fiat/<key>', methods=['GET'])
 @cross_origin()
 def getFiatByKey(key):
     if key is None or isParameterSQL(key):
@@ -736,7 +736,7 @@ def getFiatByKey(key):
 # ADMIN
 
 # Get all data
-@app.server.route('/api/v1/allData', methods=['GET'])
+@app.route('/api/v1/allData', methods=['GET'])
 @cross_origin()
 def getAllData():
     global json_fiat2crypto, json_crypto2fiat, json_users, json_wallets, json_transactions
@@ -837,7 +837,7 @@ def getAllData():
 
 
 # Add Transaction
-@app.server.route('/api/v1/transaction', methods=['POST'])
+@app.route('/api/v1/transaction', methods=['POST'])
 @cross_origin()
 def addTransactiom():
     auth = request.headers.get('oAuth')
@@ -888,7 +888,7 @@ def addTransactiom():
 
 
 # PUT asset
-@app.server.route('/api/v1/asset', methods=['POST'])
+@app.route('/api/v1/asset', methods=['POST'])
 @cross_origin()
 def addAsset():
     auth = request.headers.get('oAuth')
@@ -948,7 +948,7 @@ def addAsset():
 
 
 # Change asset with key
-@app.server.route('/api/v1/asset/<key>', methods=['PUT'])
+@app.route('/api/v1/asset/<key>', methods=['PUT'])
 @cross_origin()
 def updateAsset(key):
     auth = request.headers.get('oAuth')
@@ -1041,7 +1041,7 @@ def updateAsset(key):
 
 
 # PUT asset
-@app.server.route('/api/v1/fiat', methods=['POST'])
+@app.route('/api/v1/fiat', methods=['POST'])
 @cross_origin()
 def addFiat():
     auth = request.headers.get('oAuth')
@@ -1094,7 +1094,7 @@ def addFiat():
 
 
 # POST asset with key
-@app.server.route('/api/v1/fiat/<key>', methods=['PUT'])
+@app.route('/api/v1/fiat/<key>', methods=['PUT'])
 @cross_origin()
 def updateFiat(key):
     auth = request.headers.get('oAuth')
@@ -1169,7 +1169,7 @@ def updateFiat(key):
 
 
 # Post Deposit
-@app.server.route('/api/v1/deposit', methods=['POST'])
+@app.route('/api/v1/deposit', methods=['POST'])
 @cross_origin()
 def addDeposit():
     auth = request.headers.get('oAuth')
@@ -1207,7 +1207,7 @@ def addDeposit():
 
 
 # Put asset with key
-@app.server.route('/api/v1/deposit/<key>', methods=['PUT'])
+@app.route('/api/v1/deposit/<key>', methods=['PUT'])
 @cross_origin()
 def updateDeposit(key):
     auth = request.headers.get('oAuth')
@@ -1251,7 +1251,7 @@ def updateDeposit(key):
 
 
 # Post Wallet
-@app.server.route('/api/v1/wallet', methods=['POST'])
+@app.route('/api/v1/wallet', methods=['POST'])
 @cross_origin()
 def addWallet():
     auth = request.headers.get('oAuth')
@@ -1298,7 +1298,7 @@ def addWallet():
 
 
 # Put asset with key
-@app.server.route('/api/v1/wallet/<wallet_id>', methods=['PUT'])
+@app.route('/api/v1/wallet/<wallet_id>', methods=['PUT'])
 @cross_origin()
 def updateWallet(wallet_id):
     auth = request.headers.get('oAuth')
@@ -1345,7 +1345,7 @@ def updateWallet(wallet_id):
 
 
 # Update router
-@app.server.route('/api/v1/update_server', methods=['POST'])
+@app.route('/api/v1/update_server', methods=['POST'])
 def webhook():
     conn = createDBConnection()
     cur = conn.cursor()
