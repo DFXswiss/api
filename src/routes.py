@@ -1366,7 +1366,6 @@ def webhook():
                 repo = git.Repo('/home/RobinTorque/api-fiat2defi')
                 origin = repo.remotes.origin
                 origin.pull()
-
                 response = requests.post(
                     'https://www.pythonanywhere.com/api/v0/user/{username}/webapps/{domain_name}/reload/'.format(
                         username=config_file.pa_user, domain_name=config_file.pa_domain
@@ -1381,7 +1380,7 @@ def webhook():
                 return 'Wrong event type', 400
         return "Not valid"
     return "No X-Hub-Signature in header"
-#123
+
 
 # Help functions
 def createDBConnection():
