@@ -9,6 +9,7 @@ import config_file
 import git
 import hmac
 import hashlib
+import requests
 
 @app.server.route("/")
 @app.server.route("/index")
@@ -1365,7 +1366,20 @@ def webhook():
                 repo = git.Repo('/home/RobinTorque/api-fiat2defi')
                 origin = repo.remotes.origin
                 origin.pull()
-                return "Juhu", 200
+
+                response = requests.post(
+                    'https://www.pythonanywhere.com/api/v0/user/{username}/webapps/{domain_name}/reload/'.format(
+                        username=config_file.pa_user, domain_name=config_file.pa_domain
+                    ),
+                    headers={'Authorization': 'Token {token}'.format(token=config_file.pa_api_token)}
+                )
+                if response.status_code == 200:
+                    return "Pipeline was published successful", 200
+                else:
+                    return 'Got unexpected status code {}: {!r}'.format(response.status_code, response.content)
+
+
+
             else:
                 return 'Wrong event type', 400
         return "Not valid"
