@@ -1374,12 +1374,9 @@ def webhook():
                     headers={'Authorization': 'Token {token}'.format(token=config_file.pa_api_token)}
                 )
                 if response.status_code == 200:
-                    return "Pipeline was published successful", 200
+                    return "Pipeline was published successful 123", 200
                 else:
                     return 'Got unexpected status code {}: {!r}'.format(response.status_code, response.content)
-
-
-
             else:
                 return 'Wrong event type', 400
         return "Not valid"
