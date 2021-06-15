@@ -1343,7 +1343,7 @@ def updateWallet(wallet_id):
             else:
                 abort(401, 'Unauthorized')
 
-#123
+
 # Update router
 @app.route('/api/v1/update_server', methods=['POST'])
 def webhook():
@@ -1386,6 +1386,11 @@ def webhook():
         return "Not valid"
     return "No X-Hub-Signature in header"
 
+
+# Update router
+@app.route('/api/v1/test', methods=['GET'])
+def webhook():
+    return 'yeah'
 
 # Help functions
 def createDBConnection():

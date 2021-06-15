@@ -1,6 +1,5 @@
 import dash_html_components as html
 from flask import Flask
-
 from appIndexString import appIndexStringClass
 
 app = Flask(__name__)
