@@ -1389,7 +1389,7 @@ def webhook():
 
 # Update router
 @app.route('/api/v1/test', methods=['GET'])
-def webhook():
+def test():
     return 'yeah'
 
 # Help functions
