@@ -1381,7 +1381,7 @@ def webhook():
                 return 'Wrong event type', 400
         return "Not valid"
     return "No X-Hub-Signature in header"
-#123
+
 
 # Help functions
 def createDBConnection():
