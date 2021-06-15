@@ -1,4 +1,5 @@
 from flask_cors import cross_origin
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import redirect
 from flask import jsonify
 import mysql.connector
@@ -10,6 +11,8 @@ import git
 import hmac
 import hashlib
 import requests
+from flask_ipinfo import IPInfo
+
 
 @app.route("/")
 @app.route("/index")
@@ -24,6 +27,8 @@ def index():
 def getUser():
     if not 'username' in request.authorization and not 'username' in request.authorization:
         abort(401,"Authorization header is missing")
+    ipinfo = IPInfo()
+    return ipinfo.ipaddress
     address = request.authorization.get('username')
     signature = request.authorization.get('password').replace(" ", "+")
     checkAddressAndSignature(address, signature)
@@ -898,7 +903,6 @@ def addAsset():
     cur = conn.cursor()
     executeString = "SELECT * FROM admin"
     cur.execute(executeString)
-
     if cur.arraysize > 0:
         row_headers = [x[0] for x in cur.description]
         rv = cur.fetchall()
@@ -1044,6 +1048,7 @@ def updateAsset(key):
 @app.route('/api/v1/fiat', methods=['POST'])
 @cross_origin()
 def addFiat():
+
     auth = request.headers.get('oAuth')
     if isParameterSQL(auth):
         abort(401, 'Invalid token')
@@ -1366,17 +1371,12 @@ def webhook():
                 repo = git.Repo('/home/RobinTorque/api-fiat2defi')
                 origin = repo.remotes.origin
                 origin.pull()
-                print("Hello")
-                print(config_file.pa_user)
-                print(config_file.pa_domain)
-                print(config_file.pa_api_token)
                 response = requests.post(
                     'https://www.pythonanywhere.com/api/v0/user/{username}/webapps/{domain_name}/reload/'.format(
                         username=config_file.pa_user, domain_name=config_file.pa_domain
                     ),
                     headers={'Authorization': 'Token {token}'.format(token=config_file.pa_api_token)}
                 )
-                print("Hello2")
                 if response.status_code == 200:
                     return "Pipeline was published successful 123", 200
                 else:
