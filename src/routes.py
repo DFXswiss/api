@@ -116,6 +116,13 @@ def updateUser(address):
                 val = (request.json['street'], address)
                 cur.execute(sql, val)
                 conn.commit()
+        if 'house_number' in request.json:
+            if not isParameterSQL(request.json['house_number']):
+                json_data[0]['house_number'] = request.json['house_number']
+                sql = "UPDATE users SET house_number = %s WHERE address = %s"
+                val = (request.json['house_number'], address)
+                cur.execute(sql, val)
+                conn.commit()
         if 'location' in request.json:
             if not isParameterSQL(request.json['location']):
                 json_data[0]['location'] = request.json['location']
@@ -128,6 +135,13 @@ def updateUser(address):
                 json_data[0]['zip'] = request.json['zip']
                 sql = "UPDATE users SET zip = %s WHERE address = %s"
                 val = (request.json['zip'], address)
+                cur.execute(sql, val)
+                conn.commit()
+        if 'country' in request.json:
+            if not isParameterSQL(request.json['country']):
+                json_data[0]['country'] = request.json['country']
+                sql = "UPDATE users SET country = %s WHERE address = %s"
+                val = (request.json['country'], address)
                 cur.execute(sql, val)
                 conn.commit()
         if 'phone_number' in request.json:
@@ -734,6 +748,56 @@ def getFiatByKey(key):
                 json_created['enable'] = True
         return jsonify(json_fiat)
 
+
+
+# GET all assets
+@app.route('/api/v1/country', methods=['GET'])
+@cross_origin()
+def getAllCountries():
+    conn = createDBConnection()
+    cur = conn.cursor()
+    executeString = "SELECT * FROM countries"
+    cur.execute(executeString)
+    if cur.arraysize > 0:
+        row_headers = [x[0] for x in cur.description]
+        rv = cur.fetchall()
+        json_assets = []
+        for result in rv:
+            json_assets.append(dict(zip(row_headers, result)))
+        for json_created in json_assets:
+            del json_created['created']
+            if json_created['enable'] == 0:
+                json_created['enable'] = False
+            else:
+                json_created['enable'] = True
+        return jsonify(json_assets), 201
+
+
+# GET asset with key
+@app.route('/api/v1/country/<symbol>', methods=['GET'])
+@cross_origin()
+def getCountryByKey(symbol):
+    if symbol is None or isParameterSQL(symbol):
+        abort(400, 'Invalid key')
+    conn = createDBConnection()
+    cur = conn.cursor(buffered=True)
+    sql = "SELECT * FROM countries WHERE symbol= %s"
+    val = (symbol,)
+    cur.execute(sql, val)
+
+    if cur.arraysize > 0:
+        row_headers = [x[0] for x in cur.description]
+        rv = cur.fetchall()
+        json_assets = []
+        for result in rv:
+            json_assets.append(dict(zip(row_headers, result)))
+        for json_created in json_assets:
+            del json_created['created']
+            if json_created['enable'] == 0:
+                json_created['enable'] = False
+            else:
+                json_created['enable'] = True
+        return jsonify(json_assets)
 
 # ADMIN
 
