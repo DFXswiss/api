@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "f56a6a0c-01ba-4198-80d0-d533f19a0a17",
+		"_postman_id": "9e92b60e-ed2f-4aa4-b9d0-19de35e2f5d4",
 		"name": "DeFiExchange",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -11,91 +11,27 @@
 				{
 					"name": "user",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-							"protocol": "https",
+							"raw": "{HOST}/api/v1/user",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "updateuser",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"firstname\": \"Test\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "adduser",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n    \"address\": \"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1ys\",\r\n    \"signature\": \"Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU0c=\",\r\n    \"ip\": \"190.190.190\",\r\n    \"firstname\": \"\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"ref\": \"000-001\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{HOST}"
 							],
 							"path": [
 								"api",
@@ -107,29 +43,120 @@
 					"response": []
 				},
 				{
-					"name": "registrations",
+					"name": "updateuser",
 					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstname\": \"Test\",\r\n    \"location\": \"asdsd\",\r\n    \"phone_number\": \"123\",\r\n    \"street\": \"asd\",\r\n    \"country\": \"DE\",\r\n    \"house_number\": \"7/1\",\r\n    \"surname\": \"asdasd\",\r\n    \"used_ref\": \"2\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"123\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
 							}
-						],
+						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/registration",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/user/8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
 								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
+								"8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "adduser",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstname\": \"\",\r\n    \"location\": \"\",\r\n    \"mail\": \"Test@gmx.de\",\r\n    \"phone_number\": \"\",\r\n    \"ref\": \"000-001\",\r\n    \"street\": \"\",\r\n    \"surname\": \"\",\r\n    \"used_ref\": \"000-001\",\r\n    \"wallet_id\": 2,\r\n    \"zip\": \"\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{HOST}}/api/v1/user",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"user"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "registration",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{HOST}}/api/v1/registration",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"api",
+								"v1",
 								"registration"
 							]
 						}
@@ -144,27 +171,31 @@
 				{
 					"name": "fiat2crypto",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/fiat2crypto",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto"
 							]
 						}
@@ -174,27 +205,31 @@
 				{
 					"name": "fiat2cryptobyid",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/fiat2crypto/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto",
 								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0"
 							]
@@ -205,17 +240,26 @@
 				{
 					"name": "addfiat2crypto",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"iban\": \"DE123\",\r\n\"asset\": \"DFI\"\r\n}",
+							"raw": "{\r\n\"iban\": \"DE12346\",\r\n\"asset\": {\r\n            \"buyable\": true,\r\n            \"id\": 0,\r\n            \"name\": \"DFI\",\r\n            \"sellable\": true,\r\n            \"type\": \"Coin\"\r\n        }\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -223,18 +267,13 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/fiat2crypto",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto"
 							]
 						}
@@ -244,14 +283,23 @@
 				{
 					"name": "updatefiat2crypto",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "PUT",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
 							"raw": "{\r\n\"active\": true\r\n}",
@@ -262,18 +310,13 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto/0",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/fiat2crypto/0",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"fiat2crypto",
 								"0"
 							]
@@ -289,28 +332,32 @@
 				{
 					"name": "crypto2fiat",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/crypto2fiat",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-								"fiat2crypto"
+								"crypto2fiat"
 							]
 						}
 					},
@@ -319,29 +366,33 @@
 				{
 					"name": "crypto2fiatbyid",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/crypto2fiat/DE123:2",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"crypto2fiat",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0"
+								"DE123:2"
 							]
 						}
 					},
@@ -350,17 +401,26 @@
 				{
 					"name": "addcrypto2fiat",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"iban\": \"DE123\",\r\n\"asset\": \"DFI\"\r\n}",
+							"raw": "{\r\n\"iban\": \"DE123987635\",\r\n\"fiat\": {\r\n            \"enable\": true,\r\n            \"id\": 2,\r\n            \"name\": \"USD\"\r\n        }\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -368,19 +428,14 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/fiat2crypto",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/crypto2fiat",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
-								"fiat2crypto"
+								"crypto2fiat"
 							]
 						}
 					},
@@ -389,17 +444,26 @@
 				{
 					"name": "updatecrypto2fiat",
 					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"type": "string"
+								}
+							]
+						},
 						"method": "PUT",
-						"header": [
-							{
-								"key": "signature",
-								"value": "Hwj3sJjBxMOnkPxZkGtqinGdASIOM6ffGDCcQsWA7kRIIjMP5/HMyuZwlLnBKuD6weD5c/8HIzMrmi6GpCmFU04=",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"active\": true\r\n}",
+							"raw": "{\r\n\"active\": false\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -407,20 +471,15 @@
 							}
 						},
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/user/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG/crypto2fiat/0",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/crypto2fiat/DE123:0",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"user",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG",
 								"crypto2fiat",
-								"0"
+								"DE123:0"
 							]
 						}
 					},
@@ -434,15 +493,15 @@
 				{
 					"name": "asset",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/asset",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
@@ -456,15 +515,15 @@
 				{
 					"name": "assetbyid",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset/DFI",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/asset/DFI",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
@@ -484,15 +543,15 @@
 				{
 					"name": "fiat",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/fiat",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/fiat",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
@@ -506,15 +565,15 @@
 				{
 					"name": "fiatbyid",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/fiat/eur",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/fiat/eur",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
@@ -529,256 +588,48 @@
 			]
 		},
 		{
-			"name": "admin",
+			"name": "country",
 			"item": [
 				{
-					"name": "allData",
+					"name": "country",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/allData?oAuth=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",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/fiat",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"allData"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "addasset",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"id\": \"24\",\r\n\"name\": \"DFI\",\r\n\"type\": \"Coin\",\r\n\"buyable\": \"1\",\r\n\"sellable\": \"1\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset?oAuth=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",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"asset"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "changeasset",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"buyable\": true,\r\n\"sellable\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset/DFI?oAuth=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",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"asset",
-								"DFI"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "addfiat",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"id\": \"24\",\r\n\"name\": \"DFI\"\r\n\"enable\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/fiat?oAuth=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",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
 								"fiat"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "changefiat",
+					"name": "countrybyid",
 					"request": {
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"buyable\": true,\r\n\"sellable\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
+						"auth": {
+							"type": "noauth"
 						},
+						"method": "GET",
+						"header": [],
 						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/asset/DFI?oAuth=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",
-							"protocol": "https",
+							"raw": "{{HOST}}/api/v1/country/de",
 							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
+								"{{HOST}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"asset",
-								"DFI"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "adddeposit",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"address\": \"123\"\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/deposit?oAuth=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",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"deposit"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "updatedeposit",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\r\n\"used\": true\r\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "https://api.fiat2defi.ch/api/v1/deposit/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv112?oAuth=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",
-							"protocol": "https",
-							"host": [
-								"api",
-								"fiat2defi",
-								"ch"
-							],
-							"path": [
-								"api",
-								"v1",
-								"deposit",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv112"
-							],
-							"query": [
-								{
-									"key": "oAuth",
-									"value": "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"
-								}
+								"country",
+								"de"
 							]
 						}
 					},
