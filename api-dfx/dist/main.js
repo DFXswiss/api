@@ -18,8 +18,6 @@ async function bootstrap() {
         .setTitle('DFX-API')
         .setDescription('Paste description here')
         .setVersion('0.1')
-        .addTag('users')
-        .addTag('auth')
         .build();
     const swaggerDocument = swagger_1.SwaggerModule.createDocument(app, swaggerOptions);
     swagger_1.SwaggerModule.setup('/api', app, swaggerDocument);

@@ -5,7 +5,6 @@ export declare class User {
     mail: string;
     wallet_id: number;
     used_ref: number;
-    ip: string;
     firstname: string;
     surname: string;
     street: string;

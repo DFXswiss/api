@@ -15,63 +15,59 @@ const typeorm_1 = require("typeorm");
 let User = class User {
 };
 __decorate([
-    typeorm_1.PrimaryColumn("varchar", { "unique": true, length: 34 }),
+    typeorm_1.PrimaryColumn({ type: 'varchar', 'unique': true, length: 34 }),
     __metadata("design:type", String)
 ], User.prototype, "address", void 0);
 __decorate([
-    typeorm_1.PrimaryGeneratedColumn(),
+    typeorm_1.PrimaryGeneratedColumn({ type: 'int' }),
     __metadata("design:type", Number)
 ], User.prototype, "ref", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { "unique": true, length: 88 }),
+    typeorm_1.Column({ type: 'varchar', 'unique': true, length: 88 }),
     __metadata("design:type", String)
 ], User.prototype, "signature", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 64 }),
+    typeorm_1.Column({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], User.prototype, "mail", void 0);
 __decorate([
-    typeorm_1.Column({ length: 3 }),
+    typeorm_1.Column({ type: 'int', length: 3, 'default': 0 }),
     __metadata("design:type", Number)
 ], User.prototype, "wallet_id", void 0);
 __decorate([
-    typeorm_1.Column({ length: 11 }),
+    typeorm_1.Column({ type: 'int', length: 11, 'default': 0 }),
     __metadata("design:type", Number)
 ], User.prototype, "used_ref", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 39 }),
-    __metadata("design:type", String)
-], User.prototype, "ip", void 0);
-__decorate([
-    typeorm_1.Column("varchar", { length: 64 }),
+    typeorm_1.Column({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], User.prototype, "firstname", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 64 }),
+    typeorm_1.Column({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], User.prototype, "surname", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 64 }),
+    typeorm_1.Column({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], User.prototype, "street", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 5 }),
+    typeorm_1.Column({ type: 'varchar', length: 5 }),
     __metadata("design:type", String)
 ], User.prototype, "house_number", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 64 }),
+    typeorm_1.Column({ type: 'varchar', length: 64 }),
     __metadata("design:type", String)
 ], User.prototype, "location", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 9 }),
+    typeorm_1.Column({ type: 'varchar', length: 9 }),
     __metadata("design:type", String)
 ], User.prototype, "zip", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 3 }),
+    typeorm_1.Column({ type: 'varchar', length: 3 }),
     __metadata("design:type", String)
 ], User.prototype, "country", void 0);
 __decorate([
-    typeorm_1.Column("varchar", { length: 15 }),
+    typeorm_1.Column({ type: 'varchar', length: 15 }),
     __metadata("design:type", String)
 ], User.prototype, "phone_number", void 0);
 User = __decorate([
