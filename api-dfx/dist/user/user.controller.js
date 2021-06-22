@@ -14,19 +14,57 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserController = void 0;
 const common_1 = require("@nestjs/common");
+const swagger_1 = require("@nestjs/swagger");
+const user_guard_1 = require("../auth/user.guard");
+const user_entity_1 = require("./user.entity");
+const user_service_1 = require("./user.service");
 let UserController = class UserController {
-    async getUsers(address) {
+    constructor(userService) {
+        this.userService = userService;
+    }
+    async getUser() {
+        return this.userService.findUserByAddress();
+    }
+    async createUser(user, req) {
+        if (this.userService.findUserByAddress() != null)
+            return "Already exist";
+        this.userService.createUser(user);
+    }
+    async updateUser(user, req) {
+        if (this.userService.findUserByAddress() == null)
+            return "Not exist";
+        this.userService.updateUser(user);
     }
 };
 __decorate([
     common_1.Get(),
-    __param(0, common_1.Param("address")),
+    common_1.UseGuards(user_guard_1.UserGuard),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
-], UserController.prototype, "getUsers", null);
+], UserController.prototype, "getUser", null);
+__decorate([
+    common_1.Post(),
+    common_1.UseGuards(user_guard_1.UserGuard),
+    __param(0, common_1.Body()),
+    __param(1, common_1.Request()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [user_entity_1.User, Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "createUser", null);
+__decorate([
+    common_1.Put(),
+    common_1.UseGuards(user_guard_1.UserGuard),
+    __param(0, common_1.Body()),
+    __param(1, common_1.Request()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [user_entity_1.User, Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "updateUser", null);
 UserController = __decorate([
-    common_1.Controller('user')
+    swagger_1.ApiTags('user'),
+    common_1.Controller('user'),
+    __metadata("design:paramtypes", [user_service_1.UserService])
 ], UserController);
 exports.UserController = UserController;
 //# sourceMappingURL=user.controller.js.map
