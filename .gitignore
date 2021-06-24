@@ -1,6 +1,8 @@
 # compiled output
 /dist
 /node_modules
+api-dfx/dist
+api-dfx/node_modules
 
 # Logs
 logs
