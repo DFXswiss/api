@@ -7,12 +7,10 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
-  Post,
-  Query,
+  Post
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from 'src/auth/admin.guard';
-import { UserGuard } from 'src/auth/user.guard';
 import { Wallet } from './wallet.entity';
 import { WalletService } from './wallet.service';
 
@@ -29,7 +27,7 @@ export class WalletController {
 
   @Get('key')
   @UseGuards(AdminGuard)
-  async getWalletByKey(@Query() key: string): Promise<any> {
+  async getWalletByKey(@Param() key: string): Promise<any> {
     return this.walletService.findWalletByKey(key);
   }
 

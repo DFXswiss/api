@@ -7,12 +7,10 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
-  Post,
-  Query,
+  Post
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from 'src/auth/admin.guard';
-import { UserGuard } from 'src/auth/user.guard';
 import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
 
@@ -29,7 +27,7 @@ export class DepositController {
 
   @Get('key')
   @UseGuards(AdminGuard)
-  async getFiatByKey(@Query() key: string): Promise<any> {
+  async getFiatByKey(@Param() key: string): Promise<any> {
     return this.depositService.findDepositByKey(key);
   }
 

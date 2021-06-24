@@ -7,11 +7,9 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
-  Post,
-  Query,
+  Post
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { UserGuard } from 'src/auth/user.guard';
 import { AdminGuard } from 'src/auth/admin.guard';
 import { Country } from './country.entity';
 import { CountryService } from './country.service';
@@ -22,14 +20,12 @@ export class CountryController {
   constructor(private readonly countryService: CountryService) {}
 
   @Get()
-  @UseGuards(UserGuard)
   async getCountryRoute(): Promise<any> {
     return this.countryService.findCountryByAddress();
   }
 
   @Get('symbol')
-  @UseGuards(UserGuard)
-  async getCountryByKey(@Query() symbol: string): Promise<any> {
+  async getCountryByKey(@Param() symbol: string): Promise<any> {
     return this.countryService.findCountryBySymbol(symbol);
   }
 
