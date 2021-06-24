@@ -10,7 +10,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { UserGuard } from 'src/auth/user.guard';
+import { UserGuard } from 'src/guards/user.guard';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
 

@@ -11,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AdminGuard } from 'src/auth/admin.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
 import { Fiat } from './fiat.entity';
 import { FiatService } from './fiat.service';
 

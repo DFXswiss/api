@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Put, UseGuards, Request, ForbiddenException,Post } from '@nestjs/common';
 import { ApiTags} from '@nestjs/swagger';
-import { UserGuard } from 'src/auth/user.guard';
+import { UserGuard } from 'src/guards/user.guard';
 import { User } from './user.entity';
 import { UserService } from './user.service';
 

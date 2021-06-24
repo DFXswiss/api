@@ -10,7 +10,7 @@ import {
   Post
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AdminGuard } from 'src/auth/admin.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
 import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
 
