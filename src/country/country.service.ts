@@ -3,14 +3,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectEntityManager } from '@nestjs/typeorm';
+import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Country } from './country.entity';
+
+@Injectable()
 export class CountryService {
+  constructor(
+    @InjectRepository(Country)
+    private countryRepository: Repository<Country>,
+  ) {}
   async createCountry(user: any): Promise<string> {
     return '1';
   }
 
-  async findCountryByAddress(): Promise<string> {
+  async getCountry(): Promise<string> {
     return '2';
   }
 

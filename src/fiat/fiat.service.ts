@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { Fiat } from './fiat.entity';
+
+@Injectable()
 export class FiatService {
   async createFiat(user: any): Promise<string> {
     return '1';

@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { Asset } from './asset.entity';
+
+@Injectable()
 export class AssetService {
   async createAsset(user: any): Promise<string> {
     return '1';

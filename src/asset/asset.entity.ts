@@ -1,10 +1,11 @@
-import { TypeOrmConfig } from 'src/config/typeorm.config';
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity()
+@Entity({
+  name: 'token_info'
+})
 export class Asset {
-  @PrimaryColumn({ type: 'int', unique: true, length: 4 })
+  @PrimaryColumn({ type: 'int', unique: true })
   id: number;
 
   @Column({ type: 'varchar', length: 34 })
@@ -13,9 +14,9 @@ export class Asset {
   @Column({ type: 'varchar', length: 32 })
   type: string;
 
-  @Column({ type: 'tinyint', length: 1, default: 1 })
+  @Column({ type: 'tinyint',  default: 1 })
   buyable: boolean;
 
-  @Column({ type: 'tinyint', length: 1, default: 1 })
+  @Column({ type: 'tinyint',  default: 1 })
   sellable: boolean;
 }

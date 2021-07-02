@@ -1,8 +1,9 @@
-import { TypeOrmConfig } from 'src/config/typeorm.config';
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity()
+@Entity({
+  name: 'crypto2fiat'
+})
 export class Sell {
   @PrimaryColumn({ type: 'varchar', unique: true, length: 42 })
   id: string;
@@ -13,12 +14,12 @@ export class Sell {
   @Column({ type: 'varchar', length: 32 })
   iban: string;
 
-  @Column({ type: 'int', length: 3 })
+  @Column({ type: 'int' })
   fiat: number;
 
-  @Column({ type: 'int', unique: true, length: 11 })
+  @Column({ type: 'int', unique: true })
   deposit_id: string; //TODO: Objekt Referenzieren
 
-  @Column({ type: 'tinyint', length: 1, default: 1 })
+  @Column({ type: 'tinyint', default: 1 })
   active: boolean;
 }

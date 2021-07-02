@@ -1,8 +1,9 @@
-import { TypeOrmConfig } from 'src/config/typeorm.config';
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity()
+@Entity({
+  name: 'countries'
+})
 export class Country {
   @PrimaryColumn({ type: 'varchar', unique: true, length: 4 })
   symbol: string;
@@ -10,6 +11,6 @@ export class Country {
   @Column({ type: 'varchar', length: 34 })
   name: string;
 
-  @Column({ type: 'tinyint', length: 1, default: 1 })
+  @Column({ type: 'tinyint',  default: 1 })
   enable: boolean;
 }

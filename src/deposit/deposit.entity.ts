@@ -1,12 +1,13 @@
-import { TypeOrmConfig } from 'src/config/typeorm.config';
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity()
+@Entity({
+  name: 'deposit_address'
+})
 export class Deposit {
   @PrimaryColumn({ type: 'varchar', unique: true, length: 42 })
   address: string;
 
-  @Column({ type: 'tinyint', length: 1, default: 1 })
+  @Column({ type: 'tinyint',  default: 1 })
   used: boolean;
 }

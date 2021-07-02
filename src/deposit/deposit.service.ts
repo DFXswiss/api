@@ -3,9 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectEntityManager } from '@nestjs/typeorm';
+import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Deposit } from './deposit.entity';
 export class DepositService {
+  constructor(
+    @InjectRepository(Deposit)
+    private depositRepository: Repository<Deposit>,
+  ) {}
   async createDeposit(user: any): Promise<string> {
     return '1';
   }
