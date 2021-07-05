@@ -33,7 +33,7 @@ async function bootstrap() {
 
   const config = app.get(ConfigService);
 
-  await app.listen(3000);
+  await app.listen(process.env.PORT || 3000);
 
   console.log(
     chalk.blue.inverse(
