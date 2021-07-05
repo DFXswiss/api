@@ -5,6 +5,9 @@ import * as typeorm from 'typeorm';
   name: 'deposit_address'
 })
 export class Deposit {
+  // @PrimaryGeneratedColumn('uuid')
+  // id: string;
+
   @PrimaryColumn({ type: 'varchar', unique: true, length: 42 })
   address: string;
 

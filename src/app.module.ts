@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
 import config from './config/config';
 import { AppController } from './app.controller';
 import { UserController } from './user/user.controller';
@@ -31,6 +33,8 @@ import { Country } from './country/country.entity'
 import { Fiat } from './fiat/fiat.entity'
 import { Deposit } from './deposit/deposit.entity'
 import { Wallet } from './wallet/wallet.entity'
+import { UserRepository } from './user/user.repository';
+// import { UserModule } from './user/user.module';
 
 
 @Module({
@@ -39,45 +43,56 @@ import { Wallet } from './wallet/wallet.entity'
       isGlobal: true,
       load: [config],
     }),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.register({
+      // TODO: Secret to .env!!!
+      secret: 'examplesecret',
+      signOptions: {
+        expiresIn: 3600,
+      }
+    }),
     TypeOrmModule.forRoot(),
-    TypeOrmModule.forFeature([User,Buy,Sell,Asset,Country,Fiat,Deposit,Wallet])],
+    TypeOrmModule.forFeature([UserRepository]),
+    // UserModule
+  ],
+    // TypeOrmModule.forFeature([User, UserRepository, Buy,Sell,Asset,Country,Fiat,Deposit,Wallet])],
   controllers: [
     AppController,
     AuthController,
     UserController,
-    BuyController,
-    SellController,
-    AssetController,
-    FiatController,
-    WalletController,
-    DepositController,
-    CountryController,
-    AllController,
+    // BuyController,
+    // SellController,
+    // AssetController,
+    // FiatController,
+    // WalletController,
+    // DepositController,
+    // CountryController,
+    // AllController,
   ],
   providers: [
     UserService,
     AuthService,
-    BuyService,
-    SellService,
-    AssetService,
-    FiatService,
-    WalletService,
-    DepositService,
-    CountryService,
-    AllService,
+    // BuyService,
+    // SellService,
+    // AssetService,
+    // FiatService,
+    // WalletService,
+    // DepositService,
+    // CountryService,
+    // AllService,
   ],
   exports: [
     UserService,
     AuthService,
-    BuyService,
-    SellService,
-    AssetService,
-    FiatService,
-    WalletService,
-    DepositService,
-    CountryService,
-    AllService,
-    TypeOrmModule
+    // BuyService,
+    // SellService,
+    // AssetService,
+    // FiatService,
+    // WalletService,
+    // DepositService,
+    // CountryService,
+    // AllService,
+    // TypeOrmModule
   ],
 })
 export class AppModule {}

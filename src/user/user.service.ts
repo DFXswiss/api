@@ -1,21 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from '@nestjs/typeorm'
+import { CreateUserDto } from "./dto/create-user.dto";
 import { User } from './user.entity'
+import { UserRepository } from "./user.repository";
 
 @Injectable()
 export class UserService {
     constructor(
-        @InjectRepository(User)
-        private usersRepository: Repository<User>,
+        @InjectRepository(UserRepository)
+        private userRepository: UserRepository,
       ) {}
       
-    async createUser(user: any):Promise<string>{
-        return "1";
+    async createUser(createUserDto: CreateUserDto):Promise<void>{
+        this.userRepository.createUser(createUserDto);
     }
 
     async getUser(address: string,signature: string):Promise<User>{
-        return this.usersRepository.findOne({"address": address,"signature":signature});
+        return this.userRepository.findOne({"address": address,"signature":signature});
     } 
 
     async updateUser(user: any):Promise<string>{
@@ -23,7 +24,7 @@ export class UserService {
     }
 
     async getAllUsers():Promise<User[]>{
-        return this.usersRepository.find();
+        return this.userRepository.find();
     }
 
 }

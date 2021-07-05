@@ -15,13 +15,13 @@ export class UserController {
         return await this.userService.getUser("8FhuD5a5qWYk5mtQnfMP7gF5oTaKMkMQQ1","IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bwho=");
     }
         
-    @Post()
-    @UseGuards(UserGuard)
-    async createUser(@Body() user: User, @Request() req){
-        if (this.userService.getUser("","") != null)
-            return "Already exist"
-        this.userService.createUser(user);
-    }
+    // @Post()
+    // @UseGuards(UserGuard)
+    // async createUser(@Body() createUserDto: CreateUserDto, @Request() req){
+    //     if (this.userService.getUser("","") != null)
+    //         return "Already exist"
+    //     this.userService.createUser(createUserDto);
+    // }
 
     @Put()
     @UseGuards(UserGuard)

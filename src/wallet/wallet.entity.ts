@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, OneToMany } from 'typeorm';
 import * as typeorm from 'typeorm';
+import { User } from 'src/user/user.entity';
 
 @Entity({
   name: 'wallets'
@@ -16,4 +17,7 @@ export class Wallet {
 
   @Column({ type: 'varchar', length: 40 })
   description: string;
+
+  // @OneToMany()
+  // users: User[];
 }

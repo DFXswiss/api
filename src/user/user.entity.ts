@@ -1,50 +1,49 @@
-import {Entity, PrimaryGeneratedColumn, Column, PrimaryColumn} from "typeorm"; 
-import * as typeorm from 'typeorm'
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, OneToMany } from 'typeorm';
 
 @Entity({
-   name:'users'
-}) 
-export class User {   
+  name: 'users',
+})
+export class User {
+  @PrimaryColumn({ type: 'varchar', length: 34, unique: true })
+  address: string;
 
-   @PrimaryColumn({type:'varchar',length:34}) 
-   address: string; 
-   
-   @PrimaryGeneratedColumn({type:'int'}) 
-   ref: number; 
-   
-   @Column({type:'varchar','unique':true,length:88}) 
-   signature: string; 
+  @PrimaryGeneratedColumn({ type: 'int' })
+  ref: number;
 
-   @Column({type:'varchar',length:64}) 
-   mail: string; 
+  @Column({ type: 'varchar', unique: true, length: 88 })
+  signature: string;
 
-   @Column({type:'int', 'default':0}) 
-   wallet_id: number;  //TODO: Objekt Referenzieren
+  @Column({ type: 'varchar', length: 64, default: '' })
+  mail: string;
 
-   @Column({type: 'int', 'default':0}) 
-   used_ref: number;
+  @Column({ type: 'int', default: 0 })
+  // @ManyToOne((_type) => )
+  walletId: number; //TODO: Objekt Referenzieren
 
-   @Column({type:'varchar',length:64}) 
-   firstname: string; 
+  @Column({ type: 'int', default: 0 })
+  usedRef: number;
 
-   @Column({type:'varchar',length:64}) 
-   surname: string; 
+  @Column({ type: 'varchar', length: 64, default: '' })
+  firstname: string;
 
-   @Column({type:'varchar',length:64}) 
-   street: string; 
+  @Column({ type: 'varchar', length: 64, default: '' })
+  surname: string;
 
-   @Column({type:'varchar',length:5}) 
-   house_number: string; 
+  @Column({ type: 'varchar', length: 64, default: '' })
+  street: string;
 
-   @Column({type:'varchar',length:64}) 
-   location: string; 
+  @Column({ type: 'varchar', length: 5, default: '' })
+  houseNumber: string;
 
-   @Column({type:'varchar',length:9}) 
-   zip: string; 
+  @Column({ type: 'varchar', length: 64, default: '' })
+  location: string;
 
-   @Column({type:'varchar',length:3}) 
-   country: string; 
+  @Column({ type: 'varchar', length: 9, default: '' })
+  zip: string;
 
-   @Column({type:'varchar',length:15}) 
-   phone_number: string; 
+  @Column({ type: 'varchar', length: 3, default: '' })
+  country: string;
+
+  @Column({ type: 'varchar', length: 15, default: '' })
+  phone: string;
 }
