@@ -22,20 +22,20 @@ export class BuyController {
   @Get()
   @UseGuards(UserGuard)
   async getBuyRoute(): Promise<any> {
-    return this.buyService.findBuyByAddress();
+    return this.buyService.getBuy();
   }
 
   @Post()
   @UseGuards(UserGuard)
   async createBuyRoute(@Body() buy: Buy, @Request() req) {
-    if (this.buyService.findBuyByAddress() != null) return 'Already exist';
+    if (this.buyService.getBuy() != null) return 'Already exist';
     return this.buyService.createBuy(buy);
   }
 
   @Put()
   @UseGuards(UserGuard)
   async updateBuyRoute(@Body() buy: Buy, @Request() req) {
-    if (this.buyService.findBuyByAddress() == null) return 'Not exist';
+    if (this.buyService.getBuy() == null) return 'Not exist';
     return this.buyService.updateBuy(buy);
   }
 }

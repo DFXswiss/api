@@ -3,9 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectEntityManager } from '@nestjs/typeorm';
+import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Sell } from './sell.entity';
+
+@Injectable()
 export class SellService {
+  constructor(
+    @InjectRepository(Sell)
+    private sellRepository: Repository<Sell>,
+  ) {}
   async createSell(user: any): Promise<string> {
     return '1';
   }

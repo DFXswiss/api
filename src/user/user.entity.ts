@@ -1,11 +1,12 @@
-import { TypeOrmConfig } from "src/config/typeorm.config";
 import {Entity, PrimaryGeneratedColumn, Column, PrimaryColumn} from "typeorm"; 
 import * as typeorm from 'typeorm'
 
-@Entity() 
+@Entity({
+   name:'users'
+}) 
 export class User {   
 
-   @PrimaryColumn({type:'varchar','unique':true,length:34}) 
+   @PrimaryColumn({type:'varchar',length:34}) 
    address: string; 
    
    @PrimaryGeneratedColumn({type:'int'}) 
@@ -17,10 +18,10 @@ export class User {
    @Column({type:'varchar',length:64}) 
    mail: string; 
 
-   @Column({type:'int',length:3, 'default':0}) 
+   @Column({type:'int', 'default':0}) 
    wallet_id: number;  //TODO: Objekt Referenzieren
 
-   @Column({type: 'int',length:11, 'default':0}) 
+   @Column({type: 'int', 'default':0}) 
    used_ref: number;
 
    @Column({type:'varchar',length:64}) 

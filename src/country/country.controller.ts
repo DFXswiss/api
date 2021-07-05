@@ -21,7 +21,7 @@ export class CountryController {
 
   @Get()
   async getCountryRoute(): Promise<any> {
-    return this.countryService.findCountryByAddress();
+    return this.countryService.getCountry();
   }
 
   @Get('symbol')
@@ -32,14 +32,14 @@ export class CountryController {
   @Post()
   @UseGuards(AdminGuard)
   async createCountryRoute(@Body() country: Country, @Request() req) {
-    if (this.countryService.findCountryByAddress() != null) return 'Already exist';
+    if (this.countryService.getCountry() != null) return 'Already exist';
     return this.countryService.createCountry(country);
   }
 
   @Put()
   @UseGuards(AdminGuard)
   async updateCountryRoute(@Body() country: Country, @Request() req) {
-    if (this.countryService.findCountryByAddress() == null) return 'Not exist';
+    if (this.countryService.getCountry() == null) return 'Not exist';
     return this.countryService.updateCountry(country);
   }
 }

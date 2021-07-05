@@ -1,8 +1,9 @@
-import { TypeOrmConfig } from 'src/config/typeorm.config';
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity()
+@Entity({
+  name: 'wallets'
+})
 export class Wallet {
   @PrimaryColumn({ type: 'varchar', unique: true, length: 34 })
   address: string;
