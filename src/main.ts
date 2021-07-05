@@ -8,6 +8,13 @@ import * as chalk from 'chalk';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
+  if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
+    require('applicationinsights')
+      .setup()
+      .setAutoCollectConsole(true, true)
+      .start();
+  }
+
   const app = await NestFactory.create(AppModule);
 
   app.use(morgan('dev'));
