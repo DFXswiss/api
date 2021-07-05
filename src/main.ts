@@ -8,6 +8,13 @@ import * as chalk from 'chalk';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
+  if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
+    require('applicationinsights')
+      .setup()
+      .setAutoCollectConsole(true, true)
+      .start();
+  }
+
   const app = await NestFactory.create(AppModule);
 
   app.use(morgan('dev'));
@@ -26,7 +33,7 @@ async function bootstrap() {
 
   const config = app.get(ConfigService);
 
-  await app.listen(3000);
+  await app.listen(process.env.PORT || 3000);
 
   console.log(
     chalk.blue.inverse(
