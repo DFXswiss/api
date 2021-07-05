@@ -25,16 +25,8 @@ import { DepositService } from './deposit/deposit.service';
 import { CountryService } from './country/country.service';
 import { AllService } from './all/all.service';
 import { AuthService } from './auth/auth.service';
-import { User } from './user/user.entity'
-import { Asset } from './asset/asset.entity'
-import { Buy } from './buy/buy.entity'
-import { Sell } from './sell/sell.entity'
-import { Country } from './country/country.entity'
-import { Fiat } from './fiat/fiat.entity'
-import { Deposit } from './deposit/deposit.entity'
-import { Wallet } from './wallet/wallet.entity'
 import { UserRepository } from './user/user.repository';
-// import { UserModule } from './user/user.module';
+import { AssetRepository } from './asset/asset.repository';
 
 
 @Module({
@@ -52,47 +44,24 @@ import { UserRepository } from './user/user.repository';
       }
     }),
     TypeOrmModule.forRoot(),
-    TypeOrmModule.forFeature([UserRepository]),
-    // UserModule
+    TypeOrmModule.forFeature([UserRepository,AssetRepository,]),
   ],
-    // TypeOrmModule.forFeature([User, UserRepository, Buy,Sell,Asset,Country,Fiat,Deposit,Wallet])],
   controllers: [
     AppController,
     AuthController,
     UserController,
-    // BuyController,
-    // SellController,
-    // AssetController,
-    // FiatController,
-    // WalletController,
-    // DepositController,
-    // CountryController,
-    // AllController,
+    AssetController,
   ],
   providers: [
     UserService,
     AuthService,
-    // BuyService,
-    // SellService,
-    // AssetService,
-    // FiatService,
-    // WalletService,
-    // DepositService,
-    // CountryService,
-    // AllService,
+    AssetService,
   ],
   exports: [
     UserService,
     AuthService,
-    // BuyService,
-    // SellService,
-    // AssetService,
-    // FiatService,
-    // WalletService,
-    // DepositService,
-    // CountryService,
-    // AllService,
-    // TypeOrmModule
+    AssetService,
+    TypeOrmModule
   ],
 })
 export class AppModule {}

@@ -3,17 +3,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectEntityManager } from '@nestjs/typeorm';
-import { Asset } from './asset.entity';
+import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
+import { Asset } from 'src/asset/asset.entity';
+import { AssetRepository } from 'src/asset/asset.repository';
+import { CreateAssetDto } from 'src/asset/dto/create-asset.dto';
+import { UserRepository } from 'src/user/user.repository';
 
 @Injectable()
 export class AssetService {
-  async createAsset(user: any): Promise<string> {
-    return '1';
+  constructor(private assetRepository: AssetRepository, private userRepository: UserRepository) {}
+  
+  async createAsset(createAssetDto: CreateAssetDto): Promise<void>{
+    this.assetRepository.createAsset(createAssetDto);
   }
 
-  async findAssetByAddress(): Promise<string> {
-    return '2';
+  async findAssetByAddress(): Promise<Asset> {
+    return this.assetRepository.findOne({"id": 0});
   }
 
   async updateAsset(user: any): Promise<string> {

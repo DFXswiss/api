@@ -9,16 +9,19 @@ import {
   ForbiddenException,
   Post,
   Query,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { Asset } from './asset.entity';
 import { AssetService } from './asset.service';
+import { CreateAssetDto } from './dto/create-asset.dto';
 
 @ApiTags('asset')
 @Controller('asset')
 export class AssetController {
-  constructor(private readonly assetService: AssetService) {}
+  constructor(private assetService: AssetService) {}
 
   @Get()
   async getAssetRoute(): Promise<any> {
@@ -31,10 +34,9 @@ export class AssetController {
   }
 
   @Post()
-  @UseGuards(AdminGuard)
-  async createAssetRoute(@Body() asset: Asset, @Request() req) {
-    if (this.assetService.findAssetByAddress() != null) return 'Already exist';
-    return this.assetService.createAsset(asset);
+  @UsePipes(ValidationPipe)
+  createAsset(@Body() createAssetDto: CreateAssetDto): Promise<void> {
+    return this.assetService.createAsset(createAssetDto);
   }
 
   @Put()
