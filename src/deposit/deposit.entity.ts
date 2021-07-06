@@ -11,6 +11,6 @@ export class Deposit {
   @PrimaryColumn({ type: 'varchar', unique: true, length: 42 })
   address: string;
 
-  @Column({ type: 'tinyint',  default: 1 })
+  @Column({ type: 'tinyint',  default: false })
   used: boolean;
 }

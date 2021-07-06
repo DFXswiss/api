@@ -7,12 +7,15 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
-  Post
+  Post,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { Wallet } from './wallet.entity';
 import { WalletService } from './wallet.service';
+import { CreateWalletDto } from './dto/create-wallet.dto';
 
 @ApiTags('wallet')
 @Controller('wallet')
@@ -32,11 +35,17 @@ export class WalletController {
   }
 
   @Post()
-  @UseGuards(AdminGuard)
-  async createWalletRoute(@Body() wallet: Wallet, @Request() req) {
-    if (this.walletService.findWalletByAddress() != null) return 'Already exist';
-    return this.walletService.createWallet(wallet);
+  @UsePipes(ValidationPipe)
+  createWallet(@Body() createWalletDto: CreateWalletDto): Promise<void> {
+    return this.walletService.createWallet(createWalletDto);
   }
+
+  // @Post()
+  // @UseGuards(AdminGuard)
+  // async createWalletRoute(@Body() wallet: Wallet, @Request() req) {
+  //   if (this.walletService.findWalletByAddress() != null) return 'Already exist';
+  //   return this.walletService.createWallet(wallet);
+  // }
 
   @Put()
   @UseGuards(AdminGuard)

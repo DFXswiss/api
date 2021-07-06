@@ -27,6 +27,12 @@ import { AllService } from './all/all.service';
 import { AuthService } from './auth/auth.service';
 import { UserRepository } from './user/user.repository';
 import { AssetRepository } from './asset/asset.repository';
+import { WalletRepository } from './wallet/wallet.repository';
+import { DepositRepository } from './deposit/deposit.repository';
+import { CountryRepository } from './country/country.repository';
+import { FiatRepository } from './fiat/fiat.repository';
+import { BuyRepository } from './buy/buy.repository';
+import { SellRepository } from './sell/sell.repository';
 import { JwtStrategy } from './auth/jwt.strategy';
 
 
@@ -46,24 +52,42 @@ import { JwtStrategy } from './auth/jwt.strategy';
       }
     }),
     TypeOrmModule.forRoot(),
-    TypeOrmModule.forFeature([UserRepository,AssetRepository,]),
+    TypeOrmModule.forFeature([UserRepository,AssetRepository,WalletRepository,DepositRepository,CountryRepository,FiatRepository,BuyRepository,SellRepository,]),
   ],
   controllers: [
     AppController,
     AuthController,
     UserController,
     AssetController,
+    WalletController,
+    DepositController,
+    CountryController,
+    FiatController,
+    BuyController,
+    SellController,
   ],
   providers: [
     UserService,
     AuthService,
     AssetService,
+    WalletService,
+    DepositService,
+    CountryService,
+    FiatService,
+    BuyService,
+    SellService,
     JwtStrategy
   ],
   exports: [
     UserService,
     AuthService,
     AssetService,
+    WalletService,
+    DepositService,
+    CountryService,
+    FiatService,
+    BuyService,
+    SellService,
     TypeOrmModule,
     JwtStrategy,
     PassportModule
