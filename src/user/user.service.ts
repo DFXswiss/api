@@ -15,8 +15,8 @@ export class UserService {
         this.userRepository.createUser(createUserDto);
     }
 
-    async getUser(address: string,signature: string):Promise<User>{
-        return this.userRepository.findOne({"address": address,"signature":signature});
+    async getUser(address: string):Promise<User>{
+        return this.userRepository.findOne({"address": address});
     } 
 
     async updateUser(user: any):Promise<string>{
