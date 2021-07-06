@@ -27,6 +27,7 @@ import { AllService } from './all/all.service';
 import { AuthService } from './auth/auth.service';
 import { UserRepository } from './user/user.repository';
 import { AssetRepository } from './asset/asset.repository';
+import { JwtStrategy } from './auth/jwt.strategy';
 
 
 @Module({
@@ -38,7 +39,8 @@ import { AssetRepository } from './asset/asset.repository';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       // TODO: Secret to .env!!!
-      secret: 'examplesecret',
+      // Notice that the same key is used in jwt.strategy.ts!
+      secret: 'some-secret-key',
       signOptions: {
         expiresIn: 3600,
       }
@@ -56,12 +58,15 @@ import { AssetRepository } from './asset/asset.repository';
     UserService,
     AuthService,
     AssetService,
+    JwtStrategy
   ],
   exports: [
     UserService,
     AuthService,
     AssetService,
-    TypeOrmModule
+    TypeOrmModule,
+    JwtStrategy,
+    PassportModule
   ],
 })
 export class AppModule {}
