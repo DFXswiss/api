@@ -7,12 +7,16 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
-  Post
+  Post,
+  UsePipes,
+  ValidationPipe,
+
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
+import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @ApiTags('deposit')
 @Controller('deposit')
@@ -32,11 +36,17 @@ export class DepositController {
   }
 
   @Post()
-  @UseGuards(AdminGuard)
-  async createDepositRoute(@Body() deposit: Deposit, @Request() req) {
-    if (this.depositService.findDepositByAddress() != null) return 'Already exist';
-    return this.depositService.createDeposit(deposit);
+  @UsePipes(ValidationPipe)
+  createDeposit(@Body() createDepositDto: CreateDepositDto): Promise<void> {
+    return this.depositService.createDeposit(createDepositDto);
   }
+
+  // @Post()
+  // @UseGuards(AdminGuard)
+  // async createDepositRoute(@Body() deposit: Deposit, @Request() req) {
+  //   if (this.depositService.findDepositByAddress() != null) return 'Already exist';
+  //   return this.depositService.createDeposit(deposit);
+  // }
 
   @Put()
   @UseGuards(AdminGuard)

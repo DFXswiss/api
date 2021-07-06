@@ -6,14 +6,20 @@ import {
 import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Deposit } from './deposit.entity';
+import { DepositRepository } from 'src/deposit/deposit.repository';
+import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
+
+@Injectable()
 export class DepositService {
-  constructor(
-    @InjectRepository(Deposit)
-    private depositRepository: Repository<Deposit>,
-  ) {}
-  async createDeposit(user: any): Promise<string> {
-    return '1';
+  constructor(private depositRepository: DepositRepository) {}
+
+  async createDeposit(createDepositDto: CreateDepositDto): Promise<void>{
+    this.depositRepository.createDeposit(createDepositDto);
   }
+
+  // async createDeposit(user: any): Promise<string> {
+  //   return '1';
+  // }
 
   async findDepositByAddress(): Promise<string> {
     return '2';
