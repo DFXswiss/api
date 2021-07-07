@@ -1,6 +1,7 @@
 on:
   push:
     branches: [ develop_ts ]
+  workflow_dispatch:
 
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-dev
