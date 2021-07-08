@@ -16,6 +16,8 @@ import { AdminGuard } from 'src/guards/admin.guard';
 import { Country } from './country.entity';
 import { CountryService } from './country.service';
 import { CreateCountryDto } from './dto/create-country.dto';
+import { GetCountryDto } from './dto/get-country.dto';
+import { EditCountryDto } from "./dto/edit-country.dto";
 
 @ApiTags('country')
 @Controller('country')
@@ -23,39 +25,27 @@ export class CountryController {
   constructor(private readonly countryService: CountryService) {}
 
   @Get()
-  async getCountry(country: Country): Promise<any> {
-    console.log("test");
-   return country;
-   
+  @UsePipes(ValidationPipe)
+  async getCountry(@Body() getCountryDto: GetCountryDto): Promise<any> {
+    return this.countryService.getCountry(getCountryDto); 
   }
 
-  // @Get()
-  // async getCountryRoute(): Promise<any> {
-  //   return this.countryService.getCountry();
-  //}
-
-  @Get('symbol')
-  async getCountryByKey(@Param() symbol: string): Promise<any> {
-    return this.countryService.findCountryBySymbol(symbol);
+  @Get('all')
+  async getAllCountry(): Promise<any> {
+    return this.countryService.getAllCountry(); 
   }
 
   @Post()
+  @UseGuards(AdminGuard)
   @UsePipes(ValidationPipe)
   createCountry(@Body() createCountryDto: CreateCountryDto): Promise<void> {
     return this.countryService.createCountry(createCountryDto);
   }
 
-  // @Post()
-  // @UseGuards(AdminGuard)
-  // async createCountryRoute(@Body() country: Country, @Request() req) {
-  //   if (this.countryService.getCountry() != null) return 'Already exist';
-  //   return this.countryService.createCountry(country);
-  // }
-
   @Put()
   @UseGuards(AdminGuard)
-  async updateCountryRoute(@Body() country: Country, @Request() req) {
-    if (this.countryService.getCountry() == null) return 'Not exist';
+  @UsePipes(ValidationPipe)
+  async updateCountryRoute(@Body() country: EditCountryDto) {
     return this.countryService.updateCountry(country);
   }
 }

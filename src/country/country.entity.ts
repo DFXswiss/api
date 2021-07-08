@@ -5,7 +5,10 @@ import * as typeorm from 'typeorm';
   name: 'countries'
 })
 export class Country {
-  @PrimaryColumn({ type: 'varchar', unique: true, length: 4 })
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({type: 'varchar', unique: true, length: 4 })
   symbol: string;
 
   @Column({ type: 'varchar', length: 34 })

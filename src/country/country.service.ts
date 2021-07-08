@@ -7,7 +7,9 @@ import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Country } from './country.entity';
 import { CreateCountryDto } from 'src/country/dto/create-country.dto';
+import { GetCountryDto } from 'src/country/dto/get-country.dto';
 import { CountryRepository } from 'src/country/country.repository';
+import { EditCountryDto } from "./dto/edit-country.dto";
 
 @Injectable()
 export class CountryService {
@@ -17,21 +19,15 @@ export class CountryService {
     this.countryRepository.createCountry(createCountryDto);
   }
 
-  // async createCountry(user: any): Promise<string> {
-  //   return '1';
-  // }
-
- 
-
-  async getCountry(): Promise<string> {
-    return '2';
+  async getAllCountry(): Promise<any> {
+    return this.countryRepository.getAllCountry();
   }
 
-  async updateCountry(user: any): Promise<string> {
-    return '3';
+  async updateCountry(country: EditCountryDto): Promise<string> {
+    return this.countryRepository.updateCountry(country);
   }
 
-  async findCountryBySymbol(key:any): Promise<string> {
-    return '4';
+  async getCountry(key:GetCountryDto): Promise<string> {
+    return this.countryRepository.getCountry(key);
   }
 }
