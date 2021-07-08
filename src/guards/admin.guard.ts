@@ -25,5 +25,9 @@ export class AdminGuard implements CanActivate {
     if (!authHeader[1]) {
       return false;
     }
+
+    //TODO
+
+    return true;
   }
 }
