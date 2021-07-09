@@ -38,7 +38,7 @@ export class CountryController {
   @Post()
   @UseGuards(AdminGuard)
   @UsePipes(ValidationPipe)
-  createCountry(@Body() createCountryDto: CreateCountryDto): Promise<void> {
+  createCountry(@Body() createCountryDto: CreateCountryDto): Promise<any> {
     return this.countryService.createCountry(createCountryDto);
   }
 

@@ -8,7 +8,7 @@ import { Country } from "./country.entity";
 @EntityRepository(Country)
 export class CountryRepository extends Repository<Country> {
 
-    async createCountry(createCountryDto: CreateCountryDto): Promise<void> {
+    async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
    
         const country = this.create(createCountryDto);
 
@@ -18,6 +18,8 @@ export class CountryRepository extends Repository<Country> {
             console.log(error);
             throw new InternalServerErrorException();
         }
+
+        return country;
     }
 
     async getAllCountry(): Promise<any> {

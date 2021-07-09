@@ -15,7 +15,7 @@ import { UpdateCountryDto } from "./dto/update-country.dto";
 export class CountryService {
   constructor(private countryRepository: CountryRepository) {}
   
-  async createCountry(createCountryDto: CreateCountryDto): Promise<void>{
+  async createCountry(createCountryDto: CreateCountryDto): Promise<any>{
     this.countryRepository.createCountry(createCountryDto);
   }
 

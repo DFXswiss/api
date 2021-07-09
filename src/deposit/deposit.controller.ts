@@ -47,7 +47,7 @@ export class DepositController {
   @Post()
   @UsePipes(ValidationPipe)
   @UseGuards(AdminGuard)
-  createDeposit(@Body() createDepositDto: CreateDepositDto): Promise<void> {
+  createDeposit(@Body() createDepositDto: CreateDepositDto): Promise<any> {
     return this.depositService.createDeposit(createDepositDto);
   }
 

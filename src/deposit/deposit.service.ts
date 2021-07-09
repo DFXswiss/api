@@ -15,7 +15,7 @@ import { UpdateDepositDto } from "./dto/update-deposit.dto";
 export class DepositService {
   constructor(private depositRepository: DepositRepository) {}
 
-  async createDeposit(createDepositDto: CreateDepositDto): Promise<void>{
+  async createDeposit(createDepositDto: CreateDepositDto): Promise<any>{
     this.depositRepository.createDeposit(createDepositDto);
   }
 

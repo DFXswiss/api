@@ -7,7 +7,7 @@ import { GetDepositDto } from "./dto/get-deposit.dto";
 
 @EntityRepository(Deposit)
 export class DepositRepository extends Repository<Deposit> {
-    async createDeposit(createDepositDto: CreateDepositDto): Promise<void> {
+    async createDeposit(createDepositDto: CreateDepositDto): Promise<any> {
    
         const deposit = this.create(createDepositDto);
 
@@ -17,6 +17,8 @@ export class DepositRepository extends Repository<Deposit> {
             console.log(error);
             throw new InternalServerErrorException();
         }
+
+        return deposit;
     }
 
     async getAllDeposit(): Promise<any> {
@@ -33,17 +35,17 @@ export class DepositRepository extends Repository<Deposit> {
 
     async getDeposit(getDepositDto: GetDepositDto): Promise<any> {
 
-        // if(getDepositDto.id){
-        //     const deposit = await this.findOne({ "id" : getDepositDto.id });
+        if(getDepositDto.id){
+            const deposit = await this.findOne({ "id" : getDepositDto.id });
         
-        //     if(deposit) return deposit;
-        // }
+            if(deposit) return deposit;
+        }
         if(getDepositDto.address){
             const deposit = await this.findOne({ "address" : getDepositDto.address });
         
             if(deposit) return deposit;
             
-            throw new Error('No matching country found');
+            throw new Error('No matching deposit address found');
         }
 
         // TODO Error Framework?

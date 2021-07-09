@@ -5,13 +5,11 @@ export class UpdateDepositDto {
 
     @ApiProperty()
     @IsNotEmpty()
-    @IsOptional()
     @IsString()
     address: string;
 
     @ApiProperty()
     @IsNotEmpty()
-    @IsOptional()
     @IsBoolean()
     used: boolean;
 }
