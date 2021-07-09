@@ -9,7 +9,7 @@ import { Country } from './country.entity';
 import { CreateCountryDto } from 'src/country/dto/create-country.dto';
 import { GetCountryDto } from 'src/country/dto/get-country.dto';
 import { CountryRepository } from 'src/country/country.repository';
-import { EditCountryDto } from "./dto/edit-country.dto";
+import { UpdateCountryDto } from "./dto/update-country.dto";
 
 @Injectable()
 export class CountryService {
@@ -23,7 +23,7 @@ export class CountryService {
     return this.countryRepository.getAllCountry();
   }
 
-  async updateCountry(country: EditCountryDto): Promise<string> {
+  async updateCountry(country: UpdateCountryDto): Promise<string> {
     return this.countryRepository.updateCountry(country);
   }
 

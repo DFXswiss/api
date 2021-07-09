@@ -1,25 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length } from "class-validator";
 
-export class EditCountryDto {
+export class GetDepositDto {
     
     @ApiProperty()
     @IsNotEmpty()
-    @IsInt()
+    @IsOptional()
     id: number;
 
     @ApiProperty()
     @IsNotEmpty()
+    @IsOptional()
     @IsString()
-    name: string;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsString()
-    symbol: string;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    enable: boolean;
-
+    address: string;
 }

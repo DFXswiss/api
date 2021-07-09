@@ -2,7 +2,7 @@ import { InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateCountryDto } from "./dto/create-country.dto";
 import { GetCountryDto } from "./dto/get-country.dto";
-import { EditCountryDto } from "./dto/edit-country.dto";
+import { UpdateCountryDto } from "./dto/update-country.dto";
 import { Country } from "./country.entity";
 
 @EntityRepository(Country)
@@ -42,14 +42,13 @@ export class CountryRepository extends Repository<Country> {
         }else{
             const country = await this.findOne({ "name" : getCountryDto.name });
             
-            if(country){
-                return country;
-            }
+            if(country) return country;
+            
             throw new Error('No matching country found');
         }
     }
 
-    async updateCountry(editCountryDto: EditCountryDto): Promise<any>{
+    async updateCountry(editCountryDto: UpdateCountryDto): Promise<any>{
         return await this.save(editCountryDto);
     }
 }
