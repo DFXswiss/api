@@ -16,7 +16,7 @@ export class DepositService {
   constructor(private depositRepository: DepositRepository) {}
 
   async createDeposit(createDepositDto: CreateDepositDto): Promise<any>{
-    this.depositRepository.createDeposit(createDepositDto);
+    return this.depositRepository.createDeposit(createDepositDto);
   }
 
   async getAllDeposit(): Promise<any>{

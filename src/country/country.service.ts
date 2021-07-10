@@ -16,7 +16,7 @@ export class CountryService {
   constructor(private countryRepository: CountryRepository) {}
   
   async createCountry(createCountryDto: CreateCountryDto): Promise<any>{
-    this.countryRepository.createCountry(createCountryDto);
+    return this.countryRepository.createCountry(createCountryDto);
   }
 
   async getAllCountry(): Promise<any> {
