@@ -8,7 +8,7 @@ import { GetDepositDto } from "./dto/get-deposit.dto";
 @EntityRepository(Deposit)
 export class DepositRepository extends Repository<Deposit> {
     async createDeposit(createDepositDto: CreateDepositDto): Promise<any> {
-   
+
         const deposit = this.create(createDepositDto);
 
         try {
@@ -26,6 +26,10 @@ export class DepositRepository extends Repository<Deposit> {
     }
 
     async updateDeposit(depositAddress: UpdateDepositDto): Promise<any> {
+        const currentDeposit = await this.findOne({ "id" : depositAddress.id });
+        
+        if(!currentDeposit) return {"statusCode" : 400, "message": [ "No matching deposit address for id found"]};
+
         return await this.save(depositAddress);
     }
 

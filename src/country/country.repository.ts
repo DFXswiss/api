@@ -51,6 +51,10 @@ export class CountryRepository extends Repository<Country> {
     }
 
     async updateCountry(editCountryDto: UpdateCountryDto): Promise<any>{
+        const currentCountry = await this.findOne({ "id" : editCountryDto.id });
+        
+        if(!currentCountry) return {"statusCode" : 400, "message": [ "No matching country for id found"]};
+
         return await this.save(editCountryDto);
     }
 }

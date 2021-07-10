@@ -26,6 +26,11 @@ export class FiatRepository extends Repository<Fiat> {
     }
 
     async updateFiat(fiat: UpdateFiatDto): Promise<any> {
+
+        const currentFiat = await this.findOne({ "id" : fiat.id });
+        
+        if(!currentFiat) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+
         return await this.save(fiat);
     }
 

@@ -33,6 +33,10 @@ export class AssetRepository extends Repository<Asset> {
     }
 
     async updateAsset(asset: UpdateAssetDto): Promise<any> {
+        const currentAsset = await this.findOne({ "id" : asset.id });
+        
+        if(!currentAsset) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+        
         if(asset.type == "Coin" || asset.type == "DAT" || asset.type == "DCT"){
             return await this.save(asset);
         }else{
@@ -52,7 +56,7 @@ export class AssetRepository extends Repository<Asset> {
         
             if(asset) return asset;
             
-            throw new Error('No matching asset found');
+            return {"statusCode" : 400, "message": [ "No matching asset found"]};
         }
 
         // TODO Error Framework?
