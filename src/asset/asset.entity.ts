@@ -5,10 +5,10 @@ import * as typeorm from 'typeorm';
   name: 'token_info'
 })
 export class Asset {
-  @PrimaryColumn({ type: 'int', unique: true })
+  @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 34 })
+  @Column({ type: 'varchar', unique: true ,length: 34 })
   name: string;
 
   @Column({ type: 'varchar', length: 32 })
