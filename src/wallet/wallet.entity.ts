@@ -6,10 +6,13 @@ import { User } from 'src/user/user.entity';
   name: 'wallets'
 })
 export class Wallet {
-  @PrimaryColumn({ type: 'varchar', unique: true, length: 34 })
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', unique: true, length: 34 })
   address: string;
 
-  @Column({ type: 'varchar', length: 88 })
+  @Column({ type: 'varchar', unique: true, length: 88 })
   signature: string;
 
   @Column({ type: 'varchar', length: 32 })

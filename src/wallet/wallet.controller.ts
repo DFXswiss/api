@@ -16,6 +16,8 @@ import { AdminGuard } from 'src/guards/admin.guard';
 import { Wallet } from './wallet.entity';
 import { WalletService } from './wallet.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
+import { GetWalletDto } from "./dto/get-wallet.dto";
+import { UpdateWalletDto } from "./dto/update-wallet.dto";
 
 @ApiTags('wallet')
 @Controller('wallet')
@@ -24,33 +26,26 @@ export class WalletController {
 
   @Get()
   @UseGuards(AdminGuard)
-  async getWalletRoute(): Promise<any> {
-    return this.walletService.findWalletByAddress();
+  async getWallet(@Body() wallet: GetWalletDto): Promise<any> {
+    return this.walletService.getWallet(wallet);
   }
 
-  @Get('key')
+  @Get('all')
   @UseGuards(AdminGuard)
-  async getWalletByKey(@Param() key: string): Promise<any> {
-    return this.walletService.findWalletByKey(key);
+  async getAllWallet(): Promise<any> {
+    return this.walletService.getAllWallet();
   }
 
   @Post()
   @UsePipes(ValidationPipe)
+  @UseGuards(AdminGuard)
   createWallet(@Body() createWalletDto: CreateWalletDto): Promise<void> {
     return this.walletService.createWallet(createWalletDto);
   }
 
-  // @Post()
-  // @UseGuards(AdminGuard)
-  // async createWalletRoute(@Body() wallet: Wallet, @Request() req) {
-  //   if (this.walletService.findWalletByAddress() != null) return 'Already exist';
-  //   return this.walletService.createWallet(wallet);
-  // }
-
   @Put()
   @UseGuards(AdminGuard)
-  async updateWalletRoute(@Body() wallet: Wallet, @Request() req) {
-    if (this.walletService.findWalletByAddress() == null) return 'Not exist';
+  async updateWalletRoute(@Body() wallet: UpdateWalletDto) {
     return this.walletService.updateWallet(wallet);
   }
 }
