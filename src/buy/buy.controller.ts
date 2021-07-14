@@ -16,6 +16,7 @@ import { UserGuard } from 'src/guards/user.guard';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
 import { CreateBuyDto } from './dto/create-buy.dto';
+import { GetBuyDto } from './dto/get-buy.dto';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -23,9 +24,9 @@ export class BuyController {
   constructor(private readonly buyService: BuyService) {}
 
   @Get()
-  @UseGuards(UserGuard)
-  async getBuyRoute(): Promise<any> {
-    return this.buyService.getBuy();
+  @UsePipes(ValidationPipe)
+  async getBuyRoute(@Body() getBuyDto: GetBuyDto): Promise<any> {
+    return this.buyService.getBuy(getBuyDto);
   }
 
   @Post()
@@ -34,17 +35,10 @@ export class BuyController {
     return this.buyService.createBuy(createBuyDto);
   }
 
-  // @Post()
-  // @UseGuards(UserGuard)
-  // async createBuyRoute(@Body() buy: Buy, @Request() req) {
-  //   if (this.buyService.getBuy() != null) return 'Already exist';
-  //   return this.buyService.createBuy(buy);
-  // }
-
   @Put()
   @UseGuards(UserGuard)
   async updateBuyRoute(@Body() buy: Buy, @Request() req) {
-    if (this.buyService.getBuy() == null) return 'Not exist';
+    //if (this.buyService.getBuy() == null) return 'Not exist';
     return this.buyService.updateBuy(buy);
   }
 }
