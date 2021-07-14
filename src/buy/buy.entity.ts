@@ -5,8 +5,8 @@ import * as typeorm from 'typeorm';
   name: 'fiat2crypto'
 })
 export class Buy {
-  @PrimaryColumn({ type: 'varchar', unique: true, length: 42 })
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ type: 'varchar', length: 34 })
   address: string;

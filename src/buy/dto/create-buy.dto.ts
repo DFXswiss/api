@@ -14,4 +14,17 @@ export class CreateBuyDto {
     @IsInt()
     asset: number; // asset should be an object
 
+    @ApiProperty()
+    @IsNotEmpty()
+    @Length(34,34)
+    @IsString()
+    address: string;
+
+    @ApiProperty()
+    @IsNotEmpty()
+    @Length(14,14)
+    @IsOptional()
+    @IsString()
+    bank_usage: string;
+
 }

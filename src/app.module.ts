@@ -3,7 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
-import config from './config/config';
 import { AppController } from './app.controller';
 import { UserController } from './user/user.controller';
 import { BuyController } from './buy/buy.controller';
@@ -42,7 +41,7 @@ import { JwtStrategy } from './auth/jwt.strategy';
     JwtModule.register({
       // TODO: Secret to .env!!!
       // Notice that the same key is used in jwt.strategy.ts!
-      secret: 'some-secret-key',
+      secret: process.env.JWT_SECRET,
       signOptions: {
         expiresIn: 3600,
       }
