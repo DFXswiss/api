@@ -9,21 +9,21 @@ import { Country } from './country.entity';
 import { CreateCountryDto } from 'src/country/dto/create-country.dto';
 import { GetCountryDto } from 'src/country/dto/get-country.dto';
 import { CountryRepository } from 'src/country/country.repository';
-import { EditCountryDto } from "./dto/edit-country.dto";
+import { UpdateCountryDto } from "./dto/update-country.dto";
 
 @Injectable()
 export class CountryService {
   constructor(private countryRepository: CountryRepository) {}
   
-  async createCountry(createCountryDto: CreateCountryDto): Promise<void>{
-    this.countryRepository.createCountry(createCountryDto);
+  async createCountry(createCountryDto: CreateCountryDto): Promise<any>{
+    return this.countryRepository.createCountry(createCountryDto);
   }
 
   async getAllCountry(): Promise<any> {
     return this.countryRepository.getAllCountry();
   }
 
-  async updateCountry(country: EditCountryDto): Promise<string> {
+  async updateCountry(country: UpdateCountryDto): Promise<string> {
     return this.countryRepository.updateCountry(country);
   }
 

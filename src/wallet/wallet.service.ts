@@ -8,28 +8,27 @@ import { Repository } from 'typeorm';
 import { Wallet } from './wallet.entity';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { CreateWalletDto } from 'src/wallet/dto/create-wallet.dto';
+import { GetWalletDto } from "./dto/get-wallet.dto";
+import { UpdateWalletDto } from "./dto/update-wallet.dto";
 
 @Injectable()
 export class WalletService {
     constructor(private walletRepository: WalletRepository) {}
   
-  async createWallet(createWalletDto: CreateWalletDto): Promise<void>{
-    this.walletRepository.createWallet(createWalletDto);
+  async createWallet(createWalletDto: CreateWalletDto): Promise<any>{
+    return this.walletRepository.createWallet(createWalletDto);
   }
 
-  // async createWallet(user: any): Promise<string> {
-  //   return '1';
-  // }
-
-  async findWalletByAddress(): Promise<string> {
-    return '2';
+  async getWallet(getWalletDto: GetWalletDto): Promise<any> {
+    return this.walletRepository.getWallet(getWalletDto);
   }
 
-  async updateWallet(user: any): Promise<string> {
-    return '3';
+  async getAllWallet(): Promise<any> {
+    return this.walletRepository.getAllWallet();
   }
 
-  async findWalletByKey(key:any): Promise<string> {
-    return '4';
+  async updateWallet(updatewalletDto: UpdateWalletDto): Promise<any> {
+    return this.walletRepository.updateWallet(updatewalletDto);
   }
+
 }

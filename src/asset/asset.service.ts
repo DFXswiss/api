@@ -7,25 +7,27 @@ import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { Asset } from 'src/asset/asset.entity';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { CreateAssetDto } from 'src/asset/dto/create-asset.dto';
+import { GetAssetDto } from "./dto/get-asset.dto";
+import { UpdateAssetDto } from "./dto/update-asset.dto";
 import { UserRepository } from 'src/user/user.repository';
 
 @Injectable()
 export class AssetService {
   constructor(private assetRepository: AssetRepository, private userRepository: UserRepository) {}
   
-  async createAsset(createAssetDto: CreateAssetDto): Promise<void>{
-    this.assetRepository.createAsset(createAssetDto);
+  async createAsset(createAssetDto: CreateAssetDto): Promise<any>{
+    return this.assetRepository.createAsset(createAssetDto);
   }
 
-  async findAssetByAddress(): Promise<Asset> {
-    return this.assetRepository.findOne({"id": 0});
+  async getAllAsset(): Promise<any> {
+    return this.assetRepository.getAllAsset();
   }
 
-  async updateAsset(user: any): Promise<string> {
-    return '3';
+  async updateAsset(asset: UpdateAssetDto): Promise<any> {
+    return this.assetRepository.updateAsset(asset);
   }
 
-  async findAssetByKey(key:any): Promise<string> {
-    return '4';
+  async getAsset(key: GetAssetDto): Promise<any> {
+    return this.assetRepository.getAsset(key);
   }
 }

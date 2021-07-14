@@ -2,17 +2,19 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length } from "class-validator";
 
 // TODO: Again: Custom decorators for address and signature,...
-export class CreateFiatDto {
+export class GetWalletDto {
 
     @ApiProperty()
     @IsNotEmpty()
-    @IsString()
-    name: string;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsBoolean()
+    @IsInt()
     @IsOptional()
-    enable: boolean;
+    id: number;
+
+    @ApiProperty()
+    @IsNotEmpty()
+    @Length(34,34)
+    @IsString()
+    @IsOptional()
+    address: string;
 
 }

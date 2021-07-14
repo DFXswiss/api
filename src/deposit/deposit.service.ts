@@ -8,28 +8,30 @@ import { Repository } from 'typeorm';
 import { Deposit } from './deposit.entity';
 import { DepositRepository } from 'src/deposit/deposit.repository';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
+import { GetDepositDto } from "./dto/get-deposit.dto";
+import { UpdateDepositDto } from "./dto/update-deposit.dto";
 
 @Injectable()
 export class DepositService {
   constructor(private depositRepository: DepositRepository) {}
 
-  async createDeposit(createDepositDto: CreateDepositDto): Promise<void>{
-    this.depositRepository.createDeposit(createDepositDto);
+  async createDeposit(createDepositDto: CreateDepositDto): Promise<any>{
+    return this.depositRepository.createDeposit(createDepositDto);
   }
 
-  // async createDeposit(user: any): Promise<string> {
-  //   return '1';
-  // }
-
-  async findDepositByAddress(): Promise<string> {
-    return '2';
+  async getAllDeposit(): Promise<any>{
+    return this.depositRepository.getAllDeposit();
   }
 
-  async updateDeposit(user: any): Promise<string> {
-    return '3';
+  async getNextDeposit(): Promise<any> {
+    return this.depositRepository.getNextDeposit();
   }
 
-  async findDepositByKey(key:any): Promise<string> {
-    return '4';
+  async updateDeposit(update: UpdateDepositDto): Promise<any> {
+    return this.depositRepository.updateDeposit(update);
+  }
+
+  async getDeposit(key: GetDepositDto): Promise<any> {
+    return this.depositRepository.getDeposit(key);
   }
 }

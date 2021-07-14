@@ -17,6 +17,8 @@ import { AdminGuard } from 'src/guards/admin.guard';
 import { Fiat } from './fiat.entity';
 import { FiatService } from './fiat.service';
 import { CreateFiatDto } from './dto/create-fiat.dto';
+import { GetFiatDto } from "./dto/get-fiat.dto";
+import { UpdateFiatDto } from "./dto/update-fiat.dto";
 
 @ApiTags('fiat')
 @Controller('fiat')
@@ -24,32 +26,28 @@ export class FiatController {
   constructor(private readonly fiatService: FiatService) {}
 
   @Get()
-  async getFiatRoute(): Promise<any> {
-    return this.fiatService.findFiatByAddress();
+  @UsePipes(ValidationPipe)
+  async getFiat(@Body() fiat: GetFiatDto): Promise<any> {
+    return this.fiatService.getFiat(fiat);
   }
 
-  @Get('key')
-  async getFiatByKey(@Param() key: string): Promise<any> {
-    return this.fiatService.findFiatByKey(key);
+  @Get('all')
+  @UsePipes(ValidationPipe)
+  async getAllFiat(): Promise<any> {
+    return this.fiatService.getAllFiat();
   }
 
   @Post()
   @UsePipes(ValidationPipe)
-  createFiat(@Body() createFiatDto: CreateFiatDto): Promise<void> {
+  @UseGuards(AdminGuard)
+  createFiat(@Body() createFiatDto: CreateFiatDto): Promise<any> {
     return this.fiatService.createFiat(createFiatDto);
   }
 
-  // @Post()
-  // @UseGuards(AdminGuard)
-  // async createFiatRoute(@Body() fiat: Fiat, @Request() req) {
-  //   if (this.fiatService.findFiatByAddress() != null) return 'Already exist';
-  //   return this.fiatService.createFiat(fiat);
-  // }
-
   @Put()
   @UseGuards(AdminGuard)
-  async updateFiatRoute(@Body() fiat: Fiat, @Request() req) {
-    if (this.fiatService.findFiatByAddress() == null) return 'Not exist';
+  @UsePipes(ValidationPipe)
+  async updateFiat(@Body() fiat:UpdateFiatDto) {
     return this.fiatService.updateFiat(fiat);
   }
 }

@@ -7,11 +7,10 @@ import { UserRepository } from "src/user/user.repository";
 import { JwtPayload } from "./jwt-payload.interface";
 
 export class JwtStrategy extends PassportStrategy(Strategy) {
+
     constructor(@InjectRepository(UserRepository) private userRepository: UserRepository) {
         super({
-            // TODO: Please change secret key to .env variables.
-            // Also notice that the same secret key has to be used in the module registration!
-            secretOrKey: 'some-secret-key',
+            secretOrKey: process.env.JWT_SECRET,
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
         })
     }

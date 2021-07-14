@@ -5,10 +5,10 @@ import * as typeorm from 'typeorm';
   name: 'deposit_address'
 })
 export class Deposit {
-  // @PrimaryGeneratedColumn('uuid')
-  // id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @PrimaryColumn({ type: 'varchar', unique: true, length: 42 })
+  @Column({ type: 'varchar', unique: true, length: 42 })
   address: string;
 
   @Column({ type: 'tinyint',  default: false })

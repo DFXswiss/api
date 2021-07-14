@@ -16,7 +16,9 @@ import { ApiTags } from '@nestjs/swagger';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
-import { CreateDepositDto } from './dto/create-deposit.dto';
+import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
+import { GetDepositDto } from "./dto/get-deposit.dto";
+import { UpdateDepositDto } from "./dto/update-deposit.dto";
 
 @ApiTags('deposit')
 @Controller('deposit')
@@ -25,33 +27,34 @@ export class DepositController {
 
   @Get()
   @UseGuards(AdminGuard)
-  async getDepositRoute(): Promise<any> {
-    return this.depositService.findDepositByAddress();
+  @UsePipes(ValidationPipe)
+  async getDeposit(@Body() deposit: GetDepositDto): Promise<any> {
+    return this.depositService.getDeposit(deposit);
   }
 
-  @Get('key')
+  @Get('all')
   @UseGuards(AdminGuard)
-  async getFiatByKey(@Param() key: string): Promise<any> {
-    return this.depositService.findDepositByKey(key);
+  async getAllDeposit(): Promise<any> {
+    return this.depositService.getAllDeposit();
+  }
+
+  @Get('next')
+  @UseGuards(AdminGuard)
+  async getNextDeposit(): Promise<any> {
+    return this.depositService.getNextDeposit();
   }
 
   @Post()
   @UsePipes(ValidationPipe)
-  createDeposit(@Body() createDepositDto: CreateDepositDto): Promise<void> {
+  @UseGuards(AdminGuard)
+  createDeposit(@Body() createDepositDto: CreateDepositDto): Promise<any> {
     return this.depositService.createDeposit(createDepositDto);
   }
 
-  // @Post()
-  // @UseGuards(AdminGuard)
-  // async createDepositRoute(@Body() deposit: Deposit, @Request() req) {
-  //   if (this.depositService.findDepositByAddress() != null) return 'Already exist';
-  //   return this.depositService.createDeposit(deposit);
-  // }
-
   @Put()
   @UseGuards(AdminGuard)
-  async updateDepositRoute(@Body() deposit: Deposit, @Request() req) {
-    if (this.depositService.findDepositByAddress() == null) return 'Not exist';
+  @UsePipes(ValidationPipe)
+  async updateDepositRoute(@Body() deposit: UpdateDepositDto): Promise<any> {
     return this.depositService.updateDeposit(deposit);
   }
 }

@@ -3,7 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
-import config from './config/config';
 import { AppController } from './app.controller';
 import { UserController } from './user/user.controller';
 import { BuyController } from './buy/buy.controller';
@@ -33,25 +32,30 @@ import { CountryRepository } from './country/country.repository';
 import { FiatRepository } from './fiat/fiat.repository';
 import { BuyRepository } from './buy/buy.repository';
 import { SellRepository } from './sell/sell.repository';
-import { JwtStrategy } from './auth/jwt.strategy';
-
+import { JwtStrategy } from './auth/jwt.strategy';       
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      load: [config],
-    }),
+    ConfigModule.forRoot(),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       // TODO: Secret to .env!!!
       // Notice that the same key is used in jwt.strategy.ts!
-      secret: 'some-secret-key',
+      secret: process.env.JWT_SECRET,
       signOptions: {
         expiresIn: 3600,
       }
     }),
-    TypeOrmModule.forRoot(),
+    TypeOrmModule.forRoot({
+      type: "mssql",
+      host: process.env.SQL_HOST,
+      port: Number.parseInt(process.env.SQL_PORT),
+      username: process.env.SQL_USERNAME,
+      password: process.env.SQL_PASSWORD,
+      database: process.env.SQL_DB,
+      entities: ["dist/**/*.entity{.ts,.js}"],
+      synchronize: (process.env.SQL_SYNCHRONIZE === 'true'),}
+    ),
     TypeOrmModule.forFeature([UserRepository,AssetRepository,WalletRepository,DepositRepository,CountryRepository,FiatRepository,BuyRepository,SellRepository,]),
   ],
   controllers: [

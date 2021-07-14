@@ -3,11 +3,6 @@ import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumbe
 
 // TODO: Again: Custom decorators for address and signature,...
 export class CreateAssetDto {
-    
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsInt()
-    id: number;
 
     @ApiProperty()
     @IsNotEmpty()
@@ -22,11 +17,13 @@ export class CreateAssetDto {
     @ApiProperty()
     @IsNotEmpty()
     @IsBoolean()
+    @IsOptional()
     sellable: boolean;
 
     @ApiProperty()
     @IsNotEmpty()
     @IsBoolean()
+    @IsOptional()
     buyable: boolean;
 
 }

@@ -2,13 +2,13 @@ import { InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateCountryDto } from "./dto/create-country.dto";
 import { GetCountryDto } from "./dto/get-country.dto";
-import { EditCountryDto } from "./dto/edit-country.dto";
+import { UpdateCountryDto } from "./dto/update-country.dto";
 import { Country } from "./country.entity";
 
 @EntityRepository(Country)
 export class CountryRepository extends Repository<Country> {
 
-    async createCountry(createCountryDto: CreateCountryDto): Promise<void> {
+    async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
    
         const country = this.create(createCountryDto);
 
@@ -18,6 +18,8 @@ export class CountryRepository extends Repository<Country> {
             console.log(error);
             throw new InternalServerErrorException();
         }
+
+        return country;
     }
 
     async getAllCountry(): Promise<any> {
@@ -42,14 +44,17 @@ export class CountryRepository extends Repository<Country> {
         }else{
             const country = await this.findOne({ "name" : getCountryDto.name });
             
-            if(country){
-                return country;
-            }
+            if(country) return country;
+            
             throw new Error('No matching country found');
         }
     }
 
-    async updateCountry(editCountryDto: EditCountryDto): Promise<any>{
+    async updateCountry(editCountryDto: UpdateCountryDto): Promise<any>{
+        const currentCountry = await this.findOne({ "id" : editCountryDto.id });
+        
+        if(!currentCountry) return {"statusCode" : 400, "message": [ "No matching country for id found"]};
+
         return await this.save(editCountryDto);
     }
 }

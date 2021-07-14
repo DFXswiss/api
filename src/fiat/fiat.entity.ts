@@ -5,14 +5,11 @@ import * as typeorm from 'typeorm';
   name: 'fiat_info'
 })
 export class Fiat {
-  @PrimaryColumn({ type: 'int', unique: true,  })
+  @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 34 })
+  @Column({ type: 'varchar', unique: true, length: 34 })
   name: string;
-
-  @Column({ type: 'varchar', length: 32 })
-  type: string;
 
   @Column({ type: 'tinyint',  default: 1 })
   enable: boolean;

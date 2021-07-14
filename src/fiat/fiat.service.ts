@@ -6,29 +6,27 @@ import {
 import { InjectEntityManager } from '@nestjs/typeorm';
 import { Fiat } from './fiat.entity';
 import { CreateFiatDto } from 'src/fiat/dto/create-fiat.dto';
+import { GetFiatDto } from "./dto/get-fiat.dto";
+import { UpdateFiatDto } from "./dto/update-fiat.dto";
 import { FiatRepository } from 'src/fiat/fiat.repository';
 
 @Injectable()
 export class FiatService {
   constructor(private fiatRepository: FiatRepository) {}
   
-  async createFiat(createFiatDto: CreateFiatDto): Promise<void>{
-    this.fiatRepository.createFiat(createFiatDto);
+  async createFiat(createFiatDto: CreateFiatDto): Promise<any>{
+    return this.fiatRepository.createFiat(createFiatDto);
   }
 
-  // async createFiat(user: any): Promise<string> {
-  //   return '1';
-  // }
-
-  async findFiatByAddress(): Promise<string> {
-    return '2';
+  async getAllFiat(): Promise<any> {
+    return this.fiatRepository.getAllFiat();
   }
 
-  async updateFiat(user: any): Promise<string> {
-    return '3';
+  async updateFiat(fiat: UpdateFiatDto): Promise<any> {
+    return this.fiatRepository.updateFiat(fiat);
   }
 
-  async findFiatByKey(key:any): Promise<string> {
-    return '4';
+  async getFiat(key:GetFiatDto): Promise<any> {
+    return this.fiatRepository.getFiat(key);
   }
 }

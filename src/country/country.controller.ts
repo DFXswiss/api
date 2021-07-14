@@ -17,7 +17,7 @@ import { Country } from './country.entity';
 import { CountryService } from './country.service';
 import { CreateCountryDto } from './dto/create-country.dto';
 import { GetCountryDto } from './dto/get-country.dto';
-import { EditCountryDto } from "./dto/edit-country.dto";
+import { UpdateCountryDto } from "./dto/update-country.dto";
 
 @ApiTags('country')
 @Controller('country')
@@ -38,14 +38,14 @@ export class CountryController {
   @Post()
   @UseGuards(AdminGuard)
   @UsePipes(ValidationPipe)
-  createCountry(@Body() createCountryDto: CreateCountryDto): Promise<void> {
+  createCountry(@Body() createCountryDto: CreateCountryDto): Promise<any> {
     return this.countryService.createCountry(createCountryDto);
   }
 
   @Put()
   @UseGuards(AdminGuard)
   @UsePipes(ValidationPipe)
-  async updateCountryRoute(@Body() country: EditCountryDto) {
+  async updateCountryRoute(@Body() country: UpdateCountryDto) {
     return this.countryService.updateCountry(country);
   }
 }
