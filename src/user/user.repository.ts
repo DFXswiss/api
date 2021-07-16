@@ -86,7 +86,6 @@ export class UserRepository extends Repository<User> {
         user.role = currentUser.role;
 
         return await this.save(user);
->>>>>>> 5441a40f48b53e1e9311ac59d8481aa479ff12a9
     }
 
     async updateRole(user: UpdateRoleDto): Promise<any> {
