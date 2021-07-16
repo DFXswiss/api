@@ -31,7 +31,7 @@ export class DepositService {
     return this.depositRepository.updateDeposit(update);
   }
 
-  async getDeposit(key: GetDepositDto): Promise<any> {
+  async getDeposit(key: any): Promise<any> {
     return this.depositRepository.getDeposit(key);
   }
 }

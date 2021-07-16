@@ -4,6 +4,7 @@ import { CreateFiatDto } from "./dto/create-fiat.dto";
 import { GetFiatDto } from "./dto/get-fiat.dto";
 import { UpdateFiatDto } from "./dto/update-fiat.dto";
 import { Fiat } from "./fiat.entity";
+import { isNumber, isString } from "class-validator";
 
 @EntityRepository(Fiat)
 export class FiatRepository extends Repository<Fiat> {
@@ -34,24 +35,24 @@ export class FiatRepository extends Repository<Fiat> {
         return await this.save(fiat);
     }
 
-    async getFiat(getFiatDto: GetFiatDto): Promise<any> {
+    async getFiat(key: any): Promise<any> {
 
-        if(getFiatDto.id){
-            const fiat = await this.findOne({ "id" : getFiatDto.id });
-        
-            if(fiat) return fiat;
-        }
-        if(getFiatDto.name){
-            const fiat = await this.findOne({ "name" : getFiatDto.name });
-        
+        if(!isNaN(key.key)){
+            let fiat = await this.findOne({ "id" : key.key });
+            
             if(fiat) return fiat;
             
-            throw new Error('No matching fiat found');
+        }else if(isString(key.key)){
+
+            let fiat = await this.findOne({ "name" : key.key });
+            
+            if(fiat) return fiat;
+                
+            return {"statusCode" : 400, "message": [ "No matching fiat found"]};
         }
 
         // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "id should not be empty", "name must be a string", "name should not be empty"]};
-        
+        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
     }
 
 }

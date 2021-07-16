@@ -24,13 +24,13 @@ import { UpdateWalletDto } from "./dto/update-wallet.dto";
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
-  @Get()
+  @Get(':key')
   @UseGuards(AdminGuard)
-  async getWallet(@Body() wallet: GetWalletDto): Promise<any> {
+  async getWallet(@Param() wallet: any): Promise<any> {
     return this.walletService.getWallet(wallet);
   }
 
-  @Get('all')
+  @Get()
   @UseGuards(AdminGuard)
   async getAllWallet(): Promise<any> {
     return this.walletService.getAllWallet();

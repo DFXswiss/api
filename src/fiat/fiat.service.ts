@@ -26,7 +26,7 @@ export class FiatService {
     return this.fiatRepository.updateFiat(fiat);
   }
 
-  async getFiat(key:GetFiatDto): Promise<any> {
+  async getFiat(key:any): Promise<any> {
     return this.fiatRepository.getFiat(key);
   }
 }

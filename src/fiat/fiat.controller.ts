@@ -25,13 +25,13 @@ import { UpdateFiatDto } from "./dto/update-fiat.dto";
 export class FiatController {
   constructor(private readonly fiatService: FiatService) {}
 
-  @Get()
+  @Get(':key')
   @UsePipes(ValidationPipe)
-  async getFiat(@Body() fiat: GetFiatDto): Promise<any> {
+  async getFiat(@Param() fiat: any): Promise<any> {
     return this.fiatService.getFiat(fiat);
   }
 
-  @Get('all')
+  @Get()
   @UsePipes(ValidationPipe)
   async getAllFiat(): Promise<any> {
     return this.fiatService.getAllFiat();

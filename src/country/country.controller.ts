@@ -24,13 +24,13 @@ import { UpdateCountryDto } from "./dto/update-country.dto";
 export class CountryController {
   constructor(private readonly countryService: CountryService) {}
 
-  @Get()
+  @Get(':key')
   @UsePipes(ValidationPipe)
-  async getCountry(@Body() getCountryDto: GetCountryDto): Promise<any> {
-    return this.countryService.getCountry(getCountryDto); 
+  async getCountry(@Param() country: any): Promise<any> {
+    return this.countryService.getCountry(country); 
   }
 
-  @Get('all')
+  @Get()
   async getAllCountry(): Promise<any> {
     return this.countryService.getAllCountry(); 
   }

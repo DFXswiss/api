@@ -4,6 +4,7 @@ import { CreateDepositDto } from "./dto/create-deposit.dto";
 import { UpdateDepositDto } from "./dto/update-deposit.dto";
 import { Deposit } from "./deposit.entity";
 import { GetDepositDto } from "./dto/get-deposit.dto";
+import { isNumber, isString } from "class-validator";
 
 @EntityRepository(Deposit)
 export class DepositRepository extends Repository<Deposit> {
@@ -37,23 +38,20 @@ export class DepositRepository extends Repository<Deposit> {
         return await this.findOne({ "used" : false});
     }
 
-    async getDeposit(getDepositDto: GetDepositDto): Promise<any> {
+    async getDeposit(key: any): Promise<any> {
 
-        if(getDepositDto.id){
-            const deposit = await this.findOne({ "id" : getDepositDto.id });
-        
-            if(deposit) return deposit;
-        }
-        if(getDepositDto.address){
-            const deposit = await this.findOne({ "address" : getDepositDto.address });
-        
-            if(deposit) return deposit;
+        if(!isNaN(key.key)){
+            let asset = await this.findOne({ "id" : key.key });
             
-            throw new Error('No matching deposit address found');
-        }
+            if(asset) return asset;
+            
+        }else if(isString(key.key)){
 
-        // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "id should not be empty", "address must be a string", "address should not be empty"]};
-        
+            let asset = await this.findOne({ "address" : key.key });
+            
+            if(asset) return asset;
+                
+            return {"statusCode" : 400, "message": [ "No matching deposit address found"]};
+        }
     }
 }
