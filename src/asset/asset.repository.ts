@@ -47,14 +47,12 @@ export class AssetRepository extends Repository<Asset> {
 
     async getAsset(key: any): Promise<any> {
 
-        if(isNumber(key)){
-            let asset = await this.findOne({ "id" : key });
+        if(isNumber(key.key) || isString(key.key)){
+            let asset = await this.findOne({ "id" : key.key });
             
             if(asset) return asset;
-            
-        }else if(isString(key)){
 
-            let asset = await this.findOne({ "name" : key });
+            asset = await this.findOne({ "name" : key.key });
             
             if(asset) return asset;
                 
