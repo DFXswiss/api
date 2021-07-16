@@ -12,6 +12,14 @@ export class UserRepository extends Repository<User> {
 
         user.ref = (await this.findOne({order: {"ref": 'DESC'}})).ref + 1;
 
+        const refUser = await this.findOne({"ref": createUserDto.usedRef});
+
+        if(!refUser){
+            return {"statusCode" : 400, "message": [ "usedRef doesn't exist"]};
+        }else if(user.ref == createUserDto.usedRef){
+            return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
+        }
+
         try {
             await this.save(user);
         } catch (error) {
@@ -48,7 +56,8 @@ export class UserRepository extends Repository<User> {
         if(user.address && user.address != currentUser.address) return {"statusCode" : 400, "message": [ "You cannot update your address!"]};
         if(user.role && user.role != currentUser.role) return {"statusCode" : 400, "message": [ "You cannot update your role!"]};
         if(user.status && user.status != currentUser.status) return {"statusCode" : 400, "message": [ "You cannot update your status!"]};
-
+        if(user.usedRef == currentUser.ref) return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
+        
         user.ref = currentUser.ref;
         user.id = currentUser.id;
         user.address = currentUser.address;
