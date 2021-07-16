@@ -14,10 +14,10 @@ export class UserRepository extends Repository<User> {
 
         const refUser = await this.findOne({"ref": createUserDto.usedRef});
 
-        if(!refUser){
-            return {"statusCode" : 400, "message": [ "usedRef doesn't exist"]};
-        }else if(user.ref == createUserDto.usedRef){
+        if(user.ref == createUserDto.usedRef){
             return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
+        }else if(!refUser){
+            return {"statusCode" : 400, "message": [ "usedRef doesn't exist"]};            
         }
 
         try {

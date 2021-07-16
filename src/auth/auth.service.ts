@@ -10,7 +10,9 @@ export class AuthService {
   constructor(private userRepository: UserRepository, private jwtService: JwtService) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
-    await this.userRepository.createUser(createUserDto);
+    const signUpResult = await this.userRepository.createUser(createUserDto);
+    if(signUpResult.statusCode) return signUpResult;
+    
     return this.signIn(createUserDto);
   }
 
