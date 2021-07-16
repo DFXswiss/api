@@ -19,8 +19,8 @@ export class WalletService {
     return this.walletRepository.createWallet(createWalletDto);
   }
 
-  async getWallet(getWalletDto: GetWalletDto): Promise<any> {
-    return this.walletRepository.getWallet(getWalletDto);
+  async getWallet(wallet: any): Promise<any> {
+    return this.walletRepository.getWallet(wallet);
   }
 
   async getAllWallet(): Promise<any> {

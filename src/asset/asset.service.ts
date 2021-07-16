@@ -27,7 +27,7 @@ export class AssetService {
     return this.assetRepository.updateAsset(asset);
   }
 
-  async getAsset(key: GetAssetDto): Promise<any> {
+  async getAsset(key: any): Promise<any> {
     return this.assetRepository.getAsset(key);
   }
 }

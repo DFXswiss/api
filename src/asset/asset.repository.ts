@@ -4,6 +4,7 @@ import { CreateAssetDto } from "./dto/create-asset.dto";
 import { GetAssetDto } from "./dto/get-asset.dto";
 import { UpdateAssetDto } from "./dto/update-asset.dto";
 import { Asset } from "./asset.entity";
+import { isNumber, isString } from "class-validator";
 
 @EntityRepository(Asset)
 export class AssetRepository extends Repository<Asset> {
@@ -44,23 +45,24 @@ export class AssetRepository extends Repository<Asset> {
         }
     }
 
-    async getAsset(getAssetDto: GetAssetDto): Promise<any> {
+    async getAsset(key: any): Promise<any> {
 
-        if(getAssetDto.id){
-            const asset = await this.findOne({ "id" : getAssetDto.id });
-        
-            if(asset) return asset;
-        }
-        if(getAssetDto.name){
-            const asset = await this.findOne({ "name" : getAssetDto.name });
-        
+        if(!isNaN(key.key)){
+            let asset = await this.findOne({ "id" : key.key });
+            
             if(asset) return asset;
             
+        }else if(isString(key.key)){
+
+            let asset = await this.findOne({ "name" : key.key });
+            
+            if(asset) return asset;
+                
             return {"statusCode" : 400, "message": [ "No matching asset found"]};
         }
 
         // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "id should not be empty", "name must be a string", "name should not be empty"]};
+        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
         
     }
 }

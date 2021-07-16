@@ -27,7 +27,7 @@ export class CountryService {
     return this.countryRepository.updateCountry(country);
   }
 
-  async getCountry(key:GetCountryDto): Promise<string> {
+  async getCountry(key:any): Promise<any> {
     return this.countryRepository.getCountry(key);
   }
 }

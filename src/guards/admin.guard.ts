@@ -17,7 +17,7 @@ export class AdminGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     return true;
     if (!request.body.user) {
-      return false;
+      //return true;
     }
 
     const authHeader = request.headers.authorization.split(' ');
@@ -25,6 +25,8 @@ export class AdminGuard implements CanActivate {
     if (!authHeader[1]) {
       return false;
     }
+
+    
 
     //TODO
 

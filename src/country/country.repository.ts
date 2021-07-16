@@ -4,6 +4,7 @@ import { CreateCountryDto } from "./dto/create-country.dto";
 import { GetCountryDto } from "./dto/get-country.dto";
 import { UpdateCountryDto } from "./dto/update-country.dto";
 import { Country } from "./country.entity";
+import { isString } from "class-validator";
 
 @EntityRepository(Country)
 export class CountryRepository extends Repository<Country> {
@@ -26,28 +27,29 @@ export class CountryRepository extends Repository<Country> {
         return await this.find();
     }
 
-    async getCountry(getCountryDto:GetCountryDto): Promise<any> {
+    async getCountry(key:any): Promise<any> {
    
-        if(getCountryDto.id){
-            const country = await this.findOne({ "id" : getCountryDto.id });
-        
-            if(country) return country;
-        }
-        if(getCountryDto.symbol){
-            const country = await this.findOne({ "symbol" : getCountryDto.symbol });
-        
-            if(country) return country;
-        }
-        if(!getCountryDto.name){
-            // TODO Error Framework?
-            return {"statusCode" : 400, "message": [ "symbol must be a string", "symbol should not be empty", "name must be a string", "name should not be empty"]};
-        }else{
-            const country = await this.findOne({ "name" : getCountryDto.name });
+        if(!isNaN(key.key)){
+            let asset = await this.findOne({ "id" : key.key });
             
-            if(country) return country;
+            if(asset) return asset;
             
-            throw new Error('No matching country found');
+        }else if(isString(key.key)){
+
+            let asset = await this.findOne({ "symbol" : key.key });
+            
+            if(asset) return asset;
+
+            asset = await this.findOne({ "name" : key.key });
+            
+            if(asset) return asset;
+                
+            return {"statusCode" : 400, "message": [ "No matching country found"]};
         }
+
+        // TODO Error Framework?
+        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string", "OR:", "symbol must be a string"]};
+
     }
 
     async updateCountry(editCountryDto: UpdateCountryDto): Promise<any>{

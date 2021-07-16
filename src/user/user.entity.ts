@@ -4,10 +4,13 @@ import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, OneToMany } from
   name: 'users',
 })
 export class User {
-  @PrimaryColumn({ type: 'varchar', length: 34, unique: true })
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 34, unique: true })
   address: string;
 
-  @PrimaryGeneratedColumn({ type: 'int' })
+  @Column({ type: 'int' })
   ref: number;
 
   @Column({ type: 'varchar', unique: true, length: 88 })
@@ -46,4 +49,10 @@ export class User {
 
   @Column({ type: 'varchar', length: 15, default: '' })
   phone: string;
+
+  @Column({ type: 'varchar', default: 'User' })
+  role: string;
+
+  @Column({ type: 'varchar', default: 'NA'})
+  status: string
 }

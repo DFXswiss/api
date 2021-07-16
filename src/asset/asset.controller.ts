@@ -25,12 +25,12 @@ import { UpdateAssetDto } from "./dto/update-asset.dto";
 export class AssetController {
   constructor(private assetService: AssetService) {}
 
-  @Get()
-  async getAsset(@Body() asset: GetAssetDto): Promise<any> {
+  @Get(':key')
+  async getAsset(@Param() asset: any): Promise<any> {
     return this.assetService.getAsset(asset);
   }
 
-  @Get('all')
+  @Get()
   async getAllAsset(): Promise<any> {
     return this.assetService.getAllAsset();
   }

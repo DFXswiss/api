@@ -47,15 +47,20 @@ import { JwtStrategy } from './auth/jwt.strategy';
       }
     }),
     TypeOrmModule.forRoot({
-      type: "mssql",
+      type: 'mssql',
       host: process.env.SQL_HOST,
       port: Number.parseInt(process.env.SQL_PORT),
       username: process.env.SQL_USERNAME,
       password: process.env.SQL_PASSWORD,
       database: process.env.SQL_DB,
-      entities: ["dist/**/*.entity{.ts,.js}"],
-      synchronize: (process.env.SQL_SYNCHRONIZE === 'true'),}
-    ),
+      entities: ['dist/**/*.entity{.ts,.js}'],
+      synchronize: process.env.SQL_SYNCHRONIZE === 'true',
+      migrationsRun: process.env.SQL_MIGRATE === 'true',
+      migrations: ['migration/*.js'],
+      cli: {
+        migrationsDir: 'migration',
+      },
+    }),
     TypeOrmModule.forFeature([UserRepository,AssetRepository,WalletRepository,DepositRepository,CountryRepository,FiatRepository,BuyRepository,SellRepository,]),
   ],
   controllers: [

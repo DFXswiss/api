@@ -25,14 +25,14 @@ import { UpdateDepositDto } from "./dto/update-deposit.dto";
 export class DepositController {
   constructor(private readonly depositService: DepositService) {}
 
-  @Get()
+  @Get(':key')
   @UseGuards(AdminGuard)
   @UsePipes(ValidationPipe)
-  async getDeposit(@Body() deposit: GetDepositDto): Promise<any> {
+  async getDeposit(@Param() deposit: any): Promise<any> {
     return this.depositService.getDeposit(deposit);
   }
 
-  @Get('all')
+  @Get()
   @UseGuards(AdminGuard)
   async getAllDeposit(): Promise<any> {
     return this.depositService.getAllDeposit();

@@ -9,25 +9,17 @@ import { JwtService } from '@nestjs/jwt';
 export class AuthService {
   constructor(private userRepository: UserRepository, private jwtService: JwtService) {}
 
-  // async createAuth(user: any): Promise<string> {
-  //   return '1';
-  // }
-
-  // async findAuthByAddress(): Promise<string> {
-  //   return '2';
-  // }
-
-  // async updateAuth(user: any): Promise<string> {
-  //   return '3';
-  // }
-
-  async signUp(createUserDto: CreateUserDto): Promise<void> {
-    this.userRepository.createUser(createUserDto);
+  async signUp(createUserDto: CreateUserDto): Promise<any> {
+    const signUpResult = await this.userRepository.createUser(createUserDto);
+    if(signUpResult.statusCode) return signUpResult;
+    
+    return this.signIn(createUserDto);
   }
+
 
   async signIn(authCredentialsDto: AuthCredentialsDto): Promise<any> {
     const { address, signature } = authCredentialsDto;
-    const user = await this.userRepository.findOne({ address, signature });
+    const user = await this.userRepository.findOne({ "address": address, "signature": signature });
 
     // TODO: Evtl. signature verschlüsseln?
 
