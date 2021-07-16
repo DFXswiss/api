@@ -12,12 +12,6 @@ import { GetUser } from './get-user.decorator';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // @Get()
-  // @UseGuards(UserGuard)
-  // async getAuthRoute(): Promise<any> {
-  //   return this.authService.findAuthByAddress();
-  // }
-
   @Post('/signup')
   @UsePipes(ValidationPipe)
   signUp(@Body() createUserDto: CreateUserDto): Promise<void> {

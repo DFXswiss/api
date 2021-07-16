@@ -24,5 +24,4 @@ export class UserController {
         this.userService.updateUser(user);
     }
 
-
 }
