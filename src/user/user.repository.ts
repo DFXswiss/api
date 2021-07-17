@@ -93,7 +93,7 @@ export class UserRepository extends Repository<User> {
         if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
 
         // TODO hartkodiert?
-        if(user.role == UserRole.USER || user.role == UserRole.EMPLOYEE){
+        if(user.role == UserRole.USER || user.role == UserRole.EMPLOYEE || user.role == UserRole.VIP){
             currentUser.role = user.role;
         }
 
