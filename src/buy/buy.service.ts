@@ -10,6 +10,7 @@ import { Buy } from './buy.entity';
 import { CreateBuyDto } from 'src/buy/dto/create-buy.dto';
 import { BuyRepository } from 'src/buy/buy.repository';
 import { GetBuyDto } from './dto/get-buy.dto';
+import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
@@ -20,10 +21,14 @@ export class BuyService {
   }
 
   async getBuy(getBuyDto: GetBuyDto): Promise<Buy> {
-    return this.buyRepository.findOne({"id": getBuyDto.id});
+    return this.buyRepository.getBuy(getBuyDto);
   }
 
-  async updateBuy(user: any): Promise<string> {
-    return '3';
+  async getAllBuy(address: string): Promise<Buy> {
+    return this.buyRepository.getAllBuy(address);
+  }
+
+  async updateBuy(updateBuyDto: UpdateBuyDto): Promise<string> {
+    return this.buyRepository.updateBuy(updateBuyDto);
   }
 }

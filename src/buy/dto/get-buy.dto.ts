@@ -8,4 +8,11 @@ export class GetBuyDto {
     @IsInt()
     id: number;
 
+    @IsNotEmpty()
+    @Length(34,34)
+    @IsString()
+    @IsOptional()
+    address: string;
+
+
 }

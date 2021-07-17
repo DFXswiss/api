@@ -7,9 +7,7 @@ export enum UserRole{
   VIP = 'VIP'
 }
 
-@Entity({
-  name: 'users',
-})
+@Entity()
 export class User {
   @PrimaryGeneratedColumn()
   id: number;

@@ -13,12 +13,14 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
+import { GetUser } from 'src/auth/get-user.decorator';
 import { RoleGuard } from 'src/guards/role.guard';
-import { UserRole } from 'src/user/user.entity';
+import { User, UserRole } from 'src/user/user.entity';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { GetBuyDto } from './dto/get-buy.dto';
+import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -28,8 +30,16 @@ export class BuyController {
   @Get()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getBuyRoute(@Body() getBuyDto: GetBuyDto): Promise<any> {
+  async getBuyRoute(@GetUser() user: User,@Body() getBuyDto: GetBuyDto): Promise<any> {
+    getBuyDto.address = user.address;
     return this.buyService.getBuy(getBuyDto);
+  }
+
+  @Get('all')
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getAllBuyRoute(@GetUser() user: User): Promise<any> {
+    return this.buyService.getAllBuy(user.address);
   }
 
   @Post()
@@ -41,8 +51,8 @@ export class BuyController {
 
   @Put()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(@Body() buy: Buy, @Request() req) {
-    //if (this.buyService.getBuy() == null) return 'Not exist';
-    return this.buyService.updateBuy(buy);
+  async updateBuyRoute(@GetUser() user: User,@Body() updateBuyDto: UpdateBuyDto) {
+    updateBuyDto.address = user.address;
+    return this.buyService.updateBuy(updateBuyDto);
   }
 }

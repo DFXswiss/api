@@ -1,9 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity({
-  name: 'deposit_address'
-})
+@Entity()
 export class Deposit {
   @PrimaryGeneratedColumn()
   id: number;

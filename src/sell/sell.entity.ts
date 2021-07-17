@@ -1,9 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity({
-  name: 'crypto2fiat'
-})
+@Entity()
 export class Sell {
   @PrimaryColumn({ type: 'varchar', unique: true, length: 42 })
   id: string;

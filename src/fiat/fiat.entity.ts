@@ -1,9 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
-@Entity({
-  name: 'fiat_info'
-})
+@Entity()
 export class Fiat {
   @PrimaryGeneratedColumn()
   id: number;
