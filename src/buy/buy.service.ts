@@ -9,26 +9,25 @@ import { Repository } from 'typeorm';
 import { Buy } from './buy.entity';
 import { CreateBuyDto } from 'src/buy/dto/create-buy.dto';
 import { BuyRepository } from 'src/buy/buy.repository';
-import { GetBuyDto } from './dto/get-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @Injectable()
 export class BuyService {
   constructor(private buyRepository: BuyRepository) {}
   
-  async createBuy(createBuyDto: CreateBuyDto): Promise<void>{
-    this.buyRepository.createBuy(createBuyDto);
+  async createBuy(createBuyDto: CreateBuyDto): Promise<any>{
+    return this.buyRepository.createBuy(createBuyDto);
   }
 
-  async getBuy(getBuyDto: GetBuyDto): Promise<Buy> {
-    return this.buyRepository.getBuy(getBuyDto);
+  async getBuy(key: any,address: string): Promise<any> {
+    return this.buyRepository.getBuy(key,address);
   }
 
-  async getAllBuy(address: string): Promise<Buy> {
+  async getAllBuy(address: string): Promise<any> {
     return this.buyRepository.getAllBuy(address);
   }
 
-  async updateBuy(updateBuyDto: UpdateBuyDto): Promise<string> {
+  async updateBuy(updateBuyDto: UpdateBuyDto): Promise<any> {
     return this.buyRepository.updateBuy(updateBuyDto);
   }
 }

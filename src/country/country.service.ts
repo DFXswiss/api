@@ -7,7 +7,6 @@ import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Country } from './country.entity';
 import { CreateCountryDto } from 'src/country/dto/create-country.dto';
-import { GetCountryDto } from 'src/country/dto/get-country.dto';
 import { CountryRepository } from 'src/country/country.repository';
 import { UpdateCountryDto } from "./dto/update-country.dto";
 

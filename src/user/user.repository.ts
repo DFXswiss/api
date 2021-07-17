@@ -24,8 +24,8 @@ export class UserRepository extends Repository<User> {
 
         if(true){ //JSON.parse(result).response === 'True'){
             
-            user.ref = (await this.findOne({order: {"ref": 'DESC'}})).ref + 1;
-            const refUser = await this.findOne({"ref": createUserDto.usedRef});
+            user.ref =  1;
+            const refUser = {} //await this.findOne({"ref": createUserDto.usedRef});
 
             if(user.ref == createUserDto.usedRef){
                 return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};

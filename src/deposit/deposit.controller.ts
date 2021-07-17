@@ -17,7 +17,6 @@ import { RoleGuard } from 'src/guards/role.guard';
 import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
-import { GetDepositDto } from "./dto/get-deposit.dto";
 import { UpdateDepositDto } from "./dto/update-deposit.dto";
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';

@@ -3,23 +3,27 @@ import { EntityRepository, Repository } from "typeorm";
 import { CreateBuyDto } from "./dto/create-buy.dto";
 import { Buy } from "./buy.entity";
 import { sha256 } from 'js-sha256';
-import { GetBuyDto } from "./dto/get-buy.dto";
 import { UpdateBuyDto } from "./dto/update-buy.dto";
-import { UserRepository } from "src/user/user.repository";
-import { InjectRepository } from "@nestjs/typeorm";
 
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
     
-    async createBuy(createBuyDto: CreateBuyDto): Promise<void> {
+    async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
         var hash = sha256.create();
         hash.update(createBuyDto.address+createBuyDto.asset+createBuyDto.iban);
-        createBuyDto.bank_usage = hash.toString().toUpperCase().slice(0,4)+'-'+ hash.toString().toUpperCase().slice(4,8)+'-'+hash.toString().toUpperCase().slice(8,12);
+        createBuyDto.bankUsage = hash.toString().toUpperCase().slice(0,4)+'-'+ hash.toString().toUpperCase().slice(4,8)+'-'+hash.toString().toUpperCase().slice(8,12);
         const buy = this.create(createBuyDto);
         try {
-            await this.save(buy);
+            if(buy){
+                if(buy.address === createBuyDto.address){
+                    await this.save(buy);
+                    return buy;
+                }else{
+                    return "Not your own address" //TODO Error Message
+                }
+            }
         } catch (error) {
-            console.log(error);
+            console.log(error.message); //TODO Error message 
             throw new InternalServerErrorException();
         }
     }
@@ -33,6 +37,7 @@ export class BuyRepository extends Repository<Buy> {
                 if(buy.address === updateBuyDto.address){
                     buy.active = updateBuyDto.active;
                     await this.save(buy);
+                    return buy;
                 }
             }
            
@@ -42,16 +47,17 @@ export class BuyRepository extends Repository<Buy> {
         }
     }
 
-    async getBuy(getBuyDto: GetBuyDto): Promise<any> {
+    async getBuy(key: any, address: string): Promise<any> {
  
+       
         try {
-            const buy = await this.findOne(getBuyDto.id);
-
+            const buy = await this.findOne({"id":key.key});
+            
             if(buy){
-                if(buy.address === getBuyDto.address){
+                if(buy.address === address){
                     return buy;
                 }else{
-                    return "not your own"; //TODO Error message
+                    return "Not your address";
                 }
                 
             }else{

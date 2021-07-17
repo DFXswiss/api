@@ -19,7 +19,6 @@ import { User, UserRole } from 'src/user/user.entity';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
 import { CreateBuyDto } from './dto/create-buy.dto';
-import { GetBuyDto } from './dto/get-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 
 @ApiTags('buy')
@@ -27,15 +26,14 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 export class BuyController {
   constructor(private readonly buyService: BuyService) {}
 
-  @Get()
+  @Get(':key')
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getBuyRoute(@GetUser() user: User,@Body() getBuyDto: GetBuyDto): Promise<any> {
-    getBuyDto.address = user.address;
-    return this.buyService.getBuy(getBuyDto);
+  async getBuyRoute(@GetUser() user: User,@Param() key: any): Promise<any> {
+    return this.buyService.getBuy(key,user.address);
   }
 
-  @Get('all')
+  @Get()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllBuyRoute(@GetUser() user: User): Promise<any> {
@@ -45,13 +43,14 @@ export class BuyController {
   @Post()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createBuy(@Body() createBuyDto: CreateBuyDto): Promise<void> {
+  createBuy(@GetUser() user: User,@Body() createBuyDto: CreateBuyDto): Promise<any> {
+    createBuyDto.address = user.address;
     return this.buyService.createBuy(createBuyDto);
   }
 
   @Put()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(@GetUser() user: User,@Body() updateBuyDto: UpdateBuyDto) {
+  async updateBuyRoute(@GetUser() user: User,@Body() updateBuyDto: UpdateBuyDto): Promise<any> {
     updateBuyDto.address = user.address;
     return this.buyService.updateBuy(updateBuyDto);
   }

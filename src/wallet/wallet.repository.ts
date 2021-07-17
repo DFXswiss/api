@@ -1,7 +1,6 @@
 import { InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateWalletDto } from "./dto/create-wallet.dto";
-import { GetWalletDto } from "./dto/get-wallet.dto";
 import { UpdateWalletDto } from "./dto/update-wallet.dto";
 import { Wallet } from "./wallet.entity";
 import { isNumber, isString } from "class-validator";

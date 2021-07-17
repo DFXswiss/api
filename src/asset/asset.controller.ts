@@ -21,7 +21,6 @@ import { UserRole } from 'src/user/user.entity';
 import { Asset } from './asset.entity';
 import { AssetService } from './asset.service';
 import { CreateAssetDto } from './dto/create-asset.dto';
-import { GetAssetDto } from "./dto/get-asset.dto";
 import { UpdateAssetDto } from "./dto/update-asset.dto";
 
 @ApiTags('asset')

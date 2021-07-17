@@ -8,7 +8,6 @@ import { Repository } from 'typeorm';
 import { Wallet } from './wallet.entity';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { CreateWalletDto } from 'src/wallet/dto/create-wallet.dto';
-import { GetWalletDto } from "./dto/get-wallet.dto";
 import { UpdateWalletDto } from "./dto/update-wallet.dto";
 
 @Injectable()

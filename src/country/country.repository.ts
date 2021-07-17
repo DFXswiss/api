@@ -1,7 +1,6 @@
 import { InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateCountryDto } from "./dto/create-country.dto";
-import { GetCountryDto } from "./dto/get-country.dto";
 import { UpdateCountryDto } from "./dto/update-country.dto";
 import { Country } from "./country.entity";
 import { isString } from "class-validator";

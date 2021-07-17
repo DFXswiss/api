@@ -3,7 +3,6 @@ import { EntityRepository, Repository } from "typeorm";
 import { CreateDepositDto } from "./dto/create-deposit.dto";
 import { UpdateDepositDto } from "./dto/update-deposit.dto";
 import { Deposit } from "./deposit.entity";
-import { GetDepositDto } from "./dto/get-deposit.dto";
 import { isNumber, isString } from "class-validator";
 
 @EntityRepository(Deposit)

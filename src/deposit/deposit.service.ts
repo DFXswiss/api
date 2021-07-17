@@ -8,7 +8,6 @@ import { Repository } from 'typeorm';
 import { Deposit } from './deposit.entity';
 import { DepositRepository } from 'src/deposit/deposit.repository';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
-import { GetDepositDto } from "./dto/get-deposit.dto";
 import { UpdateDepositDto } from "./dto/update-deposit.dto";
 
 @Injectable()

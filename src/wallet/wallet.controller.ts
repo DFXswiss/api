@@ -16,7 +16,6 @@ import { RoleGuard } from 'src/guards/role.guard';
 import { Wallet } from './wallet.entity';
 import { WalletService } from './wallet.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
-import { GetWalletDto } from "./dto/get-wallet.dto";
 import { UpdateWalletDto } from "./dto/update-wallet.dto";
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';

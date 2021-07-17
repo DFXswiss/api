@@ -1,7 +1,6 @@
 import { InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateAssetDto } from "./dto/create-asset.dto";
-import { GetAssetDto } from "./dto/get-asset.dto";
 import { UpdateAssetDto } from "./dto/update-asset.dto";
 import { Asset } from "./asset.entity";
 import { isNumber, isString } from "class-validator";
