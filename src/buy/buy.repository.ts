@@ -89,4 +89,22 @@ export class BuyRepository extends Repository<Buy> {
         
     }
 
+    async getBuyCount(): Promise<any> {
+ 
+        try {
+            const buy = await this.find();
+            
+            if(buy){
+                return {"buyCount":buy.length};
+            }else{
+                return "No buy routes"; //TODO Error message
+            }
+            
+        } catch (error) {
+            console.log(error);
+            throw new InternalServerErrorException();
+        }
+        
+    }
+
 }

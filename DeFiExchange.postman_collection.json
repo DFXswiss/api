@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "dcb7c7f5-fe2d-4259-8e5e-decc1196e909",
+		"_postman_id": "9ff523b0-f37b-4871-94fa-b10182584f48",
 		"name": "DeFiExchange",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -71,7 +71,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"address\": \"8FhuD5a5qWYk5mtQnfMP7gF5oTaKMkMQQ1\",\n    \"signature\": \"IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bwho=\"\n}",
+							"raw": "{\n    \"address\": \"8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C\",\n    \"signature\": \"IMFmk1254ddtrva3m7xFd+4595i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -247,22 +247,22 @@
 			]
 		},
 		{
-			"name": "fiat2crypto",
+			"name": "buy",
 			"item": [
 				{
-					"name": "fiat2crypto",
+					"name": "buy",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOExqMUplcE1IUFFZMkhZRFZRcTVYWG1hZU5YWnlnTTMyQyIsImlhdCI6MTYyNjUxOTYyNCwiZXhwIjoxNjI2NTIzMjI0fQ.T4ty13N3PB__2f9eMFin-cJ7lfffqOhWxX1hrO5SRNg",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -270,21 +270,24 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{HOST}}/api/v1/fiat2crypto",
+							"raw": "{{HOST}}/v1/buy/all",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"fiat2crypto"
+								"buy",
+								"all"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "fiat2cryptobyid",
+					"name": "buyId",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
 					"request": {
 						"auth": {
 							"type": "basic",
@@ -303,23 +306,31 @@
 						},
 						"method": "GET",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"id\":0\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
-							"raw": "{{HOST}}/api/v1/fiat2crypto/8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0",
+							"raw": "{{HOST}}/v1/buy/",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"fiat2crypto",
-								"8MVnL9PZ7yUoRMD4HAnTQn5DAHypYiv1yG:0"
+								"buy",
+								""
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "addfiat2crypto",
+					"name": "postbuy",
 					"request": {
 						"auth": {
 							"type": "basic",
@@ -348,33 +359,32 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/api/v1/fiat2crypto",
+							"raw": "{{HOST}}/v1/buy",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"fiat2crypto"
+								"buy"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "updatefiat2crypto",
+					"name": "updatebuy",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOExqMUplcE1IUFFZMkhZRFZRcTVYWG1hZU5YWnlnTTMyQyIsImlhdCI6MTYyNjUxOTYyNCwiZXhwIjoxNjI2NTIzMjI0fQ.T4ty13N3PB__2f9eMFin-cJ7lfffqOhWxX1hrO5SRNg",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -383,7 +393,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"active\": true\r\n}",
+							"raw": "{\r\n    \"id\": 2,\r\n\"active\": false\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -391,15 +401,13 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/api/v1/fiat2crypto/0",
+							"raw": "{{HOST}}/v1/buy",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"fiat2crypto",
-								"0"
+								"buy"
 							]
 						}
 					},
@@ -1391,6 +1399,20 @@
 								"wallet"
 							]
 						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "statistic",
+			"item": [
+				{
+					"name": "statistic",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": null
 					},
 					"response": []
 				}

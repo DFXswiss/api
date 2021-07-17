@@ -33,6 +33,8 @@ import { FiatRepository } from './fiat/fiat.repository';
 import { BuyRepository } from './buy/buy.repository';
 import { SellRepository } from './sell/sell.repository';
 import { JwtStrategy } from './auth/jwt.strategy';       
+import { StatisticController } from './statistic/statistic.controller';
+import { StatisticService } from './statistic/statistic.service';
 
 @Module({
   imports: [
@@ -74,6 +76,7 @@ import { JwtStrategy } from './auth/jwt.strategy';
     FiatController,
     BuyController,
     SellController,
+    StatisticController,
   ],
   providers: [
     UserService,
@@ -85,7 +88,8 @@ import { JwtStrategy } from './auth/jwt.strategy';
     FiatService,
     BuyService,
     SellService,
-    JwtStrategy
+    JwtStrategy,
+    StatisticService,
   ],
   exports: [
     UserService,
@@ -99,7 +103,8 @@ import { JwtStrategy } from './auth/jwt.strategy';
     SellService,
     TypeOrmModule,
     JwtStrategy,
-    PassportModule
+    PassportModule,
+    StatisticService,
   ],
 })
 export class AppModule {}
