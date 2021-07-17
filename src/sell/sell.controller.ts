@@ -16,39 +16,42 @@ import { RoleGuard } from 'src/guards/role.guard';
 import { Sell } from './sell.entity';
 import { SellService } from './sell.service';
 import { CreateSellDto } from './dto/create-sell.dto';
-import { UserRole } from 'src/user/user.entity';
+import { UpdateSellDto } from './dto/update-sell.dto';
+import { User, UserRole } from 'src/user/user.entity';
 import { AuthGuard } from '@nestjs/passport';
+import { GetUser } from 'src/auth/get-user.decorator';
 
 @ApiTags('sell')
 @Controller('sell')
 export class SellController {
   constructor(private readonly sellService: SellService) {}
 
-  @Get()
+  @Get(':key')
+  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getSellRoute(): Promise<any> {
-    return this.sellService.findSellByAddress();
+  async getSellRoute(@GetUser() user: User,@Param() key: any): Promise<any> {
+    return this.sellService.getSell(key, user.address);
   }
 
-  
+  @Get()
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getAllSellRoute(@GetUser() user: User): Promise<any> {
+    return this.sellService.getAllSell(user.address);
+  }
+
   @Post()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createSell(@Body() createSellDto: CreateSellDto): Promise<void> {
+  createSell(@GetUser() user: User, @Body() createSellDto: CreateSellDto): Promise<any> {
+    createSellDto.address = user.address;
     return this.sellService.createSell(createSellDto);
   }
-  
-  // @Post()
-  // @UseGuards(UserGuard)
-  // async createSellRoute(@Body() buy: Sell, @Request() req) {
-  //   if (this.sellService.findSellByAddress() != null) return 'Already exist';
-  //   return this.sellService.createSell(buy);
-  // }
 
   @Put()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateSellRoute(@Body() buy: Sell, @Request() req) {
-    if (this.sellService.findSellByAddress() == null) return 'Not exist';
-    return this.sellService.updateSell(buy);
+  async updateSellRoute(@GetUser() user: User,@Body() updateSellDto: UpdateSellDto): Promise<any> {
+    updateSellDto.address = user.address;
+    return this.sellService.updateSell(updateSellDto);
   }
 }

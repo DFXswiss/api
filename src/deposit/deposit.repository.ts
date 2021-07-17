@@ -34,8 +34,15 @@ export class DepositRepository extends Repository<Deposit> {
         return await this.save(depositAddress);
     }
 
-    async getNextDeposit(): Promise<any> {
-        return await this.findOne({ "used" : false});
+    async getNextDeposit(): Promise<Deposit> {
+        const nextAddress = await this.findOne({ "used" : false});
+
+        nextAddress.used = true;
+
+        await this.save(nextAddress);
+
+        return nextAddress;
+
     }
 
     async getDeposit(key: any): Promise<any> {
