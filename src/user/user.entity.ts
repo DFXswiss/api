@@ -1,5 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, OneToMany } from 'typeorm';
 
+export enum UserRole{
+  USER = 'User',
+  ADMIN = 'Admin',
+  EMPLOYEE = 'Employee',
+  VIP = 'VIP'
+}
+
 @Entity({
   name: 'users',
 })
@@ -51,8 +58,11 @@ export class User {
   phone: string;
 
   @Column({ type: 'varchar', default: 'User' })
-  role: string;
+  role: UserRole;
 
   @Column({ type: 'varchar', default: 'NA'})
   status: string
+
+  @Column({ type: 'varchar', default: "0.0.0.0"})
+  ip: string
 }

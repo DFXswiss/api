@@ -71,4 +71,9 @@ export class CreateUserDto {
     // TODO: user phonenumber decorator instead of string --> Figure it out
     // @IsPhoneNumber()
     phone: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    ip: string;
 }

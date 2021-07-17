@@ -2,12 +2,11 @@ import { Body, Controller, Get, Param, Put, UseGuards, Request, ForbiddenExcepti
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags} from '@nestjs/swagger';
 import { GetUser } from 'src/auth/get-user.decorator';
-import { AdminGuard } from 'src/guards/admin.guard';
-import { UserGuard } from 'src/guards/user.guard';
+import { RoleGuard } from 'src/guards/role.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
-import { User } from './user.entity';
+import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 
 @ApiTags('user')
@@ -16,24 +15,25 @@ export class UserController {
     constructor(private readonly userService: UserService){}
 
     @Get()
-    @UseGuards(AuthGuard())
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
     async getUser(@GetUser() user: User): Promise<any> {
         return this.userService.getUser(user);
     }
 
+    @Put()
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+    async updateUser(@GetUser() oldUser: User,@Body() newUser: UpdateUserDto): Promise<any> {
+        return this.userService.updateUser(oldUser,newUser);
+    }
+
     @Get('all')
-    @UseGuards(AdminGuard)
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
     async getAllUser(): Promise<any> {
         return this.userService.getAllUser();
     }
-        
-    @Put()
-    async updateUser(@Body() user: UpdateUserDto): Promise<any> {
-        return this.userService.updateUser(user);
-    }
 
     @Put('role')
-    @UseGuards(AdminGuard)
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
     async updateRole(@Body() user: UpdateRoleDto): Promise<any> {
         return this.userService.updateRole(user);
     }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Post, Request, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -14,7 +14,8 @@ export class AuthController {
 
   @Post('/signup')
   @UsePipes(ValidationPipe)
-  signUp(@Body() createUserDto: CreateUserDto): Promise<void> {
+  signUp(@Body() createUserDto: CreateUserDto, @Request() req): Promise<void> {
+    createUserDto.ip = req.socket.remoteAddress;
     return this.authService.signUp(createUserDto);
   }
 

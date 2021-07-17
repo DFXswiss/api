@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "30c1819f-ac3e-4bec-a862-76c1e53811a0",
+		"_postman_id": "dcb7c7f5-fe2d-4259-8e5e-decc1196e909",
 		"name": "DeFiExchange",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -15,7 +15,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"address\": \"8FhbD5d5dWYk55tQnfMP14F55TaKMkMQQ1\",\n    \"signature\": \"IMFmkM254ddtrva3m7xFd+4595i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bwho=\"\n}",
+							"raw": "{\n    \"address\": \"8Fhb15d5dWYk55tQnfMP14F55TaKMkMQQ1\",\n    \"signature\": \"IMFmk1254ddtrva3m7xFd+4595i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bwho=\",\n    \"usedRef\": 20,\n    \"walletId\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -592,13 +592,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/v1/asset",
+							"raw": "{{HOST}}/v1/asset/ETH",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"asset"
+								"asset",
+								"ETH"
 							]
 						}
 					},
@@ -613,14 +614,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{HOST}}/v1/asset/all",
+							"raw": "{{HOST}}/v1/asset",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"asset",
-								"all"
+								"asset"
 							]
 						}
 					},
@@ -736,13 +736,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/v1/fiat",
+							"raw": "{{HOST}}/v1/fiat/EUR",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"fiat"
+								"fiat",
+								"EUR"
 							]
 						}
 					},
@@ -757,14 +758,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{HOST}}/v1/fiat/all",
+							"raw": "{{HOST}}/v1/fiat",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"fiat",
-								"all"
+								"fiat"
 							]
 						}
 					},
@@ -880,13 +880,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/v1/country",
+							"raw": "{{HOST}}/v1/country/DE",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"country"
+								"country",
+								"DE"
 							],
 							"query": [
 								{
@@ -1061,13 +1062,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/v1/deposit",
+							"raw": "{{HOST}}/v1/deposit/1",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"deposit"
+								"deposit",
+								"1"
 							]
 						}
 					},
@@ -1128,14 +1130,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{HOST}}/v1/deposit/all",
+							"raw": "{{HOST}}/v1/deposit",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"deposit",
-								"all"
+								"deposit"
 							]
 						}
 					},
@@ -1263,13 +1264,14 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/v1/wallet",
+							"raw": "{{HOST}}/v1/wallet/1",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"wallet"
+								"wallet",
+								"1"
 							]
 						}
 					},
@@ -1296,14 +1298,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{HOST}}/v1/wallet/all",
+							"raw": "{{HOST}}/v1/wallet",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
-								"wallet",
-								"all"
+								"wallet"
 							]
 						}
 					},

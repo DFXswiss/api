@@ -13,12 +13,14 @@ import {
 
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AdminGuard } from 'src/guards/admin.guard';
+import { RoleGuard } from 'src/guards/role.guard';
 import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
 import { GetDepositDto } from "./dto/get-deposit.dto";
 import { UpdateDepositDto } from "./dto/update-deposit.dto";
+import { AuthGuard } from '@nestjs/passport';
+import { UserRole } from 'src/user/user.entity';
 
 @ApiTags('deposit')
 @Controller('deposit')
@@ -26,33 +28,27 @@ export class DepositController {
   constructor(private readonly depositService: DepositService) {}
 
   @Get(':key')
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @UsePipes(ValidationPipe)
   async getDeposit(@Param() deposit: any): Promise<any> {
     return this.depositService.getDeposit(deposit);
   }
 
   @Get()
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllDeposit(): Promise<any> {
     return this.depositService.getAllDeposit();
   }
 
-  @Get('next')
-  @UseGuards(AdminGuard)
-  async getNextDeposit(): Promise<any> {
-    return this.depositService.getNextDeposit();
-  }
-
   @Post()
   @UsePipes(ValidationPipe)
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createDeposit(@Body() createDepositDto: CreateDepositDto): Promise<any> {
     return this.depositService.createDeposit(createDepositDto);
   }
 
   @Put()
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @UsePipes(ValidationPipe)
   async updateDepositRoute(@Body() deposit: UpdateDepositDto): Promise<any> {
     return this.depositService.updateDeposit(deposit);

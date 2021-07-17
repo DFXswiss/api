@@ -31,8 +31,8 @@ export class UserService {
         return this.userRepository.updateStatus(user);
     }
 
-    async updateUser(user: UpdateUserDto):Promise<any> {
-        return this.userRepository.updateUser(user);
+    async updateUser(oldUser: User,newUser: UpdateUserDto):Promise<any> {
+        return this.userRepository.updateUser(oldUser,newUser);
     }
 
     async getAllUser():Promise<any>{

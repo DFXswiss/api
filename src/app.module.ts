@@ -37,7 +37,7 @@ import { JwtStrategy } from './auth/jwt.strategy';
 @Module({
   imports: [
     ConfigModule.forRoot(),
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PassportModule.register({ defaultStrategy: 'jwt',session:true }),
     JwtModule.register({
       // TODO: Secret to .env!!!
       // Notice that the same key is used in jwt.strategy.ts!

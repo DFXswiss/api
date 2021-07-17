@@ -9,9 +9,11 @@ import {
   ForbiddenException,
   Post,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ApiHideProperty, ApiTags } from '@nestjs/swagger';
 import { hidden } from 'chalk';
-import { AdminGuard } from 'src/guards/admin.guard';
+import { RoleGuard } from 'src/guards/role.guard';
+import { UserRole } from 'src/user/user.entity';
 import { AllService } from './all.service';
 
 @Controller('all')
@@ -20,7 +22,7 @@ export class AllController {
   
   @ApiTags('all')
   @Get()
-  @UseGuards(AdminGuard)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllRoute(): Promise<any> {
     return this.allService.findAllByAddress();
   }

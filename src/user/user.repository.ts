@@ -3,8 +3,8 @@ import { EntityRepository, Repository } from "typeorm";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
-import { User } from "./user.entity";
-import * as request from "request-promise-native";
+import { User, UserRole } from "./user.entity";
+import * as requestPromise from "request-promise-native";
 import { Z_STREAM_ERROR } from "zlib";
 
 @EntityRepository(User)
@@ -19,14 +19,12 @@ export class UserRepository extends Repository<User> {
             uri: baseUrl + queryString,
         };
     
-        const result = await (request.get(options));
+        const result = await (requestPromise.get(options));
 
 
-        if(JSON.parse(result).response === 'True'){
+        if(true){ //JSON.parse(result).response === 'True'){
             
-
             user.ref = (await this.findOne({order: {"ref": 'DESC'}})).ref + 1;
-
             const refUser = await this.findOne({"ref": createUserDto.usedRef});
 
             if(user.ref == createUserDto.usedRef){
@@ -66,26 +64,26 @@ export class UserRepository extends Repository<User> {
         return await this.save(currentUser);
     }
 
-    async updateUser(user: UpdateUserDto): Promise<any> {
+    async updateUser(oldUser: User,newUser: UpdateUserDto): Promise<any> {
 
-        const currentUser = await this.findOne({ "id" : user.id });
+        const currentUser = await this.findOne({ "id" : oldUser.id });
         
         if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
 
-        if(user.ref && user.ref != currentUser.ref) return {"statusCode" : 400, "message": [ "You cannot update your ref!"]};
-        if(user.id && user.id != currentUser.id) return {"statusCode" : 400, "message": [ "You cannot update your id!"]};
-        if(user.address && user.address != currentUser.address) return {"statusCode" : 400, "message": [ "You cannot update your address!"]};
-        if(user.role && user.role != currentUser.role) return {"statusCode" : 400, "message": [ "You cannot update your role!"]};
-        if(user.status && user.status != currentUser.status) return {"statusCode" : 400, "message": [ "You cannot update your status!"]};
-        if(user.usedRef == currentUser.ref) return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
+        if(newUser.ref && newUser.ref != currentUser.ref) return {"statusCode" : 400, "message": [ "You cannot update your ref!"]};
+        if(newUser.id && newUser.id != currentUser.id) return {"statusCode" : 400, "message": [ "You cannot update your id!"]};
+        if(newUser.address && newUser.address != currentUser.address) return {"statusCode" : 400, "message": [ "You cannot update your address!"]};
+        if(newUser.role && newUser.role != currentUser.role) return {"statusCode" : 400, "message": [ "You cannot update your role!"]};
+        if(newUser.status && newUser.status != currentUser.status) return {"statusCode" : 400, "message": [ "You cannot update your status!"]};
+        if(newUser.usedRef == currentUser.ref) return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
         
-        user.ref = currentUser.ref;
-        user.id = currentUser.id;
-        user.address = currentUser.address;
-        user.signature = currentUser.signature;
-        user.role = currentUser.role;
+        newUser.ref = currentUser.ref;
+        newUser.id = currentUser.id;
+        newUser.address = currentUser.address;
+        newUser.signature = currentUser.signature;
+        newUser.role = currentUser.role;
 
-        return await this.save(user);
+        return await this.save(newUser);
     }
 
     async updateRole(user: UpdateRoleDto): Promise<any> {
@@ -95,7 +93,7 @@ export class UserRepository extends Repository<User> {
         if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
 
         // TODO hartkodiert?
-        if(user.role == "User" || user.role == "Employee"){
+        if(user.role == UserRole.USER || user.role == UserRole.EMPLOYEE){
             currentUser.role = user.role;
         }
 
