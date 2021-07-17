@@ -17,7 +17,6 @@ import { RoleGuard } from 'src/guards/role.guard';
 import { Fiat } from './fiat.entity';
 import { FiatService } from './fiat.service';
 import { CreateFiatDto } from './dto/create-fiat.dto';
-import { GetFiatDto } from "./dto/get-fiat.dto";
 import { UpdateFiatDto } from "./dto/update-fiat.dto";
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';

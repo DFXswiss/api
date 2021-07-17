@@ -5,6 +5,10 @@ import { Asset } from "src/asset/asset.entity";
 // TODO: Again: Custom decorators for address and signature,...
 export class CreateBuyDto {
     
+    @IsOptional()
+    @IsInt()
+    id: number;
+
     @ApiProperty()
     @IsNotEmpty()
     @IsIBAN()

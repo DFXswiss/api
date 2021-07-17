@@ -10,6 +10,11 @@ import { Z_STREAM_ERROR } from "zlib";
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
     async createUser(createUserDto: CreateUserDto): Promise<any> {
+
+        if(createUserDto.id) delete createUserDto["id"];
+        if(createUserDto.role) delete createUserDto["role"];
+        if(createUserDto.ip) delete createUserDto["ip"];
+
         const user = this.create(createUserDto);
        
         const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage';
@@ -75,6 +80,7 @@ export class UserRepository extends Repository<User> {
         if(newUser.address && newUser.address != currentUser.address) return {"statusCode" : 400, "message": [ "You cannot update your address!"]};
         if(newUser.role && newUser.role != currentUser.role) return {"statusCode" : 400, "message": [ "You cannot update your role!"]};
         if(newUser.status && newUser.status != currentUser.status) return {"statusCode" : 400, "message": [ "You cannot update your status!"]};
+        if(newUser.ip && newUser.ip != currentUser.ip) return {"statusCode" : 400, "message": [ "You cannot update your ip!"]};
         if(newUser.usedRef == currentUser.ref) return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
         
         newUser.ref = currentUser.ref;

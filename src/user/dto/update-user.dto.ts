@@ -5,8 +5,7 @@ import { UserRole } from "../user.entity";
 // TODO: Again: Custom decorators for address and signature,...
 export class UpdateUserDto {
 
-    @ApiProperty()
-    @IsNotEmpty()
+    @IsOptional()
     @IsInt()
     id: number;
 
@@ -84,12 +83,14 @@ export class UpdateUserDto {
     // @IsPhoneNumber()
     phone: string;
 
-    @ApiPropertyOptional()
     @IsOptional()
     @IsString()
     role: UserRole;
 
-    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    ip: string;
+
     @IsOptional()
     @IsString()
     status: string;

@@ -3,7 +3,11 @@ import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumbe
 
 // TODO: Again: Custom decorators for address and signature,...
 export class CreateDepositDto {
-    
+
+    @IsOptional()
+    @IsInt()
+    id: number;
+
     @ApiProperty()
     @IsNotEmpty()
     @Length(34,34)

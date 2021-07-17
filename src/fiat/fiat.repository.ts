@@ -1,7 +1,6 @@
 import { InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateFiatDto } from "./dto/create-fiat.dto";
-import { GetFiatDto } from "./dto/get-fiat.dto";
 import { UpdateFiatDto } from "./dto/update-fiat.dto";
 import { Fiat } from "./fiat.entity";
 import { isNumber, isString } from "class-validator";
@@ -10,6 +9,8 @@ import { isNumber, isString } from "class-validator";
 export class FiatRepository extends Repository<Fiat> {
     async createFiat(createFiatDto: CreateFiatDto): Promise<any> {
    
+        if(createFiatDto.id) delete createFiatDto["id"];
+
         const fiat = this.create(createFiatDto);
 
         try {
@@ -37,17 +38,35 @@ export class FiatRepository extends Repository<Fiat> {
 
     async getFiat(key: any): Promise<any> {
 
-        if(!isNaN(key.key)){
-            let fiat = await this.findOne({ "id" : key.key });
-            
-            if(fiat) return fiat;
-            
-        }else if(isString(key.key)){
-
-            let fiat = await this.findOne({ "name" : key.key });
-            
-            if(fiat) return fiat;
+        if(key.key){
+            if(!isNaN(key.key)){
+                let fiat = await this.findOne({ "id" : key.key });
                 
+                if(fiat) return fiat;
+                
+            }else if(isString(key.key)){
+
+                let fiat = await this.findOne({ "name" : key.key });
+                
+                if(fiat) return fiat;
+                    
+                return {"statusCode" : 400, "message": [ "No matching fiat found"]};
+            }
+
+            // TODO Error Framework?
+            return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
+        }else if(!isNaN(key)){
+
+            let fiat = await this.findOne({ "id" : key });
+                
+            if(fiat) return fiat;
+
+        }else if(isString(key)){
+
+            let fiat = await this.findOne({ "name" : key });
+                
+            if(fiat) return fiat;
+                    
             return {"statusCode" : 400, "message": [ "No matching fiat found"]};
         }
 

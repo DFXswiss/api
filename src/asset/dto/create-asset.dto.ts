@@ -4,6 +4,10 @@ import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumbe
 // TODO: Again: Custom decorators for address and signature,...
 export class CreateAssetDto {
 
+    @IsOptional()
+    @IsInt()
+    id: number;
+
     @ApiProperty()
     @IsNotEmpty()
     @IsString()

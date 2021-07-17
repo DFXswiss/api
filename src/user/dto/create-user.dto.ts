@@ -1,8 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { equals, IsEmail, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length, IsInt } from "class-validator";
+import { UserRole} from 'src/user/user.entity';
 
 // TODO: Again: Custom decorators for address and signature,...
 export class CreateUserDto {
+    
+    @IsOptional()
+    @IsInt()
+    id: number;
+    
     @ApiProperty()
     @IsNotEmpty()
     @Length(34,34)
@@ -72,8 +78,11 @@ export class CreateUserDto {
     // @IsPhoneNumber()
     phone: string;
 
-    @ApiPropertyOptional()
     @IsOptional()
     @IsString()
     ip: string;
+
+    @IsString()
+    @IsOptional()
+    role: UserRole;
 }

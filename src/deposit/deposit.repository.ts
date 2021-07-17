@@ -9,6 +9,8 @@ import { isNumber, isString } from "class-validator";
 export class DepositRepository extends Repository<Deposit> {
     async createDeposit(createDepositDto: CreateDepositDto): Promise<any> {
 
+        if(createDepositDto.id) delete createDepositDto["id"];
+
         const deposit = this.create(createDepositDto);
 
         try {

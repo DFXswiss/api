@@ -4,6 +4,10 @@ import { equals, IsBoolean, IsEmail, IsIBAN, IsInt, IsNotEmpty, IsOptional, IsPh
 // TODO: Again: Custom decorators for address and signature,...
 export class CreateSellDto {
     
+    @IsOptional()
+    @IsInt()
+    id: number;
+
     @ApiProperty()
     @IsNotEmpty()
     @IsIBAN()
@@ -12,7 +16,7 @@ export class CreateSellDto {
     @ApiProperty()
     @IsNotEmpty()
     @IsInt()
-    fiat: number; // should be an object
+    fiat: any; // should be an object
 
     @IsNotEmpty()
     @Length(34,34)

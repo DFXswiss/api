@@ -9,6 +9,8 @@ import { isNumber, isString } from "class-validator";
 export class AssetRepository extends Repository<Asset> {
     async createAsset(createAssetDto: CreateAssetDto): Promise<any> {
    
+        if(createAssetDto.id) delete createAssetDto["id"];
+
         // TODO Sollen wir das hartkodieren?
         if(createAssetDto.type == "Coin" || createAssetDto.type == "DAT" || createAssetDto.type == "DCT"){
 
@@ -46,22 +48,36 @@ export class AssetRepository extends Repository<Asset> {
 
     async getAsset(key: any): Promise<any> {
 
-        if(!isNaN(key.key)){
-            let asset = await this.findOne({ "id" : key.key });
-            
-            if(asset) return asset;
-            
-        }else if(isString(key.key)){
-
-            let asset = await this.findOne({ "name" : key.key });
-            
-            if(asset) return asset;
+        if(key.key){
+            if(!isNaN(key.key)){
+                let asset = await this.findOne({ "id" : key.key });
                 
+                if(asset) return asset;
+                
+            }else if(isString(key.key)){
+
+                let asset = await this.findOne({ "name" : key.key });
+                
+                if(asset) return asset;
+                    
+                return {"statusCode" : 400, "message": [ "No matching asset found"]};
+            }
+
+            // TODO Error Framework?
+            return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
+        }else if(isNaN(key)){
+            let asset = await this.findOne({ "id" : key });
+                
+            if(asset) return asset;
+        }else if(isString(key)){
+            let asset = await this.findOne({ "name" : key });
+                
+            if(asset) return asset;
+                    
             return {"statusCode" : 400, "message": [ "No matching asset found"]};
         }
 
         // TODO Error Framework?
         return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
-        
     }
 }

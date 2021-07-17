@@ -10,6 +10,8 @@ export class CountryRepository extends Repository<Country> {
 
     async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
    
+        if(createCountryDto.id) delete createCountryDto["id"];
+
         const country = this.create(createCountryDto);
 
         try {

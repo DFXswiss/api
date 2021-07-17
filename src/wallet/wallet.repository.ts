@@ -9,6 +9,8 @@ import { isNumber, isString } from "class-validator";
 export class WalletRepository extends Repository<Wallet> {
     async createWallet(createWalletDto: CreateWalletDto): Promise<any> {
    
+        if(createWalletDto.id) delete createWalletDto["id"];
+
         const wallet = this.create(createWalletDto);
 
         try {
