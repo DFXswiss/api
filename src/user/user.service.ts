@@ -14,14 +14,24 @@ export class UserService {
       ) {}
       
     async createUser(createUserDto: CreateUserDto):Promise<any> {
-        return this.userRepository.createUser(createUserDto);
+        const user = this.userRepository.createUser(createUserDto);
+
+        delete user["signatur"];
+        delete user["ip"];
+        delete user["ref"];
+
+        return user;
     }
 
     async getUser(user: User): Promise<any> {
+
+        delete user["signatur"];
+        delete user["ip"];
+
         if(user.status == "Active" || user.status == "KYC"){
             return user;
         }else{
-            user.ref = -1;
+            delete user["ref"];
             return user;
         }
     }
@@ -32,7 +42,24 @@ export class UserService {
     }
 
     async updateUser(oldUser: User,newUser: UpdateUserDto):Promise<any> {
-        return this.userRepository.updateUser(oldUser,newUser);
+        const user = this.userRepository.updateUser(oldUser,newUser);
+
+        //TODO
+        // delete user["signatur"];
+        // delete user["ip"];
+
+        // if(user){
+        //     if(user.status == "Active" || user.status == "KYC"){
+        //         return user;
+        //     }else{
+        //         delete user["ref"];
+        //         return user;
+        //     }
+        // }
+
+        return user;
+
+
     }
 
     async getAllUser():Promise<any>{

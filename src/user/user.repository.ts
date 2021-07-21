@@ -26,7 +26,7 @@ export class UserRepository extends Repository<User> {
     
         const result = await (requestPromise.get(options));
 
-
+        //TODO
         if(true){ //JSON.parse(result).response === 'True'){
             
             user.ref =  1;
@@ -75,12 +75,7 @@ export class UserRepository extends Repository<User> {
         
         if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
 
-        //if(newUser.ref && newUser.ref != currentUser.ref && newUser.ref != -1) return {"statusCode" : 400, "message": [ "You cannot update your ref!"]};
         if(newUser.id && newUser.id != currentUser.id) return {"statusCode" : 400, "message": [ "You cannot update your id!"]};
-        if(newUser.address && newUser.address != currentUser.address) return {"statusCode" : 400, "message": [ "You cannot update your address!"]};
-        if(newUser.role && newUser.role != currentUser.role) return {"statusCode" : 400, "message": [ "You cannot update your role!"]};
-        if(newUser.status && newUser.status != currentUser.status) return {"statusCode" : 400, "message": [ "You cannot update your status!"]};
-        if(newUser.ip && newUser.ip != currentUser.ip) return {"statusCode" : 400, "message": [ "You cannot update your ip!"]};
         if(newUser.usedRef == currentUser.ref) return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
         
         newUser.ref = currentUser.ref;
@@ -88,8 +83,20 @@ export class UserRepository extends Repository<User> {
         newUser.address = currentUser.address;
         newUser.signature = currentUser.signature;
         newUser.role = currentUser.role;
+        newUser.status = currentUser.status;
+        newUser.ip = currentUser.ip;
 
-        return await this.save(newUser);
+        const user = await this.save(newUser);
+
+        delete user["signatur"];
+        delete user["ip"];
+
+        if(user.status == "Active" || user.status == "KYC"){
+            return user;
+        }else{
+            delete user["ref"];
+            return user;
+        }
     }
 
     async updateRole(user: UpdateRoleDto): Promise<any> {
