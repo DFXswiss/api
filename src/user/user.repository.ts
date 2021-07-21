@@ -75,7 +75,7 @@ export class UserRepository extends Repository<User> {
         
         if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
 
-        if(newUser.ref && newUser.ref != currentUser.ref) return {"statusCode" : 400, "message": [ "You cannot update your ref!"]};
+        //if(newUser.ref && newUser.ref != currentUser.ref && newUser.ref != -1) return {"statusCode" : 400, "message": [ "You cannot update your ref!"]};
         if(newUser.id && newUser.id != currentUser.id) return {"statusCode" : 400, "message": [ "You cannot update your id!"]};
         if(newUser.address && newUser.address != currentUser.address) return {"statusCode" : 400, "message": [ "You cannot update your address!"]};
         if(newUser.role && newUser.role != currentUser.role) return {"statusCode" : 400, "message": [ "You cannot update your role!"]};
