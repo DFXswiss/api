@@ -23,13 +23,13 @@ export class UpdateUserDto {
 
     @ApiProperty()
     @IsOptional()
-    @IsInt()
-    ref: number;
+    @IsString()
+    ref: string;
 
     @ApiProperty()
     @IsOptional()
-    @IsInt()
-    usedRef: number;
+    @IsString()
+    usedRef: string;
 
     @ApiPropertyOptional()
     @IsOptional()

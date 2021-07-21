@@ -23,8 +23,8 @@ export class CreateUserDto {
 
     @ApiProperty()
     @IsOptional()
-    @IsInt()
-    usedRef: number;
+    @IsString()
+    usedRef: string;
 
     @ApiProperty()
     @IsOptional()

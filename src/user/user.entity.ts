@@ -15,8 +15,8 @@ export class User {
   @Column({ type: 'varchar', length: 34, unique: true })
   address: string;
 
-  @Column({ type: 'int' })
-  ref: number;
+  @Column({ type: 'varchar' })
+  ref: string;
 
   @Column({ type: 'varchar', unique: true, length: 88 })
   signature: string;
@@ -28,8 +28,8 @@ export class User {
   // @ManyToOne((_type) => )
   walletId: number; //TODO: Objekt Referenzieren
 
-  @Column({ type: 'int', default: 0 })
-  usedRef: number;
+  @Column({ type: 'varchar', default: "000-000" })
+  usedRef: string;
 
   @Column({ type: 'varchar', length: 64, default: '' })
   firstname: string;

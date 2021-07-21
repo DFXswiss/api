@@ -29,13 +29,13 @@ export class UserRepository extends Repository<User> {
         //TODO
         if(true){ //JSON.parse(result).response === 'True'){
             
-            user.ref =  1;
-            const refUser = {} //await this.findOne({"ref": createUserDto.usedRef});
+            const refVar = ((String((await this.find()).length + 1)).padStart(6,"0"));
 
-            if(user.ref == createUserDto.usedRef){
-                return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
-            }else if(!refUser){
-                return {"statusCode" : 400, "message": [ "usedRef doesn't exist"]};            
+            user.ref = refVar.substr(0,3) + "-" + refVar.substr(3,3);
+            const refUser = await this.findOne({"ref": createUserDto.usedRef});
+
+            if(user.ref == createUserDto.usedRef || !refUser){
+                user.usedRef = "000-000";        
             }
 
             try {
@@ -43,8 +43,11 @@ export class UserRepository extends Repository<User> {
             } catch (error) {
                 console.log(error);
                 throw new InternalServerErrorException();
-
             }    
+
+            if(user.ref == createUserDto.usedRef || (!refUser && createUserDto.usedRef)){
+                user.ref = "-1";
+            }
 
             return user;
         
