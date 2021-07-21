@@ -1,11 +1,12 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Redirect } from '@nestjs/common';
+import { ApiExcludeEndpoint } from '@nestjs/swagger';
 
-@ApiTags('health')
 @Controller('/')
 export class HealthController {
   @Get()
+  @Redirect('api')
+  @ApiExcludeEndpoint()
   async check(): Promise<any> {
-    return Promise.resolve('<h1>OK</h1>');
+    // nothing to do
   }
 }
