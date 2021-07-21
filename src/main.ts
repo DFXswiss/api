@@ -20,7 +20,7 @@ async function bootstrap() {
   app.use(morgan('dev'));
   app.use(helmet());
   app.use(cors());
-  app.setGlobalPrefix('v1');
+  app.setGlobalPrefix('v1', { exclude: [''] });
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX-API')

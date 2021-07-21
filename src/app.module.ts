@@ -35,6 +35,7 @@ import { SellRepository } from './sell/sell.repository';
 import { JwtStrategy } from './auth/jwt.strategy';       
 import { StatisticController } from './statistic/statistic.controller';
 import { StatisticService } from './statistic/statistic.service';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { StatisticService } from './statistic/statistic.service';
     BuyController,
     SellController,
     StatisticController,
+    HealthController,
   ],
   providers: [
     UserService,
