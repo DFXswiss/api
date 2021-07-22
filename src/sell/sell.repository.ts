@@ -4,6 +4,7 @@ import { CreateSellDto } from "./dto/create-sell.dto";
 import { UpdateSellDto } from "./dto/update-sell.dto";
 import { Sell } from "./sell.entity";
 import { DepositRepository } from 'src/deposit/deposit.repository';
+import { FiatRepository } from 'src/fiat/fiat.repository';
 import { getManager } from "typeorm"; 
 
 @EntityRepository(Sell)
@@ -11,11 +12,15 @@ export class SellRepository extends Repository<Sell> {
 
     async createSell(createSellDto: CreateSellDto): Promise<any> {
    
-        const sell = this.create(createSellDto);
-
+        if(createSellDto.id) delete createSellDto["id"];
+        
         const entityManager = getManager();
         
-        sell.depositId = (await entityManager.getCustomRepository(DepositRepository).getNextDeposit()).id;
+        if(createSellDto.fiat) createSellDto.fiat = (await entityManager.getCustomRepository(FiatRepository).getFiat(createSellDto.fiat)).id;
+            
+        createSellDto.depositId = (await entityManager.getCustomRepository(DepositRepository).getNextDeposit()).id;
+
+        const sell = this.create(createSellDto);
 
         try {
             await this.save(sell);

@@ -10,14 +10,13 @@ export class CreateSellDto {
 
     @ApiProperty()
     @IsNotEmpty()
-    @IsIBAN()
+    //@IsIBAN()
     iban: string;
     
     @ApiProperty()
     @IsNotEmpty()
-    @IsInt()
-    fiat: any; // should be an object
-
+    fiat: any;
+    
     @IsNotEmpty()
     @Length(34,34)
     @IsString()

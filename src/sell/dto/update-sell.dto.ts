@@ -11,7 +11,7 @@ export class UpdateSellDto {
 
     @ApiProperty()
     @IsNotEmpty()
-    @IsInt()
+    @IsBoolean()
     active: boolean;
 
     @IsNotEmpty()
