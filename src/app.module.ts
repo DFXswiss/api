@@ -35,7 +35,10 @@ import { SellRepository } from './sell/sell.repository';
 import { JwtStrategy } from './auth/jwt.strategy';       
 import { StatisticController } from './statistic/statistic.controller';
 import { StatisticService } from './statistic/statistic.service';
+import { LogController } from './log/log.controller';
+import { LogService } from './log/log.service';
 import { HealthController } from './health/health.controller';
+import { LogRepository } from './log/log.repository';
 
 @Module({
   imports: [
@@ -64,7 +67,7 @@ import { HealthController } from './health/health.controller';
         migrationsDir: 'migration',
       },
     }),
-    TypeOrmModule.forFeature([UserRepository,AssetRepository,WalletRepository,DepositRepository,CountryRepository,FiatRepository,BuyRepository,SellRepository,]),
+    TypeOrmModule.forFeature([UserRepository,AssetRepository,WalletRepository,DepositRepository,CountryRepository,FiatRepository,BuyRepository,SellRepository,LogRepository,]),
   ],
   controllers: [
     AppController,
@@ -79,6 +82,7 @@ import { HealthController } from './health/health.controller';
     SellController,
     StatisticController,
     HealthController,
+    LogController,
   ],
   providers: [
     UserService,
@@ -92,6 +96,7 @@ import { HealthController } from './health/health.controller';
     SellService,
     JwtStrategy,
     StatisticService,
+    LogService,
   ],
   exports: [
     UserService,
@@ -107,6 +112,7 @@ import { HealthController } from './health/health.controller';
     JwtStrategy,
     PassportModule,
     StatisticService,
+    LogService,
   ],
 })
 export class AppModule {}

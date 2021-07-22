@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "9ff523b0-f37b-4871-94fa-b10182584f48",
+		"_postman_id": "9f03864a-d56e-44df-a9c3-43a643279fb5",
 		"name": "DeFiExchange",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -15,7 +15,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"address\": \"8Fhb15d5dWYk55tQnfMP14F55TaKMkMQQ1\",\n    \"signature\": \"IMFmk1254ddtrva3m7xFd+4595i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bwho=\",\n    \"usedRef\": 20,\n    \"walletId\": 1\n}",
+							"raw": "{\n    \"address\": \"8Fhb15d4dWYk65tQnfMP24F55TaKMkMQQ9\",\n    \"signature\": \"IMFmk1255ddtrva4m7xFd+4695i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\",\n    \"walletId\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -71,7 +71,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"address\": \"8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C\",\n    \"signature\": \"IMFmk1254ddtrva3m7xFd+4595i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\"\n}",
+							"raw": "{\n    \"address\": \"8Fhb15d5dWYk55tQnfMP14F55TaKMkMQQ9\",\n    \"signature\": \"IMFmk1254ddtrva3m7xFd+4595i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -79,14 +79,15 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/v1/auth/signin",
+							"raw": "{{HOST}}/v1/auth/signin/",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
 								"auth",
-								"signin"
+								"signin",
+								""
 							]
 						}
 					},
@@ -290,16 +291,11 @@
 					},
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
-									"type": "string"
-								},
-								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZodUQ1YTVxV1lrNW10UW5mTVA3Z0Y1b1RhS01rTVFRMSIsImlhdCI6MTYyNTYxMDA0MSwiZXhwIjoxNjI1NjEzNjQxfQ.sV2i-3iuI_3L8Rwl4hL1PIcPwSlKkO8PRxwdwy5rwic",
 									"type": "string"
 								}
 							]
@@ -416,22 +412,22 @@
 			]
 		},
 		{
-			"name": "crypto2fiat",
+			"name": "sell",
 			"item": [
 				{
-					"name": "crypto2fiat",
+					"name": "sell",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjUzODcyNywiZXhwIjoxNjI2NTQyMzI3fQ.hxdtYtaFtSo2ZKp-Ipa7-HXO8lVrewgA_8Q5JxGh3kc",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -439,68 +435,79 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{HOST}}/api/v1/crypto2fiat",
+							"raw": "{{HOST}}/v1/sell/",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"crypto2fiat"
+								"sell",
+								""
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "crypto2fiatbyid",
+					"name": "sellId",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjUzODcyNywiZXhwIjoxNjI2NTQyMzI3fQ.hxdtYtaFtSo2ZKp-Ipa7-HXO8lVrewgA_8Q5JxGh3kc",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
 						},
 						"method": "GET",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
-							"raw": "{{HOST}}/api/v1/crypto2fiat/DE123:2",
+							"raw": "{{HOST}}/v1/sell/1",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"crypto2fiat",
-								"DE123:2"
+								"sell",
+								"1"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "addcrypto2fiat",
+					"name": "addSell",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjgxOTM4OCwiZXhwIjoxNjI2ODIyOTg4fQ.n7xrdK3xS5RtZ9huy1SPC1hCCBLo_W3ThAq2NES4d5Y",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -509,7 +516,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"iban\": \"DE123987635\",\r\n\"fiat\": {\r\n            \"enable\": true,\r\n            \"id\": 2,\r\n            \"name\": \"USD\"\r\n        }\r\n}",
+							"raw": "{\r\n    \"iban\": \"DE12346\",\r\n    \"fiat\": \"EUR\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -517,33 +524,32 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/api/v1/crypto2fiat",
+							"raw": "{{HOST}}/v1/sell",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"crypto2fiat"
+								"sell"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "updatecrypto2fiat",
+					"name": "updateSell",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjUzODcyNywiZXhwIjoxNjI2NTQyMzI3fQ.hxdtYtaFtSo2ZKp-Ipa7-HXO8lVrewgA_8Q5JxGh3kc",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -552,7 +558,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"active\": false\r\n}",
+							"raw": "{\r\n    \"id\": 2,\r\n\"active\": false\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -560,15 +566,13 @@
 							}
 						},
 						"url": {
-							"raw": "{{HOST}}/api/v1/crypto2fiat/DE123:0",
+							"raw": "{{HOST}}/v1/sell",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
-								"api",
 								"v1",
-								"crypto2fiat",
-								"DE123:0"
+								"sell"
 							]
 						}
 					},
@@ -638,16 +642,16 @@
 					"name": "addAsset",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjUzODcyNywiZXhwIjoxNjI2NTQyMzI3fQ.hxdtYtaFtSo2ZKp-Ipa7-HXO8lVrewgA_8Q5JxGh3kc",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -656,7 +660,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"name\": \"Test3\",\r\n    \"type\": \"DAT\"\r\n}",
+							"raw": "{\r\n    \"name\": \"BTC\",\r\n    \"type\": \"DAT\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -761,7 +765,19 @@
 					"name": "allFiat",
 					"request": {
 						"auth": {
-							"type": "noauth"
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjYyNjY1NiwiZXhwIjoxNjI2NjMwMjU2fQ.K8wYHI___rnMQWfyvCaW8U9zWX5Ty7sE35cWcNNevVY",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
 						},
 						"method": "GET",
 						"header": [],
@@ -782,16 +798,16 @@
 					"name": "addFiat",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjUzODcyNywiZXhwIjoxNjI2NTQyMzI3fQ.hxdtYtaFtSo2ZKp-Ipa7-HXO8lVrewgA_8Q5JxGh3kc",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -800,7 +816,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"name\":\"CHF2\"\r\n}",
+							"raw": "{\r\n    \"name\":\"USD\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -915,7 +931,19 @@
 					},
 					"request": {
 						"auth": {
-							"type": "noauth"
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjUzODcyNywiZXhwIjoxNjI2NTQyMzI3fQ.hxdtYtaFtSo2ZKp-Ipa7-HXO8lVrewgA_8Q5JxGh3kc",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
 						},
 						"method": "GET",
 						"header": [],
@@ -952,16 +980,16 @@
 					"name": "addcountry",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjUzODcyNywiZXhwIjoxNjI2NTQyMzI3fQ.hxdtYtaFtSo2ZKp-Ipa7-HXO8lVrewgA_8Q5JxGh3kc",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -970,7 +998,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"name\": \"Luxembourg3\",\r\n    \"symbol\": \"LUX3\"\r\n}",
+							"raw": "{\r\n    \"name\": \"Switzerland\",\r\n    \"symbol\": \"CH\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1154,16 +1182,16 @@
 					"name": "addDeposit",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjU0NzQzNywiZXhwIjoxNjI2NTUxMDM3fQ.8SgWlBtjzSjCiJQFE1snuDvNLZARf6hLcx9o5j7V37E",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -1172,7 +1200,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"address\" : \"8MVnL9PZ7yUoRMD4HAnTQn5DAHy8Yiv289\",\r\n    \"id\": 30\r\n}",
+							"raw": "{\r\n    \"address\" : \"8MV4L9PZ7yUoRMD4HAnTQn5DAHy8Yiv289\",\r\n    \"id\":44\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1322,16 +1350,16 @@
 					"name": "addWallet",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V778/JJfQgjz0=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjU0NzQzNywiZXhwIjoxNjI2NTUxMDM3fQ.8SgWlBtjzSjCiJQFE1snuDvNLZARf6hLcx9o5j7V37E",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM32C",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -1340,7 +1368,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"address\": \"8Lj1JepMHPQY2HYDVQq5XXmaeNXZygM33C\",\r\n    \"signature\": \"Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V739/JJfQgjz0=\"\r\n}",
+							"raw": "{\r\n    \"address\": \"8Lj2JepMHPQY2HYDVQq5XXmaeNXZygM33C\",\r\n    \"signature\": \"Hx67r5HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtoFPysjElKiJU9V739/JJfQgjz0=\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1405,6 +1433,132 @@
 			]
 		},
 		{
+			"name": "log",
+			"item": [
+				{
+					"name": "getLog",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjk5MDQ3MCwiZXhwIjoxNjI2OTk0MDcwfQ.-PztaQcubJF8n8YoLYzpnCD1YB-V9KpamUxIDr1Mw1Y",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{HOST}}/v1/log/8",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"log",
+								"8"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "allLog",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjk5MDQ3MCwiZXhwIjoxNjI2OTk0MDcwfQ.-PztaQcubJF8n8YoLYzpnCD1YB-V9KpamUxIDr1Mw1Y",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{HOST}}/v1/log",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"log"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "addLog",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjk5MDQ3MCwiZXhwIjoxNjI2OTk0MDcwfQ.-PztaQcubJF8n8YoLYzpnCD1YB-V9KpamUxIDr1Mw1Y",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"address\": \"8Lj2JepMHPQY2HYDVQq5XXmaeNXZygM33C\",\r\n    \"type\": \"Transaction\",\r\n    \"message\": \"Deposit arrived\",\r\n    \"status\": \"fiat-deposit\",\r\n    \"fiat\": 0,\r\n    \"fiatValue\": 100,\r\n    \"iban\": \"CH02120300000000202088\",\r\n    \"direction\": \"fiat-to-asset\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{HOST}}/v1/log",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"log"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "statistic",
 			"item": [
 				{
@@ -1412,7 +1566,9 @@
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": null
+						"url": {
+							"raw": ""
+						}
 					},
 					"response": []
 				}
