@@ -1,12 +1,14 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateDepositDto } from "./dto/create-deposit.dto";
 import { UpdateDepositDto } from "./dto/update-deposit.dto";
 import { Deposit } from "./deposit.entity";
 import { isNumber, isString } from "class-validator";
 
+
 @EntityRepository(Deposit)
 export class DepositRepository extends Repository<Deposit> {
+    
     async createDeposit(createDepositDto: CreateDepositDto): Promise<any> {
 
         if(createDepositDto.id) delete createDepositDto["id"];

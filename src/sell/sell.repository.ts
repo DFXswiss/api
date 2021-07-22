@@ -4,21 +4,18 @@ import { CreateSellDto } from "./dto/create-sell.dto";
 import { UpdateSellDto } from "./dto/update-sell.dto";
 import { Sell } from "./sell.entity";
 import { DepositRepository } from 'src/deposit/deposit.repository';
-//import { Injectable } from "@nestjs/common";
-import { InjectRepository } from '@nestjs/typeorm'
+import { getManager } from "typeorm"; 
 
 @EntityRepository(Sell)
 export class SellRepository extends Repository<Sell> {   
-
-    constructor(@InjectRepository(DepositRepository) private depositRepository: DepositRepository) {
-        super();
-    }
 
     async createSell(createSellDto: CreateSellDto): Promise<any> {
    
         const sell = this.create(createSellDto);
 
-        sell.depositId = (await this.depositRepository.getNextDeposit()).id;
+        const entityManager = getManager();
+        
+        sell.depositId = (await entityManager.getCustomRepository(DepositRepository).getNextDeposit()).id;
 
         try {
             await this.save(sell);
