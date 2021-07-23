@@ -53,12 +53,8 @@ export class SellRepository extends Repository<Sell> {
  
         try {
             const sell = await this.find({"address":address});
-
-            if(sell){
-                return sell;
-            }else{
-                return "No sell routes"; //TODO Error message
-            }
+            
+            return sell;
             
         } catch (error) {
             console.log(error);

@@ -42,9 +42,7 @@ export class BuyRepository extends Repository<Buy> {
                     await this.save(buy);
                     return buy;
                 }else return {"statusCode" : 400, "message": [ "You can only change your own sell route"]};
-                
             }
-           
         } catch (error) {
             console.log(error);
             throw new InternalServerErrorException();
@@ -58,12 +56,9 @@ export class BuyRepository extends Repository<Buy> {
             const buy = await this.findOne({"id":key.key});
             
             if(buy){
-                if(buy.address === address){
-                    return buy;
-                }else{
-                    return "Not your address";
-                }
+                if(buy.address === address) return buy;
                 
+                return "Not your address";
             }else{
                 return "No buy route"; //TODO Error message
             }
@@ -80,35 +75,25 @@ export class BuyRepository extends Repository<Buy> {
         try {
             const buy = await this.find({"address":address});
 
-            if(buy){
-                return buy;
-            }else{
-                return "No buy routes"; //TODO Error message
-            }
+            return buy;
             
         } catch (error) {
             console.log(error);
             throw new InternalServerErrorException();
         }
-        
     }
 
     async getBuyCount(): Promise<any> {
  
         try {
             const buy = await this.find();
-            
-            if(buy){
-                return {"buyCount":buy.length};
-            }else{
-                return "No buy routes"; //TODO Error message
-            }
+
+            return {"buyCount":buy.length};
             
         } catch (error) {
             console.log(error);
             throw new InternalServerErrorException();
         }
-        
     }
 
 }
