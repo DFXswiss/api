@@ -16,7 +16,7 @@ export class UserService {
     async createUser(createUserDto: CreateUserDto):Promise<any> {
         const user = this.userRepository.createUser(createUserDto);
 
-        delete user["signatur"];
+        delete user["signature"];
         delete user["ip"];
         delete user["ref"];
 
@@ -25,7 +25,7 @@ export class UserService {
 
     async getUser(user: User): Promise<any> {
 
-        delete user["signatur"];
+        delete user["signature"];
         delete user["ip"];
 
         if(user.status == "Active" || user.status == "KYC"){
@@ -45,7 +45,7 @@ export class UserService {
         const user = this.userRepository.updateUser(oldUser,newUser);
 
         //TODO
-        // delete user["signatur"];
+        // delete user["signature"];
         // delete user["ip"];
 
         // if(user){

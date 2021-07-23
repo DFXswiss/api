@@ -34,10 +34,8 @@ export class UserRepository extends Repository<User> {
             user.ref = refVar.substr(0,3) + "-" + refVar.substr(3,3);
             const refUser = await this.findOne({"ref": createUserDto.usedRef});
 
-            if(user.ref == createUserDto.usedRef || !refUser){
-                user.usedRef = "000-000";        
-            }
-
+            if(user.ref == createUserDto.usedRef || !refUser) user.usedRef = "000-000";
+            
             try {
                 await this.save(user);
             } catch (error) {
@@ -45,10 +43,8 @@ export class UserRepository extends Repository<User> {
                 throw new InternalServerErrorException();
             }    
 
-            if(user.ref == createUserDto.usedRef || (!refUser && createUserDto.usedRef)){
-                user.ref = "-1";
-            }
-
+            if(user.ref == createUserDto.usedRef || (!refUser && createUserDto.usedRef)) user.ref = "-1";
+            
             return user;
         
         }else{
@@ -78,8 +74,10 @@ export class UserRepository extends Repository<User> {
         
         if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
 
+        const refUser = await this.findOne({"ref": newUser.usedRef});
+
         if(newUser.id && newUser.id != currentUser.id) return {"statusCode" : 400, "message": [ "You cannot update your id!"]};
-        if(newUser.usedRef == currentUser.ref) return {"statusCode" : 400, "message": [ "usedRef must not be your own ref"]};
+        if(currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) newUser.usedRef = "000-000";
         
         newUser.ref = currentUser.ref;
         newUser.id = currentUser.id;
@@ -91,7 +89,9 @@ export class UserRepository extends Repository<User> {
 
         const user = await this.save(newUser);
 
-        delete user["signatur"];
+        if(currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) user.ref = "-1";
+
+        delete user["signature"];
         delete user["ip"];
 
         if(user.status == "Active" || user.status == "KYC"){
