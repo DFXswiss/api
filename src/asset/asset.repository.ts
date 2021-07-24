@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateAssetDto } from "./dto/create-asset.dto";
 import { UpdateAssetDto } from "./dto/update-asset.dto";
@@ -26,7 +26,7 @@ export class AssetRepository extends Repository<Asset> {
             return asset;
 
         }else{
-            return {"statusCode" : 400, "message": [ "type must be 'Coin', 'DAT' or 'DCT'"]};
+            throw new BadRequestException("type must be Coin or DAT or DCT")
         }
     }
 
@@ -37,12 +37,12 @@ export class AssetRepository extends Repository<Asset> {
     async updateAsset(asset: UpdateAssetDto): Promise<any> {
         const currentAsset = await this.findOne({ "id" : asset.id });
         
-        if(!currentAsset) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+        if(!currentAsset) throw new NotFoundException( "No matching asset for id found");
         
         if(asset.type == "Coin" || asset.type == "DAT" || asset.type == "DCT"){
             return await this.save(asset);
         }else{
-            return {"statusCode" : 400, "message": [ "type must be 'Coin', 'DAT' or 'DCT'"]};
+            throw new BadRequestException("type must be Coin or DAT or DCT")
         }
     }
 
@@ -59,8 +59,8 @@ export class AssetRepository extends Repository<Asset> {
                 let asset = await this.findOne({ "name" : key.key });
                 
                 if(asset) return asset;
-                    
-                return {"statusCode" : 400, "message": [ "No matching asset found"]};
+                
+                throw new NotFoundException( "No matching asset found");
             }
 
             // TODO Error Framework?
@@ -74,14 +74,14 @@ export class AssetRepository extends Repository<Asset> {
                 
             if(asset) return asset;
                     
-            return {"statusCode" : 400, "message": [ "No matching asset found"]};
+            throw new NotFoundException( "No matching asset found");
         }else if(key.id){
             
             let asset = await this.findOne({ "id" : key.id });
                 
             if(asset) return asset; 
             
-            return {"statusCode" : 400, "message": [ "No matching asset found"]};
+            throw new NotFoundException( "No matching asset found");
             
         }else if(key.name){
 
@@ -89,10 +89,9 @@ export class AssetRepository extends Repository<Asset> {
                 
             if(asset) return asset;
                     
-            return {"statusCode" : 400, "message": [ "No matching asset found"]};
+            throw new NotFoundException( "No matching asset found");
         }
-
-        // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
+        
+        throw new BadRequestException("key must be number or string or JSON-Object")
     }
 }

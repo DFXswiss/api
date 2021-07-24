@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateFiatDto } from "./dto/create-fiat.dto";
 import { UpdateFiatDto } from "./dto/update-fiat.dto";
@@ -31,7 +31,7 @@ export class FiatRepository extends Repository<Fiat> {
 
         const currentFiat = await this.findOne({ "id" : fiat.id });
         
-        if(!currentFiat) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+        if(!currentFiat) throw new NotFoundException( "No matching fiat for id found");
 
         return await this.save(fiat);
     }
@@ -50,11 +50,9 @@ export class FiatRepository extends Repository<Fiat> {
                 
                 if(fiat) return fiat;
                     
-                return {"statusCode" : 400, "message": [ "No matching fiat found"]};
+                throw new NotFoundException( "No matching fiat found");
             }
-
-            // TODO Error Framework?
-            return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
+            
         }else if(!isNaN(key)){
 
             let fiat = await this.findOne({ "id" : key });
@@ -67,14 +65,14 @@ export class FiatRepository extends Repository<Fiat> {
                 
             if(fiat) return fiat;
                     
-            return {"statusCode" : 400, "message": [ "No matching fiat found"]};
+            throw new NotFoundException( "No matching fiat found");
         }else if(key.id){
             
             let fiat = await this.findOne({ "id" : key.id });
                 
             if(fiat) return fiat; 
             
-            return {"statusCode" : 400, "message": [ "No matching fiat found"]};
+            throw new NotFoundException( "No matching fiat found");
             
         }else if(key.name){
 
@@ -82,11 +80,10 @@ export class FiatRepository extends Repository<Fiat> {
                 
             if(fiat) return fiat;
                     
-            return {"statusCode" : 400, "message": [ "No matching fiat found"]};
+            throw new NotFoundException( "No matching fiat found");
         }
 
-        // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
+        throw new BadRequestException("key must be number or string or JSON-Object")
     }
 
 }
