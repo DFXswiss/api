@@ -18,7 +18,7 @@ import { UserRole } from 'src/user/user.entity';
 import { Country } from './country.entity';
 import { CountryService } from './country.service';
 import { CreateCountryDto } from './dto/create-country.dto';
-import { UpdateCountryDto } from "./dto/update-country.dto";
+import { UpdateCountryDto } from './dto/update-country.dto';
 
 @ApiTags('country')
 @Controller('country')
@@ -29,13 +29,13 @@ export class CountryController {
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getCountry(@Param() country: any): Promise<any> {
-    return this.countryService.getCountry(country); 
+    return this.countryService.getCountry(country);
   }
 
   @Get()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllCountry(): Promise<any> {
-    return this.countryService.getAllCountry(); 
+    return this.countryService.getAllCountry();
   }
 
   @Post()
@@ -55,4 +55,3 @@ export class CountryController {
 function GetCountry() {
   throw new Error('Function not implemented.');
 }
-

@@ -25,8 +25,7 @@ export class User {
   mail: string;
 
   @Column({ type: 'int', default: 0 })
-  // @ManyToOne((_type) => )
-  walletId: number; //TODO: Objekt Referenzieren
+  walletId: number; 
 
   @Column({ type: 'varchar', default: "000-000" })
   usedRef: string;

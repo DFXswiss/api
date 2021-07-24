@@ -29,8 +29,8 @@ export class BuyController {
   @Get(':key')
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getBuyRoute(@GetUser() user: User,@Param() key: any): Promise<any> {
-    return this.buyService.getBuy(key,user.address);
+  async getBuyRoute(@GetUser() user: User, @Param() key: any): Promise<any> {
+    return this.buyService.getBuy(key, user.address);
   }
 
   @Get()
@@ -43,14 +43,20 @@ export class BuyController {
   @Post()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createBuy(@GetUser() user: User,@Body() createBuyDto: CreateBuyDto): Promise<any> {
+  createBuy(
+    @GetUser() user: User,
+    @Body() createBuyDto: CreateBuyDto,
+  ): Promise<any> {
     createBuyDto.address = user.address;
     return this.buyService.createBuy(createBuyDto);
   }
 
   @Put()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(@GetUser() user: User,@Body() updateBuyDto: UpdateBuyDto): Promise<any> {
+  async updateBuyRoute(
+    @GetUser() user: User,
+    @Body() updateBuyDto: UpdateBuyDto,
+  ): Promise<any> {
     updateBuyDto.address = user.address;
     return this.buyService.updateBuy(updateBuyDto);
   }

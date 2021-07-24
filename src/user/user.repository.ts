@@ -26,7 +26,7 @@ export class UserRepository extends Repository<User> {
     
         const result = await (requestPromise.get(options));
 
-        //TODO
+        //TODO aktivieren
         if(true){ //JSON.parse(result).response === 'True'){
             
             const refVar = ((String((await this.find()).length + 1)).padStart(6,"0"));
@@ -106,11 +106,8 @@ export class UserRepository extends Repository<User> {
         const currentUser = await this.findOne({ "id" : user.id });
 
         if(!currentUser) throw new NotFoundException("No matching asset for id found");
-
-        // TODO hartkodiert?
-        if(user.role == UserRole.USER || user.role == UserRole.EMPLOYEE || user.role == UserRole.VIP){
-            currentUser.role = user.role;
-        }
+        currentUser.role = user.role;
+        
 
         return await this.save(currentUser);
 
