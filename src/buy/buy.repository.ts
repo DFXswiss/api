@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { ForbiddenException, InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateBuyDto } from "./dto/create-buy.dto";
 import { Buy } from "./buy.entity";
@@ -28,18 +28,13 @@ export class BuyRepository extends Repository<Buy> {
 
         try {
             if(buy){
-                if(buy.address === createBuyDto.address){
-                    await this.save(buy);
-
-                    buy.asset = assetObject;
-
-                    return buy;
-                }else{
-                    return "Not your own address" //TODO Error Message
-                }
+                if(buy.address != createBuyDto.address) throw new ForbiddenException( "You can only get your own sell route");
+                await this.save(buy);
+                buy.asset = assetObject;
+                return buy;
             }
         } catch (error) {
-            console.log(error.message); //TODO Error message 
+            console.log(error.message);
             throw new InternalServerErrorException();
         }
     }

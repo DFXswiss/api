@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateSellDto } from "./dto/create-sell.dto";
 import { UpdateSellDto } from "./dto/update-sell.dto";
@@ -41,8 +41,8 @@ export class SellRepository extends Repository<Sell> {
         try{
             const currentSell = await this.findOne({ "id" : sellDto.id});
             
-            if(!currentSell) return {"statusCode" : 400, "message": [ "No matching entry for id found"]};
-            if(sellDto.address != currentSell.address) return {"statusCode" : 400, "message": [ "You can only change your own sell route"]};
+            if(!currentSell) throw new NotFoundException( "No matching entry for id found");
+            if(sellDto.address != currentSell.address) throw new ForbiddenException( "You can only change your own sell route");
 
             currentSell.active = sellDto.active;
 
@@ -78,7 +78,7 @@ export class SellRepository extends Repository<Sell> {
         if(!isNaN(id.key)){
             let sell = await this.findOne({ "id" : id.key });
             
-            if(sell.address != address) return {"statusCode" : 400, "message": [ "You can only get your own sell route"]};
+            if(sell.address != address) throw new ForbiddenException( "You can only get your own sell route");
              
             const entityManager = getManager();
 
@@ -87,8 +87,7 @@ export class SellRepository extends Repository<Sell> {
             return sell;
         }
 
-        // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number"]};
+        throw new BadRequestException("id must be a number")
         
     }
 }
