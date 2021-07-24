@@ -45,8 +45,6 @@ import { LogRepository } from './log/log.repository';
     ConfigModule.forRoot(),
     PassportModule.register({ defaultStrategy: 'jwt',session:true }),
     JwtModule.register({
-      // TODO: Secret to .env!!!
-      // Notice that the same key is used in jwt.strategy.ts!
       secret: process.env.JWT_SECRET,
       signOptions: {
         expiresIn: 3600,

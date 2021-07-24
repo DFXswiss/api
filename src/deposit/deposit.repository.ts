@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from "@nestjs/common";
+import { Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateDepositDto } from "./dto/create-deposit.dto";
 import { UpdateDepositDto } from "./dto/update-deposit.dto";
@@ -32,7 +32,7 @@ export class DepositRepository extends Repository<Deposit> {
     async updateDeposit(depositAddress: UpdateDepositDto): Promise<any> {
         const currentDeposit = await this.findOne({ "id" : depositAddress.id });
         
-        if(!currentDeposit) return {"statusCode" : 400, "message": [ "No matching deposit address for id found"]};
+        if(!currentDeposit) throw new NotFoundException("No matching deposit address for id found");
 
         return await this.save(depositAddress);
     }
@@ -58,10 +58,9 @@ export class DepositRepository extends Repository<Deposit> {
         }else if(isString(key.key)){
 
             let asset = await this.findOne({ "address" : key.key });
-            
             if(asset) return asset;
-                
-            return {"statusCode" : 400, "message": [ "No matching deposit address found"]};
         }
+
+        throw new NotFoundException("No matching deposit address for id found");
     }
 }

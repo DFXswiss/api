@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -48,7 +48,7 @@ export class UserRepository extends Repository<User> {
             return user;
         
         }else{
-            //TODO Signature not valid
+            throw new BadRequestException("Wrong signature")
         }
 
     }
@@ -60,7 +60,7 @@ export class UserRepository extends Repository<User> {
     async updateStatus(user: UpdateUserDto): Promise<any> {
         const currentUser = await this.findOne({ "id" : user.id });
         
-        if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+        if(!currentUser)  throw new NotFoundException("No matching asset for id found");
 
         if(user.status == "Active" || user.status == "KYC"){
             currentUser.status = user.status;
@@ -72,11 +72,10 @@ export class UserRepository extends Repository<User> {
 
         const currentUser = await this.findOne({ "id" : oldUser.id });
         
-        if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+        if(!currentUser) throw new NotFoundException("No matching asset for id found");
 
         const refUser = await this.findOne({"ref": newUser.usedRef});
 
-        if(newUser.id && newUser.id != currentUser.id) return {"statusCode" : 400, "message": [ "You cannot update your id!"]};
         if(currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) newUser.usedRef = "000-000";
         
         newUser.ref = currentUser.ref;
@@ -106,7 +105,7 @@ export class UserRepository extends Repository<User> {
 
         const currentUser = await this.findOne({ "id" : user.id });
 
-        if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+        if(!currentUser) throw new NotFoundException("No matching asset for id found");
 
         // TODO hartkodiert?
         if(user.role == UserRole.USER || user.role == UserRole.EMPLOYEE || user.role == UserRole.VIP){
@@ -120,7 +119,7 @@ export class UserRepository extends Repository<User> {
     async verifyUser(user: UpdateUserDto): Promise<any> {
         const currentUser = await this.findOne({ "id" : user.id });
         
-        if(!currentUser) return {"statusCode" : 400, "message": [ "No matching asset for id found"]};
+        if(!currentUser) throw new NotFoundException("No matching asset for id found");
 
         let result = {"result": true, "errors": {}};
 

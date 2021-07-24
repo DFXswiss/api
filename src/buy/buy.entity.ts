@@ -18,7 +18,7 @@ export class Buy {
   asset: number;
 
   @Column({ type: 'varchar', length: 15 })
-  bank_usage: string; //TODO: Objekt Referenzieren
+  bank_usage: string;
 
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;

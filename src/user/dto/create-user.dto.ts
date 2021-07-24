@@ -9,13 +9,11 @@ export class CreateUserDto {
     @IsInt()
     id: number;
     
-    @ApiProperty()
     @IsNotEmpty()
     @Length(34,34)
     @IsString()
     address: string;
 
-    @ApiProperty()
     @IsNotEmpty()
     @Length(88,88)
     @IsString()

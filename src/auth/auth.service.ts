@@ -16,12 +16,9 @@ export class AuthService {
     return this.signIn(createUserDto);
   }
 
-
   async signIn(authCredentialsDto: AuthCredentialsDto): Promise<any> {
     const { address, signature } = authCredentialsDto;
     const user = await this.userRepository.findOne({ "address": address, "signature": signature });
-
-    // TODO: Evtl. signature verschlüsseln?
 
     if(user) {
       const payload: JwtPayload = { address };

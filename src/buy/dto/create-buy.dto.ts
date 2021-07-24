@@ -17,7 +17,7 @@ export class CreateBuyDto {
     @ApiProperty()
     @IsNotEmpty()
     @IsInt()
-    asset: number; // asset should be an object
+    asset: number;
 
     @IsNotEmpty()
     @Length(34,34)

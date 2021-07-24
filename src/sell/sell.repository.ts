@@ -48,9 +48,7 @@ export class SellRepository extends Repository<Sell> {
 
             const sell = await this.save(currentSell);
 
-            const entityManager = getManager();
-
-            if(sell) sell.fiat = (await entityManager.getCustomRepository(FiatRepository).getFiat(sell.fiat));
+            if(sell) sell.fiat = (await getManager().getCustomRepository(FiatRepository).getFiat(sell.fiat));
 
             return sell;
 
@@ -64,7 +62,7 @@ export class SellRepository extends Repository<Sell> {
  
         try {
             const sell = await this.find({"address":address});
-            
+            //TODO Schleife durch alle sell und asset id mit objekt ersetzen
             return sell;
             
         } catch (error) {

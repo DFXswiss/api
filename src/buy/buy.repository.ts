@@ -17,10 +17,8 @@ export class BuyRepository extends Repository<Buy> {
         var hash = sha256.create();
         hash.update(createBuyDto.address+createBuyDto.asset+createBuyDto.iban);
         createBuyDto.bankUsage = hash.toString().toUpperCase().slice(0,4)+'-'+ hash.toString().toUpperCase().slice(4,8)+'-'+hash.toString().toUpperCase().slice(8,12);
-        
-        const entityManager = getManager();
-
-        const assetObject = (await entityManager.getCustomRepository(AssetRepository).getAsset(createBuyDto.asset));
+     
+        const assetObject = (await getManager().getCustomRepository(AssetRepository).getAsset(createBuyDto.asset));
 
         createBuyDto.asset = assetObject.id;
 
@@ -28,7 +26,6 @@ export class BuyRepository extends Repository<Buy> {
 
         try {
             if(buy){
-                if(buy.address != createBuyDto.address) throw new ForbiddenException( "You can only get your own sell route");
                 await this.save(buy);
                 buy.asset = assetObject;
                 return buy;
@@ -45,16 +42,12 @@ export class BuyRepository extends Repository<Buy> {
             const buy = await this.findOne(updateBuyDto.id);
 
             if(buy){
-                if(buy.address === updateBuyDto.address){
-                    buy.active = updateBuyDto.active;
-                    await this.save(buy);
-
-                    const entityManager = getManager();
-
-                    buy.asset = (await entityManager.getCustomRepository(AssetRepository).getAsset(buy.asset));
-
-                    return buy;
-                }else return {"statusCode" : 400, "message": [ "You can only change your own sell route"]};
+                if(buy.address != updateBuyDto.address) throw new ForbiddenException("You can only change your own sell route");
+                buy.active = updateBuyDto.active;
+                await this.save(buy);
+                const entityManager = getManager();
+                buy.asset = (await entityManager.getCustomRepository(AssetRepository).getAsset(buy.asset));
+                return buy;
             }
         } catch (error) {
             console.log(error);
@@ -66,13 +59,9 @@ export class BuyRepository extends Repository<Buy> {
  
         try {
             const buy = await this.findOne({"id":key.key});
-            
             if(buy){
-
-                if(buy.address != address) return {"statusCode" : 400, "message": [ "You can only get your own sell route"]};
-
+                if(buy.address != address) throw new ForbiddenException("You can only get your own sell route");
                 const entityManager = getManager();
-
                 buy.asset = (await entityManager.getCustomRepository(AssetRepository).getAsset(buy.asset));
             }
 
@@ -89,7 +78,7 @@ export class BuyRepository extends Repository<Buy> {
  
         try {
             const buy = await this.find({"address":address});
-
+            //TODO Schleife durch alle buy und fiat id mit objekt ersetzen
             return buy;
             
         } catch (error) {

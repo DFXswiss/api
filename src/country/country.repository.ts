@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateCountryDto } from "./dto/create-country.dto";
 import { UpdateCountryDto } from "./dto/update-country.dto";
@@ -45,19 +45,16 @@ export class CountryRepository extends Repository<Country> {
             
             if(asset) return asset;
                 
-            return {"statusCode" : 400, "message": [ "No matching country found"]};
+            throw new NotFoundException("No matching country found");
         }
 
-        // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string", "OR:", "symbol must be a string"]};
+        throw new BadRequestException("id must be a number, name must be a string or symbol must be a string");
 
     }
 
     async updateCountry(editCountryDto: UpdateCountryDto): Promise<any>{
         const currentCountry = await this.findOne({ "id" : editCountryDto.id });
-        
-        if(!currentCountry) return {"statusCode" : 400, "message": [ "No matching country for id found"]};
-
+        if(!currentCountry) throw new NotFoundException("No matching country found");
         return await this.save(editCountryDto);
     }
 }

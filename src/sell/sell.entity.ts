@@ -17,7 +17,7 @@ export class Sell {
   fiat: number;
 
   @Column({ type: 'int', unique: true })
-  depositId: number; //TODO: Objekt Referenzieren
+  depositId: number;
 
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;
