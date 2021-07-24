@@ -23,6 +23,8 @@ export class UserController {
     @Put()
     @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
     async updateUser(@GetUser() oldUser: User,@Body() newUser: UpdateUserDto): Promise<any> {
+        newUser.address = oldUser.address;
+        newUser.signature = oldUser.signature;
         return this.userService.updateUser(oldUser,newUser);
     }
 

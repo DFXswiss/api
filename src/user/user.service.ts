@@ -59,7 +59,6 @@ export class UserService {
 
         return user;
 
-
     }
 
     async getAllUser():Promise<any>{

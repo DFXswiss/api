@@ -11,7 +11,6 @@ import {
   IsString,
   Length,
 } from 'class-validator';
-import { Asset } from 'src/asset/asset.entity';
 
 export class CreateBuyDto {
   @IsOptional()
@@ -28,13 +27,11 @@ export class CreateBuyDto {
   @IsInt()
   asset: number;
 
-  @IsNotEmpty()
   @Length(34, 34)
   @IsString()
   @IsOptional()
   address: string;
 
-  @IsNotEmpty()
   @Length(14, 14)
   @IsOptional()
   @IsString()
