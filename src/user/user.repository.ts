@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -74,7 +75,7 @@ export class UserRepository extends Repository<User> {
     const currentUser = await this.findOne({ id: user.id });
 
     if (!currentUser)
-      throw new NotFoundException('No matching asset for id found');
+      throw new NotFoundException('No matching user for id found');
 
     if (user.status == UserStatus.ACTIVE || user.status == UserStatus.KYC) {
       currentUser.status = user.status;
@@ -86,7 +87,7 @@ export class UserRepository extends Repository<User> {
     const currentUser = await this.findOne({ id: oldUser.id });
 
     if (!currentUser)
-      throw new NotFoundException('No matching asset for id found');
+      throw new NotFoundException('No matching user for id found');
 
     const refUser = await this.findOne({ ref: newUser.usedRef });
 
@@ -123,17 +124,17 @@ export class UserRepository extends Repository<User> {
     const currentUser = await this.findOne({ id: user.id });
 
     if (!currentUser)
-      throw new NotFoundException('No matching asset for id found');
+      throw new NotFoundException('No matching user for id found');
     currentUser.role = user.role;
 
     return await this.save(currentUser);
   }
 
-  async verifyUser(user: UpdateUserDto): Promise<any> {
-    const currentUser = await this.findOne({ id: user.id });
+  async verifyUser(address:string): Promise<any> {
+    const currentUser = await this.findOne({ "address": address });
 
     if (!currentUser)
-      throw new NotFoundException('No matching asset for id found');
+      throw new NotFoundException('No matching user for id found');
 
     let result = { result: true, errors: {} };
 

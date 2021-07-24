@@ -67,8 +67,8 @@ export class UserService {
     return this.userRepository.getAllUser();
   }
 
-  async verifyUser(user: UpdateUserDto): Promise<any> {
-    return this.userRepository.verifyUser(user);
+  async verifyUser(id: number, address:string ): Promise<any> {
+    return this.userRepository.verifyUser(address);
   }
 
   async updateRole(user: UpdateRoleDto): Promise<any> {

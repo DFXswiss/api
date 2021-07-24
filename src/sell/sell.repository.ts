@@ -11,11 +11,18 @@ import { Sell } from './sell.entity';
 import { DepositRepository } from 'src/deposit/deposit.repository';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { getManager } from 'typeorm';
+import { UserRepository } from 'src/user/user.repository';
 
 @EntityRepository(Sell)
 export class SellRepository extends Repository<Sell> {
   async createSell(createSellDto: CreateSellDto): Promise<any> {
     if (createSellDto.id) delete createSellDto['id'];
+
+    const userObject = await getManager()
+    .getCustomRepository(UserRepository)
+    .verifyUser(createSellDto.address);
+
+    if(!userObject.result) throw new ForbiddenException( "user data missing, verify");
 
     const fiatObject = await getManager()
       .getCustomRepository(FiatRepository)
