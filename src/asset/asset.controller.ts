@@ -10,7 +10,12 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExcludeEndpoint,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { UserRole } from 'src/user/user.entity';
 import { AssetService } from './asset.service';
@@ -23,18 +28,29 @@ export class AssetController {
   constructor(private assetService: AssetService) {}
 
   @Get(':key')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'key',
+    required: true,
+    description:
+      'either an integer for the asset id or a string for the asset name',
+    schema: { oneOf: [{ type: 'string' }, { type: 'integer' }] },
+  })
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAsset(@Param() asset: any): Promise<any> {
-    return this.assetService.getAsset(asset);
+  async getAsset(@Param() key: any): Promise<any> {
+    return this.assetService.getAsset(key);
   }
 
   @Get()
+  @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllAsset(): Promise<any> {
     return this.assetService.getAllAsset();
   }
 
   @Post()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createAsset(@Body() createAssetDto: CreateAssetDto): Promise<any> {
@@ -42,6 +58,8 @@ export class AssetController {
   }
 
   @Put()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @UsePipes(ValidationPipe)
   async updateAssetRoute(@Body() asset: UpdateAssetDto): Promise<any> {

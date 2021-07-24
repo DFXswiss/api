@@ -32,7 +32,7 @@ import { CountryRepository } from './country/country.repository';
 import { FiatRepository } from './fiat/fiat.repository';
 import { BuyRepository } from './buy/buy.repository';
 import { SellRepository } from './sell/sell.repository';
-import { JwtStrategy } from './auth/jwt.strategy';       
+import { JwtStrategy } from './auth/jwt.strategy';
 import { StatisticController } from './statistic/statistic.controller';
 import { StatisticService } from './statistic/statistic.service';
 import { LogController } from './log/log.controller';
@@ -43,12 +43,12 @@ import { LogRepository } from './log/log.repository';
 @Module({
   imports: [
     ConfigModule.forRoot(),
-    PassportModule.register({ defaultStrategy: 'jwt',session:true }),
+    PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: {
-        expiresIn: 3600,
-      }
+        expiresIn: 172800,
+      },
     }),
     TypeOrmModule.forRoot({
       type: 'mssql',
@@ -65,52 +65,62 @@ import { LogRepository } from './log/log.repository';
         migrationsDir: 'migration',
       },
     }),
-    TypeOrmModule.forFeature([UserRepository,AssetRepository,WalletRepository,DepositRepository,CountryRepository,FiatRepository,BuyRepository,SellRepository,LogRepository,]),
+    TypeOrmModule.forFeature([
+      UserRepository,
+      BuyRepository,
+      SellRepository,
+      LogRepository,
+      AssetRepository,
+      WalletRepository,
+      DepositRepository,
+      CountryRepository,
+      FiatRepository,
+    ]),
   ],
   controllers: [
     AppController,
     AuthController,
     UserController,
+    BuyController,
+    SellController,
+    LogController,
     AssetController,
     WalletController,
     DepositController,
     CountryController,
     FiatController,
-    BuyController,
-    SellController,
     StatisticController,
     HealthController,
-    LogController,
   ],
   providers: [
     UserService,
     AuthService,
+    BuyService,
+    SellService,
+    LogService,
     AssetService,
     WalletService,
     DepositService,
     CountryService,
     FiatService,
-    BuyService,
-    SellService,
     JwtStrategy,
     StatisticService,
-    LogService,
   ],
   exports: [
     UserService,
     AuthService,
+    BuyService,
+    SellService,
+    LogService,
     AssetService,
     WalletService,
     DepositService,
     CountryService,
     FiatService,
-    BuyService,
-    SellService,
     TypeOrmModule,
     JwtStrategy,
     PassportModule,
     StatisticService,
-    LogService,
   ],
 })
 export class AppModule {}

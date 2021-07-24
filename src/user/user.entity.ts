@@ -1,10 +1,22 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  PrimaryColumn,
+  OneToMany,
+} from 'typeorm';
 
-export enum UserRole{
+export enum UserRole {
   USER = 'User',
   ADMIN = 'Admin',
   EMPLOYEE = 'Employee',
-  VIP = 'VIP'
+  VIP = 'VIP',
+}
+
+export enum UserStatus {
+  NA = 'NA',
+  ACTIVE = 'Active',
+  KYC = 'KYC',
 }
 
 @Entity()
@@ -21,45 +33,45 @@ export class User {
   @Column({ type: 'varchar', unique: true, length: 88 })
   signature: string;
 
-  @Column({ type: 'varchar', length: 64, default: '' })
+  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
   mail: string;
 
   @Column({ type: 'int', default: 0 })
-  walletId: number; 
+  walletId: number;
 
-  @Column({ type: 'varchar', default: "000-000" })
+  @Column({ type: 'varchar', default: '000-000' })
   usedRef: string;
 
-  @Column({ type: 'varchar', length: 64, default: '' })
+  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
   firstname: string;
 
-  @Column({ type: 'varchar', length: 64, default: '' })
+  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
   surname: string;
 
-  @Column({ type: 'varchar', length: 64, default: '' })
+  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
   street: string;
 
-  @Column({ type: 'varchar', length: 5, default: '' })
+  @Column({ type: 'varchar', length: 5, default: '', nullable: true })
   houseNumber: string;
 
-  @Column({ type: 'varchar', length: 64, default: '' })
+  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
   location: string;
 
-  @Column({ type: 'varchar', length: 9, default: '' })
+  @Column({ type: 'varchar', length: 9, default: '', nullable: true })
   zip: string;
 
-  @Column({ type: 'varchar', length: 3, default: '' })
+  @Column({ type: 'varchar', length: 3, default: '', nullable: true })
   country: string;
 
-  @Column({ type: 'varchar', length: 15, default: '' })
+  @Column({ type: 'varchar', length: 15, default: '', nullable: true })
   phone: string;
 
-  @Column({ type: 'varchar', default: 'User' })
+  @Column({ type: 'varchar', default: UserRole.USER })
   role: UserRole;
 
-  @Column({ type: 'varchar', default: 'NA'})
-  status: string
+  @Column({ type: 'varchar', default: UserStatus.NA })
+  status: UserStatus;
 
-  @Column({ type: 'varchar', default: "0.0.0.0"})
-  ip: string
+  @Column({ type: 'varchar', default: '0.0.0.0' })
+  ip: string;
 }

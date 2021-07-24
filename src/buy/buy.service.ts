@@ -15,8 +15,8 @@ export class BuyService {
     return this.buyRepository.createBuy(createBuyDto);
   }
 
-  async getBuy(key: any, address: string): Promise<any> {
-    return this.buyRepository.getBuy(key, address);
+  async getBuy(id: any, address: string): Promise<any> {
+    return this.buyRepository.getBuy(id, address);
   }
 
   async getAllBuy(address: string): Promise<any> {

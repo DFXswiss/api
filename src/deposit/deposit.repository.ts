@@ -39,23 +39,26 @@ export class DepositRepository extends Repository<Deposit> {
     return await this.save(depositAddress);
   }
 
-  async getNextDeposit(): Promise<Deposit> {
+  async getNextDeposit(): Promise<any> {
     const nextAddress = await this.findOne({ used: false });
 
     nextAddress.used = true;
-
     await this.save(nextAddress);
-
     return nextAddress;
   }
 
   async getDeposit(key: any): Promise<any> {
     if (!isNaN(key.key)) {
       let asset = await this.findOne({ id: key.key });
-
       if (asset) return asset;
     } else if (isString(key.key)) {
       let asset = await this.findOne({ address: key.key });
+      if (asset) return asset;
+    } else if (!isNaN(key)) {
+      let asset = await this.findOne({ id: key });
+      if (asset) return asset;
+    } else if (isString(key)) {
+      let asset = await this.findOne({ address: key });
       if (asset) return asset;
     }
 

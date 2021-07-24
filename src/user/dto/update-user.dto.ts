@@ -7,7 +7,7 @@ import {
   Length,
   IsInt,
 } from 'class-validator';
-import { UserRole } from '../user.entity';
+import { UserRole, UserStatus } from '../user.entity';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -24,11 +24,12 @@ export class UpdateUserDto {
   @IsString()
   signature: string;
 
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   ref: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   usedRef: string;
@@ -95,5 +96,5 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  status: string;
+  status: UserStatus;
 }

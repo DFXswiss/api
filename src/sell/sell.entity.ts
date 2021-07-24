@@ -1,8 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  PrimaryColumn,
+  Index,
+} from 'typeorm';
 import * as typeorm from 'typeorm';
 
 @Entity()
-@Index("ibanAsset", (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
+@Index('ibanAsset', (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
 export class Sell {
   @PrimaryGeneratedColumn()
   id: number;

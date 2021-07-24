@@ -32,17 +32,17 @@ export class CountryRepository extends Repository<Country> {
 
   async getCountry(key: any): Promise<any> {
     if (!isNaN(key.key)) {
-      let asset = await this.findOne({ id: key.key });
+      let country = await this.findOne({ id: key.key });
 
-      if (asset) return asset;
+      if (country) return country;
     } else if (isString(key.key)) {
-      let asset = await this.findOne({ symbol: key.key });
+      let country = await this.findOne({ symbol: key.key });
 
-      if (asset) return asset;
+      if (country) return country;
 
-      asset = await this.findOne({ name: key.key });
+      country = await this.findOne({ name: key.key });
 
-      if (asset) return asset;
+      if (country) return country;
 
       throw new NotFoundException('No matching country found');
     }

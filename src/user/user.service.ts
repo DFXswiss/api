@@ -1,76 +1,77 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from '@nestjs/typeorm'
-import { CreateUserDto } from "./dto/create-user.dto";
-import { User } from './user.entity'
-import { UserRepository } from "./user.repository";
-import { UpdateUserDto } from "./dto/update-user.dto";
-import { UpdateRoleDto } from "./dto/update-role.dto";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { CreateUserDto } from './dto/create-user.dto';
+import { User, UserRole } from './user.entity';
+import { UserRepository } from './user.repository';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 
 @Injectable()
 export class UserService {
-    constructor(
-        @InjectRepository(UserRepository)
-        private userRepository: UserRepository,
-      ) {}
-      
-    async createUser(createUserDto: CreateUserDto):Promise<any> {
-        const user = this.userRepository.createUser(createUserDto);
+  constructor(
+    @InjectRepository(UserRepository)
+    private userRepository: UserRepository,
+  ) {}
 
-        delete user["signature"];
-        delete user["ip"];
-        delete user["ref"];
+  async createUser(createUserDto: CreateUserDto): Promise<any> {
+    const user = this.userRepository.createUser(createUserDto);
 
-        return user;
+    delete user['address'];
+    delete user['signature'];
+    delete user['ip'];
+    delete user['ref'];
+    delete user['role'];
+    delete user['status'];
+
+    return user;
+  }
+
+  async getUser(user: User): Promise<any> {
+    delete user['address'];
+    delete user['signature'];
+    delete user['ip'];
+    if (user.role != UserRole.VIP) delete user['role'];
+    if (user.status == 'Active' || user.status == 'KYC') {
+      return user;
+    } else {
+      delete user['ref'];
+      return user;
     }
+  }
 
-    async getUser(user: User): Promise<any> {
+  async updateStatus(user: UpdateUserDto): Promise<any> {
+    //TODO status ändern wenn transaction oder KYC
+    return this.userRepository.updateStatus(user);
+  }
 
-        delete user["signature"];
-        delete user["ip"];
+  async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
+    const user = this.userRepository.updateUser(oldUser, newUser);
 
-        if(user.status == "Active" || user.status == "KYC"){
-            return user;
-        }else{
-            delete user["ref"];
-            return user;
-        }
-    }
+    //TODO
+    // delete user["signature"];
+    // delete user["ip"];
 
-    async updateStatus(user: UpdateUserDto): Promise<any> {
-        //TODO status ändern wenn transaction oder KYC
-        return this.userRepository.updateStatus(user);
-    }
+    // if(user){
+    //     if(user.status == "Active" || user.status == "KYC"){
+    //         return user;
+    //     }else{
+    //         delete user["ref"];
+    //         return user;
+    //     }
+    // }
 
-    async updateUser(oldUser: User,newUser: UpdateUserDto):Promise<any> {
-        const user = this.userRepository.updateUser(oldUser,newUser);
+    return user;
+  }
 
-        //TODO
-        // delete user["signature"];
-        // delete user["ip"];
+  async getAllUser(): Promise<any> {
+    return this.userRepository.getAllUser();
+  }
 
-        // if(user){
-        //     if(user.status == "Active" || user.status == "KYC"){
-        //         return user;
-        //     }else{
-        //         delete user["ref"];
-        //         return user;
-        //     }
-        // }
+  async verifyUser(user: UpdateUserDto): Promise<any> {
+    return this.userRepository.verifyUser(user);
+  }
 
-        return user;
-
-    }
-
-    async getAllUser():Promise<any>{
-        return this.userRepository.getAllUser();
-    }
-
-    async verifyUser(user: UpdateUserDto): Promise<any> {
-        return this.userRepository.verifyUser(user);
-    }
-
-    async updateRole(user: UpdateRoleDto): Promise<any> {
-        return this.userRepository.updateRole(user);
-    }
-
+  async updateRole(user: UpdateRoleDto): Promise<any> {
+    return this.userRepository.updateRole(user);
+  }
 }

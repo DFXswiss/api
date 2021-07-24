@@ -36,6 +36,7 @@ export class BuyRepository extends Repository<Buy> {
       if (buy) {
         await this.save(buy);
         buy.asset = assetObject;
+        delete buy['address'];
         return buy;
       }
     } catch (error) {
@@ -55,8 +56,8 @@ export class BuyRepository extends Repository<Buy> {
           );
         buy.active = updateBuyDto.active;
         await this.save(buy);
-        const entityManager = getManager();
-        buy.asset = await entityManager
+        delete buy['address'];
+        buy.asset = await getManager()
           .getCustomRepository(AssetRepository)
           .getAsset(buy.asset);
         return buy;
@@ -67,14 +68,15 @@ export class BuyRepository extends Repository<Buy> {
     }
   }
 
-  async getBuy(key: any, address: string): Promise<any> {
+  async getBuy(id: any, address: string): Promise<any> {
     try {
-      const buy = await this.findOne({ id: key.key });
+      const buy = await this.findOne({ id: id.id });
       if (buy) {
         if (buy.address != address)
           throw new ForbiddenException('You can only get your own sell route');
-        const entityManager = getManager();
-        buy.asset = await entityManager
+
+        delete buy['address'];
+        buy.asset = await getManager()
           .getCustomRepository(AssetRepository)
           .getAsset(buy.asset);
       }
@@ -90,6 +92,7 @@ export class BuyRepository extends Repository<Buy> {
     try {
       const buy = await this.find({ address: address });
       //TODO Schleife durch alle buy und fiat id mit objekt ersetzen
+      // + Adresse löschen
       return buy;
     } catch (error) {
       console.log(error);

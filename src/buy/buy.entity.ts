@@ -24,8 +24,8 @@ export class Buy {
   @Column({ type: 'int' })
   asset: number;
 
-  @Column({ type: 'varchar', length: 15 })
-  bank_usage: string;
+  @Column({ type: 'varchar', length: 14 })
+  bankUsage: string;
 
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;

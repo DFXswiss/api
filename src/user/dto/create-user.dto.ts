@@ -25,12 +25,12 @@ export class CreateUserDto {
   @IsString()
   signature: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   usedRef: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
   walletId: number;

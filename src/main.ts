@@ -26,6 +26,7 @@ async function bootstrap() {
     .setTitle('DFX-API')
     .setDescription('Investiere in jedes DeFiChain Asset mit EUR, CHF & USD via Banküberweisung')
     .setVersion('0.1')
+    .addBearerAuth()
     .build();
 
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerOptions);
