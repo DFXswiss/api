@@ -16,9 +16,11 @@ export class SellRepository extends Repository<Sell> {
         
         const entityManager = getManager();
         
-        if(createSellDto.fiat) createSellDto.fiat = (await entityManager.getCustomRepository(FiatRepository).getFiat(createSellDto.fiat)).id;
+        const fiatObject = (await entityManager.getCustomRepository(FiatRepository).getFiat(createSellDto.fiat));
             
         createSellDto.depositId = (await entityManager.getCustomRepository(DepositRepository).getNextDeposit()).id;
+
+        createSellDto.fiat = fiatObject.id;
 
         const sell = this.create(createSellDto);
 
@@ -28,6 +30,8 @@ export class SellRepository extends Repository<Sell> {
              console.log(error);
             throw new InternalServerErrorException();
         }
+
+        sell.fiat = fiatObject;
 
         return sell;
     }
@@ -42,7 +46,14 @@ export class SellRepository extends Repository<Sell> {
 
             currentSell.active = sellDto.active;
 
-            return await this.save(currentSell);
+            const sell = await this.save(currentSell);
+
+            const entityManager = getManager();
+
+            if(sell) sell.fiat = (await entityManager.getCustomRepository(FiatRepository).getFiat(sell.fiat));
+
+            return sell;
+
         } catch (error) {
             console.log(error);
             throw new InternalServerErrorException();
@@ -67,9 +78,12 @@ export class SellRepository extends Repository<Sell> {
         if(!isNaN(id.key)){
             let sell = await this.findOne({ "id" : id.key });
             
-            if(!sell) return {"statusCode" : 400, "message": [ "No matching entry for id found"]};
             if(sell.address != address) return {"statusCode" : 400, "message": [ "You can only get your own sell route"]};
-                
+             
+            const entityManager = getManager();
+
+            if(sell) sell.fiat = (await entityManager.getCustomRepository(FiatRepository).getFiat(sell.fiat));
+
             return sell;
         }
 

@@ -4,6 +4,8 @@ import { CreateBuyDto } from "./dto/create-buy.dto";
 import { Buy } from "./buy.entity";
 import { sha256 } from 'js-sha256';
 import { UpdateBuyDto } from "./dto/update-buy.dto";
+import { AssetRepository } from 'src/asset/asset.repository';
+import { getManager } from "typeorm";
 
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
@@ -15,11 +17,22 @@ export class BuyRepository extends Repository<Buy> {
         var hash = sha256.create();
         hash.update(createBuyDto.address+createBuyDto.asset+createBuyDto.iban);
         createBuyDto.bankUsage = hash.toString().toUpperCase().slice(0,4)+'-'+ hash.toString().toUpperCase().slice(4,8)+'-'+hash.toString().toUpperCase().slice(8,12);
+        
+        const entityManager = getManager();
+
+        const assetObject = (await entityManager.getCustomRepository(AssetRepository).getAsset(createBuyDto.asset));
+
+        createBuyDto.asset = assetObject.id;
+
         const buy = this.create(createBuyDto);
+
         try {
             if(buy){
                 if(buy.address === createBuyDto.address){
                     await this.save(buy);
+
+                    buy.asset = assetObject;
+
                     return buy;
                 }else{
                     return "Not your own address" //TODO Error Message
@@ -40,6 +53,11 @@ export class BuyRepository extends Repository<Buy> {
                 if(buy.address === updateBuyDto.address){
                     buy.active = updateBuyDto.active;
                     await this.save(buy);
+
+                    const entityManager = getManager();
+
+                    buy.asset = (await entityManager.getCustomRepository(AssetRepository).getAsset(buy.asset));
+
                     return buy;
                 }else return {"statusCode" : 400, "message": [ "You can only change your own sell route"]};
             }
@@ -51,17 +69,19 @@ export class BuyRepository extends Repository<Buy> {
 
     async getBuy(key: any, address: string): Promise<any> {
  
-       
         try {
             const buy = await this.findOne({"id":key.key});
             
             if(buy){
-                if(buy.address === address) return buy;
-                
-                return "Not your address";
-            }else{
-                return "No buy route"; //TODO Error message
+
+                if(buy.address != address) return {"statusCode" : 400, "message": [ "You can only get your own sell route"]};
+
+                const entityManager = getManager();
+
+                buy.asset = (await entityManager.getCustomRepository(AssetRepository).getAsset(buy.asset));
             }
+
+            return buy;
             
         } catch (error) {
             console.log(error);

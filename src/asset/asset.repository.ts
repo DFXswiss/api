@@ -65,12 +65,27 @@ export class AssetRepository extends Repository<Asset> {
 
             // TODO Error Framework?
             return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string"]};
-        }else if(isNaN(key)){
+        }else if(!isNaN(key)){
             let asset = await this.findOne({ "id" : key });
                 
             if(asset) return asset;
         }else if(isString(key)){
             let asset = await this.findOne({ "name" : key });
+                
+            if(asset) return asset;
+                    
+            return {"statusCode" : 400, "message": [ "No matching asset found"]};
+        }else if(key.id){
+            
+            let asset = await this.findOne({ "id" : key.id });
+                
+            if(asset) return asset; 
+            
+            return {"statusCode" : 400, "message": [ "No matching asset found"]};
+            
+        }else if(key.name){
+
+            let asset = await this.findOne({ "name" : key.name });
                 
             if(asset) return asset;
                     

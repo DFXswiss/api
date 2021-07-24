@@ -68,6 +68,21 @@ export class FiatRepository extends Repository<Fiat> {
             if(fiat) return fiat;
                     
             return {"statusCode" : 400, "message": [ "No matching fiat found"]};
+        }else if(key.id){
+            
+            let fiat = await this.findOne({ "id" : key.id });
+                
+            if(fiat) return fiat; 
+            
+            return {"statusCode" : 400, "message": [ "No matching fiat found"]};
+            
+        }else if(key.name){
+
+            let fiat = await this.findOne({ "name" : key.name });
+                
+            if(fiat) return fiat;
+                    
+            return {"statusCode" : 400, "message": [ "No matching fiat found"]};
         }
 
         // TODO Error Framework?
