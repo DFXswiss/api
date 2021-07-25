@@ -2,7 +2,7 @@ import { InternalServerErrorException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateLogDto } from "./dto/create-log.dto";
 import { UpdateLogDto } from "./dto/update-log.dto";
-import { Log } from "./log.entity";
+import { Log, LogDirection, LogStatus } from "./log.entity";
 import { isNumber, isString } from "class-validator";
 
 @EntityRepository(Log)
@@ -12,8 +12,8 @@ export class LogRepository extends Repository<Log> {
         if(createLogDto.id) delete createLogDto["id"];
         if(createLogDto.orderId) delete createLogDto["orderId"];
         if(!createLogDto.type || (createLogDto.type != "Info" && createLogDto.type != "Transaction")) return {"statusCode" : 400, "message": [ "type must be Info or Transaction"]};
-        if(createLogDto.status && (createLogDto.status != "fiat-deposit" && createLogDto.status != "fiat-to-btc" && createLogDto.status != "btc-to-dfi" && createLogDto.status != "dfi-to-asset" && createLogDto.status != "asset-withdrawal"&& createLogDto.status != "asset-deposit"&& createLogDto.status != "btc-to-fiat"&& createLogDto.status != "dfi-to-btc"&& createLogDto.status != "asset-to-dfi"&& createLogDto.status != "fiat-withdrwal")) return {"statusCode" : 400, "message": [ "wrong status"]};
-        if(createLogDto.direction && (createLogDto.direction != "fiat-to-asset" && createLogDto.direction != "asset-to-fiat")) return {"statusCode" : 400, "message": [ "wrong direction"]};
+        if(createLogDto.status && (createLogDto.status != LogStatus.fiatDeposit && createLogDto.status != LogStatus.fiat2btc && createLogDto.status != LogStatus.btc2dfi && createLogDto.status != LogStatus.dfi2asset && createLogDto.status != LogStatus.assetWithdrawal && createLogDto.status != LogStatus.assetDeposit && createLogDto.status != LogStatus.btc2fiat && createLogDto.status != LogStatus.dfi2btc && createLogDto.status != LogStatus.asset2dfi && createLogDto.status != LogStatus.fiatWithdrawal)) return {"statusCode" : 400, "message": [ "wrong status"]};
+        if(createLogDto.direction && (createLogDto.direction != LogDirection.fiat2asset && createLogDto.direction != LogDirection.asset2fiat)) return {"statusCode" : 400, "message": [ "wrong direction"]};
 
         createLogDto.orderId = createLogDto.address + ":" + new Date().toISOString();
 

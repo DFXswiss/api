@@ -1,6 +1,24 @@
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
+export enum LogDirection {
+  fiat2asset = 'fiat-to-asset',
+  asset2fiat = 'asset-to-fiat',
+}
+
+export enum LogStatus {
+  fiatDeposit = 'fiat-deposit',
+  fiat2btc = 'fiat-to-btc',
+  btc2dfi = 'btc-to-dfi',
+  dfi2asset = 'dfi-to-asset',
+  assetWithdrawal = 'asset-withdrawal',
+  assetDeposit = 'asset-deposit',
+  btc2fiat = 'btc-to-fiat',
+  dfi2btc = 'dfi-to-btc',
+  asset2dfi = 'asset-to-dfi',
+  fiatWithdrawal = 'fiat-withdrawal'
+}
+
 @Entity()
 export class Log {
   @PrimaryGeneratedColumn()
@@ -16,7 +34,7 @@ export class Log {
   type: string;
 
   @Column({ type: 'varchar', nullable: true })
-  status: string;
+  status: LogStatus;
 
   @Column({ type: 'int', nullable: true })
   fiat: number;
@@ -34,7 +52,7 @@ export class Log {
   iban: string;
 
   @Column({ type: 'varchar', nullable: true })
-  direction: string;
+  direction: LogDirection;
 
   @Column({ type: 'varchar' })
   message: string;

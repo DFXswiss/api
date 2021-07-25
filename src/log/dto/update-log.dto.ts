@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length, IsNumber, IsIBAN } from "class-validator";
+import { LogDirection, LogStatus } from "../log.entity";
 
 export class UpdateLogDto {
 
@@ -22,7 +23,7 @@ export class UpdateLogDto {
     @ApiProperty()
     @IsOptional()
     @IsString()
-    status: string;
+    status: LogStatus;
 
     @ApiProperty()
     @IsOptional()
@@ -52,7 +53,7 @@ export class UpdateLogDto {
     @ApiProperty()
     @IsOptional()
     @IsString()
-    direction: string;
+    direction: LogDirection;
 
     @ApiProperty()
     @IsOptional()
