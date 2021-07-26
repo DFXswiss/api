@@ -43,7 +43,7 @@ export class UserRepository extends Repository<User> {
       const refVar = String((await this.find()).length + 1).padStart(6, '0');
 
       user.ref = refVar.substr(0, 3) + '-' + refVar.substr(3, 3);
-      const refUser = await this.findOne({ ref: createUserDto.usedRef });
+      const refUser = await this.findOne({ "ref": createUserDto.usedRef });
 
       if (user.ref == createUserDto.usedRef || !refUser)
         user.usedRef = '000-000';
@@ -55,11 +55,11 @@ export class UserRepository extends Repository<User> {
         throw new InternalServerErrorException();
       }
 
-      if (
-        user.ref == createUserDto.usedRef ||
-        (!refUser && createUserDto.usedRef)
-      )
-        user.ref = '-1';
+      // if (
+      //   user.ref == createUserDto.usedRef ||
+      //   (!refUser && createUserDto.usedRef)
+      // )
+      //   user.ref = '-1';
 
       return user;
     } else {
@@ -72,7 +72,7 @@ export class UserRepository extends Repository<User> {
   }
 
   async updateStatus(user: UpdateUserDto): Promise<any> {
-    const currentUser = await this.findOne({ id: user.id });
+    const currentUser = await this.findOne({ "id": user.id });
 
     if (!currentUser)
       throw new NotFoundException('No matching user for id found');
@@ -84,12 +84,12 @@ export class UserRepository extends Repository<User> {
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
-    const currentUser = await this.findOne({ id: oldUser.id });
+    const currentUser = await this.findOne({ "id": oldUser.id });
 
     if (!currentUser)
       throw new NotFoundException('No matching user for id found');
 
-    const refUser = await this.findOne({ ref: newUser.usedRef });
+    const refUser = await this.findOne({ "ref": newUser.usedRef });
 
     if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
       newUser.usedRef = '000-000';
@@ -103,9 +103,9 @@ export class UserRepository extends Repository<User> {
     newUser.ip = currentUser.ip;
 
     await this.save(newUser);
-    const user = await this.findOne({ address: newUser.address });
-    if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
-      user.ref = '-1';
+    const user = await this.findOne({ "address": newUser.address });
+    // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
+    //   user.ref = '-1';
       
     delete user['address'];
     delete user['signature'];
@@ -121,13 +121,15 @@ export class UserRepository extends Repository<User> {
   }
 
   async updateRole(user: UpdateRoleDto): Promise<any> {
-    const currentUser = await this.findOne({ id: user.id });
+    const currentUser = await this.findOne({ "id": user.id });
 
-    if (!currentUser)
-      throw new NotFoundException('No matching user for id found');
+    if (!currentUser) throw new NotFoundException('No matching user for id found');
+    
     currentUser.role = user.role;
 
-    return await this.save(currentUser);
+    await this.save(currentUser);
+
+    return await this.findOne({ "id": user.id });
   }
 
   async verifyUser(address:string): Promise<any> {
