@@ -15,7 +15,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"address\": \"8Fhb15d4dWYk65tQnfMP24F55TaKMkMQQ9\",\n    \"signature\": \"IMFmk1255ddtrva4m7xFd+4695i7q/23FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\",\n    \"walletId\": 1\n}",
+							"raw": "{\n    \"address\": \"8Fhb15d6dWYk77tQnfMP25F55TaKMkMQQ9\",\n    \"signature\": \"IMFmk1655ddtrva4m8xFd+4795i7q/27FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\",\n    \"usedRef\": \"000-003\",\n    \"walletId\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -164,16 +164,16 @@
 					"name": "updateUser",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "IMFmkM25tqVtrva3m7xFd+py91i7q/23FJ8bSl7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Zb0XL2GDj/bw24=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzE2OTE1NywiZXhwIjoxNjI3MzQxOTU3fQ.N4BpZBEXCbxXR6TcLlEPiWnsAjrvM6KDjljA46acNrA",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkTWgAHYv5hCASU24",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -182,7 +182,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"id\": \"1\",\r\n    \"address\":\"123\",\r\n    \"firstname\": \"Test3\",\r\n    \"location\": \"asdsd3\",\r\n    \"phone\": \"1233\",\r\n    \"street\": \"asd3\",\r\n    \"country\": \"DE\",\r\n    \"houseNumber\": \"73\",\r\n    \"surname\": \"asdasd3\",\r\n    \"usedRef\": \"23\",\r\n    \"walletId\": 23,\r\n    \"zip\": \"1233\",\r\n    \"mail\": \"wsd3@test.de\"\r\n}",
+							"raw": "{\r\n    \"id\": \"1\",\r\n    \"address\":\"8Fhb15d5dWYk55tQnfMP14F55TaKMkMQQ9\",\r\n    \"firstname\": \"Test3\",\r\n    \"location\": \"asdsd3\",\r\n    \"phone\": \"1233\",\r\n    \"street\": \"asd3\",\r\n    \"country\": \"DE\",\r\n    \"houseNumber\": \"73\",\r\n    \"surname\": \"asdasd3\",\r\n    \"usedRef\": \"23\",\r\n    \"walletId\": 23,\r\n    \"zip\": \"1233\",\r\n    \"mail\": \"wsd3@test.de\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -502,7 +502,7 @@
 							"bearer": [
 								{
 									"key": "token",
-									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjgxOTM4OCwiZXhwIjoxNjI2ODIyOTg4fQ.n7xrdK3xS5RtZ9huy1SPC1hCCBLo_W3ThAq2NES4d5Y",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzE2OTE1NywiZXhwIjoxNjI3MzQxOTU3fQ.N4BpZBEXCbxXR6TcLlEPiWnsAjrvM6KDjljA46acNrA",
 									"type": "string"
 								},
 								{
@@ -516,7 +516,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"iban\": \"DE12346\",\r\n    \"fiat\": \"EUR\"\r\n}",
+							"raw": "{\r\n    \"iban\": \"DE1234678912456\",\r\n    \"fiat\": {\r\n        \"id\": 1,\r\n        \"name\": \"EUR\",\r\n        \"enable\": 1\r\n    }\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -881,6 +881,222 @@
 			]
 		},
 		{
+			"name": "payment",
+			"item": [
+				{
+					"name": "payment",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzMwNTUyNCwiZXhwIjoxNjI3NDc4MzI0fQ.aviyb01CuF2KOoU9HXrR-HyiCYC9jB3Bvrx-3P2FsQo",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{HOST}}/v1/payment/id/1",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"payment",
+								"id",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "unprocessedPayment",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzMwNTUyNCwiZXhwIjoxNjI3NDc4MzI0fQ.aviyb01CuF2KOoU9HXrR-HyiCYC9jB3Bvrx-3P2FsQo",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{HOST}}/v1/payment/unprocessed",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"payment",
+								"unprocessed"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "allPayment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzMwNTUyNCwiZXhwIjoxNjI3NDc4MzI0fQ.aviyb01CuF2KOoU9HXrR-HyiCYC9jB3Bvrx-3P2FsQo",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{HOST}}/v1/payment/",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"payment",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "addPayment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzMwNTUyNCwiZXhwIjoxNjI3NDc4MzI0fQ.aviyb01CuF2KOoU9HXrR-HyiCYC9jB3Bvrx-3P2FsQo",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"userId\": 1,\r\n    \"type\":\"Buy\",\r\n    \"address\": \"8Fhb15d5dWYk55tQnfMP14F55TaKMkMQQ9\",\r\n    \"iban\": \"DE123456789\",\r\n    \"fiat\": \"EUR\",\r\n    \"assetValue\": 400,\r\n    \"asset\": \"DFI\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{HOST}}/v1/payment",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"payment"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updatePayment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzMwNTUyNCwiZXhwIjoxNjI3NDc4MzI0fQ.aviyb01CuF2KOoU9HXrR-HyiCYC9jB3Bvrx-3P2FsQo",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"id\":1,\r\n    \"processed\": true\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{HOST}}/v1/payment",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"payment"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "country",
 			"item": [
 				{
@@ -1186,7 +1402,7 @@
 							"bearer": [
 								{
 									"key": "token",
-									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNjU0NzQzNywiZXhwIjoxNjI2NTUxMDM3fQ.8SgWlBtjzSjCiJQFE1snuDvNLZARf6hLcx9o5j7V37E",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzE2NTA4NywiZXhwIjoxNjI3MTY4Njg3fQ.s8XYRqzao0qeLRE5_7wJVECT_2pQ7LAUw-w3w5yN6YA",
 									"type": "string"
 								},
 								{
@@ -1200,7 +1416,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"address\" : \"8MV4L9PZ7yUoRMD4HAnTQn5DAHy8Yiv289\",\r\n    \"id\":44\r\n}",
+							"raw": "{\r\n    \"address\" : \"8MV1L2PZ7yUoRMD1HAnTQn5DAHy8Yiv999\",\r\n    \"id\":44\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
