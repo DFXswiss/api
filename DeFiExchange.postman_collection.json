@@ -15,7 +15,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"address\": \"8Fhb15d6dWYk77tQnfMP25F55TaKMkMQQ9\",\n    \"signature\": \"IMFmk1655ddtrva4m8xFd+4795i7q/27FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\",\n    \"usedRef\": \"000-003\",\n    \"walletId\": 1\n}",
+							"raw": "{\n    \"address\": \"8Fhb18d6dWYk77tQnfMP25F55TaKMkMQQ9\",\n    \"signature\": \"IMFmk1658ddtrva4m8xFd+4795i7q/27FJ8b1l7No0VgVcQo4ATV19+XoS+tLlydtS1gj2zl0Z30XL2GDj/bwho=\",\n    \"usedRef\": \"000-003\",\n    \"walletId\": 1,\n    \"country\": \n    {\n    \"id\": 1,\n    \"symbol\": \"DE\",\n    \"name\": \"Germany\",\n    \"enable\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -147,14 +147,42 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{HOST}}/v1/user/all",
+							"raw": "{{HOST}}/v1/user",
+							"host": [
+								"{{HOST}}"
+							],
+							"path": [
+								"v1",
+								"user"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "user",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDZkV1lrNzV0UW5mTVAyNUY1NVRhS01rTVFROSIsImlhdCI6MTYyNzM5Nzg2MCwiZXhwIjoxNjI3NTcwNjYwfQ.MJDbqW7bdDBElbfYpZMt17ckp8HU361_68now9sdrBA",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{HOST}}/v1/user/",
 							"host": [
 								"{{HOST}}"
 							],
 							"path": [
 								"v1",
 								"user",
-								"all"
+								""
 							]
 						}
 					},
@@ -329,16 +357,16 @@
 					"name": "postbuy",
 					"request": {
 						"auth": {
-							"type": "basic",
-							"basic": [
+							"type": "bearer",
+							"bearer": [
 								{
-									"key": "password",
-									"value": "Hx67r4HXItokmKl8axD61jjIciF/mbR5qpJFtAmw/f9oViXStt0Xlfid0rFWtrFPssjElKiJU9V778/JJfQgjz9=",
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzM3NTgzOCwiZXhwIjoxNjI3NTQ4NjM4fQ.zB_0lR0wvPrqM7I-Se7Dc2hNDI3EhZNRMWYtj-A63dM",
 									"type": "string"
 								},
 								{
-									"key": "username",
-									"value": "8MTm4jQ2FHbrxZRbbKkcWgAHYv5hCAcU29",
+									"key": "password",
+									"value": "{{{{token}}}}",
 									"type": "string"
 								}
 							]
@@ -347,7 +375,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n\"iban\": \"DE12346\",\r\n\"asset\": {\r\n            \"buyable\": true,\r\n            \"id\": 0,\r\n            \"name\": \"DFI\",\r\n            \"sellable\": true,\r\n            \"type\": \"Coin\"\r\n        }\r\n}",
+							"raw": "{\r\n\"iban\": \"DE12346789\",\r\n\"asset\": {\r\n            \"buyable\": true,\r\n            \"id\": 0,\r\n            \"name\": \"DFI\",\r\n            \"sellable\": true,\r\n            \"type\": \"Coin\"\r\n        }\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -502,7 +530,7 @@
 							"bearer": [
 								{
 									"key": "token",
-									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzE2OTE1NywiZXhwIjoxNjI3MzQxOTU3fQ.N4BpZBEXCbxXR6TcLlEPiWnsAjrvM6KDjljA46acNrA",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzM3NTgzOCwiZXhwIjoxNjI3NTQ4NjM4fQ.zB_0lR0wvPrqM7I-Se7Dc2hNDI3EhZNRMWYtj-A63dM",
 									"type": "string"
 								},
 								{
@@ -516,7 +544,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"iban\": \"DE1234678912456\",\r\n    \"fiat\": {\r\n        \"id\": 1,\r\n        \"name\": \"EUR\",\r\n        \"enable\": 1\r\n    }\r\n}",
+							"raw": "{\r\n    \"iban\": \"DE12346789124567\",\r\n    \"fiat\": {\r\n        \"id\": 1,\r\n        \"name\": \"EUR\",\r\n        \"enable\": 1\r\n    }\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1106,7 +1134,19 @@
 					},
 					"request": {
 						"auth": {
-							"type": "noauth"
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZGRyZXNzIjoiOEZoYjE1ZDVkV1lrNTV0UW5mTVAxNEY1NVRhS01rTVFROSIsImlhdCI6MTYyNzM3NTgzOCwiZXhwIjoxNjI3NTQ4NjM4fQ.zB_0lR0wvPrqM7I-Se7Dc2hNDI3EhZNRMWYtj-A63dM",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{{{token}}}}",
+									"type": "string"
+								}
+							]
 						},
 						"method": "GET",
 						"header": [],
@@ -1128,13 +1168,6 @@
 								"v1",
 								"country",
 								"DE"
-							],
-							"query": [
-								{
-									"key": "",
-									"value": "",
-									"disabled": true
-								}
 							]
 						}
 					},

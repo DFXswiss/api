@@ -30,9 +30,11 @@ export class UserService {
 
   async getUser(user: User): Promise<any> {
 
-    user.country = await getManager()
-    .getCustomRepository(CountryRepository)
-    .getCountry(user.country);
+    if(user.country){
+      user.country = await getManager()
+      .getCustomRepository(CountryRepository)
+      .getCountry(user.country);
+    }
 
     delete user['address'];
     delete user['signature'];
