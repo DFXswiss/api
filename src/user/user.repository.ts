@@ -10,6 +10,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserRole, UserStatus } from './user.entity';
 import * as requestPromise from 'request-promise-native';
+import { CountryRepository } from 'src/country/country.repository';
+import { getManager } from 'typeorm';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -17,6 +19,17 @@ export class UserRepository extends Repository<User> {
     if (createUserDto.id) delete createUserDto['id'];
     if (createUserDto.role) delete createUserDto['role'];
     if (createUserDto.ip) delete createUserDto['ip'];
+
+    let countryObject = null;
+
+    if(createUserDto.country){
+      countryObject = await getManager()
+      .getCustomRepository(CountryRepository)
+      .getCountry(createUserDto.country);
+
+      createUserDto.country = countryObject.id;
+
+    }
 
     const user = this.create(createUserDto);
 
@@ -50,6 +63,8 @@ export class UserRepository extends Repository<User> {
 
       try {
         await this.save(user);
+
+        createUserDto.country = countryObject;
       } catch (error) {
         console.log(error);
         throw new InternalServerErrorException();
@@ -80,7 +95,10 @@ export class UserRepository extends Repository<User> {
     if (user.status == UserStatus.ACTIVE || user.status == UserStatus.KYC) {
       currentUser.status = user.status;
     }
-    return await this.save(currentUser);
+    await this.save(currentUser);
+
+    return await this.findOne({ "id": user.id });
+
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
@@ -102,11 +120,19 @@ export class UserRepository extends Repository<User> {
     newUser.status = currentUser.status;
     newUser.ip = currentUser.ip;
 
+    const countryObject = await getManager()
+    .getCustomRepository(CountryRepository)
+    .getCountry(newUser.country);
+
+    newUser.country = countryObject.id;
+
     await this.save(newUser);
+
     const user = await this.findOne({ "address": newUser.address });
     // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
     //   user.ref = '-1';
-      
+
+    user.country = countryObject;
     delete user['address'];
     delete user['signature'];
     delete user['ip'];

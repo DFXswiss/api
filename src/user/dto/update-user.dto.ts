@@ -76,7 +76,6 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
   country: string;
 
   @ApiPropertyOptional()

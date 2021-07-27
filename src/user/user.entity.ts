@@ -33,7 +33,7 @@ export class User {
   @Column({ type: 'varchar', unique: true, length: 88 })
   signature: string;
 
-  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   mail: string;
 
   @Column({ type: 'int', default: 0 })
@@ -42,28 +42,28 @@ export class User {
   @Column({ type: 'varchar', default: '000-000' })
   usedRef: string;
 
-  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   firstname: string;
 
-  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   surname: string;
 
-  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   street: string;
 
-  @Column({ type: 'varchar', length: 5, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 5, default: null, nullable: true })
   houseNumber: string;
 
-  @Column({ type: 'varchar', length: 64, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   location: string;
 
-  @Column({ type: 'varchar', length: 9, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 9, default: null, nullable: true })
   zip: string;
 
-  @Column({ type: 'varchar', length: 3, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 3, default: null, nullable: true })
   country: string;
 
-  @Column({ type: 'varchar', length: 15, default: '', nullable: true })
+  @Column({ type: 'varchar', length: 15, default: null, nullable: true })
   phone: string;
 
   @Column({ type: 'varchar', default: UserRole.USER })

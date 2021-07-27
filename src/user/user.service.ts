@@ -5,6 +5,8 @@ import { User, UserRole } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { CountryRepository } from 'src/country/country.repository';
+import { getManager } from 'typeorm';
 
 @Injectable()
 export class UserService {
@@ -27,6 +29,11 @@ export class UserService {
   }
 
   async getUser(user: User): Promise<any> {
+
+    user.country = await getManager()
+    .getCustomRepository(CountryRepository)
+    .getCountry(user.country);
+
     delete user['address'];
     delete user['signature'];
     delete user['ip'];

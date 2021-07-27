@@ -45,6 +45,38 @@ export class CountryRepository extends Repository<Country> {
       if (country) return country;
 
       throw new NotFoundException('No matching country found');
+    }else if (!isNaN(key)) {
+      let country = await this.findOne({ id: key });
+
+      if (country) return country;
+    } else if (isString(key)) {
+      let country = await this.findOne({ symbol: key });
+
+      if (country) return country;
+
+      country = await this.findOne({ name: key });
+
+      if (country) return country;
+      
+      throw new NotFoundException('No matching country found');
+    } else if (key.id) {
+      let country = await this.findOne({ id: key.id });
+
+      if (country) return country;
+
+      throw new NotFoundException('No matching country found');
+    } else if (key.symbol) {
+      let country = await this.findOne({ name: key.symbol });
+
+      if (country) return country;
+
+      throw new NotFoundException('No matching country found');
+    } else if (key.name) {
+      let country = await this.findOne({ name: key.symbol });
+
+      if (country) return country;
+
+      throw new NotFoundException('No matching country found');
     }
 
     throw new BadRequestException(
@@ -56,6 +88,9 @@ export class CountryRepository extends Repository<Country> {
     const currentCountry = await this.findOne({ id: editCountryDto.id });
     if (!currentCountry)
       throw new NotFoundException('No matching country found');
-    return await this.save(editCountryDto);
+    
+      await this.save(editCountryDto);
+
+    return await this.findOne({ id: editCountryDto.id });
   }
 }
