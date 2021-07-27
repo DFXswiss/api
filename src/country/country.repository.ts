@@ -12,6 +12,7 @@ import { isString } from 'class-validator';
 @EntityRepository(Country)
 export class CountryRepository extends Repository<Country> {
   async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
+    
     if (createCountryDto.id) delete createCountryDto['id'];
 
     const country = this.create(createCountryDto);
@@ -89,8 +90,6 @@ export class CountryRepository extends Repository<Country> {
     if (!currentCountry)
       throw new NotFoundException('No matching country found');
     
-      await this.save(editCountryDto);
-
-    return await this.findOne({ id: editCountryDto.id });
+      return Object.assign(currentCountry, await this.save(editCountryDto));
   }
 }
