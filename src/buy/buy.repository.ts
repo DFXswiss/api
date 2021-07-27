@@ -91,8 +91,20 @@ export class BuyRepository extends Repository<Buy> {
   async getAllBuy(address: string): Promise<any> {
     try {
       const buy = await this.find({ address: address });
-      //TODO Schleife durch alle buy und fiat id mit objekt ersetzen
-      // + Adresse löschen
+
+      if (buy) {
+
+        for(let a = 0; a < buy.length; a++){
+
+          buy[a].asset = await getManager()
+          .getCustomRepository(AssetRepository)
+          .getAsset(buy[a].asset);
+
+          delete buy[a]['address'];
+
+        }
+      }
+
       return buy;
     } catch (error) {
       console.log(error);

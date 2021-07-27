@@ -80,8 +80,24 @@ export class SellRepository extends Repository<Sell> {
   async getAllSell(address: string): Promise<any> {
     try {
       const sell = await this.find({ address: address });
-      //TODO Schleife durch alle sell und asset id mit objekt ersetzen
-      // + Adresse löschen
+
+      if (sell) {
+
+        for(let a = 0; a < sell.length; a++){
+
+          sell[a].fiat = await getManager()
+          .getCustomRepository(FiatRepository)
+          .getFiat(sell[a].fiat);
+
+          sell[a].depositId = await getManager()
+          .getCustomRepository(DepositRepository)
+          .getDeposit(sell[a].depositId);
+
+          delete sell[a]['address'];
+
+        }
+      }
+
       return sell;
     } catch (error) {
       console.log(error);
