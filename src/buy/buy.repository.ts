@@ -9,24 +9,25 @@ import { sha256 } from 'js-sha256';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { getManager } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
 
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
   async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
     if (createBuyDto.id) delete createBuyDto['id'];
 
+    const assetObject = await getManager()
+    .getCustomRepository(AssetRepository)
+    .getAsset(createBuyDto.asset);
+
     var hash = sha256.create();
-    hash.update(createBuyDto.address + createBuyDto.asset + createBuyDto.iban);
+    hash.update(createBuyDto.address + assetObject.name + createBuyDto.iban);
     createBuyDto.bankUsage =
       hash.toString().toUpperCase().slice(0, 4) +
       '-' +
       hash.toString().toUpperCase().slice(4, 8) +
       '-' +
       hash.toString().toUpperCase().slice(8, 12);
-
-    const assetObject = await getManager()
-      .getCustomRepository(AssetRepository)
-      .getAsset(createBuyDto.asset);
 
     createBuyDto.asset = assetObject.id;
 
@@ -66,6 +67,19 @@ export class BuyRepository extends Repository<Buy> {
       console.log(error);
       throw new InternalServerErrorException();
     }
+  }
+
+  async getAssetByBankUsage(bankUsage: string): Promise<any> {
+    try {
+      const buy = await this.findOne({ "bankUsage": bankUsage });
+      if (buy) return buy.asset;
+      
+      throw new NotFoundException('No matching buy route for given bankUsage found');
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException();
+    }
+
   }
 
   async getBuy(id: any, address: string): Promise<any> {

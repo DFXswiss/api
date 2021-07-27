@@ -24,7 +24,7 @@ export class Buy {
   @Column({ type: 'int' })
   asset: number;
 
-  @Column({ type: 'varchar', length: 14 })
+  @Column({ type: 'varchar', length: 14, unique: true })
   bankUsage: string;
 
   @Column({ type: 'tinyint', default: 1 })
