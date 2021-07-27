@@ -18,7 +18,7 @@ export class CreateSellDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  fiat: any;
+  fiat: number;
 
   @IsNotEmpty()
   @Length(34, 34)
@@ -27,5 +27,5 @@ export class CreateSellDto {
   address: string;
 
   @IsOptional()
-  depositId: any;
+  depositId: number;
 }

@@ -19,12 +19,11 @@ export class CreateBuyDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsIBAN()
+  // @IsIBAN()
   iban: string;
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsInt()
   asset: number;
 
   @Length(34, 34)
