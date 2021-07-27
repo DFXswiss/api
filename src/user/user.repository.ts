@@ -120,11 +120,16 @@ export class UserRepository extends Repository<User> {
     newUser.status = currentUser.status;
     newUser.ip = currentUser.ip;
 
-    const countryObject = await getManager()
-    .getCustomRepository(CountryRepository)
-    .getCountry(newUser.country);
+    let countryObject = null;
 
-    newUser.country = countryObject.id;
+    if(newUser.country){
+      countryObject = await getManager()
+      .getCustomRepository(CountryRepository)
+      .getCountry(newUser.country);
+
+      newUser.country = countryObject.id;
+
+    }
 
     await this.save(newUser);
 
