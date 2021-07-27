@@ -2,7 +2,7 @@ import { ApiProperty,  } from "@nestjs/swagger";
 import {   IsInt, IsNumber, IsOptional,  IsString, Length, IsBoolean, IsNotEmpty } from "class-validator";
 import { PaymentType } from "../payment.entity";
 
-export class CreatePaymentDto {
+export class CreateSellPaymentDto {
 
     @IsOptional()
     @IsInt()
@@ -13,7 +13,6 @@ export class CreatePaymentDto {
     @IsInt()
     userId: number;
 
-    @ApiProperty()
     @IsOptional()
     @IsString()
     type: PaymentType;
@@ -40,11 +39,6 @@ export class CreatePaymentDto {
     fiat: number;
 
     @ApiProperty()
-    @IsOptional()
-    @IsNumber()
-    fiatValue: number;
-
-    @ApiProperty()
     @IsNotEmpty()
     asset: number;
 
@@ -52,15 +46,5 @@ export class CreatePaymentDto {
     @IsOptional()
     @IsNumber()
     assetValue: number;
-
-    @ApiProperty()
-    @IsOptional()
-    @IsBoolean()
-    processed: boolean
-
-    @ApiProperty()
-    @IsOptional()
-    @IsString()
-    bankUsage: boolean
 
 }

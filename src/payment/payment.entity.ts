@@ -22,6 +22,15 @@ import {
 
     @Column({ type: 'varchar'})
     type: PaymentType;
+
+    @Column({ type: 'tinyint', default: 0})
+    flagged: boolean;
+
+    @Column({ type: 'tinyint', default: 0})
+    kycRequired: boolean;
+
+    @Column({ type: 'tinyint', default: 0})
+    kycExistent: boolean;
   
     @Column({ type: 'varchar', length: 34 })
     address: string;

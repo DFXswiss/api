@@ -6,11 +6,14 @@ import {
   } from '@nestjs/common';
   import { EntityRepository, Repository } from 'typeorm';
   import { CreatePaymentDto } from './dto/create-payment.dto';
+  import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
+  import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   import { UpdatePaymentDto } from './dto/update-payment.dto';
-  import { Payment } from './payment.entity';
+  import { Payment, PaymentType } from './payment.entity';
   import { FiatRepository } from 'src/fiat/fiat.repository';
   import { getManager } from 'typeorm';
   import { AssetRepository } from 'src/asset/asset.repository';
+  import { BuyRepository } from 'src/buy/buy.repository';
 
   @EntityRepository(Payment)
   export class PaymentRepository extends Repository<Payment> {
@@ -38,6 +41,66 @@ import {
         }
         return payment;
     }
+
+    async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
+
+        if (createPaymentDto.id) delete createPaymentDto['id'];
+
+        const fiatObject = await getManager()
+        .getCustomRepository(FiatRepository)
+        .getFiat(createPaymentDto.fiat);
+
+        const assetObject = (await getManager()
+        .getCustomRepository(BuyRepository)
+        .getAssetByBankUsage(createPaymentDto.bankUsage));
+
+        createPaymentDto.fiat = fiatObject.id;
+        createPaymentDto.asset = assetObject.id;
+
+        createPaymentDto.type = PaymentType.BUY;
+
+
+        const payment = this.create(createPaymentDto);
+
+        if (payment) {
+            await this.save(payment);
+            payment.fiat = fiatObject;
+            payment.asset = assetObject
+        }
+        return payment;
+
+
+    }
+
+    async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any> {
+
+        if (createPaymentDto.id) delete createPaymentDto['id'];
+
+        const fiatObject = await getManager()
+        .getCustomRepository(FiatRepository)
+        .getFiat(createPaymentDto.fiat);
+
+        const assetObject = await getManager()
+        .getCustomRepository(AssetRepository)
+        .getAsset(createPaymentDto.asset);
+
+        createPaymentDto.asset = assetObject.id;
+        createPaymentDto.fiat = fiatObject.id;
+
+        createPaymentDto.type = PaymentType.SELL;
+
+        const payment = this.create(createPaymentDto);
+
+        if (payment) {
+            await this.save(payment);
+            payment.fiat = fiatObject;
+            payment.asset = assetObject
+        }
+        return payment;
+
+
+    }
+
 
     async updatePayment(payment: UpdatePaymentDto): Promise<any> {
         const currentPayment = await this.findOne({ "id": payment.id });

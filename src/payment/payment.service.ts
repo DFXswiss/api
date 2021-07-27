@@ -9,6 +9,8 @@ import {
   import { UpdatePaymentDto } from './dto/update-payment.dto';
   import { Payment } from './payment.entity';
   import { PaymentRepository } from 'src/payment/payment.repository';
+  import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
+  import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   
   @Injectable()
   export class PaymentService {
@@ -16,6 +18,14 @@ import {
     
     async createPayment(createPaymentDto: CreatePaymentDto): Promise<any>{
       return this.sellRepository.createPayment(createPaymentDto);
+    }
+
+    async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any>{
+      return this.sellRepository.createBuyPayment(createPaymentDto);
+    }
+
+    async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any>{
+      return this.sellRepository.createSellPayment(createPaymentDto);
     }
   
     async getPayment(id: any): Promise<any> {
@@ -33,4 +43,5 @@ import {
     async getUnprocessedPayment(): Promise<any> {
         return this.sellRepository.getUnprocessedPayment();
     }
+
   }

@@ -20,13 +20,31 @@ import {
   import { User, UserRole } from 'src/user/user.entity';
   import { AuthGuard } from '@nestjs/passport';
   import { GetUser } from 'src/auth/get-user.decorator';
+  import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
+  import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   
   @ApiTags('payment')
   @Controller('payment')
   export class PaymentController {
     constructor(private readonly paymentService: PaymentService) {}
   
-    @Get('id/:key')
+    @Get('unprocessed')
+    @ApiBearerAuth()
+    @UsePipes(ValidationPipe)
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+    async getUnprocessedPayment(): Promise<any> {
+      return this.paymentService.getUnprocessedPayment();
+    }
+
+    @Get()
+    @ApiBearerAuth()
+    @UsePipes(ValidationPipe)
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+    async getAllPayment(): Promise<any> {
+      return this.paymentService.getAllPayment();
+    }
+
+    @Get(':key')
     @ApiBearerAuth()
     @ApiParam({
       name: 'id',
@@ -39,23 +57,7 @@ import {
     async getPayment(@Param() id: any): Promise<any> {
       return this.paymentService.getPayment(id);
     }
-  
-    @Get()
-    @ApiBearerAuth()
-    @UsePipes(ValidationPipe)
-    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-    async getAllPayment(): Promise<any> {
-      return this.paymentService.getAllPayment();
-    }
-
-    @Get('unprocessed')
-    @ApiBearerAuth()
-    @UsePipes(ValidationPipe)
-    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-    async getUnprocessedPayment(): Promise<any> {
-      return this.paymentService.getUnprocessedPayment();
-    }
-  
+    
     @Post()
     @ApiBearerAuth()
     @UsePipes(ValidationPipe)
@@ -64,6 +66,26 @@ import {
       @Body() createSellDto: CreatePaymentDto,
     ): Promise<any> {
       return this.paymentService.createPayment(createSellDto);
+    }
+
+    @Post('buy')
+    @ApiBearerAuth()
+    @UsePipes(ValidationPipe)
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+    createBuyPayment(
+      @Body() createSellDto: CreateBuyPaymentDto,
+    ): Promise<any> {
+      return this.paymentService.createBuyPayment(createSellDto);
+    }
+
+    @Post('sell')
+    @ApiBearerAuth()
+    @UsePipes(ValidationPipe)
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+    createSellPayment(
+      @Body() createSellDto: CreateSellPaymentDto,
+    ): Promise<any> {
+      return this.paymentService.createSellPayment(createSellDto);
     }
   
     @Put()
