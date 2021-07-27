@@ -32,7 +32,7 @@ export class SellRepository extends Repository<Sell> {
       .getCustomRepository(DepositRepository)
       .getNextDeposit();
 
-    createSellDto.depositId = depositObject.id;
+    createSellDto.deposit = depositObject.id;
     createSellDto.fiat = fiatObject.id;
 
     const sell = this.create(createSellDto);
@@ -41,7 +41,7 @@ export class SellRepository extends Repository<Sell> {
       await this.save(sell);
 
       sell.fiat = fiatObject;
-      sell.depositId = depositObject;
+      sell.deposit = depositObject;
       delete sell['address'];
     }
     return sell;
@@ -65,9 +65,9 @@ export class SellRepository extends Repository<Sell> {
           .getCustomRepository(FiatRepository)
           .getFiat(sell.fiat);
 
-        sell.depositId = await getManager()
+        sell.deposit = await getManager()
           .getCustomRepository(DepositRepository)
-          .getDeposit(sell.depositId);
+          .getDeposit(sell.deposit);
       }
       delete sell['address'];
       return sell;
@@ -89,9 +89,9 @@ export class SellRepository extends Repository<Sell> {
           .getCustomRepository(FiatRepository)
           .getFiat(sell[a].fiat);
 
-          sell[a].depositId = await getManager()
+          sell[a].deposit = await getManager()
           .getCustomRepository(DepositRepository)
-          .getDeposit(sell[a].depositId);
+          .getDeposit(sell[a].deposit);
 
           delete sell[a]['address'];
 
@@ -117,9 +117,9 @@ export class SellRepository extends Repository<Sell> {
           .getCustomRepository(FiatRepository)
           .getFiat(sell.fiat);
 
-        sell.depositId = await getManager()
+        sell.deposit = await getManager()
           .getCustomRepository(DepositRepository)
-          .getDeposit(sell.depositId);
+          .getDeposit(sell.deposit);
       }
 
       delete sell['address'];

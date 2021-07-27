@@ -27,5 +27,5 @@ export class CreateSellDto {
   address: string;
 
   @IsOptional()
-  depositId: number;
+  deposit: number;
 }

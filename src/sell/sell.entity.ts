@@ -23,7 +23,7 @@ export class Sell {
   fiat: number;
 
   @Column({ type: 'int', unique: true })
-  depositId: number;
+  deposit: number;
 
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;
