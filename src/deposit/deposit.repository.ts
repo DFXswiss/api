@@ -36,7 +36,7 @@ export class DepositRepository extends Repository<Deposit> {
     if (!currentDeposit)
       throw new NotFoundException('No matching deposit address for id found');
 
-    return await this.save(depositAddress);
+    return Object.assign(currentDeposit, await this.save(depositAddress));
   }
 
   async getNextDeposit(): Promise<any> {

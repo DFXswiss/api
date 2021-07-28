@@ -36,7 +36,7 @@ export class AssetRepository extends Repository<Asset> {
     if (!currentAsset)
       throw new NotFoundException('No matching asset for id found');
 
-    return await this.save(asset);
+    return Object.assign(currentAsset, await this.save(asset));
   }
 
   async getAsset(key: any): Promise<any> {

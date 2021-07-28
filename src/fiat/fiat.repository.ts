@@ -33,7 +33,7 @@ export class FiatRepository extends Repository<Fiat> {
         
         if(!currentFiat) throw new NotFoundException( "No matching fiat for id found");
 
-        return await this.save(fiat);
+        return Object.assign(currentFiat, await this.save(fiat));
     }
 
     async getFiat(key: any): Promise<any> {

@@ -51,7 +51,7 @@ export class WalletRepository extends Repository<Wallet> {
         
         if(!currentWallet) throw new NotFoundException( "No matching wallet for id found");
 
-        return await this.save(editWalletDto);
+        return Object.assign(currentWallet, await this.save(editWalletDto));
     }
 
 

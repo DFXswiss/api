@@ -70,6 +70,7 @@ export class SellRepository extends Repository<Sell> {
           .getDeposit(sell.deposit);
       }
       delete sell['address'];
+
       return sell;
     } catch (error) {
       console.log(error);
