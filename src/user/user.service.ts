@@ -7,6 +7,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 @Injectable()
 export class UserService {
@@ -48,7 +49,7 @@ export class UserService {
     }
   }
 
-  async updateStatus(user: UpdateUserDto): Promise<any> {
+  async updateStatus(user: UpdateStatusDto): Promise<any> {
     //TODO status ändern wenn transaction oder KYC
     return this.userRepository.updateStatus(user);
   }

@@ -8,6 +8,7 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
 import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -44,5 +45,13 @@ export class UserController {
     @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
     async updateRole(@Body() user: UpdateRoleDto): Promise<any> {
         return this.userService.updateRole(user);
+    }
+
+    @Put('status')
+    @ApiBearerAuth()
+    @ApiExcludeEndpoint()
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+    async updateStatus(@Body() user: UpdateStatusDto): Promise<any> {
+        return this.userService.updateStatus(user);
     }
 }

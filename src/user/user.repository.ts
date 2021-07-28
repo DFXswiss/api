@@ -12,6 +12,7 @@ import { User, UserRole, UserStatus } from './user.entity';
 import * as requestPromise from 'request-promise-native';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -86,7 +87,7 @@ export class UserRepository extends Repository<User> {
     return await this.find();
   }
 
-  async updateStatus(user: UpdateUserDto): Promise<any> {
+  async updateStatus(user: UpdateStatusDto): Promise<any> {
     const currentUser = await this.findOne({ "id": user.id });
 
     if (!currentUser)

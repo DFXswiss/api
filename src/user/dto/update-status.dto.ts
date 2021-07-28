@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsNotEmpty, IsString, IsInt } from "class-validator";
-import { UserRole} from 'src/user/user.entity';
+import { UserStatus} from 'src/user/user.entity';
 
-export class UpdateRoleDto {
+export class UpdateStatusDto {
 
     @ApiProperty()
     @IsNotEmpty()
@@ -12,5 +12,5 @@ export class UpdateRoleDto {
     @ApiPropertyOptional()
     @IsNotEmpty()
     @IsString()
-    role: UserRole;
+    status: UserStatus;
 }
