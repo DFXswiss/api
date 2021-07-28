@@ -6,12 +6,12 @@ export class Country {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({type: 'varchar', unique: true, length: 4 })
+  @Column({ type: 'varchar', unique: true, length: 4 })
   symbol: string;
 
   @Column({ type: 'varchar', length: 34 })
   name: string;
 
-  @Column({ type: 'tinyint',  default: 1 })
+  @Column({ type: 'tinyint', default: 1 })
   enable: boolean;
 }

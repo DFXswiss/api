@@ -1,31 +1,31 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { equals, IsBoolean, IsEmail, IsIBAN, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+} from 'class-validator';
 
-// TODO: Again: Custom decorators for address and signature,...
 export class CreateSellDto {
-    
-    @IsOptional()
-    @IsInt()
-    id: number;
+  @IsOptional()
+  @IsInt()
+  id: number;
 
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsIBAN()
-    iban: string;
-    
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsInt()
-    fiat: any; // should be an object
+  @ApiProperty()
+  @IsNotEmpty()
+  iban: string;
 
-    @IsNotEmpty()
-    @Length(34,34)
-    @IsString()
-    @IsOptional()
-    address: string;
+  @ApiProperty()
+  @IsNotEmpty()
+  fiat: number;
 
-    @IsOptional()
-    @IsInt()
-    depositId: number;
+  @IsNotEmpty()
+  @Length(34, 34)
+  @IsString()
+  @IsOptional()
+  address: string;
 
+  @IsOptional()
+  deposit: number;
 }

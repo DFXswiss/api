@@ -1,63 +1,95 @@
-import { InternalServerErrorException } from "@nestjs/common";
-import { EntityRepository, Repository } from "typeorm";
-import { CreateCountryDto } from "./dto/create-country.dto";
-import { UpdateCountryDto } from "./dto/update-country.dto";
-import { Country } from "./country.entity";
-import { isString } from "class-validator";
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import { EntityRepository, Repository } from 'typeorm';
+import { CreateCountryDto } from './dto/create-country.dto';
+import { UpdateCountryDto } from './dto/update-country.dto';
+import { Country } from './country.entity';
+import { isString } from 'class-validator';
 
 @EntityRepository(Country)
 export class CountryRepository extends Repository<Country> {
+  async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
+    
+    if (createCountryDto.id) delete createCountryDto['id'];
 
-    async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
-   
-        if(createCountryDto.id) delete createCountryDto["id"];
+    const country = this.create(createCountryDto);
 
-        const country = this.create(createCountryDto);
-
-        try {
-            await this.save(country);
-        } catch (error) {
-            console.log(error);
-            throw new InternalServerErrorException();
-        }
-
-        return country;
+    try {
+      await this.save(country);
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException();
     }
 
-    async getAllCountry(): Promise<any> {
-        return await this.find();
+    return country;
+  }
+
+  async getAllCountry(): Promise<any> {
+    return await this.find();
+  }
+
+  async getCountry(key: any): Promise<any> {
+    if (!isNaN(key.key)) {
+      let country = await this.findOne({ id: key.key });
+
+      if (country) return country;
+    } else if (isString(key.key)) {
+      let country = await this.findOne({ symbol: key.key });
+
+      if (country) return country;
+
+      country = await this.findOne({ name: key.key });
+
+      if (country) return country;
+
+      throw new NotFoundException('No matching country found');
+    }else if (!isNaN(key)) {
+      let country = await this.findOne({ id: key });
+
+      if (country) return country;
+    } else if (isString(key)) {
+      let country = await this.findOne({ symbol: key });
+
+      if (country) return country;
+
+      country = await this.findOne({ name: key });
+
+      if (country) return country;
+      
+      throw new NotFoundException('No matching country found');
+    } else if (key.id) {
+      let country = await this.findOne({ id: key.id });
+
+      if (country) return country;
+
+      throw new NotFoundException('No matching country found');
+    } else if (key.symbol) {
+      let country = await this.findOne({ name: key.symbol });
+
+      if (country) return country;
+
+      throw new NotFoundException('No matching country found');
+    } else if (key.name) {
+      let country = await this.findOne({ name: key.symbol });
+
+      if (country) return country;
+
+      throw new NotFoundException('No matching country found');
     }
 
-    async getCountry(key:any): Promise<any> {
-   
-        if(!isNaN(key.key)){
-            let asset = await this.findOne({ "id" : key.key });
-            
-            if(asset) return asset;
-            
-        }else if(isString(key.key)){
+    throw new BadRequestException(
+      'key must be number or string or JSON-Object',
+    );
+  }
 
-            let asset = await this.findOne({ "symbol" : key.key });
-            
-            if(asset) return asset;
-
-            asset = await this.findOne({ "name" : key.key });
-            
-            if(asset) return asset;
-                
-            return {"statusCode" : 400, "message": [ "No matching country found"]};
-        }
-
-        // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "name must be a string", "OR:", "symbol must be a string"]};
-
-    }
-
-    async updateCountry(editCountryDto: UpdateCountryDto): Promise<any>{
-        const currentCountry = await this.findOne({ "id" : editCountryDto.id });
-        
-        if(!currentCountry) return {"statusCode" : 400, "message": [ "No matching country for id found"]};
-
-        return await this.save(editCountryDto);
-    }
+  async updateCountry(editCountryDto: UpdateCountryDto): Promise<any> {
+    const currentCountry = await this.findOne({ id: editCountryDto.id });
+    if (!currentCountry)
+      throw new NotFoundException('No matching country found');
+    
+      return Object.assign(currentCountry, await this.save(editCountryDto));
+  }
 }

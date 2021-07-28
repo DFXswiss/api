@@ -19,6 +19,4 @@ export class Wallet {
   @Column({ type: 'varchar', length: 40, default: '' })
   description: string;
 
-  // @OneToMany()
-  // users: User[];
 }

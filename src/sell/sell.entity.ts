@@ -1,8 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  PrimaryColumn,
+  Index,
+} from 'typeorm';
 import * as typeorm from 'typeorm';
 
 @Entity()
-@Index("ibanAsset", (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
+@Index('ibanAsset', (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
 export class Sell {
   @PrimaryGeneratedColumn()
   id: number;
@@ -17,7 +23,7 @@ export class Sell {
   fiat: number;
 
   @Column({ type: 'int', unique: true })
-  depositId: number; //TODO: Objekt Referenzieren
+  deposit: number;
 
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;

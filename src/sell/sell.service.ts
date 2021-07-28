@@ -18,8 +18,8 @@ export class SellService {
     return this.sellRepository.createSell(createBuyDto);
   }
 
-  async getSell(key: any, address: string): Promise<any> {
-    return this.sellRepository.getSell(key, address);
+  async getSell(id: any, address: string): Promise<any> {
+    return this.sellRepository.getSell(id, address);
   }
 
   async getAllSell(address: string): Promise<any> {

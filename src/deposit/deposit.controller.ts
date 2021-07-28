@@ -10,14 +10,18 @@ import {
   Post,
   UsePipes,
   ValidationPipe,
-
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExcludeEndpoint,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
-import { UpdateDepositDto } from "./dto/update-deposit.dto";
+import { UpdateDepositDto } from './dto/update-deposit.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';
 
@@ -27,19 +31,25 @@ export class DepositController {
   constructor(private readonly depositService: DepositService) {}
 
   @Get(':key')
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @UsePipes(ValidationPipe)
   async getDeposit(@Param() deposit: any): Promise<any> {
     return this.depositService.getDeposit(deposit);
   }
 
   @Get()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllDeposit(): Promise<any> {
     return this.depositService.getAllDeposit();
   }
 
   @Post()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createDeposit(@Body() createDepositDto: CreateDepositDto): Promise<any> {
@@ -47,6 +57,8 @@ export class DepositController {
   }
 
   @Put()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @UsePipes(ValidationPipe)
   async updateDepositRoute(@Body() deposit: UpdateDepositDto): Promise<any> {

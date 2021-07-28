@@ -9,6 +9,6 @@ export class Deposit {
   @Column({ type: 'varchar', unique: true, length: 42 })
   address: string;
 
-  @Column({ type: 'tinyint',  default: false })
+  @Column({ type: 'tinyint', default: false })
   used: boolean;
 }

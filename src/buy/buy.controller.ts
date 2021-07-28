@@ -12,7 +12,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { RoleGuard } from 'src/guards/role.guard';
 import { User, UserRole } from 'src/user/user.entity';
@@ -26,14 +26,22 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 export class BuyController {
   constructor(private readonly buyService: BuyService) {}
 
-  @Get(':key')
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'integer for the buy id',
+    schema: { type: 'integer' },
+  })
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getBuyRoute(@GetUser() user: User,@Param() key: any): Promise<any> {
-    return this.buyService.getBuy(key,user.address);
+  async getBuyRoute(@GetUser() user: User, @Param() id: any): Promise<any> {
+    return this.buyService.getBuy(id, user.address);
   }
 
   @Get()
+  @ApiBearerAuth()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllBuyRoute(@GetUser() user: User): Promise<any> {
@@ -41,16 +49,24 @@ export class BuyController {
   }
 
   @Post()
+  @ApiBearerAuth()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createBuy(@GetUser() user: User,@Body() createBuyDto: CreateBuyDto): Promise<any> {
+  createBuy(
+    @GetUser() user: User,
+    @Body() createBuyDto: CreateBuyDto,
+  ): Promise<any> {
     createBuyDto.address = user.address;
     return this.buyService.createBuy(createBuyDto);
   }
 
   @Put()
+  @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(@GetUser() user: User,@Body() updateBuyDto: UpdateBuyDto): Promise<any> {
+  async updateBuyRoute(
+    @GetUser() user: User,
+    @Body() updateBuyDto: UpdateBuyDto,
+  ): Promise<any> {
     updateBuyDto.address = user.address;
     return this.buyService.updateBuy(updateBuyDto);
   }

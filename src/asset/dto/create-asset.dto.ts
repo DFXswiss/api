@@ -1,33 +1,37 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { AssetType } from '../asset.entity';
 
-// TODO: Again: Custom decorators for address and signature,...
 export class CreateAssetDto {
+  @IsOptional()
+  @IsInt()
+  id: number;
 
-    @IsOptional()
-    @IsInt()
-    id: number;
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsString()
-    name: string;
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  type: AssetType;
 
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsString()
-    type: string;
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsBoolean()
+  @IsOptional()
+  sellable: boolean;
 
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsBoolean()
-    @IsOptional()
-    sellable: boolean;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsBoolean()
-    @IsOptional()
-    buyable: boolean;
-
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsBoolean()
+  @IsOptional()
+  buyable: boolean;
 }

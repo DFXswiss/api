@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { EntityRepository, Repository } from "typeorm";
 import { CreateWalletDto } from "./dto/create-wallet.dto";
 import { UpdateWalletDto } from "./dto/update-wallet.dto";
@@ -39,18 +39,17 @@ export class WalletRepository extends Repository<Wallet> {
             let asset = await this.findOne({ "address" : key.key });
             
             if(asset) return asset;
-                
-            return {"statusCode" : 400, "message": [ "No matching wallet found"]};
+            
+            throw new NotFoundException( "No matching wallet found");
         }
 
-        // TODO Error Framework?
-        return {"statusCode" : 400, "message": [ "id must be a number", "OR:", "address must be a string"]};
+        throw new BadRequestException("key must be number or a string or JSON-Object")
     }
 
     async updateWallet(editWalletDto: UpdateWalletDto): Promise<any>{
         const currentWallet = await this.findOne({ "id" : editWalletDto.id });
         
-        if(!currentWallet) return {"statusCode" : 400, "message": [ "No matching country for id found"]};
+        if(!currentWallet) throw new NotFoundException( "No matching wallet for id found");
 
         return await this.save(editWalletDto);
     }

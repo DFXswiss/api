@@ -1,7 +1,6 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { equals, IsBoolean, IsEmail, IsIBAN, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length } from "class-validator";
+import { ApiProperty,  } from "@nestjs/swagger";
+import {  IsBoolean,   IsInt, IsNotEmpty, IsOptional,  IsString, Length } from "class-validator";
 
-// TODO: Again: Custom decorators for address and signature,...
 export class UpdateSellDto {
 
     @ApiProperty()
@@ -11,7 +10,7 @@ export class UpdateSellDto {
 
     @ApiProperty()
     @IsNotEmpty()
-    @IsInt()
+    @IsBoolean()
     active: boolean;
 
     @IsNotEmpty()
