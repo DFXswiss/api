@@ -93,7 +93,7 @@ export class UserRepository extends Repository<User> {
     if (!currentUser)
       throw new NotFoundException('No matching user for id found');
 
-    if (user.status == UserStatus.ACTIVE || user.status == UserStatus.KYC) {
+    if (user.status == UserStatus.ACTIVE || user.status == UserStatus.KYC || user.status == UserStatus.VERIFY) {
       currentUser.status = user.status;
     }
     await this.save(currentUser);
@@ -123,6 +123,22 @@ export class UserRepository extends Repository<User> {
 
     let countryObject = null;
 
+    if(newUser.status == UserStatus.KYC || newUser.status == UserStatus.VERIFY){
+
+      //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
+
+      if (newUser.firstname) delete newUser['firstname'];
+      if (newUser.surname) delete newUser['surname'];
+      if (newUser.mail) delete newUser['mail'];
+      if (newUser.street) delete newUser['street'];
+      if (newUser.houseNumber) delete newUser['houseNumber'];
+      if (newUser.location) delete newUser['location'];
+      if (newUser.zip) delete newUser['zip'];
+      if (newUser.country) delete newUser['country'];
+      if (newUser.phone) delete newUser['phone'];
+
+    }
+
     if(newUser.country){
       countryObject = await getManager()
       .getCustomRepository(CountryRepository)
@@ -144,7 +160,7 @@ export class UserRepository extends Repository<User> {
     delete user['ip'];
     if (user.role != UserRole.VIP) delete user['role'];
 
-    if (user.status == UserStatus.ACTIVE || user.status == UserStatus.KYC) {
+    if (user.status == UserStatus.ACTIVE || user.status == UserStatus.KYC || user.status == UserStatus.VERIFY) {
       return user;
     } else {
       delete user['ref'];
