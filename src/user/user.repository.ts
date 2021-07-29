@@ -34,7 +34,7 @@ export class UserRepository extends Repository<User> {
 
     const user = this.create(createUserDto);
 
-    const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage';
+    const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
     const signatureMessage = process.env.SIGN_MESSAGE + user.address;
     const queryString =
       '?address="' +
