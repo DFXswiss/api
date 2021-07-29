@@ -29,5 +29,12 @@ export class UpdateCountryDto {
 
   @ApiProperty()
   @IsNotEmpty()
+  @IsOptional()
+  @IsBoolean()
+  activeLanguage: boolean;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsBoolean()
   enable: boolean;
 }

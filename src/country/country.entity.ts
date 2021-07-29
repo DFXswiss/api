@@ -12,6 +12,9 @@ export class Country {
   @Column({ type: 'varchar', length: 34 })
   name: string;
 
+  @Column({ type: 'tinyint', default: 0 })
+  activeLanguage: boolean;  
+
   @Column({ type: 'tinyint', default: 1 })
   enable: boolean;
 }

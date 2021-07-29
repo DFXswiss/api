@@ -4,6 +4,7 @@ import {
   Column,
   PrimaryColumn,
   OneToMany,
+  CreateDateColumn,
 } from 'typeorm';
 
 export enum UserRole {
@@ -25,23 +26,23 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 34, unique: true })
-  address: string;
-
   @Column({ type: 'varchar' })
   ref: string;
 
+  @Column({ type: 'varchar', length: 34, unique: true })
+  address: string;
+
   @Column({ type: 'varchar', unique: true, length: 88 })
   signature: string;
-
-  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
-  mail: string;
 
   @Column({ type: 'int', default: 0 })
   walletId: number;
 
   @Column({ type: 'varchar', default: '000-000' })
   usedRef: string;
+
+  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
+  mail: string;
 
   @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   firstname: string;
@@ -67,6 +68,9 @@ export class User {
   @Column({ type: 'varchar', length: 15, default: null, nullable: true })
   phone: string;
 
+  @Column({ type: 'varchar', default: "DE", nullable: false })
+  language: string;
+
   @Column({ type: 'varchar', default: UserRole.USER })
   role: UserRole;
 
@@ -75,4 +79,5 @@ export class User {
 
   @Column({ type: 'varchar', default: '0.0.0.0' })
   ip: string;
+
 }
