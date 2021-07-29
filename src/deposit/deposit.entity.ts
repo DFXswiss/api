@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
 @Entity()
@@ -11,4 +11,7 @@ export class Deposit {
 
   @Column({ type: 'tinyint', default: false })
   used: boolean;
+
+  @CreateDateColumn({ name: 'created'}) 
+  created: Date;
 }

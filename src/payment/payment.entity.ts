@@ -4,6 +4,7 @@ import {
     Column,
     PrimaryColumn,
     Index,
+    CreateDateColumn,
   } from 'typeorm';
   import * as typeorm from 'typeorm';
   
@@ -55,4 +56,7 @@ import {
   
     @Column({ type: 'tinyint', default: 0 })
     processed: boolean;
+
+    @CreateDateColumn({ name: 'created'}) 
+    created: Date;
   }

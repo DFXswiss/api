@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
 
 export enum AssetType {
   COIN = 'Coin',
@@ -22,4 +22,7 @@ export class Asset {
 
   @Column({ type: 'tinyint', default: 1 })
   sellable: boolean;
+
+  @CreateDateColumn({ name: 'created'}) 
+  created: Date;
 }

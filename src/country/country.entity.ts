@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
 @Entity()
@@ -17,4 +17,7 @@ export class Country {
 
   @Column({ type: 'tinyint', default: 1 })
   enable: boolean;
+
+  @CreateDateColumn({ name: 'created'}) 
+  created: Date;
 }

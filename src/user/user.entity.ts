@@ -80,4 +80,6 @@ export class User {
   @Column({ type: 'varchar', default: '0.0.0.0' })
   ip: string;
 
+  @CreateDateColumn({ name: 'created'}) 
+  created: Date;
 }

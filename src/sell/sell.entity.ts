@@ -4,6 +4,7 @@ import {
   Column,
   PrimaryColumn,
   Index,
+  CreateDateColumn,
 } from 'typeorm';
 import * as typeorm from 'typeorm';
 
@@ -27,4 +28,7 @@ export class Sell {
 
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;
+
+  @CreateDateColumn({ name: 'created'}) 
+  created: Date;
 }

@@ -5,6 +5,7 @@ import {
   PrimaryColumn,
   Index,
   OneToOne,
+  CreateDateColumn,
 } from 'typeorm';
 import * as typeorm from 'typeorm';
 import { Asset } from 'src/asset/asset.entity';
@@ -29,4 +30,7 @@ export class Buy {
 
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;
+
+  @CreateDateColumn({ name: 'created'}) 
+  created: Date;
 }

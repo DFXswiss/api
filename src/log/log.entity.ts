@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
 
 export enum LogDirection {
@@ -56,5 +56,7 @@ export class Log {
 
   @Column({ type: 'varchar' })
   message: string;
-  
+
+  @CreateDateColumn({ name: 'created'}) 
+  created: Date;
 }
