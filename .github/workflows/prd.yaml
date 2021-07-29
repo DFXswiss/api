@@ -1,12 +1,14 @@
-name: CI/CD Dev
+name: CI/CD Prd
 
 on:
   push:
     branches: [ develop_ts ]
+  pull_request:
+    branches: [ develop_ts ]
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: app-dfx-api-dev
+  AZURE_WEBAPP_NAME: app-dfx-api-prd
   AZURE_WEBAPP_PACKAGE_PATH: '.'
   NODE_VERSION: '14.x'
 
@@ -32,5 +34,5 @@ jobs:
         uses: azure/webapps-deploy@0b651ed7546ecfc75024011f76944cb9b381ef1e
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.DEV_PUBLISH_PROFILE }}
+          publish-profile: ${{ secrets.PRD_PUBLISH_PROFILE }}
           package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
