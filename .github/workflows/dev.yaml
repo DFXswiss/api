@@ -1,4 +1,4 @@
-name: CI/CD Dev
+name: CI/CD DEV
 
 on:
   push:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   build-and-deploy:
-    name: Build and deploy
+    name: Build and deploy to DEV
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,7 +28,7 @@ jobs:
           npm install
           npm run build
 
-      - name: Deploy to Azure App Service
+      - name: Deploy to Azure App Service (DEV)
         uses: azure/webapps-deploy@0b651ed7546ecfc75024011f76944cb9b381ef1e
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
