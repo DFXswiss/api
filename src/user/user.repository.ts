@@ -13,6 +13,8 @@ import * as requestPromise from 'request-promise-native';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { LanguageRepository } from 'src/language/language.repository';
+import { LanguageController } from 'src/language/language.controller';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -23,6 +25,7 @@ export class UserRepository extends Repository<User> {
     if (createUserDto.created) delete createUserDto['created'];
 
     let countryObject = null;
+    let languageObject = null;
 
     if(createUserDto.country){
       countryObject = await getManager()
@@ -31,6 +34,14 @@ export class UserRepository extends Repository<User> {
 
       createUserDto.country = countryObject.id;
 
+    }
+
+    if(createUserDto.language){
+      languageObject = await getManager()
+      .getCustomRepository(LanguageRepository)
+      .getLanguage(createUserDto.language);
+
+      createUserDto.language = languageObject.id;
     }
 
     const user = this.create(createUserDto);
@@ -67,6 +78,7 @@ export class UserRepository extends Repository<User> {
         await this.save(user);
 
         createUserDto.country = countryObject;
+        createUserDto.language = languageObject;
       } catch (error) {
         console.log(error);
         throw new InternalServerErrorException();
@@ -124,6 +136,7 @@ export class UserRepository extends Repository<User> {
     newUser.created = currentUser.created;
 
     let countryObject = null;
+    let languageObject = null;
 
     if(newUser.status == UserStatus.KYC || newUser.status == UserStatus.VERIFY){
 
@@ -154,6 +167,19 @@ export class UserRepository extends Repository<User> {
       .getCountry(oldUser.country);
     }
 
+    if(newUser.language){
+      languageObject = await getManager()
+      .getCustomRepository(LanguageRepository)
+      .getLanguage(newUser.language);
+
+      newUser.language = languageObject.id;
+
+    }else if(oldUser.language && newUser.language != null && newUser.language != ""){
+      languageObject = await getManager()
+      .getCustomRepository(LanguageRepository)
+      .getLanguage(oldUser.language);
+    }
+
     await this.save(newUser);
 
     const user = await this.findOne({ "address": newUser.address });
@@ -161,6 +187,7 @@ export class UserRepository extends Repository<User> {
     //   user.ref = '-1';
 
     user.country = countryObject;
+    user.language = languageObject;
     delete user['address'];
     delete user['signature'];
     delete user['ip'];

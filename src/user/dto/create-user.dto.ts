@@ -72,6 +72,11 @@ export class CreateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  language: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   country: string;
 
   @ApiPropertyOptional()

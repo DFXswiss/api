@@ -42,6 +42,9 @@ import { LogRepository } from './log/log.repository';
 import { PaymentRepository } from './payment/payment.repository';
 import { PaymentController } from './payment/payment.controller';
 import { PaymentService } from './payment/payment.service';
+import { LanguageService } from './language/language.service';
+import { LanguageRepository } from './language/language.repository';
+import { LanguageController } from './language/language.controller';
 
 @Module({
   imports: [
@@ -79,6 +82,7 @@ import { PaymentService } from './payment/payment.service';
       CountryRepository,
       FiatRepository,
       PaymentRepository,
+      LanguageRepository,
     ]),
   ],
   controllers: [
@@ -97,6 +101,7 @@ import { PaymentService } from './payment/payment.service';
     HealthController,
     PaymentController,
     AllDataController,
+    LanguageController,
   ],
   providers: [
     UserService,
@@ -113,6 +118,7 @@ import { PaymentService } from './payment/payment.service';
     StatisticService,
     PaymentService,
     AllDataService,
+    LanguageService,
   ],
   exports: [
     UserService,
@@ -131,6 +137,7 @@ import { PaymentService } from './payment/payment.service';
     StatisticService,
     PaymentService,
     AllDataService,
+    LanguageService,
   ],
 })
 export class AppModule {}
