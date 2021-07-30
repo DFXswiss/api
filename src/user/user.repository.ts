@@ -146,6 +146,10 @@ export class UserRepository extends Repository<User> {
 
       newUser.country = countryObject.id;
 
+    }else if(oldUser.country && newUser.country != null && newUser.country != ""){
+      countryObject = await getManager()
+      .getCustomRepository(CountryRepository)
+      .getCountry(oldUser.country);
     }
 
     await this.save(newUser);
