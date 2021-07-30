@@ -130,4 +130,8 @@ export class SellRepository extends Repository<Sell> {
 
     throw new BadRequestException('id must be a number');
   }
+
+  async getAll(): Promise<any> {
+    return await this.find();
+  }
 }

@@ -137,4 +137,8 @@ export class BuyRepository extends Repository<Buy> {
       throw new InternalServerErrorException();
     }
   }
+
+  async getAll(): Promise<any> {
+    return await this.find();
+  }
 }
