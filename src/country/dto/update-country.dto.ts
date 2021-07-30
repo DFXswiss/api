@@ -19,12 +19,12 @@ export class UpdateCountryDto {
   id: number;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   name: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   symbol: string;
 

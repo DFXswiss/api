@@ -19,12 +19,17 @@ export class UpdateLanguageDto {
   id: number;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   name: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
+  @IsString()
+  foreignName: string;
+
+  @ApiProperty()
+  @IsOptional()
   @IsString()
   symbol: string;
 

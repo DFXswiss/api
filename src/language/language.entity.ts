@@ -18,6 +18,9 @@ import {
   
     @Column({ type: 'varchar', length: 34 })
     name: string; 
+
+    @Column({ type: 'varchar', length: 34 })
+    foreignName: string; 
   
     @Column({ type: 'tinyint', default: 1 })
     enable: boolean;

@@ -68,7 +68,7 @@ export class User {
   @Column({ type: 'varchar', length: 15, default: null, nullable: true })
   phone: string;
 
-  @Column({ type: 'varchar', default: "DE", nullable: false })
+  @Column({ type: 'varchar', default: "1", nullable: false })
   language: string;
 
   @Column({ type: 'varchar', default: UserRole.USER })

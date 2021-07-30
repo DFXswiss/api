@@ -24,6 +24,11 @@ export class CreateLanguageDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  foreignName: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
   symbol: string;
 
   @ApiProperty()
