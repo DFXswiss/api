@@ -13,7 +13,7 @@ import { WalletController } from './wallet/wallet.controller';
 import { DepositController } from './deposit/deposit.controller';
 import { CountryController } from './country/country.controller';
 import { AuthController } from './auth/auth.controller';
-import { AllController } from './all/all.controller';
+import { AllDataController } from './all/all.controller';
 import { UserService } from './user/user.service';
 import { BuyService } from './buy/buy.service';
 import { SellService } from './sell/sell.service';
@@ -22,7 +22,7 @@ import { FiatService } from './fiat/fiat.service';
 import { WalletService } from './wallet/wallet.service';
 import { DepositService } from './deposit/deposit.service';
 import { CountryService } from './country/country.service';
-import { AllService } from './all/all.service';
+import { AllDataService } from './all/all.service';
 import { AuthService } from './auth/auth.service';
 import { UserRepository } from './user/user.repository';
 import { AssetRepository } from './asset/asset.repository';
@@ -96,6 +96,7 @@ import { PaymentService } from './payment/payment.service';
     StatisticController,
     HealthController,
     PaymentController,
+    AllDataController,
   ],
   providers: [
     UserService,
@@ -111,6 +112,7 @@ import { PaymentService } from './payment/payment.service';
     JwtStrategy,
     StatisticService,
     PaymentService,
+    AllDataService,
   ],
   exports: [
     UserService,
@@ -128,6 +130,7 @@ import { PaymentService } from './payment/payment.service';
     PassportModule,
     StatisticService,
     PaymentService,
+    AllDataService,
   ],
 })
 export class AppModule {}

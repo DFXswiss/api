@@ -10,22 +10,21 @@ import {
   Post,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiHideProperty, ApiTags } from '@nestjs/swagger';
-import { hidden } from 'chalk';
+import { ApiBearerAuth, ApiHideProperty, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { UserRole } from 'src/user/user.entity';
-import { AllService } from './all.service';
+import { AllDataService } from './all.service';
+import { AuthCredentialsDto } from '../auth/dto/auth-credentials.dto';
 
-@Controller('all')
-export class AllController {
-  constructor(private readonly allService: AllService) {}
+@Controller('allData')
+export class AllDataController {
+  constructor(private readonly allService: AllDataService) {}
   
-  @ApiTags('all')
   @Get()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllRoute(): Promise<any> {
-    return this.allService.findAllByAddress();
+    return this.allService.getAllData();
   }
 
-  
 }
