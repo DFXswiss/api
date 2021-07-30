@@ -43,10 +43,10 @@ export class Log {
   fiatValue: number;
 
   @Column({ type: 'int', nullable: true })
-  krypto: number;
+  asset: number;
 
   @Column({ type: 'float', nullable: true })
-  kryptoValue: number;
+  assetValue: number;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   iban: string;

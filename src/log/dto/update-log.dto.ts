@@ -38,12 +38,12 @@ export class UpdateLogDto {
     @ApiProperty()
     @IsOptional()
     @IsInt()
-    krypto: number;
+    asset: number;
 
     @ApiProperty()
     @IsOptional()
     @IsNumber()
-    kryptoValue: number;
+    assetValue: number;
 
     @ApiProperty()
     @IsOptional()
