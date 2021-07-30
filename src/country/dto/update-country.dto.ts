@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 
 export class UpdateCountryDto {
+
   @ApiProperty()
   @IsNotEmpty()
   @IsInt()
@@ -26,12 +27,6 @@ export class UpdateCountryDto {
   @IsNotEmpty()
   @IsString()
   symbol: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsOptional()
-  @IsBoolean()
-  activeLanguage: boolean;
 
   @ApiProperty()
   @IsOptional()

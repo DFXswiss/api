@@ -29,11 +29,6 @@ export class CreateCountryDto {
   @ApiProperty()
   @IsOptional()
   @IsBoolean()
-  activeLanguage: boolean;
-
-  @ApiProperty()
-  @IsOptional()
-  @IsBoolean()
   enable: boolean;
 
   @IsString()
