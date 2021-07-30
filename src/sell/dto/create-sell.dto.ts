@@ -28,4 +28,8 @@ export class CreateSellDto {
 
   @IsOptional()
   deposit: number;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

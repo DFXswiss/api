@@ -35,4 +35,8 @@ export class CreateCountryDto {
   @IsOptional()
   @IsBoolean()
   enable: boolean;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

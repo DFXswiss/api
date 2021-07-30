@@ -96,4 +96,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   status: UserStatus;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

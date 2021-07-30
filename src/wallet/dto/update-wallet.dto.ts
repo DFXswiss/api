@@ -30,4 +30,7 @@ export class UpdateWalletDto {
     @IsString()
     description: string;
 
+    @IsString()
+    @IsOptional()
+    created: Date;
 }

@@ -18,4 +18,7 @@ export class UpdateFiatDto {
     @IsBoolean()
     enable: boolean;
 
+    @IsString()
+    @IsOptional()
+    created: Date;
 }

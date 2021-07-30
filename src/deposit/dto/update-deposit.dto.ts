@@ -26,4 +26,8 @@ export class UpdateDepositDto {
   @IsNotEmpty()
   @IsBoolean()
   used: boolean;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

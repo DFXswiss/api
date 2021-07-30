@@ -35,4 +35,8 @@ export class CreateBuyDto {
   @IsOptional()
   @IsString()
   bankUsage: string;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

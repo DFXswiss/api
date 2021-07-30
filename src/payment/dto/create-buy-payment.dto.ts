@@ -46,4 +46,7 @@ export class CreateBuyPaymentDto {
     @IsString()
     bankUsage: string
 
+    @IsString()
+    @IsOptional()
+    created: Date;
 }

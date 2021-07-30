@@ -88,4 +88,8 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   role: UserRole;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

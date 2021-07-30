@@ -10,6 +10,7 @@ export class WalletRepository extends Repository<Wallet> {
     async createWallet(createWalletDto: CreateWalletDto): Promise<any> {
    
         if(createWalletDto.id) delete createWalletDto["id"];
+        if (createWalletDto.created) delete createWalletDto['created'];
 
         const wallet = this.create(createWalletDto);
 
@@ -50,6 +51,8 @@ export class WalletRepository extends Repository<Wallet> {
         const currentWallet = await this.findOne({ "id" : editWalletDto.id });
         
         if(!currentWallet) throw new NotFoundException( "No matching wallet for id found");
+
+        if (editWalletDto.created) delete editWalletDto['created'];
 
         return Object.assign(currentWallet, await this.save(editWalletDto));
     }

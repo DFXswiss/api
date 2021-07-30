@@ -14,6 +14,7 @@ export class CountryRepository extends Repository<Country> {
   async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
     
     if (createCountryDto.id) delete createCountryDto['id'];
+    if (createCountryDto.created) delete createCountryDto['created'];
 
     const country = this.create(createCountryDto);
 
@@ -89,6 +90,8 @@ export class CountryRepository extends Repository<Country> {
     const currentCountry = await this.findOne({ id: editCountryDto.id });
     if (!currentCountry)
       throw new NotFoundException('No matching country found');
+
+    editCountryDto.created = currentCountry.created;
     
       return Object.assign(currentCountry, await this.save(editCountryDto));
   }

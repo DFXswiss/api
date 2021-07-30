@@ -63,4 +63,7 @@ export class CreateLogDto {
     @IsString()
     message: string;
 
+    @IsString()
+    @IsOptional()
+    created: Date;
 }

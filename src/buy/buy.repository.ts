@@ -15,6 +15,7 @@ import { NotFoundException } from '@nestjs/common';
 export class BuyRepository extends Repository<Buy> {
   async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
     if (createBuyDto.id) delete createBuyDto['id'];
+    if (createBuyDto.created) delete createBuyDto['created'];
 
     const assetObject = await getManager()
     .getCustomRepository(AssetRepository)

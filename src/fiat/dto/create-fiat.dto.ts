@@ -18,4 +18,7 @@ export class CreateFiatDto {
     @IsOptional()
     enable: boolean;
 
+    @IsString()
+    @IsOptional()
+    created: Date;
 }

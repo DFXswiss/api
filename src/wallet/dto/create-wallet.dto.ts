@@ -37,4 +37,8 @@ export class CreateWalletDto {
   @IsOptional()
   @IsString()
   description: string;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

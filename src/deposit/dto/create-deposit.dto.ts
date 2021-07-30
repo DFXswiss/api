@@ -17,4 +17,8 @@ export class CreateDepositDto {
   @Length(34, 34)
   @IsString()
   address: string;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

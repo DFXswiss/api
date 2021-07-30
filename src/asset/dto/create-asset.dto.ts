@@ -34,4 +34,8 @@ export class CreateAssetDto {
   @IsBoolean()
   @IsOptional()
   buyable: boolean;
+
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

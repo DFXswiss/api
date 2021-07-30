@@ -20,6 +20,7 @@ import {
     async createPayment(createPaymentDto: CreatePaymentDto): Promise<any> {
 
         if (createPaymentDto.id) delete createPaymentDto['id'];
+        if (createPaymentDto.created) delete createPaymentDto['created'];
 
         const fiatObject = await getManager()
         .getCustomRepository(FiatRepository)
@@ -45,6 +46,7 @@ import {
     async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
 
         if (createPaymentDto.id) delete createPaymentDto['id'];
+        if (createPaymentDto.created) delete createPaymentDto['created'];
 
         const fiatObject = await getManager()
         .getCustomRepository(FiatRepository)
@@ -75,6 +77,7 @@ import {
     async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any> {
 
         if (createPaymentDto.id) delete createPaymentDto['id'];
+        if (createPaymentDto.created) delete createPaymentDto['created'];
 
         const fiatObject = await getManager()
         .getCustomRepository(FiatRepository)

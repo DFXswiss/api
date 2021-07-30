@@ -20,6 +20,7 @@ export class UserRepository extends Repository<User> {
     if (createUserDto.id) delete createUserDto['id'];
     if (createUserDto.role) delete createUserDto['role'];
     if (createUserDto.ip) delete createUserDto['ip'];
+    if (createUserDto.created) delete createUserDto['created'];
 
     let countryObject = null;
 
@@ -120,6 +121,7 @@ export class UserRepository extends Repository<User> {
     newUser.role = currentUser.role;
     newUser.status = currentUser.status;
     newUser.ip = currentUser.ip;
+    newUser.created = currentUser.created;
 
     let countryObject = null;
 

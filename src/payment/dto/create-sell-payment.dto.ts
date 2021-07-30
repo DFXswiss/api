@@ -47,4 +47,7 @@ export class CreateSellPaymentDto {
     @IsNumber()
     assetValue: number;
 
+    @IsString()
+    @IsOptional()
+    created: Date;
 }

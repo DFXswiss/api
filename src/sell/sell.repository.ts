@@ -17,6 +17,7 @@ import { UserRepository } from 'src/user/user.repository';
 export class SellRepository extends Repository<Sell> {
   async createSell(createSellDto: CreateSellDto): Promise<any> {
     if (createSellDto.id) delete createSellDto['id'];
+    if (createSellDto.created) delete createSellDto['created'];
 
     const userObject = await getManager()
     .getCustomRepository(UserRepository)
