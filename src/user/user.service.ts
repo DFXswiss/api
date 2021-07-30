@@ -8,6 +8,7 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { LanguageRepository } from 'src/language/language.repository';
 
 @Injectable()
 export class UserService {
@@ -35,6 +36,12 @@ export class UserService {
       user.country = await getManager()
       .getCustomRepository(CountryRepository)
       .getCountry(user.country);
+    }
+
+    if(user.language){
+      user.language = await getManager()
+      .getCustomRepository(LanguageRepository)
+      .getLanguage(user.language);
     }
 
     delete user['address'];

@@ -35,15 +35,13 @@ import {
     })
     @ApiBearerAuth()
     @UsePipes(ValidationPipe)
-    @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-    async getCountry(@Param() language: any): Promise<any> {
+    async getLanguage(@Param() language: any): Promise<any> {
       return this.languageService.getLanguage(language);
     }
   
     @Get()
     @ApiBearerAuth()
-    @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-    async getAllCountry(): Promise<any> {
+    async getAllLanguage(): Promise<any> {
       return this.languageService.getAllLanguage();
     }
   
@@ -52,7 +50,7 @@ import {
     @ApiExcludeEndpoint()
     @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
     @UsePipes(ValidationPipe)
-    createCountry(@Body() createLanguageDto: CreateLanguageDto): Promise<any> {
+    createLanguage(@Body() createLanguageDto: CreateLanguageDto): Promise<any> {
       return this.languageService.createLanguage(createLanguageDto);
     }
   
@@ -61,7 +59,7 @@ import {
     @ApiExcludeEndpoint()
     @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
     @UsePipes(ValidationPipe)
-    async updateCountryRoute(@Body() language: UpdateLanguageDto) {
+    async updateLanguage(@Body() language: UpdateLanguageDto) {
       return this.languageService.updateLanguage(language);
     }
   }
