@@ -6,6 +6,7 @@ import {
   IsString,
   Length,
 } from 'class-validator';
+import { User } from 'src/user/user.entity';
 
 export class CreateSellDto {
   @IsOptional()
@@ -20,11 +21,7 @@ export class CreateSellDto {
   @IsNotEmpty()
   fiat: number;
 
-  @IsNotEmpty()
-  @Length(34, 34)
-  @IsString()
-  @IsOptional()
-  address: string;
+  user: User;
 
   @IsOptional()
   deposit: number;

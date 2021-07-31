@@ -20,10 +20,11 @@ export class SellRepository extends Repository<Sell> {
     if (createSellDto.created) delete createSellDto['created'];
 
     const userObject = await getManager()
-    .getCustomRepository(UserRepository)
-    .verifyUser(createSellDto.address);
+      .getCustomRepository(UserRepository)
+      .verifyUser(createSellDto.user.address);
 
-    if(!userObject.result) throw new ForbiddenException( "user data missing, verify");
+    if (!userObject.result)
+      throw new ForbiddenException('user data missing, verify');
 
     const fiatObject = await getManager()
       .getCustomRepository(FiatRepository)
@@ -37,12 +38,13 @@ export class SellRepository extends Repository<Sell> {
     createSellDto.fiat = fiatObject.id;
 
     const sell = this.create(createSellDto);
-
+    sell.address = createSellDto.user.address;
     if (sell) {
       await this.save(sell);
 
       sell.fiat = fiatObject;
       sell.deposit = depositObject;
+      delete sell['user'];
       delete sell['address'];
     }
     return sell;
@@ -70,6 +72,7 @@ export class SellRepository extends Repository<Sell> {
           .getCustomRepository(DepositRepository)
           .getDeposit(sell.deposit);
       }
+      delete sell['user'];
       delete sell['address'];
 
       return sell;
@@ -84,19 +87,16 @@ export class SellRepository extends Repository<Sell> {
       const sell = await this.find({ address: address });
 
       if (sell) {
-
-        for(let a = 0; a < sell.length; a++){
-
+        for (let a = 0; a < sell.length; a++) {
           sell[a].fiat = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(sell[a].fiat);
+            .getCustomRepository(FiatRepository)
+            .getFiat(sell[a].fiat);
 
           sell[a].deposit = await getManager()
-          .getCustomRepository(DepositRepository)
-          .getDeposit(sell[a].deposit);
-
+            .getCustomRepository(DepositRepository)
+            .getDeposit(sell[a].deposit);
+          delete sell[a]['user'];
           delete sell[a]['address'];
-
         }
       }
 
@@ -123,7 +123,7 @@ export class SellRepository extends Repository<Sell> {
           .getCustomRepository(DepositRepository)
           .getDeposit(sell.deposit);
       }
-
+      delete sell['user'];
       delete sell['address'];
       return sell;
     }

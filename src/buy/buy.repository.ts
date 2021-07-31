@@ -1,8 +1,9 @@
 import {
+  ConflictException,
   ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { EntityRepository, Repository } from 'typeorm';
+import { Connection, EntityRepository, Repository } from 'typeorm';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { Buy } from './buy.entity';
 import { sha256 } from 'js-sha256';
@@ -18,11 +19,13 @@ export class BuyRepository extends Repository<Buy> {
     if (createBuyDto.created) delete createBuyDto['created'];
 
     const assetObject = await getManager()
-    .getCustomRepository(AssetRepository)
-    .getAsset(createBuyDto.asset);
+      .getCustomRepository(AssetRepository)
+      .getAsset(createBuyDto.asset);
 
     var hash = sha256.create();
-    hash.update(createBuyDto.address + assetObject.name + createBuyDto.iban);
+    hash.update(
+      createBuyDto.user.address + assetObject.name + createBuyDto.iban,
+    );
     createBuyDto.bankUsage =
       hash.toString().toUpperCase().slice(0, 4) +
       '-' +
@@ -33,17 +36,21 @@ export class BuyRepository extends Repository<Buy> {
     createBuyDto.asset = assetObject.id;
 
     const buy = this.create(createBuyDto);
-
+    buy.address = buy.user.address;
     try {
       if (buy) {
         await this.save(buy);
-        buy.asset = assetObject;
+        assetObject.buys = buy;
+        await getManager()
+          .getCustomRepository(AssetRepository)
+          .save(assetObject);
+
         delete buy['address'];
+        delete buy['user'];
         return buy;
       }
     } catch (error) {
-      console.log(error.message);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
@@ -59,6 +66,7 @@ export class BuyRepository extends Repository<Buy> {
         buy.active = updateBuyDto.active;
         await this.save(buy);
         delete buy['address'];
+        delete buy['user'];
         buy.asset = await getManager()
           .getCustomRepository(AssetRepository)
           .getAsset(buy.asset);
@@ -72,15 +80,16 @@ export class BuyRepository extends Repository<Buy> {
 
   async getAssetByBankUsage(bankUsage: string): Promise<any> {
     try {
-      const buy = await this.findOne({ "bankUsage": bankUsage });
+      const buy = await this.findOne({ bankUsage: bankUsage });
       if (buy) return buy.asset;
-      
-      throw new NotFoundException('No matching buy route for given bankUsage found');
+
+      throw new NotFoundException(
+        'No matching buy route for given bankUsage found',
+      );
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException();
     }
-
   }
 
   async getBuy(id: any, address: string): Promise<any> {
@@ -91,6 +100,7 @@ export class BuyRepository extends Repository<Buy> {
           throw new ForbiddenException('You can only get your own sell route');
 
         delete buy['address'];
+        delete buy['user'];
         buy.asset = await getManager()
           .getCustomRepository(AssetRepository)
           .getAsset(buy.asset);
@@ -108,15 +118,13 @@ export class BuyRepository extends Repository<Buy> {
       const buy = await this.find({ address: address });
 
       if (buy) {
-
-        for(let a = 0; a < buy.length; a++){
-
+        for (let a = 0; a < buy.length; a++) {
           buy[a].asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(buy[a].asset);
+            .getCustomRepository(AssetRepository)
+            .getAsset(buy[a].asset);
 
           delete buy[a]['address'];
-
+          delete buy[a]['user'];
         }
       }
 

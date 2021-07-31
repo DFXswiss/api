@@ -9,6 +9,10 @@ import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
+import { BuyRepository } from 'src/buy/buy.repository';
+import { SellRepository } from 'src/sell/sell.repository';
+import { FiatRepository } from 'src/fiat/fiat.repository';
+import { AssetRepository } from 'src/asset/asset.repository';
 
 @Injectable()
 export class UserService {
@@ -31,17 +35,42 @@ export class UserService {
   }
 
   async getUser(user: User): Promise<any> {
-
-    if(user.country){
+    if (user.country) {
       user.country = await getManager()
-      .getCustomRepository(CountryRepository)
-      .getCountry(user.country);
+        .getCustomRepository(CountryRepository)
+        .getCountry(user.country);
     }
 
-    if(user.language){
+    if (user.language) {
       user.language = await getManager()
-      .getCustomRepository(LanguageRepository)
-      .getLanguage(user.language);
+        .getCustomRepository(LanguageRepository)
+        .getLanguage(user.language);
+    }
+
+    user.buys = await getManager()
+      .getCustomRepository(BuyRepository)
+      .find({ relations: ['user'], where: { user: { id: user.id } } });
+
+    if (user.buys) {
+      for (let a = 0; a < user.buys.length; a++) {
+        delete user.buys[a]['user'];
+        user.buys[a].asset = await getManager()
+          .getCustomRepository(AssetRepository)
+          .getAsset(user.buys[a].asset);
+      }
+    }
+
+    user.sells = await getManager()
+      .getCustomRepository(SellRepository)
+      .find({ relations: ['user'], where: { user: { id: user.id } } });
+
+    if (user.sells) {
+      for (let a = 0; a < user.sells.length; a++) {
+        delete user.sells[a]['user'];
+        user.sells[a].fiat = await getManager()
+          .getCustomRepository(FiatRepository)
+          .getFiat(user.sells[a].fiat);
+      }
     }
 
     delete user['address'];
@@ -84,7 +113,7 @@ export class UserService {
     return this.userRepository.getAllUser();
   }
 
-  async verifyUser(id: number, address:string ): Promise<any> {
+  async verifyUser(id: number, address: string): Promise<any> {
     return this.userRepository.verifyUser(address);
   }
 

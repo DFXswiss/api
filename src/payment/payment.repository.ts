@@ -9,7 +9,7 @@ import {
   import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
   import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   import { UpdatePaymentDto } from './dto/update-payment.dto';
-  import { Payment, PaymentType } from './payment.entity';
+  import { Payment, PaymentStatus, PaymentType } from './payment.entity';
   import { FiatRepository } from 'src/fiat/fiat.repository';
   import { getManager } from 'typeorm';
   import { AssetRepository } from 'src/asset/asset.repository';
@@ -111,7 +111,7 @@ import {
         if (!currentPayment)
           throw new NotFoundException('No matching payment for id found');
     
-        currentPayment.processed = payment.processed;
+        currentPayment.status = payment.status;
 
         await this.save(currentPayment);
 
@@ -158,6 +158,6 @@ import {
     async getUnprocessedPayment(): Promise<any> {
         //TODO Schleife durch alle buy und fiat id mit objekt ersetzen
       // + Adresse löschen
-        return await this.find({ "processed": false });
+        return await this.find({ "status": PaymentStatus.UNPROCESSED });
     }
 }

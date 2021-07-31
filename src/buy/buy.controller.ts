@@ -56,7 +56,7 @@ export class BuyController {
     @GetUser() user: User,
     @Body() createBuyDto: CreateBuyDto,
   ): Promise<any> {
-    createBuyDto.address = user.address;
+    createBuyDto.user = user;
     return this.buyService.createBuy(createBuyDto);
   }
 

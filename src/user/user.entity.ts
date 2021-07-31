@@ -1,3 +1,5 @@
+import { Buy } from 'src/buy/buy.entity';
+import { Sell } from 'src/sell/sell.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -5,6 +7,7 @@ import {
   PrimaryColumn,
   OneToMany,
   CreateDateColumn,
+  ManyToOne,
 } from 'typeorm';
 
 export enum UserRole {
@@ -68,7 +71,7 @@ export class User {
   @Column({ type: 'varchar', length: 15, default: null, nullable: true })
   phone: string;
 
-  @Column({ type: 'varchar', default: "1", nullable: false })
+  @Column({ type: 'varchar', default: '1', nullable: false })
   language: string;
 
   @Column({ type: 'varchar', default: UserRole.USER })
@@ -80,6 +83,12 @@ export class User {
   @Column({ type: 'varchar', default: '0.0.0.0' })
   ip: string;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn({ name: 'created' })
   created: Date;
+
+  @OneToMany(() => Buy, (buy) => buy.user)
+  buys: Buy[];
+
+  @OneToMany(() => Sell, (sell) => sell.user)
+  sells: Sell[];
 }

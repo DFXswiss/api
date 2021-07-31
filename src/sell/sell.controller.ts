@@ -56,7 +56,7 @@ export class SellController {
     @GetUser() user: User,
     @Body() createSellDto: CreateSellDto,
   ): Promise<any> {
-    createSellDto.address = user.address;
+    createSellDto.user = user;
     return this.sellService.createSell(createSellDto);
   }
 

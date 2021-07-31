@@ -11,6 +11,7 @@ import {
   IsString,
   Length,
 } from 'class-validator';
+import { User } from 'src/user/user.entity';
 
 export class CreateBuyDto {
   @IsOptional()
@@ -26,10 +27,7 @@ export class CreateBuyDto {
   @IsNotEmpty()
   asset: number;
 
-  @Length(34, 34)
-  @IsString()
-  @IsOptional()
-  address: string;
+  user: User;
 
   @Length(14, 14)
   @IsOptional()

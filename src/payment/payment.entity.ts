@@ -1,62 +1,61 @@
 import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    PrimaryColumn,
-    Index,
-    CreateDateColumn,
-  } from 'typeorm';
-  import * as typeorm from 'typeorm';
-  
-  export enum PaymentType {
-    BUY = 'Buy',
-    SELL = 'Sell'
-  }
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  PrimaryColumn,
+  Index,
+  CreateDateColumn,
+} from 'typeorm';
+import * as typeorm from 'typeorm';
 
-  @Entity()
-  export class Payment {
-    @PrimaryGeneratedColumn()
-    id: number;
+export enum PaymentType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+}
 
-    @Column({ type: 'int'})
-    userId: number;
+export enum PaymentStatus {
+  UNPROCESSED = 'Unprocessed',
+  IBAN = 'Iban',
+  BANKUSAGE = 'Bankusage',
+  KYC = 'Kyc',
+  PROCESSED = 'Processed',
+}
 
-    @Column({ type: 'varchar'})
-    type: PaymentType;
+@Entity()
+export class Payment {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({ type: 'tinyint', default: 0})
-    flagged: boolean;
+  @Column({ type: 'int' })
+  userId: number;
 
-    @Column({ type: 'tinyint', default: 0})
-    kycRequired: boolean;
+  @Column({ type: 'varchar' })
+  type: PaymentType;
 
-    @Column({ type: 'tinyint', default: 0})
-    kycExistent: boolean;
-  
-    @Column({ type: 'varchar', length: 34 })
-    address: string;
-  
-    @Column({ type: 'varchar', length: 32 })
-    iban: string;
+  @Column({ type: 'varchar', length: 34 })
+  address: string;
 
-    @Column({ type: 'varchar', length: 34, nullable: true })
-    depositAddress: string;
-  
-    @Column({ type: 'int', nullable: true })
-    fiat: number;
-  
-    @Column({ type: 'float', nullable: true })
-    fiatValue: number;
-  
-    @Column({ type: 'int', nullable: true })
-    asset: number;
-  
-    @Column({ type: 'float', nullable: true })
-    assetValue: number;
-  
-    @Column({ type: 'tinyint', default: 0 })
-    processed: boolean;
+  @Column({ type: 'varchar', length: 32 })
+  iban: string;
 
-    @CreateDateColumn({ name: 'created'}) 
-    created: Date;
-  }
+  @Column({ type: 'varchar', length: 34, nullable: true })
+  depositAddress: string;
+
+  @Column({ type: 'int', nullable: true })
+  fiat: number;
+
+  @Column({ type: 'float', nullable: true })
+  fiatValue: number;
+
+  @Column({ type: 'int', nullable: true })
+  asset: number;
+
+  @Column({ type: 'float', nullable: true })
+  assetValue: number;
+
+  @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
+  status: PaymentStatus;
+
+  @CreateDateColumn({ name: 'created' })
+  created: Date;
+}

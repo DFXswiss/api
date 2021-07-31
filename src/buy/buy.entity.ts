@@ -6,9 +6,13 @@ import {
   Index,
   OneToOne,
   CreateDateColumn,
+  OneToMany,
+  ManyToOne,
+  ManyToMany,
 } from 'typeorm';
 import * as typeorm from 'typeorm';
 import { Asset } from 'src/asset/asset.entity';
+import { User } from 'src/user/user.entity';
 
 @Entity()
 @Index('ibanAsset', (buy: Buy) => [buy.iban, buy.asset], { unique: true })
@@ -22,7 +26,7 @@ export class Buy {
   @Column({ type: 'varchar', length: 32 })
   iban: string;
 
-  @Column({ type: 'int' })
+  @Column()
   asset: number;
 
   @Column({ type: 'varchar', length: 14, unique: true })
@@ -31,6 +35,9 @@ export class Buy {
   @Column({ type: 'tinyint', default: 1 })
   active: boolean;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn({ name: 'created' })
   created: Date;
+
+  @ManyToOne(() => User, (user) => user.buys)
+  user: User;
 }

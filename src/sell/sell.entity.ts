@@ -5,8 +5,10 @@ import {
   PrimaryColumn,
   Index,
   CreateDateColumn,
+  ManyToOne,
 } from 'typeorm';
 import * as typeorm from 'typeorm';
+import { User } from 'src/user/user.entity';
 
 @Entity()
 @Index('ibanAsset', (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
@@ -31,4 +33,7 @@ export class Sell {
 
   @CreateDateColumn({ name: 'created'}) 
   created: Date;
+
+  @ManyToOne(() => User, (user) => user.sells) 
+  user: User;
 }

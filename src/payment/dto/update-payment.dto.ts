@@ -1,5 +1,6 @@
 import { ApiProperty,  } from "@nestjs/swagger";
 import {   IsInt, IsOptional,  IsBoolean  } from "class-validator";
+import { PaymentStatus } from "../payment.entity";
 
 export class UpdatePaymentDto {
 
@@ -9,7 +10,6 @@ export class UpdatePaymentDto {
 
     @ApiProperty()
     @IsOptional()
-    @IsBoolean()
-    processed: boolean
+    status: PaymentStatus
 
 }
