@@ -13,11 +13,16 @@ export enum PaymentType {
   SELL = 'Sell',
 }
 
-export enum PaymentStatus {
-  UNPROCESSED = 'Unprocessed',
+export enum PaymentError {
   IBAN = 'Iban',
   BANKUSAGE = 'Bankusage',
+  FIAT = 'Fiat',
+  ASSET = 'Asset',
   KYC = 'Kyc',
+}
+
+export enum PaymentStatus {
+  UNPROCESSED = 'Unprocessed',
   PROCESSED = 'Processed',
 }
 
@@ -55,6 +60,12 @@ export class Payment {
 
   @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
   status: PaymentStatus;
+
+  @Column({ type: 'varchar', length: 34, nullable: true })
+  info: string;
+
+  @Column({ type: 'varchar', default: null, nullable: true})
+  error: PaymentError;
 
   @CreateDateColumn({ name: 'created' })
   created: Date;

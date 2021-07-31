@@ -83,9 +83,7 @@ export class BuyRepository extends Repository<Buy> {
       const buy = await this.findOne({ bankUsage: bankUsage });
       if (buy) return buy.asset;
 
-      throw new NotFoundException(
-        'No matching buy route for given bankUsage found',
-      );
+      return;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException();
