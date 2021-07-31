@@ -47,6 +47,31 @@ export class UserService {
         .getLanguage(user.language);
     }
 
+    delete user['address'];
+    delete user['signature'];
+    delete user['ip'];
+    if (user.role != UserRole.VIP) delete user['role'];
+    if (user.status == 'Active' || user.status == 'KYC') {
+      return user;
+    } else {
+      delete user['ref'];
+      return user;
+    }
+  }
+
+  async getUserDetail(user: User): Promise<any> {
+    if (user.country) {
+      user.country = await getManager()
+        .getCustomRepository(CountryRepository)
+        .getCountry(user.country);
+    }
+
+    if (user.language) {
+      user.language = await getManager()
+        .getCustomRepository(LanguageRepository)
+        .getLanguage(user.language);
+    }
+
     user.buys = await getManager()
       .getCustomRepository(BuyRepository)
       .find({ relations: ['user'], where: { user: { id: user.id } } });

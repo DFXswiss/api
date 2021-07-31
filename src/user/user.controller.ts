@@ -22,6 +22,13 @@ export class UserController {
         return this.userService.getUser(user);
     }
 
+    @Get('detail')
+    @ApiBearerAuth()
+    @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+    async getUserDetail(@GetUser() user: User): Promise<any> {
+        return this.userService.getUserDetail(user);
+    }
+
     @Put()
     @ApiBearerAuth()
     @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
