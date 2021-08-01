@@ -59,7 +59,7 @@ import {
         }catch{
             createPaymentDto.info = "Wrong Fiat: " + createPaymentDto.fiat;
             createPaymentDto.fiat = null;
-            createPaymentDto.error = PaymentError.FIAT;
+            createPaymentDto.errorCode = PaymentError.FIAT;
         }
 
         if(createPaymentDto.bankUsage) buy = await getManager().getCustomRepository(BuyRepository).getBuyByBankUsage(createPaymentDto.bankUsage);
@@ -69,11 +69,11 @@ import {
             if(!buy.iban || !createPaymentDto.iban){
                 createPaymentDto.info = "Missing IBAN: " + createPaymentDto.iban + ", " + buy.iban;
                 createPaymentDto.iban = null;
-                createPaymentDto.error = PaymentError.IBAN;
+                createPaymentDto.errorCode = PaymentError.IBAN;
             }else if(buy.iban != createPaymentDto.iban){
                 createPaymentDto.info = "Wrong IBAN: " + createPaymentDto.iban + " instead of " + buy.iban;
                 createPaymentDto.iban = null;
-                createPaymentDto.error = PaymentError.IBAN;
+                createPaymentDto.errorCode = PaymentError.IBAN;
             }
 
             assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(buy.asset);
@@ -83,12 +83,12 @@ import {
             }else{
                 createPaymentDto.info = "Asset not buyable: " + createPaymentDto.asset;
                 createPaymentDto.asset = null;
-                createPaymentDto.error = PaymentError.ASSET;
+                createPaymentDto.errorCode = PaymentError.ASSET;
             }
         }else{
             createPaymentDto.info = "Wrong BankUsage: " + createPaymentDto.bankUsage;
             createPaymentDto.asset = null;
-            createPaymentDto.error = PaymentError.BANKUSAGE;
+            createPaymentDto.errorCode = PaymentError.BANKUSAGE;
         }
 
         createPaymentDto.type = PaymentType.BUY;
@@ -121,12 +121,12 @@ import {
             }catch{
                 createPaymentDto.info = "Wrong Fiat: " + createPaymentDto.fiat;
                 createPaymentDto.fiat = null;
-                createPaymentDto.error = PaymentError.FIAT;
+                createPaymentDto.errorCode = PaymentError.FIAT;
             }
         }else{
             createPaymentDto.info = "Wrong Fiat: " + createPaymentDto.fiat;
             createPaymentDto.fiat = null;
-            createPaymentDto.error = PaymentError.FIAT;
+            createPaymentDto.errorCode = PaymentError.FIAT;
         }
 
         if(createPaymentDto.asset){
@@ -138,17 +138,17 @@ import {
                 }else{
                     createPaymentDto.info = "Asset not buyable: " + createPaymentDto.asset;
                     createPaymentDto.asset = null;
-                    createPaymentDto.error = PaymentError.ASSET;
+                    createPaymentDto.errorCode = PaymentError.ASSET;
                 }
             }catch{
                 createPaymentDto.info = "Wrong Asset: " + createPaymentDto.asset;
                 createPaymentDto.asset = null;
-                createPaymentDto.error = PaymentError.ASSET; 
+                createPaymentDto.errorCode = PaymentError.ASSET; 
             }
         }else{
             createPaymentDto.info = "Wrong Asset: " + createPaymentDto.asset;
             createPaymentDto.asset = null;
-            createPaymentDto.error = PaymentError.ASSET;
+            createPaymentDto.errorCode = PaymentError.ASSET;
         }
 
         createPaymentDto.type = PaymentType.SELL;

@@ -56,7 +56,7 @@ export class CreateSellPaymentDto {
     created: Date;
 
     @IsOptional()
-    error: PaymentError;
+    errorCode: PaymentError;
 
     @IsOptional()
     status: PaymentStatus

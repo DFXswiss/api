@@ -66,7 +66,7 @@ export class Payment {
   info: string;
 
   @Column({ type: 'varchar', default: PaymentError.NULL})
-  error: PaymentError;
+  errorCode: PaymentError;
 
   @CreateDateColumn({ name: 'created' })
   created: Date;

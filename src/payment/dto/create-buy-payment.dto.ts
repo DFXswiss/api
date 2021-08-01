@@ -51,7 +51,7 @@ export class CreateBuyPaymentDto {
     info: string
 
     @IsOptional()
-    error: PaymentError;
+    errorCode: PaymentError;
 
     @IsString()
     @IsOptional()
