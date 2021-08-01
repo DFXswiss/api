@@ -64,13 +64,17 @@ import {
 
         if(createPaymentDto.bankUsage) buy = await getManager().getCustomRepository(BuyRepository).getBuyByBankUsage(createPaymentDto.bankUsage);
 
-        if(buy.iban != createPaymentDto.iban){
-            createPaymentDto.info = "Wrong IBAN: " + createPaymentDto.iban + " instead of " + buy.iban;
-            createPaymentDto.iban = null;
-            createPaymentDto.error = PaymentError.IBAN;
-        }
-
         if(buy){
+
+            if(!buy.iban || !createPaymentDto.iban){
+                createPaymentDto.info = "Missing IBAN: " + createPaymentDto.iban + ", " + buy.iban;
+                createPaymentDto.iban = null;
+                createPaymentDto.error = PaymentError.IBAN;
+            }else if(buy.iban != createPaymentDto.iban){
+                createPaymentDto.info = "Wrong IBAN: " + createPaymentDto.iban + " instead of " + buy.iban;
+                createPaymentDto.iban = null;
+                createPaymentDto.error = PaymentError.IBAN;
+            }
 
             assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(buy.asset);
 
