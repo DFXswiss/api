@@ -66,6 +66,8 @@ import {
 
         if(buy){
 
+            createPaymentDto.address = buy.address;
+
             if(!buy.iban || !createPaymentDto.iban){
                 createPaymentDto.info = "Missing IBAN: " + createPaymentDto.iban + ", " + buy.iban;
                 createPaymentDto.iban = null;

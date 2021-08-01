@@ -32,16 +32,16 @@ export class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int' })
+  @Column({ type: 'int', nullable: true, default: null })
   userId: number;
 
   @Column({ type: 'varchar' })
   type: PaymentType;
 
-  @Column({ type: 'varchar', length: 34 })
+  @Column({ type: 'varchar', length: 34, nullable: true })
   address: string;
 
-  @Column({ type: 'varchar', length: 32 })
+  @Column({ type: 'varchar', length: 32, nullable: true })
   iban: string;
 
   @Column({ type: 'varchar', length: 34, nullable: true })
@@ -62,7 +62,7 @@ export class Payment {
   @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
   status: PaymentStatus;
 
-  @Column({ type: 'varchar', length: 34, nullable: true })
+  @Column({ type: 'varchar', length: 258, nullable: true })
   info: string;
 
   @Column({ type: 'varchar', default: PaymentError.NULL})

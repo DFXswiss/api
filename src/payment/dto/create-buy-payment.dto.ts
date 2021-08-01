@@ -8,8 +8,7 @@ export class CreateBuyPaymentDto {
     @IsInt()
     id: number;
 
-    @ApiProperty()
-    @IsNotEmpty()
+    @IsOptional()
     @IsInt()
     userId: number;
 
@@ -17,10 +16,8 @@ export class CreateBuyPaymentDto {
     @IsString()
     type: PaymentType;
 
-    @ApiProperty()
-    @IsNotEmpty()
+    @IsOptional()
     @Length(34,34)
-    @IsString()
     address: string;
 
     @ApiProperty()
@@ -37,13 +34,11 @@ export class CreateBuyPaymentDto {
     @IsNumber()
     fiatValue: number;
 
-    @ApiProperty()
     @IsOptional()
     asset: number;
 
     @ApiProperty()
     @IsOptional()
-    @IsString()
     bankUsage: string
 
     @IsOptional()
@@ -57,7 +52,6 @@ export class CreateBuyPaymentDto {
     @IsOptional()
     created: Date;
 
-    @ApiProperty()
     @IsOptional()
     status: PaymentStatus;
 
