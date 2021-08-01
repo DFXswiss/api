@@ -78,10 +78,10 @@ export class BuyRepository extends Repository<Buy> {
     }
   }
 
-  async getAssetByBankUsage(bankUsage: string): Promise<any> {
+  async getBuyByBankUsage(bankUsage: string): Promise<any> {
     try {
       const buy = await this.findOne({ bankUsage: bankUsage });
-      if (buy) return buy.asset;
+      if (buy) return buy;
 
       return;
     } catch (error) {

@@ -27,7 +27,6 @@ export class UpdateLogDto {
 
     @ApiProperty()
     @IsOptional()
-    @IsInt()
     fiat: number;
 
     @ApiProperty()
@@ -37,7 +36,6 @@ export class UpdateLogDto {
 
     @ApiProperty()
     @IsOptional()
-    @IsInt()
     asset: number;
 
     @ApiProperty()

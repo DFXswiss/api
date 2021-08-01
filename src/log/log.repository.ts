@@ -1,9 +1,11 @@
 import { InternalServerErrorException } from "@nestjs/common";
-import { EntityRepository, Repository } from "typeorm";
+import { EntityRepository, getManager, Repository } from "typeorm";
 import { CreateLogDto } from "./dto/create-log.dto";
 import { UpdateLogDto } from "./dto/update-log.dto";
 import { Log, LogDirection, LogStatus } from "./log.entity";
 import { isNumber, isString } from "class-validator";
+import { FiatRepository } from "src/fiat/fiat.repository";
+import { AssetRepository } from "src/asset/asset.repository";
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
@@ -16,6 +18,15 @@ export class LogRepository extends Repository<Log> {
         if(createLogDto.status && (createLogDto.status != LogStatus.fiatDeposit && createLogDto.status != LogStatus.fiat2btc && createLogDto.status != LogStatus.btc2dfi && createLogDto.status != LogStatus.dfi2asset && createLogDto.status != LogStatus.assetWithdrawal && createLogDto.status != LogStatus.assetDeposit && createLogDto.status != LogStatus.btc2fiat && createLogDto.status != LogStatus.dfi2btc && createLogDto.status != LogStatus.asset2dfi && createLogDto.status != LogStatus.fiatWithdrawal)) return {"statusCode" : 400, "message": [ "wrong status"]};
         if(createLogDto.direction && (createLogDto.direction != LogDirection.fiat2asset && createLogDto.direction != LogDirection.asset2fiat)) return {"statusCode" : 400, "message": [ "wrong direction"]};
 
+        let fiatObject = null;
+        let assetObject = null;
+
+        if(createLogDto.fiat) fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createLogDto.fiat);
+        if(createLogDto.asset) assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(createLogDto.asset);
+
+        createLogDto.fiat = fiatObject.id;
+        createLogDto.asset = assetObject.id;
+
         createLogDto.orderId = createLogDto.address + ":" + new Date().toISOString();
 
         const log = this.create(createLogDto);
@@ -26,6 +37,9 @@ export class LogRepository extends Repository<Log> {
             console.log(error);
             throw new InternalServerErrorException();
         }
+
+        log.fiat = fiatObject;
+        log.asset = assetObject;
 
         return log;
     }

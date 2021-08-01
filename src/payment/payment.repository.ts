@@ -50,7 +50,7 @@ import {
 
         let assetObject = null;
         let fiatObject = null;
-        let assetIndex = null;
+        let buy = null;
 
         try{
             fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createPaymentDto.fiat);
@@ -62,11 +62,17 @@ import {
             createPaymentDto.error = PaymentError.FIAT;
         }
 
-        if(createPaymentDto.bankUsage) assetIndex = await getManager().getCustomRepository(BuyRepository).getAssetByBankUsage(createPaymentDto.bankUsage);
+        if(createPaymentDto.bankUsage) buy = await getManager().getCustomRepository(BuyRepository).getBuyByBankUsage(createPaymentDto.bankUsage);
 
-        if(assetIndex){
+        if(buy.iban != createPaymentDto.iban){
+            createPaymentDto.info = "Wrong IBAN: " + createPaymentDto.iban + " instead of " + buy.iban;
+            createPaymentDto.iban = null;
+            createPaymentDto.error = PaymentError.IBAN;
+        }
 
-            assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(assetIndex);
+        if(buy){
+
+            assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(buy.asset);
 
             if(assetObject.buyable == 1){
                 createPaymentDto.asset = assetObject.id;

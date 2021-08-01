@@ -30,7 +30,6 @@ export class CreateLogDto {
 
     @ApiProperty()
     @IsOptional()
-    @IsInt()
     fiat: number;
 
     @ApiProperty()
@@ -40,7 +39,6 @@ export class CreateLogDto {
 
     @ApiProperty()
     @IsOptional()
-    @IsInt()
     asset: number;
 
     @ApiProperty()
