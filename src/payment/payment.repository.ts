@@ -86,9 +86,9 @@ import {
                 createPaymentDto.error = PaymentError.ASSET;
             }
         }else{
-            createPaymentDto.info = "Wrong Asset: " + createPaymentDto.bankUsage;
+            createPaymentDto.info = "Wrong BankUsage: " + createPaymentDto.bankUsage;
             createPaymentDto.asset = null;
-            createPaymentDto.error = PaymentError.ASSET;
+            createPaymentDto.error = PaymentError.BANKUSAGE;
         }
 
         createPaymentDto.type = PaymentType.BUY;

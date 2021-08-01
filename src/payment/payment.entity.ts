@@ -14,6 +14,7 @@ export enum PaymentType {
 }
 
 export enum PaymentError {
+  NULL = "",
   IBAN = 'Iban',
   BANKUSAGE = 'Bankusage',
   FIAT = 'Fiat',
@@ -64,7 +65,7 @@ export class Payment {
   @Column({ type: 'varchar', length: 34, nullable: true })
   info: string;
 
-  @Column({ type: 'varchar', default: null, nullable: true})
+  @Column({ type: 'varchar', default: PaymentError.NULL})
   error: PaymentError;
 
   @CreateDateColumn({ name: 'created' })
