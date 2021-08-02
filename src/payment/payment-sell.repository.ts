@@ -9,107 +9,20 @@ import {
   import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
   import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   import { UpdatePaymentDto } from './dto/update-payment.dto';
-  import { Payment, PaymentError, PaymentStatus, PaymentType } from './payment.entity';
+  import { PaymentError, PaymentStatus, PaymentType } from './payment.entity';
+  import { SellPayment } from './payment-sell.entity';
   import { FiatRepository } from 'src/fiat/fiat.repository';
   import { getManager } from 'typeorm';
   import { AssetRepository } from 'src/asset/asset.repository';
   import { BuyRepository } from 'src/buy/buy.repository';
 
-  @EntityRepository(Payment)
-  export class PaymentRepository extends Repository<Payment> {
-    async createPayment(createPaymentDto: CreatePaymentDto): Promise<any> {
+  @EntityRepository(SellPayment)
+  export class SellPaymentRepository extends Repository<SellPayment> {
 
-        if (createPaymentDto.id) delete createPaymentDto.id;
-        if (createPaymentDto.created) delete createPaymentDto.created;
+    async createPayment(createPaymentDto: CreateSellPaymentDto): Promise<any> {
 
-        const fiatObject = await getManager()
-        .getCustomRepository(FiatRepository)
-        .getFiat(createPaymentDto.fiat);
-
-        const assetObject = await getManager()
-        .getCustomRepository(AssetRepository)
-        .getAsset(createPaymentDto.asset);
-
-        createPaymentDto.asset = assetObject.id;
-        createPaymentDto.fiat = fiatObject.id;
-
-        const payment = this.create(createPaymentDto);
-
-        if (payment) {
-            await this.save(payment);
-            payment.fiat = fiatObject;
-            payment.asset = assetObject
-        }
-        return payment;
-    }
-
-    async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
-
-        if (createPaymentDto.id) delete createPaymentDto.id;
-        if (createPaymentDto.created) delete createPaymentDto.created;
-
-        let assetObject = null;
-        let fiatObject = null;
-        let buy = null;
-
-        try{
-            fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createPaymentDto.fiat);
-
-            createPaymentDto.fiat = fiatObject.id;
-        }catch{
-            createPaymentDto.info = "Wrong Fiat: " + createPaymentDto.fiat;
-            createPaymentDto.fiat = null;
-            createPaymentDto.errorCode = PaymentError.FIAT;
-        }
-
-        if(createPaymentDto.bankUsage) buy = await getManager().getCustomRepository(BuyRepository).getBuyByBankUsage(createPaymentDto.bankUsage);
-
-        if(buy){
-
-            createPaymentDto.address = buy.address;
-
-            if(!buy.iban || !createPaymentDto.iban){
-                createPaymentDto.info = "Missing IBAN: " + createPaymentDto.iban + ", " + buy.iban;
-                createPaymentDto.iban = null;
-                createPaymentDto.errorCode = PaymentError.IBAN;
-            }else if(buy.iban != createPaymentDto.iban){
-                createPaymentDto.info = "Wrong IBAN: " + createPaymentDto.iban + " instead of " + buy.iban;
-                createPaymentDto.iban = null;
-                createPaymentDto.errorCode = PaymentError.IBAN;
-            }
-
-            assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(buy.asset);
-
-            if(assetObject.buyable == 1){
-                createPaymentDto.asset = assetObject.id;
-            }else{
-                createPaymentDto.info = "Asset not buyable: " + createPaymentDto.asset;
-                createPaymentDto.asset = null;
-                createPaymentDto.errorCode = PaymentError.ASSET;
-            }
-        }else{
-            createPaymentDto.info = "Wrong BankUsage: " + createPaymentDto.bankUsage;
-            createPaymentDto.asset = null;
-            createPaymentDto.errorCode = PaymentError.BANKUSAGE;
-        }
-
-        createPaymentDto.type = PaymentType.BUY;
-
-        const payment = this.create(createPaymentDto);
-
-        if (payment) {
-            await this.save(payment);
-            payment.fiat = fiatObject;
-            payment.asset = assetObject
-        }
-        return payment;
-
-    }
-
-    async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any> {
-
-        if (createPaymentDto.id) delete createPaymentDto.id;
-        if (createPaymentDto.created) delete createPaymentDto.created;
+        if (createPaymentDto.id) delete createPaymentDto['id'];
+        if (createPaymentDto.created) delete createPaymentDto['created'];
 
         let assetObject = null;
         let fiatObject = null;

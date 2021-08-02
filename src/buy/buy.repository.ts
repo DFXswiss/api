@@ -40,10 +40,13 @@ export class BuyRepository extends Repository<Buy> {
     try {
       if (buy) {
         await this.save(buy);
+
+        buy.asset = assetObject; 
+
         assetObject.buys = buy;
         await getManager()
           .getCustomRepository(AssetRepository)
-          .save(assetObject);
+          .save(assetObject); 
 
         delete buy.address;
         delete buy.user;

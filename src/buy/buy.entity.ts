@@ -38,6 +38,6 @@ export class Buy {
   @CreateDateColumn()
   created: Date;
 
-  @ManyToOne(() => User, (user) => user.buys, { nullable: false })
+  @ManyToOne(() => User, (user) => user.buys)
   user: User;
 }

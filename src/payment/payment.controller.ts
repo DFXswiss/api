@@ -29,46 +29,40 @@ import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
-  @Get('unprocessed')
+  @Get('buy/unprocessed')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUnprocessedPayment(): Promise<any> {
-    return this.paymentService.getUnprocessedPayment();
+  async getUnprocessedBuyPayment(): Promise<any> {
+    return this.paymentService.getUnprocessedBuyPayment();
   }
 
-  @Get()
+  @Get('sell/unprocessed')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getAllPayment(): Promise<any> {
-    return this.paymentService.getAllPayment();
+  async getUnprocessedSellPayment(): Promise<any> {
+    return this.paymentService.getUnprocessedSellPayment();
   }
 
-  @Get(':key')
+  @Get('buy')
   @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    required: true,
-    description: 'integer for the sell id',
-    schema: { type: 'integer' },
-  })
   @ApiExcludeEndpoint()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getPayment(@Param() id: any): Promise<any> {
-    return this.paymentService.getPayment(id);
+  async getAllBuyPayment(): Promise<any> {
+    return this.paymentService.getAllBuyPayment();
   }
 
-  @Post()
+  @Get('sell')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  createPayment(@Body() createSellDto: CreatePaymentDto): Promise<any> {
-    return this.paymentService.createPayment(createSellDto);
+  async getAllSellPayment(): Promise<any> {
+    return this.paymentService.getAllSellPayment();
   }
 
   @Post('buy')
@@ -89,11 +83,49 @@ export class PaymentController {
     return this.paymentService.createSellPayment(createSellDto);
   }
 
-  @Put()
+  @Put('buy')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateSellRoute(@Body() updateSellDto: UpdatePaymentDto): Promise<any> {
-    return this.paymentService.updatePayment(updateSellDto);
+  async updateBuyPayment(@Body() updateSellDto: UpdatePaymentDto): Promise<any> {
+    return this.paymentService.updateBuyPayment(updateSellDto);
+  }
+
+  @Put('sell')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateSellPayment(@Body() updateSellDto: UpdatePaymentDto): Promise<any> {
+    return this.paymentService.updateSellPayment(updateSellDto);
+  }
+
+  @Get('buy/:key')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'integer for the sell id',
+    schema: { type: 'integer' },
+  })
+  @ApiExcludeEndpoint()
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getBuyPayment(@Param() id: any): Promise<any> {
+    return this.paymentService.getBuyPayment(id);
+  }
+
+  @Get('sell/:key')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'id',
+    required: true,
+    description: 'integer for the sell id',
+    schema: { type: 'integer' },
+  })
+  @ApiExcludeEndpoint()
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getSellPayment(@Param() id: any): Promise<any> {
+    return this.paymentService.getSellPayment(id);
   }
 }

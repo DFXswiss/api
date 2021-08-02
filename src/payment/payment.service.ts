@@ -7,41 +7,55 @@ import {
   import { Repository } from 'typeorm';
   import { CreatePaymentDto } from './dto/create-payment.dto';
   import { UpdatePaymentDto } from './dto/update-payment.dto';
-  import { Payment } from './payment.entity';
-  import { PaymentRepository } from 'src/payment/payment.repository';
+  import { SellPayment } from './payment-sell.entity';
+  import { BuyPayment } from './payment-buy.entity';
+  import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
+  import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
   import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
   import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   
   @Injectable()
   export class PaymentService {
-    constructor(private sellRepository: PaymentRepository) {}
-    
-    async createPayment(createPaymentDto: CreatePaymentDto): Promise<any>{
-      return this.sellRepository.createPayment(createPaymentDto);
-    }
+    constructor(private sellRepository: SellPaymentRepository, private buyRepository: BuyPaymentRepository) {}
 
     async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any>{
-      return this.sellRepository.createBuyPayment(createPaymentDto);
+      return this.buyRepository.createPayment(createPaymentDto);
     }
 
     async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any>{
-      return this.sellRepository.createSellPayment(createPaymentDto);
+      return this.sellRepository.createPayment(createPaymentDto);
     }
   
-    async getPayment(id: any): Promise<any> {
+    async getBuyPayment(id: any): Promise<any> {
+      return this.buyRepository.getPayment(id);
+    }
+
+    async getSellPayment(id: any): Promise<any> {
       return this.sellRepository.getPayment(id);
     }
   
-    async getAllPayment(): Promise<any> {
+    async getAllBuyPayment(): Promise<any> {
+      return this.buyRepository.getAllPayment();
+    }
+
+    async getAllSellPayment(): Promise<any> {
       return this.sellRepository.getAllPayment();
     }
   
-    async updatePayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
+    async updateBuyPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
+      return this.buyRepository.updatePayment(updatePaymentDto);
+    }
+
+    async updateSellPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
       return this.sellRepository.updatePayment(updatePaymentDto);
     }
 
-    async getUnprocessedPayment(): Promise<any> {
-        return this.sellRepository.getUnprocessedPayment();
+    async getUnprocessedBuyPayment(): Promise<any> {
+        return this.buyRepository.getUnprocessedPayment();
     }
+
+    async getUnprocessedSellPayment(): Promise<any> {
+      return this.sellRepository.getUnprocessedPayment();
+  }
 
   }

@@ -39,7 +39,8 @@ import { LogController } from './log/log.controller';
 import { LogService } from './log/log.service';
 import { HealthController } from './health/health.controller';
 import { LogRepository } from './log/log.repository';
-import { PaymentRepository } from './payment/payment.repository';
+import { SellPaymentRepository } from './payment/payment-sell.repository';
+import { BuyPaymentRepository } from './payment/payment-buy.repository';
 import { PaymentController } from './payment/payment.controller';
 import { PaymentService } from './payment/payment.service';
 import { LanguageService } from './language/language.service';
@@ -81,7 +82,8 @@ import { LanguageController } from './language/language.controller';
       DepositRepository,
       CountryRepository,
       FiatRepository,
-      PaymentRepository,
+      BuyPaymentRepository,
+      SellPaymentRepository,
       LanguageRepository,
     ]),
   ],
