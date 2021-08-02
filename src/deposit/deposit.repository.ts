@@ -12,8 +12,8 @@ import { isNumber, isString } from 'class-validator';
 @EntityRepository(Deposit)
 export class DepositRepository extends Repository<Deposit> {
   async createDeposit(createDepositDto: CreateDepositDto): Promise<any> {
-    if (createDepositDto.id) delete createDepositDto['id'];
-    if (createDepositDto.created) delete createDepositDto['created'];
+    if (createDepositDto.id) delete createDepositDto.id;
+    if (createDepositDto.created) delete createDepositDto.created;
 
     const deposit = this.create(createDepositDto);
 

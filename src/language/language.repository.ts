@@ -13,8 +13,8 @@ import {
   export class LanguageRepository extends Repository<Language> {
     async createLanguage(createLanguageDto: CreateLanguageDto): Promise<any> {
       
-      if (createLanguageDto.id) delete createLanguageDto['id'];
-      if (createLanguageDto.created) delete createLanguageDto['created'];
+      if (createLanguageDto.id) delete createLanguageDto.id;
+      if (createLanguageDto.created) delete createLanguageDto.created;
   
       const language = this.create(createLanguageDto);
   

@@ -18,11 +18,11 @@ import { LanguageController } from 'src/language/language.controller';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
-  async createUser(createUserDto: CreateUserDto): Promise<any> {
-    if (createUserDto.id) delete createUserDto['id'];
-    if (createUserDto.role) delete createUserDto['role'];
-    if (createUserDto.ip) delete createUserDto['ip'];
-    if (createUserDto.created) delete createUserDto['created'];
+  async createUser(createUserDto: CreateUserDto): Promise<User> {
+    if (createUserDto.id) delete createUserDto.id;
+    if (createUserDto.role) delete createUserDto.role;
+    if (createUserDto.ip) delete createUserDto.ip;
+    if (createUserDto.created) delete createUserDto.created;
 
     let countryObject = null;
     let languageObject = null;
@@ -146,15 +146,15 @@ export class UserRepository extends Repository<User> {
     ) {
       //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
 
-      if (newUser.firstname) delete newUser['firstname'];
-      if (newUser.surname) delete newUser['surname'];
-      if (newUser.mail) delete newUser['mail'];
-      if (newUser.street) delete newUser['street'];
-      if (newUser.houseNumber) delete newUser['houseNumber'];
-      if (newUser.location) delete newUser['location'];
-      if (newUser.zip) delete newUser['zip'];
-      if (newUser.country) delete newUser['country'];
-      if (newUser.phone) delete newUser['phone'];
+      if (newUser.firstname) delete newUser.firstname;
+      if (newUser.surname) delete newUser.surname;
+      if (newUser.mail) delete newUser.mail;
+      if (newUser.street) delete newUser.street;
+      if (newUser.houseNumber) delete newUser.houseNumber;
+      if (newUser.location) delete newUser.location;
+      if (newUser.zip) delete newUser.zip;
+      if (newUser.country) delete newUser.country;
+      if (newUser.phone) delete newUser.phone;
     }
 
     if (newUser.country) {
@@ -197,10 +197,10 @@ export class UserRepository extends Repository<User> {
 
     user.country = countryObject;
     user.language = languageObject;
-    delete user['address'];
-    delete user['signature'];
-    delete user['ip'];
-    if (user.role != UserRole.VIP) delete user['role'];
+    delete user.address;
+    delete user.signature;
+    delete user.ip;
+    if (user.role != UserRole.VIP) delete user.role;
 
     if (
       user.status == UserStatus.ACTIVE ||
@@ -209,7 +209,7 @@ export class UserRepository extends Repository<User> {
     ) {
       return user;
     } else {
-      delete user['ref'];
+      delete user.ref;
       return user;
     }
   }

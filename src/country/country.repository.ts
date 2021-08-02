@@ -13,8 +13,8 @@ import { isString } from 'class-validator';
 export class CountryRepository extends Repository<Country> {
   async createCountry(createCountryDto: CreateCountryDto): Promise<any> {
     
-    if (createCountryDto.id) delete createCountryDto['id'];
-    if (createCountryDto.created) delete createCountryDto['created'];
+    if (createCountryDto.id) delete createCountryDto.id;
+    if (createCountryDto.created) delete createCountryDto.created;
 
     const country = this.create(createCountryDto);
 

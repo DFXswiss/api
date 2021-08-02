@@ -12,8 +12,8 @@ import { isString } from 'class-validator';
 @EntityRepository(Asset)
 export class AssetRepository extends Repository<Asset> {
   async createAsset(createAssetDto: CreateAssetDto): Promise<any> {
-    if (createAssetDto.id) delete createAssetDto['id'];
-    if (createAssetDto.created) delete createAssetDto['created'];
+    if (createAssetDto.id) delete createAssetDto.id;
+    if (createAssetDto.created) delete createAssetDto.created;
 
     const asset = this.create(createAssetDto);
 

@@ -9,8 +9,8 @@ import { isNumber, isString } from "class-validator";
 export class FiatRepository extends Repository<Fiat> {
     async createFiat(createFiatDto: CreateFiatDto): Promise<any> {
    
-        if(createFiatDto.id) delete createFiatDto["id"];
-        if (createFiatDto.created) delete createFiatDto['created'];
+        if(createFiatDto.id) delete createFiatDto.id;
+        if (createFiatDto.created) delete createFiatDto.created;
 
         const fiat = this.create(createFiatDto);
 

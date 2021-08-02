@@ -16,8 +16,8 @@ import { UserRepository } from 'src/user/user.repository';
 @EntityRepository(Sell)
 export class SellRepository extends Repository<Sell> {
   async createSell(createSellDto: CreateSellDto): Promise<any> {
-    if (createSellDto.id) delete createSellDto['id'];
-    if (createSellDto.created) delete createSellDto['created'];
+    if (createSellDto.id) delete createSellDto.id;
+    if (createSellDto.created) delete createSellDto.created;
 
     const userObject = await getManager()
       .getCustomRepository(UserRepository)
@@ -44,8 +44,8 @@ export class SellRepository extends Repository<Sell> {
 
       sell.fiat = fiatObject;
       sell.deposit = depositObject;
-      delete sell['user'];
-      delete sell['address'];
+      delete sell.user;
+      delete sell.address;
     }
     return sell;
   }
@@ -72,8 +72,8 @@ export class SellRepository extends Repository<Sell> {
           .getCustomRepository(DepositRepository)
           .getDeposit(sell.deposit);
       }
-      delete sell['user'];
-      delete sell['address'];
+      delete sell.user;
+      delete sell.address;
 
       return sell;
     } catch (error) {
@@ -95,8 +95,8 @@ export class SellRepository extends Repository<Sell> {
           sell[a].deposit = await getManager()
             .getCustomRepository(DepositRepository)
             .getDeposit(sell[a].deposit);
-          delete sell[a]['user'];
-          delete sell[a]['address'];
+          delete sell[a].user;
+          delete sell[a].address;
         }
       }
 
@@ -123,8 +123,8 @@ export class SellRepository extends Repository<Sell> {
           .getCustomRepository(DepositRepository)
           .getDeposit(sell.deposit);
       }
-      delete sell['user'];
-      delete sell['address'];
+      delete sell.user;
+      delete sell.address;
       return sell;
     }
 

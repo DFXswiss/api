@@ -21,15 +21,15 @@ export class UserService {
     private userRepository: UserRepository,
   ) {}
 
-  async createUser(createUserDto: CreateUserDto): Promise<any> {
-    const user = this.userRepository.createUser(createUserDto);
+  async createUser(createUserDto: CreateUserDto): Promise<User> {
+    const user = await this.userRepository.createUser(createUserDto);
 
-    delete user['address'];
-    delete user['signature'];
-    delete user['ip'];
-    delete user['ref'];
-    delete user['role'];
-    delete user['status'];
+    delete user.address;
+    delete user.signature;
+    delete user.ip;
+    delete user.ref;
+    delete user.role;
+    delete user.status;
 
     return user;
   }
@@ -47,14 +47,14 @@ export class UserService {
         .getLanguage(user.language);
     }
 
-    delete user['address'];
-    delete user['signature'];
-    delete user['ip'];
-    if (user.role != UserRole.VIP) delete user['role'];
+    delete user.address;
+    delete user.signature;
+    delete user.ip;
+    if (user.role != UserRole.VIP) delete user.role;
     if (user.status == 'Active' || user.status == 'KYC') {
       return user;
     } else {
-      delete user['ref'];
+      delete user.ref;
       return user;
     }
   }
@@ -78,7 +78,7 @@ export class UserService {
 
     if (user.buys) {
       for (let a = 0; a < user.buys.length; a++) {
-        delete user.buys[a]['user'];
+        delete user.buys[a].user;
         user.buys[a].asset = await getManager()
           .getCustomRepository(AssetRepository)
           .getAsset(user.buys[a].asset);
@@ -91,21 +91,21 @@ export class UserService {
 
     if (user.sells) {
       for (let a = 0; a < user.sells.length; a++) {
-        delete user.sells[a]['user'];
+        delete user.sells[a].user;
         user.sells[a].fiat = await getManager()
           .getCustomRepository(FiatRepository)
           .getFiat(user.sells[a].fiat);
       }
     }
 
-    delete user['address'];
-    delete user['signature'];
-    delete user['ip'];
-    if (user.role != UserRole.VIP) delete user['role'];
+    delete user.address;
+    delete user.signature;
+    delete user.ip;
+    if (user.role != UserRole.VIP) delete user.role;
     if (user.status == 'Active' || user.status == 'KYC') {
       return user;
     } else {
-      delete user['ref'];
+      delete user.ref;
       return user;
     }
   }
@@ -119,14 +119,14 @@ export class UserService {
     const user = this.userRepository.updateUser(oldUser, newUser);
 
     //TODO
-    // delete user["signature"];
-    // delete user["ip"];
+    // delete user.signature;
+    // delete user.ip;
 
     // if(user){
     //     if(user.status == "Active" || user.status == "KYC"){
     //         return user;
     //     }else{
-    //         delete user["ref"];
+    //         delete user.ref;
     //         return user;
     //     }
     // }

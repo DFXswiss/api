@@ -13,8 +13,7 @@ export class AuthService {
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
-    const signUpResult = await this.userRepository.createUser(createUserDto);
-    if (signUpResult.statusCode) return signUpResult;
+    await this.userRepository.createUser(createUserDto);
 
     return this.signIn(createUserDto);
   }

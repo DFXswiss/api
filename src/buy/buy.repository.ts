@@ -15,8 +15,8 @@ import { NotFoundException } from '@nestjs/common';
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
   async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
-    if (createBuyDto.id) delete createBuyDto['id'];
-    if (createBuyDto.created) delete createBuyDto['created'];
+    if (createBuyDto.id) delete createBuyDto.id;
+    if (createBuyDto.created) delete createBuyDto.created;
 
     const assetObject = await getManager()
       .getCustomRepository(AssetRepository)
@@ -45,8 +45,8 @@ export class BuyRepository extends Repository<Buy> {
           .getCustomRepository(AssetRepository)
           .save(assetObject);
 
-        delete buy['address'];
-        delete buy['user'];
+        delete buy.address;
+        delete buy.user;
         return buy;
       }
     } catch (error) {
@@ -65,8 +65,8 @@ export class BuyRepository extends Repository<Buy> {
           );
         buy.active = updateBuyDto.active;
         await this.save(buy);
-        delete buy['address'];
-        delete buy['user'];
+        delete buy.address;
+        delete buy.user;
         buy.asset = await getManager()
           .getCustomRepository(AssetRepository)
           .getAsset(buy.asset);
@@ -97,8 +97,8 @@ export class BuyRepository extends Repository<Buy> {
         if (buy.address != address)
           throw new ForbiddenException('You can only get your own sell route');
 
-        delete buy['address'];
-        delete buy['user'];
+        delete buy.address;
+        delete buy.user;
         buy.asset = await getManager()
           .getCustomRepository(AssetRepository)
           .getAsset(buy.asset);
@@ -121,8 +121,8 @@ export class BuyRepository extends Repository<Buy> {
             .getCustomRepository(AssetRepository)
             .getAsset(buy[a].asset);
 
-          delete buy[a]['address'];
-          delete buy[a]['user'];
+          delete buy[a].address;
+          delete buy[a].user;
         }
       }
 

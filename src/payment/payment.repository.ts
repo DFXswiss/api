@@ -19,8 +19,8 @@ import {
   export class PaymentRepository extends Repository<Payment> {
     async createPayment(createPaymentDto: CreatePaymentDto): Promise<any> {
 
-        if (createPaymentDto.id) delete createPaymentDto['id'];
-        if (createPaymentDto.created) delete createPaymentDto['created'];
+        if (createPaymentDto.id) delete createPaymentDto.id;
+        if (createPaymentDto.created) delete createPaymentDto.created;
 
         const fiatObject = await getManager()
         .getCustomRepository(FiatRepository)
@@ -45,8 +45,8 @@ import {
 
     async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
 
-        if (createPaymentDto.id) delete createPaymentDto['id'];
-        if (createPaymentDto.created) delete createPaymentDto['created'];
+        if (createPaymentDto.id) delete createPaymentDto.id;
+        if (createPaymentDto.created) delete createPaymentDto.created;
 
         let assetObject = null;
         let fiatObject = null;
@@ -108,8 +108,8 @@ import {
 
     async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any> {
 
-        if (createPaymentDto.id) delete createPaymentDto['id'];
-        if (createPaymentDto.created) delete createPaymentDto['created'];
+        if (createPaymentDto.id) delete createPaymentDto.id;
+        if (createPaymentDto.created) delete createPaymentDto.created;
 
         let assetObject = null;
         let fiatObject = null;
