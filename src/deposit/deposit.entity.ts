@@ -9,9 +9,9 @@ export class Deposit {
   @Column({ type: 'varchar', unique: true, length: 42 })
   address: string;
 
-  @Column({ type: 'tinyint', default: false })
+  @Column({ default: false })
   used: boolean;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn() 
   created: Date;
 }

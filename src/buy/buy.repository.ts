@@ -22,7 +22,7 @@ export class BuyRepository extends Repository<Buy> {
       .getCustomRepository(AssetRepository)
       .getAsset(createBuyDto.asset);
 
-    var hash = sha256.create();
+    const hash = sha256.create();
     hash.update(
       createBuyDto.user.address + assetObject.name + createBuyDto.iban,
     );

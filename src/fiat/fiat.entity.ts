@@ -9,9 +9,9 @@ export class Fiat {
   @Column({ type: 'varchar', unique: true, length: 34 })
   name: string;
 
-  @Column({ type: 'tinyint',  default: 1 })
+  @Column({ default: 1 })
   enable: boolean;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn() 
   created: Date;
 }

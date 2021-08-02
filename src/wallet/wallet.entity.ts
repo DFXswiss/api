@@ -19,7 +19,7 @@ export class Wallet {
   @Column({ type: 'varchar', length: 40, default: '' })
   description: string;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn() 
   created: Date;
 
 }
