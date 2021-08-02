@@ -16,44 +16,12 @@ import {
   import { BuyRepository } from 'src/buy/buy.repository';
 import { PaymentError, PaymentStatus } from './payment.entity';
 
-<<<<<<< HEAD:src/payment/payment-buy.repository.ts
   @EntityRepository(BuyPayment)
   export class BuyPaymentRepository extends Repository<BuyPayment> {
     async createPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
-=======
-  @EntityRepository(Payment)
-  export class PaymentRepository extends Repository<Payment> {
-    async createPayment(createPaymentDto: CreatePaymentDto): Promise<any> {
 
-        if (createPaymentDto.id) delete createPaymentDto.id;
-        if (createPaymentDto.created) delete createPaymentDto.created;
-
-        const fiatObject = await getManager()
-        .getCustomRepository(FiatRepository)
-        .getFiat(createPaymentDto.fiat);
-
-        const assetObject = await getManager()
-        .getCustomRepository(AssetRepository)
-        .getAsset(createPaymentDto.asset);
-
-        createPaymentDto.asset = assetObject.id;
-        createPaymentDto.fiat = fiatObject.id;
-
-        const payment = this.create(createPaymentDto);
-
-        if (payment) {
-            await this.save(payment);
-            payment.fiat = fiatObject;
-            payment.asset = assetObject
-        }
-        return payment;
-    }
-
-    async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
->>>>>>> 2844b291f14c932e3ca5bfd692f834b8f4beb66a:src/payment/payment.repository.ts
-
-        if (createPaymentDto.id) delete createPaymentDto.id;
-        if (createPaymentDto.created) delete createPaymentDto.created;
+        if (createPaymentDto.id) delete createPaymentDto['id'];
+        if (createPaymentDto.created) delete createPaymentDto['created'];
 
         let assetObject = null;
         let fiatObject = null;
@@ -100,71 +68,6 @@ import { PaymentError, PaymentStatus } from './payment.entity';
             createPaymentDto.errorCode = PaymentError.BANKUSAGE;
         }
 
-<<<<<<< HEAD:src/payment/payment-buy.repository.ts
-=======
-        createPaymentDto.type = PaymentType.BUY;
-
-        const payment = this.create(createPaymentDto);
-
-        if (payment) {
-            await this.save(payment);
-            payment.fiat = fiatObject;
-            payment.asset = assetObject
-        }
-        return payment;
-
-    }
-
-    async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any> {
-
-        if (createPaymentDto.id) delete createPaymentDto.id;
-        if (createPaymentDto.created) delete createPaymentDto.created;
-
-        let assetObject = null;
-        let fiatObject = null;
-        const assetIndex = null;
-
-        if(createPaymentDto.fiat){
-            try{
-                fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createPaymentDto.fiat);
-
-                createPaymentDto.fiat = fiatObject.id;
-            }catch{
-                createPaymentDto.info = "Wrong Fiat: " + createPaymentDto.fiat;
-                createPaymentDto.fiat = null;
-                createPaymentDto.errorCode = PaymentError.FIAT;
-            }
-        }else{
-            createPaymentDto.info = "Wrong Fiat: " + createPaymentDto.fiat;
-            createPaymentDto.fiat = null;
-            createPaymentDto.errorCode = PaymentError.FIAT;
-        }
-
-        if(createPaymentDto.asset){
-            try{
-                assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(assetIndex);
-
-                if(assetObject.buyable == 1){
-                    createPaymentDto.asset = assetObject.id;
-                }else{
-                    createPaymentDto.info = "Asset not buyable: " + createPaymentDto.asset;
-                    createPaymentDto.asset = null;
-                    createPaymentDto.errorCode = PaymentError.ASSET;
-                }
-            }catch{
-                createPaymentDto.info = "Wrong Asset: " + createPaymentDto.asset;
-                createPaymentDto.asset = null;
-                createPaymentDto.errorCode = PaymentError.ASSET; 
-            }
-        }else{
-            createPaymentDto.info = "Wrong Asset: " + createPaymentDto.asset;
-            createPaymentDto.asset = null;
-            createPaymentDto.errorCode = PaymentError.ASSET;
-        }
-
-        createPaymentDto.type = PaymentType.SELL;
-
->>>>>>> 2844b291f14c932e3ca5bfd692f834b8f4beb66a:src/payment/payment.repository.ts
         const payment = this.create(createPaymentDto);
 
         if (payment) {
