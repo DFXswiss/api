@@ -113,7 +113,7 @@ import {
 
         let assetObject = null;
         let fiatObject = null;
-        let assetIndex = null;
+        const assetIndex = null;
 
         if(createPaymentDto.fiat){
             try{

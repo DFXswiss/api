@@ -22,10 +22,10 @@ import {
     @Column({ type: 'varchar', length: 34 })
     foreignName: string; 
   
-    @Column({ type: 'tinyint', default: 1 })
+    @Column({ default: 1 })
     enable: boolean;
   
-    @CreateDateColumn({ name: 'created'}) 
+    @CreateDateColumn() 
     created: Date;
   }
   

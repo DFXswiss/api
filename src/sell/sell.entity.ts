@@ -28,12 +28,12 @@ export class Sell {
   @Column({ type: 'int', unique: true })
   deposit: number;
 
-  @Column({ type: 'tinyint', default: 1 })
+  @Column({ default: 1 })
   active: boolean;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn() 
   created: Date;
 
-  @ManyToOne(() => User, (user) => user.sells) 
+  @ManyToOne(() => User, (user) => user.sells, { nullable: false}) 
   user: User;
 }

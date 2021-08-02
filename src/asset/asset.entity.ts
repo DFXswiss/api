@@ -17,12 +17,12 @@ export class Asset {
   @Column({ type: 'varchar', length: 32 })
   type: AssetType;
 
-  @Column({ type: 'tinyint', default: 1 })
+  @Column({ default: 1 })
   buyable: boolean;
 
-  @Column({ type: 'tinyint', default: 1 })
+  @Column({ default: 1 })
   sellable: boolean;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn() 
   created: Date;
 }

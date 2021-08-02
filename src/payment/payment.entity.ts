@@ -68,6 +68,6 @@ export class Payment {
   @Column({ type: 'varchar', default: PaymentError.NULL})
   errorCode: PaymentError;
 
-  @CreateDateColumn({ name: 'created' })
+  @CreateDateColumn()
   created: Date;
 }

@@ -32,12 +32,12 @@ export class Buy {
   @Column({ type: 'varchar', length: 14, unique: true })
   bankUsage: string;
 
-  @Column({ type: 'tinyint', default: 1 })
+  @Column({ default: 1 })
   active: boolean;
 
-  @CreateDateColumn({ name: 'created' })
+  @CreateDateColumn()
   created: Date;
 
-  @ManyToOne(() => User, (user) => user.buys)
+  @ManyToOne(() => User, (user) => user.buys, { nullable: false })
   user: User;
 }

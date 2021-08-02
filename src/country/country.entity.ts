@@ -12,9 +12,9 @@ export class Country {
   @Column({ type: 'varchar', length: 34 })
   name: string;
 
-  @Column({ type: 'tinyint', default: 1 })
+  @Column({ default: 1 })
   enable: boolean;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn() 
   created: Date;
 }
