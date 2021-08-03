@@ -9,7 +9,7 @@ import {
   import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
   import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   import { UpdatePaymentDto } from './dto/update-payment.dto';
-  import { PaymentError, PaymentStatus, PaymentType } from './payment.entity';
+  import { PaymentError, PaymentStatus } from './payment.entity';
   import { SellPayment } from './payment-sell.entity';
   import { FiatRepository } from 'src/fiat/fiat.repository';
   import { getManager } from 'typeorm';
@@ -65,8 +65,6 @@ import {
             createPaymentDto.asset = null;
             createPaymentDto.errorCode = PaymentError.ASSET;
         }
-
-        createPaymentDto.type = PaymentType.SELL;
 
         const payment = this.create(createPaymentDto);
 

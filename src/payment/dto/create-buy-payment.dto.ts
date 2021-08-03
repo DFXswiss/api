@@ -1,6 +1,6 @@
 import { ApiProperty,  } from "@nestjs/swagger";
 import {   IsInt, IsNumber, IsOptional,  IsString, Length, IsBoolean, IsNotEmpty } from "class-validator";
-import { PaymentError, PaymentStatus, PaymentType } from "../payment.entity";
+import { PaymentError, PaymentStatus } from "../payment.entity";
 
 export class CreateBuyPaymentDto {
 
@@ -13,10 +13,6 @@ export class CreateBuyPaymentDto {
     userId: number;
 
     @IsOptional()
-    @IsString()
-    type: PaymentType;
-
-    @IsOptional()
     @Length(34,34)
     address: string;
 
@@ -24,6 +20,18 @@ export class CreateBuyPaymentDto {
     @IsNotEmpty()
     @IsString()
     iban: string;
+
+    @IsOptional()
+    @IsString()
+    location: string;
+
+    @IsOptional()
+    @IsString()
+    name: string;
+
+    @IsOptional()
+    @IsString()
+    country: string;
 
     @ApiProperty()
     @IsNotEmpty()
