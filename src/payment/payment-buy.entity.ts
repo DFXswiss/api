@@ -17,14 +17,14 @@ export class BuyPayment extends Payment{
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   iban: string;
-  
-  @Column({ type: 'varchar', length: 300, nullable: true })
-  location: string;
 
-  @Column({ type: 'varchar', length: 300, nullable: true })
-  name: string;
+  //@Column({ type: 'varchar', length: 300, nullable: true })
+  //location: string;
 
-  @Column({ type: 'varchar', length: 300, nullable: true })
-  country: string;
+  //@Column({ type: 'varchar', length: 300, nullable: true })
+  //name: string;
+
+  //@Column({ type: 'varchar', length: 300, nullable: true })
+  //country: string;
 
 }

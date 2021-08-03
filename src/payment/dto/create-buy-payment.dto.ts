@@ -21,14 +21,17 @@ export class CreateBuyPaymentDto {
     @IsString()
     iban: string;
 
+    @ApiProperty()
     @IsOptional()
     @IsString()
     location: string;
 
+    @ApiProperty()
     @IsOptional()
     @IsString()
     name: string;
 
+    @ApiProperty()
     @IsOptional()
     @IsString()
     country: string;
