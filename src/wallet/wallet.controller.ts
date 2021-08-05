@@ -46,7 +46,7 @@ export class WalletController {
   @ApiExcludeEndpoint()
   @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  createWallet(@Body() createWalletDto: CreateWalletDto): Promise<void> {
+  createWallet(@Body() createWalletDto: CreateWalletDto): Promise<any> {
     return this.walletService.createWallet(createWalletDto);
   }
 
@@ -54,7 +54,7 @@ export class WalletController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateWalletRoute(@Body() wallet: UpdateWalletDto) {
+  async updateWalletRoute(@Body() wallet: UpdateWalletDto): Promise<any> {
     return this.walletService.updateWallet(wallet);
   }
 }
