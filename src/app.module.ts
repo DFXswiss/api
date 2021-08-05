@@ -46,6 +46,9 @@ import { PaymentService } from './payment/payment.service';
 import { LanguageService } from './language/language.service';
 import { LanguageRepository } from './language/language.repository';
 import { LanguageController } from './language/language.controller';
+import { UserDataRepository } from './userData/userData.repository';
+import { UserDataController } from './userData/userData.controller';
+import { UserDataService } from './userData/userData.service';
 
 @Module({
   imports: [
@@ -85,6 +88,7 @@ import { LanguageController } from './language/language.controller';
       BuyPaymentRepository,
       SellPaymentRepository,
       LanguageRepository,
+      UserDataRepository,
     ]),
   ],
   controllers: [
@@ -104,6 +108,7 @@ import { LanguageController } from './language/language.controller';
     PaymentController,
     AllDataController,
     LanguageController,
+    UserDataController,
   ],
   providers: [
     UserService,
@@ -121,6 +126,7 @@ import { LanguageController } from './language/language.controller';
     PaymentService,
     AllDataService,
     LanguageService,
+    UserDataService,
   ],
   exports: [
     UserService,
@@ -140,6 +146,7 @@ import { LanguageController } from './language/language.controller';
     PaymentService,
     AllDataService,
     LanguageService,
+    UserDataService,
   ],
 })
 export class AppModule {}

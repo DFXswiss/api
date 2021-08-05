@@ -8,9 +8,11 @@ import {
   CreateDateColumn,
   ManyToOne,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
 @Entity()
+@Index('nameLocation', (userData: UserData) => [userData.name, userData.location], { unique: true })
 export class UserData {
   @PrimaryGeneratedColumn()
   id: number;
