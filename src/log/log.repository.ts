@@ -1,8 +1,8 @@
-import { InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { EntityRepository, getManager, Repository } from "typeorm";
 import { CreateLogDto } from "./dto/create-log.dto";
 import { UpdateLogDto } from "./dto/update-log.dto";
-import { Log, LogDirection, LogStatus } from "./log.entity";
+import { Log, LogDirection, LogStatus, LogType } from "./log.entity";
 import { isNumber, isString } from "class-validator";
 import { FiatRepository } from "src/fiat/fiat.repository";
 import { AssetRepository } from "src/asset/asset.repository";
@@ -14,9 +14,9 @@ export class LogRepository extends Repository<Log> {
         if(createLogDto.id) delete createLogDto.id;
         if(createLogDto.orderId) delete createLogDto.orderId;
         if (createLogDto.created) delete createLogDto.created;
-        if(!createLogDto.type || (createLogDto.type != "Info" && createLogDto.type != "Transaction")) return {"statusCode" : 400, "message": [ "type must be Info or Transaction"]};
-        if(createLogDto.status && (createLogDto.status != LogStatus.fiatDeposit && createLogDto.status != LogStatus.fiat2btc && createLogDto.status != LogStatus.btc2dfi && createLogDto.status != LogStatus.dfi2asset && createLogDto.status != LogStatus.assetWithdrawal && createLogDto.status != LogStatus.assetDeposit && createLogDto.status != LogStatus.btc2fiat && createLogDto.status != LogStatus.dfi2btc && createLogDto.status != LogStatus.asset2dfi && createLogDto.status != LogStatus.fiatWithdrawal)) return {"statusCode" : 400, "message": [ "wrong status"]};
-        if(createLogDto.direction && (createLogDto.direction != LogDirection.fiat2asset && createLogDto.direction != LogDirection.asset2fiat)) return {"statusCode" : 400, "message": [ "wrong direction"]};
+        if(!createLogDto.type || (createLogDto.type != LogType.INFO && createLogDto.type != LogType.TRANSACTION)) throw new BadRequestException('type must be Info or Transaction');
+        if(createLogDto.status && (createLogDto.status != LogStatus.fiatDeposit && createLogDto.status != LogStatus.fiat2btc && createLogDto.status != LogStatus.btc2dfi && createLogDto.status != LogStatus.dfi2asset && createLogDto.status != LogStatus.assetWithdrawal && createLogDto.status != LogStatus.assetDeposit && createLogDto.status != LogStatus.btc2fiat && createLogDto.status != LogStatus.dfi2btc && createLogDto.status != LogStatus.asset2dfi && createLogDto.status != LogStatus.fiatWithdrawal)) throw new BadRequestException('wrong status');
+        if(createLogDto.direction && (createLogDto.direction != LogDirection.fiat2asset && createLogDto.direction != LogDirection.asset2fiat)) throw new BadRequestException('wrong direction');
 
         let fiatObject = null;
         let assetObject = null;
@@ -24,8 +24,8 @@ export class LogRepository extends Repository<Log> {
         if(createLogDto.fiat) fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createLogDto.fiat);
         if(createLogDto.asset) assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(createLogDto.asset);
 
-        createLogDto.fiat = fiatObject.id;
-        createLogDto.asset = assetObject.id;
+        if(fiatObject) createLogDto.fiat = fiatObject.id;
+        if(assetObject) createLogDto.asset = assetObject.id;
 
         createLogDto.orderId = createLogDto.address + ":" + new Date().toISOString();
 
@@ -48,14 +48,6 @@ export class LogRepository extends Repository<Log> {
         return await this.find();
     }
 
-    // async updateLog(log: UpdateLogDto): Promise<any> {
-    //     const currentLog = await this.findOne({ "id" : log.id });
-        
-    //     if(!currentLog) return {"statusCode" : 400, "message": [ "No matching deposit address for id found"]};
-
-    //     return await this.save(log);
-    // }
-
     async getLog(key: any): Promise<any> {
 
         if(!isNaN(key.key)){
@@ -72,8 +64,8 @@ export class LogRepository extends Repository<Log> {
             log = await this.findOne({ "orderId" : key.key });
             
             if(log) return log;
-                
-            return {"statusCode" : 400, "message": [ "No matching log found"]};
+             
+            throw new NotFoundException('No matching log for id found');
         }
     }
 }

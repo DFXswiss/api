@@ -5,6 +5,7 @@ import {
     PrimaryColumn,
     Index,
     CreateDateColumn,
+    UpdateDateColumn,
   } from 'typeorm';
   import * as typeorm from 'typeorm';
   
@@ -41,6 +42,9 @@ export abstract class Payment {
     @Column({ type: 'int', nullable: true })
     fiat: number;
 
+    @Column({ type: 'float', nullable: true })
+    fiatInCHF: number;
+
     @Column({ type: 'int', nullable: true })
     asset: number;
 
@@ -52,6 +56,9 @@ export abstract class Payment {
   
     @Column({ type: 'varchar', default: PaymentError.NULL})
     errorCode: PaymentError;
+
+    @UpdateDateColumn()
+    updated: Date;
   
     @CreateDateColumn()
     created: Date;

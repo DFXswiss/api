@@ -5,9 +5,7 @@ import {
     BadRequestException,
   } from '@nestjs/common';
   import { EntityRepository, Repository } from 'typeorm';
-  import { CreatePaymentDto } from './dto/create-payment.dto';
   import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
-  import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
   import { UpdatePaymentDto } from './dto/update-payment.dto';
   import { BuyPayment } from './payment-buy.entity';
   import { FiatRepository } from 'src/fiat/fiat.repository';
@@ -15,6 +13,9 @@ import {
   import { AssetRepository } from 'src/asset/asset.repository';
   import { BuyRepository } from 'src/buy/buy.repository';
 import { PaymentError, PaymentStatus } from './payment.entity';
+import { LogRepository } from 'src/log/log.repository';
+import { CreateLogDto } from 'src/log/dto/create-log.dto';
+import { LogDirection, LogStatus, LogType } from 'src/log/log.entity';
 
   @EntityRepository(BuyPayment)
   export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -45,11 +46,9 @@ import { PaymentError, PaymentStatus } from './payment.entity';
 
             if(!buy.iban || !createPaymentDto.iban){
                 createPaymentDto.info = "Missing IBAN: " + createPaymentDto.iban + ", " + buy.iban;
-                createPaymentDto.iban = null;
                 createPaymentDto.errorCode = PaymentError.IBAN;
             }else if(buy.iban != createPaymentDto.iban){
                 createPaymentDto.info = "Wrong IBAN: " + createPaymentDto.iban + " instead of " + buy.iban;
-                createPaymentDto.iban = null;
                 createPaymentDto.errorCode = PaymentError.IBAN;
             }
 
@@ -59,14 +58,62 @@ import { PaymentError, PaymentStatus } from './payment.entity';
                 createPaymentDto.asset = assetObject.id;
             }else{
                 createPaymentDto.info = "Asset not buyable: " + createPaymentDto.asset;
-                createPaymentDto.asset = null;
                 createPaymentDto.errorCode = PaymentError.ASSET;
             }
         }else{
-            createPaymentDto.info = "Wrong BankUsage: " + createPaymentDto.bankUsage;
+
+            createPaymentDto.info = "";
+
+            const currentPayment = await this.find({ "iban": createPaymentDto.iban, "errorCode": PaymentError.NULL });
+
+            if(!currentPayment){
+
+                const currentBuy = await getManager().getCustomRepository(BuyRepository).find({ "iban" : createPaymentDto.iban });
+
+                if(currentBuy){
+
+                    createPaymentDto.info = "UserID: " + currentBuy[0].user.id;
+                    createPaymentDto.info += "; User Name: " + createPaymentDto.name;
+                    createPaymentDto.info += "; User Location: " + createPaymentDto.location;
+                    createPaymentDto.info += "; User Country: " + createPaymentDto.country;
+
+                    for(let a = 0; a < currentBuy.length;a++){
+                        if(currentBuy[a].user.mail){
+                            createPaymentDto.info += "; User Mail: " + currentBuy[a].user.mail
+                            if(!currentBuy[a].user.phone) break;
+                        }
+                        if(currentBuy[a].user.phone){
+                            createPaymentDto.info += "; User Phonenumber: " + currentBuy[a].user.phone
+                            break;
+                        }
+                    }
+                }
+
+            }else{
+                //TODO Über Referenzierung User holen und Mail, phone, userId in Info schreiben
+            }
+
+            createPaymentDto.info = "; Wrong BankUsage: " + createPaymentDto.bankUsage;
             createPaymentDto.asset = null;
             createPaymentDto.errorCode = PaymentError.BANKUSAGE;
         }
+
+        let logDto : CreateLogDto = new CreateLogDto;
+        logDto.status = LogStatus.fiatDeposit;
+        if(fiatObject) logDto.fiat = fiatObject.id;
+        logDto.fiatValue = createPaymentDto.fiatValue;
+        logDto.iban = createPaymentDto.iban;
+        logDto.direction = LogDirection.fiat2asset;
+        logDto.type = LogType.TRANSACTION;
+        logDto.address = createPaymentDto.address;
+
+        //TODO User refrenzieren in log? 
+
+        if(createPaymentDto.info){
+            logDto.message = createPaymentDto.info;
+        }
+
+        await getManager().getCustomRepository(LogRepository).createLog(logDto);
 
         const payment = this.create(createPaymentDto);
 

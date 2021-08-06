@@ -6,6 +6,11 @@ export enum LogDirection {
   asset2fiat = 'asset-to-fiat',
 }
 
+export enum LogType {
+  INFO = 'Info',
+  TRANSACTION = 'Transaction',
+}
+
 export enum LogStatus {
   fiatDeposit = 'fiat-deposit',
   fiat2btc = 'fiat-to-btc',
@@ -31,7 +36,7 @@ export class Log {
   address: string;
 
   @Column({ type: 'varchar' })
-  type: string;
+  type: LogType;
 
   @Column({ type: 'varchar', nullable: true })
   status: LogStatus;
@@ -54,7 +59,7 @@ export class Log {
   @Column({ type: 'varchar', nullable: true })
   direction: LogDirection;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', nullable: true })
   message: string;
 
   @CreateDateColumn({ name: 'created'}) 
