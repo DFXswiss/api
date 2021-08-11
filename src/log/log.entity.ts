@@ -32,7 +32,7 @@ export class Log {
   @Column({ type: 'varchar', unique: true })
   orderId: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', nullable: true })
   address: string;
 
   @Column({ type: 'varchar' })
@@ -62,6 +62,6 @@ export class Log {
   @Column({ type: 'varchar', nullable: true })
   message: string;
 
-  @CreateDateColumn({ name: 'created'}) 
+  @CreateDateColumn() 
   created: Date;
 }
