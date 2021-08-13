@@ -31,11 +31,6 @@ export class CreateUserDataDto {
   @IsString()
   country: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  monthlyValue: number;
-
   @IsString()
   @IsOptional()
   updated: Date;

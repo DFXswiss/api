@@ -10,10 +10,11 @@ import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { getManager } from 'typeorm';
 import { UserData } from './userData.entity';
 import { CountryRepository } from 'src/country/country.repository';
+import { isString } from 'class-validator';
   
   @EntityRepository(UserData)
   export class UserDataRepository extends Repository<UserData> {
-    async createUser(createUserDto: CreateUserDataDto): Promise<UserData> {
+    async createUserData(createUserDto: CreateUserDataDto): Promise<UserData> {
         if (createUserDto.id) delete createUserDto.id;
         if (createUserDto.updated) delete createUserDto.updated;
         if (createUserDto.created) delete createUserDto.created;
@@ -46,7 +47,7 @@ import { CountryRepository } from 'src/country/country.repository';
         return await this.find();
     }
   
-    async updateUser(newUser: UpdateUserDataDto): Promise<any> {
+    async updateUserData(newUser: UpdateUserDataDto): Promise<any> {
 
         if(newUser.created) delete newUser.created;
         if(newUser.updated) delete newUser.updated;
@@ -64,20 +65,22 @@ import { CountryRepository } from 'src/country/country.repository';
         return Object.assign(currentUser, await this.save(newUser));
     }
 
-    async getUser(key: any): Promise<any> {
+    async getUserData(key: any): Promise<any> {
         
         if(!isNaN(key.key)){
             let userData = await this.findOne({ "id" : key.key });
             
-            if(userData) return userData;
+            return userData;
             
         }else if(!isNaN(key)){
             let userData = await this.findOne({ "id" : key });
             
-            if(userData) return userData;
+            return userData;
+        }else if(isString(key.name) && isString(key.location) && !isNaN(key.country)){
+            let userData = await this.findOne({ "name" : key.name, "location": key.location, "country": key.country });
+            
+           return userData;
         }
-
         throw new BadRequestException("key must be number or JSON-Object")
-
     }
   }

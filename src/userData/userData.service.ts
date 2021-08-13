@@ -16,15 +16,15 @@ export class UserDataService {
   ) {}
 
   async createUser(createUserDto: CreateUserDataDto): Promise<UserData> {
-    return await this.userRepository.createUser(createUserDto);
+    return await this.userRepository.createUserData(createUserDto);
   }
 
   async getUser(key: any): Promise<any> {
-    return this.userRepository.getUser(key);
+    return this.userRepository.getUserData(key);
   }
 
   async updateUserData(newUser: UpdateUserDataDto): Promise<any> {
-    return this.userRepository.updateUser(newUser);
+    return this.userRepository.updateUserData(newUser);
   }
 
   async getAllUserData(): Promise<any> {

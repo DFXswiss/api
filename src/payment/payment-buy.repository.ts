@@ -16,6 +16,10 @@ import { PaymentError, PaymentStatus } from './payment.entity';
 import { LogRepository } from 'src/log/log.repository';
 import { CreateLogDto } from 'src/log/dto/create-log.dto';
 import { LogDirection, LogStatus, LogType } from 'src/log/log.entity';
+import { CreateUserDataDto } from 'src/userData/dto/create-userData.dto';
+import { UserDataRepository } from 'src/userData/userData.repository';
+import { UpdateUserDataDto } from 'src/userData/dto/update-userData.dto';
+import { CountryRepository } from 'src/country/country.repository';
 
   @EntityRepository(BuyPayment)
   export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -96,6 +100,29 @@ import { LogDirection, LogStatus, LogType } from 'src/log/log.entity';
             createPaymentDto.info = "; Wrong BankUsage: " + createPaymentDto.bankUsage;
             createPaymentDto.asset = null;
             createPaymentDto.errorCode = PaymentError.BANKUSAGE;
+        }
+
+        if(!createPaymentDto.errorCode) {
+
+            createPaymentDto.country = (await getManager().getCustomRepository(CountryRepository).getCountry(createPaymentDto.country)).id;
+
+            let currentUserData = await getManager().getCustomRepository(UserDataRepository).getUserData(createPaymentDto);
+
+            //TODO Buy referenzieren in UserData
+
+            if(!currentUserData){
+                let createUserDataDto = new CreateUserDataDto;
+                createUserDataDto.name = createPaymentDto.name;
+                createUserDataDto.location = createPaymentDto.location;
+                createUserDataDto.country = createPaymentDto.country;
+
+                await getManager().getCustomRepository(UserDataRepository).createUserData(createUserDataDto);
+            }else{
+                let updateUserDataDto = new UpdateUserDataDto;
+                updateUserDataDto.id = currentUserData.id;
+
+                await getManager().getCustomRepository(UserDataRepository).updateUserData(updateUserDataDto); 
+            }
         }
 
         let logDto : CreateLogDto = new CreateLogDto;
