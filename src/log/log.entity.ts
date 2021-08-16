@@ -47,6 +47,9 @@ export class Log {
   @Column({ type: 'float', nullable: true })
   fiatValue: number;
 
+  @Column({ type: 'float', nullable: true })
+  fiatInCHF: number;
+
   @Column({ type: 'int', nullable: true })
   asset: number;
 

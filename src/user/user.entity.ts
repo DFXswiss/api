@@ -32,6 +32,8 @@ export class User {
   @Column({ type: 'varchar' })
   ref: string;
 
+  //TODO Varchar Längen nochmal überprüfen => nachher nicht änderbar => lieber auf 100 setzen und über dto limitieren?
+
   @Column({ type: 'varchar', length: 42, unique: true })
   address: string;
 

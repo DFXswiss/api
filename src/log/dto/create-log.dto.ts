@@ -39,6 +39,11 @@ export class CreateLogDto {
 
     @ApiProperty()
     @IsOptional()
+    @IsNumber()
+    fiatInCHF: number;
+
+    @ApiProperty()
+    @IsOptional()
     asset: number;
 
     @ApiProperty()

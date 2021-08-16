@@ -20,6 +20,7 @@ import { CreateUserDataDto } from 'src/userData/dto/create-userData.dto';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { UpdateUserDataDto } from 'src/userData/dto/update-userData.dto';
 import { CountryRepository } from 'src/country/country.repository';
+import * as requestPromise from 'request-promise-native';
 
   @EntityRepository(BuyPayment)
   export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -31,11 +32,39 @@ import { CountryRepository } from 'src/country/country.repository';
         let assetObject = null;
         let fiatObject = null;
         let buy = null;
+        let fiatValueInCHF = 0.0;
 
         try{
             fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createPaymentDto.fiat);
 
             createPaymentDto.fiat = fiatObject.id;
+
+            let baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/' + fiatObject.name.toLowerCase() + '.json';
+
+            const currentDate = new Date();
+            const receivedDate = new Date(createPaymentDto.received);
+
+            const isToday = (someDate) => {
+                const today = new Date()
+                return someDate.getDate() == today.getDate() &&
+                  someDate.getMonth() == today.getMonth() &&
+                  someDate.getFullYear() == today.getFullYear()
+            }
+
+            if(!isToday(receivedDate)){
+
+                baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/'+ receivedDate.toISOString().split('T')[0] + '/currencies/' + fiatObject.name.toLowerCase() + '.json';
+
+            }
+
+            var options = {
+              uri: baseUrl,
+            };
+        
+            const result = (await requestPromise.get(options));
+
+            createPaymentDto.fiatInCHF = Number.parseFloat(result.split("\"chf\": ")[1].split(",")[0]) * createPaymentDto.fiatValue;
+
         }catch{
             createPaymentDto.info = "Wrong Fiat: " + createPaymentDto.fiat;
             createPaymentDto.fiat = null;
@@ -110,6 +139,8 @@ import { CountryRepository } from 'src/country/country.repository';
 
             //TODO Buy referenzieren in UserData
 
+            //TODO Summe letzte 30 Tage checken
+
             if(!currentUserData){
                 let createUserDataDto = new CreateUserDataDto;
                 createUserDataDto.name = createPaymentDto.name;
@@ -133,6 +164,7 @@ import { CountryRepository } from 'src/country/country.repository';
         logDto.direction = LogDirection.fiat2asset;
         logDto.type = LogType.TRANSACTION;
         logDto.address = createPaymentDto.address;
+        logDto.fiatInCHF = createPaymentDto.fiatInCHF;
 
         //TODO User refrenzieren in log? 
 
@@ -224,4 +256,7 @@ import { CountryRepository } from 'src/country/country.repository';
 
         return payment;
     }
+
+    
+      
 }

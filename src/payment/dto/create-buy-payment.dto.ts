@@ -1,5 +1,5 @@
 import { ApiProperty,  } from "@nestjs/swagger";
-import {   IsInt, IsNumber, IsOptional,  IsString, Length, IsBoolean, IsNotEmpty } from "class-validator";
+import {   IsInt, IsNumber, IsOptional,  IsString, Length, IsBoolean, IsNotEmpty, IsDate, IsISO8601 } from "class-validator";
 import { PaymentError, PaymentStatus } from "../payment.entity";
 
 export class CreateBuyPaymentDto {
@@ -44,6 +44,15 @@ export class CreateBuyPaymentDto {
     @IsNotEmpty()
     @IsNumber()
     fiatValue: number;
+
+    @IsOptional()
+    @IsNumber()
+    fiatInCHF: number;
+
+    @ApiProperty()
+    @IsNotEmpty()
+    @IsISO8601()
+    received: Date;
 
     @IsOptional()
     asset: number;
