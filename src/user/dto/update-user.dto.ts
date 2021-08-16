@@ -15,7 +15,7 @@ export class UpdateUserDto {
   id: number;
 
   @IsNotEmpty()
-  @Length(34, 34)
+  @Length(34, 42)
   @IsString()
   address: string;
 
