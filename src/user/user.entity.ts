@@ -32,7 +32,7 @@ export class User {
   @Column({ type: 'varchar' })
   ref: string;
 
-  @Column({ type: 'varchar', length: 34, unique: true })
+  @Column({ type: 'varchar', length: 42, unique: true })
   address: string;
 
   @Column({ type: 'varchar', unique: true, length: 88 })
