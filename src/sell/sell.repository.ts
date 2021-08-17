@@ -64,13 +64,13 @@ export class SellRepository extends Repository<Sell> {
       const sell = await this.save(currentSell);
 
       if (sell) {
-        sell.fiat = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(sell.fiat);
+        // sell.fiat = await getManager()
+        //   .getCustomRepository(FiatRepository)
+        //   .getFiat(sell.fiat);
 
-        sell.deposit = await getManager()
-          .getCustomRepository(DepositRepository)
-          .getDeposit(sell.deposit);
+        // sell.deposit = await getManager()
+        //   .getCustomRepository(DepositRepository)
+        //   .getDeposit(sell.deposit);
       }
       delete sell.user;
       delete sell.address;
@@ -88,13 +88,10 @@ export class SellRepository extends Repository<Sell> {
 
       if (sell) {
         for (let a = 0; a < sell.length; a++) {
-          sell[a].fiat = await getManager()
-            .getCustomRepository(FiatRepository)
-            .getFiat(sell[a].fiat);
 
-          sell[a].deposit = await getManager()
-            .getCustomRepository(DepositRepository)
-            .getDeposit(sell[a].deposit);
+          // sell[a].deposit = await getManager()
+          //   .getCustomRepository(DepositRepository)
+          //   .getDeposit(sell[a].deposit);
           delete sell[a].user;
           delete sell[a].address;
         }
@@ -115,13 +112,13 @@ export class SellRepository extends Repository<Sell> {
         if (sell.address != address)
           throw new ForbiddenException('You can only get your own sell route');
 
-        sell.fiat = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(sell.fiat);
+        // sell.fiat = await getManager()
+        //   .getCustomRepository(FiatRepository)
+        //   .getFiat(sell.fiat);
 
-        sell.deposit = await getManager()
-          .getCustomRepository(DepositRepository)
-          .getDeposit(sell.deposit);
+        // sell.deposit = await getManager()
+        //   .getCustomRepository(DepositRepository)
+        //   .getDeposit(sell.deposit);
       }
       delete sell.user;
       delete sell.address;

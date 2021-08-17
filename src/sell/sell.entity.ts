@@ -6,9 +6,15 @@ import {
   Index,
   CreateDateColumn,
   ManyToOne,
+  JoinColumn,
+  OneToOne,
+  OneToMany,
 } from 'typeorm';
 import * as typeorm from 'typeorm';
 import { User } from 'src/user/user.entity';
+import { Fiat } from 'src/fiat/fiat.entity';
+import { Deposit } from 'src/deposit/deposit.entity';
+import { SellPayment } from 'src/payment/payment-sell.entity';
 
 @Entity()
 @Index('ibanAsset', (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
@@ -22,11 +28,13 @@ export class Sell {
   @Column({ type: 'varchar', length: 32 })
   iban: string;
 
-  @Column({ type: 'int' })
-  fiat: number;
+  @ManyToOne(() => Fiat, {eager: true})
+  @JoinColumn()
+  fiat: Fiat;
 
-  @Column({ type: 'int', unique: true })
-  deposit: number;
+  @OneToOne(() => Deposit, {eager: true})
+  @JoinColumn()
+  deposit: Deposit;
 
   @Column({ default: 1 })
   active: boolean;
@@ -36,4 +44,7 @@ export class Sell {
 
   @ManyToOne(() => User, (user) => user.sells) 
   user: User;
+
+  @OneToMany(() => SellPayment, (sellPayment) => sellPayment.sell)
+  sellPayment: SellPayment[]
 }

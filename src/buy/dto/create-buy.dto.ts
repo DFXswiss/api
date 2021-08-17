@@ -11,6 +11,7 @@ import {
   IsString,
   Length,
 } from 'class-validator';
+import { Asset } from 'src/asset/asset.entity';
 import { User } from 'src/user/user.entity';
 
 export class CreateBuyDto {
@@ -25,7 +26,7 @@ export class CreateBuyDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  asset: number;
+  asset: any;
 
   user: User;
 

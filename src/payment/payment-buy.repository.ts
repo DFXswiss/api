@@ -21,6 +21,7 @@ import { UserDataRepository } from 'src/userData/userData.repository';
 import { UpdateUserDataDto } from 'src/userData/dto/update-userData.dto';
 import { CountryRepository } from 'src/country/country.repository';
 import * as requestPromise from 'request-promise-native';
+import { Buy } from 'src/buy/buy.entity';
 
   @EntityRepository(BuyPayment)
   export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -41,10 +42,9 @@ import * as requestPromise from 'request-promise-native';
 
             let baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/' + fiatObject.name.toLowerCase() + '.json';
 
-            const currentDate = new Date();
             const receivedDate = new Date(createPaymentDto.received);
 
-            const isToday = (someDate) => {
+            const isToday = (someDate: Date) => {
                 const today = new Date()
                 return someDate.getDate() == today.getDate() &&
                   someDate.getMonth() == today.getMonth() &&
@@ -52,9 +52,7 @@ import * as requestPromise from 'request-promise-native';
             }
 
             if(!isToday(receivedDate)){
-
                 baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/'+ receivedDate.toISOString().split('T')[0] + '/currencies/' + fiatObject.name.toLowerCase() + '.json';
-
             }
 
             var options = {
@@ -76,6 +74,7 @@ import * as requestPromise from 'request-promise-native';
         if(buy){
 
             createPaymentDto.address = buy.address;
+            createPaymentDto.buy = buy;
 
             if(!buy.iban || !createPaymentDto.iban){
                 createPaymentDto.info = "Missing IBAN: " + createPaymentDto.iban + ", " + buy.iban;

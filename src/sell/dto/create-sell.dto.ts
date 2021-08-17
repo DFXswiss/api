@@ -19,12 +19,12 @@ export class CreateSellDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  fiat: number;
+  fiat: any;
 
   user: User;
 
   @IsOptional()
-  deposit: number;
+  deposit: any;
 
   @IsString()
   @IsOptional()

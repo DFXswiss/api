@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn, OneToMany } from 'typeorm';
 import * as typeorm from 'typeorm';
+import { Sell } from 'src/sell/sell.entity';
 
 @Entity()
 export class Fiat {
@@ -14,4 +15,7 @@ export class Fiat {
 
   @CreateDateColumn() 
   created: Date;
+
+  @OneToMany(() => Sell, (sell) => sell.fiat)
+  sells: Sell[]
 }

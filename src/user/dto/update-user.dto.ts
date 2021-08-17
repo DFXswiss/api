@@ -76,12 +76,11 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  language: string;
+  language: any;
 
   @ApiPropertyOptional()
   @IsOptional()
-  country: string;
+  country: any;
 
   @ApiPropertyOptional()
   @IsOptional()

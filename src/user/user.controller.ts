@@ -3,7 +3,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags} from '@nestjs/swagger';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { RoleGuard } from 'src/guards/role.guard';
-import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UpdateRoleDto } from "./dto/update-role.dto";
 import { User, UserRole } from './user.entity';
@@ -19,14 +18,14 @@ export class UserController {
     @ApiBearerAuth()
     @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
     async getUser(@GetUser() user: User): Promise<any> {
-        return this.userService.getUser(user);
+        return this.userService.getUser(user, false);
     }
 
     @Get('detail')
     @ApiBearerAuth()
     @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
     async getUserDetail(@GetUser() user: User): Promise<any> {
-        return this.userService.getUserDetail(user);
+        return this.userService.getUser(user, true);
     }
 
     @Put()

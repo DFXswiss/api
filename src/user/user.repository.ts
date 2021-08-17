@@ -144,7 +144,7 @@ export class UserRepository extends Repository<User> {
       newUser.status == UserStatus.KYC ||
       newUser.status == UserStatus.VERIFY
     ) {
-      //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
+      //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach ändern können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
 
       if (newUser.firstname) delete newUser.firstname;
       if (newUser.surname) delete newUser.surname;
@@ -162,15 +162,7 @@ export class UserRepository extends Repository<User> {
         .getCustomRepository(CountryRepository)
         .getCountry(newUser.country);
 
-      newUser.country = countryObject.id;
-    } else if (
-      oldUser.country &&
-      newUser.country != null &&
-      newUser.country != ''
-    ) {
-      countryObject = await getManager()
-        .getCustomRepository(CountryRepository)
-        .getCountry(oldUser.country);
+      newUser.country = countryObject;
     }
 
     if (newUser.language) {
@@ -178,15 +170,7 @@ export class UserRepository extends Repository<User> {
         .getCustomRepository(LanguageRepository)
         .getLanguage(newUser.language);
 
-      newUser.language = languageObject.id;
-    } else if (
-      oldUser.language &&
-      newUser.language != null &&
-      newUser.language != ''
-    ) {
-      languageObject = await getManager()
-        .getCustomRepository(LanguageRepository)
-        .getLanguage(oldUser.language);
+      newUser.language = languageObject;
     }
 
     await this.save(newUser);
@@ -195,8 +179,6 @@ export class UserRepository extends Repository<User> {
     // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
     //   user.ref = '-1';
 
-    user.country = countryObject;
-    user.language = languageObject;
     delete user.address;
     delete user.signature;
     delete user.ip;
@@ -263,7 +245,7 @@ export class UserRepository extends Repository<User> {
       result.result = false;
       result.errors['zip'] = 'missing';
     }
-    if (currentUser.country == '' || currentUser.country == null) {
+    if (currentUser.country == null) {
       result.result = false;
       result.errors['country'] = 'missing';
     }

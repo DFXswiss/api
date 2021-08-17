@@ -1,5 +1,8 @@
 import { Buy } from 'src/buy/buy.entity';
+import { Country } from 'src/country/country.entity';
+import { Language } from 'src/language/language.entity';
 import { Sell } from 'src/sell/sell.entity';
+import { UserData } from 'src/userData/userData.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -8,6 +11,7 @@ import {
   OneToMany,
   CreateDateColumn,
   ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 
 export enum UserRole {
@@ -67,14 +71,16 @@ export class User {
   @Column({ type: 'varchar', length: 9, default: null, nullable: true })
   zip: string;
 
-  @Column({ type: 'varchar', length: 3, default: null, nullable: true })
-  country: string;
+  @ManyToOne(() => Country, {eager: true})
+  @JoinColumn()
+  country: Country;
 
   @Column({ type: 'varchar', length: 15, default: null, nullable: true })
   phone: string;
 
-  @Column({ type: 'varchar', default: '1', nullable: false })
-  language: string;
+  @ManyToOne(() => Language, {eager: true})
+  @JoinColumn()
+  language: Language;
 
   @Column({ type: 'varchar', default: UserRole.USER })
   role: UserRole;
@@ -88,9 +94,15 @@ export class User {
   @CreateDateColumn()
   created: Date;
 
-  @OneToMany(() => Buy, (buy) => buy.user)
+  @OneToMany(() => Buy, (buy) => buy.user, {eager: true})
+  @JoinColumn()
   buys: Buy[];
 
-  @OneToMany(() => Sell, (sell) => sell.user)
+  @OneToMany(() => Sell, (sell) => sell.user, {eager: true})
+  @JoinColumn()
   sells: Sell[];
+
+  @ManyToOne(() => UserData, {eager: false})
+  @JoinColumn()
+  userData: UserData;
 }

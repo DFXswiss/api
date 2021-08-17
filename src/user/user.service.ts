@@ -34,68 +34,25 @@ export class UserService {
     return user;
   }
 
-  async getUser(user: User): Promise<any> {
-    if (user.country) {
-      user.country = await getManager()
-        .getCustomRepository(CountryRepository)
-        .getCountry(user.country);
-    }
+  async getUser(user: User, detailedUser: boolean): Promise<any> {
 
-    if (user.language) {
-      user.language = await getManager()
-        .getCustomRepository(LanguageRepository)
-        .getLanguage(user.language);
-    }
+    if(detailedUser){
 
-    delete user.address;
-    delete user.signature;
-    delete user.ip;
-    if (user.role != UserRole.VIP) delete user.role;
-    if (user.status == 'Active' || user.status == 'KYC') {
-      return user;
-    } else {
-      delete user.ref;
-      return user;
-    }
-  }
-
-  async getUserDetail(user: User): Promise<any> {
-    if (user.country) {
-      user.country = await getManager()
-        .getCustomRepository(CountryRepository)
-        .getCountry(user.country);
-    }
-
-    if (user.language) {
-      user.language = await getManager()
-        .getCustomRepository(LanguageRepository)
-        .getLanguage(user.language);
-    }
-
-    user.buys = await getManager()
-      .getCustomRepository(BuyRepository)
-      .find({ relations: ['user'], where: { user: { id: user.id } } });
-
-    if (user.buys) {
-      for (let a = 0; a < user.buys.length; a++) {
-        delete user.buys[a].user;
-        user.buys[a].asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(user.buys[a].asset);
+      if (user.buys) {
+        for (let a = 0; a < user.buys.length; a++) {
+          delete user.buys[a].user;
+        }
       }
-    }
 
-    user.sells = await getManager()
-      .getCustomRepository(SellRepository)
-      .find({ relations: ['user'], where: { user: { id: user.id } } });
-
-    if (user.sells) {
-      for (let a = 0; a < user.sells.length; a++) {
-        delete user.sells[a].user;
-        user.sells[a].fiat = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(user.sells[a].fiat);
+      if (user.sells) {
+        for (let a = 0; a < user.sells.length; a++) {
+          delete user.sells[a].user;
+        }
       }
+    
+    }else{
+      delete user.buys;
+      delete user.sells;
     }
 
     delete user.address;

@@ -5,8 +5,10 @@ import {
     PrimaryColumn,
     Index,
     CreateDateColumn,
+    OneToMany,
   } from 'typeorm';
   import * as typeorm from 'typeorm';
+import { User } from 'src/user/user.entity';
   
   @Entity()
   export class Language {
@@ -27,5 +29,8 @@ import {
   
     @CreateDateColumn() 
     created: Date;
+
+    @OneToMany(() => User, (user) => user.language)
+    users: User[]
   }
   

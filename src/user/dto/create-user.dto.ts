@@ -11,6 +11,7 @@ import {
 import { UserRole } from 'src/user/user.entity';
 
 export class CreateUserDto {
+  //TODO überflüssige löschen
   @IsOptional()
   @IsInt()
   id: number;
@@ -72,12 +73,11 @@ export class CreateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  language: string;
+  language: any;
 
   @ApiPropertyOptional()
   @IsOptional()
-  country: string;
+  country: any;
 
   @ApiPropertyOptional()
   @IsOptional()

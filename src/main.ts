@@ -6,6 +6,7 @@ import * as morgan from 'morgan';
 import * as cors from 'cors';
 import * as chalk from 'chalk';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -21,6 +22,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cors());
   app.setGlobalPrefix('v1', { exclude: [''] });
+  app.useGlobalPipes(new ValidationPipe({whitelist:true}))
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX-API')

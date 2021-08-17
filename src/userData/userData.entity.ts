@@ -31,6 +31,6 @@ export class UserData {
   @CreateDateColumn()
   created: Date;
 
-  @OneToMany(() => Buy, (buy) => buy.user)
-  buys: Buy[];
+  @OneToMany(() => User, (user) => user.userData)
+  users: User[]
 }

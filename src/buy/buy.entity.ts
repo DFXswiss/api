@@ -9,10 +9,12 @@ import {
   OneToMany,
   ManyToOne,
   ManyToMany,
+  JoinColumn,
 } from 'typeorm';
 import * as typeorm from 'typeorm';
 import { Asset } from 'src/asset/asset.entity';
 import { User } from 'src/user/user.entity';
+import { BuyPayment } from 'src/payment/payment-buy.entity';
 
 @Entity()
 @Index('ibanAsset', (buy: Buy) => [buy.iban, buy.asset], { unique: true })
@@ -26,9 +28,6 @@ export class Buy {
   @Column({ type: 'varchar', length: 32 })
   iban: string;
 
-  @Column()
-  asset: number;
-
   @Column({ type: 'varchar', length: 14, unique: true })
   bankUsage: string;
 
@@ -40,4 +39,11 @@ export class Buy {
 
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
+
+  @ManyToOne(() => Asset, {eager: true})
+  @JoinColumn()
+  asset: Asset;
+
+  @OneToMany(() => BuyPayment, (buyPayment) => buyPayment.buy)
+  buyPayment: BuyPayment[]
 }

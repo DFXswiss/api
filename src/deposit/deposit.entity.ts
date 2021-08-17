@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn, OneToOne } from 'typeorm';
 import * as typeorm from 'typeorm';
+import { Sell } from 'src/sell/sell.entity';
 
 @Entity()
 export class Deposit {
@@ -14,4 +15,7 @@ export class Deposit {
 
   @CreateDateColumn() 
   created: Date;
+
+  @OneToOne(() => Sell, (sell) => sell.deposit)
+  sells: Sell[]
 }

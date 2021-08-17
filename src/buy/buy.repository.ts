@@ -33,20 +33,13 @@ export class BuyRepository extends Repository<Buy> {
       '-' +
       hash.toString().toUpperCase().slice(8, 12);
 
-    createBuyDto.asset = assetObject.id;
+    createBuyDto.asset = assetObject;
 
     const buy = this.create(createBuyDto);
     buy.address = buy.user.address;
     try {
       if (buy) {
-        await this.save(buy);
-
-        buy.asset = assetObject; 
-
-        assetObject.buys = buy;
-        await getManager()
-          .getCustomRepository(AssetRepository)
-          .save(assetObject); 
+        await this.save(buy); 
 
         delete buy.address;
         delete buy.user;
@@ -70,9 +63,6 @@ export class BuyRepository extends Repository<Buy> {
         await this.save(buy);
         delete buy.address;
         delete buy.user;
-        buy.asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(buy.asset);
         return buy;
       }
     } catch (error) {
@@ -81,7 +71,7 @@ export class BuyRepository extends Repository<Buy> {
     }
   }
 
-  async getBuyByBankUsage(bankUsage: string): Promise<any> {
+  async getBuyByBankUsage(bankUsage: string): Promise<Buy> {
     try {
       const buy = await this.findOne({ bankUsage: bankUsage });
       if (buy) return buy;
@@ -102,9 +92,6 @@ export class BuyRepository extends Repository<Buy> {
 
         delete buy.address;
         delete buy.user;
-        buy.asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(buy.asset);
       }
 
       return buy;
@@ -116,14 +103,16 @@ export class BuyRepository extends Repository<Buy> {
 
   async getAllBuy(address: string): Promise<any> {
     try {
+      // const query = this.createQueryBuilder('buy');
+      //   query.where({ address });
+      //   query.innerJoinAndSelect('buy.asset','assetXYZ');
+
+      // const buy = await query.getMany();
+
       const buy = await this.find({ address: address });
 
       if (buy) {
         for (let a = 0; a < buy.length; a++) {
-          buy[a].asset = await getManager()
-            .getCustomRepository(AssetRepository)
-            .getAsset(buy[a].asset);
-
           delete buy[a].address;
           delete buy[a].user;
         }
