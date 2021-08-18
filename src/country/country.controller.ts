@@ -5,8 +5,6 @@ import {
   Param,
   Put,
   UseGuards,
-  Request,
-  ForbiddenException,
   Post,
   UsePipes,
   ValidationPipe,
@@ -15,7 +13,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { UserRole } from 'src/user/user.entity';
-import { Country } from './country.entity';
 import { CountryService } from './country.service';
 import { CreateCountryDto } from './dto/create-country.dto';
 import { UpdateCountryDto } from './dto/update-country.dto';

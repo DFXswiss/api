@@ -1,19 +1,17 @@
-import { ApiProperty,  } from "@nestjs/swagger";
-import {   IsInt, IsOptional,  IsBoolean, IsString  } from "class-validator";
-import { PaymentStatus } from "../payment.entity";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsInt, IsOptional, IsString } from 'class-validator';
+import { PaymentStatus } from '../payment.entity';
 
 export class UpdatePaymentDto {
+  @ApiProperty()
+  @IsInt()
+  id: number;
 
-    @ApiProperty()
-    @IsInt()
-    id: number;
+  @IsOptional()
+  @IsString()
+  info: string;
 
-    @IsOptional()
-    @IsString()
-    info: string;
-
-    @ApiProperty()
-    @IsOptional()
-    status: PaymentStatus;
-
+  @ApiProperty()
+  @IsOptional()
+  status: PaymentStatus;
 }

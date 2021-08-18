@@ -1,24 +1,29 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, Length } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class UpdateFiatDto {
-    
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsInt()
-    id: number;
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsInt()
+  id: number;
 
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsString()
-    name: string;
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsBoolean()
-    enable: boolean;
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsBoolean()
+  enable: boolean;
 
-    @IsString()
-    @IsOptional()
-    created: Date;
+  @IsString()
+  @IsOptional()
+  created: Date;
 }

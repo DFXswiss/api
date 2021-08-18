@@ -1,7 +1,7 @@
 import {
-  InternalServerErrorException,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateAssetDto } from './dto/create-asset.dto';
@@ -20,59 +20,65 @@ export class AssetRepository extends Repository<Asset> {
     try {
       await this.save(asset);
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
 
     return asset;
   }
 
   async getAllAsset(): Promise<any> {
-    return await this.find();
+    try {
+      return await this.find();
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 
   async updateAsset(asset: UpdateAssetDto): Promise<any> {
-    const currentAsset = await this.findOne({ id: asset.id });
-
-    if (!currentAsset)
-      throw new NotFoundException('No matching asset for id found');
+    try {
+      const currentAsset = await this.findOne({ id: asset.id });
+      if (!currentAsset)
+        throw new NotFoundException('No matching asset for id found');
 
       asset.created = currentAsset.created;
 
-    return Object.assign(currentAsset, await this.save(asset));
+      return Object.assign(currentAsset, await this.save(asset));
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 
   async getAsset(key: any): Promise<any> {
     if (key.key) {
       if (!isNaN(key.key)) {
-        let asset = await this.findOne({ id: key.key });
+        const asset = await this.findOne({ id: key.key });
 
         if (asset) return asset;
       } else if (isString(key.key)) {
-        let asset = await this.findOne({ name: key.key });
+        const asset = await this.findOne({ name: key.key });
 
         if (asset) return asset;
 
         throw new NotFoundException('No matching asset found');
       }
     } else if (!isNaN(key)) {
-      let asset = await this.findOne({ id: key });
+      const asset = await this.findOne({ id: key });
 
       if (asset) return asset;
     } else if (isString(key)) {
-      let asset = await this.findOne({ name: key });
+      const asset = await this.findOne({ name: key });
 
       if (asset) return asset;
 
       throw new NotFoundException('No matching asset found');
     } else if (key.id) {
-      let asset = await this.findOne({ id: key.id });
+      const asset = await this.findOne({ id: key.id });
 
       if (asset) return asset;
 
       throw new NotFoundException('No matching asset found');
     } else if (key.name) {
-      let asset = await this.findOne({ name: key.name });
+      const asset = await this.findOne({ name: key.name });
 
       if (asset) return asset;
 

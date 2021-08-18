@@ -1,17 +1,11 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import {
-  equals,
-  IsBoolean,
-  IsEmail,
-  IsIBAN,
   IsInt,
   IsNotEmpty,
   IsOptional,
-  IsPhoneNumber,
   IsString,
   Length,
 } from 'class-validator';
-import { Asset } from 'src/asset/asset.entity';
 import { User } from 'src/user/user.entity';
 
 export class CreateBuyDto {

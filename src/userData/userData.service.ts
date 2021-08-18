@@ -2,9 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateUserDataDto } from './dto/create-userData.dto';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
-import { CountryRepository } from 'src/country/country.repository';
-import { getManager } from 'typeorm';
-import { LanguageRepository } from 'src/language/language.repository';
 import { UserDataRepository } from './userData.repository';
 import { UserData } from './userData.entity';
 

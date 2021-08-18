@@ -1,11 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Country } from './country.entity';
+import { Injectable } from '@nestjs/common';
 import { CreateCountryDto } from 'src/country/dto/create-country.dto';
 import { CountryRepository } from 'src/country/country.repository';
 import { UpdateCountryDto } from './dto/update-country.dto';

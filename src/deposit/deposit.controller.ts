@@ -5,20 +5,12 @@ import {
   Param,
   Put,
   UseGuards,
-  Request,
-  ForbiddenException,
   Post,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiExcludeEndpoint,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
-import { Deposit } from './deposit.entity';
 import { DepositService } from './deposit.service';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
 import { UpdateDepositDto } from './dto/update-deposit.dto';

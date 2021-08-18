@@ -1,7 +1,4 @@
-import {
-  Controller,
-  Get,
-} from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { StatisticService } from './statistic.service';
 
@@ -11,8 +8,7 @@ export class StatisticController {
   constructor(private readonly statisticService: StatisticService) {}
 
   @Get()
-  async getBuyRoute(): Promise<any> {
-    return this.statisticService.getStatistic();
+  async getBuyCount(): Promise<any> {
+    return this.statisticService.getBuyCount();
   }
-
 }

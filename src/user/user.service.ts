@@ -5,14 +5,7 @@ import { User, UserRole } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { CountryRepository } from 'src/country/country.repository';
-import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { LanguageRepository } from 'src/language/language.repository';
-import { BuyRepository } from 'src/buy/buy.repository';
-import { SellRepository } from 'src/sell/sell.repository';
-import { FiatRepository } from 'src/fiat/fiat.repository';
-import { AssetRepository } from 'src/asset/asset.repository';
 
 @Injectable()
 export class UserService {
@@ -35,9 +28,7 @@ export class UserService {
   }
 
   async getUser(user: User, detailedUser: boolean): Promise<any> {
-
-    if(detailedUser){
-
+    if (detailedUser) {
       if (user.buys) {
         for (let a = 0; a < user.buys.length; a++) {
           delete user.buys[a].user;
@@ -49,8 +40,7 @@ export class UserService {
           delete user.sells[a].user;
         }
       }
-    
-    }else{
+    } else {
       delete user.buys;
       delete user.sells;
     }

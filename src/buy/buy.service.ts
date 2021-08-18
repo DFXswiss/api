@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CreateBuyDto } from 'src/buy/dto/create-buy.dto';
 import { BuyRepository } from 'src/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
@@ -15,12 +11,12 @@ export class BuyService {
     return this.buyRepository.createBuy(createBuyDto);
   }
 
-  async getBuy(id: any, address: string): Promise<any> {
-    return this.buyRepository.getBuy(id, address);
+  async getBuy(id: any, user: any): Promise<any> {
+    return this.buyRepository.getBuy(id, user);
   }
 
-  async getAllBuy(address: string): Promise<any> {
-    return this.buyRepository.getAllBuy(address);
+  async getAllBuy(user: any): Promise<any> {
+    return this.buyRepository.getAllBuy(user);
   }
 
   async updateBuy(updateBuyDto: UpdateBuyDto): Promise<any> {

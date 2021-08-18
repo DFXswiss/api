@@ -7,7 +7,6 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  PrimaryColumn,
   OneToMany,
   CreateDateColumn,
   ManyToOne,
@@ -71,14 +70,14 @@ export class User {
   @Column({ type: 'varchar', length: 9, default: null, nullable: true })
   zip: string;
 
-  @ManyToOne(() => Country, {eager: true})
+  @ManyToOne(() => Country, { eager: true })
   @JoinColumn()
   country: Country;
 
   @Column({ type: 'varchar', length: 15, default: null, nullable: true })
   phone: string;
 
-  @ManyToOne(() => Language, {eager: true})
+  @ManyToOne(() => Language, { eager: true })
   @JoinColumn()
   language: Language;
 
@@ -94,15 +93,15 @@ export class User {
   @CreateDateColumn()
   created: Date;
 
-  @OneToMany(() => Buy, (buy) => buy.user, {eager: true})
+  @OneToMany(() => Buy, (buy) => buy.user, { eager: true })
   @JoinColumn()
   buys: Buy[];
 
-  @OneToMany(() => Sell, (sell) => sell.user, {eager: true})
+  @OneToMany(() => Sell, (sell) => sell.user, { eager: true })
   @JoinColumn()
   sells: Sell[];
 
-  @ManyToOne(() => UserData, {eager: false})
+  @ManyToOne(() => UserData, { eager: false })
   @JoinColumn()
   userData: UserData;
 }

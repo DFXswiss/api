@@ -5,15 +5,12 @@ import {
   Param,
   Put,
   UseGuards,
-  Request,
-  ForbiddenException,
   Post,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
-import { Wallet } from './wallet.entity';
 import { WalletService } from './wallet.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';

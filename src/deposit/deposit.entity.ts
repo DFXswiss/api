@@ -1,5 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn, OneToOne } from 'typeorm';
-import * as typeorm from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  OneToOne,
+} from 'typeorm';
 import { Sell } from 'src/sell/sell.entity';
 
 @Entity()
@@ -13,9 +18,9 @@ export class Deposit {
   @Column({ default: false })
   used: boolean;
 
-  @CreateDateColumn() 
+  @CreateDateColumn()
   created: Date;
 
   @OneToOne(() => Sell, (sell) => sell.deposit)
-  sells: Sell[]
+  sells: Sell[];
 }

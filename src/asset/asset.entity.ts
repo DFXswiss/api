@@ -1,5 +1,11 @@
 import { Buy } from 'src/buy/buy.entity';
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn, ManyToOne, ManyToMany, OneToMany, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  OneToMany,
+} from 'typeorm';
 
 export enum AssetType {
   COIN = 'Coin',
@@ -24,9 +30,9 @@ export class Asset {
   @Column({ default: 1 })
   sellable: boolean;
 
-  @CreateDateColumn() 
+  @CreateDateColumn()
   created: Date;
 
   @OneToMany(() => Buy, (buy) => buy.asset)
-  buys: Buy[]
+  buys: Buy[];
 }

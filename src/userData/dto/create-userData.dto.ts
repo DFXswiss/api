@@ -1,15 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  equals,
-  IsEmail,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Length,
-  IsInt,
-  IsNumber,
-} from 'class-validator';
-import { UserRole } from 'src/user/user.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, IsInt } from 'class-validator';
 
 export class CreateUserDataDto {
   @IsOptional()

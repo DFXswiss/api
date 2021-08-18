@@ -1,11 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Deposit } from './deposit.entity';
+import { Injectable } from '@nestjs/common';
 import { DepositRepository } from 'src/deposit/deposit.repository';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
 import { UpdateDepositDto } from './dto/update-deposit.dto';

@@ -1,18 +1,13 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import {
-  equals,
   IsBoolean,
-  IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
-  IsPhoneNumber,
   IsString,
-  Length,
 } from 'class-validator';
 
 export class UpdateLanguageDto {
-
   @ApiProperty()
   @IsNotEmpty()
   @IsInt()

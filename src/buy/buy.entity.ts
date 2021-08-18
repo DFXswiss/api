@@ -2,16 +2,12 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  PrimaryColumn,
   Index,
-  OneToOne,
   CreateDateColumn,
   OneToMany,
   ManyToOne,
-  ManyToMany,
   JoinColumn,
 } from 'typeorm';
-import * as typeorm from 'typeorm';
 import { Asset } from 'src/asset/asset.entity';
 import { User } from 'src/user/user.entity';
 import { BuyPayment } from 'src/payment/payment-buy.entity';
@@ -40,10 +36,10 @@ export class Buy {
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
-  @ManyToOne(() => Asset, {eager: true})
+  @ManyToOne(() => Asset, { eager: true })
   @JoinColumn()
   asset: Asset;
 
   @OneToMany(() => BuyPayment, (buyPayment) => buyPayment.buy)
-  buyPayment: BuyPayment[]
+  buyPayment: BuyPayment[];
 }

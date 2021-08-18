@@ -17,7 +17,6 @@ import {
 } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { PaymentService } from './payment.service';
-import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { UserRole } from 'src/user/user.entity';
 import { AuthGuard } from '@nestjs/passport';
@@ -87,7 +86,9 @@ export class PaymentController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateBuyPayment(@Body() updateSellDto: UpdatePaymentDto): Promise<any> {
+  async updateBuyPayment(
+    @Body() updateSellDto: UpdatePaymentDto,
+  ): Promise<any> {
     return this.paymentService.updateBuyPayment(updateSellDto);
   }
 
@@ -95,7 +96,9 @@ export class PaymentController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateSellPayment(@Body() updateSellDto: UpdatePaymentDto): Promise<any> {
+  async updateSellPayment(
+    @Body() updateSellDto: UpdatePaymentDto,
+  ): Promise<any> {
     return this.paymentService.updateSellPayment(updateSellDto);
   }
 

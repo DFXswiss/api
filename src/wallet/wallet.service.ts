@@ -1,20 +1,13 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Wallet } from './wallet.entity';
+import { Injectable } from '@nestjs/common';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { CreateWalletDto } from 'src/wallet/dto/create-wallet.dto';
-import { UpdateWalletDto } from "./dto/update-wallet.dto";
+import { UpdateWalletDto } from './dto/update-wallet.dto';
 
 @Injectable()
 export class WalletService {
-    constructor(private walletRepository: WalletRepository) {}
-  
-  async createWallet(createWalletDto: CreateWalletDto): Promise<any>{
+  constructor(private walletRepository: WalletRepository) {}
+
+  async createWallet(createWalletDto: CreateWalletDto): Promise<any> {
     return this.walletRepository.createWallet(createWalletDto);
   }
 
@@ -29,5 +22,4 @@ export class WalletService {
   async updateWallet(updatewalletDto: UpdateWalletDto): Promise<any> {
     return this.walletRepository.updateWallet(updatewalletDto);
   }
-
 }

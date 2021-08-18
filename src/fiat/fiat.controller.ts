@@ -5,16 +5,17 @@ import {
   Param,
   Put,
   UseGuards,
-  Request,
-  ForbiddenException,
   Post,
-  Query,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExcludeEndpoint,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
-import { Fiat } from './fiat.entity';
 import { FiatService } from './fiat.service';
 import { CreateFiatDto } from './dto/create-fiat.dto';
 import { UpdateFiatDto } from './dto/update-fiat.dto';

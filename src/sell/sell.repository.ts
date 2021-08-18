@@ -1,8 +1,8 @@
 import {
-  InternalServerErrorException,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateSellDto } from './dto/create-sell.dto';
@@ -63,22 +63,21 @@ export class SellRepository extends Repository<Sell> {
 
       const sell = await this.save(currentSell);
 
-      if (sell) {
-        // sell.fiat = await getManager()
-        //   .getCustomRepository(FiatRepository)
-        //   .getFiat(sell.fiat);
+      //if (sell) {
+      // sell.fiat = await getManager()
+      //   .getCustomRepository(FiatRepository)
+      //   .getFiat(sell.fiat);
 
-        // sell.deposit = await getManager()
-        //   .getCustomRepository(DepositRepository)
-        //   .getDeposit(sell.deposit);
-      }
+      // sell.deposit = await getManager()
+      //   .getCustomRepository(DepositRepository)
+      //   .getDeposit(sell.deposit);
+      //}
       delete sell.user;
       delete sell.address;
 
       return sell;
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
@@ -88,7 +87,6 @@ export class SellRepository extends Repository<Sell> {
 
       if (sell) {
         for (let a = 0; a < sell.length; a++) {
-
           // sell[a].deposit = await getManager()
           //   .getCustomRepository(DepositRepository)
           //   .getDeposit(sell[a].deposit);
@@ -99,14 +97,13 @@ export class SellRepository extends Repository<Sell> {
 
       return sell;
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
   async getSell(id: any, address: string): Promise<any> {
     if (!isNaN(id.id)) {
-      let sell = await this.findOne({ id: id.id });
+      const sell = await this.findOne({ id: id.id });
 
       if (sell) {
         if (sell.address != address)
@@ -129,6 +126,10 @@ export class SellRepository extends Repository<Sell> {
   }
 
   async getAll(): Promise<any> {
-    return await this.find();
+    try {
+      return await this.find();
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 }

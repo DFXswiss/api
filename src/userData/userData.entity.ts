@@ -1,20 +1,19 @@
-import { Buy } from 'src/buy/buy.entity';
-import { Payment } from 'src/payment/payment.entity';
 import { User } from 'src/user/user.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  PrimaryColumn,
   OneToMany,
   CreateDateColumn,
-  ManyToOne,
-  UpdateDateColumn,
   Index,
 } from 'typeorm';
 
 @Entity()
-@Index('nameLocation', (userData: UserData) => [userData.name, userData.location], { unique: true })
+@Index(
+  'nameLocation',
+  (userData: UserData) => [userData.name, userData.location],
+  { unique: true },
+)
 export class UserData {
   @PrimaryGeneratedColumn()
   id: number;
@@ -32,5 +31,5 @@ export class UserData {
   created: Date;
 
   @OneToMany(() => User, (user) => user.userData)
-  users: User[]
+  users: User[];
 }

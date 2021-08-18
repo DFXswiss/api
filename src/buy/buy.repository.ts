@@ -1,16 +1,11 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  InternalServerErrorException,
-} from '@nestjs/common';
-import { Connection, EntityRepository, Repository } from 'typeorm';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { Buy } from './buy.entity';
 import { sha256 } from 'js-sha256';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { getManager } from 'typeorm';
-import { NotFoundException } from '@nestjs/common';
 
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
@@ -39,7 +34,7 @@ export class BuyRepository extends Repository<Buy> {
     buy.address = buy.user.address;
     try {
       if (buy) {
-        await this.save(buy); 
+        await this.save(buy);
 
         delete buy.address;
         delete buy.user;
@@ -66,8 +61,7 @@ export class BuyRepository extends Repository<Buy> {
         return buy;
       }
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
@@ -78,30 +72,26 @@ export class BuyRepository extends Repository<Buy> {
 
       return;
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
-  async getBuy(id: any, address: string): Promise<any> {
+  async getBuy(id: any, user: any): Promise<any> {
     try {
       const buy = await this.findOne({ id: id.id });
       if (buy) {
-        if (buy.address != address)
+        if (buy.user != user)
           throw new ForbiddenException('You can only get your own sell route');
-
-        delete buy.address;
         delete buy.user;
       }
 
       return buy;
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
-  async getAllBuy(address: string): Promise<any> {
+  async getAllBuy(user: any): Promise<any> {
     try {
       // const query = this.createQueryBuilder('buy');
       //   query.where({ address });
@@ -109,19 +99,17 @@ export class BuyRepository extends Repository<Buy> {
 
       // const buy = await query.getMany();
 
-      const buy = await this.find({ address: address });
+      const buy = await this.find({ user: user });
 
       if (buy) {
         for (let a = 0; a < buy.length; a++) {
-          delete buy[a].address;
           delete buy[a].user;
         }
       }
 
       return buy;
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
@@ -131,12 +119,15 @@ export class BuyRepository extends Repository<Buy> {
 
       return { buyCount: buy.length };
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
   }
 
   async getAll(): Promise<any> {
-    return await this.find();
+    try {
+      return await this.find();
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 }

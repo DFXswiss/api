@@ -1,13 +1,9 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateDepositDto } from './dto/create-deposit.dto';
 import { UpdateDepositDto } from './dto/update-deposit.dto';
 import { Deposit } from './deposit.entity';
-import { isNumber, isString } from 'class-validator';
+import { isString } from 'class-validator';
 
 @EntityRepository(Deposit)
 export class DepositRepository extends Repository<Deposit> {
@@ -20,48 +16,64 @@ export class DepositRepository extends Repository<Deposit> {
     try {
       await this.save(deposit);
     } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException();
+      throw new ConflictException(error.message);
     }
 
     return deposit;
   }
 
   async getAllDeposit(): Promise<any> {
-    return await this.find();
+    try {
+      return await this.find();
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 
   async updateDeposit(depositAddress: UpdateDepositDto): Promise<any> {
-    const currentDeposit = await this.findOne({ id: depositAddress.id });
+    try {
+      const currentDeposit = await this.findOne({ id: depositAddress.id });
 
-    if (!currentDeposit)
-      throw new NotFoundException('No matching deposit address for id found');
+      if (!currentDeposit)
+        throw new NotFoundException('No matching deposit address for id found');
 
-    depositAddress.created = currentDeposit.created;
+      depositAddress.created = currentDeposit.created;
 
-    return Object.assign(currentDeposit, await this.save(depositAddress));
+      return Object.assign(currentDeposit, await this.save(depositAddress));
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 
   async getNextDeposit(): Promise<any> {
-    const nextAddress = await this.findOne({ used: false });
+    try {
+      const nextAddress = await this.findOne({ used: false });
+      if (!nextAddress)
+        throw new NotFoundException(
+          'No available deposit address. Please contact support!',
+        );
 
-    nextAddress.used = true;
-    await this.save(nextAddress);
-    return nextAddress;
+      nextAddress.used = true;
+
+      await this.save(nextAddress);
+      return nextAddress;
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 
   async getDeposit(key: any): Promise<any> {
     if (!isNaN(key.key)) {
-      let asset = await this.findOne({ id: key.key });
+      const asset = await this.findOne({ id: key.key });
       if (asset) return asset;
     } else if (isString(key.key)) {
-      let asset = await this.findOne({ address: key.key });
+      const asset = await this.findOne({ address: key.key });
       if (asset) return asset;
     } else if (!isNaN(key)) {
-      let asset = await this.findOne({ id: key });
+      const asset = await this.findOne({ id: key });
       if (asset) return asset;
     } else if (isString(key)) {
-      let asset = await this.findOne({ address: key });
+      const asset = await this.findOne({ address: key });
       if (asset) return asset;
     }
 

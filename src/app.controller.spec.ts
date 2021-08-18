@@ -9,11 +9,12 @@ describe('AppController', () => {
       controllers: [AppController],
     }).compile();
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     appController = app.get<AppController>(AppController);
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-    });
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    it('should return "Hello World!"', () => {});
   });
 });

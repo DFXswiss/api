@@ -10,6 +10,7 @@ import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     require('applicationinsights')
       .setup()
       .setAutoCollectConsole(true, true)
@@ -22,11 +23,13 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cors());
   app.setGlobalPrefix('v1', { exclude: [''] });
-  app.useGlobalPipes(new ValidationPipe({whitelist:true}))
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX-API')
-    .setDescription('Investiere in jedes DeFiChain Asset mit EUR, CHF & USD via Banküberweisung')
+    .setDescription(
+      'Investiere in jedes DeFiChain Asset mit EUR, CHF & USD via Banküberweisung',
+    )
     .setVersion('0.1')
     .addBearerAuth()
     .build();

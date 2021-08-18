@@ -1,61 +1,56 @@
-import {
-    BadRequestException,
-    Injectable,
-    NotFoundException,
-  } from '@nestjs/common';
-  import { InjectEntityManager, InjectRepository } from '@nestjs/typeorm';
-  import { Repository } from 'typeorm';
-  import { CreatePaymentDto } from './dto/create-payment.dto';
-  import { UpdatePaymentDto } from './dto/update-payment.dto';
-  import { SellPayment } from './payment-sell.entity';
-  import { BuyPayment } from './payment-buy.entity';
-  import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
-  import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
-  import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
-  import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
-  
-  @Injectable()
-  export class PaymentService {
-    constructor(private sellRepository: SellPaymentRepository, private buyRepository: BuyPaymentRepository) {}
+import { Injectable } from '@nestjs/common';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
+import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
+import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
+import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
+import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
 
-    async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any>{
-      return this.buyRepository.createPayment(createPaymentDto);
-    }
+@Injectable()
+export class PaymentService {
+  constructor(
+    private sellRepository: SellPaymentRepository,
+    private buyRepository: BuyPaymentRepository,
+  ) {}
 
-    async createSellPayment(createPaymentDto: CreateSellPaymentDto): Promise<any>{
-      return this.sellRepository.createPayment(createPaymentDto);
-    }
-  
-    async getBuyPayment(id: any): Promise<any> {
-      return this.buyRepository.getPayment(id);
-    }
-
-    async getSellPayment(id: any): Promise<any> {
-      return this.sellRepository.getPayment(id);
-    }
-  
-    async getAllBuyPayment(): Promise<any> {
-      return this.buyRepository.getAllPayment();
-    }
-
-    async getAllSellPayment(): Promise<any> {
-      return this.sellRepository.getAllPayment();
-    }
-  
-    async updateBuyPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
-      return this.buyRepository.updatePayment(updatePaymentDto);
-    }
-
-    async updateSellPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
-      return this.sellRepository.updatePayment(updatePaymentDto);
-    }
-
-    async getUnprocessedBuyPayment(): Promise<any> {
-        return this.buyRepository.getUnprocessedPayment();
-    }
-
-    async getUnprocessedSellPayment(): Promise<any> {
-      return this.sellRepository.getUnprocessedPayment();
+  async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
+    return this.buyRepository.createPayment(createPaymentDto);
   }
 
+  async createSellPayment(
+    createPaymentDto: CreateSellPaymentDto,
+  ): Promise<any> {
+    return this.sellRepository.createPayment(createPaymentDto);
   }
+
+  async getBuyPayment(id: any): Promise<any> {
+    return this.buyRepository.getPayment(id);
+  }
+
+  async getSellPayment(id: any): Promise<any> {
+    return this.sellRepository.getPayment(id);
+  }
+
+  async getAllBuyPayment(): Promise<any> {
+    return this.buyRepository.getAllPayment();
+  }
+
+  async getAllSellPayment(): Promise<any> {
+    return this.sellRepository.getAllPayment();
+  }
+
+  async updateBuyPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
+    return this.buyRepository.updatePayment(updatePaymentDto);
+  }
+
+  async updateSellPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
+    return this.sellRepository.updatePayment(updatePaymentDto);
+  }
+
+  async getUnprocessedBuyPayment(): Promise<any> {
+    return this.buyRepository.getUnprocessedPayment();
+  }
+
+  async getUnprocessedSellPayment(): Promise<any> {
+    return this.sellRepository.getUnprocessedPayment();
+  }
+}

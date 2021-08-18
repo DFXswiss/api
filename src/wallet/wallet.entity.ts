@@ -1,6 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, OneToMany, CreateDateColumn } from 'typeorm';
-import * as typeorm from 'typeorm';
-import { User } from 'src/user/user.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+} from 'typeorm';
 
 @Entity()
 export class Wallet {
@@ -19,7 +22,6 @@ export class Wallet {
   @Column({ type: 'varchar', length: 40, default: '' })
   description: string;
 
-  @CreateDateColumn() 
+  @CreateDateColumn()
   created: Date;
-
 }

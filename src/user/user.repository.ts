@@ -1,7 +1,6 @@
 import {
   BadRequestException,
-  ForbiddenException,
-  InternalServerErrorException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
@@ -14,7 +13,6 @@ import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
-import { LanguageController } from 'src/language/language.controller';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -55,10 +53,11 @@ export class UserRepository extends Repository<User> {
       '"&message="' +
       String(signatureMessage) +
       '"';
-    var options = {
+    const options = {
       uri: baseUrl + queryString,
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const result = await requestPromise.get(options);
 
     //TODO aktivieren
@@ -79,8 +78,7 @@ export class UserRepository extends Repository<User> {
         createUserDto.country = countryObject;
         createUserDto.language = languageObject;
       } catch (error) {
-        console.log(error);
-        throw new InternalServerErrorException();
+        throw new ConflictException(error.message);
       }
 
       // if (
@@ -96,117 +94,133 @@ export class UserRepository extends Repository<User> {
   }
 
   async getAllUser(): Promise<any> {
-    return await this.find();
+    try {
+      return await this.find();
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
-    const currentUser = await this.findOne({ id: user.id });
+    try {
+      const currentUser = await this.findOne({ id: user.id });
 
-    if (!currentUser)
-      throw new NotFoundException('No matching user for id found');
+      if (!currentUser)
+        throw new NotFoundException('No matching user for id found');
 
-    if (
-      user.status == UserStatus.ACTIVE ||
-      user.status == UserStatus.KYC ||
-      user.status == UserStatus.VERIFY
-    ) {
-      currentUser.status = user.status;
+      if (
+        user.status == UserStatus.ACTIVE ||
+        user.status == UserStatus.KYC ||
+        user.status == UserStatus.VERIFY
+      ) {
+        currentUser.status = user.status;
+      }
+      await this.save(currentUser);
+
+      return await this.findOne({ id: user.id });
+    } catch (error) {
+      throw new ConflictException(error.message);
     }
-    await this.save(currentUser);
-
-    return await this.findOne({ id: user.id });
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
-    const currentUser = await this.findOne({ id: oldUser.id });
+    try {
+      const currentUser = await this.findOne({ id: oldUser.id });
 
-    if (!currentUser)
-      throw new NotFoundException('No matching user for id found');
+      if (!currentUser)
+        throw new NotFoundException('No matching user for id found');
 
-    const refUser = await this.findOne({ ref: newUser.usedRef });
+      const refUser = await this.findOne({ ref: newUser.usedRef });
 
-    if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
-      newUser.usedRef = '000-000';
+      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
+        newUser.usedRef = '000-000';
 
-    newUser.ref = currentUser.ref;
-    newUser.id = currentUser.id;
-    newUser.address = currentUser.address;
-    newUser.signature = currentUser.signature;
-    newUser.role = currentUser.role;
-    newUser.status = currentUser.status;
-    newUser.ip = currentUser.ip;
-    newUser.created = currentUser.created;
+      newUser.ref = currentUser.ref;
+      newUser.id = currentUser.id;
+      newUser.address = currentUser.address;
+      newUser.signature = currentUser.signature;
+      newUser.role = currentUser.role;
+      newUser.status = currentUser.status;
+      newUser.ip = currentUser.ip;
+      newUser.created = currentUser.created;
 
-    let countryObject = null;
-    let languageObject = null;
+      let countryObject = null;
+      let languageObject = null;
 
-    if (
-      newUser.status == UserStatus.KYC ||
-      newUser.status == UserStatus.VERIFY
-    ) {
-      //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach ändern können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
+      if (
+        newUser.status == UserStatus.KYC ||
+        newUser.status == UserStatus.VERIFY
+      ) {
+        //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach ändern können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
 
-      if (newUser.firstname) delete newUser.firstname;
-      if (newUser.surname) delete newUser.surname;
-      if (newUser.mail) delete newUser.mail;
-      if (newUser.street) delete newUser.street;
-      if (newUser.houseNumber) delete newUser.houseNumber;
-      if (newUser.location) delete newUser.location;
-      if (newUser.zip) delete newUser.zip;
-      if (newUser.country) delete newUser.country;
-      if (newUser.phone) delete newUser.phone;
-    }
+        if (newUser.firstname) delete newUser.firstname;
+        if (newUser.surname) delete newUser.surname;
+        if (newUser.mail) delete newUser.mail;
+        if (newUser.street) delete newUser.street;
+        if (newUser.houseNumber) delete newUser.houseNumber;
+        if (newUser.location) delete newUser.location;
+        if (newUser.zip) delete newUser.zip;
+        if (newUser.country) delete newUser.country;
+        if (newUser.phone) delete newUser.phone;
+      }
 
-    if (newUser.country) {
-      countryObject = await getManager()
-        .getCustomRepository(CountryRepository)
-        .getCountry(newUser.country);
+      if (newUser.country) {
+        countryObject = await getManager()
+          .getCustomRepository(CountryRepository)
+          .getCountry(newUser.country);
 
-      newUser.country = countryObject;
-    }
+        newUser.country = countryObject;
+      }
 
-    if (newUser.language) {
-      languageObject = await getManager()
-        .getCustomRepository(LanguageRepository)
-        .getLanguage(newUser.language);
+      if (newUser.language) {
+        languageObject = await getManager()
+          .getCustomRepository(LanguageRepository)
+          .getLanguage(newUser.language);
 
-      newUser.language = languageObject;
-    }
+        newUser.language = languageObject;
+      }
 
-    await this.save(newUser);
+      await this.save(newUser);
 
-    const user = await this.findOne({ address: newUser.address });
-    // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
-    //   user.ref = '-1';
+      const user = await this.findOne({ address: newUser.address });
+      // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
+      //   user.ref = '-1';
 
-    delete user.address;
-    delete user.signature;
-    delete user.ip;
-    if (user.role != UserRole.VIP) delete user.role;
+      delete user.address;
+      delete user.signature;
+      delete user.ip;
+      if (user.role != UserRole.VIP) delete user.role;
 
-    if (
-      user.status == UserStatus.ACTIVE ||
-      user.status == UserStatus.KYC ||
-      user.status == UserStatus.VERIFY
-    ) {
-      return user;
-    } else {
-      delete user.ref;
-      return user;
+      if (
+        user.status == UserStatus.ACTIVE ||
+        user.status == UserStatus.KYC ||
+        user.status == UserStatus.VERIFY
+      ) {
+        return user;
+      } else {
+        delete user.ref;
+        return user;
+      }
+    } catch (error) {
+      throw new ConflictException(error.message);
     }
   }
 
   async updateRole(user: UpdateRoleDto): Promise<any> {
-    const currentUser = await this.findOne({ id: user.id });
+    try {
+      const currentUser = await this.findOne({ id: user.id });
 
-    if (!currentUser)
-      throw new NotFoundException('No matching user for id found');
+      if (!currentUser)
+        throw new NotFoundException('No matching user for id found');
 
-    currentUser.role = user.role;
+      currentUser.role = user.role;
 
-    await this.save(currentUser);
+      await this.save(currentUser);
 
-    return await this.findOne({ id: user.id });
+      return await this.findOne({ id: user.id });
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
   }
 
   async verifyUser(address: string): Promise<any> {
@@ -215,7 +229,7 @@ export class UserRepository extends Repository<User> {
     if (!currentUser)
       throw new NotFoundException('No matching user for id found');
 
-    let result = { result: true, errors: {} };
+    const result = { result: true, errors: {} };
 
     if (currentUser.mail == '' || currentUser.mail == null) {
       result.result = false;

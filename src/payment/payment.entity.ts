@@ -1,65 +1,62 @@
 import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    PrimaryColumn,
-    Index,
-    CreateDateColumn,
-    UpdateDateColumn,
-  } from 'typeorm';
-  import * as typeorm from 'typeorm';
-  
-  export enum PaymentType {
-    BUY = 'Buy',
-    SELL = 'Sell',
-  }
-  
-  export enum PaymentError {
-    NULL = "",
-    IBAN = 'Iban',
-    BANKUSAGE = 'Bankusage',
-    FIAT = 'Fiat',
-    ASSET = 'Asset',
-    KYC = 'Kyc',
-  }
-  
-  export enum PaymentStatus {
-    UNPROCESSED = 'Unprocessed',
-    PROCESSED = 'Processed',
-  }
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+
+export enum PaymentType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+}
+
+export enum PaymentError {
+  NULL = '',
+  IBAN = 'Iban',
+  BANKUSAGE = 'Bankusage',
+  FIAT = 'Fiat',
+  ASSET = 'Asset',
+  KYC = 'Kyc',
+}
+
+export enum PaymentStatus {
+  UNPROCESSED = 'Unprocessed',
+  PROCESSED = 'Processed',
+}
 
 @Entity()
 export abstract class Payment {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({ type: 'int', nullable: true, default: null })
-    userId: number;
+  @Column({ type: 'int', nullable: true, default: null })
+  userId: number;
 
-    @Column({ type: 'varchar', length: 34, nullable: true })
-    address: string;
+  @Column({ type: 'varchar', length: 34, nullable: true })
+  address: string;
 
-    @Column({ type: 'int', nullable: true })
-    fiat: number;
+  @Column({ type: 'int', nullable: true })
+  fiat: number;
 
-    @Column({ type: 'float', nullable: true })
-    fiatInCHF: number;
+  @Column({ type: 'float', nullable: true })
+  fiatInCHF: number;
 
-    @Column({ type: 'int', nullable: true })
-    asset: number;
+  @Column({ type: 'int', nullable: true })
+  asset: number;
 
-    @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
-    status: PaymentStatus;
-  
-    @Column({ type: 'varchar', length: 258, nullable: true })
-    info: string;
-  
-    @Column({ type: 'varchar', default: PaymentError.NULL})
-    errorCode: PaymentError;
+  @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
+  status: PaymentStatus;
 
-    @UpdateDateColumn()
-    updated: Date;
-  
-    @CreateDateColumn()
-    created: Date;
+  @Column({ type: 'varchar', length: 258, nullable: true })
+  info: string;
+
+  @Column({ type: 'varchar', default: PaymentError.NULL })
+  errorCode: PaymentError;
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }
