@@ -19,6 +19,7 @@ export enum UserRole {
   ADMIN = 'Admin',
   EMPLOYEE = 'Employee',
   VIP = 'VIP',
+  SUPPORT = 'SUPPORT',
 }
 
 export enum UserStatus {
@@ -107,5 +108,5 @@ export class User {
   userData: UserData;
 
   @OneToMany(() => Log, (logs) => logs.user)
-  logs: Log[]
+  logs: Log[];
 }

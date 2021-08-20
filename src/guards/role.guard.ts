@@ -56,6 +56,12 @@ export class RoleGuard implements CanActivate {
         } else {
           return false;
         }
+      case UserRole.SUPPORT:
+        if (userRole === UserRole.SUPPORT) {
+          return true;
+        } else {
+          return false;
+        }
       default:
         return false;
     }
