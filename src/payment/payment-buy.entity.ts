@@ -10,6 +10,12 @@ export class BuyPayment extends Payment {
   @Column({ type: 'varchar', length: 32, nullable: true })
   iban: string;
 
+  @Column({ type: 'datetime2', nullable: true })
+  received: Date;
+
+  @Column({ type: 'varchar', length: 150, unique: true })
+  bankTransactionId: string;
+
   @ManyToOne(() => Buy, { eager: false })
   @JoinColumn()
   buy: Buy;

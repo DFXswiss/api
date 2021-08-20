@@ -30,9 +30,6 @@ export abstract class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', nullable: true, default: null })
-  userId: number;
-
   @Column({ type: 'varchar', length: 34, nullable: true })
   address: string;
 

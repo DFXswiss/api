@@ -201,10 +201,12 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .createUserData(createUserDataDto);
       } else if (buy) {
         // const currentUser = buy.user;
+        
         // const query = this.createQueryBuilder('buy');
         //   query.where({ address });
         //   query.innerJoinAndSelect('buy.asset','assetXYZ');
         // const buy = await query.getMany();
+
         // if(!currentUser.userData){
         //     currentUser.userData = currentUserData;
         //     await getManager()

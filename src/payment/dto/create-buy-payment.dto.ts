@@ -16,9 +16,10 @@ export class CreateBuyPaymentDto {
   @IsInt()
   id: number;
 
-  @IsOptional()
+  @ApiProperty()
+  @IsNotEmpty()
   @IsInt()
-  userId: number;
+  bankTransactionId: string;
 
   @IsOptional()
   @Length(34, 34)
