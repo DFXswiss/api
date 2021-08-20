@@ -1,4 +1,8 @@
-import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -13,7 +17,6 @@ import { CreateLogDto } from 'src/log/dto/create-log.dto';
 import { LogDirection, LogStatus, LogType } from 'src/log/log.entity';
 import { CreateUserDataDto } from 'src/userData/dto/create-userData.dto';
 import { UserDataRepository } from 'src/userData/userData.repository';
-import { UpdateUserDataDto } from 'src/userData/dto/update-userData.dto';
 import { CountryRepository } from 'src/country/country.repository';
 import * as requestPromise from 'request-promise-native';
 import { Buy } from 'src/buy/buy.entity';
@@ -35,16 +38,14 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         .getFiat(createPaymentDto.fiat);
 
       createPaymentDto.fiat = fiatObject.id;
-
     } catch {
       createPaymentDto.info = 'Wrong Fiat: ' + createPaymentDto.fiat;
       createPaymentDto.fiat = null;
       createPaymentDto.errorCode = PaymentError.FIAT;
     }
 
-    try{
-
-        let baseUrl =
+    try {
+      let baseUrl =
         'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/' +
         fiatObject.name.toLowerCase() +
         '.json';
@@ -78,12 +79,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createPaymentDto.fiatInCHF =
         Number.parseFloat(result.split('"chf": ')[1].split(',')[0]) *
         createPaymentDto.fiatValue;
-
-    } catch(error){
-        throw new ConflictException(error.message);
+    } catch (error) {
+      throw new ConflictException(error.message);
     }
 
-    if (createPaymentDto.bankUsage){
+    if (createPaymentDto.bankUsage) {
       buy = await getManager()
         .getCustomRepository(BuyRepository)
         .getBuyByBankUsage(createPaymentDto.bankUsage);
@@ -103,9 +103,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         createPaymentDto.errorCode = PaymentError.IBAN;
       }
 
-    //   assetObject = await getManager()
-    //     .getCustomRepository(AssetRepository)
-    //     .getAsset(buy.asset);
+      //   assetObject = await getManager()
+      //     .getCustomRepository(AssetRepository)
+      //     .getAsset(buy.asset);
 
       if (buy.asset.buyable) {
         createPaymentDto.asset = buy.asset.id;
@@ -114,115 +114,103 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         createPaymentDto.errorCode = PaymentError.ASSET;
       }
     } else {
-        createPaymentDto.info = '';
+      createPaymentDto.info = '';
 
-        const currentPayment = await this.find({
-            iban: createPaymentDto.iban,
-            errorCode: PaymentError.NULL,
-        });
+      const currentPayment = await this.find({
+        iban: createPaymentDto.iban,
+        errorCode: PaymentError.NULL,
+      });
 
-        if (!currentPayment) {
-            const currentBuy = await getManager()
-            .getCustomRepository(BuyRepository)
-            .find({ iban: createPaymentDto.iban });
+      if (!currentPayment) {
+        const currentBuy = await getManager()
+          .getCustomRepository(BuyRepository)
+          .find({ iban: createPaymentDto.iban });
 
-            if (currentBuy) {
-                createPaymentDto.info = 'UserID: ' + currentBuy[0].user.id;
+        if (currentBuy) {
+          createPaymentDto.info = 'UserID: ' + currentBuy[0].user.id;
 
-                for (let a = 0; a < currentBuy.length; a++) {
-                    if (currentBuy[a].user.mail) {
-                        createPaymentDto.info +=
-                        '; User Mail: ' + currentBuy[a].user.mail;
-                        if (!currentBuy[a].user.phone) break;
-                    }
-                    if (currentBuy[a].user.phone) {
-                        createPaymentDto.info +=
-                        '; User Phonenumber: ' + currentBuy[a].user.phone;
-                        break;
-                    }
-                }
+          for (let a = 0; a < currentBuy.length; a++) {
+            if (currentBuy[a].user.mail) {
+              createPaymentDto.info +=
+                '; User Mail: ' + currentBuy[a].user.mail;
+              if (!currentBuy[a].user.phone) break;
             }
-        }
-
-        if(!createPaymentDto.info){
-
-            const currentUserData = await getManager()
-                .getCustomRepository(UserDataRepository)
-                .getUserData(createPaymentDto);
-
-            if(currentUserData){
-
-                for (let a = 0; a < currentUserData.users.length; a++) {
-                    if (currentUserData.users[a].mail) {
-                        createPaymentDto.info +=
-                        '; User Mail: ' + currentUserData.users[a].mail;
-                        if (!currentUserData.users[a].phone) break;
-                    }
-                    if (currentUserData.users[a].phone) {
-                        createPaymentDto.info +=
-                        '; User Phonenumber: ' + currentUserData.users[a].phone;
-                        break;
-                    }
-                }
+            if (currentBuy[a].user.phone) {
+              createPaymentDto.info +=
+                '; User Phonenumber: ' + currentBuy[a].user.phone;
+              break;
             }
+          }
         }
+      }
 
-        createPaymentDto.info = '; User Name: ' + createPaymentDto.name;
-        createPaymentDto.info +=
-            '; User Location: ' + createPaymentDto.location;
-        createPaymentDto.info +=
-            '; User Country: ' + createPaymentDto.country;
+      if (!createPaymentDto.info) {
+        const currentUserData = await getManager()
+          .getCustomRepository(UserDataRepository)
+          .getUserData(createPaymentDto);
 
-        createPaymentDto.info =
-            '; Wrong BankUsage: ' + createPaymentDto.bankUsage;
-        createPaymentDto.asset = null;
-        createPaymentDto.errorCode = PaymentError.BANKUSAGE;
+        if (currentUserData) {
+          for (let a = 0; a < currentUserData.users.length; a++) {
+            if (currentUserData.users[a].mail) {
+              createPaymentDto.info +=
+                '; User Mail: ' + currentUserData.users[a].mail;
+              if (!currentUserData.users[a].phone) break;
+            }
+            if (currentUserData.users[a].phone) {
+              createPaymentDto.info +=
+                '; User Phonenumber: ' + currentUserData.users[a].phone;
+              break;
+            }
+          }
+        }
+      }
+
+      createPaymentDto.info = '; User Name: ' + createPaymentDto.name;
+      createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
+      createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+
+      createPaymentDto.info =
+        '; Wrong BankUsage: ' + createPaymentDto.bankUsage;
+      createPaymentDto.asset = null;
+      createPaymentDto.errorCode = PaymentError.BANKUSAGE;
     }
 
     if (!createPaymentDto.errorCode) {
-        countryObject = (
-        await getManager()
-          .getCustomRepository(CountryRepository)
-          .getCountry(createPaymentDto.country)
-        );
+      countryObject = await getManager()
+        .getCustomRepository(CountryRepository)
+        .getCountry(createPaymentDto.country);
 
-        createPaymentDto.country = countryObject;
+      createPaymentDto.country = countryObject;
 
-        let currentUserData = await getManager()
-            .getCustomRepository(UserDataRepository)
-            .getUserData(createPaymentDto);
+      let currentUserData = await getManager()
+        .getCustomRepository(UserDataRepository)
+        .getUserData(createPaymentDto);
 
-        createPaymentDto.country = countryObject.id;
+      createPaymentDto.country = countryObject.id;
 
-        //TODO Summe letzte 30 Tage checken
+      //TODO Summe letzte 30 Tage checken
 
-        if (!currentUserData) {
-            const createUserDataDto = new CreateUserDataDto();
-            createUserDataDto.name = createPaymentDto.name;
-            createUserDataDto.location = createPaymentDto.location;
-            createUserDataDto.country = createPaymentDto.country;
+      if (!currentUserData) {
+        const createUserDataDto = new CreateUserDataDto();
+        createUserDataDto.name = createPaymentDto.name;
+        createUserDataDto.location = createPaymentDto.location;
+        createUserDataDto.country = createPaymentDto.country;
 
-            currentUserData = await getManager()
-            .getCustomRepository(UserDataRepository)
-            .createUserData(createUserDataDto);
-        } else if(buy){
-
-            // const currentUser = buy.user;
-
-            // const query = this.createQueryBuilder('buy');
-            //   query.where({ address });
-            //   query.innerJoinAndSelect('buy.asset','assetXYZ');
-
-            // const buy = await query.getMany();
-
-            // if(!currentUser.userData){
-
-            //     currentUser.userData = currentUserData;
-
-            //     await getManager()
-            //         .getCustomRepository(UserDataRepository).save(currentUser)
-            // }
-        }
+        currentUserData = await getManager()
+          .getCustomRepository(UserDataRepository)
+          .createUserData(createUserDataDto);
+      } else if (buy) {
+        // const currentUser = buy.user;
+        // const query = this.createQueryBuilder('buy');
+        //   query.where({ address });
+        //   query.innerJoinAndSelect('buy.asset','assetXYZ');
+        // const buy = await query.getMany();
+        // if(!currentUser.userData){
+        //     currentUser.userData = currentUserData;
+        //     await getManager()
+        //         .getCustomRepository(UserDataRepository).save(currentUser)
+        // }
+      }
     }
 
     const logDto: CreateLogDto = new CreateLogDto();
@@ -235,8 +223,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     logDto.address = createPaymentDto.address;
     logDto.fiatInCHF = createPaymentDto.fiatInCHF;
 
-    if(buy){
-        logDto.user = buy.user
+    if (buy) {
+      logDto.user = buy.user;
     }
 
     if (createPaymentDto.info) {
@@ -362,19 +350,5 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     }
 
     return payment;
-  }
-
-  async getProcessedPaymentValue(): Promise<any> {
-    const payment = await this.find({ status: PaymentStatus.PROCESSED });
-    const anonymPayments = { fiatValue: 0 };
-    if (payment) {
-      for (let a = 0; a < payment.length; a++) {
-        if (payment[a].fiat) anonymPayments.fiatValue += payment[a].fiatValue;
-      }
-    }
-
-    //TODO: return should return fiat value for each asset & fiat value?
-
-    return anonymPayments;
   }
 }

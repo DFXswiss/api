@@ -12,18 +12,33 @@ export class StatisticController {
     return this.statisticService.getAll();
   }
 
-  @Get('buy')
-  async getBuyCount(): Promise<any> {
-    return this.statisticService.getBuyCount();
+  @Get('order')
+  async getOrder(): Promise<any> {
+    return this.statisticService.getOrder();
   }
 
-  @Get('sell')
-  async getSellCount(): Promise<any> {
-    return this.statisticService.getSellCount();
+  @Get('order/sell')
+  async getSellOrder(): Promise<any> {
+    return this.statisticService.getSellOrder();
   }
 
-  @Get('payment')
-  async getPaymentValues(): Promise<any> {
-    return this.statisticService.getPaymentValues();
+  @Get('order/buy')
+  async getBuyOrder(): Promise<any> {
+    return this.statisticService.getBuyOrder();
+  }
+
+  @Get('volume')
+  async getVolume(): Promise<any> {
+    return this.statisticService.getVolume();
+  }
+
+  @Get('volume/buy')
+  async getBuyVolume(): Promise<any> {
+    return this.statisticService.getBuyVolume();
+  }
+
+  @Get('volume/sell')
+  async getSellVolume(): Promise<any> {
+    return this.statisticService.getSellVolume();
   }
 }

@@ -83,6 +83,42 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
+  async getBuyVolume(): Promise<any> {
+    try {
+      const volumeLogs = await this.find({ type: LogType.BUYVOLUME });
+      let buyVolume = 0;
+      for (let a = 0; a < volumeLogs.length; a++) {
+        buyVolume += volumeLogs[a].assetValue;
+      }
+      return { buyVolume: buyVolume };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getSellVolume(): Promise<any> {
+    try {
+      const volumeLogs = await this.find({ type: LogType.SELLVOLUME });
+      let sellVolume = 0;
+      for (let a = 0; a < volumeLogs.length; a++) {
+        sellVolume += volumeLogs[a].assetValue;
+      }
+      return { sellVolume: sellVolume };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getVolume(): Promise<any> {
+    try {
+      return {
+        totalVolume: [await this.getBuyVolume(), await this.getSellVolume()],
+      };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
   async getLog(key: any): Promise<any> {
     if (!isNaN(key.key)) {
       const log = await this.findOne({ id: key.key });

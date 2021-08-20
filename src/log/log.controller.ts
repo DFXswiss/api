@@ -3,20 +3,15 @@ import {
   Controller,
   Get,
   Param,
-  Put,
   UseGuards,
-  Request,
-  ForbiddenException,
   Post,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
-import { Log } from './log.entity';
 import { LogService } from './log.service';
 import { CreateLogDto } from './dto/create-log.dto';
-import { UpdateLogDto } from './dto/update-log.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';
 

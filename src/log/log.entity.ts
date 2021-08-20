@@ -1,6 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import * as typeorm from 'typeorm';
-import { Country } from 'src/country/country.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { User } from 'src/user/user.entity';
 
 export enum LogDirection {
@@ -11,6 +16,8 @@ export enum LogDirection {
 export enum LogType {
   INFO = 'Info',
   TRANSACTION = 'Transaction',
+  BUYVOLUME = 'BuyVolume',
+  SELLVOLUME = 'SellVolume',
 }
 
 export enum LogStatus {
@@ -23,7 +30,7 @@ export enum LogStatus {
   btc2fiat = 'btc-to-fiat',
   dfi2btc = 'dfi-to-btc',
   asset2dfi = 'asset-to-dfi',
-  fiatWithdrawal = 'fiat-withdrawal'
+  fiatWithdrawal = 'fiat-withdrawal',
 }
 
 @Entity()
@@ -67,7 +74,7 @@ export class Log {
   @Column({ type: 'varchar', nullable: true })
   message: string;
 
-  @CreateDateColumn() 
+  @CreateDateColumn()
   created: Date;
 
   @ManyToOne(() => User, { eager: false })
