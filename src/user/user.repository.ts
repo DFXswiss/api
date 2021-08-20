@@ -152,7 +152,7 @@ export class UserRepository extends Repository<User> {
         newUser.status == UserStatus.VERIFY
       ) {
         //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach ändern können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
-
+        //TODO Kontrolle was Mitarbeiter bzw. was Support Rolle und was nur Admin bearbeiten dürfen => Routen kontrollieren, mit Robin absprechen
         if (newUser.firstname) delete newUser.firstname;
         if (newUser.surname) delete newUser.surname;
         if (newUser.mail) delete newUser.mail;
