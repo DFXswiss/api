@@ -18,6 +18,7 @@ export class Buy {
   @PrimaryGeneratedColumn()
   id: number;
 
+  //TODO addresse löschen 
   @Column({ type: 'varchar', length: 34 })
   address: string;
 

@@ -1,3 +1,4 @@
+import { Country } from 'src/country/country.entity';
 import { User } from 'src/user/user.entity';
 import {
   Entity,
@@ -6,6 +7,8 @@ import {
   OneToMany,
   CreateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 
 @Entity()
@@ -24,8 +27,9 @@ export class UserData {
   @Column({ type: 'varchar' })
   location: string;
 
-  @Column({ type: 'varchar' })
-  country: string;
+  @ManyToOne(() => Country, { eager: true })
+  @JoinColumn()
+  country: Country;
 
   @CreateDateColumn()
   created: Date;

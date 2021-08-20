@@ -1,5 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import * as typeorm from 'typeorm';
+import { Country } from 'src/country/country.entity';
+import { User } from 'src/user/user.entity';
 
 export enum LogDirection {
   fiat2asset = 'fiat-to-asset',
@@ -67,4 +69,8 @@ export class Log {
 
   @CreateDateColumn() 
   created: Date;
+
+  @ManyToOne(() => User, { eager: false })
+  @JoinColumn()
+  user: User;
 }
