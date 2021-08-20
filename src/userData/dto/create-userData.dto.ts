@@ -18,8 +18,7 @@ export class CreateUserDataDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
-  country: string;
+  country: any;
 
   @IsString()
   @IsOptional()

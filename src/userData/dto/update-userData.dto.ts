@@ -15,8 +15,7 @@ export class UpdateUserDataDto {
   location: string;
 
   @IsOptional()
-  @IsString()
-  country: string;
+  country: any;
 
   @ApiPropertyOptional()
   @IsOptional()

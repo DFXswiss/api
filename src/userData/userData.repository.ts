@@ -70,7 +70,7 @@ export class UserDataRepository extends Repository<UserData> {
     }
   }
 
-  async getUserData(key: any): Promise<any> {
+  async getUserData(key: any): Promise<UserData> {
     if (!isNaN(key.key)) {
       const userData = await this.findOne({ id: key.key });
 
@@ -81,13 +81,11 @@ export class UserDataRepository extends Repository<UserData> {
       return userData;
     } else if (
       isString(key.name) &&
-      isString(key.location) &&
-      !isNaN(key.country)
+      isString(key.location)
     ) {
       const userData = await this.findOne({
         name: key.name,
         location: key.location,
-        country: key.country,
       });
 
       return userData;

@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
 import { User } from 'src/user/user.entity';
+import { UserData } from 'src/userData/userData.entity';
 
 @Entity()
 export class Country {
@@ -20,4 +21,7 @@ export class Country {
 
   @OneToMany(() => User, (user) => user.country)
   users: User[]
+
+  @OneToMany(() => UserData, (userData) => userData.country)
+  userData: UserData[]
 }

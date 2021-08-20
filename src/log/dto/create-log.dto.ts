@@ -7,6 +7,7 @@ import {
   IsString,
   Length,
 } from 'class-validator';
+import { User } from 'src/user/user.entity';
 import { LogDirection, LogStatus, LogType } from '../log.entity';
 
 export class CreateLogDto {
@@ -75,4 +76,7 @@ export class CreateLogDto {
   @IsString()
   @IsOptional()
   created: Date;
+
+  @IsOptional()
+  user: User;
 }

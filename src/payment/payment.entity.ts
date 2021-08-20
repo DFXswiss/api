@@ -43,7 +43,7 @@ export abstract class Payment {
   fiatInCHF: number;
 
   @Column({ type: 'int', nullable: true })
-  asset: number;
+  asset: any;
 
   @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
   status: PaymentStatus;

@@ -63,7 +63,7 @@ export class CreateBuyPaymentDto {
   received: Date;
 
   @IsOptional()
-  asset: number;
+  asset: any;
 
   @ApiProperty()
   @IsOptional()

@@ -1,6 +1,7 @@
 import { Buy } from 'src/buy/buy.entity';
 import { Country } from 'src/country/country.entity';
 import { Language } from 'src/language/language.entity';
+import { Log } from 'src/log/log.entity';
 import { Sell } from 'src/sell/sell.entity';
 import { UserData } from 'src/userData/userData.entity';
 import {
@@ -104,4 +105,7 @@ export class User {
   @ManyToOne(() => UserData, { eager: false })
   @JoinColumn()
   userData: UserData;
+
+  @OneToMany(() => Log, (logs) => logs.user)
+  logs: Log[]
 }
