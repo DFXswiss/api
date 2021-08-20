@@ -318,4 +318,18 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     return payment;
   }
+
+  async getProcessedPaymentValue(): Promise<any> {
+    const payment = await this.find({ status: PaymentStatus.PROCESSED });
+    const anonymPayments = { fiatValue: 0 };
+    if (payment) {
+      for (let a = 0; a < payment.length; a++) {
+        if (payment[a].fiat) anonymPayments.fiatValue += payment[a].fiatValue;
+      }
+    }
+
+    //TODO: return should return fiat value for each asset & fiat value?
+
+    return anonymPayments;
+  }
 }

@@ -116,7 +116,6 @@ export class BuyRepository extends Repository<Buy> {
   async getBuyCount(): Promise<any> {
     try {
       const buy = await this.find();
-
       return { buyCount: buy.length };
     } catch (error) {
       throw new ConflictException(error.message);

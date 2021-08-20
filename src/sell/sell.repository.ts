@@ -132,4 +132,13 @@ export class SellRepository extends Repository<Sell> {
       throw new ConflictException(error.message);
     }
   }
+
+  async getSellCount(): Promise<any> {
+    try {
+      const sell = await this.find();
+      return { sellCount: sell.length };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
 }
