@@ -29,7 +29,6 @@ export class UserService {
 
   async getUser(user: User, detailedUser: boolean): Promise<any> {
     if (detailedUser) {
-
       const buys = await user.buys;
 
       if (buys) {
@@ -37,9 +36,6 @@ export class UserService {
           delete buys[a].user;
         }
       }
-
-      delete user.buys;
-
       const sells = await user.sells;
 
       if (sells) {
@@ -50,6 +46,15 @@ export class UserService {
 
       user.sells = sells;
     }
+    user['has_buy'] = user['__has_buys__'];
+    delete user['__has_buys__'];
+    user['buy'] = user['__buys__'];
+    delete user['__buys__'];
+
+    user['has_sell'] = user['__has_sells__'];
+    delete user['__has_sells__'];
+    user['sell'] = user['__sells__'];
+    delete user['__sells__'];
 
     delete user.address;
     delete user.signature;
