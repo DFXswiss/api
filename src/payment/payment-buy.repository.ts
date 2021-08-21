@@ -20,6 +20,7 @@ import { UserDataRepository } from 'src/userData/userData.repository';
 import { CountryRepository } from 'src/country/country.repository';
 import * as requestPromise from 'request-promise-native';
 import { Buy } from 'src/buy/buy.entity';
+import { UserRepository } from 'src/user/user.repository';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -200,18 +201,13 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .getCustomRepository(UserDataRepository)
           .createUserData(createUserDataDto);
       } else if (buy) {
-        // const currentUser = buy.user;
-        
-        // const query = this.createQueryBuilder('buy');
-        //   query.where({ address });
-        //   query.innerJoinAndSelect('buy.asset','assetXYZ');
-        // const buy = await query.getMany();
+        const currentUser = await buy.user;
 
-        // if(!currentUser.userData){
-        //     currentUser.userData = currentUserData;
-        //     await getManager()
-        //         .getCustomRepository(UserDataRepository).save(currentUser)
-        // }
+        if(!currentUser.userData){
+            currentUser.userData = currentUserData;
+            await getManager()
+                .getCustomRepository(UserRepository).save(currentUser)
+        }
       }
     }
 

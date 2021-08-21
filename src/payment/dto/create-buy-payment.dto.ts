@@ -18,7 +18,7 @@ export class CreateBuyPaymentDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsInt()
+  @IsString()
   bankTransactionId: string;
 
   @IsOptional()

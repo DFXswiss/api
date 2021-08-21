@@ -34,7 +34,7 @@ export class Buy {
   @CreateDateColumn()
   created: Date;
 
-  @ManyToOne(() => User, (user) => user.buys)
+  @ManyToOne(() => User, (user) => user.buys, { lazy: true })
   user: User;
 
   @ManyToOne(() => Asset, { eager: true })
