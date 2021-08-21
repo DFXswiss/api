@@ -29,20 +29,26 @@ export class UserService {
 
   async getUser(user: User, detailedUser: boolean): Promise<any> {
     if (detailedUser) {
-      if (user.buys) {
-        for (let a = 0; a < user.buys.length; a++) {
-          delete user.buys[a].user;
+
+      const buys = await user.buys;
+
+      if (buys) {
+        for (let a = 0; a < buys.length; a++) {
+          delete buys[a].user;
         }
       }
 
-      if (user.sells) {
-        for (let a = 0; a < user.sells.length; a++) {
-          delete user.sells[a].user;
+      delete user.buys;
+
+      const sells = await user.sells;
+
+      if (sells) {
+        for (let a = 0; a < sells.length; a++) {
+          delete sells[a].user;
         }
       }
-    } else {
-      delete user.buys;
-      delete user.sells;
+
+      user.sells = sells;
     }
 
     delete user.address;

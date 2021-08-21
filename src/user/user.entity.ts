@@ -95,11 +95,11 @@ export class User {
   @CreateDateColumn()
   created: Date;
 
-  @OneToMany(() => Buy, (buy) => buy.user, { eager: true })
+  @OneToMany(() => Buy, (buy) => buy.user, { lazy: true })
   @JoinColumn()
   buys: Buy[];
 
-  @OneToMany(() => Sell, (sell) => sell.user, { eager: true })
+  @OneToMany(() => Sell, (sell) => sell.user, { lazy: true })
   @JoinColumn()
   sells: Sell[];
 
