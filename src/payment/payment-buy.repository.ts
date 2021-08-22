@@ -201,6 +201,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .getCustomRepository(UserDataRepository)
           .createUserData(createUserDataDto);
       } else if (buy) {
+
         const currentUser = await buy.user;
 
         if(!currentUser.userData){
@@ -222,7 +223,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     logDto.fiatInCHF = createPaymentDto.fiatInCHF;
 
     if (buy) {
-      logDto.user = buy.user;
+      logDto.user = await buy.user;
     }
 
     if (createPaymentDto.info) {
@@ -233,8 +234,16 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     const payment = this.create(createPaymentDto);
 
+    if(payment.buy){
+      delete payment.buy;
+    }
+
     if (payment) {
-      await this.save(payment);
+      try{
+        await this.save(payment);
+      } catch (error) {
+        throw new ConflictException(error.message);
+      }
       payment.fiat = fiatObject;
       payment.asset = buy.asset;
     }
