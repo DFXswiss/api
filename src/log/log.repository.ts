@@ -19,7 +19,7 @@ export class LogRepository extends Repository<Log> {
     if (
       !createLogDto.type ||
       (createLogDto.type != LogType.INFO &&
-        createLogDto.type != LogType.TRANSACTION)
+        createLogDto.type != LogType.TRANSACTION && createLogDto.type != LogType.VOLUME)
     )
       throw new BadRequestException('type must be Info or Transaction');
     if (
@@ -85,7 +85,7 @@ export class LogRepository extends Repository<Log> {
 
   async getBuyVolume(): Promise<any> {
     try {
-      const volumeLogs = await this.find({ type: LogType.BUYVOLUME });
+      const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.fiat2asset });
       let buyVolume = 0;
       for (let a = 0; a < volumeLogs.length; a++) {
         buyVolume += volumeLogs[a].assetValue;
@@ -98,7 +98,7 @@ export class LogRepository extends Repository<Log> {
 
   async getSellVolume(): Promise<any> {
     try {
-      const volumeLogs = await this.find({ type: LogType.SELLVOLUME });
+      const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.asset2fiat });
       let sellVolume = 0;
       for (let a = 0; a < volumeLogs.length; a++) {
         sellVolume += volumeLogs[a].assetValue;

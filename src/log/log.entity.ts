@@ -16,8 +16,7 @@ export enum LogDirection {
 export enum LogType {
   INFO = 'Info',
   TRANSACTION = 'Transaction',
-  BUYVOLUME = 'BuyVolume',
-  SELLVOLUME = 'SellVolume',
+  VOLUME = 'Volume',
 }
 
 export enum LogStatus {

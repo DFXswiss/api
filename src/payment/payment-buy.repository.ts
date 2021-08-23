@@ -2,6 +2,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
@@ -28,7 +29,6 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     if (createPaymentDto.id) delete createPaymentDto['id'];
     if (createPaymentDto.created) delete createPaymentDto['created'];
 
-    // let assetObject = null;
     let fiatObject = null;
     let countryObject = null;
     let buy: Buy = null;
@@ -104,10 +104,6 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         createPaymentDto.errorCode = PaymentError.IBAN;
       }
 
-      //   assetObject = await getManager()
-      //     .getCustomRepository(AssetRepository)
-      //     .getAsset(buy.asset);
-
       if (buy.asset.buyable) {
         createPaymentDto.asset = buy.asset.id;
       } else {
@@ -170,7 +166,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
       createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
 
-      createPaymentDto.info =
+      createPaymentDto.info +=
         '; Wrong BankUsage: ' + createPaymentDto.bankUsage;
       createPaymentDto.asset = null;
       createPaymentDto.errorCode = PaymentError.BANKUSAGE;
@@ -234,15 +230,14 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     const payment = this.create(createPaymentDto);
 
-    if(payment.buy){
-      delete payment.buy;
-    }
-
     if (payment) {
       try{
         await this.save(payment);
       } catch (error) {
         throw new ConflictException(error.message);
+      }
+      if(payment.buy){
+        delete payment.buy;
       }
       payment.fiat = fiatObject;
       payment.asset = buy.asset;
@@ -253,10 +248,46 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   async updatePayment(payment: UpdatePaymentDto): Promise<any> {
     const currentPayment = await this.findOne({ id: payment.id });
 
-    if (!currentPayment)
-      throw new NotFoundException('No matching payment for id found');
+    if (!currentPayment) throw new NotFoundException('No matching payment for id found');
+    if(currentPayment.status == PaymentStatus.PROCESSED) throw new ForbiddenException('Payment is already processed!')
+    if(payment.status != PaymentStatus.PROCESSED) throw new ForbiddenException('Payment-status must be \"Processed\"')
 
     currentPayment.status = payment.status;
+
+    try{
+
+      let baseUrl =
+          'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=0';
+
+      const options = {
+        uri: baseUrl,
+      };
+    
+      const result = await requestPromise.get(options);
+
+      const volumeInDFI = currentPayment.fiatInCHF / Number.parseFloat(result.split("prices\":[[")[1].split("]],")[0].split(",")[1]);
+
+      const logDto: CreateLogDto = new CreateLogDto();
+      logDto.fiatValue = currentPayment.fiatValue;
+      logDto.fiat = currentPayment.fiat;
+      logDto.assetValue = volumeInDFI;
+      logDto.asset = await getManager()
+      .getCustomRepository(AssetRepository)
+      .getAsset('DFI');
+      logDto.direction = LogDirection.fiat2asset;
+      logDto.type = LogType.VOLUME;
+      logDto.fiatInCHF = currentPayment.fiatInCHF;
+
+      if (currentPayment.buy) {
+        const currentBuy = await currentPayment.buy;
+        logDto.user = await currentBuy.user;
+      }
+
+      await getManager().getCustomRepository(LogRepository).createLog(logDto);
+
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
 
     await this.save(currentPayment);
 

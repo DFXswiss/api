@@ -16,7 +16,7 @@ export class BuyPayment extends Payment {
   @Column({ type: 'varchar', length: 150, unique: true })
   bankTransactionId: string;
 
-  @ManyToOne(() => Buy, { eager: false })
+  @ManyToOne(() => Buy, { eager: false, lazy: true })
   @JoinColumn()
   buy: Buy;
 }
