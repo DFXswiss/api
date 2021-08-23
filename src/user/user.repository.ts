@@ -60,7 +60,6 @@ export class UserRepository extends Repository<User> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const result = await requestPromise.get(options);
 
-    //TODO aktivieren
     //if (true) {
     if(JSON.parse(result).response === 'True'){
 

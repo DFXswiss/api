@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserRepository } from 'src/user/user.repository';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
@@ -22,15 +22,18 @@ export class AuthService {
     const { address, signature } = authCredentialsDto;
     const user = await this.userRepository.findOne({
       address: address,
-      signature: signature,
     });
 
     if (user) {
-      const payload: JwtPayload = { address, role:user.role };
-      const accessToken = this.jwtService.sign(payload);
-      return { accessToken };
+      if(user.signature == signature) {
+        const payload: JwtPayload = { address, role:user.role };
+        const accessToken = this.jwtService.sign(payload);
+        return { accessToken };
+      }else{
+        throw new UnauthorizedException('Invalid Credentials');
+      }
     } else {
-      throw new UnauthorizedException('Invalid Credentials');
+      throw new NotFoundException('User not found');
     }
   }
 }
