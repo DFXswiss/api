@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsNotEmpty,
@@ -10,16 +10,19 @@ import {
 import { UserRole, UserStatus } from '../user.entity';
 
 export class UpdateUserDto {
+  @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
   id: number;
 
-  @IsNotEmpty()
+  @ApiProperty()
+  @IsOptional()
   @Length(34, 42)
   @IsString()
   address: string;
 
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @Length(88, 88)
   @IsString()
   signature: string;

@@ -31,13 +31,16 @@ export class BuyRepository extends Repository<Buy> {
     createBuyDto.asset = assetObject;
 
     const buy = this.create(createBuyDto);
-    buy.address = buy.user.address;
+    const currentUser = await buy.user;
+    buy.address = currentUser.address;
     try {
       if (buy) {
         await this.save(buy);
 
         delete buy.address;
         delete buy.user;
+        delete buy["__user__"];
+        delete buy["__userData__"];
         return buy;
       }
     } catch (error) {
