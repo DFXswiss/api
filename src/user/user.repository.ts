@@ -61,8 +61,8 @@ export class UserRepository extends Repository<User> {
     const result = await requestPromise.get(options);
 
     //TODO aktivieren
-    if (true) {
-      //JSON.parse(result).response === 'True'){
+    //if (true) {
+    if(JSON.parse(result).response === 'True'){
 
       const refVar = String((await this.find()).length + 1).padStart(6, '0');
 
