@@ -103,7 +103,7 @@ export class User {
   @JoinColumn()
   sells: Sell[];
 
-  @ManyToOne(() => UserData, { eager: false, cascade: ["insert"] })
+  @ManyToOne(() => UserData, { eager: false, cascade: ["insert"], lazy: true })
   @JoinColumn()
   userData: UserData;
 

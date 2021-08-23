@@ -4,7 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { EntityRepository, Repository } from 'typeorm';
+import { EntityRepository, getConnection, getRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BuyPayment } from './payment-buy.entity';
@@ -22,6 +22,7 @@ import { CountryRepository } from 'src/country/country.repository';
 import * as requestPromise from 'request-promise-native';
 import { Buy } from 'src/buy/buy.entity';
 import { UserRepository } from 'src/user/user.repository';
+import { User, UserStatus } from 'src/user/user.entity';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -185,7 +186,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       createPaymentDto.country = countryObject.id;
 
-      //TODO Summe letzte 30 Tage checken
+      let currentUser: User = null;
 
       if (!currentUserData) {
         const createUserDataDto = new CreateUserDataDto();
@@ -198,12 +199,53 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .createUserData(createUserDataDto);
       } else if (buy) {
 
-        const currentUser = await buy.user;
+        currentUser = await buy.user;
 
         if(!currentUser.userData){
             currentUser.userData = currentUserData;
             await getManager()
                 .getCustomRepository(UserRepository).save(currentUser)
+        }
+      }
+
+      if(currentUser){
+        if(currentUser.status != UserStatus.KYC){
+
+          let lastMonthDate = new Date();
+          lastMonthDate.setDate(lastMonthDate.getDate() + 1);
+          lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+          let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
+
+          let sumBuyCHF = Number.parseFloat((await this.createQueryBuilder("buyPayment")
+          .select("SUM(buyPayment.fiatInCHF)","sum")
+          .innerJoin("buyPayment.buy", "buy")
+          .innerJoin("buy.user", "user")
+          .innerJoin("user.userData","userData")
+          .where("userData.id = :id", { id: currentUserData.id })
+          .andWhere("buyPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
+          .getRawMany())[0].sum) + createPaymentDto.fiatInCHF;
+
+          //TODO
+
+          // let sumSellCHF = Number.parseFloat((await this.createQueryBuilder("sellPayment")
+          // .select("SUM(sellPayment.fiatInCHF)","sum")
+          // .innerJoin("sellPayment.sell", "sell")
+          // .innerJoin("sell.user", "user")
+          // .innerJoin("user.userData","userData")
+          // .where("userData.id = :id", { id: currentUserData.id })
+          // .andWhere("sellPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
+          // .getRawMany())[0].sum);
+
+          let sumCHF = sumBuyCHF; //+ sumSellCHF;
+
+          if(sumCHF > 1000){
+            createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
+            createPaymentDto.info += '; userDataId: ' + currentUserData.id;
+            createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+            createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
+            createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+            createPaymentDto.errorCode = PaymentError.KYC;
+          }
         }
       }
     }
@@ -236,9 +278,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       } catch (error) {
         throw new ConflictException(error.message);
       }
-      if(payment.buy){
-        delete payment.buy;
-      }
+      if(payment.buy) delete payment.buy;
+      if(payment["__buy__"]) delete payment["__buy__"];
+      
       payment.fiat = fiatObject;
       payment.asset = buy.asset;
     }

@@ -17,7 +17,7 @@ export enum PaymentError {
   BANKUSAGE = 'Bankusage',
   FIAT = 'Fiat',
   ASSET = 'Asset',
-  KYC = 'Kyc',
+  KYC = 'KYC',
 }
 
 export enum PaymentStatus {
