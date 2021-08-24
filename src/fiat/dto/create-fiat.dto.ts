@@ -3,10 +3,6 @@ import {  IsBoolean,  IsInt, IsNotEmpty, IsOptional,  IsString, } from "class-va
 
 export class CreateFiatDto {
 
-    @IsOptional()
-    @IsInt()
-    id: number;
-
     @ApiProperty()
     @IsNotEmpty()
     @IsString()
@@ -17,8 +13,4 @@ export class CreateFiatDto {
     @IsBoolean()
     @IsOptional()
     enable: boolean;
-
-    @IsString()
-    @IsOptional()
-    created: Date;
 }

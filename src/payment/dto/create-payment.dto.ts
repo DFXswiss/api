@@ -10,9 +10,6 @@ import {
 import { PaymentError, PaymentStatus } from '../payment.entity';
 
 export class CreatePaymentDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @IsOptional()
   @IsInt()
@@ -64,10 +61,6 @@ export class CreatePaymentDto {
 
   @IsOptional()
   errorCode: PaymentError;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 
   @ApiProperty()
   @IsOptional()

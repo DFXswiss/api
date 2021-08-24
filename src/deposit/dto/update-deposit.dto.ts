@@ -14,7 +14,7 @@ export class UpdateDepositDto {
   id: number;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   address: string;
 
@@ -22,8 +22,4 @@ export class UpdateDepositDto {
   @IsNotEmpty()
   @IsBoolean()
   used: boolean;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

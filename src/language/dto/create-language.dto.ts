@@ -8,9 +8,6 @@ import {
 } from 'class-validator';
 
 export class CreateLanguageDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -31,8 +28,4 @@ export class CreateLanguageDto {
   @IsOptional()
   @IsBoolean()
   enable: boolean;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

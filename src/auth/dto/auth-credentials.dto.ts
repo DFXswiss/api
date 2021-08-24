@@ -5,7 +5,7 @@ export class AuthCredentialsDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  @Length(34, 34)
+  @Length(34, 42)
   address: string;
 
   @ApiProperty()

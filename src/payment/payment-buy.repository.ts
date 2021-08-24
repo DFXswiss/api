@@ -28,8 +28,6 @@ import { SellPayment } from './payment-sell.entity';
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
   async createPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
-    if (createPaymentDto.id) delete createPaymentDto['id'];
-    if (createPaymentDto.created) delete createPaymentDto['created'];
 
     let fiatObject = null;
     let countryObject = null;

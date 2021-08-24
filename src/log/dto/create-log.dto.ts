@@ -12,10 +12,6 @@ import { LogDirection, LogStatus, LogType } from '../log.entity';
 
 export class CreateLogDto {
   @IsOptional()
-  @IsInt()
-  id: number;
-
-  @IsOptional()
   @IsString()
   orderId: string;
 
@@ -72,10 +68,6 @@ export class CreateLogDto {
   @IsOptional()
   @IsString()
   message: string;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 
   @IsOptional()
   user: User;

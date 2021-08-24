@@ -8,8 +8,6 @@ import { isString } from 'class-validator';
 @EntityRepository(Deposit)
 export class DepositRepository extends Repository<Deposit> {
   async createDeposit(createDepositDto: CreateDepositDto): Promise<any> {
-    if (createDepositDto.id) delete createDepositDto.id;
-    if (createDepositDto.created) delete createDepositDto.created;
 
     const deposit = this.create(createDepositDto);
 
@@ -36,8 +34,6 @@ export class DepositRepository extends Repository<Deposit> {
 
       if (!currentDeposit)
         throw new NotFoundException('No matching deposit address for id found');
-
-      depositAddress.created = currentDeposit.created;
 
       return Object.assign(currentDeposit, await this.save(depositAddress));
     } catch (error) {

@@ -8,9 +8,6 @@ import {
 } from 'class-validator';
 
 export class CreateCountryDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -27,7 +24,4 @@ export class CreateCountryDto {
   @IsBoolean()
   enable: boolean;
 
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

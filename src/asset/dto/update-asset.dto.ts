@@ -27,8 +27,4 @@ export class UpdateAssetDto {
   @IsNotEmpty()
   @IsBoolean()
   buyable: boolean;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

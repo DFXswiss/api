@@ -12,8 +12,6 @@ import { isString } from 'class-validator';
 @EntityRepository(Fiat)
 export class FiatRepository extends Repository<Fiat> {
   async createFiat(createFiatDto: CreateFiatDto): Promise<any> {
-    if (createFiatDto.id) delete createFiatDto.id;
-    if (createFiatDto.created) delete createFiatDto.created;
 
     const fiat = this.create(createFiatDto);
 
@@ -40,8 +38,6 @@ export class FiatRepository extends Repository<Fiat> {
 
       if (!currentFiat)
         throw new NotFoundException('No matching fiat for id found');
-
-      fiat.created = currentFiat.created;
 
       return Object.assign(currentFiat, await this.save(fiat));
     } catch (error) {

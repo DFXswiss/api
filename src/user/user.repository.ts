@@ -132,21 +132,12 @@ export class UserRepository extends Repository<User> {
       if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
         newUser.usedRef = '000-000';
 
-      newUser.ref = currentUser.ref;
-      newUser.id = currentUser.id;
-      newUser.address = currentUser.address;
-      newUser.signature = currentUser.signature;
-      newUser.role = currentUser.role;
-      newUser.status = currentUser.status;
-      newUser.ip = currentUser.ip;
-      newUser.created = currentUser.created;
-
       let countryObject = null;
       let languageObject = null;
 
       if (
-        newUser.status == UserStatus.KYC ||
-        newUser.status == UserStatus.VERIFY
+        currentUser.status == UserStatus.KYC ||
+        currentUser.status == UserStatus.VERIFY
       ) {
         //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach ändern können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
         //TODO Kontrolle was Mitarbeiter bzw. was Support Rolle und was nur Admin bearbeiten dürfen => Routen kontrollieren, mit Robin absprechen
@@ -177,9 +168,8 @@ export class UserRepository extends Repository<User> {
         newUser.language = languageObject;
       }
 
-      await this.save(newUser);
+      let user = Object.assign(currentUser, await this.save(newUser));
 
-      const user = await this.findOne({ address: newUser.address });
       // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
       //   user.ref = '-1';
 

@@ -12,8 +12,6 @@ import { isString } from 'class-validator';
 @EntityRepository(Asset)
 export class AssetRepository extends Repository<Asset> {
   async createAsset(createAssetDto: CreateAssetDto): Promise<any> {
-    if (createAssetDto.id) delete createAssetDto.id;
-    if (createAssetDto.created) delete createAssetDto.created;
 
     const asset = this.create(createAssetDto);
 
@@ -39,8 +37,6 @@ export class AssetRepository extends Repository<Asset> {
       const currentAsset = await this.findOne({ id: asset.id });
       if (!currentAsset)
         throw new NotFoundException('No matching asset for id found');
-
-      asset.created = currentAsset.created;
 
       return Object.assign(currentAsset, await this.save(asset));
     } catch (error) {

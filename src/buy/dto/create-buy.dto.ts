@@ -9,9 +9,6 @@ import {
 import { User } from 'src/user/user.entity';
 
 export class CreateBuyDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -24,12 +21,7 @@ export class CreateBuyDto {
 
   user: User;
 
-  @Length(14, 14)
   @IsOptional()
   @IsString()
   bankUsage: string;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

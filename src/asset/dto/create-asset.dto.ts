@@ -9,9 +9,6 @@ import {
 import { AssetType } from '../asset.entity';
 
 export class CreateAssetDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -34,8 +31,4 @@ export class CreateAssetDto {
   @IsBoolean()
   @IsOptional()
   buyable: boolean;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

@@ -12,13 +12,10 @@ import {
 } from 'class-validator';
 
 export class CreateWalletDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @ApiProperty()
   @IsNotEmpty()
-  @Length(34, 34)
+  @Length(34, 42)
   @IsString()
   address: string;
 
@@ -37,8 +34,4 @@ export class CreateWalletDto {
   @IsOptional()
   @IsString()
   description: string;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

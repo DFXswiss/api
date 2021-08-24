@@ -18,8 +18,7 @@ export class UpdateBuyDto {
   @IsInt()
   active: boolean;
 
-  @IsNotEmpty()
-  @Length(34, 34)
+  @Length(34, 42)
   @IsString()
   @IsOptional()
   address: string;

@@ -13,9 +13,7 @@ import { AssetRepository } from 'src/asset/asset.repository';
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
   async createLog(createLogDto: CreateLogDto): Promise<any> {
-    if (createLogDto.id) delete createLogDto.id;
-    if (createLogDto.orderId) delete createLogDto.orderId;
-    if (createLogDto.created) delete createLogDto.created;
+    
     if (
       !createLogDto.type ||
       (createLogDto.type != LogType.INFO &&

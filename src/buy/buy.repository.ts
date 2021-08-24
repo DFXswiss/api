@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { Buy } from './buy.entity';
@@ -10,8 +10,6 @@ import { getManager } from 'typeorm';
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
   async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
-    if (createBuyDto.id) delete createBuyDto.id;
-    if (createBuyDto.created) delete createBuyDto.created;
 
     const assetObject = await getManager()
       .getCustomRepository(AssetRepository)
@@ -52,17 +50,18 @@ export class BuyRepository extends Repository<Buy> {
     try {
       const buy = await this.findOne(updateBuyDto.id);
 
-      if (buy) {
-        if (buy.address != updateBuyDto.address)
-          throw new ForbiddenException(
-            'You can only change your own sell route',
-          );
-        buy.active = updateBuyDto.active;
-        await this.save(buy);
-        delete buy.address;
-        delete buy.user;
-        return buy;
-      }
+      if (!buy) throw new NotFoundException('No matching entry for id found');
+      
+      if (buy.address != updateBuyDto.address)
+        throw new ForbiddenException(
+          'You can only change your own sell route',
+        );
+      buy.active = updateBuyDto.active;
+      await this.save(buy);
+      delete buy.address;
+      delete buy.user;
+      return buy;
+      
     } catch (error) {
       throw new ConflictException(error.message);
     }

@@ -15,23 +15,6 @@ export class UpdateUserDto {
   @IsInt()
   id: number;
 
-  @ApiProperty()
-  @IsOptional()
-  @Length(34, 42)
-  @IsString()
-  address: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Length(88, 88)
-  @IsString()
-  signature: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  ref: string;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -91,20 +74,4 @@ export class UpdateUserDto {
   // TODO: user phonenumber decorator instead of string --> Figure it out
   // @IsPhoneNumber()
   phone: string;
-
-  @IsOptional()
-  @IsString()
-  role: UserRole;
-
-  @IsOptional()
-  @IsString()
-  ip: string;
-
-  @IsOptional()
-  @IsString()
-  status: UserStatus;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

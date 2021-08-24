@@ -12,8 +12,6 @@ import { isString } from 'class-validator';
 @EntityRepository(Language)
 export class LanguageRepository extends Repository<Language> {
   async createLanguage(createLanguageDto: CreateLanguageDto): Promise<any> {
-    if (createLanguageDto.id) delete createLanguageDto.id;
-    if (createLanguageDto.created) delete createLanguageDto.created;
 
     const language = this.create(createLanguageDto);
 
@@ -93,8 +91,6 @@ export class LanguageRepository extends Repository<Language> {
       const currentLanguage = await this.findOne({ id: editLanguageDto.id });
       if (!currentLanguage)
         throw new NotFoundException('No matching country found');
-
-      editLanguageDto.created = currentLanguage.created;
 
       return Object.assign(currentLanguage, await this.save(editLanguageDto));
     } catch (error) {

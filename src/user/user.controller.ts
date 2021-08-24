@@ -35,8 +35,6 @@ export class UserController {
     @GetUser() oldUser: User,
     @Body() newUser: UpdateUserDto,
   ): Promise<any> {
-    newUser.address = oldUser.address;
-    newUser.signature = oldUser.signature;
     return this.userService.updateUser(oldUser, newUser);
   }
 

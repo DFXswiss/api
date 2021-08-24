@@ -12,10 +12,6 @@ import { Buy } from 'src/buy/buy.entity';
 import { PaymentError, PaymentStatus } from '../payment.entity';
 
 export class CreateBuyPaymentDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
-
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
@@ -76,11 +72,7 @@ export class CreateBuyPaymentDto {
 
   @IsOptional()
   errorCode: PaymentError;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
-
+  
   @IsOptional()
   status: PaymentStatus;
 

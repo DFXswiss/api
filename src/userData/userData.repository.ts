@@ -14,9 +14,6 @@ import { isString } from 'class-validator';
 @EntityRepository(UserData)
 export class UserDataRepository extends Repository<UserData> {
   async createUserData(createUserDto: CreateUserDataDto): Promise<UserData> {
-    if (createUserDto.id) delete createUserDto.id;
-    if (createUserDto.updated) delete createUserDto.updated;
-    if (createUserDto.created) delete createUserDto.created;
 
     let countryObject = null;
 
@@ -51,11 +48,6 @@ export class UserDataRepository extends Repository<UserData> {
 
   async updateUserData(newUser: UpdateUserDataDto): Promise<any> {
     try {
-      if (newUser.created) delete newUser.created;
-      if (newUser.updated) delete newUser.updated;
-      if (newUser.location) delete newUser.location;
-      if (newUser.name) delete newUser.name;
-      if (newUser.country) delete newUser.country;
 
       const currentUser = await this.findOne({ id: newUser.id });
 

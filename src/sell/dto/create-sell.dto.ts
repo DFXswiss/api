@@ -3,9 +3,6 @@ import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { User } from 'src/user/user.entity';
 
 export class CreateSellDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -19,8 +16,4 @@ export class CreateSellDto {
 
   @IsOptional()
   deposit: any;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

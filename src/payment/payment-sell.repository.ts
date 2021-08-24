@@ -11,8 +11,6 @@ import { AssetRepository } from 'src/asset/asset.repository';
 @EntityRepository(SellPayment)
 export class SellPaymentRepository extends Repository<SellPayment> {
   async createPayment(createPaymentDto: CreateSellPaymentDto): Promise<any> {
-    if (createPaymentDto.id) delete createPaymentDto['id'];
-    if (createPaymentDto.created) delete createPaymentDto['created'];
 
     let assetObject = null;
     let fiatObject = null;
