@@ -23,6 +23,7 @@ import * as requestPromise from 'request-promise-native';
 import { Buy } from 'src/buy/buy.entity';
 import { UserRepository } from 'src/user/user.repository';
 import { User, UserStatus } from 'src/user/user.entity';
+import { SellPayment } from './payment-sell.entity';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -225,18 +226,19 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .andWhere("buyPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
           .getRawMany())[0].sum) + createPaymentDto.fiatInCHF;
 
-          //TODO
+          let sumSellCHF = Number.parseFloat((await getRepository(SellPayment).createQueryBuilder("sellPayment")
+          .select("SUM(sellPayment.fiatInCHF)","sum")
+          .innerJoin("sellPayment.sell", "sell")
+          .innerJoin("sell.user", "user")
+          .innerJoin("user.userData","userData")
+          .where("userData.id = :id", { id: currentUserData.id })
+          .andWhere("sellPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
+          .getRawMany())[0].sum);
 
-          // let sumSellCHF = Number.parseFloat((await this.createQueryBuilder("sellPayment")
-          // .select("SUM(sellPayment.fiatInCHF)","sum")
-          // .innerJoin("sellPayment.sell", "sell")
-          // .innerJoin("sell.user", "user")
-          // .innerJoin("user.userData","userData")
-          // .where("userData.id = :id", { id: currentUserData.id })
-          // .andWhere("sellPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
-          // .getRawMany())[0].sum);
+          if(!sumBuyCHF) sumBuyCHF = 0;
+          if(!sumSellCHF) sumSellCHF = 0;
 
-          let sumCHF = sumBuyCHF; //+ sumSellCHF;
+          let sumCHF = sumBuyCHF + sumSellCHF;
 
           if(sumCHF > 1000){
             createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
@@ -292,43 +294,46 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     if (!currentPayment) throw new NotFoundException('No matching payment for id found');
     if(currentPayment.status == PaymentStatus.PROCESSED) throw new ForbiddenException('Payment is already processed!')
-    if(payment.status != PaymentStatus.PROCESSED) throw new ForbiddenException('Payment-status must be \"Processed\"')
+    if(payment.status != PaymentStatus.PROCESSED && payment.status != PaymentStatus.REPAYMENT && payment.status != PaymentStatus.CANCELED) throw new ForbiddenException('Payment-status must be \"Processed\"')
 
     currentPayment.status = payment.status;
 
-    try{
+    if(payment.status == PaymentStatus.PROCESSED){
 
-      let baseUrl =
-          'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=0';
+      try{
 
-      const options = {
-        uri: baseUrl,
-      };
-    
-      const result = await requestPromise.get(options);
+        let baseUrl =
+            'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=0';
 
-      const volumeInDFI = currentPayment.fiatInCHF / Number.parseFloat(result.split("prices\":[[")[1].split("]],")[0].split(",")[1]);
+        const options = {
+          uri: baseUrl,
+        };
+      
+        const result = await requestPromise.get(options);
 
-      const logDto: CreateLogDto = new CreateLogDto();
-      logDto.fiatValue = currentPayment.fiatValue;
-      logDto.fiat = currentPayment.fiat;
-      logDto.assetValue = volumeInDFI;
-      logDto.asset = await getManager()
-      .getCustomRepository(AssetRepository)
-      .getAsset('DFI');
-      logDto.direction = LogDirection.fiat2asset;
-      logDto.type = LogType.VOLUME;
-      logDto.fiatInCHF = currentPayment.fiatInCHF;
+        const volumeInDFI = currentPayment.fiatInCHF / Number.parseFloat(result.split("prices\":[[")[1].split("]],")[0].split(",")[1]);
 
-      if (currentPayment.buy) {
-        const currentBuy = await currentPayment.buy;
-        logDto.user = await currentBuy.user;
+        const logDto: CreateLogDto = new CreateLogDto();
+        logDto.fiatValue = currentPayment.fiatValue;
+        logDto.fiat = currentPayment.fiat;
+        logDto.assetValue = volumeInDFI;
+        logDto.asset = await getManager()
+        .getCustomRepository(AssetRepository)
+        .getAsset('DFI');
+        logDto.direction = LogDirection.fiat2asset;
+        logDto.type = LogType.VOLUME;
+        logDto.fiatInCHF = currentPayment.fiatInCHF;
+
+        if (currentPayment.buy) {
+          const currentBuy = await currentPayment.buy;
+          logDto.user = await currentBuy.user;
+        }
+
+        await getManager().getCustomRepository(LogRepository).createLog(logDto);
+
+      } catch (error) {
+        throw new ConflictException(error.message);
       }
-
-      await getManager().getCustomRepository(LogRepository).createLog(logDto);
-
-    } catch (error) {
-      throw new ConflictException(error.message);
     }
 
     await this.save(currentPayment);

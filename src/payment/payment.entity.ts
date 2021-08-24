@@ -23,6 +23,8 @@ export enum PaymentError {
 export enum PaymentStatus {
   UNPROCESSED = 'Unprocessed',
   PROCESSED = 'Processed',
+  REPAYMENT = 'Repayment',
+  CANCELED = 'Canceled'
 }
 
 @Entity()
@@ -41,6 +43,9 @@ export abstract class Payment {
 
   @Column({ type: 'int', nullable: true })
   asset: any;
+
+  @Column({ type: 'datetime2', nullable: true })
+  received: Date;
 
   @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
   status: PaymentStatus;
