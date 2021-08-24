@@ -224,7 +224,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .innerJoin("user.userData","userData")
           .where("userData.id = :id", { id: currentUserData.id })
           .andWhere("buyPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
-          .getRawMany())[0].sum) + createPaymentDto.fiatInCHF;
+          .getRawMany())[0].sum);
 
           let sumSellCHF = Number.parseFloat((await getRepository(SellPayment).createQueryBuilder("sellPayment")
           .select("SUM(sellPayment.fiatInCHF)","sum")
@@ -238,7 +238,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           if(!sumBuyCHF) sumBuyCHF = 0;
           if(!sumSellCHF) sumSellCHF = 0;
 
-          let sumCHF = sumBuyCHF + sumSellCHF;
+          let sumCHF = sumBuyCHF + sumSellCHF + createPaymentDto.fiatInCHF;
 
           if(sumCHF > 1000){
             createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
