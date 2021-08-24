@@ -41,11 +41,13 @@ export class UserRepository extends Repository<User> {
 
     const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
     const signatureMessage = process.env.SIGN_MESSAGE + user.address;
+    let userSignature = user.signature.replace('+', '%2b');
+    userSignature = userSignature.replace('+', '%2b');
     const queryString =
       '?address="' +
       String(user.address) +
       '"&signature="' +
-      String(user.signature).replace('+', '%2b') +
+      userSignature +
       '"&message="' +
       String(signatureMessage) +
       '"';
