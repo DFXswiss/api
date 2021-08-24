@@ -108,6 +108,10 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
           name: 'JWT_SECRET'
           value: jwtSecret
         }
+        {
+          name: 'SIGN_MESSAGE_WALLET'
+          value: 'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:'
+        }
       ]
     }
     httpsOnly: true
