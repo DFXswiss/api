@@ -11,9 +11,6 @@ import { UserRole } from 'src/user/user.entity';
 
 export class CreateUserDto {
   //TODO überflüssige löschen
-  @IsOptional()
-  @IsInt()
-  id: number;
 
   @IsNotEmpty()
   @Length(34, 42)
@@ -27,6 +24,7 @@ export class CreateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Length(7, 7)
   @IsString()
   usedRef: string;
 
@@ -88,12 +86,4 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   ip: string;
-
-  @IsString()
-  @IsOptional()
-  role: UserRole;
-
-  @IsString()
-  @IsOptional()
-  created: Date;
 }

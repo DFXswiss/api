@@ -17,10 +17,6 @@ import { LanguageRepository } from 'src/language/language.repository';
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-    if (createUserDto.id) delete createUserDto.id;
-    if (createUserDto.role) delete createUserDto.role;
-    if (createUserDto.ip) delete createUserDto.ip;
-    if (createUserDto.created) delete createUserDto.created;
 
     let countryObject = null;
     let languageObject = null;

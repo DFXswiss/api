@@ -34,62 +34,62 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', length: 256 })
   ref: string;
 
   //TODO Varchar Längen nochmal überprüfen => nachher nicht änderbar => lieber auf 100 setzen und über dto limitieren?
 
-  @Column({ type: 'varchar', length: 42, unique: true })
+  @Column({ type: 'varchar', length: 256, unique: true })
   address: string;
 
-  @Column({ type: 'varchar', unique: true, length: 88 })
+  @Column({ type: 'varchar', unique: true, length: 256 })
   signature: string;
 
   @Column({ type: 'int', default: 0 })
   walletId: number;
 
-  @Column({ type: 'varchar', default: '000-000' })
+  @Column({ type: 'varchar', default: '000-000', length: 256 })
   usedRef: string;
 
-  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   mail: string;
 
-  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   firstname: string;
 
-  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   surname: string;
 
-  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   street: string;
 
-  @Column({ type: 'varchar', length: 5, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   houseNumber: string;
 
-  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   location: string;
 
-  @Column({ type: 'varchar', length: 9, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   zip: string;
 
   @ManyToOne(() => Country, { eager: true })
   @JoinColumn()
   country: Country;
 
-  @Column({ type: 'varchar', length: 15, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   phone: string;
 
   @ManyToOne(() => Language, { eager: true })
   @JoinColumn()
   language: Language;
 
-  @Column({ type: 'varchar', default: UserRole.USER })
+  @Column({ type: 'varchar', default: UserRole.USER, length: 256 })
   role: UserRole;
 
-  @Column({ type: 'varchar', default: UserStatus.NA })
+  @Column({ type: 'varchar', default: UserStatus.NA, length: 256 })
   status: UserStatus;
 
-  @Column({ type: 'varchar', default: '0.0.0.0' })
+  @Column({ type: 'varchar', default: '0.0.0.0', length: 256 })
   ip: string;
 
   @CreateDateColumn()
