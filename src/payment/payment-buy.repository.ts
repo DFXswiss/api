@@ -198,11 +198,15 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         currentUserData = await getManager()
           .getCustomRepository(UserDataRepository)
           .createUserData(createUserDataDto);
-      } else if (buy) {
+      }
+      
+      if (buy) {
 
         currentUser = await buy.user;
 
-        if(!currentUser.userData){
+        let userDataTemp = await currentUser.userData;
+
+        if(!userDataTemp){
             currentUser.userData = currentUserData;
             await getManager()
                 .getCustomRepository(UserRepository).save(currentUser)
@@ -256,7 +260,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     logDto.status = LogStatus.fiatDeposit;
     if (fiatObject) logDto.fiat = fiatObject.id;
     logDto.fiatValue = createPaymentDto.fiatValue;
-    logDto.iban = createPaymentDto.iban;
+    // logDto.iban = createPaymentDto.iban;
     logDto.direction = LogDirection.fiat2asset;
     logDto.type = LogType.TRANSACTION;
     logDto.address = createPaymentDto.address;
