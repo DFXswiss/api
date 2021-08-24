@@ -4,7 +4,7 @@ import { Sell } from 'src/sell/sell.entity';
 
 @Entity()
 export class SellPayment extends Payment {
-  @Column({ type: 'varchar', length: 34, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   depositAddress: string;
 
   @Column({ type: 'float', nullable: true })

@@ -7,6 +7,7 @@ import {
   OneToMany,
   ManyToOne,
   JoinColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Asset } from 'src/asset/asset.entity';
 import { User } from 'src/user/user.entity';
@@ -18,21 +19,17 @@ export class Buy {
   @PrimaryGeneratedColumn()
   id: number;
 
-  //TODO addresse löschen 
-  @Column({ type: 'varchar', length: 34 })
+  @Column({ type: 'varchar', length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', length: 32 })
+  @Column({ type: 'varchar', length: 256 })
   iban: string;
 
-  @Column({ type: 'varchar', length: 14, unique: true })
+  @Column({ type: 'varchar', length: 256, unique: true })
   bankUsage: string;
 
   @Column({ default: 1 })
   active: boolean;
-
-  @CreateDateColumn()
-  created: Date;
 
   @ManyToOne(() => User, (user) => user.buys, { lazy: true })
   user: User;
@@ -43,4 +40,10 @@ export class Buy {
 
   @OneToMany(() => BuyPayment, (buyPayment) => buyPayment.buy)
   buyPayment: BuyPayment[];
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }

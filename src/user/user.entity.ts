@@ -12,6 +12,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 export enum UserRole {
@@ -92,9 +93,6 @@ export class User {
   @Column({ type: 'varchar', default: '0.0.0.0', length: 256 })
   ip: string;
 
-  @CreateDateColumn()
-  created: Date;
-
   @OneToMany(() => Buy, (buy) => buy.user, { lazy: true })
   @JoinColumn()
   buys: Buy[];
@@ -109,4 +107,10 @@ export class User {
 
   @OneToMany(() => Log, (logs) => logs.user)
   logs: Log[];
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }

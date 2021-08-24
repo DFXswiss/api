@@ -18,7 +18,7 @@ export class UpdateLogDto {
 
   @ApiProperty()
   @IsOptional()
-  @Length(34, 34)
+  @Length(34, 42)
   @IsString()
   address: string;
 
@@ -50,10 +50,10 @@ export class UpdateLogDto {
   @IsNumber()
   assetValue: number;
 
-  @ApiProperty()
-  @IsOptional()
-  @IsIBAN()
-  iban: string;
+  // @ApiProperty()
+  // @IsOptional()
+  // @IsIBAN()
+  // iban: string;
 
   @ApiProperty()
   @IsOptional()

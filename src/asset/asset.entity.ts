@@ -5,6 +5,7 @@ import {
   Column,
   CreateDateColumn,
   OneToMany,
+  UpdateDateColumn,
 } from 'typeorm';
 
 export enum AssetType {
@@ -18,10 +19,10 @@ export class Asset {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 34 })
+  @Column({ type: 'varchar', unique: true, length: 256 })
   name: string;
 
-  @Column({ type: 'varchar', length: 32 })
+  @Column({ type: 'varchar', length: 256 })
   type: AssetType;
 
   @Column({ default: 1 })
@@ -30,9 +31,12 @@ export class Asset {
   @Column({ default: 1 })
   sellable: boolean;
 
-  @CreateDateColumn()
-  created: Date;
-
   @OneToMany(() => Buy, (buy) => buy.asset)
   buys: Buy[];
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }

@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity()
@@ -10,17 +11,20 @@ export class Wallet {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 34 })
+  @Column({ type: 'varchar', unique: true, length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', unique: true, length: 88 })
+  @Column({ type: 'varchar', unique: true, length: 256 })
   signature: string;
 
-  @Column({ type: 'varchar', length: 32, default: '' })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   mail: string;
 
-  @Column({ type: 'varchar', length: 40, default: '' })
+  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   description: string;
+
+  @UpdateDateColumn()
+  updated: Date;
 
   @CreateDateColumn()
   created: Date;

@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { User } from 'src/user/user.entity';
 
@@ -37,16 +38,16 @@ export class Log {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true })
+  @Column({ type: 'varchar', unique: true, length: 256 })
   orderId: string;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', nullable: true, length: 256 })
   address: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', length: 256 })
   type: LogType;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', nullable: true, length: 256 })
   status: LogStatus;
 
   @Column({ type: 'int', nullable: true })
@@ -64,19 +65,22 @@ export class Log {
   @Column({ type: 'float', nullable: true })
   assetValue: number;
 
-  @Column({ type: 'varchar', length: 32, nullable: true })
-  iban: string;
+  // @Column({ type: 'varchar', length: 32, nullable: true })
+  // iban: string;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', nullable: true, length: 256 })
   direction: LogDirection;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', nullable: true, length: 256 })
   message: string;
+
+  @ManyToOne(() => User, { eager: false, lazy: true })
+  @JoinColumn()
+  user: User;
+
+  @UpdateDateColumn()
+  updated: Date;
 
   @CreateDateColumn()
   created: Date;
-
-  @ManyToOne(() => User, { eager: false })
-  @JoinColumn()
-  user: User;
 }

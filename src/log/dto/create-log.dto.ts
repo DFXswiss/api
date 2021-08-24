@@ -21,7 +21,7 @@ export class CreateLogDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @Length(34, 34)
+  @Length(34, 42)
   @IsString()
   address: string;
 
@@ -58,10 +58,10 @@ export class CreateLogDto {
   @IsNumber()
   assetValue: number;
 
-  @ApiProperty()
-  @IsOptional()
-  //@IsIBAN()
-  iban: string;
+  // @ApiProperty()
+  // @IsOptional()
+  // //@IsIBAN()
+  // iban: string;
 
   @ApiProperty()
   @IsOptional()

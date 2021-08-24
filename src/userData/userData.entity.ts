@@ -9,6 +9,7 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity()
@@ -21,19 +22,22 @@ export class UserData {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', length: 256 })
   name: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', length: 256 })
   location: string;
 
   @ManyToOne(() => Country, { eager: true })
   @JoinColumn()
   country: Country;
 
-  @CreateDateColumn()
-  created: Date;
-
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }

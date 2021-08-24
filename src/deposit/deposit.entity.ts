@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   OneToOne,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Sell } from 'src/sell/sell.entity';
 
@@ -12,15 +13,18 @@ export class Deposit {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 42 })
+  @Column({ type: 'varchar', unique: true, length: 256 })
   address: string;
 
   @Column({ default: false })
   used: boolean;
 
-  @CreateDateColumn()
-  created: Date;
-
   @OneToOne(() => Sell, (sell) => sell.deposit)
   sells: Sell[];
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }

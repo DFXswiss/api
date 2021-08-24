@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   OneToMany,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Sell } from 'src/sell/sell.entity';
 
@@ -12,15 +13,18 @@ export class Fiat {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 34 })
+  @Column({ type: 'varchar', unique: true, length: 256 })
   name: string;
 
   @Column({ default: 1 })
   enable: boolean;
 
-  @CreateDateColumn()
-  created: Date;
-
   @OneToMany(() => Sell, (sell) => sell.fiat)
   sells: Sell[];
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }

@@ -8,6 +8,7 @@ import {
   JoinColumn,
   OneToOne,
   OneToMany,
+  UpdateDateColumn,
 } from 'typeorm';
 import { User } from 'src/user/user.entity';
 import { Fiat } from 'src/fiat/fiat.entity';
@@ -20,10 +21,10 @@ export class Sell {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 34 })
+  @Column({ type: 'varchar', length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', length: 32 })
+  @Column({ type: 'varchar', length: 256 })
   iban: string;
 
   @ManyToOne(() => Fiat, { eager: true })
@@ -37,12 +38,15 @@ export class Sell {
   @Column({ default: 1 })
   active: boolean;
 
-  @CreateDateColumn()
-  created: Date;
-
   @ManyToOne(() => User, (user) => user.sells)
   user: User;
 
   @OneToMany(() => SellPayment, (sellPayment) => sellPayment.sell)
   sellPayment: SellPayment[];
+
+  @UpdateDateColumn()
+  updated: Date;
+
+  @CreateDateColumn()
+  created: Date;
 }

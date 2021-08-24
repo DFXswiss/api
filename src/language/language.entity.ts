@@ -6,6 +6,7 @@ import {
     Index,
     CreateDateColumn,
     OneToMany,
+    UpdateDateColumn,
   } from 'typeorm';
   import * as typeorm from 'typeorm';
 import { User } from 'src/user/user.entity';
@@ -15,22 +16,25 @@ import { User } from 'src/user/user.entity';
     @PrimaryGeneratedColumn()
     id: number;
   
-    @Column({ type: 'varchar', unique: true, length: 4 })
+    @Column({ type: 'varchar', unique: true, length: 10 })
     symbol: string;
   
-    @Column({ type: 'varchar', length: 34 })
+    @Column({ type: 'varchar', length: 256 })
     name: string; 
 
-    @Column({ type: 'varchar', length: 34 })
+    @Column({ type: 'varchar', length: 256 })
     foreignName: string; 
   
     @Column({ default: 1 })
     enable: boolean;
-  
-    @CreateDateColumn() 
-    created: Date;
 
     @OneToMany(() => User, (user) => user.language)
     users: User[]
+
+    @UpdateDateColumn()
+    updated: Date;
+  
+    @CreateDateColumn() 
+    created: Date;
   }
   

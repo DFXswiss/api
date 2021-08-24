@@ -32,7 +32,7 @@ export abstract class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 34, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   address: string;
 
   @Column({ type: 'int', nullable: true })
@@ -47,13 +47,13 @@ export abstract class Payment {
   @Column({ type: 'datetime2', nullable: true })
   received: Date;
 
-  @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED })
+  @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED, length: 256 })
   status: PaymentStatus;
 
-  @Column({ type: 'varchar', length: 258, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   info: string;
 
-  @Column({ type: 'varchar', default: PaymentError.NULL })
+  @Column({ type: 'varchar', default: PaymentError.NULL, length: 256 })
   errorCode: PaymentError;
 
   @UpdateDateColumn()
