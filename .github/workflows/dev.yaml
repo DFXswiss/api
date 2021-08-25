@@ -2,7 +2,7 @@ name: CI/CD DEV
 
 on:
   push:
-    branches: [ develop_ts ]
+    branches: [ develop ]
   workflow_dispatch:
 
 env:
