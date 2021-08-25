@@ -2,9 +2,9 @@ name: CI/CD PRD
 
 on:
   push:
-    branches: [ develop_ts ]
+    branches: [ master ]
   pull_request:
-    branches: [ develop_ts ]
+    branches: [ master ]
   workflow_dispatch:
 
 env:
