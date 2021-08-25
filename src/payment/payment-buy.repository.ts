@@ -197,7 +197,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .getCustomRepository(UserDataRepository)
           .createUserData(createUserDataDto);
       }
-      
+
       if (buy) {
 
         currentUser = await buy.user;
@@ -212,7 +212,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
 
       if(currentUser){
-        
+
           let lastMonthDate = new Date();
           lastMonthDate.setDate(lastMonthDate.getDate() - 1);
           // lastMonthDate.setDate(lastMonthDate.getDate() + 1);
@@ -244,7 +244,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           let sumCHF = sumBuyCHF + sumSellCHF + createPaymentDto.fiatInCHF;
 
         if(currentUser.status != UserStatus.KYC && sumCHF > 1000){
-          
+
           // createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
           createPaymentDto.info = 'No KYC, last Day: ' + sumCHF + " CHF instead of max 1000 CHF";
           createPaymentDto.info += '; userDataId: ' + currentUserData.id;
@@ -295,7 +295,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
       if(payment.buy) delete payment.buy;
       if(payment["__buy__"]) delete payment["__buy__"];
-      
+
       payment.fiat = fiatObject;
       payment.asset = buy.asset;
     }
@@ -311,20 +311,20 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     currentPayment.status = payment.status;
 
-    let fiatObject = null;
-    let assetObject = null;
+    // let fiatObject = null;
+    // let assetObject = null;
 
-    if (currentPayment) {
+    // if (currentPayment) {
 
-      if (currentPayment.fiat)
-      fiatObject = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(currentPayment.fiat);
-      if (currentPayment.asset)
-      assetObject = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(currentPayment.asset);
-    }
+    //   if (currentPayment.fiat)
+    //   fiatObject = await getManager()
+    //       .getCustomRepository(FiatRepository)
+    //       .getFiat(currentPayment.fiat);
+    //   if (currentPayment.asset)
+    //   assetObject = await getManager()
+    //       .getCustomRepository(AssetRepository)
+    //       .getAsset(currentPayment.asset);
+    // }
 
     if(payment.status == PaymentStatus.PROCESSED){
 
@@ -336,14 +336,14 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         const options = {
           uri: baseUrl,
         };
-      
+
         const result = await requestPromise.get(options);
 
         const volumeInDFI = currentPayment.fiatInCHF / Number.parseFloat(result.split("prices\":[[")[1].split("]],")[0].split(",")[1]);
 
         const logDto: CreateLogDto = new CreateLogDto();
         logDto.fiatValue = currentPayment.fiatValue;
-        logDto.fiat = fiatObject.id;
+        logDto.fiat = currentPayment.fiat;
         logDto.assetValue = volumeInDFI;
         logDto.asset = await getManager()
         .getCustomRepository(AssetRepository)
@@ -354,7 +354,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
         if (currentPayment.buy) {
           const currentBuy = await currentPayment.buy;
-          
+
           let currentUser = await currentBuy.user;
 
           logDto.user = currentUser;
@@ -375,12 +375,12 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     await this.save(currentPayment);
 
-    if (currentPayment) {
-      if (currentPayment.fiat)
-      currentPayment.fiat = fiatObject;
-      if (currentPayment.asset)
-      currentPayment.asset = assetObject;
-    }
+    // if (currentPayment) {
+    //   if (currentPayment.fiat)
+    //   currentPayment.fiat = fiatObject;
+    //   if (currentPayment.asset)
+    //   currentPayment.asset = assetObject;
+    // }
 
     return currentPayment;
   }
