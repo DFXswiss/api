@@ -12,7 +12,7 @@ export enum PaymentType {
 }
 
 export enum PaymentError {
-  NULL = '',
+  NA = 'NA',
   IBAN = 'Iban',
   BANKUSAGE = 'Bankusage',
   FIAT = 'Fiat',
@@ -54,7 +54,7 @@ export abstract class Payment {
   @Column({ type: 'varchar', length: 256, nullable: true })
   info: string;
 
-  @Column({ type: 'varchar', default: PaymentError.NULL, length: 256 })
+  @Column({ type: 'varchar', default: PaymentError.NA, length: 256 })
   errorCode: PaymentError;
 
   @UpdateDateColumn()

@@ -115,7 +115,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       const currentPayment = await this.find({
         iban: createPaymentDto.iban,
-        errorCode: PaymentError.NULL,
+        errorCode: PaymentError.NA,
       });
 
       if (!currentPayment) {
