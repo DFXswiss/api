@@ -195,6 +195,8 @@ export class UserRepository extends Repository<User> {
         newUser.language = languageObject;
       }
 
+      newUser.id = currentUser.id;
+
       let user = Object.assign(currentUser, await this.save(newUser));
 
       // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
