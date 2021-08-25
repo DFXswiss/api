@@ -105,7 +105,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
 
       if (buy.asset.buyable) {
-        createPaymentDto.asset = buy.asset.id;
+        createPaymentDto.asset = buy.asset.name;
       } else {
         createPaymentDto.info = 'Asset not buyable: ' + createPaymentDto.asset;
         createPaymentDto.errorCode = PaymentError.ASSET;
@@ -245,14 +245,15 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
         if(currentUser.status != UserStatus.KYC && sumCHF > 1000){
           
-          createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
+          // createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
+          createPaymentDto.info = 'No KYC, last Day: ' + sumCHF + " CHF instead of max 1000 CHF";
           createPaymentDto.info += '; userDataId: ' + currentUserData.id;
           createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
           createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
           createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
           createPaymentDto.errorCode = PaymentError.KYC;
 
-        }else if(currentUser.status == UserStatus.KYC && sumCHF > 50000){
+        }else if(currentUser.status == UserStatus.KYC && sumCHF >= 50000){
 
           createPaymentDto.info = 'Check Account Flag, last Month: ' + sumCHF + " CHF";
           createPaymentDto.info += '; userDataId: ' + currentUserData.id;
@@ -310,6 +311,21 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     currentPayment.status = payment.status;
 
+    let fiatObject = null;
+    let assetObject = null;
+
+    if (currentPayment) {
+
+      if (currentPayment.fiat)
+      fiatObject = await getManager()
+          .getCustomRepository(FiatRepository)
+          .getFiat(currentPayment.fiat);
+      if (currentPayment.asset)
+      assetObject = await getManager()
+          .getCustomRepository(AssetRepository)
+          .getAsset(currentPayment.asset);
+    }
+
     if(payment.status == PaymentStatus.PROCESSED){
 
       try{
@@ -327,7 +343,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
         const logDto: CreateLogDto = new CreateLogDto();
         logDto.fiatValue = currentPayment.fiatValue;
-        logDto.fiat = currentPayment.fiat;
+        logDto.fiat = fiatObject.id;
         logDto.assetValue = volumeInDFI;
         logDto.asset = await getManager()
         .getCustomRepository(AssetRepository)
@@ -338,7 +354,16 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
         if (currentPayment.buy) {
           const currentBuy = await currentPayment.buy;
-          logDto.user = await currentBuy.user;
+          
+          let currentUser = await currentBuy.user;
+
+          logDto.user = currentUser;
+
+          currentUser.status = UserStatus.ACTIVE;
+
+          await getManager()
+          .getCustomRepository(UserRepository).save(currentUser)
+
         }
 
         await getManager().getCustomRepository(LogRepository).createLog(logDto);
@@ -350,20 +375,14 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     await this.save(currentPayment);
 
-    const newPayment = await this.findOne({ id: payment.id });
-
-    if (newPayment) {
-      if (newPayment.fiat)
-        newPayment.fiat = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(newPayment.fiat);
-      if (newPayment.asset)
-        newPayment.asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(newPayment.asset);
+    if (currentPayment) {
+      if (currentPayment.fiat)
+      currentPayment.fiat = fiatObject;
+      if (currentPayment.asset)
+      currentPayment.asset = assetObject;
     }
 
-    return newPayment;
+    return currentPayment;
   }
 
   async getAllPayment(): Promise<any> {

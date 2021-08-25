@@ -82,6 +82,7 @@ export class UserRepository extends Repository<User> {
 
         createUserDto.country = countryObject;
         createUserDto.language = languageObject;
+        delete user.ref;
       } catch (error) {
         throw new ConflictException(error.message);
       }

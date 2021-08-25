@@ -43,7 +43,7 @@ export class CreateBuyPaymentDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  fiat: number;
+  fiat: string;
 
   @ApiProperty()
   @IsNotEmpty()

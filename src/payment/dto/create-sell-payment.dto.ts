@@ -34,11 +34,11 @@ export class CreateSellPaymentDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  fiat: number;
+  fiat: string;
 
   @ApiProperty()
   @IsNotEmpty()
-  asset: number;
+  asset: string;
 
   @ApiProperty()
   @IsOptional()

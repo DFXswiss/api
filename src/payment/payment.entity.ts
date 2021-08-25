@@ -36,13 +36,13 @@ export abstract class Payment {
   @Column({ type: 'varchar', length: 256, nullable: true })
   address: string;
 
-  @Column({ type: 'int', nullable: true })
-  fiat: number;
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  fiat: string;
 
   @Column({ type: 'float', nullable: true })
   fiatInCHF: number;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   asset: any;
 
   @Column({ type: 'datetime2', nullable: true })
