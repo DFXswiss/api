@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Sell } from 'src/sell/sell.entity';
+import { Log } from 'src/log/log.entity';
 
 @Entity()
 export class Fiat {
@@ -21,6 +22,9 @@ export class Fiat {
 
   @OneToMany(() => Sell, (sell) => sell.fiat)
   sells: Sell[];
+
+  @OneToMany(() => Log, (log) => log.fiat)
+  logs: Log[];
 
   @UpdateDateColumn()
   updated: Date;

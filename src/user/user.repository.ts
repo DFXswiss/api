@@ -13,6 +13,7 @@ import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
+import { WalletRepository } from 'src/wallet/wallet.repository';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -20,6 +21,7 @@ export class UserRepository extends Repository<User> {
 
     let countryObject = null;
     let languageObject = null;
+    let walletObject = null;
 
     if(!(createUserDto.address.length == 34 || createUserDto.address.length == 42)){
       throw new BadRequestException("address length does not match")
@@ -33,6 +35,20 @@ export class UserRepository extends Repository<User> {
       createUserDto.country = countryObject.id;
     }
 
+    if(createUserDto.wallet) {
+      walletObject = await getManager()
+      .getCustomRepository(WalletRepository)
+      .getWallet(createUserDto.country);
+
+      createUserDto.wallet = walletObject.id;
+    }else{
+      walletObject = await getManager()
+      .getCustomRepository(WalletRepository)
+      .getWallet(1);
+
+      createUserDto.wallet = walletObject.id;
+    }
+
     if (createUserDto.language) {
       languageObject = await getManager()
         .getCustomRepository(LanguageRepository)
@@ -43,7 +59,7 @@ export class UserRepository extends Repository<User> {
 
     const user = this.create(createUserDto);
 
-    let result = null;
+    let resultString = "";
 
     if(user.address.length == 34){
 
@@ -63,11 +79,13 @@ export class UserRepository extends Repository<User> {
         uri: baseUrl + queryString,
       };
 
-      result = await requestPromise.get(options);
+      let result = await requestPromise.get(options);
+
+      resultString = JSON.parse(result).response;
     }
 
     //if (true) {
-    if(JSON.parse(result).response === 'True' || user.address.length == 42){
+    if(resultString === 'True' || user.address.length == 42){
 
       const refVar = String((await this.find()).length + 1).padStart(6, '0');
 

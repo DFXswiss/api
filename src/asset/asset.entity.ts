@@ -1,4 +1,5 @@
 import { Buy } from 'src/buy/buy.entity';
+import { Log } from 'src/log/log.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -33,6 +34,9 @@ export class Asset {
 
   @OneToMany(() => Buy, (buy) => buy.asset)
   buys: Buy[];
+
+  @OneToMany(() => Log, (log) => log.asset)
+  logs: Log[];
 
   @UpdateDateColumn()
   updated: Date;

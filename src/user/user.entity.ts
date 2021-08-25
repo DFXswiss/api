@@ -4,6 +4,7 @@ import { Language } from 'src/language/language.entity';
 import { Log } from 'src/log/log.entity';
 import { Sell } from 'src/sell/sell.entity';
 import { UserData } from 'src/userData/userData.entity';
+import { Wallet } from 'src/wallet/wallet.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -44,8 +45,9 @@ export class User {
   @Column({ type: 'varchar', unique: true, length: 256 })
   signature: string;
 
-  @Column({ type: 'int', default: 0 })
-  walletId: number;
+  @ManyToOne(() => Wallet, { eager: false, lazy: true })
+  @JoinColumn()
+  wallet: Wallet;
 
   @Column({ type: 'varchar', default: '000-000', length: 256 })
   usedRef: string;

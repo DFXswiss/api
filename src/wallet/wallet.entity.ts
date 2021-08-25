@@ -1,9 +1,11 @@
+import { User } from 'src/user/user.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 
 @Entity()
@@ -22,6 +24,9 @@ export class Wallet {
 
   @Column({ type: 'varchar', length: 256, default: null, nullable: true })
   description: string;
+
+  @OneToMany(() => User, (user) => user.wallet)
+  logs: User[];
 
   @UpdateDateColumn()
   updated: Date;

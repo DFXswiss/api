@@ -1,9 +1,13 @@
+import { Asset } from 'src/asset/asset.entity';
+import { Fiat } from 'src/fiat/fiat.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 
 export enum PaymentType {
@@ -36,14 +40,16 @@ export abstract class Payment {
   @Column({ type: 'varchar', length: 256, nullable: true })
   address: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
-  fiat: string;
+  @ManyToOne(() => Fiat, { eager: true })
+  @JoinColumn()
+  fiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
   fiatInCHF: number;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
-  asset: any;
+  @ManyToOne(() => Asset, { eager: true })
+  @JoinColumn()
+  asset: Asset;
 
   @Column({ type: 'datetime2', nullable: true })
   received: Date;

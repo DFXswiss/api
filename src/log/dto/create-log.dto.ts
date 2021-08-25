@@ -33,7 +33,7 @@ export class CreateLogDto {
 
   @ApiProperty()
   @IsOptional()
-  fiat: number;
+  fiat: any;
 
   @ApiProperty()
   @IsOptional()
@@ -47,7 +47,7 @@ export class CreateLogDto {
 
   @ApiProperty()
   @IsOptional()
-  asset: number;
+  asset: any;
 
   @ApiProperty()
   @IsOptional()

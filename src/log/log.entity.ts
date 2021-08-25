@@ -8,6 +8,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from 'src/user/user.entity';
+import { Asset } from 'src/asset/asset.entity';
+import { Fiat } from 'src/fiat/fiat.entity';
 
 export enum LogDirection {
   fiat2asset = 'fiat-to-asset',
@@ -50,8 +52,9 @@ export class Log {
   @Column({ type: 'varchar', nullable: true, length: 256 })
   status: LogStatus;
 
-  @Column({ type: 'int', nullable: true })
-  fiat: number;
+  @ManyToOne(() => Fiat, { eager: true })
+  @JoinColumn()
+  fiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
   fiatValue: number;
@@ -59,8 +62,9 @@ export class Log {
   @Column({ type: 'float', nullable: true })
   fiatInCHF: number;
 
-  @Column({ type: 'int', nullable: true })
-  asset: number;
+  @ManyToOne(() => Asset, { eager: true })
+  @JoinColumn()
+  asset: Asset;
 
   @Column({ type: 'float', nullable: true })
   assetValue: number;

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -15,7 +16,7 @@ export class UpdateBuyDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsInt()
+  @IsBoolean()
   active: boolean;
 
   @Length(34, 42)
