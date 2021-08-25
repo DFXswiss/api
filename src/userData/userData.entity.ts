@@ -12,6 +12,13 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export enum UserDataNameCheck {
+  NA = 'NA',
+  SAVE = 'Save person',
+  WARNING = 'Warning person',
+  HIGHRISK = 'High-risk person',
+}
+
 @Entity()
 @Index(
   'nameLocation',
@@ -31,6 +38,9 @@ export class UserData {
   @ManyToOne(() => Country, { eager: true })
   @JoinColumn()
   country: Country;
+
+  @Column({ type: 'varchar', length: 256, default: UserDataNameCheck.NA })
+  nameCheck: UserDataNameCheck;
 
   @OneToMany(() => User, (user) => user.userData)
   users: User[];

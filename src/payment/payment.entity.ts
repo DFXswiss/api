@@ -18,6 +18,7 @@ export enum PaymentError {
   FIAT = 'Fiat',
   ASSET = 'Asset',
   KYC = 'KYC',
+  ACCOUNTCHECK = 'Account-check',
 }
 
 export enum PaymentStatus {

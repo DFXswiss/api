@@ -74,6 +74,9 @@ export class Log {
   @Column({ type: 'varchar', nullable: true, length: 256 })
   message: string;
 
+  @Column({ type: 'varchar', nullable: true, length: 256 })
+  blockchainTx: string;
+
   @ManyToOne(() => User, { eager: false, lazy: true })
   @JoinColumn()
   user: User;

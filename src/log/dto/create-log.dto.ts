@@ -71,4 +71,9 @@ export class CreateLogDto {
 
   @IsOptional()
   user: User;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  blockchainTx: string;
 }

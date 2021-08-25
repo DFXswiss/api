@@ -21,6 +21,10 @@ export class UserRepository extends Repository<User> {
     let countryObject = null;
     let languageObject = null;
 
+    if(!(createUserDto.address.length == 34 || createUserDto.address.length == 42)){
+      throw new BadRequestException("address length does not match")
+    }
+
     if (createUserDto.country) {
       countryObject = await getManager()
         .getCustomRepository(CountryRepository)
@@ -39,27 +43,31 @@ export class UserRepository extends Repository<User> {
 
     const user = this.create(createUserDto);
 
-    const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
-    const signatureMessage = process.env.SIGN_MESSAGE + user.address;
-    let userSignature = user.signature.replace('+', '%2b');
-    userSignature = userSignature.replace('+', '%2b');
-    const queryString =
-      '?address="' +
-      String(user.address) +
-      '"&signature="' +
-      userSignature +
-      '"&message="' +
-      String(signatureMessage) +
-      '"';
-    const options = {
-      uri: baseUrl + queryString,
-    };
+    let result = null;
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const result = await requestPromise.get(options);
+    if(user.address.length == 34){
+
+      const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
+      const signatureMessage = process.env.SIGN_MESSAGE + user.address;
+      let userSignature = user.signature.replace('+', '%2b');
+      userSignature = userSignature.replace('+', '%2b');
+      const queryString =
+        '?address="' +
+        String(user.address) +
+        '"&signature="' +
+        userSignature +
+        '"&message="' +
+        String(signatureMessage) +
+        '"';
+      const options = {
+        uri: baseUrl + queryString,
+      };
+
+      result = await requestPromise.get(options);
+    }
 
     //if (true) {
-    if(JSON.parse(result).response === 'True'){
+    if(JSON.parse(result).response === 'True' || user.address.length == 42){
 
       const refVar = String((await this.find()).length + 1).padStart(6, '0');
 

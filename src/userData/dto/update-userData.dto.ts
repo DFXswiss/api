@@ -1,5 +1,6 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsNumber } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsInt, IsNumber, IsNotEmpty } from 'class-validator';
+import { UserDataNameCheck } from '../userData.entity';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -8,6 +9,6 @@ export class UpdateUserDataDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
-  monthlyValue: number;
+  @IsString()
+  nameCheck: UserDataNameCheck;
 }

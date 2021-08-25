@@ -212,12 +212,13 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
 
       if(currentUser){
-        if(currentUser.status != UserStatus.KYC){
-
+        
           let lastMonthDate = new Date();
-          lastMonthDate.setDate(lastMonthDate.getDate() + 1);
-          lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-          let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
+          lastMonthDate.setDate(lastMonthDate.getDate() - 1);
+          // lastMonthDate.setDate(lastMonthDate.getDate() + 1);
+          // lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+          // let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
+          let lastMonthDateString = lastMonthDate.toISOString();
 
           let sumBuyCHF = Number.parseFloat((await this.createQueryBuilder("buyPayment")
           .select("SUM(buyPayment.fiatInCHF)","sum")
@@ -242,14 +243,23 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
           let sumCHF = sumBuyCHF + sumSellCHF + createPaymentDto.fiatInCHF;
 
-          if(sumCHF > 1000){
-            createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
-            createPaymentDto.info += '; userDataId: ' + currentUserData.id;
-            createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
-            createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
-            createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
-            createPaymentDto.errorCode = PaymentError.KYC;
-          }
+        if(currentUser.status != UserStatus.KYC && sumCHF > 1000){
+          
+          createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
+          createPaymentDto.info += '; userDataId: ' + currentUserData.id;
+          createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+          createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
+          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          createPaymentDto.errorCode = PaymentError.KYC;
+
+        }else if(currentUser.status == UserStatus.KYC && sumCHF > 50000){
+
+          createPaymentDto.info = 'Check Account Flag, last Month: ' + sumCHF + " CHF";
+          createPaymentDto.info += '; userDataId: ' + currentUserData.id;
+          createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+          createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
+          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          createPaymentDto.errorCode = PaymentError.ACCOUNTCHECK;
         }
       }
     }
