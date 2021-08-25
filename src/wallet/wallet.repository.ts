@@ -56,18 +56,20 @@ export class WalletRepository extends Repository<Wallet> {
   }
 
   async getWallet(key: any): Promise<any> {
-    if (!isNaN(key.key)) {
-      const wallet = await this.findOne({ id: key.key });
+    if (key.key) {
+      if (!isNaN(key.key)) {
+        const wallet = await this.findOne({ id: key.key });
 
-      if (wallet) return wallet;
+        if (wallet) return wallet;
 
-      throw new NotFoundException('No matching wallet found');
-    } else if (isString(key.key)) {
-      const wallet = await this.findOne({ address: key.key });
+        throw new NotFoundException('No matching wallet found');
+      } else if (isString(key.key)) {
+        const wallet = await this.findOne({ address: key.key });
 
-      if (wallet) return wallet;
+        if (wallet) return wallet;
 
-      throw new NotFoundException('No matching wallet found');
+        throw new NotFoundException('No matching wallet found');
+      }
     }else if(!isNaN(key)) {
       const wallet = await this.findOne({ id: key });
 

@@ -147,6 +147,10 @@ export class UserRepository extends Repository<User> {
     }
   }
 
+  async getUserInternal(addressString: string): Promise<any> {
+    return await this.findOne({ address: addressString });
+  }
+
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
     try {
       const currentUser = await this.findOne({ id: oldUser.id });

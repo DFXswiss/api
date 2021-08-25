@@ -10,6 +10,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { RealIP } from 'nestjs-real-ip';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -18,8 +19,9 @@ export class AuthController {
 
   @Post('/signup')
   @UsePipes(ValidationPipe)
-  signUp(@Body() createUserDto: CreateUserDto, @Request() req): Promise<void> {
-    createUserDto.ip = req.socket.remoteAddress;
+  signUp(@Body() createUserDto: CreateUserDto, @Request() req, @RealIP() ip: string): Promise<void> {
+    // createUserDto.ip = req.socket.remoteAddress;
+    createUserDto.ip = ip;
     return this.authService.signUp(createUserDto);
   }
 

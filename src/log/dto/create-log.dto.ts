@@ -70,7 +70,7 @@ export class CreateLogDto {
   message: string;
 
   @IsOptional()
-  user: User;
+  user: any;
 
   @ApiProperty()
   @IsOptional()

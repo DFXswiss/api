@@ -9,6 +9,7 @@ import { Log, LogDirection, LogStatus, LogType } from './log.entity';
 import { isString } from 'class-validator';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { AssetRepository } from 'src/asset/asset.repository';
+import { UserRepository } from 'src/user/user.repository';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
@@ -56,8 +57,19 @@ export class LogRepository extends Repository<Log> {
     if (fiatObject) createLogDto.fiat = fiatObject.id;
     if (assetObject) createLogDto.asset = assetObject.id;
 
+    if(createLogDto.address){
     createLogDto.orderId =
       createLogDto.address + ':' + new Date().toISOString();
+
+      if(!createLogDto.user) createLogDto.user = await getManager()
+      .getCustomRepository(UserRepository)
+      .getUserInternal(createLogDto.address);
+
+    }else if(createLogDto.user){
+      createLogDto.orderId = createLogDto.user.address + ':' + new Date().toISOString();
+    }else{
+      createLogDto.orderId = new Date().toISOString();
+    }
 
     const log = this.create(createLogDto);
 
@@ -67,6 +79,7 @@ export class LogRepository extends Repository<Log> {
       throw new ConflictException(error.message);
     }
 
+    if(log["__user__"]) delete log["__user__"];
     log.fiat = fiatObject;
     log.asset = assetObject;
 
