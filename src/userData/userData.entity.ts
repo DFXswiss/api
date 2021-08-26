@@ -14,9 +14,9 @@ import {
 
 export enum UserDataNameCheck {
   NA = 'NA',
-  SAVE = 'Save person',
-  WARNING = 'Warning person',
-  HIGHRISK = 'High-risk person',
+  SAVE = 'Save',
+  WARNING = 'Warning',
+  HIGHRISK = 'High-risk',
 }
 
 @Entity()

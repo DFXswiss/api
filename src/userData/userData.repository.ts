@@ -62,8 +62,6 @@ export class UserDataRepository extends Repository<UserData> {
 
       if(newUser.nameCheck) currentUser.nameCheck = newUser.nameCheck;
 
-      
-
       return Object.assign(await this.save(currentUser), newUser);
     } catch (error) {
       throw new ConflictException(error.message);
