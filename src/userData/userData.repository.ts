@@ -49,12 +49,20 @@ export class UserDataRepository extends Repository<UserData> {
   async updateUserData(newUser: UpdateUserDataDto): Promise<any> {
     try {
 
-      const currentUser = await this.findOne({ id: newUser.id });
+      let currentUser:UserData = null;
+
+      if(newUser.id){
+        currentUser = await this.findOne({ id: newUser.id });
+      }else if(newUser.location && newUser.name){
+        currentUser = await this.findOne({ name: newUser.name, location: newUser.location });
+      }
 
       if (!currentUser)
         throw new NotFoundException('No matching user for id found');
 
-      await this.save(newUser);
+      if(newUser.nameCheck) currentUser.nameCheck = newUser.nameCheck;
+
+      await this.save(currentUser);
 
       return Object.assign(currentUser, await this.save(newUser));
     } catch (error) {

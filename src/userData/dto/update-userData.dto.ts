@@ -7,6 +7,16 @@ export class UpdateUserDataDto {
   @IsInt()
   id: number;
 
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  name: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  location: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
