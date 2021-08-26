@@ -4,7 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { EntityRepository, getConnection, getRepository, Repository } from 'typeorm';
+import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BuyPayment } from './payment-buy.entity';
@@ -23,7 +23,6 @@ import * as requestPromise from 'request-promise-native';
 import { Buy } from 'src/buy/buy.entity';
 import { UserRepository } from 'src/user/user.repository';
 import { User, UserStatus } from 'src/user/user.entity';
-import { SellPayment } from './payment-sell.entity';
 import { UserDataNameCheck } from 'src/userData/userData.entity';
 
 @EntityRepository(BuyPayment)
@@ -338,21 +337,6 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     currentPayment.status = payment.status;
 
-    // let fiatObject = null;
-    // let assetObject = null;
-
-    // if (currentPayment) {
-
-    //   if (currentPayment.fiat)
-    //   fiatObject = await getManager()
-    //       .getCustomRepository(FiatRepository)
-    //       .getFiat(currentPayment.fiat);
-    //   if (currentPayment.asset)
-    //   assetObject = await getManager()
-    //       .getCustomRepository(AssetRepository)
-    //       .getAsset(currentPayment.asset);
-    // }
-
     if(payment.status == PaymentStatus.PROCESSED){
 
       try{
@@ -385,6 +369,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           let currentUser = await currentBuy.user;
 
           logDto.user = currentUser;
+          //logDto.address = currentUser.address;
+          logDto.message = currentUser.usedRef;
 
           currentUser.status = UserStatus.ACTIVE;
 
@@ -402,37 +388,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     await this.save(currentPayment);
 
-    // if (currentPayment) {
-    //   if (currentPayment.fiat)
-    //   currentPayment.fiat = fiatObject;
-    //   if (currentPayment.asset)
-    //   currentPayment.asset = assetObject;
-    // }
-
     return currentPayment;
   }
 
   async getAllPayment(): Promise<any> {
-    const payment = await this.find();
-
-    if (payment) {
-      for (let a = 0; a < payment.length; a++) {
-        if (payment[a].fiat)
-          payment[a].fiat = (
-            await getManager()
-              .getCustomRepository(FiatRepository)
-              .getFiat(payment[a].fiat)
-          ).name;
-        if (payment[a].asset)
-          payment[a].asset = (
-            await getManager()
-              .getCustomRepository(AssetRepository)
-              .getAsset(payment[a].asset)
-          ).name;
-      }
-    }
-
-    return payment;
+    return await this.find();
   }
 
   async getPayment(id: any): Promise<any> {
@@ -442,15 +402,6 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if (!payment)
         throw new NotFoundException('No matching payment for id found');
 
-      if (payment.fiat)
-        payment.fiat = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(payment.fiat);
-      if (payment.asset)
-        payment.asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(payment.asset);
-
       return payment;
     } else if (!isNaN(id)) {
       const payment = await this.findOne({ id: id });
@@ -458,40 +409,12 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if (!payment)
         throw new NotFoundException('No matching payment for id found');
 
-      if (payment.fiat)
-        payment.fiat = await getManager()
-          .getCustomRepository(FiatRepository)
-          .getFiat(payment.fiat);
-      if (payment.asset)
-        payment.asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset(payment.asset);
-
       return payment;
     }
     throw new BadRequestException('id must be a number');
   }
 
   async getUnprocessedPayment(): Promise<any> {
-    const payment = await this.find({ status: PaymentStatus.UNPROCESSED });
-
-    if (payment) {
-      for (let a = 0; a < payment.length; a++) {
-        if (payment[a].fiat)
-          payment[a].fiat = (
-            await getManager()
-              .getCustomRepository(FiatRepository)
-              .getFiat(payment[a].fiat)
-          ).name;
-        if (payment[a].asset)
-          payment[a].asset = (
-            await getManager()
-              .getCustomRepository(AssetRepository)
-              .getAsset(payment[a].asset)
-          ).name;
-      }
-    }
-
-    return payment;
+    return await this.find({ status: PaymentStatus.UNPROCESSED });
   }
 }
