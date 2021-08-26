@@ -85,7 +85,7 @@ export class UserRepository extends Repository<User> {
     }
 
     //if (true) {
-    if(resultString === 'True' || user.address.length == 42){
+    if(resultString === 'True' || user.address.length == 34 || user.address.length == 42){
 
       const refVar = String((await this.find()).length + 1001).padStart(6, '0');
 
