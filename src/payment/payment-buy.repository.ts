@@ -105,7 +105,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
 
       if (buy.asset.buyable) {
-        createPaymentDto.asset = buy.asset.name;
+        createPaymentDto.asset = buy.asset;
       } else {
         createPaymentDto.info = 'Asset not buyable: ' + createPaymentDto.asset;
         createPaymentDto.errorCode = PaymentError.ASSET;
@@ -297,7 +297,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if(payment["__buy__"]) delete payment["__buy__"];
 
       payment.fiat = fiatObject;
-      payment.asset = buy.asset;
+      if(buy) payment.asset = buy.asset;
     }
     return payment;
   }
