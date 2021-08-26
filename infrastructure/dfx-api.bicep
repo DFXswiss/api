@@ -4,7 +4,7 @@ param environment string = 'dev'
 
 param dbAdminLogin string = 'sql-admin'
 @secure()
-param dbAdminPassword string = 'd6ePNs9BqeuU$Sa' // TODO: change and remove
+param dbAdminPassword string
 @secure()
 param jwtSecret string = newGuid()
 
@@ -109,8 +109,20 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
           value: jwtSecret
         }
         {
+          name: 'SIGN_MESSAGE'
+          value: 'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_'
+        }
+        {
           name: 'SIGN_MESSAGE_WALLET'
-          value: 'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:'
+          value: 'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_'
+        }
+        {
+          name: 'SQL_SYNCHRONIZE'
+          value: 'false'
+        }
+        {
+          name: 'SQL_MIGRATE'
+          value: 'true'
         }
       ]
     }
