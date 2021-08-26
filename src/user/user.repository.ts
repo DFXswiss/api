@@ -87,7 +87,7 @@ export class UserRepository extends Repository<User> {
     //if (true) {
     if(resultString === 'True' || user.address.length == 42){
 
-      const refVar = String((await this.find()).length + 1).padStart(6, '0');
+      const refVar = String((await this.find()).length + 1001).padStart(6, '0');
 
       user.ref = refVar.substr(0, 3) + '-' + refVar.substr(3, 3);
       const refUser = await this.findOne({ ref: createUserDto.usedRef });
