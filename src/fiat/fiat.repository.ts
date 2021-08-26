@@ -51,6 +51,8 @@ export class FiatRepository extends Repository<Fiat> {
         const fiat = await this.findOne({ id: key.key });
 
         if (fiat) return fiat;
+
+        throw new NotFoundException('No matching fiat found');
       } else if (isString(key.key)) {
         const fiat = await this.findOne({ name: key.key });
 
@@ -62,6 +64,8 @@ export class FiatRepository extends Repository<Fiat> {
       const fiat = await this.findOne({ id: key });
 
       if (fiat) return fiat;
+
+      throw new NotFoundException('No matching fiat found');
     } else if (isString(key)) {
       const fiat = await this.findOne({ name: key });
 

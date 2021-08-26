@@ -24,6 +24,7 @@ import { Buy } from 'src/buy/buy.entity';
 import { UserRepository } from 'src/user/user.repository';
 import { User, UserStatus } from 'src/user/user.entity';
 import { SellPayment } from './payment-sell.entity';
+import { UserDataNameCheck } from 'src/userData/userData.entity';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -45,43 +46,46 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createPaymentDto.errorCode = PaymentError.FIAT;
     }
 
-    try {
-      let baseUrl =
-        'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/' +
-        fiatObject.name.toLowerCase() +
-        '.json';
+    if(fiatObject){
 
-      const receivedDate = new Date(createPaymentDto.received);
-
-      const isToday = (someDate: Date) => {
-        const today = new Date();
-        return (
-          someDate.getDate() == today.getDate() &&
-          someDate.getMonth() == today.getMonth() &&
-          someDate.getFullYear() == today.getFullYear()
-        );
-      };
-
-      if (!isToday(receivedDate)) {
-        baseUrl =
-          'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/' +
-          receivedDate.toISOString().split('T')[0] +
-          '/currencies/' +
+      try {
+        let baseUrl =
+          'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/' +
           fiatObject.name.toLowerCase() +
           '.json';
+
+        const receivedDate = new Date(createPaymentDto.received);
+
+        const isToday = (someDate: Date) => {
+          const today = new Date();
+          return (
+            someDate.getDate() == today.getDate() &&
+            someDate.getMonth() == today.getMonth() &&
+            someDate.getFullYear() == today.getFullYear()
+          );
+        };
+
+        if (!isToday(receivedDate)) {
+          baseUrl =
+            'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/' +
+            receivedDate.toISOString().split('T')[0] +
+            '/currencies/' +
+            fiatObject.name.toLowerCase() +
+            '.json';
+        }
+
+        const options = {
+          uri: baseUrl,
+        };
+
+        const result = await requestPromise.get(options);
+
+        createPaymentDto.fiatInCHF =
+          Number.parseFloat(result.split('"chf": ')[1].split(',')[0]) *
+          createPaymentDto.fiatValue;
+      } catch (error) {
+        throw new ConflictException(error.message);
       }
-
-      const options = {
-        uri: baseUrl,
-      };
-
-      const result = await requestPromise.get(options);
-
-      createPaymentDto.fiatInCHF =
-        Number.parseFloat(result.split('"chf": ')[1].split(',')[0]) *
-        createPaymentDto.fiatValue;
-    } catch (error) {
-      throw new ConflictException(error.message);
     }
 
     if (createPaymentDto.bankUsage) {
@@ -213,14 +217,23 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       if(currentUser){
 
-          let lastMonthDate = new Date();
+          let lastMonthDate = new Date(createPaymentDto.received);
           lastMonthDate.setDate(lastMonthDate.getDate() - 1);
-          // lastMonthDate.setDate(lastMonthDate.getDate() + 1);
-          // lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-          // let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
-          let lastMonthDateString = lastMonthDate.toISOString();
+          lastMonthDate.setDate(lastMonthDate.getDate() + 1);
+          lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+          let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
+          let lastDayDateString = lastMonthDate.toISOString();
 
           let sumBuyCHF = Number.parseFloat((await this.createQueryBuilder("buyPayment")
+          .select("SUM(buyPayment.fiatInCHF)","sum")
+          .innerJoin("buyPayment.buy", "buy")
+          .innerJoin("buy.user", "user")
+          .innerJoin("user.userData","userData")
+          .where("userData.id = :id", { id: currentUserData.id })
+          .andWhere("buyPayment.received > :lastMonthDate", {lastMonthDate: lastDayDateString})
+          .getRawMany())[0].sum);
+
+          let sum30BuyCHF = Number.parseFloat((await this.createQueryBuilder("buyPayment")
           .select("SUM(buyPayment.fiatInCHF)","sum")
           .innerJoin("buyPayment.buy", "buy")
           .innerJoin("buy.user", "user")
@@ -229,19 +242,21 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .andWhere("buyPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
           .getRawMany())[0].sum);
 
-          let sumSellCHF = Number.parseFloat((await getRepository(SellPayment).createQueryBuilder("sellPayment")
-          .select("SUM(sellPayment.fiatInCHF)","sum")
-          .innerJoin("sellPayment.sell", "sell")
-          .innerJoin("sell.user", "user")
-          .innerJoin("user.userData","userData")
-          .where("userData.id = :id", { id: currentUserData.id })
-          .andWhere("sellPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
-          .getRawMany())[0].sum);
+          // let sumSellCHF = Number.parseFloat((await getRepository(SellPayment).createQueryBuilder("sellPayment")
+          // .select("SUM(sellPayment.fiatInCHF)","sum")
+          // .innerJoin("sellPayment.sell", "sell")
+          // .innerJoin("sell.user", "user")
+          // .innerJoin("user.userData","userData")
+          // .where("userData.id = :id", { id: currentUserData.id })
+          // .andWhere("sellPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
+          // .getRawMany())[0].sum);
 
           if(!sumBuyCHF) sumBuyCHF = 0;
-          if(!sumSellCHF) sumSellCHF = 0;
+          // if(!sumSellCHF) sumSellCHF = 0;
 
-          let sumCHF = sumBuyCHF + sumSellCHF + createPaymentDto.fiatInCHF;
+          // let sumCHF = sumBuyCHF + sumSellCHF + createPaymentDto.fiatInCHF;
+          let sumCHF = sumBuyCHF + createPaymentDto.fiatInCHF;
+          let sum30CHF = sum30BuyCHF + createPaymentDto.fiatInCHF;
 
         if(currentUser.status != UserStatus.KYC && sumCHF > 1000){
 
@@ -253,7 +268,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
           createPaymentDto.errorCode = PaymentError.KYC;
 
-        }else if(currentUser.status == UserStatus.KYC && sumCHF >= 50000){
+        }else if(currentUser.status == UserStatus.KYC && sum30CHF > 50000){
 
           createPaymentDto.info = 'Check Account Flag, last Month: ' + sumCHF + " CHF";
           createPaymentDto.info += '; userDataId: ' + currentUserData.id;
@@ -261,6 +276,18 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
           createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
           createPaymentDto.errorCode = PaymentError.ACCOUNTCHECK;
+        }
+      }
+
+      if(currentUserData.nameCheck == UserDataNameCheck.NA) {
+        if(!createPaymentDto.errorCode) createPaymentDto.errorCode = PaymentError.NAMECHECK;
+        if(!createPaymentDto.info){
+          createPaymentDto.info += '; Name-Check missing!';
+        }else{
+          createPaymentDto.info = 'Name-Check missing!';
+          createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+          createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
+          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
         }
       }
     }

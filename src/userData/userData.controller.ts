@@ -26,8 +26,16 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getWallet(@Param() wallet: any): Promise<any> {
-    return this.userDataService.getUser(wallet);
+  async getUserData(@Param() userData: any): Promise<any> {
+    return this.userDataService.getUser(userData);
+  }
+
+  @Get(':name/:location')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getUserDataExtends(@Param() userData: any): Promise<any> {
+    return this.userDataService.getUser(userData);
   }
 
   @Get()

@@ -23,6 +23,7 @@ export enum PaymentError {
   ASSET = 'Asset',
   KYC = 'KYC',
   ACCOUNTCHECK = 'Account-check',
+  NAMECHECK = 'Name-check',
 }
 
 export enum PaymentStatus {
