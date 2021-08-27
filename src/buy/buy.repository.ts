@@ -28,6 +28,8 @@ export class BuyRepository extends Repository<Buy> {
 
     createBuyDto.asset = assetObject;
 
+    createBuyDto.iban = (createBuyDto.iban.split(" ")).join("");
+
     const buy = this.create(createBuyDto);
     const currentUser = await buy.user;
     buy.address = currentUser.address;
