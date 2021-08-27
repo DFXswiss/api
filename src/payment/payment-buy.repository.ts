@@ -305,6 +305,10 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       logDto.user = await buy.user;
     }
 
+    if(createPaymentDto.asset){
+      logDto.asset = createPaymentDto.asset;
+    }
+
     if (createPaymentDto.info) {
       logDto.message = createPaymentDto.info;
     }

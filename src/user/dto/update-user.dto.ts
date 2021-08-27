@@ -22,11 +22,6 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  walletId: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsEmail()
   mail: string;
 

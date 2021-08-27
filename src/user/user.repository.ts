@@ -119,7 +119,13 @@ export class UserRepository extends Repository<User> {
 
   async getAllUser(): Promise<any> {
     try {
-      return await this.find();
+      let users = await this.find();
+
+      for(let a = 0; a < users.length; a++){
+        users[a].wallet = await users[a].wallet;
+      }
+
+      return users;
     } catch (error) {
       throw new ConflictException(error.message);
     }
