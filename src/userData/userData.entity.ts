@@ -14,7 +14,7 @@ import {
 
 export enum UserDataNameCheck {
   NA = 'NA',
-  SAVE = 'Save',
+  SAFE = 'Safe',
   WARNING = 'Warning',
   HIGHRISK = 'High-risk',
 }
