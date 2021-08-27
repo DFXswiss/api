@@ -15,7 +15,7 @@ export class CreateUserDataDto {
   location: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   country: any;
 
   @ApiPropertyOptional()
