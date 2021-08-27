@@ -17,7 +17,7 @@ export enum PaymentType {
 
 export enum PaymentError {
   NA = 'NA',
-  IBAN = 'Iban',
+  IBAN = 'IBAN',
   BANKUSAGE = 'Bankusage',
   FIAT = 'Fiat',
   ASSET = 'Asset',

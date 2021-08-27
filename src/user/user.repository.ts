@@ -65,8 +65,7 @@ export class UserRepository extends Repository<User> {
 
       const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
       const signatureMessage = process.env.SIGN_MESSAGE + user.address;
-      let userSignature = user.signature.replace('+', '%2b');
-      userSignature = userSignature.replace('+', '%2b');
+      let userSignature = user.signature.split('+').join('%2b');
       const queryString =
         '?address="' +
         String(user.address) +
@@ -85,7 +84,7 @@ export class UserRepository extends Repository<User> {
     }
 
     //if (true) {
-    if(resultString === 'True' || user.address.length == 34 || user.address.length == 42){
+    if(resultString === 'True' || user.address.length == 42){
 
       const refVar = String((await this.find()).length + 1001).padStart(6, '0');
 
