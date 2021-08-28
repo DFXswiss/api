@@ -7,6 +7,7 @@ import {
   Length,
   IsNumber,
   IsIBAN,
+  IsEnum,
 } from 'class-validator';
 import { LogDirection, LogStatus } from '../log.entity';
 
@@ -29,7 +30,7 @@ export class UpdateLogDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsString()
+  @IsEnum(LogStatus)
   status: LogStatus;
 
   @ApiProperty()
@@ -57,7 +58,7 @@ export class UpdateLogDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsString()
+  @IsEnum(LogDirection)
   direction: LogDirection;
 
   @ApiProperty()

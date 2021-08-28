@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsNumber, IsNotEmpty } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsNumber, IsNotEmpty, IsEnum } from 'class-validator';
 import { UserDataNameCheck } from '../userData.entity';
 
 export class UpdateUserDataDto {
@@ -19,6 +19,6 @@ export class UpdateUserDataDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsEnum(UserDataNameCheck)
   nameCheck: UserDataNameCheck;
 }

@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -17,7 +18,7 @@ export class CreateAssetDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
+  @IsEnum(AssetType)
   type: AssetType;
 
   @ApiProperty()

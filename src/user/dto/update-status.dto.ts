@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsInt } from 'class-validator';
+import { IsNotEmpty, IsString, IsInt, IsEnum } from 'class-validator';
 import { UserStatus } from 'src/user/user.entity';
 
 export class UpdateStatusDto {
@@ -10,6 +10,6 @@ export class UpdateStatusDto {
 
   @ApiPropertyOptional()
   @IsNotEmpty()
-  @IsString()
+  @IsEnum(UserStatus)
   status: UserStatus;
 }

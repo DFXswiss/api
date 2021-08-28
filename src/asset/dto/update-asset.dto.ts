@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { AssetType } from '../asset.entity';
 
 export class UpdateAssetDto {
@@ -15,7 +15,7 @@ export class UpdateAssetDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
+  @IsEnum(AssetType)
   type: AssetType;
 
   @ApiProperty()

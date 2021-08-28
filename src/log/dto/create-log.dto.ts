@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -16,19 +17,19 @@ export class CreateLogDto {
   orderId: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @Length(34, 42)
   @IsString()
   address: string;
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
+  @IsEnum(LogType)
   type: LogType;
 
   @ApiProperty()
   @IsOptional()
-  @IsString()
+  @IsEnum(LogStatus)
   status: LogStatus;
 
   @ApiProperty()
@@ -61,7 +62,7 @@ export class CreateLogDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsString()
+  @IsEnum(LogDirection)
   direction: LogDirection;
 
   @ApiProperty()
