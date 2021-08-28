@@ -6,7 +6,6 @@ import {
   IsString,
   Length,
   IsNumber,
-  IsIBAN,
   IsEnum,
 } from 'class-validator';
 import { LogDirection, LogStatus } from '../log.entity';

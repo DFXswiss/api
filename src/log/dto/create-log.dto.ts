@@ -1,14 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEnum,
-  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   Length,
 } from 'class-validator';
-import { User } from 'src/user/user.entity';
 import { LogDirection, LogStatus, LogType } from '../log.entity';
 
 export class CreateLogDto {

@@ -1,10 +1,6 @@
 import {
-  BadRequestException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
-import { InjectEntityManager } from '@nestjs/typeorm';
-import { Fiat } from './fiat.entity';
 import { CreateFiatDto } from 'src/fiat/dto/create-fiat.dto';
 import { UpdateFiatDto } from "./dto/update-fiat.dto";
 import { FiatRepository } from 'src/fiat/fiat.repository';

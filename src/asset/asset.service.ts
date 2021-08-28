@@ -8,7 +8,6 @@ import { UserRepository } from 'src/user/user.repository';
 export class AssetService {
   constructor(
     private assetRepository: AssetRepository,
-    private userRepository: UserRepository,
   ) {}
 
   async createAsset(createAssetDto: CreateAssetDto): Promise<any> {

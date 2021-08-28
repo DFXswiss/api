@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import {  IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Length } from "class-validator";
+import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Length } from "class-validator";
 
 export class UpdateWalletDto {
     

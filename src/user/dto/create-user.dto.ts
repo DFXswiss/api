@@ -5,9 +5,7 @@ import {
   IsOptional,
   IsString,
   Length,
-  IsInt,
 } from 'class-validator';
-import { UserRole } from 'src/user/user.entity';
 
 export class CreateUserDto {
   //TODO überflüssige löschen

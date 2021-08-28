@@ -2,13 +2,10 @@ import {
     Entity,
     PrimaryGeneratedColumn,
     Column,
-    PrimaryColumn,
-    Index,
     CreateDateColumn,
     OneToMany,
     UpdateDateColumn,
   } from 'typeorm';
-  import * as typeorm from 'typeorm';
 import { User } from 'src/user/user.entity';
   
   @Entity()

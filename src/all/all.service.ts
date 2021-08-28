@@ -1,10 +1,3 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectEntityManager } from '@nestjs/typeorm';
-import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
 import { UserRepository } from 'src/user/user.repository';
 import { BuyRepository } from 'src/buy/buy.repository';
 import { SellRepository } from 'src/sell/sell.repository';
