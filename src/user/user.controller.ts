@@ -28,6 +28,13 @@ export class UserController {
     return this.userService.getUser(user, true);
   }
 
+  @Get('ref-count')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getUserRefCount(@GetUser() user: User): Promise<any> {
+    return this.userService.getUserRefCount(user);
+  }
+
   @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))

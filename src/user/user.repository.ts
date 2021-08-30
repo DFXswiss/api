@@ -156,6 +156,13 @@ export class UserRepository extends Repository<User> {
     return await this.findOne({ address: addressString });
   }
 
+  async getUsedRefCount(address: string): Promise<any> {
+
+    const refUser = await this.findOne({ address: address });
+
+    return await (await this.find({usedRef: refUser.ref})).length;
+  }
+
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
     try {
       const currentUser = await this.findOne({ id: oldUser.id });
