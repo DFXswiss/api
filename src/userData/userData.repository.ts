@@ -23,6 +23,8 @@ export class UserDataRepository extends Repository<UserData> {
         .getCountry(createUserDto.country);
 
       createUserDto.country = countryObject.id;
+    }else{
+      delete createUserDto.country;
     }
 
     const userData = this.create(createUserDto);
@@ -61,6 +63,7 @@ export class UserDataRepository extends Repository<UserData> {
         throw new NotFoundException('No matching user for id found');
 
       if(newUser.nameCheck) currentUser.nameCheck = newUser.nameCheck;
+      if(newUser.country) currentUser.country = newUser.country;
 
       return Object.assign(await this.save(currentUser), newUser);
     } catch (error) {

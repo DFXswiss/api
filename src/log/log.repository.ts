@@ -45,14 +45,21 @@ export class LogRepository extends Repository<Log> {
     let fiatObject = null;
     let assetObject = null;
 
-    if (createLogDto.fiat)
+    if (createLogDto.fiat){
       fiatObject = await getManager()
         .getCustomRepository(FiatRepository)
         .getFiat(createLogDto.fiat);
-    if (createLogDto.asset)
+    }else{
+      delete createLogDto.fiat;
+    }
+
+    if (createLogDto.asset){
       assetObject = await getManager()
         .getCustomRepository(AssetRepository)
         .getAsset(createLogDto.asset);
+    }else{
+      delete createLogDto.asset;
+    }
 
     if (fiatObject) createLogDto.fiat = fiatObject.id;
     if (assetObject) createLogDto.asset = assetObject.id;

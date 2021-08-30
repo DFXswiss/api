@@ -33,6 +33,8 @@ export class UserRepository extends Repository<User> {
         .getCountry(createUserDto.country);
 
       createUserDto.country = countryObject.id;
+    }else{
+      delete createUserDto.country;
     }
 
     if(createUserDto.wallet) {
@@ -55,6 +57,8 @@ export class UserRepository extends Repository<User> {
         .getLanguage(createUserDto.language);
 
       createUserDto.language = languageObject.id;
+    }else{
+      delete createUserDto.language;
     }
 
     const user = this.create(createUserDto);

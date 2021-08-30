@@ -17,6 +17,10 @@ export class UpdateUserDataDto {
   @IsString()
   location: string;
 
+  @ApiProperty()
+  @IsOptional()
+  country: any;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsEnum(UserDataNameCheck)
