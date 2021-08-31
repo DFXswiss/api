@@ -176,17 +176,17 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     }
 
     if (!createPaymentDto.errorCode) {
-      countryObject = await getManager()
+      if(createPaymentDto.country){
+        countryObject = await getManager()
         .getCustomRepository(CountryRepository)
         .getCountry(createPaymentDto.country);
 
-      createPaymentDto.country = countryObject;
+        createPaymentDto.country = countryObject.id;
+      }
 
       let currentUserData = await getManager()
         .getCustomRepository(UserDataRepository)
         .getUserData(createPaymentDto);
-
-      createPaymentDto.country = countryObject.id;
 
       let currentUser: User = null;
 
@@ -194,7 +194,10 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         const createUserDataDto = new CreateUserDataDto();
         createUserDataDto.name = createPaymentDto.name;
         createUserDataDto.location = createPaymentDto.location;
-        createUserDataDto.country = createPaymentDto.country;
+
+        if(createPaymentDto.country){
+          createUserDataDto.country = createPaymentDto.country;
+        }
 
         currentUserData = await getManager()
           .getCustomRepository(UserDataRepository)
