@@ -54,6 +54,10 @@ export class CreateBuyPaymentDto {
   @IsNumber()
   fiatInCHF: number;
 
+  @IsOptional()
+  @IsNumber()
+  btcValue: number;
+
   @ApiProperty()
   @IsNotEmpty()
   @IsISO8601()

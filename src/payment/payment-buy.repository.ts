@@ -300,40 +300,47 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
     }
 
-    const logDto: CreateLogDto = new CreateLogDto();
-    logDto.status = LogStatus.fiatDeposit;
-    if (fiatObject) logDto.fiat = fiatObject.id;
-    logDto.fiatValue = createPaymentDto.fiatValue;
-    // logDto.iban = createPaymentDto.iban;
-    logDto.direction = LogDirection.fiat2asset;
-    logDto.type = LogType.TRANSACTION;
-    logDto.address = createPaymentDto.address;
-    logDto.fiatInCHF = createPaymentDto.fiatInCHF;
-
-    if (buy) {
-      logDto.user = await buy.user;
-    }
-
-    if(createPaymentDto.asset){
-      logDto.asset = createPaymentDto.asset;
-    }
-
-    if (createPaymentDto.info) {
-      logDto.message = createPaymentDto.info;
-    }
-
-    await getManager().getCustomRepository(LogRepository).createLog(logDto);
-
     const payment = this.create(createPaymentDto);
 
     if (payment) {
+
+      const logDto: CreateLogDto = new CreateLogDto();
+      logDto.status = LogStatus.fiatDeposit;
+      if (fiatObject) logDto.fiat = fiatObject.id;
+      logDto.fiatValue = createPaymentDto.fiatValue;
+      // logDto.iban = createPaymentDto.iban;
+      logDto.direction = LogDirection.fiat2asset;
+      logDto.type = LogType.TRANSACTION;
+      logDto.address = createPaymentDto.address;
+      logDto.fiatInCHF = createPaymentDto.fiatInCHF;
+
+      if (buy) {
+        logDto.user = await buy.user;
+      }
+
+      if(createPaymentDto.asset){
+        logDto.asset = createPaymentDto.asset;
+      }
+
+      if (createPaymentDto.info) {
+        logDto.message = createPaymentDto.info;
+      }
+
       try{
         await this.save(payment);
+
+        logDto.payment = payment;
+
       } catch (error) {
         throw new ConflictException(error.message);
       }
+
+      await getManager().getCustomRepository(LogRepository).createLog(logDto);
+
       if(payment.buy) delete payment.buy;
       if(payment["__buy__"]) delete payment["__buy__"];
+      if(payment["__logs__"]) delete payment["__logs__"];
+      if(payment["__has_logs__"]) delete payment["__has_logs__"];
 
       payment.fiat = fiatObject;
       if(buy) payment.asset = buy.asset;
@@ -385,6 +392,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         logDto.direction = LogDirection.fiat2asset;
         logDto.type = LogType.VOLUME;
         logDto.fiatInCHF = currentPayment.fiatInCHF;
+        logDto.payment = currentPayment;
 
         if (currentPayment.buy) {
           const currentBuy = await currentPayment.buy;
@@ -408,8 +416,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         throw new ConflictException(error.message);
       }
     }
-
-    await this.save(currentPayment);
+    try{
+      await this.save(currentPayment);
+    }catch(error){
+      throw new ConflictException(error.message);
+    }
 
     return currentPayment;
   }

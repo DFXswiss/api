@@ -10,6 +10,7 @@ import {
 import { User } from 'src/user/user.entity';
 import { Asset } from 'src/asset/asset.entity';
 import { Fiat } from 'src/fiat/fiat.entity';
+import { Payment } from 'src/payment/payment.entity';
 
 export enum LogDirection {
   fiat2asset = 'fiat-to-asset',
@@ -84,6 +85,10 @@ export class Log {
   @ManyToOne(() => User, { eager: false, lazy: true })
   @JoinColumn()
   user: User;
+
+  @ManyToOne(() => Payment, { lazy: true, cascade: ["insert"] })
+  @JoinColumn()
+  payment: Payment;
 
   @UpdateDateColumn()
   updated: Date;

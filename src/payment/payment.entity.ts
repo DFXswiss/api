@@ -1,5 +1,6 @@
 import { Asset } from 'src/asset/asset.entity';
 import { Fiat } from 'src/fiat/fiat.entity';
+import { Log } from 'src/log/log.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -8,6 +9,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 
 export enum PaymentType {
@@ -48,6 +50,9 @@ export abstract class Payment {
   @Column({ type: 'float', nullable: true })
   fiatInCHF: number;
 
+  @Column({ type: 'float', nullable: true })
+  btcValue: number;
+
   @ManyToOne(() => Asset, { eager: true })
   @JoinColumn()
   asset: Asset;
@@ -63,6 +68,9 @@ export abstract class Payment {
 
   @Column({ type: 'varchar', default: PaymentError.NA, length: 256 })
   errorCode: PaymentError;
+
+  @OneToMany(() => Log, (log) => log.payment,{ lazy: true, cascade: ["insert"]})
+  logs: Log[];
 
   @UpdateDateColumn()
   updated: Date;

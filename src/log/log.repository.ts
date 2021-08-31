@@ -87,6 +87,7 @@ export class LogRepository extends Repository<Log> {
     }
 
     if(log["__user__"]) delete log["__user__"];
+    if(log["__payment__"]) delete log["__payment__"];
     log.fiat = fiatObject;
     log.asset = assetObject;
 

@@ -71,6 +71,9 @@ export class CreateLogDto {
   @IsOptional()
   user: any;
 
+  @IsOptional()
+  payment: any;
+
   @ApiProperty()
   @IsOptional()
   @IsString()
