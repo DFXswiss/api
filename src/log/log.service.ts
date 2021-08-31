@@ -14,6 +14,10 @@ export class LogService {
     return this.logRepository.getAllLog();
   }
 
+  async getAllUserLog(address: string): Promise<any> {
+    return this.logRepository.getAllUserLog(address);
+  }
+
   // async updateDeposit(update: any): Promise<any> {
   //   return this.depositRepository.updateDeposit(update);
   // }

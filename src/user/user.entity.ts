@@ -105,7 +105,7 @@ export class User {
   @JoinColumn()
   userData: UserData;
 
-  @OneToMany(() => Log, (logs) => logs.user)
+  @OneToMany(() => Log, (logs) => logs.user,{ lazy: true})
   logs: Log[];
 
   @UpdateDateColumn()

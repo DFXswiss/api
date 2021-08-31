@@ -101,6 +101,14 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
+  async getAllUserLog(address: string): Promise<any> {
+    try {
+      return await this.find({address: address});
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
   async getBuyVolume(): Promise<any> {
     try {
       const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.fiat2asset });

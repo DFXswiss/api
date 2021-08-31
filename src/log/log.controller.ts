@@ -13,14 +13,15 @@ import { RoleGuard } from 'src/guards/role.guard';
 import { LogService } from './log.service';
 import { CreateLogDto } from './dto/create-log.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { UserRole } from 'src/user/user.entity';
+import { User, UserRole } from 'src/user/user.entity';
+import { GetUser } from 'src/auth/get-user.decorator';
 
 @ApiTags('log')
 @Controller('log')
 export class LogController {
   constructor(private readonly logService: LogService) {}
 
-  @Get(':key')
+  @Get('/id/:key')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @UsePipes(ValidationPipe)
@@ -31,6 +32,13 @@ export class LogController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getAllUserLog(@GetUser() user: User): Promise<any> {
+    return this.logService.getAllUserLog(user.address);
+  }
+
+  @Get('all')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllLog(): Promise<any> {
     return this.logService.getAllLog();
   }
