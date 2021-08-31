@@ -8,7 +8,7 @@ module.exports = class PaymentLogReference1630442140734 {
         await queryRunner.query(`ALTER TABLE "dbo"."sell_payment" ADD "btcValue" float`);
         await queryRunner.query(`ALTER TABLE "dbo"."log" ADD "paymentId" int`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_payment" ADD "btcValue" float`);
-        await queryRunner.query(`ALTER TABLE "dbo"."log" ADD CONSTRAINT "FK_4711d35565c15dd3dd860b27b2b" FOREIGN KEY ("paymentId") REFERENCES "sqldb-dfx-api-dev".."payment"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dbo"."log" ADD CONSTRAINT "FK_4711d35565c15dd3dd860b27b2b" FOREIGN KEY ("paymentId") REFERENCES "payment"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
     }
 
     async down(queryRunner) {
