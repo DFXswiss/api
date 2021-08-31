@@ -267,7 +267,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           createPaymentDto.info += '; userDataId: ' + currentUserData.id;
           createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
           createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
-          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          if(createPaymentDto.country){
+            createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          }
           createPaymentDto.errorCode = PaymentError.KYC;
 
         }else if(currentUser.status == UserStatus.KYC && sum30CHF > 50000){
@@ -276,7 +278,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           createPaymentDto.info += '; userDataId: ' + currentUserData.id;
           createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
           createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
-          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          if(createPaymentDto.country){
+            createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          }
           createPaymentDto.errorCode = PaymentError.ACCOUNTCHECK;
         }
       }
@@ -289,7 +293,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           createPaymentDto.info = 'Name-Check missing!';
           createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
           createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
-          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          if(createPaymentDto.country){
+            createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+          }
         }
       }
     }
