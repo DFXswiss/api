@@ -451,4 +451,5 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   async getUnprocessedPayment(): Promise<any> {
     return await this.find({ status: PaymentStatus.UNPROCESSED });
   }
+  
 }

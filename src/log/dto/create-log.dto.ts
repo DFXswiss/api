@@ -78,4 +78,5 @@ export class CreateLogDto {
   @IsOptional()
   @IsString()
   blockchainTx: string;
+  
 }

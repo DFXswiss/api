@@ -95,4 +95,5 @@ export class Log {
 
   @CreateDateColumn()
   created: Date;
+  
 }

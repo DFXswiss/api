@@ -92,6 +92,7 @@ export class LogRepository extends Repository<Log> {
     log.asset = assetObject;
 
     return log;
+    
   }
 
   async getAllLog(): Promise<any> {

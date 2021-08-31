@@ -84,4 +84,5 @@ export class CreateBuyPaymentDto {
 
   @IsOptional()
   buy: Buy;
+  
 }
