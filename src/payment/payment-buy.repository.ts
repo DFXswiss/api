@@ -346,7 +346,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       try{
 
         let baseUrl =
-            'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=0';
+            'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
         const options = {
           uri: baseUrl,
@@ -354,7 +354,17 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
         const result = await requestPromise.get(options);
 
-        const volumeInDFI = currentPayment.fiatInCHF / Number.parseFloat(result.split("prices\":[[")[1].split("]],")[0].split(",")[1]);
+        let resultArray = result.split("prices\":[[")[1].split("]],")[0].split(",[");
+
+        let sumPrice = 0;
+
+        for(let a = 0; a < resultArray.length; a++) {
+          sumPrice += Number.parseFloat(resultArray[a].split(",")[1]);
+        }
+
+        const currentDfiPrice = sumPrice/resultArray.length;
+
+        const volumeInDFI = currentPayment.fiatInCHF / currentDfiPrice;
 
         const logDto: CreateLogDto = new CreateLogDto();
         logDto.fiatValue = currentPayment.fiatValue;
