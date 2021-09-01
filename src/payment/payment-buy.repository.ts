@@ -338,10 +338,10 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       await getManager().getCustomRepository(LogRepository).createLog(logDto);
 
-      if(payment["__logs__"]) delete payment["__logs__"];
-      if(payment["__has_logs__"]) delete payment["__has_logs__"];
       if(payment.buy) delete payment.buy;
       if(payment["__buy__"]) delete payment["__buy__"];
+      if(payment["__logs__"]) delete payment["__logs__"];
+      if(payment["__has_logs__"]) delete payment["__has_logs__"];
 
       payment.fiat = fiatObject;
       if(buy) payment.asset = buy.asset;
