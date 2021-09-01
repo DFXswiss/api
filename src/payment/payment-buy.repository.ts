@@ -220,11 +220,12 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if(currentUser){
 
           let lastMonthDate = new Date(createPaymentDto.received);
-          lastMonthDate.setDate(lastMonthDate.getDate() - 1);
+          let lastDayDate = new Date(createPaymentDto.received);
+          lastDayDate.setDate(lastDayDate.getDate() - 1);
           lastMonthDate.setDate(lastMonthDate.getDate() + 1);
           lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
           let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
-          let lastDayDateString = lastMonthDate.toISOString();
+          let lastDayDateString = lastDayDate.toISOString().split('T')[0];
 
           let sumBuyCHF = Number.parseFloat((await this.createQueryBuilder("buyPayment")
           .select("SUM(buyPayment.fiatInCHF)","sum")
