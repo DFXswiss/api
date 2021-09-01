@@ -19,8 +19,7 @@ export class AuthController {
 
   @Post('/signup')
   @UsePipes(ValidationPipe)
-  signUp(@Body() createUserDto: CreateUserDto, @Request() req, @RealIP() ip: string): Promise<void> {
-    // createUserDto.ip = req.socket.remoteAddress;
+  signUp(@Body() createUserDto: CreateUserDto, @RealIP() ip: string): Promise<void> {
     createUserDto.ip = ip;
     return this.authService.signUp(createUserDto);
   }
