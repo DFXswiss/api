@@ -48,10 +48,10 @@ export abstract class Payment {
   fiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
-  fiatInCHF: number;
+  btcValue: number;
 
   @Column({ type: 'float', nullable: true })
-  btcValue: number;
+  fiatInCHF: number;
 
   @ManyToOne(() => Asset, { eager: true })
   @JoinColumn()

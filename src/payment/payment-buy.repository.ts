@@ -330,7 +330,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       try{
         await this.save(payment);
 
-        logDto.payment = payment;
+        //logDto.payment = payment;
 
       } catch (error) {
         throw new ConflictException(error.message);
@@ -338,10 +338,10 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       await getManager().getCustomRepository(LogRepository).createLog(logDto);
 
-      if(payment.buy) delete payment.buy;
-      if(payment["__buy__"]) delete payment["__buy__"];
       if(payment["__logs__"]) delete payment["__logs__"];
       if(payment["__has_logs__"]) delete payment["__has_logs__"];
+      if(payment.buy) delete payment.buy;
+      if(payment["__buy__"]) delete payment["__buy__"];
 
       payment.fiat = fiatObject;
       if(buy) payment.asset = buy.asset;
@@ -393,7 +393,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         logDto.direction = LogDirection.fiat2asset;
         logDto.type = LogType.VOLUME;
         logDto.fiatInCHF = currentPayment.fiatInCHF;
-        logDto.payment = currentPayment;
+        //logDto.payment = currentPayment;
 
         if (currentPayment.buy) {
           const currentBuy = await currentPayment.buy;
