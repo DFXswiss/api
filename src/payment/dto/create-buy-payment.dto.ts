@@ -41,6 +41,10 @@ export class CreateBuyPaymentDto {
   @IsString()
   country: string;
 
+  @IsOptional()
+  @IsNumber()
+  btcValue: number;
+
   @ApiProperty()
   @IsNotEmpty()
   fiat: any;
@@ -53,10 +57,6 @@ export class CreateBuyPaymentDto {
   @IsOptional()
   @IsNumber()
   fiatInCHF: number;
-
-  @IsOptional()
-  @IsNumber()
-  btcValue: number;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -84,5 +84,4 @@ export class CreateBuyPaymentDto {
 
   @IsOptional()
   buy: Buy;
-  
 }
