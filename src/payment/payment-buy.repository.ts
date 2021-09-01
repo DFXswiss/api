@@ -330,7 +330,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       try{
         await this.save(payment);
 
-        //logDto.payment = payment;
+        logDto.payment = payment;
 
       } catch (error) {
         throw new ConflictException(error.message);
@@ -393,7 +393,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         logDto.direction = LogDirection.fiat2asset;
         logDto.type = LogType.VOLUME;
         logDto.fiatInCHF = currentPayment.fiatInCHF;
-        //logDto.payment = currentPayment;
+        logDto.payment = currentPayment;
 
         if (currentPayment.buy) {
           const currentBuy = await currentPayment.buy;
