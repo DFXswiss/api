@@ -24,6 +24,7 @@ import { Buy } from 'src/buy/buy.entity';
 import { UserRepository } from 'src/user/user.repository';
 import { User, UserStatus } from 'src/user/user.entity';
 import { UserDataNameCheck } from 'src/userData/userData.entity';
+import { isString } from 'class-validator';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
@@ -358,6 +359,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     currentPayment.status = payment.status;
 
+    const logDto: CreateLogDto = new CreateLogDto();
+
     if(payment.status == PaymentStatus.PROCESSED){
 
       try{
@@ -383,7 +386,6 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
         const volumeInDFI = currentPayment.fiatInCHF / currentDfiPrice;
 
-        const logDto: CreateLogDto = new CreateLogDto();
         logDto.fiatValue = currentPayment.fiatValue;
         logDto.fiat = currentPayment.fiat;
         logDto.assetValue = volumeInDFI;
@@ -393,7 +395,6 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         logDto.direction = LogDirection.fiat2asset;
         logDto.type = LogType.VOLUME;
         logDto.fiatInCHF = currentPayment.fiatInCHF;
-        logDto.payment = currentPayment;
 
         if (currentPayment.buy) {
           const currentBuy = await currentPayment.buy;
@@ -411,7 +412,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
         }
 
-        await getManager().getCustomRepository(LogRepository).createLog(logDto);
+        
 
       } catch (error) {
         throw new ConflictException(error.message);
@@ -419,9 +420,14 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     }
     try{
       await this.save(currentPayment);
+
+      logDto.payment = currentPayment;
+
     }catch(error){
       throw new ConflictException(error.message);
     }
+
+    await getManager().getCustomRepository(LogRepository).createLog(logDto);
 
     return currentPayment;
   }
@@ -431,18 +437,35 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   }
 
   async getPayment(id: any): Promise<any> {
-    if (!isNaN(id.key)) {
-      const payment = await this.findOne({ id: id.key });
+    if (id.key) {
+      if (!isNaN(id.key)) {
+        const payment = await this.findOne({ id: id.key });
 
-      if (!payment)
-        throw new NotFoundException('No matching payment for id found');
+        if (!payment)
+          throw new NotFoundException('No matching payment for id found');
 
-      return payment;
+        return payment;
+      }
     } else if (!isNaN(id)) {
       const payment = await this.findOne({ id: id });
 
       if (!payment)
         throw new NotFoundException('No matching payment for id found');
+
+      return payment;
+    }
+    throw new BadRequestException('id must be a number');
+  }
+
+  async getPaymentInternal(id: any): Promise<any> {
+    if (id.id) {
+      if (!isNaN(id.id)) {
+        const payment = await this.findOne({ id: id.id });
+
+        return payment;
+      }
+    } else if (!isNaN(id)) {
+      const payment = await this.findOne({ id: id });
 
       return payment;
     }

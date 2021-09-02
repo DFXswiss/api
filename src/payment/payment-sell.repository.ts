@@ -155,6 +155,21 @@ export class SellPaymentRepository extends Repository<SellPayment> {
     throw new BadRequestException('id must be a number');
   }
 
+  async getPaymentInternal(id: any): Promise<any> {
+    if (id.key) {
+      if (!isNaN(id.key)) {
+        const payment = await this.findOne({ id: id.key });
+
+        return payment;
+      }
+    } else if (!isNaN(id)) {
+      const payment = await this.findOne({ id: id });
+
+      return payment;
+    }
+    throw new BadRequestException('id must be a number');
+  }
+
   async getUnprocessedPayment(): Promise<any> {
     const payment = await this.find({ status: PaymentStatus.UNPROCESSED });
 
