@@ -102,7 +102,7 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getBuyVolume(): Promise<any> {
+  async getBuyDFIVolume(): Promise<any> {
     try {
       const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.fiat2asset });
       let buyVolume = 0;
@@ -115,7 +115,7 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getSellVolume(): Promise<any> {
+  async getSellDFIVolume(): Promise<any> {
     try {
       const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.asset2fiat });
       let sellVolume = 0;
@@ -128,10 +128,46 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getVolume(): Promise<any> {
+  async getDFIVolume(): Promise<any> {
     try {
       return {
-        totalVolume: [await this.getBuyVolume(), await this.getSellVolume()],
+        totalVolume: [await this.getBuyDFIVolume(), await this.getSellDFIVolume()],
+      };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getBuyCHFVolume(): Promise<any> {
+    try {
+      const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.fiat2asset });
+      let buyVolume = 0;
+      for (let a = 0; a < volumeLogs.length; a++) {
+        buyVolume += volumeLogs[a].fiatInCHF;
+      }
+      return { buyVolume: buyVolume };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getSellCHFVolume(): Promise<any> {
+    try {
+      const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.asset2fiat });
+      let sellVolume = 0;
+      for (let a = 0; a < volumeLogs.length; a++) {
+        sellVolume += volumeLogs[a].fiatInCHF;
+      }
+      return { sellVolume: sellVolume };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getCHFVolume(): Promise<any> {
+    try {
+      return {
+        totalCHFVolume: [await this.getBuyCHFVolume(), await this.getSellCHFVolume()],
       };
     } catch (error) {
       throw new ConflictException(error.message);
