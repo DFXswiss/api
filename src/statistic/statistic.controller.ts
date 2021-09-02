@@ -29,7 +29,7 @@ export class StatisticController {
 
   @Get('volume')
   async getVolume(): Promise<any> {
-    return this.statisticService.getVolume();
+    return this.statisticService.getDFIVolume();
   }
 
   @Get('volume/buy')
