@@ -14,7 +14,7 @@ import { User } from 'src/user/user.entity';
 import { BuyPayment } from 'src/payment/payment-buy.entity';
 
 @Entity()
-@Index('ibanAsset', (buy: Buy) => [buy.iban, buy.asset], { unique: true })
+@Index('ibanAddressAsset', (buy: Buy) => [buy.iban, buy.asset, buy.address], { unique: true })
 export class Buy {
   @PrimaryGeneratedColumn()
   id: number;
