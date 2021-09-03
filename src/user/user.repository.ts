@@ -176,8 +176,18 @@ export class UserRepository extends Repository<User> {
 
       const refUser = await this.findOne({ ref: newUser.usedRef });
 
-      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
+      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) {
         newUser.usedRef = '000-000';
+      } else {
+        let refUserData = null;
+        let currentUserData = null;
+  
+        refUserData = await refUser.userData;
+        currentUserData = await currentUser.userData;
+        if(refUserData && currentUserData){
+          if(refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
+        }
+      }
 
       let countryObject = null;
       let languageObject = null;
@@ -225,6 +235,8 @@ export class UserRepository extends Repository<User> {
       delete user.address;
       delete user.signature;
       delete user.ip;
+      delete user["__userData__"];
+      delete user["__has_userData__"];
       if (user.role != UserRole.VIP) delete user.role;
 
       if (
