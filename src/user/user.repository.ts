@@ -61,15 +61,13 @@ export class UserRepository extends Repository<User> {
       delete createUserDto.language;
     }
 
-    const user = this.create(createUserDto);
-
     let resultString = "";
 
-    if(user.address.length == 34){
+    if(createUserDto.address.length == 34){
 
       const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
       const signatureMessage = process.env.SIGN_MESSAGE + user.address;
-      let userSignature = user.signature.split('+').join('%2b');
+      let userSignature = createUserDto.signature.split('+').join('%2b');
       const queryString =
         '?address="' +
         String(user.address) +
@@ -88,7 +86,9 @@ export class UserRepository extends Repository<User> {
     }
 
     //if (true) {
-    if(resultString === 'True' || user.address.length == 42){
+    if(resultString === 'True' || createUserDto.address.length == 42){
+
+      const user = this.create(createUserDto);
 
       const refVar = String((await this.find()).length + 1001).padStart(6, '0');
 
