@@ -1,20 +1,27 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserRepository } from 'src/user/user.repository';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from './jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
+import { DeFiService } from 'src/services/defi.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private userRepository: UserRepository,
     private jwtService: JwtService,
+    private deFiService: DeFiService,
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
-    await this.userRepository.createUser(createUserDto);
+    const signatureMessage = process.env.SIGN_MESSAGE + createUserDto.address;
+    const signatureValid = this.deFiService.verifySignature(signatureMessage, createUserDto.address, createUserDto.signature);
+    if (!signatureValid) {
+      throw new BadRequestException('Wrong signature');
+    }
 
+    await this.userRepository.createUser(createUserDto);
     return this.signIn(createUserDto);
   }
 
