@@ -66,11 +66,11 @@ export class UserRepository extends Repository<User> {
     if(createUserDto.address.length == 34){
 
       const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
-      const signatureMessage = process.env.SIGN_MESSAGE + user.address;
+      const signatureMessage = process.env.SIGN_MESSAGE + createUserDto.address;
       let userSignature = createUserDto.signature.split('+').join('%2b');
       const queryString =
         '?address="' +
-        String(user.address) +
+        String(createUserDto.address) +
         '"&signature="' +
         userSignature +
         '"&message="' +
