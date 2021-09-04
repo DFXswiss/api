@@ -10,40 +10,30 @@ import { isString } from 'class-validator';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { UserRepository } from 'src/user/user.repository';
+import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
+import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
   async createLog(createLogDto: CreateLogDto): Promise<any> {
-    
-    if (
-      !createLogDto.type ||
-      (createLogDto.type != LogType.INFO &&
-        createLogDto.type != LogType.TRANSACTION && createLogDto.type != LogType.VOLUME)
-    )
-      throw new BadRequestException('type must be Info or Transaction');
-    if (
-      createLogDto.status &&
-      createLogDto.status != LogStatus.fiatDeposit &&
-      createLogDto.status != LogStatus.fiat2btc &&
-      createLogDto.status != LogStatus.btc2dfi &&
-      createLogDto.status != LogStatus.dfi2asset &&
-      createLogDto.status != LogStatus.assetWithdrawal &&
-      createLogDto.status != LogStatus.assetDeposit &&
-      createLogDto.status != LogStatus.btc2fiat &&
-      createLogDto.status != LogStatus.dfi2btc &&
-      createLogDto.status != LogStatus.asset2dfi &&
-      createLogDto.status != LogStatus.fiatWithdrawal
-    )
-      throw new BadRequestException('wrong status');
-    if (
-      createLogDto.direction &&
-      createLogDto.direction != LogDirection.fiat2asset &&
-      createLogDto.direction != LogDirection.asset2fiat
-    )
-      throw new BadRequestException('wrong direction');
 
     let fiatObject = null;
     let assetObject = null;
+    let paymentObject = null;
+
+    if (createLogDto.payment){
+      paymentObject = await getManager()
+      .getCustomRepository(BuyPaymentRepository)
+      .getPaymentInternal(createLogDto.payment);
+      
+      if(!paymentObject){
+        paymentObject = await getManager()
+      .getCustomRepository(SellPaymentRepository)
+      .getPaymentInternal(createLogDto.payment);
+      }
+    }else{
+      delete createLogDto.payment;
+    }
 
     if (createLogDto.fiat){
       fiatObject = await getManager()
@@ -112,7 +102,7 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getBuyVolume(): Promise<any> {
+  async getBuyDFIVolume(): Promise<any> {
     try {
       const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.fiat2asset });
       let buyVolume = 0;
@@ -125,7 +115,7 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getSellVolume(): Promise<any> {
+  async getSellDFIVolume(): Promise<any> {
     try {
       const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.asset2fiat });
       let sellVolume = 0;
@@ -138,10 +128,46 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getVolume(): Promise<any> {
+  async getDFIVolume(): Promise<any> {
     try {
       return {
-        totalVolume: [await this.getBuyVolume(), await this.getSellVolume()],
+        totalVolume: [await this.getBuyDFIVolume(), await this.getSellDFIVolume()],
+      };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getBuyCHFVolume(): Promise<any> {
+    try {
+      const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.fiat2asset });
+      let buyVolume = 0;
+      for (let a = 0; a < volumeLogs.length; a++) {
+        buyVolume += volumeLogs[a].fiatInCHF;
+      }
+      return { buyVolume: buyVolume };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getSellCHFVolume(): Promise<any> {
+    try {
+      const volumeLogs = await this.find({ type: LogType.VOLUME, direction: LogDirection.asset2fiat });
+      let sellVolume = 0;
+      for (let a = 0; a < volumeLogs.length; a++) {
+        sellVolume += volumeLogs[a].fiatInCHF;
+      }
+      return { sellVolume: sellVolume };
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async getCHFVolume(): Promise<any> {
+    try {
+      return {
+        totalCHFVolume: [await this.getBuyCHFVolume(), await this.getSellCHFVolume()],
       };
     } catch (error) {
       throw new ConflictException(error.message);

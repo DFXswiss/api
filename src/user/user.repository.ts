@@ -61,18 +61,16 @@ export class UserRepository extends Repository<User> {
       delete createUserDto.language;
     }
 
-    const user = this.create(createUserDto);
-
     let resultString = "";
 
-    if(user.address.length == 34){
+    if(createUserDto.address.length == 34){
 
       const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
-      const signatureMessage = process.env.SIGN_MESSAGE + user.address;
-      let userSignature = user.signature.split('+').join('%2b');
+      const signatureMessage = process.env.SIGN_MESSAGE + createUserDto.address;
+      let userSignature = createUserDto.signature.split('+').join('%2b');
       const queryString =
         '?address="' +
-        String(user.address) +
+        String(createUserDto.address) +
         '"&signature="' +
         userSignature +
         '"&message="' +
@@ -88,7 +86,9 @@ export class UserRepository extends Repository<User> {
     }
 
     //if (true) {
-    if(resultString === 'True' || user.address.length == 42){
+    if(resultString === 'True' || createUserDto.address.length == 42){
+
+      const user = this.create(createUserDto);
 
       const refVar = String((await this.find()).length + 1001).padStart(6, '0');
 
@@ -176,8 +176,18 @@ export class UserRepository extends Repository<User> {
 
       const refUser = await this.findOne({ ref: newUser.usedRef });
 
-      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
+      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) {
         newUser.usedRef = '000-000';
+      } else {
+        let refUserData = null;
+        let currentUserData = null;
+  
+        refUserData = await refUser.userData;
+        currentUserData = await currentUser.userData;
+        if(refUserData && currentUserData){
+          if(refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
+        }
+      }
 
       let countryObject = null;
       let languageObject = null;
@@ -225,6 +235,8 @@ export class UserRepository extends Repository<User> {
       delete user.address;
       delete user.signature;
       delete user.ip;
+      delete user["__userData__"];
+      delete user["__has_userData__"];
       if (user.role != UserRole.VIP) delete user.role;
 
       if (

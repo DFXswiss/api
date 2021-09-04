@@ -26,17 +26,18 @@ export class StatisticService {
   }
 
   async getBuyVolume(): Promise<any> {
-    return this.logRepository.getBuyVolume();
+    return this.logRepository.getBuyDFIVolume();
   }
 
   async getSellVolume(): Promise<any> {
-    return this.logRepository.getSellVolume();
+    return this.logRepository.getSellDFIVolume();
   }
 
-  async getVolume(): Promise<any> {
-    return this.logRepository.getVolume();
+  async getDFIVolume(): Promise<any> {
+    return this.logRepository.getDFIVolume();
   }
+
   async getAll(): Promise<any> {
-    return { dfxStatistic: [await this.getOrder(), await this.getVolume()] };
+    return { dfxStatistic: [await this.getOrder(), await this.getDFIVolume()] };
   }
 }
