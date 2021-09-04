@@ -16,7 +16,7 @@ export class CreateUserDto {
   address: string;
 
   @IsNotEmpty()
-  @Length(88, 96)
+  @Length(88, 88)
   @IsString()
   signature: string;
 
