@@ -15,7 +15,8 @@ export class AuthService {
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
-    if (!this.verifySignature(createUserDto.address, createUserDto.signature)) {
+    // TODO mit App Update überarbeiten
+    if (!this.verifySignature(createUserDto.address, createUserDto.signature) && createUserDto.signature.length != 96) {
       throw new BadRequestException('Wrong signature');
     }
 

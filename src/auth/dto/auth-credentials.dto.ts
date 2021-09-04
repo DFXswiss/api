@@ -11,6 +11,6 @@ export class AuthCredentialsDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  @Length(88, 88)
+  @Length(88, 96)
   signature: string;
 }
