@@ -52,10 +52,32 @@ import { UserDataService } from './userData/userData.service';
 import { RefRepository } from './referral/ref.repository';
 import { RefController } from './referral/ref.controller';
 import { RefService } from './referral/ref.service';
-
+import { MailerModule } from '@nestjs-modules/mailer';
+import { MailService } from './mail/mail.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
+    MailerModule.forRoot({
+      // transport: 'smtps://user@example.com:topsecret@smtp.example.com',
+      // or
+      transport: {
+        host: 'smtp.gmail.com',
+        secure: false,
+        auth: {
+          type: 'OAuth2',
+          user: process.env.MAIL_USER,
+          clientId: process.env.MAIL_CLIENT_ID,
+          clientSecret: process.env.MAIL_CLIENT_SECRET,
+          refreshToken: process.env.MAIL_REFRESH_TOKEN,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      },
+      defaults: {
+        from: '"No Reply" <' + process.env.MAIL_USER + '>',
+      },
+    }),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register({
       secret: process.env.JWT_SECRET,
@@ -114,6 +136,7 @@ import { RefService } from './referral/ref.service';
     LanguageController,
     UserDataController,
     RefController,
+    AuthController,
   ],
   providers: [
     UserService,
@@ -133,6 +156,8 @@ import { RefService } from './referral/ref.service';
     LanguageService,
     UserDataService,
     RefService,
+    AuthService,
+    MailService,
   ],
   exports: [
     UserService,
@@ -154,6 +179,7 @@ import { RefService } from './referral/ref.service';
     LanguageService,
     UserDataService,
     RefService,
+    MailService,
   ],
 })
 export class AppModule {}
