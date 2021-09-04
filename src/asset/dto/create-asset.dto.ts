@@ -17,6 +17,11 @@ export class CreateAssetDto {
 
   @ApiProperty()
   @IsNotEmpty()
+  @IsString()
+  chainId: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
   @IsEnum(AssetType)
   type: AssetType;
 
