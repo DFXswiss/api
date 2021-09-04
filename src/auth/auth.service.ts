@@ -15,9 +15,7 @@ export class AuthService {
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
-    const signatureMessage = process.env.SIGN_MESSAGE + createUserDto.address;
-    const signatureValid = this.deFiService.verifySignature(signatureMessage, createUserDto.address, createUserDto.signature);
-    if (!signatureValid) {
+    if (!this.verifySignature(createUserDto.address, createUserDto.signature)) {
       throw new BadRequestException('Wrong signature');
     }
 
@@ -31,16 +29,36 @@ export class AuthService {
       address: address,
     });
 
-    if (user) {
-      if(user.signature == signature) {
-        const payload: JwtPayload = { address, role:user.role };
-        const accessToken = this.jwtService.sign(payload);
-        return { accessToken };
-      }else{
-        throw new UnauthorizedException('Invalid Credentials');
-      }
-    } else {
+    if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    let credentialsValid;
+    if(user.signature == signature) {
+      credentialsValid = true;
+    } else {
+      if (user.signature.length == 96) {
+        // temporary code to update old wallet signatures
+        credentialsValid = this.verifySignature(address, signature);
+        if (credentialsValid) {
+          await this.userRepository.update({id: user.id}, {signature: signature});
+        }
+      } else {
+        credentialsValid = false;
+      }
+    }
+    
+    if (credentialsValid) {
+      const payload: JwtPayload = { address, role:user.role };
+      const accessToken = this.jwtService.sign(payload);
+      return { accessToken };
+    } else {
+      throw new UnauthorizedException('Invalid Credentials');
+    }
+  }
+
+  private verifySignature(address: string, signature: string): boolean {
+    const signatureMessage = process.env.SIGN_MESSAGE + address;
+    return this.deFiService.verifySignature(signatureMessage, address, signature);
   }
 }
