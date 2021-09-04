@@ -37,6 +37,15 @@ export class PaymentController {
     return this.paymentService.getUnprocessedBuyPayment();
   }
 
+  @Get('buy/unprocessed/accepted')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getUnprocessedAcceptedBuyPayment(): Promise<any> {
+    return this.paymentService.getUnprocessedAcceptedBuyPayment();
+  }
+
   @Get('sell/unprocessed')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

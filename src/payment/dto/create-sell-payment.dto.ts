@@ -7,6 +7,7 @@ import {
   Length,
   IsNotEmpty,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { PaymentError, PaymentStatus } from '../payment.entity';
 
@@ -53,6 +54,10 @@ export class CreateSellPaymentDto {
   @IsOptional()
   @IsEnum(PaymentError)
   errorCode: PaymentError;
+
+  @IsOptional()
+  @IsBoolean()
+  accepted: boolean
 
   @IsOptional()
   @IsEnum(PaymentStatus)

@@ -69,6 +69,9 @@ export abstract class Payment {
   @Column({ type: 'varchar', default: PaymentError.NA, length: 256 })
   errorCode: PaymentError;
 
+  @Column({ default: true })
+  accepted: boolean
+
   @OneToMany(() => Log, (log) => log.payment,{ lazy: true, cascade: ["insert"]})
   logs: Log[];
 

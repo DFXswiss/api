@@ -355,82 +355,87 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     if (!currentPayment) throw new NotFoundException('No matching payment for id found');
     if(currentPayment.status == PaymentStatus.PROCESSED) throw new ForbiddenException('Payment is already processed!')
-    if(payment.status != PaymentStatus.PROCESSED && payment.status != PaymentStatus.REPAYMENT && payment.status != PaymentStatus.CANCELED) throw new ForbiddenException('Payment-status must be \"Processed\"')
-
+    if(!currentPayment.accepted && payment.status == PaymentStatus.PROCESSED ) throw new ForbiddenException('Payment is not accepted yet!')
+    
+    let processedPayment = false;
+    
     currentPayment.status = payment.status;
 
     const logDto: CreateLogDto = new CreateLogDto();
 
-    if(payment.status == PaymentStatus.PROCESSED){
+    if(payment.status){
+      if(payment.status == PaymentStatus.PROCESSED){
 
-      try{
+        processedPayment = true;
 
-        let baseUrl =
-            'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
+        try{
 
-        const options = {
-          uri: baseUrl,
-        };
+          let baseUrl =
+              'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
-        const result = await requestPromise.get(options);
+          const options = {
+            uri: baseUrl,
+          };
 
-        let resultArray = result.split("prices\":[[")[1].split("]],")[0].split(",[");
+          const result = await requestPromise.get(options);
 
-        let sumPrice = 0;
+          let resultArray = result.split("prices\":[[")[1].split("]],")[0].split(",[");
 
-        for(let a = 0; a < resultArray.length; a++) {
-          sumPrice += Number.parseFloat(resultArray[a].split(",")[1]);
-        }
+          let sumPrice = 0;
 
-        const currentDfiPrice = sumPrice/resultArray.length;
-
-        const volumeInDFI = currentPayment.fiatInCHF / currentDfiPrice;
-
-        logDto.fiatValue = currentPayment.fiatValue;
-        logDto.fiat = currentPayment.fiat;
-        logDto.assetValue = volumeInDFI;
-        logDto.asset = await getManager()
-        .getCustomRepository(AssetRepository)
-        .getAsset('DFI');
-        logDto.direction = LogDirection.fiat2asset;
-        logDto.type = LogType.VOLUME;
-        logDto.fiatInCHF = currentPayment.fiatInCHF;
-
-        if (currentPayment.buy) {
-          const currentBuy = await currentPayment.buy;
-
-          let currentUser = await currentBuy.user;
-
-          let currentUserData = await currentUser.userData;
-
-          logDto.user = currentUser;
-
-          const refUser = await getManager()
-          .getCustomRepository(UserRepository).findOne({ ref: currentUser.usedRef });
-  
-          let refUserData = null;
-    
-          refUserData = await refUser.userData;
-          if(refUserData && currentUserData){
-            if(refUserData.id == currentUserData.id) currentUser.usedRef = '000-000';
+          for(let a = 0; a < resultArray.length; a++) {
+            sumPrice += Number.parseFloat(resultArray[a].split(",")[1]);
           }
 
-          //logDto.address = currentUser.address;
-          logDto.message = currentUser.usedRef;
+          const currentDfiPrice = sumPrice/resultArray.length;
 
-          currentUser.status = UserStatus.ACTIVE;
+          const volumeInDFI = currentPayment.fiatInCHF / currentDfiPrice;
 
-          await getManager()
-          .getCustomRepository(UserRepository).save(currentUser)
+          logDto.fiatValue = currentPayment.fiatValue;
+          logDto.fiat = currentPayment.fiat;
+          logDto.assetValue = volumeInDFI;
+          logDto.asset = await getManager()
+          .getCustomRepository(AssetRepository)
+          .getAsset('DFI');
+          logDto.direction = LogDirection.fiat2asset;
+          logDto.type = LogType.VOLUME;
+          logDto.fiatInCHF = currentPayment.fiatInCHF;
 
+          if (currentPayment.buy) {
+            const currentBuy = await currentPayment.buy;
+
+            let currentUser = await currentBuy.user;
+
+            let currentUserData = await currentUser.userData;
+
+            logDto.user = currentUser;
+
+            const refUser = await getManager()
+            .getCustomRepository(UserRepository).findOne({ ref: currentUser.usedRef });
+    
+            let refUserData = null;
+      
+            refUserData = await refUser.userData;
+            if(refUserData && currentUserData){
+              if(refUserData.id == currentUserData.id) currentUser.usedRef = '000-000';
+            }
+
+            //logDto.address = currentUser.address;
+            logDto.message = currentUser.usedRef;
+
+            currentUser.status = UserStatus.ACTIVE;
+
+            await getManager()
+            .getCustomRepository(UserRepository).save(currentUser)
+
+          }
+
+        } catch (error) {
+          throw new ConflictException(error.message);
         }
-
-        
-
-      } catch (error) {
-        throw new ConflictException(error.message);
       }
     }
+
     try{
       await this.save(currentPayment);
 
@@ -439,8 +444,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     }catch(error){
       throw new ConflictException(error.message);
     }
-
-    await getManager().getCustomRepository(LogRepository).createLog(logDto);
+    
+    if(processedPayment) await getManager().getCustomRepository(LogRepository).createLog(logDto);
 
     return currentPayment;
   }
@@ -495,6 +500,18 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
   async getUnprocessedPayment(): Promise<any> {
     const payments = await this.find({ status: PaymentStatus.UNPROCESSED });
+
+    for(let a = 0; a < payments.length;a++){
+      let buy = await payments[a].buy;
+      let user = await buy.user;
+      await user.userData;
+    }
+
+    return payments;
+  }
+
+  async getUnprocessedAcceptedPayment(): Promise<any> {
+    const payments = await this.find({ status: PaymentStatus.UNPROCESSED, accepted: true });
 
     for(let a = 0; a < payments.length;a++){
       let buy = await payments[a].buy;
