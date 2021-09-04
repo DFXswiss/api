@@ -446,7 +446,15 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   }
 
   async getAllPayment(): Promise<any> {
-    return await this.find();
+    const payments = await this.find();
+
+    for(let a = 0; a < payments.length;a++){
+      let buy = await payments[a].buy;
+      let user = await buy.user;
+      await user.userData;
+    }
+
+    return payments;
   }
 
   async getPayment(id: any): Promise<any> {
