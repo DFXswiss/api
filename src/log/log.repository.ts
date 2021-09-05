@@ -12,11 +12,14 @@ import { AssetRepository } from 'src/asset/asset.repository';
 import { UserRepository } from 'src/user/user.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
+import { MailService } from 'src/mail/mail.service';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
-  mailService: any;
-  async createLog(createLogDto: CreateLogDto): Promise<any> {
+  async createLog(
+    createLogDto: CreateLogDto,
+    mailService?: MailService,
+  ): Promise<any> {
     let fiatObject = null;
     let assetObject = null;
     let paymentObject = null;
@@ -73,10 +76,8 @@ export class LogRepository extends Repository<Log> {
 
     try {
       await this.save(log);
-      await this.mailService.sendLogMail(
-        createLogDto,
-        'Transaction has been completed',
-      );
+      if (log.type === LogType.TRANSACTION && !log.status && createLogDto.user.mail)
+        mailService.sendLogMail(createLogDto, 'Transaction has been completed');
     } catch (error) {
       throw new ConflictException(error.message);
     }

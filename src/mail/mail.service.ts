@@ -12,13 +12,18 @@ export class MailService {
 
   async sendLogMail(createLogDto: CreateLogDto, subject: string) {
     let firstName = createLogDto.user.firstname;
-    if (firstName === '') firstName = 'Dude';
+    if (!firstName) firstName = 'DFX Dude';
     const htmlBody =
-      '<p>Hey ' +
+      '<p>Hi ' +
       firstName +
-      ',</p><p>great news: Your' +
+      ',</p><p><b>Your transaction is successful.</b></p><p><b>Amount: </b>' +
+      createLogDto.assetValue +
+      ' ' +
       (await this.assetRepository.getAsset(createLogDto.asset)).name +
-      'are on the way!</p><p>The DeFiChain Transaktion ID is: 1234</p><p>Stay tuned</p><p></p><p><img src="https://defichain-wiki.com/thumb.php?f=DFX_600px.png&width=400"></p>';
+      '<p><b>Txid:</b> ' +
+      createLogDto.blockchainTx +
+      '</p><p>Thanks,</p><p>Your friendly team at DFX</p><p></p><p><img src="https://defichain-wiki.com/thumb.php?f=DFX_600px.png&width=400" height="50px" width="200px"></p>' +
+      '<p>© 2021 DFX AG All rights reserved.</p>';
     await this.mailerService.sendMail({
       to: createLogDto.user.mail,
       subject: subject,
