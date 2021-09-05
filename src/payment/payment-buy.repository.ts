@@ -205,20 +205,26 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .createUserData(createUserDataDto);
       }
 
+      let savedUser = null;
+
       if (buy) {
 
         currentUser = await buy.user;
 
         let userDataTemp = await currentUser.userData;
 
+        savedUser = currentUser;
+
         if(!userDataTemp){
             currentUser.userData = currentUserData;
-            await getManager()
+            savedUser = await getManager()
                 .getCustomRepository(UserRepository).save(currentUser)
         }
       }
 
       if(currentUser){
+
+        if(!savedUser["__userData__"]) throw new ForbiddenException('Error! No refereced userData');
 
           let lastMonthDate = new Date(createPaymentDto.received);
           let lastDayDate = new Date(createPaymentDto.received);
