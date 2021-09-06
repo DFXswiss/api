@@ -4,7 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { EntityRepository, Repository } from 'typeorm';
+import { Brackets, EntityRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BuyPayment } from './payment-buy.entity';
@@ -176,16 +176,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createPaymentDto.errorCode = PaymentError.BANKUSAGE;
     }
 
-    if (!createPaymentDto.errorCode) {
-      if(createPaymentDto.country){
-        countryObject = await getManager()
-        .getCustomRepository(CountryRepository)
-        .getCountry(createPaymentDto.country);
-
-        createPaymentDto.country = countryObject.id;
-      }
-
-      let currentUserData = await getManager()
+    let currentUserData = await getManager()
         .getCustomRepository(UserDataRepository)
         .getUserData(createPaymentDto);
 
@@ -222,8 +213,18 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         }
       }
 
-      if(currentUser){
+    if (!createPaymentDto.errorCode) {
+      // Get county-Object
+      if(createPaymentDto.country){
+        countryObject = await getManager()
+        .getCustomRepository(CountryRepository)
+        .getCountry(createPaymentDto.country);
 
+        createPaymentDto.country = countryObject.id;
+      }
+
+      if(currentUser){
+        // KYC-Check
         if(!savedUser["__userData__"]) throw new ForbiddenException('Error! No refereced userData');
 
           let lastMonthDate = new Date(createPaymentDto.received);
@@ -233,6 +234,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
           let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
           let lastDayDateString = lastDayDate.toISOString().split('T')[0];
+          let receivedDateString = new Date(createPaymentDto.received).toISOString().split('T')[0];
 
           let sumBuyCHF = Number.parseFloat((await this.createQueryBuilder("buyPayment")
           .select("SUM(buyPayment.fiatInCHF)","sum")
@@ -240,7 +242,12 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .innerJoin("buy.user", "user")
           .innerJoin("user.userData","userData")
           .where("userData.id = :id", { id: currentUserData.id })
-          .andWhere("buyPayment.received > :lastMonthDate", {lastMonthDate: lastDayDateString})
+          .andWhere("buyPayment.received > :lastDayDate", {lastDayDate: lastDayDateString})
+          .andWhere("buyPayment.received <= :receivedDate", {receivedDate: receivedDateString})
+          .andWhere(new Brackets(qb => {
+            qb.where("buyPayment.status = :unprocessed", { unprocessed: PaymentStatus.UNPROCESSED })
+              .orWhere("buyPayment.status = :processed", { processed: PaymentStatus.PROCESSED })
+            }))
           .getRawMany())[0].sum);
 
           let sum30BuyCHF = Number.parseFloat((await this.createQueryBuilder("buyPayment")
@@ -250,6 +257,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .innerJoin("user.userData","userData")
           .where("userData.id = :id", { id: currentUserData.id })
           .andWhere("buyPayment.received > :lastMonthDate", {lastMonthDate: lastMonthDateString})
+          .andWhere("buyPayment.received <= :receivedDate", {receivedDate: receivedDateString})
+          .andWhere(new Brackets(qb => {
+            qb.where("buyPayment.status = :unprocessed", { unprocessed: PaymentStatus.UNPROCESSED })
+              .orWhere("buyPayment.status = :processed", { processed: PaymentStatus.PROCESSED })
+            }))
           .getRawMany())[0].sum);
 
           // let sumSellCHF = Number.parseFloat((await getRepository(SellPayment).createQueryBuilder("sellPayment")
@@ -371,7 +383,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     const logDto: CreateLogDto = new CreateLogDto();
 
     if(payment.status){
-      if(payment.status == PaymentStatus.PROCESSED){
+      if(payment.status == PaymentStatus.PROCESSED && currentPayment.errorCode == PaymentError.NA){
 
         processedPayment = true;
 
@@ -415,6 +427,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
             let currentUserData = await currentUser.userData;
 
+            if(!currentUserData) throw new ForbiddenException('You cannot process a payment without a referenced userData')
+
             logDto.user = currentUser;
 
             const refUser = await getManager()
@@ -435,6 +449,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
             await getManager()
             .getCustomRepository(UserRepository).save(currentUser)
 
+          }else{
+            throw new ForbiddenException('You cannot process a payment without a referenced Buy-Route')
           }
 
         } catch (error) {
