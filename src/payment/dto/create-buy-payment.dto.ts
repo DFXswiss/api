@@ -7,6 +7,7 @@ import {
   IsNotEmpty,
   IsISO8601,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { Buy } from 'src/buy/buy.entity';
 import { PaymentError, PaymentStatus } from '../payment.entity';
@@ -77,6 +78,10 @@ export class CreateBuyPaymentDto {
   @IsOptional()
   @IsEnum(PaymentError)
   errorCode: PaymentError;
+
+  @IsOptional()
+  @IsBoolean()
+  accepted: boolean
   
   @IsOptional()
   @IsEnum(PaymentStatus)

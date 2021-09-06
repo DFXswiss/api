@@ -54,6 +54,7 @@ import { RefController } from './referral/ref.controller';
 import { RefService } from './referral/ref.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { MailService } from './mail/mail.service';
+import { DeFiService } from './services/defi.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -158,6 +159,7 @@ import { MailService } from './mail/mail.service';
     RefService,
     AuthService,
     MailService,
+    DeFiService,
   ],
   exports: [
     UserService,

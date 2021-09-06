@@ -26,4 +26,38 @@ export class AllDataService {
 
     return result;
   }
+
+  async getAllUser(): Promise<any> {
+    return await getManager().getCustomRepository(UserRepository).getAllUser();
+  }
+
+  async getAllUserData(): Promise<any> {
+    return await getManager().getCustomRepository(UserDataRepository).getAllUserData();
+  }
+
+  async getAllBuy(): Promise<any> {
+    return await getManager().getCustomRepository(BuyRepository).getAll();
+  }
+
+  async getAllSell(): Promise<any> {
+    return await getManager().getCustomRepository(SellRepository).getAll();
+  }
+
+  async getAllWallet(): Promise<any> {
+    return await getManager().getCustomRepository(WalletRepository).getAllWallet();
+  }
+
+  async getAllLog(): Promise<any> {
+    return await getManager().getCustomRepository(LogRepository).getAllLog();
+  }
+
+  async getAllPayment(): Promise<any> {
+
+    let result = {  buy: {}, sell: {} };
+
+    result.sell = await getManager().getCustomRepository(SellPaymentRepository).getAllPayment();
+    result.buy = await getManager().getCustomRepository(BuyPaymentRepository).getAllPayment();
+
+    return result;
+  }
 }

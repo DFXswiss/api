@@ -4,7 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { EntityRepository, Repository } from 'typeorm';
+import { Brackets, EntityRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { BuyPayment } from './payment-buy.entity';
@@ -177,7 +177,45 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createPaymentDto.errorCode = PaymentError.BANKUSAGE;
     }
 
+    let currentUserData = await getManager()
+      .getCustomRepository(UserDataRepository)
+      .getUserData(createPaymentDto);
+
+    let currentUser: User = null;
+
+    if (!currentUserData) {
+      const createUserDataDto = new CreateUserDataDto();
+      createUserDataDto.name = createPaymentDto.name;
+      createUserDataDto.location = createPaymentDto.location;
+
+      if (createPaymentDto.country) {
+        createUserDataDto.country = createPaymentDto.country;
+      }
+
+      currentUserData = await getManager()
+        .getCustomRepository(UserDataRepository)
+        .createUserData(createUserDataDto);
+    }
+
+    let savedUser = null;
+
+    if (buy) {
+      currentUser = await buy.user;
+
+      let userDataTemp = await currentUser.userData;
+
+      savedUser = currentUser;
+
+      if (!userDataTemp) {
+        currentUser.userData = currentUserData;
+        savedUser = await getManager()
+          .getCustomRepository(UserRepository)
+          .save(currentUser);
+      }
+    }
+
     if (!createPaymentDto.errorCode) {
+      // Get county-Object
       if (createPaymentDto.country) {
         countryObject = await getManager()
           .getCustomRepository(CountryRepository)
@@ -186,40 +224,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         createPaymentDto.country = countryObject.id;
       }
 
-      let currentUserData = await getManager()
-        .getCustomRepository(UserDataRepository)
-        .getUserData(createPaymentDto);
-
-      let currentUser: User = null;
-
-      if (!currentUserData) {
-        const createUserDataDto = new CreateUserDataDto();
-        createUserDataDto.name = createPaymentDto.name;
-        createUserDataDto.location = createPaymentDto.location;
-
-        if (createPaymentDto.country) {
-          createUserDataDto.country = createPaymentDto.country;
-        }
-
-        currentUserData = await getManager()
-          .getCustomRepository(UserDataRepository)
-          .createUserData(createUserDataDto);
-      }
-
-      if (buy) {
-        currentUser = await buy.user;
-
-        let userDataTemp = await currentUser.userData;
-
-        if (!userDataTemp) {
-          currentUser.userData = currentUserData;
-          await getManager()
-            .getCustomRepository(UserRepository)
-            .save(currentUser);
-        }
-      }
-
       if (currentUser) {
+        // KYC-Check
+        if (!savedUser['__userData__'])
+          throw new ForbiddenException('Error! No refereced userData');
+
         let lastMonthDate = new Date(createPaymentDto.received);
         let lastDayDate = new Date(createPaymentDto.received);
         lastDayDate.setDate(lastDayDate.getDate() - 1);
@@ -227,6 +236,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
         let lastMonthDateString = lastMonthDate.toISOString().split('T')[0];
         let lastDayDateString = lastDayDate.toISOString().split('T')[0];
+        let receivedDateString = new Date(createPaymentDto.received)
+          .toISOString()
+          .split('T')[0];
 
         let sumBuyCHF = Number.parseFloat(
           (
@@ -236,9 +248,21 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
               .innerJoin('buy.user', 'user')
               .innerJoin('user.userData', 'userData')
               .where('userData.id = :id', { id: currentUserData.id })
-              .andWhere('buyPayment.received > :lastMonthDate', {
-                lastMonthDate: lastDayDateString,
+              .andWhere('buyPayment.received > :lastDayDate', {
+                lastDayDate: lastDayDateString,
               })
+              .andWhere('buyPayment.received <= :receivedDate', {
+                receivedDate: receivedDateString,
+              })
+              .andWhere(
+                new Brackets((qb) => {
+                  qb.where('buyPayment.status = :unprocessed', {
+                    unprocessed: PaymentStatus.UNPROCESSED,
+                  }).orWhere('buyPayment.status = :processed', {
+                    processed: PaymentStatus.PROCESSED,
+                  });
+                }),
+              )
               .getRawMany()
           )[0].sum,
         );
@@ -254,6 +278,18 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
               .andWhere('buyPayment.received > :lastMonthDate', {
                 lastMonthDate: lastMonthDateString,
               })
+              .andWhere('buyPayment.received <= :receivedDate', {
+                receivedDate: receivedDateString,
+              })
+              .andWhere(
+                new Brackets((qb) => {
+                  qb.where('buyPayment.status = :unprocessed', {
+                    unprocessed: PaymentStatus.UNPROCESSED,
+                  }).orWhere('buyPayment.status = :processed', {
+                    processed: PaymentStatus.PROCESSED,
+                  });
+                }),
+              )
               .getRawMany()
           )[0].sum,
         );
@@ -378,87 +414,110 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       throw new NotFoundException('No matching payment for id found');
     if (currentPayment.status == PaymentStatus.PROCESSED)
       throw new ForbiddenException('Payment is already processed!');
-    if (
-      payment.status != PaymentStatus.PROCESSED &&
-      payment.status != PaymentStatus.REPAYMENT &&
-      payment.status != PaymentStatus.CANCELED
-    )
-      throw new ForbiddenException('Payment-status must be "Processed"');
+    if (!currentPayment.accepted && payment.status == PaymentStatus.PROCESSED)
+      throw new ForbiddenException('Payment is not accepted yet!');
+
+    let processedPayment = false;
 
     currentPayment.status = payment.status;
+    currentPayment.accepted = payment.accepted;
 
     const logDto: CreateLogDto = new CreateLogDto();
 
-    if (payment.status == PaymentStatus.PROCESSED) {
-      try {
-        let baseUrl =
-          'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
+    if (payment.status) {
+      if (
+        payment.status == PaymentStatus.PROCESSED &&
+        currentPayment.errorCode == PaymentError.NA
+      ) {
+        processedPayment = true;
 
-        const options = {
-          uri: baseUrl,
-        };
+        try {
+          let baseUrl =
+            'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
-        const result = await requestPromise.get(options);
+          const options = {
+            uri: baseUrl,
+          };
 
-        let resultArray = result
-          .split('prices":[[')[1]
-          .split(']],')[0]
-          .split(',[');
+          const result = await requestPromise.get(options);
 
-        let sumPrice = 0;
+          let resultArray = result
+            .split('prices":[[')[1]
+            .split(']],')[0]
+            .split(',[');
 
-        for (let a = 0; a < resultArray.length; a++) {
-          sumPrice += Number.parseFloat(resultArray[a].split(',')[1]);
-        }
+          let sumPrice = 0;
 
-        const currentDfiPrice = sumPrice / resultArray.length;
-
-        const volumeInDFI = currentPayment.fiatInCHF / currentDfiPrice;
-
-        logDto.fiatValue = currentPayment.fiatValue;
-        logDto.fiat = currentPayment.fiat;
-        logDto.assetValue = volumeInDFI;
-        logDto.asset = await getManager()
-          .getCustomRepository(AssetRepository)
-          .getAsset('DFI');
-        logDto.direction = LogDirection.fiat2asset;
-        logDto.type = LogType.VOLUME;
-        logDto.fiatInCHF = currentPayment.fiatInCHF;
-
-        if (currentPayment.buy) {
-          const currentBuy = await currentPayment.buy;
-
-          let currentUser = await currentBuy.user;
-
-          let currentUserData = await currentUser.userData;
-
-          logDto.user = currentUser;
-
-          const refUser = await getManager()
-            .getCustomRepository(UserRepository)
-            .findOne({ ref: currentUser.usedRef });
-
-          let refUserData = null;
-
-          refUserData = await refUser.userData;
-          if (refUserData && currentUserData) {
-            if (refUserData.id == currentUserData.id)
-              currentUser.usedRef = '000-000';
+          for (let a = 0; a < resultArray.length; a++) {
+            sumPrice += Number.parseFloat(resultArray[a].split(',')[1]);
           }
 
-          //logDto.address = currentUser.address;
-          logDto.message = currentUser.usedRef;
+          const currentDfiPrice = sumPrice / resultArray.length;
 
-          currentUser.status = UserStatus.ACTIVE;
+          const volumeInDFI = currentPayment.fiatInCHF / currentDfiPrice;
 
-          await getManager()
-            .getCustomRepository(UserRepository)
-            .save(currentUser);
+          logDto.fiatValue = currentPayment.fiatValue;
+          logDto.fiat = currentPayment.fiat;
+          logDto.assetValue = volumeInDFI;
+          logDto.asset = await getManager()
+            .getCustomRepository(AssetRepository)
+            .getAsset('DFI');
+          logDto.direction = LogDirection.fiat2asset;
+          logDto.type = LogType.VOLUME;
+          logDto.fiatInCHF = currentPayment.fiatInCHF;
+
+          if (currentPayment.buy) {
+            const currentBuy = await currentPayment.buy;
+
+            let currentUser = await currentBuy.user;
+
+            let currentUserData = await currentUser.userData;
+
+            if (!currentUserData)
+              throw new ForbiddenException(
+                'You cannot process a payment without a referenced userData',
+              );
+
+            logDto.user = currentUser;
+
+            const refUser = await getManager()
+              .getCustomRepository(UserRepository)
+              .findOne({ ref: currentUser.usedRef });
+
+            let refUserData = null;
+
+            refUserData = await refUser.userData;
+            if (refUserData && currentUserData) {
+              if (refUserData.id == currentUserData.id)
+                currentUser.usedRef = '000-000';
+            }
+
+            //logDto.address = currentUser.address;
+            logDto.message = currentUser.usedRef;
+
+            currentUser.status = UserStatus.ACTIVE;
+
+            await getManager()
+              .getCustomRepository(UserRepository)
+              .save(currentUser);
+          } else {
+            throw new ForbiddenException(
+              'You cannot process a payment without a referenced Buy-Route',
+            );
+          }
+        } catch (error) {
+          throw new ConflictException(error.message);
         }
-      } catch (error) {
-        throw new ConflictException(error.message);
+      } else if (
+        payment.status == PaymentStatus.PROCESSED &&
+        currentPayment.errorCode != PaymentError.NA
+      ) {
+        throw new ForbiddenException(
+          'You cannot process a payment with an error',
+        );
       }
     }
+
     try {
       await this.save(currentPayment);
 
@@ -467,15 +526,24 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       throw new ConflictException(error.message);
     }
 
-    await getManager()
-      .getCustomRepository(LogRepository)
-      .createLog(logDto, mailService);
+    if (processedPayment)
+      await getManager()
+        .getCustomRepository(LogRepository)
+        .createLog(logDto, mailService);
 
     return currentPayment;
   }
 
   async getAllPayment(): Promise<any> {
-    return await this.find();
+    const payments = await this.find();
+
+    for (let a = 0; a < payments.length; a++) {
+      let buy = await payments[a].buy;
+      let user = await buy.user;
+      await user.userData;
+    }
+
+    return payments;
   }
 
   async getPayment(id: any): Promise<any> {
@@ -516,6 +584,21 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
   async getUnprocessedPayment(): Promise<any> {
     const payments = await this.find({ status: PaymentStatus.UNPROCESSED });
+
+    for (let a = 0; a < payments.length; a++) {
+      let buy = await payments[a].buy;
+      let user = await buy.user;
+      await user.userData;
+    }
+
+    return payments;
+  }
+
+  async getUnprocessedAcceptedPayment(): Promise<any> {
+    const payments = await this.find({
+      status: PaymentStatus.UNPROCESSED,
+      accepted: true,
+    });
 
     for (let a = 0; a < payments.length; a++) {
       let buy = await payments[a].buy;

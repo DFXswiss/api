@@ -52,6 +52,10 @@ export class PaymentService {
     return this.buyRepository.getUnprocessedPayment();
   }
 
+  async getUnprocessedAcceptedBuyPayment(): Promise<any> {
+    return this.buyRepository.getUnprocessedAcceptedPayment();
+  }
+
   async getUnprocessedSellPayment(): Promise<any> {
     return this.sellRepository.getUnprocessedPayment();
   }

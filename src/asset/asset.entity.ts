@@ -20,6 +20,9 @@ export class Asset {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ type: 'int', nullable: false, unique: true})
+  chainId: number;
+
   @Column({ type: 'varchar', unique: true, length: 256 })
   name: string;
 

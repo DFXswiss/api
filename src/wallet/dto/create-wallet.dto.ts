@@ -17,7 +17,7 @@ export class CreateWalletDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @Length(88, 88)
+  @Length(88, 96)
   @IsString()
   signature: string;
 

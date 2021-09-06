@@ -8,7 +8,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserRole, UserStatus } from './user.entity';
-import * as requestPromise from 'request-promise-native';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
@@ -61,63 +60,33 @@ export class UserRepository extends Repository<User> {
       delete createUserDto.language;
     }
 
-    let resultString = "";
+    const user = this.create(createUserDto);
 
-    if(createUserDto.address.length == 34){
+    const refVar = String((await this.find()).length + 1001).padStart(6, '0');
 
-      const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
-      const signatureMessage = process.env.SIGN_MESSAGE + createUserDto.address;
-      let userSignature = createUserDto.signature.split('+').join('%2b');
-      const queryString =
-        '?address="' +
-        String(createUserDto.address) +
-        '"&signature="' +
-        userSignature +
-        '"&message="' +
-        String(signatureMessage) +
-        '"';
-      const options = {
-        uri: baseUrl + queryString,
-      };
+    user.ref = refVar.substr(0, 3) + '-' + refVar.substr(3, 3);
+    const refUser = await this.findOne({ ref: createUserDto.usedRef });
 
-      let result = await requestPromise.get(options);
+    if (user.ref == createUserDto.usedRef || !refUser)
+      user.usedRef = '000-000';
 
-      resultString = JSON.parse(result).response;
+    try {
+      await this.save(user);
+
+      createUserDto.country = countryObject;
+      createUserDto.language = languageObject;
+      delete user.ref;
+    } catch (error) {
+      throw new ConflictException(error.message);
     }
 
-    //if (true) {
-    if(resultString === 'True' || createUserDto.address.length == 42){
+    // if (
+    //   user.ref == createUserDto.usedRef ||
+    //   (!refUser && createUserDto.usedRef)
+    // )
+    //   user.ref = '-1';
 
-      const user = this.create(createUserDto);
-
-      const refVar = String((await this.find()).length + 1001).padStart(6, '0');
-
-      user.ref = refVar.substr(0, 3) + '-' + refVar.substr(3, 3);
-      const refUser = await this.findOne({ ref: createUserDto.usedRef });
-
-      if (user.ref == createUserDto.usedRef || !refUser)
-        user.usedRef = '000-000';
-
-      try {
-        await this.save(user);
-
-        createUserDto.country = countryObject;
-        createUserDto.language = languageObject;
-        delete user.ref;
-      } catch (error) {
-        throw new ConflictException(error.message);
-      }
-
-      // if (
-      //   user.ref == createUserDto.usedRef ||
-      //   (!refUser && createUserDto.usedRef)
-      // )
-      //   user.ref = '-1';
-
-      return user;
-    } else {
-      throw new BadRequestException('Wrong signature');
-    }
+    return user;
   }
 
   async getAllUser(): Promise<any> {
@@ -136,21 +105,20 @@ export class UserRepository extends Repository<User> {
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
     try {
-      const currentUser = await this.findOne({ id: user.id });
+      let currentUser = null;
+
+      if(user.id){
+        currentUser = await this.findOne({ id: user.id });
+      }else if(user.address){
+        currentUser = await this.findOne({ address: user.address });
+      }
 
       if (!currentUser)
         throw new NotFoundException('No matching user for id found');
 
-      if (
-        user.status == UserStatus.ACTIVE ||
-        user.status == UserStatus.KYC ||
-        user.status == UserStatus.VERIFY
-      ) {
-        currentUser.status = user.status;
-      }
-      await this.save(currentUser);
+      currentUser.status = user.status;
 
-      return await this.findOne({ id: user.id });
+      return await this.save(currentUser);
     } catch (error) {
       throw new ConflictException(error.message);
     }
