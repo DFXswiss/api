@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { LogRepository } from './log.repository';
 import { CreateLogDto } from './dto/create-log.dto';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class LogService {
-  constructor(private logRepository: LogRepository) {}
+  constructor(
+    private logRepository: LogRepository,
+    private mailService: MailService,
+  ) {}
 
   async createLog(createLogDto: CreateLogDto): Promise<any> {
-    return this.logRepository.createLog(createLogDto);
+    return this.logRepository.createLog(createLogDto, this.mailService);
   }
 
   async getAllLog(): Promise<any> {
