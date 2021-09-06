@@ -366,6 +366,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     let processedPayment = false;
     
     currentPayment.status = payment.status;
+    currentPayment.accepted = payment.accepted;
 
     const logDto: CreateLogDto = new CreateLogDto();
 
