@@ -456,6 +456,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         } catch (error) {
           throw new ConflictException(error.message);
         }
+      }else if(payment.status == PaymentStatus.PROCESSED && currentPayment.errorCode != PaymentError.NA){
+        throw new ForbiddenException('You cannot process a payment with an error')
       }
     }
 
