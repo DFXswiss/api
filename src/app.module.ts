@@ -52,6 +52,7 @@ import { UserDataService } from './userData/userData.service';
 import { RefRepository } from './referral/ref.repository';
 import { RefController } from './referral/ref.controller';
 import { RefService } from './referral/ref.service';
+import { DeFiService } from './services/defi.service';
 
 @Module({
   imports: [
@@ -133,6 +134,7 @@ import { RefService } from './referral/ref.service';
     LanguageService,
     UserDataService,
     RefService,
+    DeFiService,
   ],
   exports: [
     UserService,
