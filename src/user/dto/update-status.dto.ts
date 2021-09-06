@@ -1,12 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsInt, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsInt, IsEnum, IsString, Length, IsOptional } from 'class-validator';
 import { UserStatus } from 'src/user/user.entity';
 
 export class UpdateStatusDto {
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
   id: number;
+
+  @IsOptional()
+  @Length(34, 42)
+  @IsString()
+  address: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()

@@ -105,21 +105,20 @@ export class UserRepository extends Repository<User> {
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
     try {
-      const currentUser = await this.findOne({ id: user.id });
+      let currentUser = null;
+
+      if(user.id){
+        currentUser = await this.findOne({ id: user.id });
+      }else if(user.address){
+        currentUser = await this.findOne({ address: user.address });
+      }
 
       if (!currentUser)
         throw new NotFoundException('No matching user for id found');
 
-      if (
-        user.status == UserStatus.ACTIVE ||
-        user.status == UserStatus.KYC ||
-        user.status == UserStatus.VERIFY
-      ) {
-        currentUser.status = user.status;
-      }
-      await this.save(currentUser);
+      currentUser.status = user.status;
 
-      return await this.findOne({ id: user.id });
+      return await this.save(currentUser);
     } catch (error) {
       throw new ConflictException(error.message);
     }
