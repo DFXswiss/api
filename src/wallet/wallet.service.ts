@@ -1,13 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { CreateWalletDto } from 'src/wallet/dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
+import { DeFiService } from 'src/services/defi.service';
 
 @Injectable()
 export class WalletService {
-  constructor(private walletRepository: WalletRepository) {}
+  constructor(private walletRepository: WalletRepository, private deFiService: DeFiService) {}
 
   async createWallet(createWalletDto: CreateWalletDto): Promise<any> {
+    if (!this.verifySignature(createWalletDto.address, createWalletDto.signature)) {
+      throw new BadRequestException('Wrong signature');
+    }
+
     return this.walletRepository.createWallet(createWalletDto);
   }
 
@@ -21,5 +26,10 @@ export class WalletService {
 
   async updateWallet(updatewalletDto: UpdateWalletDto): Promise<any> {
     return this.walletRepository.updateWallet(updatewalletDto);
+  }
+
+  private verifySignature(address: string, signature: string): boolean {
+    const signatureMessage = process.env.SIGN_MESSAGE_WALLET + address;
+    return this.deFiService.verifySignature(signatureMessage, address, signature);
   }
 }

@@ -8,7 +8,6 @@ import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { Wallet } from './wallet.entity';
 import { isString } from 'class-validator';
-import requestPromise from 'request-promise-native';
 
 @EntityRepository(Wallet)
 export class WalletRepository extends Repository<Wallet> {
@@ -16,35 +15,13 @@ export class WalletRepository extends Repository<Wallet> {
 
     const wallet = this.create(createWalletDto);
 
-    const baseUrl = 'http://defichain-node.de/api/v1/test/verifymessage/';
-    const signatureMessage = process.env.SIGN_MESSAGE_WALLET + wallet.address;
-    let userSignature = wallet.signature.replace('+', '%2b');
-    userSignature = userSignature.replace('+', '%2b');
-    const queryString =
-      '?address="' +
-      String(wallet.address) +
-      '"&signature="' +
-      userSignature +
-      '"&message="' +
-      String(signatureMessage) +
-      '"';
-    const options = {
-      uri: baseUrl + queryString,
-    };
-
-    const result = await requestPromise.get(options);
-
-    if(JSON.parse(result).response === 'True'){
-      try {
-        await this.save(wallet);
-      } catch (error) {
-        throw new ConflictException(error.message);
-      }
-
-      return wallet;
-    }else{
-      throw new BadRequestException('Wrong signature');
+    try {
+      await this.save(wallet);
+    } catch (error) {
+      throw new ConflictException(error.message);
     }
+
+    return wallet;
   }
 
   async getAllWallet(): Promise<any> {
