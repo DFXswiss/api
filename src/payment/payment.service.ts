@@ -4,16 +4,18 @@ import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class PaymentService {
   constructor(
     private sellRepository: SellPaymentRepository,
     private buyRepository: BuyPaymentRepository,
+    private mailService: MailService,
   ) {}
 
   async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
-    return this.buyRepository.createPayment(createPaymentDto);
+    return this.buyRepository.createPayment(createPaymentDto,this.mailService);
   }
 
   async createSellPayment(
@@ -39,7 +41,7 @@ export class PaymentService {
   }
 
   async updateBuyPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
-    return this.buyRepository.updatePayment(updatePaymentDto);
+    return this.buyRepository.updatePayment(updatePaymentDto,this.mailService);
   }
 
   async updateSellPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
