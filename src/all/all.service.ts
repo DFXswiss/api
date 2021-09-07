@@ -12,19 +12,15 @@ import { UserDataRepository } from 'src/userData/userData.repository';
 export class AllDataService {
 
   async getAllData(): Promise<any> {
-
-    let result = { users: {}, userData: {}, buys: {}, sells: {} , wallets: {}, logs: {}, payments: { buy: {}, sell: {}} };
-
-    result.users = await getManager().getCustomRepository(UserRepository).getAllUser();
-    result.userData = await getManager().getCustomRepository(UserDataRepository).getAllUserData();
-    result.buys= await getManager().getCustomRepository(BuyRepository).getAll();
-    result.sells = await getManager().getCustomRepository(SellRepository).getAll();
-    result.wallets = await getManager().getCustomRepository(WalletRepository).getAllWallet();
-    result.logs = await getManager().getCustomRepository(LogRepository).getAllLog();
-    result.payments.sell = await getManager().getCustomRepository(SellPaymentRepository).getAllPayment();
-    result.payments.buy = await getManager().getCustomRepository(BuyPaymentRepository).getAllPayment();
-
-    return result;
+    return {
+      users: await getManager().getCustomRepository(UserRepository).getAllUser(),
+      userData: await getManager().getCustomRepository(UserDataRepository).getAllUserData(),
+      buys: await getManager().getCustomRepository(BuyRepository).getAll(),
+      sells: await getManager().getCustomRepository(SellRepository).getAll(),
+      wallets: await getManager().getCustomRepository(WalletRepository).getAllWallet(),
+      logs: await getManager().getCustomRepository(LogRepository).getAllLog(),
+      payments: await this.getAllPayment(),
+    }
   }
 
   async getAllUser(): Promise<any> {
@@ -52,12 +48,9 @@ export class AllDataService {
   }
 
   async getAllPayment(): Promise<any> {
-
-    let result = {  buy: {}, sell: {} };
-
-    result.sell = await getManager().getCustomRepository(SellPaymentRepository).getAllPayment();
-    result.buy = await getManager().getCustomRepository(BuyPaymentRepository).getAllPayment();
-
-    return result;
+    return {
+      sell: await getManager().getCustomRepository(SellPaymentRepository).getAllPayment(),
+      buy: await getManager().getCustomRepository(BuyPaymentRepository).getAllPayment(),
+    }
   }
 }
