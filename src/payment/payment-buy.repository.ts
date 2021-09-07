@@ -33,6 +33,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     mailService?: MailService,
   ): Promise<any> {
     let fiatObject = null;
+    let originFiatObject = null;
     let countryObject = null;
     let buy: Buy = null;
 
@@ -42,6 +43,12 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         .getFiat(createPaymentDto.fiat);
 
       createPaymentDto.fiat = fiatObject.id;
+
+      originFiatObject = await getManager()
+        .getCustomRepository(FiatRepository)
+        .getFiat(createPaymentDto.originFiat);
+
+      createPaymentDto.originFiat = originFiatObject.id;
     } catch {
       createPaymentDto.info = 'Wrong Fiat: ' + createPaymentDto.fiat;
       createPaymentDto.fiat = null;
@@ -188,6 +195,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createUserDataDto.name = createPaymentDto.name;
       createUserDataDto.location = createPaymentDto.location;
 
+      //TODO name check
+
       if (createPaymentDto.country) {
         createUserDataDto.country = createPaymentDto.country;
       }
@@ -195,7 +204,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       currentUserData = await getManager()
         .getCustomRepository(UserDataRepository)
         .createUserData(createUserDataDto);
-    }
+    }//TODO oder wenn vorhanden und alter nameCheck dann nochmal nameCheck überprüfen 
 
     let savedUser = null;
 
@@ -396,6 +405,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if (payment['__has_logs__']) delete payment['__has_logs__'];
 
       payment.fiat = fiatObject;
+      payment.originFiat = originFiatObject;
       if (buy) payment.asset = buy.asset;
     }
     return payment;
