@@ -477,16 +477,18 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
           logDto.user = currentUser;
 
-          const refUser = await getManager()
-            .getCustomRepository(UserRepository)
-            .findOne({ ref: currentUser.usedRef });
+          if(currentUser.usedRef != '000-000'){
+            const refUser = await getManager()
+              .getCustomRepository(UserRepository)
+              .findOne({ ref: currentUser.usedRef });
 
-          let refUserData = null;
+            let refUserData = null;
 
-          refUserData = await refUser.userData;
-          if (refUserData && currentUserData) {
-            if (refUserData.id == currentUserData.id)
-              currentUser.usedRef = '000-000';
+            refUserData = await refUser.userData;
+            if (refUserData && currentUserData) {
+              if (refUserData.id == currentUserData.id)
+                currentUser.usedRef = '000-000';
+            }
           }
 
           //logDto.address = currentUser.address;
