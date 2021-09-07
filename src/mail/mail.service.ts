@@ -17,7 +17,7 @@ export class MailService {
       '<p>Hi ' +
       firstName +
       ',</p><p><b>Your transaction is successful.</b></p><p><b>Amount: </b>' +
-      createLogDto.assetValue +
+      Math.round(createLogDto.assetValue * Math.pow(10, 8)) / Math.pow(10, 8) +
       ' ' +
       (await this.assetRepository.getAsset(createLogDto.asset)).name +
       '<p><b>Txid:</b> ' +
