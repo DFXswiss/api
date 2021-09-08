@@ -71,7 +71,7 @@ export class CreateBuyPaymentDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsISO8601()
-  received: Date;
+  received: string;
 
   @IsOptional()
   asset: any;
