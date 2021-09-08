@@ -35,6 +35,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     kycService?: KycService,
   ): Promise<any> {
     let fiatObject = null;
+    let originFiatObject = null;
     let countryObject = null;
     let buy: Buy = null;
 
@@ -44,51 +45,25 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         .getFiat(createPaymentDto.fiat);
 
       createPaymentDto.fiat = fiatObject.id;
+
+      originFiatObject = await getManager()
+        .getCustomRepository(FiatRepository)
+        .getFiat(createPaymentDto.originFiat);
+
+      createPaymentDto.originFiat = originFiatObject.id;
     } catch {
       createPaymentDto.info = 'Wrong Fiat: ' + createPaymentDto.fiat;
       createPaymentDto.fiat = null;
       createPaymentDto.errorCode = PaymentError.FIAT;
     }
 
-    if (fiatObject) {
-      try {
-        let baseUrl =
-          'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/' +
-          fiatObject.name.toLowerCase() +
-          '.json';
-
-        const receivedDate = new Date(createPaymentDto.received);
-
-        const isToday = (someDate: Date) => {
-          const today = new Date();
-          return (
-            someDate.getDate() == today.getDate() &&
-            someDate.getMonth() == today.getMonth() &&
-            someDate.getFullYear() == today.getFullYear()
-          );
-        };
-
-        if (!isToday(receivedDate)) {
-          baseUrl =
-            'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/' +
-            receivedDate.toISOString().split('T')[0] +
-            '/currencies/' +
-            fiatObject.name.toLowerCase() +
-            '.json';
-        }
-
-        const options = {
-          uri: baseUrl,
-        };
-
-        const result = await requestPromise.get(options);
-
-        createPaymentDto.fiatInCHF =
-          Number.parseFloat(result.split('"chf": ')[1].split(',')[0]) *
-          createPaymentDto.fiatValue;
-      } catch (error) {
-        throw new ConflictException(error.message);
-      }
+    // convert amount to CHF
+    if(fiatObject){
+      createPaymentDto.fiatInCHF = await this.getInChf(
+        createPaymentDto.fiatValue,
+        fiatObject.name.toLowerCase(),
+        new Date(createPaymentDto.received),
+      );
     }
 
     if (createPaymentDto.bankUsage) {
@@ -190,6 +165,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createUserDataDto.name = createPaymentDto.name;
       createUserDataDto.location = createPaymentDto.location;
 
+      //TODO name check
+
       if (createPaymentDto.country) {
         createUserDataDto.country = createPaymentDto.country;
       }
@@ -204,7 +181,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       currentUserData = await getManager()
         .getCustomRepository(UserDataRepository)
         .createUserData(createUserDataDto);
-    }
+    }//TODO oder wenn vorhanden und alter nameCheck dann nochmal nameCheck überprüfen 
 
     let savedUser = null;
 
@@ -421,6 +398,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if (payment['__has_logs__']) delete payment['__has_logs__'];
 
       payment.fiat = fiatObject;
+      payment.originFiat = originFiatObject;
       if (buy) payment.asset = buy.asset;
     }
     return payment;
@@ -632,4 +610,24 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     return payments;
   }
+
+  private async getInChf(amount: number, currency: string, date: Date): Promise<number> {
+    const baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
+    const url = this.isToday(date)
+      ? `${baseUrl}/latest/currencies/${currency}/chf.json`
+      : `${baseUrl}/${date.toISOString().split('T')[0]}/currencies/${currency}/chf.json`;
+
+    const result = await requestPromise.get({ uri: url });
+    return amount * JSON.parse(result).chf;
+  }
+
+  private isToday(date: Date): boolean {
+    const today = new Date();
+    return (
+      date.getUTCDate() == today.getUTCDate() &&
+      date.getUTCMonth() == today.getUTCMonth() &&
+      date.getUTCFullYear() == today.getUTCFullYear()
+    );
+  }
+  
 }

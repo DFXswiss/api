@@ -55,6 +55,15 @@ export class CreateBuyPaymentDto {
   @IsNumber()
   fiatValue: number;
 
+  @ApiProperty()
+  @IsNotEmpty()
+  originFiat: any;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  originFiatValue: number;
+
   @IsOptional()
   @IsNumber()
   fiatInCHF: number;
@@ -62,7 +71,7 @@ export class CreateBuyPaymentDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsISO8601()
-  received: Date;
+  received: string;
 
   @IsOptional()
   asset: any;
