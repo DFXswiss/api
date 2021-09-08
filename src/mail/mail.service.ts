@@ -11,8 +11,7 @@ export class MailService {
   ) {}
 
   async sendLogMail(createLogDto: CreateLogDto, subject: string) {
-    let firstName = createLogDto.user.firstname;
-    if (!firstName) firstName = 'DFX Dude';
+    const firstName = createLogDto.user.firstname ?? 'DFX Dude';
     const htmlBody =
       '<p>Hi ' +
       firstName +
