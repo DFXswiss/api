@@ -9,12 +9,12 @@ interface Challenge {
 }
 
 interface CheckResponse {
-  customerReference : string;
-  customerId : number;
-  customerVersionId : number;
-  checkId : number;
-  checkTime : number;
-  riskState : string;
+  customerReference: string;
+  customerId: number;
+  customerVersionId: number;
+  checkId: number;
+  checkTime: number;
+  riskState: string;
 }
 
 @Injectable()
@@ -29,7 +29,7 @@ export class KycService {
       return await this.checkCustomer(address);
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to do the name check')
+      throw new ServiceUnavailableException('Failed to do the name check');
     }
   }
 
@@ -38,13 +38,13 @@ export class KycService {
     const data = {
       reference: address,
       type: 'PERSON',
-      names: [ { lastName: name } ]
+      names: [{ lastName: name }],
     };
     await this.callApi('customers/simple', 'POST', data);
   }
 
   private async checkCustomer(address: string): Promise<boolean> {
-    const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [ address ]);
+    const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [address]);
     return results[0].riskState === 'NO_RISKS_FOUND';
   }
 
@@ -57,8 +57,8 @@ export class KycService {
       data: data,
       headers: {
         'Content-Type': 'application/json',
-        'Session-Key': sessionKey
-      }
+        'Session-Key': sessionKey,
+      },
     });
   }
 
