@@ -5,6 +5,7 @@ import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
 import { MailService } from 'src/mail/mail.service';
+import { KycService } from 'src/services/kyc.service';
 
 @Injectable()
 export class PaymentService {
@@ -12,10 +13,15 @@ export class PaymentService {
     private sellRepository: SellPaymentRepository,
     private buyRepository: BuyPaymentRepository,
     private mailService: MailService,
+    private kycService: KycService,
   ) {}
 
   async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
-    return this.buyRepository.createPayment(createPaymentDto,this.mailService);
+    return this.buyRepository.createPayment(
+      createPaymentDto,
+      this.mailService,
+      this.kycService,
+    );
   }
 
   async createSellPayment(
@@ -41,7 +47,7 @@ export class PaymentService {
   }
 
   async updateBuyPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
-    return this.buyRepository.updatePayment(updatePaymentDto,this.mailService);
+    return this.buyRepository.updatePayment(updatePaymentDto, this.mailService);
   }
 
   async updateSellPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
