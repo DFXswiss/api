@@ -20,9 +20,6 @@ interface CheckResponse {
 @Injectable()
 export class KycService {
   private baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
-  private mandator = ''; // TODO: env
-  private user = '';
-  private password = '';
 
   constructor(private http: HttpService) {}
 
@@ -70,14 +67,14 @@ export class KycService {
     const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
 
     // determine response
-    const response = key + this.mandator + this.user + this.password + challenge;
+    const response = key + process.env.KYC_MANDATOR + process.env.KYC_USER + process.env.KYC_PASSWORD + challenge;
     const hash = createHash('sha1');
     hash.update(response);
 
     const data = {
       key: key,
-      mandator: this.mandator,
-      user: this.user,
+      mandator: process.env.KYC_MANDATOR,
+      user: process.env.KYC_USER,
       response: hash.digest('hex'),
     };
 
