@@ -241,49 +241,15 @@ export class UserRepository extends Repository<User> {
 
   async verifyUser(address: string): Promise<any> {
     const currentUser = await this.findOne({ address: address });
-
     if (!currentUser)
       throw new NotFoundException('No matching user for id found');
 
-    const result = { result: true, errors: {} };
-
-    if (currentUser.mail == '' || currentUser.mail == null) {
-      result.result = false;
-      result.errors['mail'] = 'missing';
-    }
-    if (currentUser.firstname == '' || currentUser.firstname == null) {
-      result.result = false;
-      result.errors['firstname'] = 'missing';
-    }
-    if (currentUser.surname == '' || currentUser.surname == null) {
-      result.result = false;
-      result.errors['surname'] = 'missing';
-    }
-    if (currentUser.street == '' || currentUser.street == null) {
-      result.result = false;
-      result.errors['street'] = 'missing';
-    }
-    if (currentUser.houseNumber == '' || currentUser.houseNumber == null) {
-      result.result = false;
-      result.errors['houseNumber'] = 'missing';
-    }
-    if (currentUser.location == '' || currentUser.location == null) {
-      result.result = false;
-      result.errors['location'] = 'missing';
-    }
-    if (currentUser.zip == '' || currentUser.zip == null) {
-      result.result = false;
-      result.errors['zip'] = 'missing';
-    }
-    if (currentUser.country == null) {
-      result.result = false;
-      result.errors['country'] = 'missing';
-    }
-    if (currentUser.phone == '' || currentUser.phone == null) {
-      result.result = false;
-      result.errors['phone'] = 'missing';
-    }
-
-    return result;
+    const requiredFields = ['mail', 'firstname', 'surname', 'street', 'houseNumber', 'location', 'zip', 'country', 'phone']; 
+    const errors = requiredFields.filter(f => !currentUser[f]);
+     
+    return { 
+      result: errors.length === 0, 
+      errors: errors.reduce((prev, curr) => ({...prev, [curr]: 'missing'}), {}),
+    };
   }
 }
