@@ -76,7 +76,11 @@ export class LogRepository extends Repository<Log> {
 
     try {
       await this.save(log);
-      if (log.type === LogType.TRANSACTION && !log.status && createLogDto.user.mail)
+      if (
+        log.type === LogType.TRANSACTION &&
+        !log.status &&
+        createLogDto.user.mail
+      )
         mailService.sendLogMail(createLogDto, 'Transaction has been completed');
     } catch (error) {
       throw new ConflictException(error.message);
@@ -117,7 +121,10 @@ export class LogRepository extends Repository<Log> {
       for (let a = 0; a < volumeLogs.length; a++) {
         buyVolume += volumeLogs[a].assetValue;
       }
-      return { buyVolume: buyVolume };
+
+      return {
+        buyVolume: Math.round(buyVolume * Math.pow(10, 8)) / Math.pow(10, 8),
+      };
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -133,7 +140,9 @@ export class LogRepository extends Repository<Log> {
       for (let a = 0; a < volumeLogs.length; a++) {
         sellVolume += volumeLogs[a].assetValue;
       }
-      return { sellVolume: sellVolume };
+      return {
+        sellVolume: Math.round(sellVolume * Math.pow(10, 8)) / Math.pow(10, 8),
+      };
     } catch (error) {
       throw new ConflictException(error.message);
     }

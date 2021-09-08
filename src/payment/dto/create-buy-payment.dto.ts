@@ -55,6 +55,15 @@ export class CreateBuyPaymentDto {
   @IsNumber()
   fiatValue: number;
 
+  @ApiProperty()
+  @IsNotEmpty()
+  originFiat: any;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  originFiatValue: number;
+
   @IsOptional()
   @IsNumber()
   fiatInCHF: number;
