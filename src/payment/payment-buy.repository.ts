@@ -25,12 +25,14 @@ import { UserRepository } from 'src/user/user.repository';
 import { User, UserStatus } from 'src/user/user.entity';
 import { UserDataNameCheck } from 'src/userData/userData.entity';
 import { MailService } from 'src/mail/mail.service';
+import { KycService } from 'src/services/kyc.service';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
   async createPayment(
     createPaymentDto: CreateBuyPaymentDto,
     mailService?: MailService,
+    kycService?: KycService,
   ): Promise<any> {
     let fiatObject = null;
     let originFiatObject = null;
@@ -168,6 +170,13 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if (createPaymentDto.country) {
         createUserDataDto.country = createPaymentDto.country;
       }
+
+      createUserDataDto.nameCheck = kycService.doNameCheck(
+        createPaymentDto.address,
+        createPaymentDto.name,
+      )
+        ? UserDataNameCheck.SAFE
+        : UserDataNameCheck.WARNING;
 
       currentUserData = await getManager()
         .getCustomRepository(UserDataRepository)
@@ -330,6 +339,22 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
     }
 
+    if (currentUserData.nameCheck != UserDataNameCheck.SAFE) {
+      createPaymentDto.errorCode = PaymentError.NAMECHECK;
+      if (!createPaymentDto.info) {
+        createPaymentDto.info += '; Name-Check: ' + currentUserData.nameCheck;
+      } else {
+        createPaymentDto.info = 'Name-Check: ' + currentUserData.nameCheck;
+        createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+        createPaymentDto.info +=
+          '; User Location: ' + createPaymentDto.location;
+        if (createPaymentDto.country) {
+          createPaymentDto.info +=
+            '; User Country: ' + createPaymentDto.country;
+        }
+      }
+    }
+
     const payment = this.create(createPaymentDto);
 
     if (payment) {
@@ -455,7 +480,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
           logDto.user = currentUser;
 
-          if(currentUser.usedRef != '000-000'){
+          if (currentUser.usedRef != '000-000') {
             const refUser = await getManager()
               .getCustomRepository(UserRepository)
               .findOne({ ref: currentUser.usedRef });
