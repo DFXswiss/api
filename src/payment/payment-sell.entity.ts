@@ -10,7 +10,7 @@ export class SellPayment extends Payment {
   @Column({ type: 'float', nullable: true })
   assetValue: number;
 
-  @ManyToOne(() => Sell, { eager: false })
+  @ManyToOne(() => Sell)
   @JoinColumn()
   sell: Sell;
 }
