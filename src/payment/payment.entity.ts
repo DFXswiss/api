@@ -26,6 +26,7 @@ export enum PaymentError {
   KYC = 'KYC',
   ACCOUNTCHECK = 'Account-check',
   NAMECHECK = 'Name-check',
+  USERDATA = 'UserData',
 }
 
 export enum PaymentStatus {

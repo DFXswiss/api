@@ -159,30 +159,6 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       .getUserData(createPaymentDto);
 
     let currentUser: User = null;
-
-    if (!currentUserData) {
-      const createUserDataDto = new CreateUserDataDto();
-      createUserDataDto.name = createPaymentDto.name;
-      createUserDataDto.location = createPaymentDto.location;
-
-      //TODO name check
-
-      if (createPaymentDto.country) {
-        createUserDataDto.country = createPaymentDto.country;
-      }
-
-      createUserDataDto.nameCheck = kycService.doNameCheck(
-        createPaymentDto.address,
-        createPaymentDto.name,
-      )
-        ? UserDataNameCheck.SAFE
-        : UserDataNameCheck.WARNING;
-
-      currentUserData = await getManager()
-        .getCustomRepository(UserDataRepository)
-        .createUserData(createUserDataDto);
-    }//TODO oder wenn vorhanden und alter nameCheck dann nochmal nameCheck überprüfen 
-
     let savedUser = null;
 
     if (buy) {
@@ -192,12 +168,49 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       savedUser = currentUser;
 
-      if (!userDataTemp) {
+      if (!currentUserData && !userDataTemp) {
+        const createUserDataDto = new CreateUserDataDto();
+        createUserDataDto.name = createPaymentDto.name;
+        createUserDataDto.location = createPaymentDto.location;
+
+        //TODO name check
+
+        if (createPaymentDto.country) {
+          createUserDataDto.country = createPaymentDto.country;
+        }
+
+        createUserDataDto.nameCheck = kycService.doNameCheck(
+          createPaymentDto.address,
+          createPaymentDto.name,
+        )
+          ? UserDataNameCheck.SAFE
+          : UserDataNameCheck.WARNING;
+
+        currentUserData = await getManager()
+          .getCustomRepository(UserDataRepository)
+          .createUserData(createUserDataDto);
+
         currentUser.userData = currentUserData;
         savedUser = await getManager()
           .getCustomRepository(UserRepository)
           .save(currentUser);
+      }else if(currentUserData && !userDataTemp){
+
+        currentUser.userData = currentUserData;
+        savedUser = await getManager()
+          .getCustomRepository(UserRepository)
+          .save(currentUser);
+
+      }else if(!currentUserData && userDataTemp){
+        createPaymentDto.errorCode = PaymentError.USERDATA;
+        createPaymentDto.info = 'Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location + '; new current userData: ' + createPaymentDto.name + ', ' + createPaymentDto.location;
+      }else if(currentUserData && userDataTemp){
+        if(currentUserData.id != userDataTemp.id){
+          createPaymentDto.errorCode = PaymentError.USERDATA;
+          createPaymentDto.info = 'Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location + '; current userData: ' + createPaymentDto.name + ', ' + createPaymentDto.location;
+        }
       }
+
     }
 
     // Get county-Object
