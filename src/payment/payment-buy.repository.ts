@@ -1,9 +1,4 @@
-import {
-  NotFoundException,
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Brackets, EntityRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -58,7 +53,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     }
 
     // convert amount to CHF
-    if(fiatObject){
+    if (fiatObject) {
       createPaymentDto.fiatInCHF = await this.getInChf(
         createPaymentDto.fiatValue,
         fiatObject.name.toLowerCase(),
@@ -129,13 +124,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
           for (let a = 0; a < currentBuy.length; a++) {
             if (currentBuy[a].user.mail) {
-              createPaymentDto.info +=
-                '; User Mail: ' + currentBuy[a].user.mail;
+              createPaymentDto.info += '; User Mail: ' + currentBuy[a].user.mail;
               if (!currentBuy[a].user.phone) break;
             }
             if (currentBuy[a].user.phone) {
-              createPaymentDto.info +=
-                '; User Phonenumber: ' + currentBuy[a].user.phone;
+              createPaymentDto.info += '; User Phonenumber: ' + currentBuy[a].user.phone;
               break;
             }
           }
@@ -150,13 +143,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         if (currentUserData) {
           for (let a = 0; a < currentUserData.users.length; a++) {
             if (currentUserData.users[a].mail) {
-              createPaymentDto.info +=
-                '; User Mail: ' + currentUserData.users[a].mail;
+              createPaymentDto.info += '; User Mail: ' + currentUserData.users[a].mail;
               if (!currentUserData.users[a].phone) break;
             }
             if (currentUserData.users[a].phone) {
-              createPaymentDto.info +=
-                '; User Phonenumber: ' + currentUserData.users[a].phone;
+              createPaymentDto.info += '; User Phonenumber: ' + currentUserData.users[a].phone;
               break;
             }
           }
@@ -170,8 +161,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
       createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
 
-      createPaymentDto.info +=
-        '; Wrong BankUsage: ' + createPaymentDto.bankUsage;
+      createPaymentDto.info += '; Wrong BankUsage: ' + createPaymentDto.bankUsage;
       createPaymentDto.asset = null;
       createPaymentDto.errorCode = PaymentError.BANKUSAGE;
     }
@@ -190,55 +180,35 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       savedUser = currentUser;
 
-      if (!currentUserData && !userDataTemp) {
-        const createUserDataDto = new CreateUserDataDto();
-        createUserDataDto.name = createPaymentDto.name;
-        createUserDataDto.location = createPaymentDto.location;
-        
-        if (createPaymentDto.country) {
+      if (!userDataTemp) {
+        if (!currentUserData) {
+          const createUserDataDto = new CreateUserDataDto();
+          createUserDataDto.name = createPaymentDto.name;
+          createUserDataDto.location = createPaymentDto.location;
           createUserDataDto.country = createPaymentDto.country;
+
+          createUserDataDto.nameCheck = (await kycService.doNameCheck(createPaymentDto.address, createPaymentDto.name))
+            ? UserDataNameCheck.SAFE
+            : UserDataNameCheck.WARNING;
+
+          currentUserData = await getManager()
+            .getCustomRepository(UserDataRepository)
+            .createUserData(createUserDataDto);
         }
 
-        // createUserDataDto.nameCheck = kycService.doNameCheck(
-        //   createPaymentDto.address,
-        //   createPaymentDto.name,
-        // )
-        //   ? UserDataNameCheck.SAFE
-        //   : UserDataNameCheck.WARNING;
-
-        currentUserData = await getManager()
-          .getCustomRepository(UserDataRepository)
-          .createUserData(createUserDataDto);
-
         currentUser.userData = currentUserData;
         savedUser = await getManager()
           .getCustomRepository(UserRepository)
           .save(currentUser);
-      }else if(currentUserData && !userDataTemp){
-
-        currentUser.userData = currentUserData;
-        savedUser = await getManager()
-          .getCustomRepository(UserRepository)
-          .save(currentUser);
-
-      }else if(!currentUserData && userDataTemp){
+      } else if (!currentUserData || currentUserData.id != userDataTemp.id) {
         createPaymentDto.errorCode = PaymentError.USERDATA;
+      
         if(!createPaymentDto.info){
           createPaymentDto.info = 'Double referencedUserData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
         }else{
           createPaymentDto.info += '; Double referencedUserData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
         }
-      }else if(currentUserData && userDataTemp){
-        if(currentUserData.id != userDataTemp.id){
-          createPaymentDto.errorCode = PaymentError.USERDATA;
-          if(!createPaymentDto.info){
-            createPaymentDto.info = 'Double userData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
-          }else{
-            createPaymentDto.info += '; Double userData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
-          }
-        }
       }
-
     }
 
     // Get county-Object
@@ -252,8 +222,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     if (currentUser) {
       // KYC-Check
-      if (!savedUser['__userData__'])
-        throw new ForbiddenException('Error! No refereced userData');
+      if (!savedUser['__userData__']) throw new ForbiddenException('Error! No refereced userData');
 
       let lastMonthDate = new Date(createPaymentDto.received);
       let lastDayDate = new Date(createPaymentDto.received);
@@ -351,8 +320,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           '; User Location: ' + createPaymentDto.location;
         
         if (createPaymentDto.country) {
-          createPaymentDto.info +=
-            '; User Country: ' + createPaymentDto.country;
+          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
         }
         createPaymentDto.errorCode = PaymentError.KYC;
       } else if (currentUser.status == UserStatus.KYC && sum30CHF > 50000) {
@@ -365,47 +333,27 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         }
         createPaymentDto.info += '; userDataId: ' + currentUserData.id;
         createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
-        createPaymentDto.info +=
-          '; User Location: ' + createPaymentDto.location;
+        createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
         if (createPaymentDto.country) {
-          createPaymentDto.info +=
-            '; User Country: ' + createPaymentDto.country;
+          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
         }
         createPaymentDto.errorCode = PaymentError.ACCOUNTCHECK;
       }
     }
 
-    // if (currentUserData.nameCheck == UserDataNameCheck.NA) {
-    //   createPaymentDto.errorCode = PaymentError.NAMECHECK;
-    //   if (!createPaymentDto.info) {
-    //     createPaymentDto.info = 'Name-Check missing!';
-    //   } else {
-    //     createPaymentDto.info += '; Name-Check missing!';
-    //     createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
-    //     createPaymentDto.info +=
-    //       '; User Location: ' + createPaymentDto.location;
-    //     if (createPaymentDto.country) {
-    //       createPaymentDto.info +=
-    //         '; User Country: ' + createPaymentDto.country;
-    //     }
-    //   }
-    // }
-
-    // if (currentUserData.nameCheck != UserDataNameCheck.SAFE) {
-    //   createPaymentDto.errorCode = PaymentError.NAMECHECK;
-    //   if (!createPaymentDto.info) {
-    //     createPaymentDto.info = 'Name-Check: ' + currentUserData.nameCheck;
-    //   } else {
-    //     createPaymentDto.info += '; Name-Check: ' + currentUserData.nameCheck;
-    //     createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
-    //     createPaymentDto.info +=
-    //       '; User Location: ' + createPaymentDto.location;
-    //     if (createPaymentDto.country) {
-    //       createPaymentDto.info +=
-    //         '; User Country: ' + createPaymentDto.country;
-    //     }
-    //   }
-    // }
+    if (currentUserData.nameCheck != UserDataNameCheck.SAFE) {
+      createPaymentDto.errorCode = PaymentError.NAMECHECK;
+      if (!createPaymentDto.info) {
+        createPaymentDto.info = 'Name-Check: ' + currentUserData.nameCheck;
+      } else {
+        createPaymentDto.info += '; Name-Check: ' + currentUserData.nameCheck;
+        createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+        createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
+        if (createPaymentDto.country) {
+          createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
+        }
+      }
+    }
 
     const payment = this.create(createPaymentDto);
 
@@ -456,16 +404,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     return payment;
   }
 
-  async updatePayment(
-    payment: UpdatePaymentDto,
-    mailService?: MailService,
-  ): Promise<any> {
+  async updatePayment(payment: UpdatePaymentDto, mailService?: MailService): Promise<any> {
     const currentPayment = await this.findOne({ id: payment.id });
 
-    if (!currentPayment)
-      throw new NotFoundException('No matching payment for id found');
-    if (currentPayment.status == PaymentStatus.PROCESSED)
-      throw new ForbiddenException('Payment is already processed!');
+    if (!currentPayment) throw new NotFoundException('No matching payment for id found');
+    if (currentPayment.status == PaymentStatus.PROCESSED) throw new ForbiddenException('Payment is already processed!');
     if (!currentPayment.accepted && payment.status == PaymentStatus.PROCESSED)
       throw new ForbiddenException('Payment is not accepted yet!');
 
@@ -484,8 +427,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       processedPayment = true;
 
       try {
-        let baseUrl =
-          'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
+        let baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
         const options = {
           uri: baseUrl,
@@ -526,9 +468,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           let currentUserData = await currentUser.userData;
 
           if (!currentUserData)
-            throw new ForbiddenException(
-              'You cannot process a payment without a referenced userData',
-            );
+            throw new ForbiddenException('You cannot process a payment without a referenced userData');
 
           logDto.user = currentUser;
 
@@ -541,8 +481,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
             refUserData = await refUser.userData;
             if (refUserData && currentUserData) {
-              if (refUserData.id == currentUserData.id)
-                currentUser.usedRef = '000-000';
+              if (refUserData.id == currentUserData.id) currentUser.usedRef = '000-000';
             }
           }
 
@@ -555,9 +494,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
             .getCustomRepository(UserRepository)
             .save(currentUser);
         } else {
-          throw new ForbiddenException(
-            'You cannot process a payment without a referenced Buy-Route',
-          );
+          throw new ForbiddenException('You cannot process a payment without a referenced Buy-Route');
         }
       } catch (error) {
         throw new ConflictException(error.message);
@@ -605,16 +542,14 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       if (!isNaN(id.key)) {
         const payment = await this.findOne({ id: id.key });
 
-        if (!payment)
-          throw new NotFoundException('No matching payment for id found');
+        if (!payment) throw new NotFoundException('No matching payment for id found');
 
         return payment;
       }
     } else if (!isNaN(id)) {
       const payment = await this.findOne({ id: id });
 
-      if (!payment)
-        throw new NotFoundException('No matching payment for id found');
+      if (!payment) throw new NotFoundException('No matching payment for id found');
 
       return payment;
     }
@@ -681,5 +616,4 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       date.getUTCFullYear() == today.getUTCFullYear()
     );
   }
-  
 }
