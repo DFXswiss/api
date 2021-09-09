@@ -23,10 +23,10 @@ export class KycService {
 
   constructor(private http: HttpService) {}
 
-  public async doNameCheck(address: string, name: string): Promise<boolean> {
+  public async doNameCheck(id: number, name: string): Promise<boolean> {
     try {
-      await this.createCustomer(address, name);
-      return await this.checkCustomer(address);
+      await this.createCustomer(id, name);
+      return await this.checkCustomer(id);
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to do the name check');
@@ -34,17 +34,17 @@ export class KycService {
   }
 
   // --- API Methods --- //
-  private async createCustomer(address: string, name: string) {
+  private async createCustomer(id: number, name: string) {
     const data = {
-      reference: address,
+      reference: id.toString(),
       type: 'PERSON',
       names: [{ lastName: name }],
     };
     await this.callApi('customers/simple', 'POST', data);
   }
 
-  private async checkCustomer(address: string): Promise<boolean> {
-    const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [address]);
+  private async checkCustomer(id: number): Promise<boolean> {
+    const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
     return results[0].riskState === 'NO_RISKS_FOUND';
   }
 

@@ -187,13 +187,14 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           createUserDataDto.location = createPaymentDto.location;
           createUserDataDto.country = createPaymentDto.country;
 
-          createUserDataDto.nameCheck = (await kycService.doNameCheck(createPaymentDto.address, createPaymentDto.name))
+          const userDataRepo = getManager().getCustomRepository(UserDataRepository);
+
+          currentUserData = await userDataRepo.createUserData(createUserDataDto);
+          currentUserData.nameCheck = (await kycService.doNameCheck(currentUserData.id, createPaymentDto.name))
             ? UserDataNameCheck.SAFE
             : UserDataNameCheck.WARNING;
 
-          currentUserData = await getManager()
-            .getCustomRepository(UserDataRepository)
-            .createUserData(createUserDataDto);
+          await userDataRepo.save(currentUserData);
         }
 
         currentUser.userData = currentUserData;
