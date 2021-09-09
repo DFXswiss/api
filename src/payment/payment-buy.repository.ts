@@ -199,12 +199,12 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           createUserDataDto.country = createPaymentDto.country;
         }
 
-        createUserDataDto.nameCheck = kycService.doNameCheck(
-          createPaymentDto.address,
-          createPaymentDto.name,
-        )
-          ? UserDataNameCheck.SAFE
-          : UserDataNameCheck.WARNING;
+        // createUserDataDto.nameCheck = kycService.doNameCheck(
+        //   createPaymentDto.address,
+        //   createPaymentDto.name,
+        // )
+        //   ? UserDataNameCheck.SAFE
+        //   : UserDataNameCheck.WARNING;
 
         currentUserData = await getManager()
           .getCustomRepository(UserDataRepository)
@@ -375,37 +375,37 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       }
     }
 
-    if (currentUserData.nameCheck == UserDataNameCheck.NA) {
-      createPaymentDto.errorCode = PaymentError.NAMECHECK;
-      if (!createPaymentDto.info) {
-        createPaymentDto.info = 'Name-Check missing!';
-      } else {
-        createPaymentDto.info += '; Name-Check missing!';
-        createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
-        createPaymentDto.info +=
-          '; User Location: ' + createPaymentDto.location;
-        if (createPaymentDto.country) {
-          createPaymentDto.info +=
-            '; User Country: ' + createPaymentDto.country;
-        }
-      }
-    }
+    // if (currentUserData.nameCheck == UserDataNameCheck.NA) {
+    //   createPaymentDto.errorCode = PaymentError.NAMECHECK;
+    //   if (!createPaymentDto.info) {
+    //     createPaymentDto.info = 'Name-Check missing!';
+    //   } else {
+    //     createPaymentDto.info += '; Name-Check missing!';
+    //     createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+    //     createPaymentDto.info +=
+    //       '; User Location: ' + createPaymentDto.location;
+    //     if (createPaymentDto.country) {
+    //       createPaymentDto.info +=
+    //         '; User Country: ' + createPaymentDto.country;
+    //     }
+    //   }
+    // }
 
-    if (currentUserData.nameCheck != UserDataNameCheck.SAFE) {
-      createPaymentDto.errorCode = PaymentError.NAMECHECK;
-      if (!createPaymentDto.info) {
-        createPaymentDto.info = 'Name-Check: ' + currentUserData.nameCheck;
-      } else {
-        createPaymentDto.info += '; Name-Check: ' + currentUserData.nameCheck;
-        createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
-        createPaymentDto.info +=
-          '; User Location: ' + createPaymentDto.location;
-        if (createPaymentDto.country) {
-          createPaymentDto.info +=
-            '; User Country: ' + createPaymentDto.country;
-        }
-      }
-    }
+    // if (currentUserData.nameCheck != UserDataNameCheck.SAFE) {
+    //   createPaymentDto.errorCode = PaymentError.NAMECHECK;
+    //   if (!createPaymentDto.info) {
+    //     createPaymentDto.info = 'Name-Check: ' + currentUserData.nameCheck;
+    //   } else {
+    //     createPaymentDto.info += '; Name-Check: ' + currentUserData.nameCheck;
+    //     createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
+    //     createPaymentDto.info +=
+    //       '; User Location: ' + createPaymentDto.location;
+    //     if (createPaymentDto.country) {
+    //       createPaymentDto.info +=
+    //         '; User Country: ' + createPaymentDto.country;
+    //     }
+    //   }
+    // }
 
     const payment = this.create(createPaymentDto);
 
