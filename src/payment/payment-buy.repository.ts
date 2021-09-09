@@ -77,19 +77,34 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
       createPaymentDto.buy = buy;
 
       if (!buy.iban || !createPaymentDto.iban) {
-        createPaymentDto.info =
-          'Missing IBAN: ' + createPaymentDto.iban + ', ' + buy.iban;
+        if(!createPaymentDto.info){
+          createPaymentDto.info =
+            'Missing IBAN: ' + createPaymentDto.iban + ', ' + buy.iban;
+        }else{
+          createPaymentDto.info +=
+            '; Missing IBAN: ' + createPaymentDto.iban + ', ' + buy.iban;
+        }
         createPaymentDto.errorCode = PaymentError.IBAN;
       } else if (buy.iban != createPaymentDto.iban) {
-        createPaymentDto.info =
-          'Wrong IBAN: ' + createPaymentDto.iban + ' instead of ' + buy.iban;
-        createPaymentDto.errorCode = PaymentError.IBAN;
+        if(!createPaymentDto.info){
+          createPaymentDto.info =
+            'Wrong IBAN: ' + createPaymentDto.iban + ' instead of ' + buy.iban;
+        }else{
+          createPaymentDto.info +=
+            '; Wrong IBAN: ' + createPaymentDto.iban + ', ' + buy.iban;
+        }
+          createPaymentDto.errorCode = PaymentError.IBAN;
+        
       }
 
       if (buy.asset.buyable) {
         createPaymentDto.asset = buy.asset;
       } else {
-        createPaymentDto.info = 'Asset not buyable: ' + createPaymentDto.asset;
+        if(!createPaymentDto.info){
+          createPaymentDto.info = 'Asset not buyable: ' + createPaymentDto.asset;
+        }else{
+          createPaymentDto.info = '; Asset not buyable: ' + createPaymentDto.asset;
+        }
         createPaymentDto.errorCode = PaymentError.ASSET;
       }
     } else {
@@ -106,7 +121,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           .find({ iban: createPaymentDto.iban });
 
         if (currentBuy) {
-          createPaymentDto.info = 'UserID: ' + currentBuy[0].user.id;
+          if(!createPaymentDto.info){
+            createPaymentDto.info = 'UserID: ' + currentBuy[0].user.id;
+          }else{
+            createPaymentDto.info += '; UserID: ' + currentBuy[0].user.id;
+          }
 
           for (let a = 0; a < currentBuy.length; a++) {
             if (currentBuy[a].user.mail) {
@@ -143,8 +162,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
           }
         }
       }
-
-      createPaymentDto.info = '; User Name: ' + createPaymentDto.name;
+      if(!createPaymentDto.info){
+        createPaymentDto.info = 'User Name: ' + createPaymentDto.name;
+      }else{
+        createPaymentDto.info += '; User Name: ' + createPaymentDto.name;   
+      }
       createPaymentDto.info += '; User Location: ' + createPaymentDto.location;
       createPaymentDto.info += '; User Country: ' + createPaymentDto.country;
 
@@ -172,9 +194,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
         const createUserDataDto = new CreateUserDataDto();
         createUserDataDto.name = createPaymentDto.name;
         createUserDataDto.location = createPaymentDto.location;
-
-        //TODO name check
-
+        
         if (createPaymentDto.country) {
           createUserDataDto.country = createPaymentDto.country;
         }
@@ -203,11 +223,19 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       }else if(!currentUserData && userDataTemp){
         createPaymentDto.errorCode = PaymentError.USERDATA;
-        createPaymentDto.info = 'Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location + '; new current userData: ' + createPaymentDto.name + ', ' + createPaymentDto.location;
+        if(!createPaymentDto.info){
+          createPaymentDto.info = 'Double referencedUserData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
+        }else{
+          createPaymentDto.info += '; Double referencedUserData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
+        }
       }else if(currentUserData && userDataTemp){
         if(currentUserData.id != userDataTemp.id){
           createPaymentDto.errorCode = PaymentError.USERDATA;
-          createPaymentDto.info = 'Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location + '; current userData: ' + createPaymentDto.name + ', ' + createPaymentDto.location;
+          if(!createPaymentDto.info){
+            createPaymentDto.info = 'Double userData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
+          }else{
+            createPaymentDto.info += '; Double userData Error: Referenced userData: ' + userDataTemp.name + ', ' + userDataTemp.location;
+          }
         }
       }
 
@@ -310,20 +338,31 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
       if (currentUser.status != UserStatus.KYC && sumCHF > 1000) {
         // createPaymentDto.info = 'No KYC, last Month: ' + sumCHF + " CHF instead of max 1000 CHF";
-        createPaymentDto.info =
-          'No KYC, last Day: ' + sumCHF + ' CHF instead of max 1000 CHF';
+        if(!createPaymentDto.info){
+          createPaymentDto.info =
+            'No KYC, last Day: ' + sumCHF + ' CHF instead of max 1000 CHF';
+        }else{
+          createPaymentDto.info +=
+            '; No KYC, last Day: ' + sumCHF + ' CHF instead of max 1000 CHF';      
+        }
         createPaymentDto.info += '; userDataId: ' + currentUserData.id;
         createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
         createPaymentDto.info +=
           '; User Location: ' + createPaymentDto.location;
+        
         if (createPaymentDto.country) {
           createPaymentDto.info +=
             '; User Country: ' + createPaymentDto.country;
         }
         createPaymentDto.errorCode = PaymentError.KYC;
       } else if (currentUser.status == UserStatus.KYC && sum30CHF > 50000) {
-        createPaymentDto.info =
-          'Check Account Flag, last Month: ' + sumCHF + ' CHF';
+        if(createPaymentDto.info){
+          createPaymentDto.info =
+            'Check Account Flag, last Month: ' + sumCHF + ' CHF';
+        }else{
+          createPaymentDto.info =
+          '; Check Account Flag, last Month: ' + sumCHF + ' CHF';
+        }
         createPaymentDto.info += '; userDataId: ' + currentUserData.id;
         createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
         createPaymentDto.info +=
@@ -339,9 +378,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     if (currentUserData.nameCheck == UserDataNameCheck.NA) {
       createPaymentDto.errorCode = PaymentError.NAMECHECK;
       if (!createPaymentDto.info) {
-        createPaymentDto.info += '; Name-Check missing!';
-      } else {
         createPaymentDto.info = 'Name-Check missing!';
+      } else {
+        createPaymentDto.info += '; Name-Check missing!';
         createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
         createPaymentDto.info +=
           '; User Location: ' + createPaymentDto.location;
@@ -355,9 +394,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     if (currentUserData.nameCheck != UserDataNameCheck.SAFE) {
       createPaymentDto.errorCode = PaymentError.NAMECHECK;
       if (!createPaymentDto.info) {
-        createPaymentDto.info += '; Name-Check: ' + currentUserData.nameCheck;
-      } else {
         createPaymentDto.info = 'Name-Check: ' + currentUserData.nameCheck;
+      } else {
+        createPaymentDto.info += '; Name-Check: ' + currentUserData.nameCheck;
         createPaymentDto.info += '; User Name: ' + createPaymentDto.name;
         createPaymentDto.info +=
           '; User Location: ' + createPaymentDto.location;
