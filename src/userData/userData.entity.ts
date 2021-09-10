@@ -42,7 +42,7 @@ export class UserData {
   @Column({ type: 'varchar', length: 256, default: UserDataNameCheck.NA })
   nameCheck: UserDataNameCheck;
 
-  @OneToMany(() => User, (user) => user.userData)
+  @OneToMany(() => User, (user) => user.userData, { eager: true })
   users: User[];
 
   @UpdateDateColumn()
