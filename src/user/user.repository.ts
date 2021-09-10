@@ -145,6 +145,8 @@ export class UserRepository extends Repository<User> {
 
   async getRefData(user: User): Promise<any> {
     return {
+      ref: user.ref,
+      usedRef: user.usedRef,
       refCount: await this.getRefCount(user.address),
       refCountActive: await this.getRefCountActive(user.address),
       refVolume: await this.getRefVolume(user.address),

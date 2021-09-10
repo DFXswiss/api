@@ -32,7 +32,7 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getUserRefData(@GetUser() user: User): Promise<any> {
-    return await this.userService.getUserData(user);
+    return await this.userService.getRefData(user);
   }
 
   @Put()
