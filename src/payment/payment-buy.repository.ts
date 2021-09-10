@@ -595,9 +595,16 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     const payments = await this.find({ status: PaymentStatus.UNPROCESSED });
 
     for (let a = 0; a < payments.length; a++) {
-      let buy = await payments[a].buy;
-      let user = await buy.user;
-      await user.userData;
+      let buy = null;
+      let user = null;
+
+      if(payments[a].buy) {
+        buy = await payments[a].buy;
+        if(buy) { 
+          user = await buy.user;
+          if(user) await user.userData;
+        }
+      }
     }
 
     return payments;
@@ -610,9 +617,17 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
     });
 
     for (let a = 0; a < payments.length; a++) {
-      let buy = await payments[a].buy;
-      let user = await buy.user;
-      await user.userData;
+
+      let buy = null;
+      let user = null;
+
+      if(payments[a].buy) {
+        buy = await payments[a].buy;
+        if(buy) { 
+          user = await buy.user;
+          if(user) await user.userData;
+        }
+      }
     }
 
     return payments;
