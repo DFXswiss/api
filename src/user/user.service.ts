@@ -46,7 +46,7 @@ export class UserService {
 
       user.sells = sells;
 
-      user['refCount'] = await this.userRepository.getUsedRefCount(user.address);
+      user['refData'] = await this.userRepository.getRefData(user);
     }
     //user['has_buy'] = user['__has_buys__'];
     delete user['__has_buys__'];
@@ -106,7 +106,7 @@ export class UserService {
     return this.userRepository.updateRole(user);
   }
 
-  async getUserRefCount(user: User): Promise<any> {
-    return this.userRepository.getUsedRefCount(user.address);
+  async getUserData(user: User): Promise<any> {
+    return { usedRefData: await this.userRepository.getRefData(user) };
   }
 }

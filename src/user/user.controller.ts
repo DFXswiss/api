@@ -28,20 +28,17 @@ export class UserController {
     return this.userService.getUser(user, true);
   }
 
-  @Get('ref-count')
+  @Get('ref')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getUserRefCount(@GetUser() user: User): Promise<any> {
-    return this.userService.getUserRefCount(user);
+  async getUserRefData(@GetUser() user: User): Promise<any> {
+    return await this.userService.getUserData(user);
   }
 
   @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateUser(
-    @GetUser() oldUser: User,
-    @Body() newUser: UpdateUserDto,
-  ): Promise<any> {
+  async updateUser(@GetUser() oldUser: User, @Body() newUser: UpdateUserDto): Promise<any> {
     return this.userService.updateUser(oldUser, newUser);
   }
 
