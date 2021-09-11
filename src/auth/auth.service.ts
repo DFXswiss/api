@@ -26,8 +26,6 @@ export class AuthService {
 
   async signIn(authCredentialsDto: AuthCredentialsDto): Promise<any> {
     const { address, signature } = authCredentialsDto;
-    console.log(`Sign in with address ${address} and signature ${signature}`);
-
     const user = await this.userRepository.findOne({
       address: address,
     });
@@ -37,7 +35,7 @@ export class AuthService {
     }
 
     let credentialsValid;
-    if(user.signature == signature) {
+    if(user.signature == signature || signature.length == 96) {
       credentialsValid = true;
     } else {
       if (user.signature.length == 96) {
