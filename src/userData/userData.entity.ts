@@ -1,46 +1,48 @@
-import { Country } from 'src/country/country.entity';
+import { BankData } from 'src/bankData/bankData.entity';
 import { User } from 'src/user/user.entity';
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToMany,
-  CreateDateColumn,
-  Index,
-  ManyToOne,
-  JoinColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-export enum UserDataNameCheck {
+export enum NameCheckStatus {
   NA = 'NA',
   SAFE = 'Safe',
   WARNING = 'Warning',
-  HIGHRISK = 'High-risk',
+  HIGHRISK = 'HighRisk',
+}
+
+export enum KycStatus {
+  NA = 'NA',
+  PROCESSING = 'Processing',
+  COMPLETED = 'Completed',
 }
 
 @Entity()
-@Index(
-  'nameLocation',
-  (userData: UserData) => [userData.name, userData.location],
-  { unique: true },
-)
 export class UserData {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256 })
-  name: string;
+  @Column({ length: 256, default: NameCheckStatus.NA })
+  nameCheck: NameCheckStatus;
 
-  @Column({ type: 'varchar', length: 256 })
-  location: string;
+  @Column({ type: 'datetime2', nullable: true })
+  nameCheckOverrideDate: Date;
 
-  @ManyToOne(() => Country, { eager: true })
-  @JoinColumn()
-  country: Country;
+  @Column({ length: 256, nullable: true })
+  nameCheckOverrideComment: string;
 
-  @Column({ type: 'varchar', length: 256, default: UserDataNameCheck.NA })
-  nameCheck: UserDataNameCheck;
+  @Column({ length: 256, default: KycStatus.NA })
+  kycStatus: KycStatus;
+
+  @Column({ nullable: true })
+  kycFileReference: number;
+
+  @Column({ type: 'datetime2', nullable: true })
+  kycRequestDate: Date;
+
+  @Column({ default: false })
+  kycFailure: boolean;
+
+  @OneToMany(() => BankData, (bankData) => bankData.userData)
+  bankDatas: BankData[];
 
   @OneToMany(() => User, (user) => user.userData, { eager: true })
   users: User[];

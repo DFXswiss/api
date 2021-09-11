@@ -53,8 +53,13 @@ import { RefRepository } from './referral/ref.repository';
 import { RefController } from './referral/ref.controller';
 import { RefService } from './referral/ref.service';
 import { MailerModule } from '@nestjs-modules/mailer';
-import { MailService } from './mail/mail.service';
+import { MailService } from './services/mail.service';
 import { DeFiService } from './services/defi.service';
+import { KycService } from './services/kyc.service';
+import { HttpModule } from '@nestjs/axios';
+import { HttpService } from './services/http.service';
+import { BankDataRepository } from './bankData/bankData.repository';
+import { BankDataService } from './bankData/bankData.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -115,8 +120,10 @@ import { DeFiService } from './services/defi.service';
       SellPaymentRepository,
       LanguageRepository,
       UserDataRepository,
+      BankDataRepository,
       RefRepository,
     ]),
+    HttpModule,
   ],
   controllers: [
     AppController,
@@ -156,10 +163,13 @@ import { DeFiService } from './services/defi.service';
     AllDataService,
     LanguageService,
     UserDataService,
+    BankDataService,
     RefService,
     AuthService,
     MailService,
     DeFiService,
+    KycService,
+    HttpService,
   ],
   exports: [
     UserService,
@@ -180,8 +190,12 @@ import { DeFiService } from './services/defi.service';
     AllDataService,
     LanguageService,
     UserDataService,
+    BankDataService,
     RefService,
     MailService,
+    DeFiService,
+    KycService,
+    HttpService,
   ],
 })
 export class AppModule {}

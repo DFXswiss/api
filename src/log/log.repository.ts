@@ -8,7 +8,7 @@ import { AssetRepository } from 'src/asset/asset.repository';
 import { UserRepository } from 'src/user/user.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
-import { MailService } from 'src/mail/mail.service';
+import { MailService } from 'src/services/mail.service';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {

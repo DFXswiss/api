@@ -26,13 +26,14 @@ export enum PaymentError {
   KYC = 'KYC',
   ACCOUNTCHECK = 'Account-check',
   NAMECHECK = 'Name-check',
+  USERDATA = 'UserData',
 }
 
 export enum PaymentStatus {
   UNPROCESSED = 'Unprocessed',
   PROCESSED = 'Processed',
   REPAYMENT = 'Repayment',
-  CANCELED = 'Canceled'
+  CANCELED = 'Canceled',
 }
 
 @Entity()
@@ -40,7 +41,7 @@ export abstract class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   address: string;
 
   @ManyToOne(() => Fiat, { eager: true })
@@ -60,19 +61,19 @@ export abstract class Payment {
   @Column({ type: 'datetime2', nullable: true })
   received: Date;
 
-  @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED, length: 256 })
+  @Column({ default: PaymentStatus.UNPROCESSED, length: 256 })
   status: PaymentStatus;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   info: string;
 
-  @Column({ type: 'varchar', default: PaymentError.NA, length: 256 })
+  @Column({ default: PaymentError.NA, length: 256 })
   errorCode: PaymentError;
 
   @Column({ default: false })
-  accepted: boolean
+  accepted: boolean;
 
-  @OneToMany(() => Log, (log) => log.payment,{ lazy: true, cascade: ["insert"]})
+  @OneToMany(() => Log, (log) => log.payment, { lazy: true })
   logs: Log[];
 
   @UpdateDateColumn()
@@ -80,5 +81,4 @@ export abstract class Payment {
 
   @CreateDateColumn()
   created: Date;
-  
 }

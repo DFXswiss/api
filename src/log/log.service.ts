@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { LogRepository } from './log.repository';
 import { CreateLogDto } from './dto/create-log.dto';
-import { MailService } from 'src/mail/mail.service';
+import { MailService } from 'src/services/mail.service';
 
 @Injectable()
 export class LogService {
