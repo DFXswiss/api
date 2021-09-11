@@ -206,18 +206,6 @@ export class UserRepository extends Repository<User> {
 
       // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
       //   user.ref = '-1';
-
-      delete user.address;
-      delete user.signature;
-      delete user.ip;
-      delete user['__userData__'];
-      delete user['__has_userData__'];
-      if (user.role != UserRole.VIP) delete user.role;
-
-      // delete ref for inactive users
-      if (user.status == UserStatus.NA) {
-        delete user.ref;
-      }
       return user;
       
     } catch (error) {

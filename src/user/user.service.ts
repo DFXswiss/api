@@ -58,12 +58,13 @@ export class UserService {
     delete user.signature;
     delete user.ip;
     if (user.role != UserRole.VIP) delete user.role;
-    if (user.status != UserStatus.NA) {
-      return user;
-    } else {
+
+    // delete ref for inactive users
+    if (user.status == UserStatus.NA) {
       delete user.ref;
-      return user;
     }
+
+    return user;
   }
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
@@ -72,7 +73,7 @@ export class UserService {
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
-    const user = this.userRepository.updateUser(oldUser, newUser);
+    const user = await this.userRepository.updateUser(oldUser, newUser);
 
     //TODO
     // delete user.signature;
@@ -86,6 +87,19 @@ export class UserService {
     //         return user;
     //     }
     // }
+    user['refData'] = await this.userRepository.getRefData(user);
+
+    // delete ref for inactive users
+    if (user.status == UserStatus.NA) {
+      delete user.ref;
+    }
+
+    delete user.address;
+    delete user.signature;
+    delete user.ip;
+    delete user['__userData__'];
+    delete user['__has_userData__'];
+    if (user.role != UserRole.VIP) delete user.role;
 
     return user;
   }
