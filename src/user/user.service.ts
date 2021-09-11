@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserRole, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
@@ -9,10 +8,7 @@ import { UpdateStatusDto } from './dto/update-status.dto';
 
 @Injectable()
 export class UserService {
-  constructor(
-    @InjectRepository(UserRepository)
-    private userRepository: UserRepository,
-  ) {}
+  constructor(private userRepository: UserRepository) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     const user = await this.userRepository.createUser(createUserDto);

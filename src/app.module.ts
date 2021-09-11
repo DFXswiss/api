@@ -58,6 +58,8 @@ import { DeFiService } from './services/defi.service';
 import { KycService } from './services/kyc.service';
 import { HttpModule } from '@nestjs/axios';
 import { HttpService } from './services/http.service';
+import { BankDataRepository } from './bankData/bankData.repository';
+import { BankDataService } from './bankData/bankData.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -118,6 +120,7 @@ import { HttpService } from './services/http.service';
       SellPaymentRepository,
       LanguageRepository,
       UserDataRepository,
+      BankDataRepository,
       RefRepository,
     ]),
     HttpModule,
@@ -160,6 +163,7 @@ import { HttpService } from './services/http.service';
     AllDataService,
     LanguageService,
     UserDataService,
+    BankDataService,
     RefService,
     AuthService,
     MailService,
@@ -186,6 +190,7 @@ import { HttpService } from './services/http.service';
     AllDataService,
     LanguageService,
     UserDataService,
+    BankDataService,
     RefService,
     MailService,
     DeFiService,
