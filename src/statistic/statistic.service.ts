@@ -11,25 +11,26 @@ export class StatisticService {
     private logRepository: LogRepository,
   ) {}
 
-  async getBuyOrder(): Promise<any> {
+  async getBuyRoutes(): Promise<number> {
     return this.buyRepository.getBuyOrder();
   }
 
-  async getSellOrder(): Promise<any> {
+  async getSellRoutes(): Promise<number> {
     return this.sellRepository.getSellOrder();
   }
 
-  async getOrder(): Promise<any> {
+  async getRoutes(): Promise<any> {
     return {
-      totalOrder: [await this.getBuyOrder(), await this.getSellOrder()],
+      buy: await this.getBuyRoutes(),
+      sell: await this.getSellRoutes(),
     };
   }
 
-  async getBuyVolume(): Promise<any> {
+  async getDFIBuyVolume(): Promise<any> {
     return this.logRepository.getBuyDFIVolume();
   }
 
-  async getSellVolume(): Promise<any> {
+  async getDFISellVolume(): Promise<any> {
     return this.logRepository.getSellDFIVolume();
   }
 
@@ -37,7 +38,16 @@ export class StatisticService {
     return this.logRepository.getDFIVolume();
   }
 
+  async getCHFVolume(): Promise<any> {
+    return this.logRepository.getCHFVolume();
+  }
+
   async getAll(): Promise<any> {
-    return { dfxStatistic: [await this.getOrder(), await this.getDFIVolume()] };
+    return {
+      dfxStatistic: {
+        routes: await this.getRoutes(),
+        volume: { DFI: await this.getDFIVolume(), CHF: await this.getCHFVolume() },
+      },
+    };
   }
 }

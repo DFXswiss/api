@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { EntityRepository, getManager, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
 import { Log, LogDirection, LogStatus, LogType } from './log.entity';
@@ -16,10 +12,7 @@ import { MailService } from 'src/mail/mail.service';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
-  async createLog(
-    createLogDto: CreateLogDto,
-    mailService?: MailService,
-  ): Promise<any> {
+  async createLog(createLogDto: CreateLogDto, mailService?: MailService): Promise<any> {
     let fiatObject = null;
     let assetObject = null;
     let paymentObject = null;
@@ -39,17 +32,13 @@ export class LogRepository extends Repository<Log> {
     }
 
     if (createLogDto.fiat) {
-      fiatObject = await getManager()
-        .getCustomRepository(FiatRepository)
-        .getFiat(createLogDto.fiat);
+      fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createLogDto.fiat);
     } else {
       delete createLogDto.fiat;
     }
 
     if (createLogDto.asset) {
-      assetObject = await getManager()
-        .getCustomRepository(AssetRepository)
-        .getAsset(createLogDto.asset);
+      assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(createLogDto.asset);
     } else {
       delete createLogDto.asset;
     }
@@ -58,16 +47,14 @@ export class LogRepository extends Repository<Log> {
     if (assetObject) createLogDto.asset = assetObject.id;
 
     if (createLogDto.address) {
-      createLogDto.orderId =
-        createLogDto.address + ':' + new Date().toISOString();
+      createLogDto.orderId = createLogDto.address + ':' + new Date().toISOString();
 
       if (!createLogDto.user)
         createLogDto.user = await getManager()
           .getCustomRepository(UserRepository)
           .getUserInternal(createLogDto.address);
     } else if (createLogDto.user) {
-      createLogDto.orderId =
-        createLogDto.user.address + ':' + new Date().toISOString();
+      createLogDto.orderId = createLogDto.user.address + ':' + new Date().toISOString();
     } else {
       createLogDto.orderId = new Date().toISOString();
     }
@@ -76,11 +63,7 @@ export class LogRepository extends Repository<Log> {
 
     try {
       await this.save(log);
-      if (
-        log.type === LogType.TRANSACTION &&
-        !log.status &&
-        createLogDto.user.mail
-      )
+      if (log.type === LogType.TRANSACTION && !log.status && createLogDto.user.mail)
         mailService.sendLogMail(createLogDto, 'Transaction has been completed');
     } catch (error) {
       throw new ConflictException(error.message);
@@ -122,9 +105,7 @@ export class LogRepository extends Repository<Log> {
         buyVolume += volumeLogs[a].assetValue;
       }
 
-      return {
-        buyVolume: Math.round(buyVolume * Math.pow(10, 8)) / Math.pow(10, 8),
-      };
+      return Math.round(buyVolume * Math.pow(10, 8)) / Math.pow(10, 8);
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -140,9 +121,7 @@ export class LogRepository extends Repository<Log> {
       for (let a = 0; a < volumeLogs.length; a++) {
         sellVolume += volumeLogs[a].assetValue;
       }
-      return {
-        sellVolume: Math.round(sellVolume * Math.pow(10, 8)) / Math.pow(10, 8),
-      };
+      return Math.round(sellVolume * Math.pow(10, 8)) / Math.pow(10, 8);
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -151,10 +130,8 @@ export class LogRepository extends Repository<Log> {
   async getDFIVolume(): Promise<any> {
     try {
       return {
-        totalVolume: [
-          await this.getBuyDFIVolume(),
-          await this.getSellDFIVolume(),
-        ],
+        buy: await this.getBuyDFIVolume(),
+        sell: await this.getSellDFIVolume(),
       };
     } catch (error) {
       throw new ConflictException(error.message);
@@ -171,7 +148,7 @@ export class LogRepository extends Repository<Log> {
       for (let a = 0; a < volumeLogs.length; a++) {
         buyVolume += volumeLogs[a].fiatInCHF;
       }
-      return { buyVolume: buyVolume };
+      return Math.round(buyVolume * Math.pow(10, 2)) / Math.pow(10, 2);
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -187,7 +164,7 @@ export class LogRepository extends Repository<Log> {
       for (let a = 0; a < volumeLogs.length; a++) {
         sellVolume += volumeLogs[a].fiatInCHF;
       }
-      return { sellVolume: sellVolume };
+      return Math.round(sellVolume * Math.pow(10, 2)) / Math.pow(10, 2);
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -196,10 +173,8 @@ export class LogRepository extends Repository<Log> {
   async getCHFVolume(): Promise<any> {
     try {
       return {
-        totalCHFVolume: [
-          await this.getBuyCHFVolume(),
-          await this.getSellCHFVolume(),
-        ],
+        buy: await this.getBuyCHFVolume(),
+        sell: await this.getSellCHFVolume(),
       };
     } catch (error) {
       throw new ConflictException(error.message);
