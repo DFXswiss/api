@@ -84,6 +84,7 @@ export class UserRepository extends Repository<User> {
 
       for (let a = 0; a < users.length; a++) {
         users[a].wallet = await users[a].wallet;
+        await users[a].userData;
       }
 
       return users;

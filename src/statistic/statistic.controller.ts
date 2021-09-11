@@ -14,17 +14,17 @@ export class StatisticController {
 
   @Get('order')
   async getOrder(): Promise<any> {
-    return this.statisticService.getOrder();
+    return this.statisticService.getRoutes();
   }
 
   @Get('order/sell')
   async getSellOrder(): Promise<any> {
-    return this.statisticService.getSellOrder();
+    return this.statisticService.getSellRoutes();
   }
 
   @Get('order/buy')
   async getBuyOrder(): Promise<any> {
-    return this.statisticService.getBuyOrder();
+    return this.statisticService.getBuyRoutes();
   }
 
   @Get('volume')
@@ -34,11 +34,11 @@ export class StatisticController {
 
   @Get('volume/buy')
   async getBuyVolume(): Promise<any> {
-    return this.statisticService.getBuyVolume();
+    return this.statisticService.getDFIBuyVolume();
   }
 
   @Get('volume/sell')
   async getSellVolume(): Promise<any> {
-    return this.statisticService.getSellVolume();
+    return this.statisticService.getDFISellVolume();
   }
 }

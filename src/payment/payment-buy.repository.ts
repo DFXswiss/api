@@ -255,8 +255,10 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
     for (let a = 0; a < payments.length; a++) {
       let buy = await payments[a].buy;
-      let user = await buy.user;
-      await user.userData;
+      if(buy){
+        let user = await buy.user;
+        if(user) await user.userData;
+      }
     }
 
     return payments;

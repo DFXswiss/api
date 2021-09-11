@@ -110,10 +110,10 @@ export class BuyRepository extends Repository<Buy> {
     }
   }
 
-  async getBuyOrder(): Promise<any> {
+  async getBuyOrder(): Promise<number> {
     try {
       const buy = await this.find();
-      return { buyOrder: buy.length };
+      return buy.length ;
     } catch (error) {
       throw new ConflictException(error.message);
     }
