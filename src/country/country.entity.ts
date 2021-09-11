@@ -11,7 +11,7 @@ export class Country {
   @Column({ type: 'varchar', length: 256 })
   name: string;
 
-  @Column({ default: 1 })
+  @Column({ default: true })
   enable: boolean;
 
   @UpdateDateColumn()

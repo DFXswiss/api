@@ -1,11 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  OneToMany,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
 import { Sell } from 'src/sell/sell.entity';
 import { Log } from 'src/log/log.entity';
 
@@ -17,7 +10,7 @@ export class Fiat {
   @Column({ type: 'varchar', unique: true, length: 256 })
   name: string;
 
-  @Column({ default: 1 })
+  @Column({ default: true })
   enable: boolean;
 
   @OneToMany(() => Sell, (sell) => sell.fiat)

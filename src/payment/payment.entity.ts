@@ -33,7 +33,7 @@ export enum PaymentStatus {
   UNPROCESSED = 'Unprocessed',
   PROCESSED = 'Processed',
   REPAYMENT = 'Repayment',
-  CANCELED = 'Canceled'
+  CANCELED = 'Canceled',
 }
 
 @Entity()
@@ -71,9 +71,9 @@ export abstract class Payment {
   errorCode: PaymentError;
 
   @Column({ default: false })
-  accepted: boolean
+  accepted: boolean;
 
-  @OneToMany(() => Log, (log) => log.payment,{ lazy: true, cascade: ["insert"]})
+  @OneToMany(() => Log, (log) => log.payment, { lazy: true })
   logs: Log[];
 
   @UpdateDateColumn()
@@ -81,5 +81,4 @@ export abstract class Payment {
 
   @CreateDateColumn()
   created: Date;
-  
 }

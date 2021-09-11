@@ -35,7 +35,7 @@ export class Sell {
   @JoinColumn()
   deposit: Deposit;
 
-  @Column({ default: 1 })
+  @Column({ default: true })
   active: boolean;
 
   @ManyToOne(() => User, (user) => user.sells)

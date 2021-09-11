@@ -4,7 +4,7 @@ import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
-import { MailService } from 'src/mail/mail.service';
+import { MailService } from 'src/services/mail.service';
 import { KycService } from 'src/services/kyc.service';
 
 @Injectable()

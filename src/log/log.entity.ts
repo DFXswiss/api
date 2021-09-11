@@ -82,7 +82,7 @@ export class Log {
   @Column({ type: 'varchar', nullable: true, length: 256 })
   blockchainTx: string;
 
-  @ManyToOne(() => User, { eager: false, lazy: true })
+  @ManyToOne(() => User, { lazy: true })
   @JoinColumn()
   user: User;
 
@@ -95,5 +95,4 @@ export class Log {
 
   @CreateDateColumn()
   created: Date;
-  
 }

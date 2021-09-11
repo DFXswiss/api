@@ -44,39 +44,39 @@ export class User {
   @Column({ type: 'varchar', unique: true, length: 256 })
   signature: string;
 
-  @ManyToOne(() => Wallet, { eager: false, lazy: true })
+  @ManyToOne(() => Wallet, { lazy: true })
   @JoinColumn()
   wallet: Wallet;
 
   @Column({ type: 'varchar', default: '000-000', length: 256 })
   usedRef: string;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   mail: string;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   firstname: string;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   surname: string;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   street: string;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   houseNumber: string;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   location: string;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   zip: string;
 
   @ManyToOne(() => Country, { eager: true })
   @JoinColumn()
   country: Country;
 
-  @Column({ type: 'varchar', length: 256, default: null, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   phone: string;
 
   @ManyToOne(() => Language, { eager: true })
@@ -100,11 +100,11 @@ export class User {
   @JoinColumn()
   sells: Sell[];
 
-  @ManyToOne(() => UserData, { cascade: ["insert"], lazy: true })
+  @ManyToOne(() => UserData, { lazy: true })
   @JoinColumn()
   userData: UserData;
 
-  @OneToMany(() => Log, (logs) => logs.user,{ lazy: true})
+  @OneToMany(() => Log, (logs) => logs.user, { lazy: true })
   logs: Log[];
 
   @UpdateDateColumn()

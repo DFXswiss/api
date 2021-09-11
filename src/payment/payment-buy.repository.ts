@@ -17,7 +17,7 @@ import * as requestPromise from 'request-promise-native';
 import { UserRepository } from 'src/user/user.repository';
 import { UserStatus } from 'src/user/user.entity';
 import { NameCheckStatus } from 'src/userData/userData.entity';
-import { MailService } from 'src/mail/mail.service';
+import { MailService } from 'src/services/mail.service';
 import { KycService } from 'src/services/kyc.service';
 
 @EntityRepository(BuyPayment)

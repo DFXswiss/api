@@ -53,7 +53,7 @@ import { RefRepository } from './referral/ref.repository';
 import { RefController } from './referral/ref.controller';
 import { RefService } from './referral/ref.service';
 import { MailerModule } from '@nestjs-modules/mailer';
-import { MailService } from './mail/mail.service';
+import { MailService } from './services/mail.service';
 import { DeFiService } from './services/defi.service';
 import { KycService } from './services/kyc.service';
 import { HttpModule } from '@nestjs/axios';

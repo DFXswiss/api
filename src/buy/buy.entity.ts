@@ -28,7 +28,7 @@ export class Buy {
   @Column({ type: 'varchar', length: 256, unique: true })
   bankUsage: string;
 
-  @Column({ default: 1 })
+  @Column({ default: true })
   active: boolean;
 
   @ManyToOne(() => User, (user) => user.buys, { lazy: true })
