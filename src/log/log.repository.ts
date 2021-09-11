@@ -151,10 +151,8 @@ export class LogRepository extends Repository<Log> {
   async getDFIVolume(): Promise<any> {
     try {
       return {
-        totalVolume: [
-          await this.getBuyDFIVolume(),
-          await this.getSellDFIVolume(),
-        ],
+          buy: await this.getBuyDFIVolume(),
+          sell: await this.getSellDFIVolume(),
       };
     } catch (error) {
       throw new ConflictException(error.message);
@@ -196,10 +194,8 @@ export class LogRepository extends Repository<Log> {
   async getCHFVolume(): Promise<any> {
     try {
       return {
-        totalCHFVolume: [
-          await this.getBuyCHFVolume(),
-          await this.getSellCHFVolume(),
-        ],
+        buy:  await this.getBuyCHFVolume(),
+        sell:  await this.getSellCHFVolume(),
       };
     } catch (error) {
       throw new ConflictException(error.message);
