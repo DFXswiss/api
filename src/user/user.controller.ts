@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/get-user.decorator';
@@ -8,11 +8,18 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { KycService } from 'src/services/kyc.service';
+import { UserDataService } from 'src/userData/userData.service';
+import { UserData } from 'src/userData/userData.entity';
 
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
+    private readonly kycService: KycService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -64,5 +71,12 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateStatus(@Body() user: UpdateStatusDto): Promise<any> {
     return this.userService.updateStatus(user);
+  }
+
+  @Post('kyc')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async requestKyc(@GetUser() user: User): Promise<UserData> {
+    return await this.userDataService.requestKyc(user.id);
   }
 }
