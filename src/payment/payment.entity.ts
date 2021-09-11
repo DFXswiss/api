@@ -41,7 +41,7 @@ export abstract class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   address: string;
 
   @ManyToOne(() => Fiat, { eager: true })
@@ -61,13 +61,13 @@ export abstract class Payment {
   @Column({ type: 'datetime2', nullable: true })
   received: Date;
 
-  @Column({ type: 'varchar', default: PaymentStatus.UNPROCESSED, length: 256 })
+  @Column({ default: PaymentStatus.UNPROCESSED, length: 256 })
   status: PaymentStatus;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   info: string;
 
-  @Column({ type: 'varchar', default: PaymentError.NA, length: 256 })
+  @Column({ default: PaymentError.NA, length: 256 })
   errorCode: PaymentError;
 
   @Column({ default: false })

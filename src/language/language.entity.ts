@@ -6,13 +6,13 @@ export class Language {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 10 })
+  @Column({ unique: true, length: 10 })
   symbol: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   name: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   foreignName: string;
 
   @Column({ default: true })

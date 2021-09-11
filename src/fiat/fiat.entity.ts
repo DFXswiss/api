@@ -7,7 +7,7 @@ export class Fiat {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 256 })
+  @Column({ unique: true, length: 256 })
   name: string;
 
   @Column({ default: true })

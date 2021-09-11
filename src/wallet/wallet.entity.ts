@@ -6,16 +6,16 @@ export class Wallet {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 256 })
+  @Column({ unique: true, length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', unique: true, length: 256 })
+  @Column({ unique: true, length: 256 })
   signature: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   mail: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   description: string;
 
   @OneToMany(() => User, (user) => user.wallet)

@@ -35,61 +35,61 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   ref: string;
 
-  @Column({ type: 'varchar', length: 256, unique: true })
+  @Column({ length: 256, unique: true })
   address: string;
 
-  @Column({ type: 'varchar', unique: true, length: 256 })
+  @Column({ unique: true, length: 256 })
   signature: string;
 
   @ManyToOne(() => Wallet, { lazy: true })
   @JoinColumn()
   wallet: Wallet;
 
-  @Column({ type: 'varchar', default: '000-000', length: 256 })
+  @Column({ default: '000-000', length: 256 })
   usedRef: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   mail: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   firstname: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   surname: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   street: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   houseNumber: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   location: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   zip: string;
 
   @ManyToOne(() => Country, { eager: true })
   @JoinColumn()
   country: Country;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   phone: string;
 
   @ManyToOne(() => Language, { eager: true })
   @JoinColumn()
   language: Language;
 
-  @Column({ type: 'varchar', default: UserRole.USER, length: 256 })
+  @Column({ default: UserRole.USER, length: 256 })
   role: UserRole;
 
-  @Column({ type: 'varchar', default: UserStatus.NA, length: 256 })
+  @Column({ default: UserStatus.NA, length: 256 })
   status: UserStatus;
 
-  @Column({ type: 'varchar', default: '0.0.0.0', length: 256 })
+  @Column({ default: '0.0.0.0', length: 256 })
   ip: string;
 
   @OneToMany(() => Buy, (buy) => buy.user, { lazy: true })

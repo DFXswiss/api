@@ -19,13 +19,13 @@ export class Buy {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   iban: string;
 
-  @Column({ type: 'varchar', length: 256, unique: true })
+  @Column({ length: 256, unique: true })
   bankUsage: string;
 
   @Column({ default: true })

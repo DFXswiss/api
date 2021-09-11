@@ -20,16 +20,16 @@ export class UserData {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256, default: NameCheckStatus.NA })
+  @Column({ length: 256, default: NameCheckStatus.NA })
   nameCheck: NameCheckStatus;
 
   @Column({ type: 'datetime2', nullable: true })
   nameCheckOverrideDate: Date;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   nameCheckOverrideComment: string;
 
-  @Column({ type: 'varchar', length: 256, default: KycStatus.NA })
+  @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
   @Column({ nullable: true })

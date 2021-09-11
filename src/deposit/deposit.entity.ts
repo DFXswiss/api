@@ -6,7 +6,7 @@ export class Deposit {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 256 })
+  @Column({ unique: true, length: 256 })
   address: string;
 
   @Column({ default: false })

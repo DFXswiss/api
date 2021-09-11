@@ -8,10 +8,10 @@ export class BuyPayment extends Payment {
   @Column({ type: 'float', nullable: true })
   fiatValue: number;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   iban: string;
 
-  @Column({ type: 'varchar', length: 256, unique: true })
+  @Column({ length: 256, unique: true })
   bankTransactionId: string;
 
   @Column({ type: 'float', nullable: true })

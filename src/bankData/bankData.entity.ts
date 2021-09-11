@@ -7,13 +7,13 @@ export class BankData {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   name: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   location: string;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ length: 256, nullable: true })
   country: string;
 
   @ManyToOne(() => UserData)

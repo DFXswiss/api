@@ -23,10 +23,10 @@ export class Asset {
   @Column({ type: 'int', nullable: false, unique: true})
   chainId: number;
 
-  @Column({ type: 'varchar', unique: true, length: 256 })
+  @Column({ unique: true, length: 256 })
   name: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   type: AssetType;
 
   @Column({ default: true })
