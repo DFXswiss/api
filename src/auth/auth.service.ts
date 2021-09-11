@@ -26,6 +26,8 @@ export class AuthService {
 
   async signIn(authCredentialsDto: AuthCredentialsDto): Promise<any> {
     const { address, signature } = authCredentialsDto;
+    console.log(`Sign in with address ${address} and signature ${signature}`);
+
     const user = await this.userRepository.findOne({
       address: address,
     });
