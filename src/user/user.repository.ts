@@ -155,7 +155,7 @@ export class UserRepository extends Repository<User> {
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
     try {
-      const currentUser = await this.findOne({ id: oldUser.id });
+      const currentUser = await this.findOne(oldUser.id);
       if (!currentUser) throw new NotFoundException('No matching user for id found');
       const currentUserData = await currentUser.userData;
 
@@ -202,11 +202,11 @@ export class UserRepository extends Repository<User> {
 
       newUser.id = currentUser.id;
 
-      let user = Object.assign(currentUser, await this.save(newUser));
+      await this.save(newUser);
 
       // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
       //   user.ref = '-1';
-      return user;
+      return this.findOne(currentUser.id);
       
     } catch (error) {
       throw new ConflictException(error.message);
