@@ -9,10 +9,9 @@ import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
-import { LogRepository } from 'src/log/log.repository';
-import { LogType } from 'src/log/log.entity';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { PaymentStatus } from 'src/payment/payment.entity';
+import { KycStatus } from 'src/userData/userData.entity';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -161,14 +160,13 @@ export class UserRepository extends Repository<User> {
 
       const refUser = await this.findOne({ ref: newUser.usedRef });
 
+
+      const refUserData = await refUser.userData;
+      const currentUserData = await currentUser.userData;
+
       if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) {
         newUser.usedRef = '000-000';
       } else {
-        let refUserData = null;
-        let currentUserData = null;
-
-        refUserData = await refUser.userData;
-        currentUserData = await currentUser.userData;
         if (refUserData && currentUserData) {
           if (refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
         }
@@ -177,9 +175,8 @@ export class UserRepository extends Repository<User> {
       let countryObject = null;
       let languageObject = null;
 
-      if (currentUser.status == UserStatus.KYC || currentUser.status == UserStatus.VERIFY) {
-        //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach ändern können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
-        //TODO Kontrolle was Mitarbeiter bzw. was Support Rolle und was nur Admin bearbeiten dürfen => Routen kontrollieren, mit Robin absprechen
+      // user with kyc cannot change their data
+      if (currentUserData.kycStatus != KycStatus.NA) {
         if (newUser.firstname) delete newUser.firstname;
         if (newUser.surname) delete newUser.surname;
         if (newUser.mail) delete newUser.mail;
@@ -217,12 +214,12 @@ export class UserRepository extends Repository<User> {
       delete user['__has_userData__'];
       if (user.role != UserRole.VIP) delete user.role;
 
-      if (user.status == UserStatus.ACTIVE || user.status == UserStatus.KYC || user.status == UserStatus.VERIFY) {
-        return user;
-      } else {
+      // delete ref for inactive users
+      if (user.status == UserStatus.NA) {
         delete user.ref;
-        return user;
       }
+      return user;
+      
     } catch (error) {
       throw new ConflictException(error.message);
     }
