@@ -86,7 +86,7 @@ export class Log {
   @JoinColumn()
   user: User;
 
-  @ManyToOne(() => Payment, { lazy: true, cascade: ["insert"] })
+  @ManyToOne(() => Payment, { lazy: true })
   @JoinColumn()
   payment: Payment;
 

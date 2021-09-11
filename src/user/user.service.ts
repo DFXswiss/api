@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
-import { User, UserRole } from './user.entity';
+import { User, UserRole, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -62,7 +62,7 @@ export class UserService {
     delete user.signature;
     delete user.ip;
     if (user.role != UserRole.VIP) delete user.role;
-    if (user.status == 'Active' || user.status == 'KYC') {
+    if (user.status != UserStatus.NA) {
       return user;
     } else {
       delete user.ref;

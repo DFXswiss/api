@@ -12,11 +12,17 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export enum UserDataNameCheck {
+export enum NameCheckStatus {
   NA = 'NA',
   SAFE = 'Safe',
   WARNING = 'Warning',
-  HIGHRISK = 'High-risk',
+  HIGHRISK = 'HighRisk',
+}
+
+export enum KycStatus {
+  NA = 'NA',
+  PROCESSING = 'Processing',
+  COMPLETED = 'Completed',
 }
 
 @Entity()
@@ -39,8 +45,26 @@ export class UserData {
   @JoinColumn()
   country: Country;
 
-  @Column({ type: 'varchar', length: 256, default: UserDataNameCheck.NA })
-  nameCheck: UserDataNameCheck;
+  @Column({ type: 'varchar', length: 256, default: NameCheckStatus.NA })
+  nameCheck: NameCheckStatus;
+
+  @Column({ type: 'datetime2', nullable: true })
+  nameCheckOverrideDate: Date;
+
+  @Column({ type: 'varchar', length: 256, nullable: true})
+  nameCheckOverrideComment: string;
+
+  @Column({ type: 'varchar', length: 256, default: KycStatus.NA })
+  kycStatus: KycStatus;
+
+  @Column({ nullable: true })
+  kycFileReference: number;
+
+  @Column({ type: 'datetime2', nullable: true })
+  kycRequestDate: Date;
+
+  @Column({ default: false })
+  kycFailure: boolean;
 
   @OneToMany(() => User, (user) => user.userData, { eager: true })
   users: User[];
