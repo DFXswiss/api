@@ -2,13 +2,13 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { CreateLogDto } from 'src/log/dto/create-log.dto';
+import { UserData } from 'src/userData/userData.entity';
 
 @Injectable()
 export class MailService {
-  constructor(
-    private mailerService: MailerService,
-    private assetRepository: AssetRepository,
-  ) {}
+  private supportMail = 'support@dfx.swiss';
+
+  constructor(private mailerService: MailerService, private assetRepository: AssetRepository) {}
 
   async sendLogMail(createLogDto: CreateLogDto, subject: string) {
     const firstName = createLogDto.user.firstname ?? 'DFX Dude';
@@ -26,6 +26,36 @@ export class MailService {
     await this.mailerService.sendMail({
       to: createLogDto.user.mail,
       subject: subject,
+      html: htmlBody,
+    });
+  }
+
+  async sendKycRequestMail(userData: UserData): Promise<void> {
+    const htmlBody = `
+      <h1>Hi DFX Support</h1>
+      <p>A new customer is requesting KYC:</p>
+      <table>
+          <tr>
+              <td>UserData ID:</td>
+              <td>${userData.id}</td>
+          </tr>
+          <tr>
+              <td>KYC file reference:</td>
+              <td>${userData.kycFileReference}</td>
+          </tr>
+          <tr>
+              <td>Request date:</td>
+              <td>${userData.kycRequestDate.toLocaleString()}</td>
+          </tr>
+      </table>
+      <p>Best,</p>
+      <p>DFX API</p>
+      <p>© 2021 DFX AG All rights reserved.</p>
+    `;
+
+    await this.mailerService.sendMail({
+      to: this.supportMail,
+      subject: 'New KYC Request',
       html: htmlBody,
     });
   }

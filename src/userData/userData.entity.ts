@@ -32,7 +32,10 @@ export class UserData {
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
+  kycCustomerId: number;
+
+  @Column({ type: 'int', nullable: true })
   kycFileReference: number;
 
   @Column({ type: 'datetime2', nullable: true })
