@@ -24,6 +24,9 @@ export class UserService {
   }
 
   async getUser(user: User, detailedUser: boolean): Promise<any> {
+    const userData = await user.userData;
+    user['kycStatus'] = userData.kycStatus;
+
     if (detailedUser) {
       const buys = await user.buys;
 
@@ -88,6 +91,9 @@ export class UserService {
     //     }
     // }
     user['refData'] = await this.userRepository.getRefData(user);
+    
+    const userData = await user.userData;
+    user['kycStatus'] = userData.kycStatus;
 
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
