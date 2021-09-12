@@ -17,35 +17,42 @@ interface CheckResponse {
   riskState: string;
 }
 
+interface CreateResponse {
+  customerReference: string;
+  customerId: number;
+  customerVersionId: number;
+}
+
 @Injectable()
 export class KycService {
   private baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
 
   constructor(private http: HttpService) {}
 
-  public async doNameCheck(id: number, name: string): Promise<boolean> {
-    try {
-      await this.createCustomer(id, name);
-      return await this.checkCustomer(id);
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to do the name check');
-    }
-  }
-
-  // --- API Methods --- //
-  private async createCustomer(id: number, name: string) {
+  async createCustomer(id: number, name: string): Promise<number> {
     const data = {
       reference: id.toString(),
       type: 'PERSON',
       names: [{ lastName: name }],
     };
-    await this.callApi('customers/simple', 'POST', data);
+
+    try {
+      const result = await this.callApi<CreateResponse>('customers/simple', 'POST', data);
+      return result.customerId;
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to register KYC customer');
+    }
   }
 
-  private async checkCustomer(id: number): Promise<boolean> {
-    const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
-    return results[0].riskState === 'NO_RISKS_FOUND';
+  async checkCustomer(id: number): Promise<boolean> {
+    try {
+      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
+      return results[0].riskState === 'NO_RISKS_FOUND';
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to do name check');
+    }
   }
 
   // --- HELPER METHODS --- //

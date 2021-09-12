@@ -39,7 +39,8 @@ export class UserDataService {
 
     // check the name
     const nameToCheck = userData.bankDatas[0].name;
-    userData.nameCheck = (await this.kycService.doNameCheck(userData.id, nameToCheck))
+    userData.kycCustomerId = await this.kycService.createCustomer(userData.id, nameToCheck);
+    userData.nameCheck = (await this.kycService.checkCustomer(userData.id))
       ? NameCheckStatus.SAFE
       : NameCheckStatus.WARNING;
 
