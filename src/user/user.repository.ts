@@ -144,13 +144,16 @@ export class UserRepository extends Repository<User> {
   }
 
   async getRefData(user: User): Promise<any> {
-    return {
-      ref: user.ref,
+    const result = {
       usedRef: user.usedRef,
       refCount: await this.getRefCount(user.address),
       refCountActive: await this.getRefCountActive(user.address),
       refVolume: await this.getRefVolume(user.address),
     };
+
+    if (user.status != UserStatus.NA) result['ref'] = user.ref;
+
+    return result;
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
@@ -207,7 +210,6 @@ export class UserRepository extends Repository<User> {
       // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
       //   user.ref = '-1';
       return this.findOne(currentUser.id);
-      
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -233,12 +235,22 @@ export class UserRepository extends Repository<User> {
     const currentUser = await this.findOne({ address: address });
     if (!currentUser) throw new NotFoundException('No matching user for id found');
 
-    const requiredFields = ['mail', 'firstname', 'surname', 'street', 'houseNumber', 'location', 'zip', 'country', 'phone']; 
-    const errors = requiredFields.filter(f => !currentUser[f]);
-     
-    return { 
-      result: errors.length === 0, 
-      errors: errors.reduce((prev, curr) => ({...prev, [curr]: 'missing'}), {}),
+    const requiredFields = [
+      'mail',
+      'firstname',
+      'surname',
+      'street',
+      'houseNumber',
+      'location',
+      'zip',
+      'country',
+      'phone',
+    ];
+    const errors = requiredFields.filter((f) => !currentUser[f]);
+
+    return {
+      result: errors.length === 0,
+      errors: errors.reduce((prev, curr) => ({ ...prev, [curr]: 'missing' }), {}),
     };
   }
 }
