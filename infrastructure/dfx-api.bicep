@@ -13,6 +13,9 @@ param mailClientSecret string
 @secure()
 param mailRefreshToken string
 
+@secure()
+param kycPassword string
+
 
 // --- VARIABLES --- //
 var systemName = 'dfx-api'
@@ -144,6 +147,18 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'MAIL_REFRESH_TOKEN'
           value: mailRefreshToken
+        }
+        {
+          name: 'KYC_MANDATOR'
+          value: 'dfx'
+        }
+        {
+          name: 'KYC_USER'
+          value: api
+        }
+        {
+          name: 'KYC_PASSWORD'
+          value: kycPassword
         }
       ]
     }
