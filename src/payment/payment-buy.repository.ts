@@ -251,15 +251,9 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   // }
 
   async getAllPayment(): Promise<any> {
-    const payments = await this.find();
-
-    for (let a = 0; a < payments.length; a++) {
-      let buy = await payments[a].buy;
-      if(buy){
-        let user = await buy.user;
-        if(user) await user.userData;
-      }
-    }
+    const payments = await this.find({
+      relations: ['buy', 'buy.user', 'buy.user.userData', 'buy.user.userData.bankDatas'],
+    });
 
     return payments;
   }
@@ -307,7 +301,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
   //     if(payments[a].buy) {
   //       buy = await payments[a].buy;
-  //       if(buy) { 
+  //       if(buy) {
   //         user = await buy.user;
   //         if(user) await user.userData;
   //       }
@@ -330,7 +324,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
   //     if(payments[a].buy) {
   //       buy = await payments[a].buy;
-  //       if(buy) { 
+  //       if(buy) {
   //         user = await buy.user;
   //         if(user) await user.userData;
   //       }

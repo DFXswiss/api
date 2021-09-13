@@ -7,7 +7,9 @@ import { UserData } from './userData.entity';
 export class UserDataRepository extends Repository<UserData> {
   async getAllUserData(): Promise<any> {
     try {
-      return await this.find();
+      return await this.find({
+        relations: ['bankDatas', 'users'],
+      });
     } catch (error) {
       throw new ConflictException(error.message);
     }
