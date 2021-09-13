@@ -145,13 +145,12 @@ export class UserRepository extends Repository<User> {
 
   async getRefData(user: User): Promise<any> {
     const result = {
+      ref: user.status == UserStatus.NA ? undefined : user.ref,
       usedRef: user.usedRef,
       refCount: await this.getRefCount(user.address),
       refCountActive: await this.getRefCountActive(user.address),
       refVolume: await this.getRefVolume(user.address),
     };
-
-    if (user.status != UserStatus.NA) result['ref'] = user.ref;
 
     return result;
   }
