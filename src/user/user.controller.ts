@@ -25,8 +25,12 @@ export class UserController {
 
   @Get('all/nameCheck')
   async registerAllKyc() {
-    const users = await this.userDataRepo.find({where: { nameCheck: NameCheckStatus.NA }, relations: ['bankDatas']});
-    return await Promise.all(users.filter((u) => u.bankDatas.length > 0).map((u) => this.doNameCheck(u)));
+    let users = await this.userDataRepo.find({where: { nameCheck: NameCheckStatus.NA }, relations: ['bankDatas']});
+    users = users.filter((u) => u.bankDatas.length > 0);
+
+    users.forEach(async user => {
+      await this.doNameCheck(user);
+    });
   }
 
   private async doNameCheck(userData: UserData): Promise<void> {
