@@ -41,7 +41,8 @@ export class KycService {
       return result.customerId;
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to register KYC customer');
+      throw new ServiceUnavailableException(e);
+      //throw new ServiceUnavailableException('Failed to register KYC customer');
     }
   }
 
