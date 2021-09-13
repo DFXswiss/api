@@ -9,6 +9,7 @@ import { UserRepository } from 'src/user/user.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { MailService } from 'src/services/mail.service';
+import { UserStatus } from 'src/user/user.entity';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
@@ -63,8 +64,19 @@ export class LogRepository extends Repository<Log> {
 
     try {
       await this.save(log);
-      if (log.type === LogType.TRANSACTION && !log.status && createLogDto.user.mail)
-        mailService.sendLogMail(createLogDto, 'Transaction has been completed');
+      if (log.type === LogType.TRANSACTION && !log.status) {
+        if (createLogDto.user.mail) mailService.sendLogMail(createLogDto, 'Transaction has been completed');
+
+        if (log.user) {
+          const currentUser = await log.user;
+
+          if (currentUser.status == UserStatus.NA) {
+            currentUser.status = UserStatus.ACTIVE;
+
+            await getManager().getCustomRepository(UserRepository).save(currentUser);
+          }
+        }
+      }
     } catch (error) {
       throw new ConflictException(error.message);
     }
