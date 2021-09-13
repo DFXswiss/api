@@ -8,10 +8,8 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { KycService } from 'src/services/kyc.service';
 import { UserDataService } from 'src/userData/userData.service';
-import { NameCheckStatus, UserData } from 'src/userData/userData.entity';
-import { UserDataRepository } from 'src/userData/userData.repository';
+import { UserData } from 'src/userData/userData.entity';
 
 @ApiTags('user')
 @Controller('user')
@@ -19,30 +17,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
-    private readonly kycService: KycService,
-    private readonly userDataRepo: UserDataRepository
   ) {}
-
-  @Get('all/nameCheck')
-  async registerAllKyc() {
-    let users = await this.userDataRepo.find({where: { nameCheck: NameCheckStatus.NA }, relations: ['bankDatas']});
-    users = users.filter((u) => u.bankDatas.length > 0);
-
-    users.forEach(async user => {
-      await this.doNameCheck(user);
-    });
-  }
-
-  private async doNameCheck(userData: UserData): Promise<void> {
-    const nameToCheck = userData.bankDatas[0].name;
-    userData.kycCustomerId = await this.kycService.createCustomer(userData.id, nameToCheck);
-    userData.nameCheck = (await this.kycService.checkCustomer(userData.id))
-      ? NameCheckStatus.SAFE
-      : NameCheckStatus.WARNING;
-
-    // save
-    await this.userDataRepo.save(userData);
-  }
 
   @Get()
   @ApiBearerAuth()
