@@ -60,6 +60,8 @@ export class LogRepository extends Repository<Log> {
       createLogDto.orderId = new Date().toISOString();
     }
 
+    if (createLogDto.type === LogType.VOLUME) delete createLogDto.address;
+
     const log = this.create(createLogDto);
 
     try {
