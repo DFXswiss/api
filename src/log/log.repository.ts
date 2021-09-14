@@ -95,21 +95,6 @@ export class LogRepository extends Repository<Log> {
   }
 
   async createVolumeLog(createLogDto: CreateVolumeLogDto): Promise<Log> {
-    if (createLogDto.address) {
-      createLogDto.orderId = createLogDto.address + ':' + new Date().toISOString();
-
-      if (!createLogDto.user)
-        createLogDto.user = await getManager()
-          .getCustomRepository(UserRepository)
-          .getUserInternal(createLogDto.address);
-    } else if (createLogDto.user) {
-      createLogDto.orderId = createLogDto.user.address + ':' + new Date().toISOString();
-    } else {
-      createLogDto.orderId = new Date().toISOString();
-    }
-
-    delete createLogDto.address;
-
     const log = this.create(createLogDto);
 
     try {

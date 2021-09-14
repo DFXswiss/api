@@ -14,7 +14,7 @@ export class CreateVolumeLogDto {
   address: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsEnum(LogType)
   type: LogType;
 

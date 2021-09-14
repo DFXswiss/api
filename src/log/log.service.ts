@@ -9,6 +9,7 @@ import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { LogType } from './log.entity';
+import { UserRepository } from 'src/user/user.repository';
 
 @Injectable()
 export class LogService {
@@ -20,6 +21,7 @@ export class LogService {
     private buyPaymentRepo: BuyPaymentRepository,
     private sellPaymentRepo: SellPaymentRepository,
     private fiatRepo: FiatRepository,
+    private userRepo: UserRepository,
   ) {}
   private baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
@@ -79,6 +81,17 @@ export class LogService {
     if (assetObject) createLogDto.asset = assetObject.id;
 
     createLogDto.type = LogType.VOLUME;
+
+    createLogDto.orderId = createLogDto.address + ':' + new Date().toISOString();
+
+    if (!createLogDto.user) {
+      const userObject = await this.userRepo.getUserInternal(createLogDto.address);
+
+      createLogDto.user = userObject;
+      createLogDto.message = userObject.usedRef;
+    }
+
+    delete createLogDto.address;
 
     const log = await this.logRepository.createVolumeLog(createLogDto);
 
