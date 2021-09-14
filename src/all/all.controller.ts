@@ -1,8 +1,4 @@
-import {
-  Controller,
-  Get,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiHideProperty, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
@@ -12,7 +8,7 @@ import { AllDataService } from './all.service';
 @Controller('allData')
 export class AllDataController {
   constructor(private readonly allService: AllDataService) {}
-  
+
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -35,6 +31,14 @@ export class AllDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllUserDataRoute(): Promise<any> {
     return this.allService.getAllUserData();
+  }
+
+  @Get('bankData')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getAllBankDataRoute(): Promise<any> {
+    return this.allService.getAllBankData();
   }
 
   @Get('buy')
@@ -76,5 +80,4 @@ export class AllDataController {
   async getAllPaymentRoute(): Promise<any> {
     return this.allService.getAllPayment();
   }
-
 }
