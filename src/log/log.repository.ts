@@ -10,6 +10,8 @@ import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { MailService } from 'src/services/mail.service';
 import { UserStatus } from 'src/user/user.entity';
+import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
+import requestPromise from 'request-promise-native';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
@@ -88,6 +90,36 @@ export class LogRepository extends Repository<Log> {
 
     log.fiat = fiatObject;
     log.asset = assetObject;
+
+    return log;
+  }
+
+  async createVolumeLog(createLogDto: CreateVolumeLogDto): Promise<Log> {
+    if (createLogDto.address) {
+      createLogDto.orderId = createLogDto.address + ':' + new Date().toISOString();
+
+      if (!createLogDto.user)
+        createLogDto.user = await getManager()
+          .getCustomRepository(UserRepository)
+          .getUserInternal(createLogDto.address);
+    } else if (createLogDto.user) {
+      createLogDto.orderId = createLogDto.user.address + ':' + new Date().toISOString();
+    } else {
+      createLogDto.orderId = new Date().toISOString();
+    }
+
+    delete createLogDto.address;
+
+    const log = this.create(createLogDto);
+
+    try {
+      await this.save(log);
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+
+    if (log['__user__']) delete log['__user__'];
+    if (log['__payment__']) delete log['__payment__'];
 
     return log;
   }
