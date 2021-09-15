@@ -5,10 +5,11 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { UserDataRepository } from 'src/userData/userData.repository';
 
 @Injectable()
 export class UserService {
-  constructor(private userRepository: UserRepository) {}
+  constructor(private userRepository: UserRepository, private userDataRepository: UserDataRepository) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     const user = await this.userRepository.createUser(createUserDto);
@@ -91,7 +92,7 @@ export class UserService {
     //     }
     // }
     user['refData'] = await this.userRepository.getRefData(user);
-    
+
     const userData = await user.userData;
     user['kycStatus'] = userData.kycStatus;
 

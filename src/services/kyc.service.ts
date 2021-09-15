@@ -69,7 +69,17 @@ export class KycService {
     }
   }
 
-  async kycCustomer(id: number, user: User): Promise<number> {
+  async checkCustomer(id: number): Promise<boolean> {
+    try {
+      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
+      return results[0].riskState === 'NO_RISKS_FOUND';
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to do name check');
+    }
+  }
+
+  async updateCustomer(id: number, user: User): Promise<number> {
     const data = {
       reference: id.toString(),
       type: 'PERSON',
@@ -100,7 +110,7 @@ export class KycService {
     }
   }
 
-  async chatBotCustomer(id: number): Promise<ChatBotResponse> {
+  async onboardingCustomer(id: number): Promise<ChatBotResponse> {
     const data = {
       references: [id.toString()],
       sendingInvitation: true,
@@ -122,23 +132,13 @@ export class KycService {
   async getVersions(id: number, document: string): Promise<string> {
     try {
       const result = await this.callApi<CheckVersion[]>(
-        'customers/' + id.toString() + '/documents/' + document + '/versions',
+        `customers/${id.toString()}/documents/${document}/versions`,
         'GET',
       );
       return result[result.length - 1].state;
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
-    }
-  }
-
-  async checkCustomer(id: number): Promise<boolean> {
-    try {
-      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
-      return results[0].riskState === 'NO_RISKS_FOUND';
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to do name check');
     }
   }
 

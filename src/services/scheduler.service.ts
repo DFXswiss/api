@@ -7,7 +7,7 @@ export class SchedulerService {
   constructor(private kycService: KycService) {}
   private readonly logger = new Logger(SchedulerService.name);
 
-  @Interval(300000)
+  @Interval(5000)
   async handleCron() {
     await this.kycService.chatBotCheck();
   }

@@ -20,27 +20,8 @@ export class UserController {
     private readonly userService: UserService,
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
-    private readonly userDataRepo: UserDataRepository
+    private readonly userDataRepo: UserDataRepository,
   ) {}
-
-  @Get('all/nameCheck')
-  async registerAllKyc() {
-    const users = await this.userDataRepo.find({where: { nameCheck: NameCheckStatus.NA }, relations: ['bankDatas']});
-    return await Promise.all(users.filter((u) => u.bankDatas.length > 0).map((u) => this.doNameCheck(u)));
-  }
-
-  private async doNameCheck(userData: UserData): Promise<void> {
-    const nameToCheck = userData.bankDatas[0].name;
-    userData.kycCustomerId = await this.kycService.createCustomer(userData.id, nameToCheck);
-    userData.nameCheck = (await this.kycService.checkCustomer(userData.id))
-      ? NameCheckStatus.SAFE
-      : NameCheckStatus.WARNING;
-
-    // save
-    await this.userDataRepo.save(userData);
-  }
-
-  
 
   @Get()
   @ApiBearerAuth()

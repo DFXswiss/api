@@ -52,17 +52,17 @@ export class UserDataService {
 
   async requestKyc(userId: number): Promise<UserData> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
-    const userData = await user.userData;
+    const userData = user.userData;
 
-    userData.kycCustomerId = await this.kycService.kycCustomer(userData.id, user);
+    // update customer
+    userData.kycCustomerId = await this.kycService.updateCustomer(userData.id, user);
     userData.kycRequestDate = new Date();
-    const chatBotData = await this.kycService.chatBotCustomer(userData.id);
+
+    // start onboarding
+    const chatBotData = await this.kycService.onboardingCustomer(userData.id);
+
     if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
     await this.userDataRepo.save(userData);
-
-    //Nach Verify ID Check erst File Reference vergeben
-    // userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
-
     return userData;
   }
 }
