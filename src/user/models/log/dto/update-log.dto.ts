@@ -1,13 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Length,
-  IsNumber,
-  IsEnum,
-} from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Length, IsNumber, IsEnum } from 'class-validator';
 import { LogDirection, LogStatus } from '../log.entity';
 
 export class UpdateLogDto {
@@ -50,10 +42,56 @@ export class UpdateLogDto {
   @IsNumber()
   assetValue: number;
 
-  // @ApiProperty()
-  // @IsOptional()
-  // @IsIBAN()
-  // iban: string;
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  usedRef: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  refFeePercent: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  refFeeValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  refFeeAsset: any;
+
+  @ApiProperty()
+  @IsOptional()
+  usedWallet: any;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  walletFeeValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  walletFeePercent: number;
+
+  @ApiProperty()
+  @IsOptional()
+  walletFeeAsset: any;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  dfxFeePercent: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  dfxFeeValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  dfxFeeAsset: any;
 
   @ApiProperty()
   @IsOptional()
