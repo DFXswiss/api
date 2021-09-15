@@ -16,6 +16,12 @@ export class Batch {
   @Column({ type: 'varchar', length: 256, unique: true })
   name: string;
 
+  @Column({ type: 'float', nullable: true })
+  balanceBefore: number;
+
+  @Column({ type: 'float', nullable: true })
+  balanceAfter: number;
+
   @OneToMany(() => Payment, (payment) => payment.asset)
   payments: Payment[];
 
