@@ -40,6 +40,8 @@ export class UserController {
     await this.userDataRepo.save(userData);
   }
 
+  
+
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))

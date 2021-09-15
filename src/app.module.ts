@@ -60,6 +60,9 @@ import { HttpModule } from '@nestjs/axios';
 import { HttpService } from './services/http.service';
 import { BankDataRepository } from './bankData/bankData.repository';
 import { BankDataService } from './bankData/bankData.service';
+import { ScheduleModule } from '@nestjs/schedule';
+import { SchedulerService } from './services/scheduler.service';
+
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -91,6 +94,7 @@ import { BankDataService } from './bankData/bankData.service';
         expiresIn: 172800,
       },
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mssql',
       host: process.env.SQL_HOST,
@@ -170,6 +174,7 @@ import { BankDataService } from './bankData/bankData.service';
     DeFiService,
     KycService,
     HttpService,
+    SchedulerService,
   ],
   exports: [
     UserService,
@@ -196,6 +201,7 @@ import { BankDataService } from './bankData/bankData.service';
     DeFiService,
     KycService,
     HttpService,
+    SchedulerService,
   ],
 })
 export class AppModule {}

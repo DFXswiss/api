@@ -1,7 +1,16 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
+import { User } from 'src/user/user.entity';
+import { KycStatus } from 'src/userData/userData.entity';
+import { UserDataRepository } from 'src/userData/userData.repository';
 import { HttpService } from './http.service';
+
+export enum State {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+}
 
 interface Challenge {
   key: string;
@@ -23,11 +32,25 @@ interface CreateResponse {
   customerVersionId: number;
 }
 
+interface ChatBotResponse {
+  document: string;
+  reference: string;
+  sessionUrl: string;
+  version: string;
+}
+
+interface CheckVersion {
+  name: string;
+  state: State;
+  creationTime: number;
+  modificationTime: number;
+}
+
 @Injectable()
 export class KycService {
   private baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
 
-  constructor(private http: HttpService) {}
+  constructor(private http: HttpService, private userDataRepository: UserDataRepository) {}
 
   async createCustomer(id: number, name: string): Promise<number> {
     const data = {
@@ -46,6 +69,69 @@ export class KycService {
     }
   }
 
+  async kycCustomer(id: number, user: User): Promise<number> {
+    const data = {
+      reference: id.toString(),
+      type: 'PERSON',
+      names: [{ firstName: user.firstname, lastName: user.surname }],
+      countriesOfResidence: [user.country.symbol],
+      emails: [user.mail],
+      telephones: [user.phone.replace('+', '').replace(' ', '')],
+      structuredAddresses: [
+        {
+          type: 'BASIC',
+          street: user.street,
+          houseNumber: user.houseNumber,
+          zipCode: user.zip,
+          city: user.location,
+          countryCode: user.country.symbol,
+        },
+      ],
+      preferredLanguage: user.language.symbol.toLowerCase() ?? 'de',
+      activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
+    };
+
+    try {
+      const result = await this.callApi<CreateResponse>('customers/simple', 'POST', data);
+      return result.customerId;
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to update KYC customer');
+    }
+  }
+
+  async chatBotCustomer(id: number): Promise<ChatBotResponse> {
+    const data = {
+      references: [id.toString()],
+      sendingInvitation: true,
+    };
+
+    try {
+      const result = await this.callApi<ChatBotResponse>(
+        'customers/initiate-onboarding-chatbot-sessions',
+        'POST',
+        data,
+      );
+      return result[0];
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
+    }
+  }
+
+  async getVersions(id: number, document: string): Promise<string> {
+    try {
+      const result = await this.callApi<CheckVersion[]>(
+        'customers/' + id.toString() + '/documents/' + document + '/versions',
+        'GET',
+      );
+      return result[result.length - 1].state;
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
+    }
+  }
+
   async checkCustomer(id: number): Promise<boolean> {
     try {
       const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
@@ -53,6 +139,16 @@ export class KycService {
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to do name check');
+    }
+  }
+
+  async chatBotCheck(): Promise<void> {
+    const userDatas = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
+    for (let a = 0; a < userDatas.length; a++) {
+      if ((await this.getVersions(userDatas[a].id, 'chatbot-onboarding')) == State.COMPLETED) {
+        userDatas[a].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
+        this.userDataRepository.save(userDatas[a]);
+      }
     }
   }
 

@@ -54,15 +54,14 @@ export class UserDataService {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = await user.userData;
 
-    if (userData.kycStatus != KycStatus.NA) throw new ConflictException('User is already applying for or has KYC');
-
-    userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
+    userData.kycCustomerId = await this.kycService.kycCustomer(userData.id, user);
     userData.kycRequestDate = new Date();
-    userData.kycStatus = KycStatus.PROCESSING;
-
+    const chatBotData = await this.kycService.chatBotCustomer(userData.id);
+    if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
     await this.userDataRepo.save(userData);
 
-    await this.mailService.sendKycRequestMail(userData);
+    //Nach Verify ID Check erst File Reference vergeben
+    // userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
 
     return userData;
   }
