@@ -14,7 +14,6 @@ export class UserService {
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     const user = await this.userRepository.createUser(createUserDto);
 
-    delete user.address;
     delete user.signature;
     delete user.ip;
     delete user.ref;
@@ -48,6 +47,7 @@ export class UserService {
     }
 
     user['refData'] = await this.userRepository.getRefData(user);
+    user['userVolume'] = await this.userRepository.getVolume(user);
     //user['has_buy'] = user['__has_buys__'];
     delete user['__has_buys__'];
     user['buy'] = user['__buys__'];
@@ -58,7 +58,6 @@ export class UserService {
     user['sell'] = user['__sells__'];
     delete user['__sells__'];
 
-    delete user.address;
     delete user.signature;
     delete user.ip;
     if (user.role != UserRole.VIP) delete user.role;
@@ -92,6 +91,7 @@ export class UserService {
     //     }
     // }
     user['refData'] = await this.userRepository.getRefData(user);
+    user['userVolume'] = await this.userRepository.getVolume(user);
 
     const userData = await user.userData;
     user['kycStatus'] = userData.kycStatus;
@@ -101,7 +101,6 @@ export class UserService {
       delete user.ref;
     }
 
-    delete user.address;
     delete user.signature;
     delete user.ip;
     delete user['__userData__'];

@@ -14,7 +14,6 @@ export class UserDataService {
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly kycService: KycService,
-    private readonly mailService: MailService,
   ) {}
 
   async getUserData(name: string, location: string): Promise<UserData> {
@@ -55,7 +54,7 @@ export class UserDataService {
     const userData = user.userData;
 
     // update customer
-    userData.kycCustomerId = await this.kycService.updateCustomer(userData.id, user);
+    await this.kycService.updateCustomer(userData.id, user);
     userData.kycRequestDate = new Date();
 
     // start onboarding

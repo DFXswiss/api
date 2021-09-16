@@ -12,6 +12,8 @@ import { WalletRepository } from 'src/wallet/wallet.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { PaymentStatus } from 'src/payment/payment.entity';
 import { KycStatus } from 'src/userData/userData.entity';
+import { LogRepository } from 'src/log/log.repository';
+import { LogDirection, LogType } from 'src/log/log.entity';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -47,7 +49,9 @@ export class UserRepository extends Repository<User> {
 
       createUserDto.language = languageObject.id;
     } else {
-      delete createUserDto.language;
+      languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage('DE');
+
+      createUserDto.language = languageObject.id;
     }
 
     const user = this.create(createUserDto);
@@ -127,17 +131,13 @@ export class UserRepository extends Repository<User> {
     return (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).length;
   }
 
-  async getRefVolume(address: string): Promise<Number> {
+  async getRefVolume(ref: string): Promise<Number> {
     let volume: number = 0;
-    const refUser: User = await this.findOne({ address: address });
-    let refAddresses: String[] = (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).map(
-      (a) => a.address,
-    );
 
-    (
+    const test = (
       await getManager()
-        .getCustomRepository(BuyPaymentRepository)
-        .find({ where: { address: In(refAddresses), status: PaymentStatus.PROCESSED } })
+        .getCustomRepository(LogRepository)
+        .find({ where: { message: ref } })
     ).forEach((a) => (volume += a.fiatValue));
 
     return volume;
@@ -148,7 +148,29 @@ export class UserRepository extends Repository<User> {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.getRefCount(user.address),
       refCountActive: await this.getRefCountActive(user.address),
-      refVolume: await this.getRefVolume(user.address),
+      refVolume: await this.getRefVolume(user.ref),
+    };
+
+    return result;
+  }
+
+  async getVolume(user: User): Promise<any> {
+    let buyVolume = 0;
+    let sellVolume = 0;
+    (
+      await getManager()
+        .getCustomRepository(LogRepository)
+        .find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset })
+    ).forEach((a) => (buyVolume += a.fiatValue));
+    (
+      await getManager()
+        .getCustomRepository(LogRepository)
+        .find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat })
+    ).forEach((a) => (sellVolume += a.fiatValue));
+
+    const result = {
+      buyVolume: buyVolume,
+      sellVolume: sellVolume,
     };
 
     return result;
@@ -197,6 +219,10 @@ export class UserRepository extends Repository<User> {
 
       if (newUser.language) {
         languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage(newUser.language);
+
+        newUser.language = languageObject;
+      } else {
+        languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage('EN');
 
         newUser.language = languageObject;
       }

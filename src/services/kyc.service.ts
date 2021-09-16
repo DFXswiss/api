@@ -97,7 +97,7 @@ export class KycService {
           countryCode: user.country.symbol,
         },
       ],
-      preferredLanguage: user.language.symbol.toLowerCase() ?? 'de',
+      preferredLanguage: user.language?.symbol.toLowerCase() ?? 'de',
       activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
     };
 
@@ -117,7 +117,7 @@ export class KycService {
     };
 
     try {
-      const result = await this.callApi<ChatBotResponse>(
+      const result = await this.callApi<ChatBotResponse[]>(
         'customers/initiate-onboarding-chatbot-sessions',
         'POST',
         data,
@@ -144,10 +144,10 @@ export class KycService {
 
   async chatBotCheck(): Promise<void> {
     const userDatas = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
-    for (let a = 0; a < userDatas.length; a++) {
-      if ((await this.getVersions(userDatas[a].id, 'chatbot-onboarding')) == State.COMPLETED) {
-        userDatas[a].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
-        this.userDataRepository.save(userDatas[a]);
+    for (const key in userDatas) {
+      if ((await this.getVersions(userDatas[key].id, 'chatbot-onboarding')) == State.COMPLETED) {
+        userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
+        this.userDataRepository.save(userDatas[key]);
       }
     }
   }
