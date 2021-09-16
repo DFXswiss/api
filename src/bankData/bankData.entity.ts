@@ -1,8 +1,17 @@
 import { UserData } from 'src/userData/userData.entity';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 
 @Entity()
-@Index('nameLocation', (bankData: BankData) => [bankData.name, bankData.location], { unique: true })
+@Index('nameLocationIban', (bankData: BankData) => [bankData.name, bankData.location, bankData.iban], { unique: true })
 export class BankData {
   @PrimaryGeneratedColumn()
   id: number;
