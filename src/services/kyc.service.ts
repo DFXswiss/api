@@ -46,6 +46,18 @@ interface CheckVersion {
   modificationTime: number;
 }
 
+interface CheckResult {
+  checkId: number;
+  checkTime: number;
+  matchIds: number[];
+  risks: Risk[];
+}
+
+interface Risk {
+  criterionKey: string;
+  categoryKey: string;
+}
+
 @Injectable()
 export class KycService {
   private baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
@@ -69,10 +81,21 @@ export class KycService {
     }
   }
 
-  async checkCustomer(id: number): Promise<boolean> {
+  async checkCustomer(id: number): Promise<CheckResponse> {
     try {
       const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
-      return results[0].riskState === 'NO_RISKS_FOUND';
+      return results[0];
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to do name check');
+    }
+  }
+
+  async getCheckResult(id: number): Promise<CheckResult> {
+    try {
+      const result = await this.callApi<CheckResult>(`customers/checks/${id.toString()}/result`, 'GET');
+
+      return result;
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to do name check');

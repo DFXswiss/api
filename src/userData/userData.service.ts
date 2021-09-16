@@ -39,10 +39,31 @@ export class UserDataService {
     // check the name
     const nameToCheck = userData.bankDatas[0].name;
     userData.kycCustomerId = await this.kycService.createCustomer(userData.id, nameToCheck);
-    userData.nameCheck = (await this.kycService.checkCustomer(userData.id))
-      ? NameCheckStatus.SAFE
-      : NameCheckStatus.WARNING;
 
+    const nameCheck = await this.kycService.checkCustomer(userData.id);
+
+    if (nameCheck) {
+      const resultNameCheck = await this.kycService.getCheckResult(nameCheck.checkId);
+
+      switch (resultNameCheck.risks[0].categoryKey) {
+        case 'a': {
+          userData.nameCheck = NameCheckStatus.HIGHRISK;
+          break;
+        }
+        case 'b': {
+          userData.nameCheck = NameCheckStatus.WARNING;
+          break;
+        }
+        case 'c': {
+          userData.nameCheck = NameCheckStatus.SAFE;
+          break;
+        }
+        default: {
+          userData.nameCheck = NameCheckStatus.WARNING;
+          break;
+        }
+      }
+    }
     // save
     await this.userDataRepo.save(userData);
 
