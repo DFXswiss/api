@@ -11,15 +11,7 @@ export class BatchService {
     return this.batchRepository.createBatch(createBatchDto);
   }
 
-  async getAllBatch(): Promise<any> {
-    return this.batchRepository.getAllBatch();
-  }
-
-  async updateBatch(batch: UpdateBatchDto): Promise<string> {
-    return this.batchRepository.updateBatch(batch);
-  }
-
-  async getBatch(key: any): Promise<any> {
-    return this.batchRepository.getBatch(key);
-  }
+  // async updateBatch(batch: UpdateBatchDto): Promise<string> {
+  //   return this.batchRepository.updateBatch(batch);
+  // }
 }
