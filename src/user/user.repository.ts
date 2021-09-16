@@ -1,9 +1,5 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
-import { EntityRepository, Repository } from 'typeorm';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { EntityRepository, In, Not, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -13,50 +9,44 @@ import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
+import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
+import { PaymentStatus } from 'src/payment/payment.entity';
+import { KycStatus } from 'src/userData/userData.entity';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-
     let countryObject = null;
     let languageObject = null;
     let walletObject = null;
 
-    if(!(createUserDto.address.length == 34 || createUserDto.address.length == 42)){
-      throw new BadRequestException("address length does not match")
+    if (!(createUserDto.address.length == 34 || createUserDto.address.length == 42)) {
+      throw new BadRequestException('address length does not match');
     }
 
     if (createUserDto.country) {
-      countryObject = await getManager()
-        .getCustomRepository(CountryRepository)
-        .getCountry(createUserDto.country);
+      countryObject = await getManager().getCustomRepository(CountryRepository).getCountry(createUserDto.country);
 
       createUserDto.country = countryObject.id;
-    }else{
+    } else {
       delete createUserDto.country;
     }
 
-    if(createUserDto.wallet) {
-      walletObject = await getManager()
-      .getCustomRepository(WalletRepository)
-      .getWallet(createUserDto.country);
+    if (createUserDto.wallet) {
+      walletObject = await getManager().getCustomRepository(WalletRepository).getWallet(createUserDto.country);
 
       createUserDto.wallet = walletObject.id;
-    }else{
-      walletObject = await getManager()
-      .getCustomRepository(WalletRepository)
-      .getWallet(1);
+    } else {
+      walletObject = await getManager().getCustomRepository(WalletRepository).getWallet(1);
 
       createUserDto.wallet = walletObject.id;
     }
 
     if (createUserDto.language) {
-      languageObject = await getManager()
-        .getCustomRepository(LanguageRepository)
-        .getLanguage(createUserDto.language);
+      languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage(createUserDto.language);
 
       createUserDto.language = languageObject.id;
-    }else{
+    } else {
       delete createUserDto.language;
     }
 
@@ -67,8 +57,7 @@ export class UserRepository extends Repository<User> {
     user.ref = refVar.substr(0, 3) + '-' + refVar.substr(3, 3);
     const refUser = await this.findOne({ ref: createUserDto.usedRef });
 
-    if (user.ref == createUserDto.usedRef || !refUser)
-      user.usedRef = '000-000';
+    if (user.ref == createUserDto.usedRef || !refUser) user.usedRef = '000-000';
 
     try {
       await this.save(user);
@@ -93,8 +82,9 @@ export class UserRepository extends Repository<User> {
     try {
       let users = await this.find();
 
-      for(let a = 0; a < users.length; a++){
+      for (let a = 0; a < users.length; a++) {
         users[a].wallet = await users[a].wallet;
+        await users[a].userData;
       }
 
       return users;
@@ -105,68 +95,90 @@ export class UserRepository extends Repository<User> {
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
     try {
-      const currentUser = await this.findOne({ id: user.id });
+      let currentUser = null;
 
-      if (!currentUser)
-        throw new NotFoundException('No matching user for id found');
-
-      if (
-        user.status == UserStatus.ACTIVE ||
-        user.status == UserStatus.KYC ||
-        user.status == UserStatus.VERIFY
-      ) {
-        currentUser.status = user.status;
+      if (user.id) {
+        currentUser = await this.findOne({ id: user.id });
+      } else if (user.address) {
+        currentUser = await this.findOne({ address: user.address });
       }
-      await this.save(currentUser);
 
-      return await this.findOne({ id: user.id });
+      if (!currentUser) throw new NotFoundException('No matching user for id found');
+
+      currentUser.status = user.status;
+
+      return await this.save(currentUser);
     } catch (error) {
       throw new ConflictException(error.message);
     }
   }
 
-  async getUserInternal(addressString: string): Promise<any> {
+  async getUserInternal(addressString: string): Promise<User> {
     return await this.findOne({ address: addressString });
   }
 
-  async getUsedRefCount(address: string): Promise<any> {
-
+  async getRefCount(address: string): Promise<Number> {
     const refUser = await this.findOne({ address: address });
+    return (await this.find({ usedRef: refUser.ref })).length;
+  }
 
-    return await (await this.find({usedRef: refUser.ref})).length;
+  async getRefCountActive(address: string): Promise<Number> {
+    const refUser = await this.findOne({ address: address });
+    return (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).length;
+  }
+
+  async getRefVolume(address: string): Promise<Number> {
+    let volume: number = 0;
+    const refUser: User = await this.findOne({ address: address });
+    let refAddresses: String[] = (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).map(
+      (a) => a.address,
+    );
+
+    (
+      await getManager()
+        .getCustomRepository(BuyPaymentRepository)
+        .find({ where: { address: In(refAddresses), status: PaymentStatus.PROCESSED } })
+    ).forEach((a) => (volume += a.fiatValue));
+
+    return volume;
+  }
+
+  async getRefData(user: User): Promise<any> {
+    const result = {
+      ref: user.status == UserStatus.NA ? undefined : user.ref,
+      usedRef: user.usedRef,
+      refCount: await this.getRefCount(user.address),
+      refCountActive: await this.getRefCountActive(user.address),
+      refVolume: await this.getRefVolume(user.address),
+    };
+
+    return result;
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
     try {
-      const currentUser = await this.findOne({ id: oldUser.id });
-
-      if (!currentUser)
-        throw new NotFoundException('No matching user for id found');
+      const currentUser = await this.findOne(oldUser.id);
+      if (!currentUser) throw new NotFoundException('No matching user for id found');
+      const currentUserData = await currentUser.userData;
 
       const refUser = await this.findOne({ ref: newUser.usedRef });
 
       if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) {
         newUser.usedRef = '000-000';
       } else {
-        let refUserData = null;
-        let currentUserData = null;
-  
-        refUserData = await refUser.userData;
-        currentUserData = await currentUser.userData;
-        if(refUserData && currentUserData){
-          if(refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
+        if (refUser) {
+          const refUserData = await refUser.userData;
+          if (refUserData && currentUserData) {
+            if (refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
+          }
         }
       }
 
       let countryObject = null;
       let languageObject = null;
 
-      if (
-        currentUser.status == UserStatus.KYC ||
-        currentUser.status == UserStatus.VERIFY
-      ) {
-        //TODO Wenn Nutzer bereits verifiziert ist / KYC hat sollte er seine persönlichen Daten nicht mehr einfach ändern können => Absprache mit Robin => Falls er umgezogen ist etc => Verifizierung vll. mit Mitarbeiter?
-        //TODO Kontrolle was Mitarbeiter bzw. was Support Rolle und was nur Admin bearbeiten dürfen => Routen kontrollieren, mit Robin absprechen
+      // user with kyc cannot change their data
+      if (currentUserData.kycStatus != KycStatus.NA) {
         if (newUser.firstname) delete newUser.firstname;
         if (newUser.surname) delete newUser.surname;
         if (newUser.mail) delete newUser.mail;
@@ -179,45 +191,24 @@ export class UserRepository extends Repository<User> {
       }
 
       if (newUser.country) {
-        countryObject = await getManager()
-          .getCustomRepository(CountryRepository)
-          .getCountry(newUser.country);
+        countryObject = await getManager().getCustomRepository(CountryRepository).getCountry(newUser.country);
 
         newUser.country = countryObject;
       }
 
       if (newUser.language) {
-        languageObject = await getManager()
-          .getCustomRepository(LanguageRepository)
-          .getLanguage(newUser.language);
+        languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage(newUser.language);
 
         newUser.language = languageObject;
       }
 
       newUser.id = currentUser.id;
 
-      let user = Object.assign(currentUser, await this.save(newUser));
+      await this.save(newUser);
 
       // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
       //   user.ref = '-1';
-
-      delete user.address;
-      delete user.signature;
-      delete user.ip;
-      delete user["__userData__"];
-      delete user["__has_userData__"];
-      if (user.role != UserRole.VIP) delete user.role;
-
-      if (
-        user.status == UserStatus.ACTIVE ||
-        user.status == UserStatus.KYC ||
-        user.status == UserStatus.VERIFY
-      ) {
-        return user;
-      } else {
-        delete user.ref;
-        return user;
-      }
+      return this.findOne(currentUser.id);
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -227,8 +218,7 @@ export class UserRepository extends Repository<User> {
     try {
       const currentUser = await this.findOne({ id: user.id });
 
-      if (!currentUser)
-        throw new NotFoundException('No matching user for id found');
+      if (!currentUser) throw new NotFoundException('No matching user for id found');
 
       currentUser.role = user.role;
 
@@ -242,49 +232,24 @@ export class UserRepository extends Repository<User> {
 
   async verifyUser(address: string): Promise<any> {
     const currentUser = await this.findOne({ address: address });
+    if (!currentUser) throw new NotFoundException('No matching user for id found');
 
-    if (!currentUser)
-      throw new NotFoundException('No matching user for id found');
+    const requiredFields = [
+      'mail',
+      'firstname',
+      'surname',
+      'street',
+      'houseNumber',
+      'location',
+      'zip',
+      'country',
+      'phone',
+    ];
+    const errors = requiredFields.filter((f) => !currentUser[f]);
 
-    const result = { result: true, errors: {} };
-
-    if (currentUser.mail == '' || currentUser.mail == null) {
-      result.result = false;
-      result.errors['mail'] = 'missing';
-    }
-    if (currentUser.firstname == '' || currentUser.firstname == null) {
-      result.result = false;
-      result.errors['firstname'] = 'missing';
-    }
-    if (currentUser.surname == '' || currentUser.surname == null) {
-      result.result = false;
-      result.errors['surname'] = 'missing';
-    }
-    if (currentUser.street == '' || currentUser.street == null) {
-      result.result = false;
-      result.errors['street'] = 'missing';
-    }
-    if (currentUser.houseNumber == '' || currentUser.houseNumber == null) {
-      result.result = false;
-      result.errors['houseNumber'] = 'missing';
-    }
-    if (currentUser.location == '' || currentUser.location == null) {
-      result.result = false;
-      result.errors['location'] = 'missing';
-    }
-    if (currentUser.zip == '' || currentUser.zip == null) {
-      result.result = false;
-      result.errors['zip'] = 'missing';
-    }
-    if (currentUser.country == null) {
-      result.result = false;
-      result.errors['country'] = 'missing';
-    }
-    if (currentUser.phone == '' || currentUser.phone == null) {
-      result.result = false;
-      result.errors['phone'] = 'missing';
-    }
-
-    return result;
+    return {
+      result: errors.length === 0,
+      errors: errors.reduce((prev, curr) => ({ ...prev, [curr]: 'missing' }), {}),
+    };
   }
 }

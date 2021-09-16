@@ -8,6 +8,14 @@ param dbAdminPassword string
 @secure()
 param jwtSecret string = newGuid()
 
+@secure()
+param mailClientSecret string
+@secure()
+param mailRefreshToken string
+
+@secure()
+param kycPassword string
+
 
 // --- VARIABLES --- //
 var systemName = 'dfx-api'
@@ -123,6 +131,34 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SQL_MIGRATE'
           value: 'true'
+        }
+        {
+          name: 'MAIL_USER'
+          value: 'noreply@dfx.swiss'
+        }
+        {
+          name: 'MAIL_CLIENT_ID'
+          value: '578506515534-apbuebtmlc7eu8voept7ad7k74njcact.apps.googleusercontent.com'
+        }
+        {
+          name: 'MAIL_CLIENT_SECRET'
+          value: mailClientSecret
+        }
+        {
+          name: 'MAIL_REFRESH_TOKEN'
+          value: mailRefreshToken
+        }
+        {
+          name: 'KYC_MANDATOR'
+          value: 'dfx'
+        }
+        {
+          name: 'KYC_USER'
+          value: api
+        }
+        {
+          name: 'KYC_PASSWORD'
+          value: kycPassword
         }
       ]
     }

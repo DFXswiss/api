@@ -110,10 +110,10 @@ export class SellRepository extends Repository<Sell> {
     }
   }
 
-  async getSellOrder(): Promise<any> {
+  async getSellOrder(): Promise<number> {
     try {
       const sell = await this.find();
-      return { sellOrder: sell.length };
+      return sell.length;
     } catch (error) {
       throw new ConflictException(error.message);
     }

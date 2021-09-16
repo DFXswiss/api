@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/get-user.decorator';
@@ -8,11 +8,16 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { UserDataService } from 'src/userData/userData.service';
+import { UserData } from 'src/userData/userData.entity';
 
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -28,20 +33,17 @@ export class UserController {
     return this.userService.getUser(user, true);
   }
 
-  @Get('ref-count')
+  @Get('ref')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getUserRefCount(@GetUser() user: User): Promise<any> {
-    return this.userService.getUserRefCount(user);
+  async getUserRefData(@GetUser() user: User): Promise<any> {
+    return await this.userService.getRefData(user);
   }
 
   @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateUser(
-    @GetUser() oldUser: User,
-    @Body() newUser: UpdateUserDto,
-  ): Promise<any> {
+  async updateUser(@GetUser() oldUser: User, @Body() newUser: UpdateUserDto): Promise<any> {
     return this.userService.updateUser(oldUser, newUser);
   }
 
@@ -67,5 +69,12 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateStatus(@Body() user: UpdateStatusDto): Promise<any> {
     return this.userService.updateStatus(user);
+  }
+
+  @Post('kyc')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async requestKyc(@GetUser() user: User): Promise<UserData> {
+    return await this.userDataService.requestKyc(user.id);
   }
 }

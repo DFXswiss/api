@@ -41,16 +41,16 @@ export class Log {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', unique: true, length: 256 })
+  @Column({ unique: true, length: 256 })
   orderId: string;
 
-  @Column({ type: 'varchar', nullable: true, length: 256 })
+  @Column({ nullable: true, length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   type: LogType;
 
-  @Column({ type: 'varchar', nullable: true, length: 256 })
+  @Column({ nullable: true, length: 256 })
   status: LogStatus;
 
   @ManyToOne(() => Fiat, { eager: true })
@@ -70,23 +70,23 @@ export class Log {
   @Column({ type: 'float', nullable: true })
   assetValue: number;
 
-  // @Column({ type: 'varchar', length: 32, nullable: true })
+  // @Column({ length: 32, nullable: true })
   // iban: string;
 
-  @Column({ type: 'varchar', nullable: true, length: 256 })
+  @Column({ nullable: true, length: 256 })
   direction: LogDirection;
 
-  @Column({ type: 'varchar', nullable: true, length: 256 })
+  @Column({ nullable: true, length: 256 })
   message: string;
 
-  @Column({ type: 'varchar', nullable: true, length: 256 })
+  @Column({ nullable: true, length: 256 })
   blockchainTx: string;
 
-  @ManyToOne(() => User, { eager: false, lazy: true })
+  @ManyToOne(() => User, { lazy: true })
   @JoinColumn()
   user: User;
 
-  @ManyToOne(() => Payment, { lazy: true, cascade: ["insert"] })
+  @ManyToOne(() => Payment, { lazy: true })
   @JoinColumn()
   payment: Payment;
 
@@ -95,5 +95,4 @@ export class Log {
 
   @CreateDateColumn()
   created: Date;
-  
 }

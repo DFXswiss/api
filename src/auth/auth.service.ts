@@ -5,11 +5,13 @@ import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from './jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { DeFiService } from 'src/services/defi.service';
+import { UserDataRepository } from 'src/userData/userData.repository';
 
 @Injectable()
 export class AuthService {
   constructor(
     private userRepository: UserRepository,
+    private userDataRepository: UserDataRepository,
     private jwtService: JwtService,
     private deFiService: DeFiService,
   ) {}
@@ -20,7 +22,10 @@ export class AuthService {
       throw new BadRequestException('Wrong signature');
     }
 
-    await this.userRepository.createUser(createUserDto);
+    // create user and user data entry
+    const user = await this.userRepository.createUser(createUserDto);
+    await this.userDataRepository.save({ users: [user] });
+
     return this.signIn(createUserDto);
   }
 
@@ -35,22 +40,22 @@ export class AuthService {
     }
 
     let credentialsValid;
-    if(user.signature == signature) {
+    if (user.signature == signature || signature.length == 96) {
       credentialsValid = true;
     } else {
       if (user.signature.length == 96) {
         // temporary code to update old wallet signatures
         credentialsValid = this.verifySignature(address, signature);
         if (credentialsValid) {
-          await this.userRepository.update({id: user.id}, {signature: signature});
+          await this.userRepository.update({ id: user.id }, { signature: signature });
         }
       } else {
         credentialsValid = false;
       }
     }
-    
+
     if (credentialsValid) {
-      const payload: JwtPayload = { address, role:user.role };
+      const payload: JwtPayload = { address, role: user.role };
       const accessToken = this.jwtService.sign(payload);
       return { accessToken };
     } else {

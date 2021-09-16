@@ -2,32 +2,25 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { Buy } from './buy.entity';
-import { sha256 } from 'js-sha256';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { getManager } from 'typeorm';
+import { createHash } from 'crypto';
 
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
   async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
-
     const assetObject = await getManager()
       .getCustomRepository(AssetRepository)
       .getAsset(createBuyDto.asset);
-
-    const hash = sha256.create();
-    hash.update(
-      createBuyDto.user.address + assetObject.name + createBuyDto.iban,
-    );
-    createBuyDto.bankUsage =
-      hash.toString().toUpperCase().slice(0, 4) +
-      '-' +
-      hash.toString().toUpperCase().slice(4, 8) +
-      '-' +
-      hash.toString().toUpperCase().slice(8, 12);
-
     createBuyDto.asset = assetObject;
 
+    const hash = createHash('sha256')
+    hash.update(createBuyDto.user.address + assetObject.name + createBuyDto.iban,);
+    const hexHash = hash.digest('hex').toUpperCase();
+
+    createBuyDto.bankUsage = `${hexHash.slice(0, 4)}-${hexHash.slice(4, 8)}-${hexHash.slice(8, 12)}`;
+    
     createBuyDto.iban = (createBuyDto.iban.split(" ")).join("");
 
     const buy = this.create(createBuyDto);
@@ -117,10 +110,10 @@ export class BuyRepository extends Repository<Buy> {
     }
   }
 
-  async getBuyOrder(): Promise<any> {
+  async getBuyOrder(): Promise<number> {
     try {
       const buy = await this.find();
-      return { buyOrder: buy.length };
+      return buy.length ;
     } catch (error) {
       throw new ConflictException(error.message);
     }

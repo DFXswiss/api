@@ -1,20 +1,14 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity()
 export class Ref {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   ref: string;
 
-  @Column({ type: 'varchar', length: 256, unique: true })
+  @Column({ length: 256, unique: true })
   ip: string;
 
   @UpdateDateColumn()

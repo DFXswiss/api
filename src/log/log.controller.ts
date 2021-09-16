@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  UseGuards,
-  Post,
-  UsePipes,
-  ValidationPipe,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, UseGuards, Post, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { LogService } from './log.service';
@@ -15,6 +6,7 @@ import { CreateLogDto } from './dto/create-log.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { User, UserRole } from 'src/user/user.entity';
 import { GetUser } from 'src/auth/get-user.decorator';
+import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 
 @ApiTags('log')
 @Controller('log')
@@ -50,5 +42,14 @@ export class LogController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createLog(@Body() createLogDto: CreateLogDto): Promise<any> {
     return this.logService.createLog(createLogDto);
+  }
+
+  @Post('volume')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UsePipes(ValidationPipe)
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  createVolumeLog(@Body() createLogDto: CreateVolumeLogDto): Promise<any> {
+    return this.logService.createVolumeLog(createLogDto);
   }
 }

@@ -21,10 +21,10 @@ export class Sell {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   iban: string;
 
   @ManyToOne(() => Fiat, { eager: true })
@@ -35,7 +35,7 @@ export class Sell {
   @JoinColumn()
   deposit: Deposit;
 
-  @Column({ default: 1 })
+  @Column({ default: true })
   active: boolean;
 
   @ManyToOne(() => User, (user) => user.sells)

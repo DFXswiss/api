@@ -48,12 +48,21 @@ export class CreateBuyPaymentDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  fiat: any;
+  fiat: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsNumber()
   fiatValue: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  originFiat: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsNumber()
+  originFiatValue: number;
 
   @IsOptional()
   @IsNumber()
@@ -62,7 +71,7 @@ export class CreateBuyPaymentDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsISO8601()
-  received: Date;
+  received: string;
 
   @IsOptional()
   asset: any;

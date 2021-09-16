@@ -19,16 +19,16 @@ export class Buy {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   address: string;
 
-  @Column({ type: 'varchar', length: 256 })
+  @Column({ length: 256 })
   iban: string;
 
-  @Column({ type: 'varchar', length: 256, unique: true })
+  @Column({ length: 256, unique: true })
   bankUsage: string;
 
-  @Column({ default: 1 })
+  @Column({ default: true })
   active: boolean;
 
   @ManyToOne(() => User, (user) => user.buys, { lazy: true })
