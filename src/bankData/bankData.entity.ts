@@ -10,11 +10,14 @@ export class BankData {
   @Column({ length: 256 })
   name: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   location: string;
 
   @Column({ length: 256, nullable: true })
   country: string;
+
+  @Column({ length: 256, nullable: true }) // TODO: not nullable
+  iban: string;
 
   @ManyToOne(() => UserData)
   @JoinColumn()
