@@ -1,16 +1,23 @@
-import { Injectable } from '@nestjs/common';
-import { CreateRefDto } from './dto/create-ref.dto';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
 
 @Injectable()
 export class RefService {
   constructor(private refRepository: RefRepository) {}
 
-  async createRef(createRefDto: CreateRefDto): Promise<any> {
-    return this.refRepository.createRef(createRefDto);
+  async addOrUpdate(ip: string, ref: string): Promise<Ref> {
+    return this.refRepository.addOrUpdate(ip, ref);
   }
 
-  async getRef(wallet: any): Promise<any> {
-    return this.refRepository.getRef(wallet);
+  async get(ip: string): Promise<string> {
+    // registered refs expire after 3 days
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() - 3);
+
+    const ref = await this.refRepository.getAndRemove(ip);
+    if (!ref || ref.created < expirationDate) throw new NotFoundException('No matching ref for ip found');
+
+    return ref.ref;
   }
 }
