@@ -76,8 +76,7 @@ export class KycService {
       return result.customerId;
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException(e);
-      //throw new ServiceUnavailableException('Failed to register KYC customer');
+      throw new ServiceUnavailableException('Failed to register KYC customer');
     }
   }
 
@@ -94,7 +93,6 @@ export class KycService {
   async getCheckResult(id: number): Promise<CheckResult> {
     try {
       const result = await this.callApi<CheckResult>(`customers/checks/${id.toString()}/result`, 'GET');
-
       return result;
     } catch (e) {
       console.log(e);
@@ -168,11 +166,12 @@ export class KycService {
   async chatBotCheck(): Promise<void> {
     const userDatas = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
     for (const key in userDatas) {
-      if ((await this.getVersions(userDatas[key].id, 'chatbot-onboarding')) == State.COMPLETED) {
+      const chatBotState = await this.getVersions(userDatas[key].id, 'chatbot-onboarding');
+      if (chatBotState == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
-        this.userDataRepository.save(userDatas[key]);
       }
     }
+    await this.userDataRepository.save(userDatas);
   }
 
   // --- HELPER METHODS --- //

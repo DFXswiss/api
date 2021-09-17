@@ -1,16 +1,14 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, In, Not, Repository } from 'typeorm';
+import { EntityRepository, Not, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { User, UserRole, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
-import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
-import { PaymentStatus } from 'src/payment/payment.entity';
 import { KycStatus } from 'src/userData/userData.entity';
 import { LogRepository } from 'src/log/log.repository';
 import { LogDirection, LogType } from 'src/log/log.entity';
@@ -121,33 +119,27 @@ export class UserRepository extends Repository<User> {
     return await this.findOne({ address: addressString });
   }
 
-  async getRefCount(address: string): Promise<Number> {
-    const refUser = await this.findOne({ address: address });
-    return (await this.find({ usedRef: refUser.ref })).length;
+  async getRefCount(ref: string): Promise<number> {
+    return await this.count({ usedRef: ref });
   }
 
-  async getRefCountActive(address: string): Promise<Number> {
-    const refUser = await this.findOne({ address: address });
-    return (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).length;
+  async getRefCountActive(ref: string): Promise<number> {
+    return await this.count({ usedRef: ref, status: Not(UserStatus.NA) });
   }
 
-  async getRefVolume(ref: string): Promise<Number> {
-    let volume: number = 0;
+  async getRefVolume(ref: string): Promise<number> {
+    const logs = await getManager()
+      .getCustomRepository(LogRepository)
+      .find({ select: ['fiatValue'], where: { message: ref } });
 
-    const test = (
-      await getManager()
-        .getCustomRepository(LogRepository)
-        .find({ where: { message: ref } })
-    ).forEach((a) => (volume += a.fiatValue));
-
-    return volume;
+    return logs.reduce((sum, log) => sum + log.fiatValue, 0);
   }
 
   async getRefData(user: User): Promise<any> {
     const result = {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
-      refCount: await this.getRefCount(user.address),
-      refCountActive: await this.getRefCountActive(user.address),
+      refCount: await this.getRefCount(user.ref),
+      refCountActive: await this.getRefCountActive(user.ref),
       refVolume: await this.getRefVolume(user.ref),
     };
 
@@ -155,25 +147,21 @@ export class UserRepository extends Repository<User> {
   }
 
   async getVolume(user: User): Promise<any> {
-    let buyVolume = 0;
-    let sellVolume = 0;
-    (
-      await getManager()
-        .getCustomRepository(LogRepository)
-        .find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset })
-    ).forEach((a) => (buyVolume += a.fiatValue));
-    (
-      await getManager()
-        .getCustomRepository(LogRepository)
-        .find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat })
-    ).forEach((a) => (sellVolume += a.fiatValue));
+    const logRepo = getManager().getCustomRepository(LogRepository);
 
-    const result = {
-      buyVolume: buyVolume,
-      sellVolume: sellVolume,
+    const buyLogs = await logRepo.find({
+      select: ['fiatValue'],
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset },
+    });
+    const sellLogs = await logRepo.find({
+      select: ['fiatValue'],
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat },
+    });
+
+    return {
+      buyVolume: buyLogs.reduce((sum, log) => sum + log.fiatValue, 0),
+      sellVolume: sellLogs.reduce((sum, log) => sum + log.fiatValue, 0),
     };
-
-    return result;
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {

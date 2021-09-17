@@ -1,11 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycStatus, NameCheckStatus, UserData } from './userData.entity';
 import { KycService } from 'src/services/kyc.service';
 import { BankDataRepository } from 'src/bankData/bankData.repository';
 import { UserRepository } from 'src/user/user.repository';
-import { MailService } from 'src/services/mail.service';
 
 @Injectable()
 export class UserDataService {
