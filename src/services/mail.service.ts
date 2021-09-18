@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { CreateLogDto } from 'src/log/dto/create-log.dto';
 import { UserData } from 'src/userData/userData.entity';
+import { CheckVersion } from './kyc.service';
 
 @Injectable()
 export class MailService {
@@ -30,22 +31,18 @@ export class MailService {
     });
   }
 
-  async sendKycRequestMail(userData: UserData): Promise<void> {
+  async sendKycRequestMail(userData: UserData, checkData: CheckVersion): Promise<void> {
     const htmlBody = `
       <h1>Hi DFX Support</h1>
-      <p>A new customer is requesting KYC:</p>
+      <p>a new customer has finished the onboarding ChatBot:</p>
       <table>
           <tr>
-              <td>UserData ID:</td>
+              <td>Reference:</td>
               <td>${userData.id}</td>
           </tr>
           <tr>
-              <td>KYC file reference:</td>
-              <td>${userData.kycFileReference}</td>
-          </tr>
-          <tr>
               <td>Request date:</td>
-              <td>${userData.kycRequestDate.toLocaleString()}</td>
+              <td>${checkData.creationTime.toLocaleString()}</td>
           </tr>
       </table>
       <p>Best,</p>
@@ -55,7 +52,7 @@ export class MailService {
 
     await this.mailerService.sendMail({
       to: this.supportMail,
-      subject: 'New KYC Request',
+      subject: 'New KYC onboarding',
       html: htmlBody,
     });
   }

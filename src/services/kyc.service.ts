@@ -5,6 +5,7 @@ import { User } from 'src/user/user.entity';
 import { KycStatus } from 'src/userData/userData.entity';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { HttpService } from './http.service';
+import { MailService } from './mail.service';
 
 export enum State {
   PENDING = 'PENDING',
@@ -43,7 +44,7 @@ interface ChatBotResponse {
   version: string;
 }
 
-interface CheckVersion {
+export interface CheckVersion {
   name: string;
   state: State;
   creationTime: number;
@@ -94,7 +95,11 @@ interface CustomerInformationResponse {
 export class KycService {
   private baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
 
-  constructor(private http: HttpService, private userDataRepository: UserDataRepository) {}
+  constructor(
+    private http: HttpService,
+    private userDataRepository: UserDataRepository,
+    private mailService: MailService,
+  ) {}
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
@@ -233,6 +238,7 @@ export class KycService {
       const chatBotState = await this.getDocumentVersions(userDatas[key].id, KycDocument.CHATBOT);
       if (chatBotState.state == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
+        this.mailService.sendKycRequestMail(userDatas[key], chatBotState);
       }
     }
     await this.userDataRepository.save(userDatas);

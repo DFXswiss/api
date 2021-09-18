@@ -74,14 +74,16 @@ export class UserDataService {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
-    // update customer
-    await this.kycService.updateCustomer(userData.id, user);
+    if (userData?.kycStatus === KycStatus.NA) {
+      // update customer
+      await this.kycService.updateCustomer(userData.id, user);
 
-    // start onboarding
-    const chatBotData = await this.kycService.onboardingCustomer(userData.id);
+      // start onboarding
+      const chatBotData = await this.kycService.onboardingCustomer(userData.id);
 
-    if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
-    await this.userDataRepo.save(userData);
+      if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
+      await this.userDataRepo.save(userData);
+    }
     return userData;
   }
 }

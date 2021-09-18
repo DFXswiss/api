@@ -46,7 +46,8 @@ export class UserDataController {
 
   @Put(':id/kyc')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async requestKyc(@GetUser() user: User): Promise<UserData> {
     return await this.userDataService.requestKyc(user.id);
   }

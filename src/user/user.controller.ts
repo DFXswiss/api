@@ -44,6 +44,13 @@ export class UserController {
     return this.userService.updateUser(oldUser, newUser);
   }
 
+  @Post('kyc')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async requestKyc(@GetUser() user: User): Promise<UserData> {
+    return await this.userDataService.requestKyc(user.id);
+  }
+
   @Get('all')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -66,12 +73,5 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateStatus(@Body() user: UpdateStatusDto): Promise<any> {
     return this.userService.updateStatus(user);
-  }
-
-  @Post('kyc')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetUser() user: User): Promise<UserData> {
-    return await this.userDataService.requestKyc(user.id);
   }
 }
