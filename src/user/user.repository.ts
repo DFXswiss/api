@@ -15,6 +15,7 @@ import { LogDirection, LogType } from 'src/log/log.entity';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
+  userRepository: any;
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     let countryObject = null;
     let languageObject = null;
@@ -131,7 +132,7 @@ export class UserRepository extends Repository<User> {
     try {
       const currentUser = await this.findOne(oldUser.id);
       if (!currentUser) throw new NotFoundException('No matching user for id found');
-      const currentUserData = await currentUser.userData;
+      const currentUserData = (await this.findOne({ where: { id: currentUser.id }, relations: ['userData'] })).userData;
 
       const refUser = await this.findOne({ ref: newUser.usedRef });
 
@@ -139,7 +140,7 @@ export class UserRepository extends Repository<User> {
         newUser.usedRef = '000-000';
       } else {
         if (refUser) {
-          const refUserData = await refUser.userData;
+          const refUserData = (await this.findOne({ where: { id: refUser.id }, relations: ['userData'] })).userData;
           if (refUserData && currentUserData) {
             if (refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
           }

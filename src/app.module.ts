@@ -111,6 +111,7 @@ import { SchedulerService } from './services/scheduler.service';
       },
     }),
     TypeOrmModule.forFeature([
+      UserDataRepository,
       UserRepository,
       BuyRepository,
       SellRepository,
@@ -123,7 +124,6 @@ import { SchedulerService } from './services/scheduler.service';
       BuyPaymentRepository,
       SellPaymentRepository,
       LanguageRepository,
-      UserDataRepository,
       BankDataRepository,
       RefRepository,
     ]),
