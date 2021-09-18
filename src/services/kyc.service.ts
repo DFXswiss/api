@@ -58,13 +58,41 @@ interface Risk {
   categoryKey: string;
 }
 
+interface CustomerResponse {
+  reference: string;
+  names: [{ firstName: string; lastName: string }];
+  countriesOfResidence: [string];
+  emails: [string];
+  telephones: [string];
+  structuredAddresses: [
+    {
+      street: string;
+      houseNumber: string;
+      zipCode: string;
+      city: string;
+      countryCode: string;
+    },
+  ];
+  preferredLanguage: string;
+  activationDate: { year: string; month: string; day: string };
+}
+
+interface CustomerInformationResponse {
+  reference: string;
+  contractReference: string;
+  contractState: string;
+  lastCheckId: number;
+  lastCheckTime: number;
+  lastCheckVerificationId: number;
+}
+
 @Injectable()
 export class KycService {
   private baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
 
   constructor(private http: HttpService, private userDataRepository: UserDataRepository) {}
 
-  async createCustomer(id: number, name: string): Promise<number> {
+  async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
       reference: id.toString(),
       type: 'PERSON',
@@ -73,36 +101,14 @@ export class KycService {
 
     try {
       const result = await this.callApi<CreateResponse>('customers/simple', 'POST', data);
-      return result.customerId;
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException(e);
-      //throw new ServiceUnavailableException('Failed to register KYC customer');
-    }
-  }
-
-  async checkCustomer(id: number): Promise<CheckResponse> {
-    try {
-      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
-      return results[0];
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to do name check');
-    }
-  }
-
-  async getCheckResult(id: number): Promise<CheckResult> {
-    try {
-      const result = await this.callApi<CheckResult>(`customers/checks/${id.toString()}/result`, 'GET');
-
       return result;
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to do name check');
+      throw new ServiceUnavailableException('Failed to register KYC customer');
     }
   }
 
-  async updateCustomer(id: number, user: User): Promise<number> {
+  async updateCustomer(id: number, user: User): Promise<CreateResponse> {
     const data = {
       reference: id.toString(),
       type: 'PERSON',
@@ -126,10 +132,62 @@ export class KycService {
 
     try {
       const result = await this.callApi<CreateResponse>('customers/simple', 'POST', data);
-      return result.customerId;
+      return result;
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to update KYC customer');
+    }
+  }
+  async getAllCustomer(): Promise<string[]> {
+    try {
+      const result = await this.callApi<string[]>(`customers`, 'GET');
+      return result;
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to get KYC customer');
+    }
+  }
+
+  async getCustomer(id: number): Promise<CustomerResponse> {
+    try {
+      const result = await this.callApi<CustomerResponse>(`customers/${id.toString()}`, 'GET');
+      return result;
+    } catch (e) {
+      if (e.response.status === 404) {
+        return null;
+      }
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to get KYC customer');
+    }
+  }
+
+  async getCustomerInformation(id: number): Promise<CustomerInformationResponse> {
+    try {
+      const result = await this.callApi<CustomerInformationResponse>(`customers/${id.toString()}/information`, 'GET');
+      return result;
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to get KYC customer');
+    }
+  }
+
+  async getCheckResult(customerCheckid: number): Promise<CheckResult> {
+    try {
+      const result = await this.callApi<CheckResult>(`customers/checks/${customerCheckid.toString()}/result`, 'GET');
+      return result;
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to do get check result');
+    }
+  }
+
+  async checkCustomer(id: number): Promise<CheckResponse> {
+    try {
+      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
+      return results[0];
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to do name check');
     }
   }
 
@@ -152,7 +210,7 @@ export class KycService {
     }
   }
 
-  async getVersions(id: number, document: string): Promise<string> {
+  async getDocumentVersions(id: number, document: string): Promise<string> {
     try {
       const result = await this.callApi<CheckVersion[]>(
         `customers/${id.toString()}/documents/${document}/versions`,
@@ -168,7 +226,7 @@ export class KycService {
   async chatBotCheck(): Promise<void> {
     const userDatas = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
     for (const key in userDatas) {
-      if ((await this.getVersions(userDatas[key].id, 'chatbot-onboarding')) == State.COMPLETED) {
+      if ((await this.getDocumentVersions(userDatas[key].id, 'chatbot-onboarding')) == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
         this.userDataRepository.save(userDatas[key]);
       }

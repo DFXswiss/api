@@ -6,10 +6,11 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserDataRepository } from 'src/userData/userData.repository';
+import { LogRepository } from 'src/log/log.repository';
 
 @Injectable()
 export class UserService {
-  constructor(private userRepository: UserRepository, private userDataRepository: UserDataRepository) {}
+  constructor(private userRepository: UserRepository, private logRepository: LogRepository) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     const user = await this.userRepository.createUser(createUserDto);
@@ -46,8 +47,8 @@ export class UserService {
       user.sells = sells;
     }
 
-    user['refData'] = await this.userRepository.getRefData(user);
-    user['userVolume'] = await this.userRepository.getVolume(user);
+    user['refData'] = await this.getRefData(user);
+    //user['userVolume'] = await this.logRepository.getVolume(user);
     //user['has_buy'] = user['__has_buys__'];
     delete user['__has_buys__'];
     user['buy'] = user['__buys__'];
@@ -78,20 +79,8 @@ export class UserService {
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
     const user = await this.userRepository.updateUser(oldUser, newUser);
 
-    //TODO
-    // delete user.signature;
-    // delete user.ip;
-
-    // if(user){
-    //     if(user.status == "Active" || user.status == "KYC"){
-    //         return user;
-    //     }else{
-    //         delete user.ref;
-    //         return user;
-    //     }
-    // }
-    user['refData'] = await this.userRepository.getRefData(user);
-    user['userVolume'] = await this.userRepository.getVolume(user);
+    user['refData'] = await this.getRefData(user);
+    //user['userVolume'] = await this.logRepository.getVolume(user);
 
     const userData = await user.userData;
     user['kycStatus'] = userData.kycStatus;
@@ -123,6 +112,13 @@ export class UserService {
   }
 
   async getRefData(user: User): Promise<any> {
-    return { usedRefData: await this.userRepository.getRefData(user) };
+    const result = {
+      ref: user.status == UserStatus.NA ? undefined : user.ref,
+      refCount: await this.userRepository.getRefCount(user.address),
+      refCountActive: await this.userRepository.getRefCountActive(user.address),
+      refVolume: await this.logRepository.getRefVolume(user.ref),
+    };
+
+    return result;
   }
 }

@@ -9,6 +9,7 @@ import { UserRepository } from 'src/user/user.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { MailService } from 'src/services/mail.service';
+import { User } from 'src/user/user.entity';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
@@ -197,5 +198,29 @@ export class LogRepository extends Repository<Log> {
 
       throw new NotFoundException('No matching log for id found');
     }
+  }
+
+  async getRefVolume(ref: string): Promise<Number> {
+    let volume: number = 0;
+    const test = (await this.find({ where: { message: ref } })).forEach((a) => (volume += a.fiatValue));
+    return volume;
+  }
+
+  async getVolume(user: User): Promise<any> {
+    let buyVolume = 0;
+    let sellVolume = 0;
+    (await this.find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset })).forEach(
+      (a) => (buyVolume += a.fiatValue),
+    );
+    (await this.find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat })).forEach(
+      (a) => (sellVolume += a.fiatValue),
+    );
+
+    const result = {
+      buyVolume: buyVolume,
+      sellVolume: sellVolume,
+    };
+
+    return result;
   }
 }

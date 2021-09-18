@@ -5,7 +5,7 @@ import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';
 import { UserDataService } from './userData.service';
-import { NameCheckStatus, UserData } from './userData.entity';
+import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/bankData/dto/bankData.dto';
 import { BankDataService } from 'src/bankData/bankData.service';
@@ -27,14 +27,6 @@ export class UserDataController {
     return this.userDataRepo.findOne(id);
   }
 
-  @Get(':name/:location')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUserDataExtends(@Param('name') name: string, @Param('location') location: string): Promise<UserData> {
-    return this.userDataService.getUserData(name, location);
-  }
-
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -51,12 +43,28 @@ export class UserDataController {
     return this.userDataService.updateUserData(userData);
   }
 
+  @Get(':id/customer')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getCustomer(@Param('id') id: number): Promise<string> {
+    return this.userDataService.getCustomer(id);
+  }
+
   @Put(':id/nameCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async doNameCheck(@Param('id') id: number): Promise<NameCheckStatus> {
+  async doNameCheck(@Param('id') id: number): Promise<string> {
     return this.userDataService.doNameCheck(id);
+  }
+
+  @Get(':id/nameCheckStatus')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getNameCheckStatus(@Param('id') id: number): Promise<string> {
+    return this.userDataService.getCheckStatus(id);
   }
 
   @Put(':id/bankDatas')
@@ -65,5 +73,13 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async addBankData(@Param('id') id: number, @Body() bankData: BankDataDto): Promise<UserData> {
     return this.bankDataService.addBankData(id, bankData);
+  }
+
+  @Get(':name/:location')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getUserDataExtends(@Param('name') name: string, @Param('location') location: string): Promise<UserData> {
+    return this.userDataService.getUserData(name, location);
   }
 }

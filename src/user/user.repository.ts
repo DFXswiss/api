@@ -131,51 +131,6 @@ export class UserRepository extends Repository<User> {
     return (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).length;
   }
 
-  async getRefVolume(ref: string): Promise<Number> {
-    let volume: number = 0;
-
-    const test = (
-      await getManager()
-        .getCustomRepository(LogRepository)
-        .find({ where: { message: ref } })
-    ).forEach((a) => (volume += a.fiatValue));
-
-    return volume;
-  }
-
-  async getRefData(user: User): Promise<any> {
-    const result = {
-      ref: user.status == UserStatus.NA ? undefined : user.ref,
-      refCount: await this.getRefCount(user.address),
-      refCountActive: await this.getRefCountActive(user.address),
-      refVolume: await this.getRefVolume(user.ref),
-    };
-
-    return result;
-  }
-
-  async getVolume(user: User): Promise<any> {
-    let buyVolume = 0;
-    let sellVolume = 0;
-    (
-      await getManager()
-        .getCustomRepository(LogRepository)
-        .find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset })
-    ).forEach((a) => (buyVolume += a.fiatValue));
-    (
-      await getManager()
-        .getCustomRepository(LogRepository)
-        .find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat })
-    ).forEach((a) => (sellVolume += a.fiatValue));
-
-    const result = {
-      buyVolume: buyVolume,
-      sellVolume: sellVolume,
-    };
-
-    return result;
-  }
-
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
     try {
       const currentUser = await this.findOne(oldUser.id);
