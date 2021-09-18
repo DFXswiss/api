@@ -1,20 +1,21 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, In, Not, Repository } from 'typeorm';
+import { EntityRepository, Not, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { User, UserRole, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
-import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
-import { PaymentStatus } from 'src/payment/payment.entity';
 import { KycStatus } from 'src/userData/userData.entity';
+import { LogRepository } from 'src/log/log.repository';
+import { LogDirection, LogType } from 'src/log/log.entity';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
+  userRepository: any;
   async createUser(createUserDto: CreateUserDto): Promise<User> {
     let countryObject = null;
     let languageObject = null;
@@ -47,7 +48,9 @@ export class UserRepository extends Repository<User> {
 
       createUserDto.language = languageObject.id;
     } else {
-      delete createUserDto.language;
+      languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage('DE');
+
+      createUserDto.language = languageObject.id;
     }
 
     const user = this.create(createUserDto);
@@ -117,49 +120,19 @@ export class UserRepository extends Repository<User> {
     return await this.findOne({ address: addressString });
   }
 
-  async getRefCount(address: string): Promise<Number> {
-    const refUser = await this.findOne({ address: address });
-    return (await this.find({ usedRef: refUser.ref })).length;
+  async getRefCount(ref: string): Promise<number> {
+    return await this.count({ usedRef: ref });
   }
 
-  async getRefCountActive(address: string): Promise<Number> {
-    const refUser = await this.findOne({ address: address });
-    return (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).length;
-  }
-
-  async getRefVolume(address: string): Promise<Number> {
-    let volume: number = 0;
-    const refUser: User = await this.findOne({ address: address });
-    let refAddresses: String[] = (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).map(
-      (a) => a.address,
-    );
-
-    (
-      await getManager()
-        .getCustomRepository(BuyPaymentRepository)
-        .find({ where: { address: In(refAddresses), status: PaymentStatus.PROCESSED } })
-    ).forEach((a) => (volume += a.fiatValue));
-
-    return volume;
-  }
-
-  async getRefData(user: User): Promise<any> {
-    const result = {
-      ref: user.status == UserStatus.NA ? undefined : user.ref,
-      usedRef: user.usedRef,
-      refCount: await this.getRefCount(user.address),
-      refCountActive: await this.getRefCountActive(user.address),
-      refVolume: await this.getRefVolume(user.address),
-    };
-
-    return result;
+  async getRefCountActive(ref: string): Promise<number> {
+    return await this.count({ usedRef: ref, status: Not(UserStatus.NA) });
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
     try {
       const currentUser = await this.findOne(oldUser.id);
       if (!currentUser) throw new NotFoundException('No matching user for id found');
-      const currentUserData = await currentUser.userData;
+      const currentUserData = (await this.findOne({ where: { id: currentUser.id }, relations: ['userData'] })).userData;
 
       const refUser = await this.findOne({ ref: newUser.usedRef });
 
@@ -167,7 +140,7 @@ export class UserRepository extends Repository<User> {
         newUser.usedRef = '000-000';
       } else {
         if (refUser) {
-          const refUserData = await refUser.userData;
+          const refUserData = (await this.findOne({ where: { id: refUser.id }, relations: ['userData'] })).userData;
           if (refUserData && currentUserData) {
             if (refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
           }
@@ -198,6 +171,10 @@ export class UserRepository extends Repository<User> {
 
       if (newUser.language) {
         languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage(newUser.language);
+
+        newUser.language = languageObject;
+      } else {
+        languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage('EN');
 
         newUser.language = languageObject;
       }

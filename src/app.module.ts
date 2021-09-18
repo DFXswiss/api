@@ -60,6 +60,8 @@ import { HttpModule } from '@nestjs/axios';
 import { HttpService } from './services/http.service';
 import { BankDataRepository } from './bankData/bankData.repository';
 import { BankDataService } from './bankData/bankData.service';
+import { ScheduleModule } from '@nestjs/schedule';
+import { SchedulerService } from './services/scheduler.service';
 import { BatchRepository } from './batch/batch.repository';
 import { BatchController } from './batch/batch.controller';
 import { BatchService } from './batch/batch.service';
@@ -94,6 +96,7 @@ import { BatchService } from './batch/batch.service';
         expiresIn: 172800,
       },
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mssql',
       host: process.env.SQL_HOST,
@@ -110,6 +113,7 @@ import { BatchService } from './batch/batch.service';
       },
     }),
     TypeOrmModule.forFeature([
+      UserDataRepository,
       UserRepository,
       BuyRepository,
       SellRepository,
@@ -122,7 +126,6 @@ import { BatchService } from './batch/batch.service';
       BuyPaymentRepository,
       SellPaymentRepository,
       LanguageRepository,
-      UserDataRepository,
       BankDataRepository,
       RefRepository,
       BatchRepository,
@@ -175,6 +178,7 @@ import { BatchService } from './batch/batch.service';
     DeFiService,
     KycService,
     HttpService,
+    SchedulerService,
     BatchService,
   ],
   exports: [
@@ -202,6 +206,7 @@ import { BatchService } from './batch/batch.service';
     DeFiService,
     KycService,
     HttpService,
+    SchedulerService,
     BatchService,
   ],
 })

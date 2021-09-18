@@ -14,10 +14,7 @@ import { UserData } from 'src/userData/userData.entity';
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(
-    private readonly userService: UserService,
-    private readonly userDataService: UserDataService,
-  ) {}
+  constructor(private readonly userService: UserService, private readonly userDataService: UserDataService) {}
 
   @Get()
   @ApiBearerAuth()
