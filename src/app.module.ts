@@ -62,7 +62,9 @@ import { BankDataRepository } from './bankData/bankData.repository';
 import { BankDataService } from './bankData/bankData.service';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SchedulerService } from './services/scheduler.service';
-
+import { BatchRepository } from './batch/batch.repository';
+import { BatchController } from './batch/batch.controller';
+import { BatchService } from './batch/batch.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -126,6 +128,7 @@ import { SchedulerService } from './services/scheduler.service';
       LanguageRepository,
       BankDataRepository,
       RefRepository,
+      BatchRepository,
     ]),
     HttpModule,
   ],
@@ -149,6 +152,7 @@ import { SchedulerService } from './services/scheduler.service';
     UserDataController,
     RefController,
     AuthController,
+    BatchController,
   ],
   providers: [
     UserService,
@@ -175,6 +179,7 @@ import { SchedulerService } from './services/scheduler.service';
     KycService,
     HttpService,
     SchedulerService,
+    BatchService,
   ],
   exports: [
     UserService,
@@ -202,6 +207,7 @@ import { SchedulerService } from './services/scheduler.service';
     KycService,
     HttpService,
     SchedulerService,
+    BatchService,
   ],
 })
 export class AppModule {}

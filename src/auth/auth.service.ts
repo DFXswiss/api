@@ -63,8 +63,12 @@ export class AuthService {
     }
   }
 
+  getSignMessage(address: string): string {
+    return process.env.SIGN_MESSAGE + address;
+  }
+
   private verifySignature(address: string, signature: string): boolean {
-    const signatureMessage = process.env.SIGN_MESSAGE + address;
+    const signatureMessage = this.getSignMessage(address);
     return this.deFiService.verifySignature(signatureMessage, address, signature);
   }
 }
