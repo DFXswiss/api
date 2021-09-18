@@ -226,11 +226,12 @@ export class KycService {
   async chatBotCheck(): Promise<void> {
     const userDatas = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
     for (const key in userDatas) {
-      if ((await this.getDocumentVersions(userDatas[key].id, 'chatbot-onboarding')) == State.COMPLETED) {
+      const chatBotState = await this.getDocumentVersions(userDatas[key].id, 'chatbot-onboarding');
+      if (chatBotState == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
-        this.userDataRepository.save(userDatas[key]);
       }
     }
+    await this.userDataRepository.save(userDatas);
   }
 
   // --- HELPER METHODS --- //

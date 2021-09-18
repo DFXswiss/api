@@ -8,20 +8,13 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { KycService } from 'src/services/kyc.service';
 import { UserDataService } from 'src/userData/userData.service';
-import { NameCheckStatus, UserData } from 'src/userData/userData.entity';
-import { UserDataRepository } from 'src/userData/userData.repository';
+import { UserData } from 'src/userData/userData.entity';
 
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(
-    private readonly userService: UserService,
-    private readonly userDataService: UserDataService,
-    private readonly kycService: KycService,
-    private readonly userDataRepo: UserDataRepository,
-  ) {}
+  constructor(private readonly userService: UserService, private readonly userDataService: UserDataService) {}
 
   @Get()
   @ApiBearerAuth()

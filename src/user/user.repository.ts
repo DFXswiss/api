@@ -1,16 +1,14 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, In, Not, Repository } from 'typeorm';
+import { EntityRepository, Not, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { User, UserRole, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { CountryRepository } from 'src/country/country.repository';
 import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
-import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
-import { PaymentStatus } from 'src/payment/payment.entity';
 import { KycStatus } from 'src/userData/userData.entity';
 import { LogRepository } from 'src/log/log.repository';
 import { LogDirection, LogType } from 'src/log/log.entity';
@@ -121,14 +119,12 @@ export class UserRepository extends Repository<User> {
     return await this.findOne({ address: addressString });
   }
 
-  async getRefCount(address: string): Promise<Number> {
-    const refUser = await this.findOne({ address: address });
-    return (await this.find({ usedRef: refUser.ref })).length;
+  async getRefCount(ref: string): Promise<number> {
+    return await this.count({ usedRef: ref });
   }
 
-  async getRefCountActive(address: string): Promise<Number> {
-    const refUser = await this.findOne({ address: address });
-    return (await this.find({ usedRef: refUser.ref, status: Not(UserStatus.NA) })).length;
+  async getRefCountActive(ref: string): Promise<number> {
+    return await this.count({ usedRef: ref, status: Not(UserStatus.NA) });
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
