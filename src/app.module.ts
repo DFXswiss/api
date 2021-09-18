@@ -60,6 +60,9 @@ import { HttpModule } from '@nestjs/axios';
 import { HttpService } from './services/http.service';
 import { BankDataRepository } from './bankData/bankData.repository';
 import { BankDataService } from './bankData/bankData.service';
+import { BatchRepository } from './batch/batch.repository';
+import { BatchController } from './batch/batch.controller';
+import { BatchService } from './batch/batch.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -122,6 +125,7 @@ import { BankDataService } from './bankData/bankData.service';
       UserDataRepository,
       BankDataRepository,
       RefRepository,
+      BatchRepository,
     ]),
     HttpModule,
   ],
@@ -145,6 +149,7 @@ import { BankDataService } from './bankData/bankData.service';
     UserDataController,
     RefController,
     AuthController,
+    BatchController,
   ],
   providers: [
     UserService,
@@ -170,6 +175,7 @@ import { BankDataService } from './bankData/bankData.service';
     DeFiService,
     KycService,
     HttpService,
+    BatchService,
   ],
   exports: [
     UserService,
@@ -196,6 +202,7 @@ import { BankDataService } from './bankData/bankData.service';
     DeFiService,
     KycService,
     HttpService,
+    BatchService,
   ],
 })
 export class AppModule {}
