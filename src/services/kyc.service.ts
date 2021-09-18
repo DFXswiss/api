@@ -12,6 +12,10 @@ export enum State {
   FAILED = 'FAILED',
 }
 
+export enum KycDocument {
+  CHATBOT = 'chatbot-onboarding',
+}
+
 interface Challenge {
   key: string;
   challenge: string;
@@ -210,13 +214,13 @@ export class KycService {
     }
   }
 
-  async getDocumentVersions(id: number, document: string): Promise<string> {
+  async getDocumentVersions(id: number, document: string): Promise<CheckVersion> {
     try {
       const result = await this.callApi<CheckVersion[]>(
         `customers/${id.toString()}/documents/${document}/versions`,
         'GET',
       );
-      return result[result.length - 1].state;
+      return result[result.length - 1];
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
@@ -226,8 +230,8 @@ export class KycService {
   async chatBotCheck(): Promise<void> {
     const userDatas = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
     for (const key in userDatas) {
-      const chatBotState = await this.getDocumentVersions(userDatas[key].id, 'chatbot-onboarding');
-      if (chatBotState == State.COMPLETED) {
+      const chatBotState = await this.getDocumentVersions(userDatas[key].id, KycDocument.CHATBOT);
+      if (chatBotState.state == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
       }
     }
