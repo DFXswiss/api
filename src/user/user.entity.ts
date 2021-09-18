@@ -100,7 +100,7 @@ export class User {
   @JoinColumn()
   sells: Sell[];
 
-  @ManyToOne(() => UserData, { lazy: true })
+  @ManyToOne(() => UserData)
   @JoinColumn()
   userData: UserData;
 

@@ -3,12 +3,13 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { UserRole } from 'src/user/user.entity';
+import { User, UserRole } from 'src/user/user.entity';
 import { UserDataService } from './userData.service';
 import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/bankData/dto/bankData.dto';
 import { BankDataService } from 'src/bankData/bankData.service';
+import { GetUser } from 'src/auth/get-user.decorator';
 
 @ApiTags('userData')
 @Controller('userData')
@@ -41,6 +42,13 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateUserData(@Body() userData: UpdateUserDataDto): Promise<any> {
     return this.userDataService.updateUserData(userData);
+  }
+
+  @Put(':id/kyc')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async requestKyc(@GetUser() user: User): Promise<UserData> {
+    return await this.userDataService.requestKyc(user.id);
   }
 
   @Get(':id/customer')
