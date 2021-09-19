@@ -8,7 +8,7 @@ export class BankDataDto {
   name: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   location: string;
 
@@ -16,4 +16,9 @@ export class BankDataDto {
   @IsOptional()
   @IsString()
   country: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  iban: string;
 }

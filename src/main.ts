@@ -30,7 +30,7 @@ async function bootstrap() {
     .setDescription(
       'Investiere in jedes DeFiChain Asset mit EUR, CHF & USD via Banküberweisung',
     )
-    .setVersion('v0.1')
+    .setVersion('v0.2')
     .addBearerAuth()
     .build();
 

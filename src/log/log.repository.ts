@@ -9,6 +9,7 @@ import { UserRepository } from 'src/user/user.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { MailService } from 'src/services/mail.service';
+import { User } from 'src/user/user.entity';
 import { UserStatus } from 'src/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import requestPromise from 'request-promise-native';
@@ -228,5 +229,30 @@ export class LogRepository extends Repository<Log> {
 
       throw new NotFoundException('No matching log for id found');
     }
+  }
+
+  async getRefVolume(ref: string): Promise<number> {
+    const logs = await this.find({ select: ['fiatValue'], where: { message: ref } });
+    return this.sumFiat(logs);
+  }
+
+  async getVolume(user: User): Promise<any> {
+    const buyLogs = await this.find({
+      select: ['fiatValue'],
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset },
+    });
+    const sellLogs = await this.find({
+      select: ['fiatValue'],
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat },
+    });
+
+    return {
+      buyVolume: this.sumFiat(buyLogs),
+      sellVolume: this.sumFiat(sellLogs),
+    };
+  }
+
+  private sumFiat(logs: Log[]): number {
+    return logs.reduce((sum, log) => sum + log.fiatValue, 0);
   }
 }
