@@ -68,11 +68,11 @@ export class UserDataController {
     return this.userDataService.doNameCheck(id);
   }
 
-  @Get(':id/nameCheckStatus')
+  @Get(':id/nameCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getNameCheckStatus(@Param('id') id: number): Promise<string> {
+  async getNameCheck(@Param('id') id: number): Promise<string> {
     return this.userDataService.getCheckStatus(id);
   }
 
