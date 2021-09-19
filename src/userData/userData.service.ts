@@ -78,6 +78,8 @@ export class UserDataService {
       // update customer
       await this.kycService.updateCustomer(userData.id, user);
 
+      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
+
       // start onboarding
       const chatBotData = await this.kycService.onboardingCustomer(userData.id);
 
