@@ -113,8 +113,8 @@ export class UserService {
   async getRefData(user: User): Promise<any> {
     const result = {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
-      refCount: await this.userRepository.getRefCount(user.address),
-      refCountActive: await this.userRepository.getRefCountActive(user.address),
+      refCount: await this.userRepository.getRefCount(user.ref),
+      refCountActive: await this.userRepository.getRefCountActive(user.ref),
       refVolume: await this.logRepository.getRefVolume(user.ref),
     };
 

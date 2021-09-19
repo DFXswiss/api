@@ -231,27 +231,28 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getRefVolume(ref: string): Promise<Number> {
-    let volume: number = 0;
-    const test = (await this.find({ where: { message: ref } })).forEach((a) => (volume += a.fiatValue));
-    return volume;
+  async getRefVolume(ref: string): Promise<number> {
+    const logs = await this.find({ select: ['fiatValue'], where: { message: ref } });
+    return this.sumFiat(logs);
   }
 
   async getVolume(user: User): Promise<any> {
-    let buyVolume = 0;
-    let sellVolume = 0;
-    (await this.find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset })).forEach(
-      (a) => (buyVolume += a.fiatValue),
-    );
-    (await this.find({ type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat })).forEach(
-      (a) => (sellVolume += a.fiatValue),
-    );
+    const buyLogs = await this.find({
+      select: ['fiatValue'],
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset },
+    });
+    const sellLogs = await this.find({
+      select: ['fiatValue'],
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat },
+    });
 
-    const result = {
-      buyVolume: buyVolume,
-      sellVolume: sellVolume,
+    return {
+      buyVolume: this.sumFiat(buyLogs),
+      sellVolume: this.sumFiat(sellLogs),
     };
+  }
 
-    return result;
+  private sumFiat(logs: Log[]): number {
+    return logs.reduce((sum, log) => sum + log.fiatValue, 0);
   }
 }
