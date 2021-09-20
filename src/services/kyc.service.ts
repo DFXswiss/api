@@ -238,6 +238,7 @@ export class KycService {
       const chatBotState = await this.getDocumentVersions(userDatas[key].id, KycDocument.CHATBOT);
       if (chatBotState.state == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
+        await this.checkCustomer(userDatas[key].id);
         this.mailService.sendKycRequestMail(userDatas[key], chatBotState);
       }
     }

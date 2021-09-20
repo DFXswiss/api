@@ -239,11 +239,11 @@ export class LogRepository extends Repository<Log> {
   async getVolume(user: User): Promise<any> {
     const buyLogs = await this.find({
       select: ['fiatValue'],
-      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset },
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset, status: null },
     });
     const sellLogs = await this.find({
       select: ['fiatValue'],
-      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat },
+      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat, status: null },
     });
 
     return {
