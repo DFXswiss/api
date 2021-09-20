@@ -83,11 +83,10 @@ export class UserRepository extends Repository<User> {
 
   async getAllUser(): Promise<any> {
     try {
-      let users = await this.find();
+      let users = await this.find({ relations: ['userData'] });
 
       for (let a = 0; a < users.length; a++) {
         users[a].wallet = await users[a].wallet;
-        await users[a].userData;
       }
 
       return users;
