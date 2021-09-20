@@ -44,7 +44,7 @@ export class User {
   @Column({ unique: true, length: 256 })
   signature: string;
 
-  @ManyToOne(() => Wallet, { lazy: true })
+  @ManyToOne(() => Wallet)
   @JoinColumn()
   wallet: Wallet;
 
