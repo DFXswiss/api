@@ -9,7 +9,6 @@ import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserDataService } from 'src/userData/userData.service';
-import { UserData } from 'src/userData/userData.entity';
 
 @ApiTags('user')
 @Controller('user')

@@ -3,13 +3,12 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { User, UserRole } from 'src/user/user.entity';
+import { UserRole } from 'src/user/user.entity';
 import { UserDataService } from './userData.service';
 import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/bankData/dto/bankData.dto';
 import { BankDataService } from 'src/bankData/bankData.service';
-import { GetUser } from 'src/auth/get-user.decorator';
 
 @ApiTags('userData')
 @Controller('userData')
