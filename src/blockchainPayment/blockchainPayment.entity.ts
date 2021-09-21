@@ -1,13 +1,21 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Asset } from 'src/asset/asset.entity';
+import { Batch } from 'src/batch/batch.entity';
 
 export enum BlockchainPaymentType {
-    REFILL = 'Refill',
-    INTERNALPAYMENT = 'Internal-Payment',
-    SWAP = 'Swap',
-    PAYOUT = 'Payout'
+  REFILL = 'Refill',
+  INTERNALPAYMENT = 'Internal-Payment',
+  SWAP = 'Swap',
+  PAYOUT = 'Payout',
 }
-
 
 @Entity()
 export class BlockchainPayment {
@@ -30,9 +38,13 @@ export class BlockchainPayment {
   @JoinColumn()
   asset: Asset;
 
+  @ManyToOne(() => Batch, { eager: true })
+  @JoinColumn()
+  batch: Batch;
+
   @UpdateDateColumn()
   updated: Date;
 
-  @CreateDateColumn() 
+  @CreateDateColumn()
   created: Date;
 }

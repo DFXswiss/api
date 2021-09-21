@@ -1,3 +1,4 @@
+import { BlockchainPayment } from 'src/blockchainPayment/blockchainPayment.entity';
 import { Payment } from 'src/payment/models/payment/payment.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
 
@@ -20,6 +21,8 @@ export class Batch {
   payments: Payment[];
 
   //TODO blockchainPayment referenzieren
+  @OneToMany(() => BlockchainPayment, (blockchainPayment) => blockchainPayment.id)
+  blockchainPayments: BlockchainPayment[];
 
   @UpdateDateColumn()
   updated: Date;
