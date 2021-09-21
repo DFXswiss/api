@@ -31,7 +31,7 @@ export class Buy {
   @Column({ default: true })
   active: boolean;
 
-  @ManyToOne(() => User, (user) => user.buys, { lazy: true })
+  @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
   @ManyToOne(() => Asset, { eager: true })
