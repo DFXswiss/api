@@ -10,8 +10,6 @@ import { UpdateStatusDto } from './dto/update-status.dto';
 import { LanguageRepository } from 'src/language/language.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { KycStatus } from 'src/userData/userData.entity';
-import { LogRepository } from 'src/log/log.repository';
-import { LogDirection, LogType } from 'src/log/log.entity';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {

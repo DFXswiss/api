@@ -253,6 +253,6 @@ export class LogRepository extends Repository<Log> {
   }
 
   private sumFiat(logs: Log[]): number {
-    return logs.reduce((sum, log) => sum + log.fiatValue, 0);
+    return Math.round(logs.reduce((sum, log) => sum + log.fiatValue, 0) * Math.pow(10, 0)) / Math.pow(10, 0);
   }
 }

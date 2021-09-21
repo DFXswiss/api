@@ -9,7 +9,6 @@ import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserDataService } from 'src/userData/userData.service';
-import { UserData } from 'src/userData/userData.entity';
 
 @ApiTags('user')
 @Controller('user')
@@ -47,8 +46,8 @@ export class UserController {
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetUser() user: User): Promise<UserData> {
-    return await this.userDataService.requestKyc(user.id);
+  async requestKyc(@GetUser() user: User): Promise<boolean> {
+    return await this.userService.requestKyc(user.id);
   }
 
   @Get('all')
