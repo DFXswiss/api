@@ -73,7 +73,7 @@ export class LogRepository extends Repository<Log> {
         if (createLogDto.user.mail) mailService.sendLogMail(createLogDto, 'Transaction has been completed');
 
         if (log.user) {
-          const currentUser = await log.user;
+          const currentUser = log.user;
 
           if (currentUser.status == UserStatus.NA) {
             currentUser.status = UserStatus.ACTIVE;

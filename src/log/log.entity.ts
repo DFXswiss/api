@@ -70,9 +70,6 @@ export class Log {
   @Column({ type: 'float', nullable: true })
   assetValue: number;
 
-  // @Column({ length: 32, nullable: true })
-  // iban: string;
-
   @Column({ nullable: true, length: 256 })
   direction: LogDirection;
 
@@ -82,11 +79,11 @@ export class Log {
   @Column({ nullable: true, length: 256 })
   blockchainTx: string;
 
-  @ManyToOne(() => User, { lazy: true })
+  @ManyToOne(() => User)
   @JoinColumn()
   user: User;
 
-  @ManyToOne(() => Payment, { lazy: true })
+  @ManyToOne(() => Payment)
   @JoinColumn()
   payment: Payment;
 
