@@ -76,6 +76,8 @@ export abstract class Payment {
   @OneToMany(() => Log, (log) => log.payment, { lazy: true })
   logs: Log[];
 
+  //TODO Batch referenzieren
+
   @UpdateDateColumn()
   updated: Date;
 
