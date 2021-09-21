@@ -21,7 +21,7 @@ export class BuyPayment extends Payment {
   @JoinColumn()
   originFiat: Fiat;
 
-  @ManyToOne(() => Buy, { lazy: true })
+  @ManyToOne(() => Buy)
   @JoinColumn()
   buy: Buy;
 }

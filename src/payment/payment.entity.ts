@@ -73,7 +73,7 @@ export abstract class Payment {
   @Column({ default: false })
   accepted: boolean;
 
-  @OneToMany(() => Log, (log) => log.payment, { lazy: true })
+  @OneToMany(() => Log, (log) => log.payment)
   logs: Log[];
 
   @UpdateDateColumn()
