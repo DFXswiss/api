@@ -70,8 +70,8 @@ export class UserDataService {
     return resultNameCheck.risks[0].categoryKey;
   }
 
-  async requestKyc(userId: number): Promise<UserData> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+  async requestKyc(userDataId: number): Promise<UserData> {
+    const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
     if (userData?.kycStatus === KycStatus.NA) {

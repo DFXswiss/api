@@ -20,14 +20,6 @@ export class UserDataController {
     private readonly userDataRepo: UserDataRepository,
   ) {}
 
-  @Get(':id')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUserData(@Param('id') id: number): Promise<UserData> {
-    return this.userDataRepo.findOne(id);
-  }
-
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -44,12 +36,20 @@ export class UserDataController {
     return this.userDataService.updateUserData(userData);
   }
 
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getUserData(@Param('id') id: number): Promise<UserData> {
+    return this.userDataRepo.findOne(id);
+  }
+
   @Put(':id/kyc')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@GetUser() user: User): Promise<UserData> {
-    return await this.userDataService.requestKyc(user.id);
+  async requestKyc(@Param('id') id: number): Promise<UserData> {
+    return await this.userDataService.requestKyc(id);
   }
 
   @Get(':id/customer')

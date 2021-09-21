@@ -1,9 +1,4 @@
-import {
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { UpdateSellDto } from './dto/update-sell.dto';
@@ -16,21 +11,13 @@ import { UserRepository } from 'src/user/user.repository';
 @EntityRepository(Sell)
 export class SellRepository extends Repository<Sell> {
   async createSell(createSellDto: CreateSellDto): Promise<any> {
+    const userObject = await getManager().getCustomRepository(UserRepository).verifyUser(createSellDto.user.address);
 
-    const userObject = await getManager()
-      .getCustomRepository(UserRepository)
-      .verifyUser(createSellDto.user.address);
+    if (!userObject.result) throw new ForbiddenException('user data missing, verify');
 
-    if (!userObject.result)
-      throw new ForbiddenException('user data missing, verify');
+    const fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createSellDto.fiat);
 
-    const fiatObject = await getManager()
-      .getCustomRepository(FiatRepository)
-      .getFiat(createSellDto.fiat);
-
-    const depositObject = await getManager()
-      .getCustomRepository(DepositRepository)
-      .getNextDeposit();
+    const depositObject = await getManager().getCustomRepository(DepositRepository).getNextDeposit();
 
     createSellDto.deposit = depositObject.id;
     createSellDto.fiat = fiatObject.id;
@@ -52,8 +39,7 @@ export class SellRepository extends Repository<Sell> {
     try {
       const currentSell = await this.findOne({ id: sellDto.id });
 
-      if (!currentSell)
-        throw new NotFoundException('No matching entry for id found');
+      if (!currentSell) throw new NotFoundException('No matching entry for id found');
       if (sellDto.address != currentSell.address)
         throw new ForbiddenException('You can only change your own sell route');
 
@@ -92,8 +78,7 @@ export class SellRepository extends Repository<Sell> {
       const sell = await this.findOne({ id: id.id });
 
       if (sell) {
-        if (sell.address != address)
-          throw new ForbiddenException('You can only get your own sell route');
+        if (sell.address != address) throw new ForbiddenException('You can only get your own sell route');
       }
       delete sell.user;
       delete sell.address;
