@@ -54,20 +54,14 @@ export class StatisticService {
   }
 
   async getDfxCfpResults(): Promise<any> {
-    return {
-      dfx_cfps: await this.cfpService.getDfxResults(),
-    };
+    return await this.cfpService.getDfxResults();
   }
 
   async getAllCfpResults(): Promise<any> {
-    return {
-      all_cfp: await this.cfpService.getAllCfpResults(),
-    };
+    return await this.cfpService.getAllCfpResults();
   }
 
   async getCfpResult(number: number): Promise<any> {
-    return {
-      cfp: await this.cfpService.getCfpResult(number),
-    };
+    return await this.cfpService.getCfpResult(number);
   }
 }

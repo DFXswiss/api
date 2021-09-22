@@ -16,7 +16,7 @@ enum ResultStatus {
   NOT_APPROVED = 'Not approved',
 }
 
-enum MasternodeState {
+enum State {
   ENABLED = 'ENABLED',
   PRE_ENABLED = 'PRE_ENABLED',
 }
@@ -25,7 +25,7 @@ interface MasterNodeResponse {
   ownerAuthAddress: string;
   creationHeight: number;
   mintedBlocks: number;
-  state: MasternodeState;
+  state: State;
 }
 
 interface CfpResult {
@@ -35,23 +35,37 @@ interface CfpResult {
   neutral: number;
   no: number;
   votes: number;
-  curentResult: ResultStatus;
+  possibleVotes: number;
+  voteTurnout: number;
+  currentResult: ResultStatus;
 }
 
 @Injectable()
 export class CfpService {
   private issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
-  private masternodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
-
+  private masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
+  private masterNodeVotesCounter = 0;
   constructor(private http: HttpService, private defiService: DeFiService) {}
 
   async getCfpResult(cfpNumber: number): Promise<any> {
     try {
-      const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masternodeUrl, ``);
+      const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masterNodeUrl, ``);
+      this.masterNodeVotesCounter = 0;
+
+      for (const key in masterNodes) {
+        if (
+          masterNodes[key].state === State.ENABLED &&
+          masterNodes[key].mintedBlocks > 0 &&
+          masterNodes[key].creationHeight < 1204845
+        ) {
+          this.masterNodeVotesCounter++;
+        } else {
+          delete masterNodes[key];
+        }
+      }
       const cfp = await this.callApi<CfpResponse>(this.issuesUrl, `/${cfpNumber}`);
       let allComments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfpNumber}/comments`);
-      let result = await this.getVotes(cfp.title, cfpNumber, allComments, masterNodes);
-      return result;
+      return await this.getVotes(cfp.title, cfpNumber, allComments, masterNodes);
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed get DFX CFP Result');
@@ -67,7 +81,21 @@ export class CfpService {
 
   async getAllCfpResults(): Promise<any> {
     try {
-      const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masternodeUrl, ``);
+      const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masterNodeUrl, ``);
+      this.masterNodeVotesCounter = 0;
+
+      for (const key in masterNodes) {
+        if (
+          masterNodes[key].state === State.ENABLED &&
+          masterNodes[key].mintedBlocks > 0 &&
+          masterNodes[key].creationHeight < 1204845
+        ) {
+          this.masterNodeVotesCounter++;
+        } else {
+          delete masterNodes[key];
+        }
+      }
+
       const allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
 
       let resultsCfp = [];
@@ -143,7 +171,9 @@ export class CfpService {
       neutral: neutralVotes,
       no: noVotes,
       votes: votes,
-      curentResult: yesVotes >= noVotes ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
+      possibleVotes: this.masterNodeVotesCounter,
+      voteTurnout: Math.round((votes / this.masterNodeVotesCounter) * 100 * Math.pow(10, 2)) / Math.pow(10, 2),
+      currentResult: yesVotes >= noVotes ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
     };
   }
 
@@ -159,12 +189,11 @@ export class CfpService {
     if (!this.defiService.verifySignature(vote, address, signature)) return false;
     for (const key in masterNodes) {
       if (
-        masterNodes[key].ownerAuthAddress === address &&
         masterNodes[key].mintedBlocks > 0 &&
         masterNodes[key].creationHeight < 1204845 &&
-        masterNodes[key].state === MasternodeState.ENABLED
+        masterNodes[key].state === State.ENABLED
       ) {
-        return true;
+        if (masterNodes[key].ownerAuthAddress === address) return true;
       }
     }
     return false;
@@ -172,7 +201,7 @@ export class CfpService {
 
   // --- HELPER METHODS --- //
   private async callApi<T>(baseUrl: string, url: string): Promise<T> {
-    return await this.http.request<T>({
+    return this.http.request<T>({
       url: `${baseUrl}${url}`,
       method: 'GET',
       headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` },
