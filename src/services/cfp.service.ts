@@ -5,6 +5,7 @@ import { HttpService } from './http.service';
 interface CfpResponse {
   number: number;
   title: string;
+  labels: { name: string }[];
 }
 
 interface CommentsResponse {
@@ -70,7 +71,7 @@ export class CfpService {
       await this.getMasterNodes();
 
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter((cfp) => !cfp.title.startsWith('Announcement'));
+      allCfp = allCfp.filter((cfp) => cfp.labels.find((l) => l.name === 'cfp'));
 
       this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
     } catch (e) {
@@ -111,7 +112,7 @@ export class CfpService {
 
   private getCommentVotes(comment: string): Vote[] {
     const matches = [];
-    const regExp = /signmessage\s(\w*)\s"?(cfp-2109-\d*-\w*)"?[\r\n]+(\S*=)/gm;
+    const regExp = /signmessage\s"?(\w*)"?\s"?(cfp-2109-\d*-\w*)"?[\r\n\s]+(\S*=)/gm;
 
     let match;
     while ((match = regExp.exec(comment)) !== null) {
