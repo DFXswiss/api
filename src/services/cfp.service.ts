@@ -105,64 +105,43 @@ export class CfpService {
     comments: CommentsResponse[],
     masterNodes: MasterNodeResponse[],
   ): Promise<CfpResult> {
-    let yesVotes: number = 0;
-    let neutralVotes: number = 0;
-    let noVotes: number = 0;
-    let votes: number = 0;
+    const validVotes = comments
+      .map((c) => this.getCommentVotes(c.body))
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((v) => this.verifyVote(v.address, v.signature, v.vote, masterNodes));
 
-    for (const comment in comments) {
-      let commentSplit = comments[comment].body
-        .toString()
-        .split('$ defi-cli ')
-        .join('')
-        .split('\r\n')
-        .join(' ')
-        .split('\n')
-        .join(' ')
-        .split('signmessage ');
-
-      if (commentSplit.length > 1) {
-        for (let a = 1; a < commentSplit.length; a++) {
-          const address = commentSplit[a].split(' ')[0].split('"').join('');
-          const vote = commentSplit[a].split(' ')[1].split('"').join('');
-          const signature = commentSplit[a].split(' ')[2].split('"').join('');
-
-          if (await this.verifyVote(address, signature, vote, masterNodes)) {
-            switch (vote.split('-')[3]) {
-              case 'yes': {
-                yesVotes++;
-                votes++;
-                break;
-              }
-              case 'neutral': {
-                neutralVotes++;
-                votes++;
-                break;
-              }
-              case 'no': {
-                noVotes++;
-                votes++;
-                break;
-              }
-              default:
-                break;
-            }
-          }
-        }
-      }
-    }
-
+    const voteCount = validVotes.length;
+    const yesVoteCount = validVotes.filter((v) => v.vote === 'yes').length;
+    const neutralVoteCount = validVotes.filter((v) => v.vote === 'neutral').length;
+    const noVoteCount = validVotes.filter((v) => v.vote === 'no').length;
+    
     return {
       title: title,
       number: number,
-      yes: yesVotes,
-      neutral: neutralVotes,
-      no: noVotes,
-      votes: votes,
+      yes: yesVoteCount,
+      neutral: neutralVoteCount,
+      no: noVoteCount,
+      votes: voteCount,
       possibleVotes: this.masterNodeVotesCounter,
-      voteTurnout: Math.round((votes / this.masterNodeVotesCounter) * 100 * Math.pow(10, 2)) / Math.pow(10, 2),
-      currentResult: yesVotes >= noVotes ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
+      voteTurnout: Math.round((voteCount / this.masterNodeVotesCounter) * 100 * Math.pow(10, 2)) / Math.pow(10, 2),
+      currentResult: yesVoteCount >= noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
     };
+  }
+
+  private getCommentVotes(comment: string): { address: string; signature: string; vote: string }[] {
+    const matches = [];
+    const regExp = /signmessage\s(\w*)\s"?cfp-2109-\d*-(\w*)"?[\r\n]+(\S*=)/gm;
+
+    let match;
+    while ((match = regExp.exec(comment)) !== null) {
+      matches.push(match);
+    }
+    
+    return matches.map((m) => ({
+      address: m[1],
+      signature: m[3],
+      vote: m[2],
+    }));
   }
 
   private async verifyVote(
