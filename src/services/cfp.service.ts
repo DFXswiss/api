@@ -44,44 +44,55 @@ interface CfpResult {
 export class CfpService {
   private issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
   private masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
-  private masterNodeVotesCounter = 0;
+  private masterNodeVotesCounter: number;
+  private cfpAllResult;
+  private cfpDfxResult;
+  private masterNodeList: MasterNodeResponse[];
   constructor(private http: HttpService, private deFiService: DeFiService) {}
+
+  async doUpdate() {
+    await this.getDfxResults(true);
+    await this.getAllCfpResults(true);
+  }
 
   async getCfpResult(cfpNumber: number): Promise<any> {
     try {
-      const cfp = await this.callApi<CfpResponse>(this.issuesUrl, `/${cfpNumber}`);
-      let allComments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfpNumber}/comments`);
-      return await this.getVotes(cfp.title, cfpNumber, allComments, await this.getMasterNodeList());
+      const [cfp, allComments] = await Promise.all([
+        this.callApi<CfpResponse>(this.issuesUrl, `/${cfpNumber}`),
+        await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfpNumber}/comments`),
+      ]);
+      this.getMasterNodeList();
+
+      return await this.getVotes(cfp.title, cfpNumber, allComments, this.masterNodeList);
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed get DFX CFP Result');
     }
   }
 
-  async getDfxResults(): Promise<any> {
-    let cfpResults = [];
-    cfpResults.push(await this.getCfpResult(70));
-    cfpResults.push(await this.getCfpResult(66));
-    return cfpResults;
+  async getDfxResults(update?: boolean): Promise<any> {
+    if (this.cfpAllResult && !update) return this.cfpDfxResult;
+    this.cfpDfxResult = [];
+    this.cfpDfxResult.push(await this.getCfpResult(70));
+    this.cfpDfxResult.push(await this.getCfpResult(66));
+    return this.cfpDfxResult;
   }
 
-  async getAllCfpResults(): Promise<any> {
+  async getAllCfpResults(update?: boolean): Promise<any> {
     try {
+      if (this.cfpAllResult && !update) return this.cfpAllResult;
       const allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-
-      let resultsCfp = [];
+      await this.getMasterNodeList();
+      this.cfpAllResult = [];
 
       for (const cfp in allCfp) {
-        const allComments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${allCfp[cfp].number}/comments`);
-        let result = await this.getVotes(
-          allCfp[cfp].title,
-          allCfp[cfp].number,
-          allComments,
-          await this.getMasterNodeList(),
-        );
-        resultsCfp.push(result);
+        if (!allCfp[cfp].title.includes('Announcement:')) {
+          const allComments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${allCfp[cfp].number}/comments`);
+          let result = await this.getVotes(allCfp[cfp].title, allCfp[cfp].number, allComments, this.masterNodeList);
+          this.cfpAllResult.push(result);
+        }
       }
-      return resultsCfp;
+      return this.cfpAllResult;
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
@@ -164,6 +175,7 @@ export class CfpService {
     if (!signature.endsWith('=')) return false;
     if (!vote.startsWith('cfp-2109-')) return false;
     if (!this.deFiService.verifySignature(vote, address, signature)) return false;
+
     for (const key in masterNodes) {
       if (
         masterNodes[key].mintedBlocks > 0 &&
@@ -185,7 +197,7 @@ export class CfpService {
     });
   }
 
-  private async getMasterNodeList(): Promise<MasterNodeResponse[]> {
+  private async getMasterNodeList() {
     const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masterNodeUrl, ``);
     this.masterNodeVotesCounter = 0;
 
@@ -196,11 +208,9 @@ export class CfpService {
         masterNodes[key].creationHeight < 1204845
       ) {
         this.masterNodeVotesCounter++;
-      } else {
-        delete masterNodes[key];
       }
     }
 
-    return masterNodes;
+    this.masterNodeList = masterNodes;
   }
 }
