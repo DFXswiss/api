@@ -15,6 +15,7 @@ export class Batch {
   @Column({ type: 'float', nullable: true })
   balanceAfter: number;
 
+  //TODO payment über richtige Spalte referenzieren
   @OneToMany(() => Payment, (payment) => payment.asset)
   payments: Payment[];
 

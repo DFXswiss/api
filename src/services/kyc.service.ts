@@ -44,6 +44,12 @@ interface ChatBotResponse {
   version: string;
 }
 
+interface IdentificationResponse {
+  document: string;
+  reference: string;
+  version: string;
+}
+
 export interface CheckVersion {
   name: string;
   state: State;
@@ -219,6 +225,42 @@ export class KycService {
     }
   }
 
+  async onlineIdentifiactionCustomer(id: number): Promise<IdentificationResponse> {
+    try {
+      const result = await this.callApi<IdentificationResponse[]>(
+        'customers/initiate-online-identifications',
+        'POST',
+        id.toString(),
+      );
+      return result[0];
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to initiate online identification');
+    }
+  }
+
+  async documentUploadCustomer(id: number): Promise<IdentificationResponse> {
+    try {
+      const query: string = await this.getUploadDocumentQuery(['passport_or_id', 'invoice', 'representation']);
+
+      const result = await this.callApi<IdentificationResponse[]>(
+        `customers/initiate-online-identifications?${query}`,
+        'POST',
+        id.toString(),
+      );
+      return result[0];
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to initiate upload document');
+    }
+  }
+
+  async getUploadDocumentQuery(queryArray: string[]): Promise<string> {
+    let resultString: string = '';
+    queryArray.forEach((a) => (resultString += 'documentName=' + a + '?'));
+    return resultString.slice(0, -1);
+  }
+
   async getDocumentVersions(id: number, document: string): Promise<CheckVersion> {
     try {
       const result = await this.callApi<CheckVersion[]>(
@@ -238,7 +280,10 @@ export class KycService {
       const chatBotState = await this.getDocumentVersions(userDatas[key].id, KycDocument.CHATBOT);
       if (chatBotState.state == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
-        await this.checkCustomer(userDatas[key].id);
+        const customerInformation = await this.getCustomerInformation(userDatas[key].id);
+        const resultNameCheck = await this.getCheckResult(customerInformation.lastCheckId);
+        if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b')
+          await this.checkCustomer(userDatas[key].id);
         this.mailService.sendKycRequestMail(userDatas[key], chatBotState);
       }
     }
@@ -246,9 +291,9 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
-  private async callApi<T>(url: string, method: Method, data?: any): Promise<T> {
+  private async callApi<T>(url: string, method: Method, data?: any, params?: any): Promise<T> {
     const sessionKey = await this.getSessionKey();
-    return await this.http.request<T>({
+    return this.http.request<T>({
       url: `${this.baseUrl}/${url}`,
       method: method,
       data: data,

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycStatus, UserData } from './userData.entity';
@@ -65,13 +65,26 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
 
-    const customerInformation = await this.kycService.getCustomerInformation(userData.id);
-    const resultNameCheck = await this.kycService.getCheckResult(customerInformation.lastCheckId);
+    let customerInformation = null;
+    let resultNameCheck = null;
+
+    try {
+      customerInformation = await this.kycService.getCustomerInformation(userData.id);
+    } catch (error) {
+      throw new ConflictException('Customer Information error: ' + error.message);
+    }
+
+    try {
+      resultNameCheck = await this.kycService.getCheckResult(customerInformation.lastCheckId);
+    } catch (error) {
+      throw new ConflictException('Customer Check error: ' + error.message);
+    }
+
     return resultNameCheck.risks[0].categoryKey;
   }
 
-  async requestKyc(userId: number): Promise<UserData> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+  async requestKyc(userDataId: number): Promise<UserData> {
+    const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
     if (userData?.kycStatus === KycStatus.NA) {
