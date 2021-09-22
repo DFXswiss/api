@@ -44,16 +44,11 @@ export class StatisticController {
 
   @Get('cfp')
   async getDfxCfp(): Promise<any> {
-    return await this.statisticService.getDfxCfpResults();
+    return this.statisticService.getDfxCfpResults();
   }
 
   @Get('cfp/all')
   async getAllCfp(): Promise<any> {
-    return await this.statisticService.getAllCfpResults();
-  }
-
-  @Get('cfp/:id')
-  async getCfp(@Param('id') id: number): Promise<any> {
-    return await this.statisticService.getCfpResult(id);
+    return this.statisticService.getAllCfpResults();
   }
 }

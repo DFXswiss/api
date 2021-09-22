@@ -45,57 +45,36 @@ export class CfpService {
   private issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
   private masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
   private masterNodeVotesCounter: number;
-  private cfpAllResult;
-  private cfpDfxResult;
+  private cfpResult: CfpResult[];
   private masterNodeList: MasterNodeResponse[];
   constructor(private http: HttpService, private deFiService: DeFiService) {}
 
+  async getDfxResults(): Promise<any> {
+    if (!this.cfpResult) await this.doUpdate();
+    return [this.cfpResult[2], this.cfpResult[5]];
+  }
+
+  async getAllCfpResults(): Promise<any> {
+    if (!this.cfpResult) await this.doUpdate();
+    return this.cfpResult;
+  }
+
   async doUpdate() {
-    await this.getDfxResults(true);
-    await this.getAllCfpResults(true);
-  }
-
-  async getCfpResult(cfpNumber: number): Promise<any> {
     try {
-      const [cfp, allComments] = await Promise.all([
-        this.callApi<CfpResponse>(this.issuesUrl, `/${cfpNumber}`),
-        await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfpNumber}/comments`),
-      ]);
-      this.getMasterNodeList();
-
-      return await this.getVotes(cfp.title, cfpNumber, allComments, this.masterNodeList);
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed get DFX CFP Result');
-    }
-  }
-
-  async getDfxResults(update?: boolean): Promise<any> {
-    if (this.cfpAllResult && !update) return this.cfpDfxResult;
-    this.cfpDfxResult = [];
-    this.cfpDfxResult.push(await this.getCfpResult(70));
-    this.cfpDfxResult.push(await this.getCfpResult(66));
-    return this.cfpDfxResult;
-  }
-
-  async getAllCfpResults(update?: boolean): Promise<any> {
-    try {
-      if (this.cfpAllResult && !update) return this.cfpAllResult;
       const allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
       await this.getMasterNodeList();
-      this.cfpAllResult = [];
+      this.cfpResult = [];
 
       for (const cfp in allCfp) {
         if (!allCfp[cfp].title.includes('Announcement:')) {
           const allComments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${allCfp[cfp].number}/comments`);
           let result = await this.getVotes(allCfp[cfp].title, allCfp[cfp].number, allComments, this.masterNodeList);
-          this.cfpAllResult.push(result);
+          this.cfpResult.push(result);
         }
       }
-      return this.cfpAllResult;
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
+      throw new ServiceUnavailableException('Failed to update');
     }
   }
 
@@ -114,7 +93,7 @@ export class CfpService {
     const yesVoteCount = validVotes.filter((v) => v.vote === 'yes').length;
     const neutralVoteCount = validVotes.filter((v) => v.vote === 'neutral').length;
     const noVoteCount = validVotes.filter((v) => v.vote === 'no').length;
-    
+
     return {
       title: title,
       number: number,
@@ -136,7 +115,7 @@ export class CfpService {
     while ((match = regExp.exec(comment)) !== null) {
       matches.push(match);
     }
-    
+
     return matches.map((m) => ({
       address: m[1],
       signature: m[3],
