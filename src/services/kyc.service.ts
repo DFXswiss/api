@@ -280,7 +280,10 @@ export class KycService {
       const chatBotState = await this.getDocumentVersions(userDatas[key].id, KycDocument.CHATBOT);
       if (chatBotState.state == State.COMPLETED) {
         userDatas[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
-        await this.checkCustomer(userDatas[key].id);
+        const customerInformation = await this.getCustomerInformation(userDatas[key].id);
+        const resultNameCheck = await this.getCheckResult(customerInformation.lastCheckId);
+        if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b')
+          await this.checkCustomer(userDatas[key].id);
         this.mailService.sendKycRequestMail(userDatas[key], chatBotState);
       }
     }
@@ -290,7 +293,7 @@ export class KycService {
   // --- HELPER METHODS --- //
   private async callApi<T>(url: string, method: Method, data?: any, params?: any): Promise<T> {
     const sessionKey = await this.getSessionKey();
-    return await this.http.request<T>({
+    return this.http.request<T>({
       url: `${this.baseUrl}/${url}`,
       method: method,
       data: data,

@@ -74,8 +74,6 @@ export class UserDataService {
     const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
-    const test = await this.kycService.documentUploadCustomer(userData.id);
-
     if (userData?.kycStatus === KycStatus.NA) {
       // update customer
       await this.kycService.updateCustomer(userData.id, user);
