@@ -45,27 +45,13 @@ export class CfpService {
   private issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
   private masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
   private masterNodeVotesCounter = 0;
-  constructor(private http: HttpService, private defiService: DeFiService) {}
+  constructor(private http: HttpService, private deFiService: DeFiService) {}
 
   async getCfpResult(cfpNumber: number): Promise<any> {
     try {
-      const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masterNodeUrl, ``);
-      this.masterNodeVotesCounter = 0;
-
-      for (const key in masterNodes) {
-        if (
-          masterNodes[key].state === State.ENABLED &&
-          masterNodes[key].mintedBlocks > 0 &&
-          masterNodes[key].creationHeight < 1204845
-        ) {
-          this.masterNodeVotesCounter++;
-        } else {
-          delete masterNodes[key];
-        }
-      }
       const cfp = await this.callApi<CfpResponse>(this.issuesUrl, `/${cfpNumber}`);
       let allComments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfpNumber}/comments`);
-      return await this.getVotes(cfp.title, cfpNumber, allComments, masterNodes);
+      return await this.getVotes(cfp.title, cfpNumber, allComments, await this.getMasterNodeList());
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed get DFX CFP Result');
@@ -81,28 +67,18 @@ export class CfpService {
 
   async getAllCfpResults(): Promise<any> {
     try {
-      const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masterNodeUrl, ``);
-      this.masterNodeVotesCounter = 0;
-
-      for (const key in masterNodes) {
-        if (
-          masterNodes[key].state === State.ENABLED &&
-          masterNodes[key].mintedBlocks > 0 &&
-          masterNodes[key].creationHeight < 1204845
-        ) {
-          this.masterNodeVotesCounter++;
-        } else {
-          delete masterNodes[key];
-        }
-      }
-
       const allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
 
       let resultsCfp = [];
 
       for (const cfp in allCfp) {
         const allComments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${allCfp[cfp].number}/comments`);
-        let result = await this.getVotes(allCfp[cfp].title, allCfp[cfp].number, allComments, masterNodes);
+        let result = await this.getVotes(
+          allCfp[cfp].title,
+          allCfp[cfp].number,
+          allComments,
+          await this.getMasterNodeList(),
+        );
         resultsCfp.push(result);
       }
       return resultsCfp;
@@ -133,6 +109,7 @@ export class CfpService {
         .split('\n')
         .join(' ')
         .split('signmessage ');
+
       if (commentSplit.length > 1) {
         for (let a = 1; a < commentSplit.length; a++) {
           const address = commentSplit[a].split(' ')[0].split('"').join('');
@@ -186,7 +163,7 @@ export class CfpService {
     if (!address.startsWith('8')) return false;
     if (!signature.endsWith('=')) return false;
     if (!vote.startsWith('cfp-2109-')) return false;
-    if (!this.defiService.verifySignature(vote, address, signature)) return false;
+    if (!this.deFiService.verifySignature(vote, address, signature)) return false;
     for (const key in masterNodes) {
       if (
         masterNodes[key].mintedBlocks > 0 &&
@@ -206,5 +183,24 @@ export class CfpService {
       method: 'GET',
       headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` },
     });
+  }
+
+  private async getMasterNodeList(): Promise<MasterNodeResponse[]> {
+    const masterNodes = await this.callApi<MasterNodeResponse[]>(this.masterNodeUrl, ``);
+    this.masterNodeVotesCounter = 0;
+
+    for (const key in masterNodes) {
+      if (
+        masterNodes[key].state === State.ENABLED &&
+        masterNodes[key].mintedBlocks > 0 &&
+        masterNodes[key].creationHeight < 1204845
+      ) {
+        this.masterNodeVotesCounter++;
+      } else {
+        delete masterNodes[key];
+      }
+    }
+
+    return masterNodes;
   }
 }
