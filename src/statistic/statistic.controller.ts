@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { StatisticService } from './statistic.service';
 
@@ -40,5 +40,15 @@ export class StatisticController {
   @Get('volume/sell')
   async getSellVolume(): Promise<any> {
     return this.statisticService.getDFISellVolume();
+  }
+
+  @Get('cfp')
+  async getDfxCfp(): Promise<any> {
+    return this.statisticService.getDfxCfpResults();
+  }
+
+  @Get('cfp/all')
+  async getAllCfp(): Promise<any> {
+    return this.statisticService.getAllCfpResults();
   }
 }
