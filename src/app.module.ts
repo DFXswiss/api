@@ -65,6 +65,7 @@ import { SchedulerService } from './services/scheduler.service';
 import { BatchRepository } from './batch/batch.repository';
 import { BatchController } from './batch/batch.controller';
 import { BatchService } from './batch/batch.service';
+import { CfpService } from './services/cfp.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -180,6 +181,7 @@ import { BatchService } from './batch/batch.service';
     HttpService,
     SchedulerService,
     BatchService,
+    CfpService,
   ],
   exports: [
     UserService,
@@ -208,6 +210,7 @@ import { BatchService } from './batch/batch.service';
     HttpService,
     SchedulerService,
     BatchService,
+    CfpService,
   ],
 })
 export class AppModule {}
