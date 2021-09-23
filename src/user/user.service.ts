@@ -126,7 +126,7 @@ export class UserService {
       await this.kycService.updateCustomer(userData.id, user);
 
       userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
-
+      //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
       // start onboarding
       const chatBotData = await this.kycService.onboardingCustomer(userData.id);
 

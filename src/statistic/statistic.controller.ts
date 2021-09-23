@@ -51,4 +51,9 @@ export class StatisticController {
   async getAllCfp(): Promise<any> {
     return this.statisticService.getAllCfpResults();
   }
+
+  @Get('cfp/invalidVotes')
+  async getInvalidVotes(): Promise<any> {
+    return this.statisticService.getAllInvalidVotes();
+  }
 }
