@@ -86,9 +86,6 @@ export class LogRepository extends Repository<Log> {
       throw new ConflictException(error.message);
     }
 
-    if (log['__user__']) delete log['__user__'];
-    if (log['__payment__']) delete log['__payment__'];
-
     log.fiat = fiatObject;
     log.asset = assetObject;
 
@@ -103,9 +100,6 @@ export class LogRepository extends Repository<Log> {
     } catch (error) {
       throw new ConflictException(error.message);
     }
-
-    if (log['__user__']) delete log['__user__'];
-    if (log['__payment__']) delete log['__payment__'];
 
     return log;
   }

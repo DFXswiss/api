@@ -30,8 +30,6 @@ export class BuyRepository extends Repository<Buy> {
 
         delete buy.address;
         delete buy.user;
-        delete buy['__user__'];
-        delete buy['__userData__'];
         return buy;
       }
     } catch (error) {
