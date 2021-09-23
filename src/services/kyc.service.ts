@@ -269,7 +269,7 @@ export class KycService {
       return result[0];
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
+      throw new ServiceUnavailableException('Failed to create file reference');
     }
   }
 
