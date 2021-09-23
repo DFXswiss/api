@@ -137,8 +137,9 @@ export class CfpService {
 
   private async getMasterNodes(): Promise<void> {
     const response = await this.callApi<{ [key: string]: MasterNodeResponse }>(this.masterNodeUrl, ``);
-    this.masterNodes = Object.values(response)
-      .filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0 && node.creationHeight < 1204845);
+    this.masterNodes = Object.values(response).filter(
+      (node) => node.state === State.ENABLED && node.mintedBlocks > 0 && node.creationHeight < 1204845 - 1008,
+    );
     this.masterNodeCount = this.masterNodes.length;
   }
 

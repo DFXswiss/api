@@ -96,6 +96,33 @@ export interface CustomerResponse {
   citizenships: [string];
 }
 
+export interface Customer {
+  reference: number;
+  type: string;
+  id?: number;
+  versionId?: number;
+  names: [{ firstName: string; lastName: string }];
+  datesOfBirth: [{ year: string; month: string; day: string }];
+  citizenships: [string];
+  countriesOfResidence: [string];
+  emails: [string];
+  telephones: [string];
+  structuredAddresses: [
+    {
+      street: string;
+      houseNumber: string;
+      zipCode: string;
+      city: string;
+      countryCode: string;
+    },
+  ];
+  gender: string;
+  title: string;
+  preferredLanguage: string;
+  activationDate: { year: string; month: string; day: string };
+  deactivationDate: { year: string; month: string; day: string };
+}
+
 interface CustomerInformationResponse {
   reference: string;
   contractReference: string;
@@ -168,9 +195,9 @@ export class KycService {
     }
   }
 
-  async getCustomer(id: number): Promise<CustomerResponse> {
+  async getCustomer(id: number): Promise<Customer> {
     try {
-      return await this.callApi<CustomerResponse>(`customers/${id.toString()}`, 'GET');
+      return await this.callApi<Customer>(`customers/${id.toString()}`, 'GET');
     } catch (e) {
       if (e.response.status === 404) {
         return null;
@@ -227,13 +254,28 @@ export class KycService {
     }
   }
 
+  async createFileReference(id: number, fileReference: number, lastName: string): Promise<ChatBotResponse> {
+    const data = {
+      customer: {
+        reference: id.toString(),
+        type: 'PERSON',
+        names: [{ lastName: lastName }],
+      },
+      contractReference: fileReference.toString(),
+    };
+
+    try {
+      const result = await this.callApi<any>('customers/contract-linked', 'POST', data);
+      return result[0];
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
+    }
+  }
+
   async onlineIdentificationCustomer(id: number): Promise<IdentificationResponse> {
     try {
-      const result = await this.callApi<IdentificationResponse[]>(
-        'customers/initiate-online-identifications',
-        'POST',
-        id.toString(),
-      );
+      const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [id.toString()]);
       return result[0];
     } catch (e) {
       console.log(e);
@@ -243,12 +285,12 @@ export class KycService {
 
   async documentUploadCustomer(id: number): Promise<IdentificationResponse> {
     try {
-      const query: string = await this.getUploadDocumentQuery(['passport_or_id', 'invoice', 'representation']);
+      const query: string = 'documentName=passport_or_id'; // await this.getUploadDocumentQuery(['passport_or_id', 'invoice', 'representation']);
 
       const result = await this.callApi<IdentificationResponse[]>(
-        `customers/initiate-online-identifications?${query}`,
+        `customers/initiate-document-uploads?${query}`,
         'POST',
-        id.toString(),
+        [id.toString()],
       );
       return result[0];
     } catch (e) {
@@ -259,7 +301,7 @@ export class KycService {
 
   async getUploadDocumentQuery(queryArray: string[]): Promise<string> {
     let resultString: string = '';
-    queryArray.forEach((a) => (resultString += 'documentName=' + a + '?'));
+    queryArray.forEach((a) => (resultString += 'documentName=' + a + '&'));
     return resultString.slice(0, -1);
   }
 
@@ -286,6 +328,7 @@ export class KycService {
         const resultNameCheck = await this.getCheckResult(customerInformation.lastCheckId);
         if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b')
           await this.checkCustomer(userData[key].id);
+
         this.mailService.sendKycRequestMail(userData[key], chatBotState);
       }
     }
