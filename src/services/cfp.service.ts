@@ -82,7 +82,7 @@ export class CfpService {
 
   // --- HELPER METHODS --- //
   private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
-    const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments`);
+    const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=1000`);
     return this.getCfpResult(cfp.title, cfp.number, comments);
   }
 
