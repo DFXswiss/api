@@ -2,9 +2,21 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycStatus, UserData } from './userData.entity';
-import { KycService } from 'src/services/kyc.service';
+import { CheckResult, CustomerResponse, KycService } from 'src/services/kyc.service';
 import { BankDataRepository } from 'src/bankData/bankData.repository';
 import { UserRepository } from 'src/user/user.repository';
+
+export interface UserDataChecks {
+  userDataId: string;
+  customerId?: string;
+  kycFileReference?: string;
+  nameCheckRisk: string;
+}
+
+export interface CustomerDataDetailed {
+  customer: CustomerResponse;
+  checkResult: CheckResult;
+}
 
 @Injectable()
 export class UserDataService {
@@ -31,11 +43,10 @@ export class UserDataService {
   }
 
   async getAllCustomer(): Promise<any> {
-    const customer = await this.kycService.getAllCustomer();
-    return customer;
+    return this.kycService.getAllCustomer();
   }
 
-  async getCustomer(userDataId: number): Promise<any> {
+  async getCustomer(userDataId: number): Promise<CustomerDataDetailed> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
@@ -81,6 +92,25 @@ export class UserDataService {
     }
 
     return resultNameCheck.risks[0].categoryKey;
+  }
+
+  async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
+    let userDataChecks: UserDataChecks[] = [];
+    for (let a = startUserDataId; a <= endUserDataId; a++) {
+      const userData = await this.userDataRepo.findOne({ where: { id: a }, relations: ['bankDatas'] });
+      if (userData.bankDatas.length > 0) {
+        const customer = await this.getCustomer(a);
+        userDataChecks.push({
+          userDataId: a.toString(),
+          customerId: customer.customer.id.toString(),
+          kycFileReference: userData.kycFileReference.toString(),
+          nameCheckRisk: customer.checkResult.risks[0].categoryKey,
+        });
+      } else {
+        userDataChecks.push({ userDataId: a.toString(), nameCheckRisk: 'no_bank_data' });
+      }
+    }
+    return userDataChecks;
   }
 
   async requestKyc(userDataId: number): Promise<UserData> {
