@@ -16,6 +16,8 @@ param mailRefreshToken string
 @secure()
 param kycPassword string
 
+@secure()
+param githubToken string
 
 // --- VARIABLES --- //
 var systemName = 'dfx-api'
@@ -159,6 +161,10 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KYC_PASSWORD'
           value: kycPassword
+        }
+        {
+          name: 'GH_TOKEN'
+          value: githubToken
         }
       ]
     }
