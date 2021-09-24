@@ -29,6 +29,7 @@ export class BankDataService {
 
     if (!customer) {
       await this.kycService.createCustomer(userData.id, bankData.name);
+      //await this.kycService.createFileReference(userData.id, userData.kycFileReference, bankData.name);
     }
 
     userData.bankDatas.push(bankData);
