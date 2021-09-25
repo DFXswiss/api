@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
+import { identity } from 'rxjs';
 import { User } from 'src/user/user.entity';
 import { KycStatus } from 'src/userData/userData.entity';
 import { UserDataRepository } from 'src/userData/userData.repository';
@@ -15,6 +16,35 @@ export enum State {
 
 export enum KycDocument {
   CHATBOT = 'chatbot-onboarding',
+  ADDITIONAL_INFORMATION = 'additional-information',
+  ADDRESS_CHECK = 'address-check',
+  API_CHECK = 'api-check',
+  API_UPLOAD_FINANCIAL_STATEMENT = 'api-upload-financial-statement',
+  API_UPLOAD_IDENTIFICATION_DOCUMENT = 'api-upload-identification-document',
+  APPROVAL_DOCUMENT = 'approval-document',
+  BCP = 'bcp',
+  BENEFICIAL_OWNER = 'beneficial-owner',
+  CERTIFICATE_INHERITANCE = 'certificate-inheritance',
+  CHATBOT_ONBOARDING = 'chatbot-onboarding',
+  CHATBOT_VERIFICATION = 'chatbot-verification',
+  CHECK = 'check',
+  COMPLIANCE_CHECK = 'compliance-desk',
+  CONTROLLER = 'controller',
+  CRYPTO_CURRENCY_PROPERTIES = 'crypto-currency-properties',
+  EDD = 'edd',
+  FINANCIAL_STATEMENTS = 'financial-statements',
+  INCORPORATION_CERTIFICATE = 'incorporation_certificate',
+  INVOICE = 'invoice',
+  MRZ = 'mrz',
+  ONLINE_IDENTIFICATION = 'online-identification',
+  PASSPORT_OR_ID = 'passport_or_id',
+  REGISTRY_COMMERCE = 'registry_commerce',
+  REPRESENTATION = 'representation',
+  STATUTES_ASSOCIATION = 'statutes-association',
+  TAX_DECLARATION = 'tax-declaration',
+  USER_ADDED_DOCUMENT = 'user-added-document',
+  VERIFICATION = 'verification',
+  VIDEO_IDENTIFICATION = 'video_identification',
 }
 
 interface Challenge {
@@ -144,7 +174,7 @@ export class KycService {
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
-      reference: id.toString(),
+      reference: process.env.KYC_PREFIX + id.toString(),
       type: 'PERSON',
       names: [{ lastName: name }],
     };
@@ -159,7 +189,7 @@ export class KycService {
 
   async updateCustomer(id: number, user: User): Promise<CreateResponse> {
     const data = {
-      reference: id.toString(),
+      reference: process.env.KYC_PREFIX + id.toString(),
       type: 'PERSON',
       names: [{ firstName: user.firstname, lastName: user.surname }],
       countriesOfResidence: [user.country.symbol],
@@ -197,7 +227,7 @@ export class KycService {
 
   async getCustomer(id: number): Promise<Customer> {
     try {
-      return await this.callApi<Customer>(`customers/${id.toString()}`, 'GET');
+      return await this.callApi<Customer>(`customers/${process.env.KYC_PREFIX}${id.toString()}`, 'GET');
     } catch (e) {
       if (e.response.status === 404) {
         return null;
@@ -209,7 +239,10 @@ export class KycService {
 
   async getCustomerInformation(id: number): Promise<CustomerInformationResponse> {
     try {
-      return await this.callApi<CustomerInformationResponse>(`customers/${id.toString()}/information`, 'GET');
+      return await this.callApi<CustomerInformationResponse>(
+        `customers/${process.env.KYC_PREFIX}${id.toString()}/information`,
+        'GET',
+      );
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to get KYC customer');
@@ -225,9 +258,20 @@ export class KycService {
     }
   }
 
+  async getDocuments(id: number): Promise<CheckResult> {
+    try {
+      return await this.callApi<any>(`customers/${process.env.KYC_PREFIX}${id.toString()}/documents?`, 'GET');
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to do get check result');
+    }
+  }
+
   async checkCustomer(id: number): Promise<CheckResponse> {
     try {
-      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
+      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [
+        process.env.KYC_PREFIX + id.toString(),
+      ]);
       return results[0];
     } catch (e) {
       console.log(e);
@@ -235,9 +279,9 @@ export class KycService {
     }
   }
 
-  async onboardingCustomer(id: number): Promise<ChatBotResponse> {
+  async initiateOnboardingChatBot(id: number): Promise<ChatBotResponse> {
     const data = {
-      references: [id.toString()],
+      references: [process.env.KYC_PREFIX + id.toString()],
       sendingInvitation: true,
     };
 
@@ -257,7 +301,7 @@ export class KycService {
   async createFileReference(id: number, fileReference: number, lastName: string): Promise<ChatBotResponse> {
     const data = {
       customer: {
-        reference: id.toString(),
+        reference: process.env.KYC_PREFIX + id.toString(),
         type: 'PERSON',
         names: [{ lastName: lastName }],
       },
@@ -273,9 +317,11 @@ export class KycService {
     }
   }
 
-  async onlineIdentificationCustomer(id: number): Promise<IdentificationResponse> {
+  async initiateOnlineIdentification(id: number): Promise<IdentificationResponse> {
     try {
-      const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [id.toString()]);
+      const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [
+        process.env.KYC_PREFIX + id.toString(),
+      ]);
       return result[0];
     } catch (e) {
       console.log(e);
@@ -283,14 +329,14 @@ export class KycService {
     }
   }
 
-  async documentUploadCustomer(id: number): Promise<IdentificationResponse> {
+  async initiateDocumentUpload(id: number, kycDocuments: KycDocument[]): Promise<IdentificationResponse> {
     try {
-      const query: string = 'documentName=passport_or_id'; // await this.getUploadDocumentQuery(['passport_or_id', 'invoice', 'representation']);
+      const query: string = await this.getUploadDocumentQuery(kycDocuments);
 
       const result = await this.callApi<IdentificationResponse[]>(
         `customers/initiate-document-uploads?${query}`,
         'POST',
-        [id.toString()],
+        [process.env.KYC_PREFIX + id.toString()],
       );
       return result[0];
     } catch (e) {
@@ -299,51 +345,135 @@ export class KycService {
     }
   }
 
-  async getUploadDocumentQuery(queryArray: string[]): Promise<string> {
+  async uploadDocument(id: number, kycDocumentVersion: string, kycDocument: KycDocument): Promise<boolean> {
+    try {
+      //TODO BODY with PDF rawData
+
+      const result = await this.callApi<string>(
+        `customers/${
+          process.env.KYC_PREFIX
+        }${id.toString()}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentVersion}`,
+        'PUT',
+        'application/pdf',
+      );
+
+      return result === 'done';
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to initiate upload document');
+    }
+  }
+
+  async getUploadDocumentQuery(queryArray: KycDocument[]): Promise<string> {
     let resultString: string = '';
     queryArray.forEach((a) => (resultString += 'documentName=' + a + '&'));
     return resultString.slice(0, -1);
   }
 
-  async getDocumentVersions(id: number, document: string): Promise<CheckVersion> {
+  async getDocumentVersion(id: number, document: string): Promise<CheckVersion> {
     try {
       const result = await this.callApi<CheckVersion[]>(
-        `customers/${id.toString()}/documents/${document}/versions`,
+        `customers/${process.env.KYC_PREFIX}${id.toString()}/documents/${document}/versions`,
         'GET',
       );
       return result[result.length - 1];
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
+      throw new ServiceUnavailableException('Failed to get document version');
     }
   }
 
-  async chatBotCheck(): Promise<void> {
+  async createDocumentVersion(id: number, document: string, version: string): Promise<boolean> {
+    try {
+      const data = {
+        name: 'ident',
+        state: 'PENDING',
+      };
+
+      const result = await this.callApi<string>(
+        `customers/${process.env.KYC_PREFIX}${id.toString()}/documents/${document}/versions/${version}`,
+        'PUT',
+        data,
+      );
+      return result === 'done';
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to create a document version');
+    }
+  }
+
+  async createDocumentVersionPart(id: number, document: string, version: string, part: string): Promise<boolean> {
+    try {
+      const data = {
+        name: 'ident',
+        label: 'ident',
+        fileName: 'ident.pdf',
+        contentType: 'application/pdf',
+      };
+
+      const result = await this.callApi<string>(
+        `customers/${
+          process.env.KYC_PREFIX
+        }${id.toString()}/documents/${document}/versions/${version}/parts/${part}/metadata`,
+        'PUT',
+        data,
+      );
+      return result === 'done';
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException('Failed to create a document version');
+    }
+  }
+
+  async doChatBotCheck(): Promise<void> {
     const userData = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
     for (const key in userData) {
-      const chatBotState = await this.getDocumentVersions(userData[key].id, KycDocument.CHATBOT);
-      if (chatBotState.state == State.COMPLETED) {
-        userData[key].kycStatus = KycStatus.WAIT_VERIFY_ADDRESS;
+      const chatBotDocument = await this.getDocumentVersion(userData[key].id, KycDocument.CHATBOT);
+      if (chatBotDocument.state == State.COMPLETED) {
+        userData[key].kycStatus = KycStatus.WAIT_ADDRESS;
         const customerInformation = await this.getCustomerInformation(userData[key].id);
         const resultNameCheck = await this.getCheckResult(customerInformation.lastCheckId);
         if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b')
           await this.checkCustomer(userData[key].id);
-
-        this.mailService.sendKycRequestMail(userData[key], chatBotState);
+        await this.initiateDocumentUpload(userData[key].id, [KycDocument.INVOICE]);
+        await this.userDataRepository.save(userData);
       }
     }
-    await this.userDataRepository.save(userData);
+  }
+
+  async doAddressCheck(): Promise<void> {
+    const userData = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_ADDRESS });
+    for (const key in userData) {
+      const addressDocument = await this.getDocumentVersion(userData[key].id, KycDocument.INVOICE);
+      if (addressDocument.state == State.COMPLETED) {
+        userData[key].kycStatus = KycStatus.WAIT_ONLINE_ID;
+        await this.userDataRepository.save(userData);
+        await this.initiateOnlineIdentification(userData[key].id);
+      }
+    }
+  }
+
+  async doOnlineIdCheck(): Promise<void> {
+    const userData = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_ONLINE_ID });
+    for (const key in userData) {
+      const addressDocument = await this.getDocumentVersion(userData[key].id, KycDocument.ONLINE_IDENTIFICATION);
+      if (addressDocument.state == State.COMPLETED) {
+        userData[key].kycStatus = KycStatus.WAIT_MANUAL;
+        await this.userDataRepository.save(userData);
+        await this.mailService.sendKycRequestMail(userData[key], addressDocument);
+      }
+    }
   }
 
   // --- HELPER METHODS --- //
-  private async callApi<T>(url: string, method: Method, data?: any, params?: any): Promise<T> {
+  private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
     const sessionKey = await this.getSessionKey();
     return this.http.request<T>({
       url: `${this.baseUrl}/${url}`,
       method: method,
       data: data,
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': contentType ?? 'application/json',
         'Session-Key': sessionKey,
       },
     });

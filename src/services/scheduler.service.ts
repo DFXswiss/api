@@ -9,7 +9,9 @@ export class SchedulerService {
 
   @Interval(300000)
   async chatBot() {
-    await this.kycService.chatBotCheck();
+    await this.kycService.doChatBotCheck();
+    await this.kycService.doAddressCheck();
+    await this.kycService.doOnlineIdCheck();
   }
 
   @Interval(600000)
