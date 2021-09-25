@@ -144,7 +144,7 @@ export class KycService {
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
-      reference: id.toString(),
+      reference: this.reference(id),
       type: 'PERSON',
       names: [{ lastName: name }],
     };
@@ -159,7 +159,7 @@ export class KycService {
 
   async updateCustomer(id: number, user: User): Promise<CreateResponse> {
     const data = {
-      reference: id.toString(),
+      reference: this.reference(id),
       type: 'PERSON',
       names: [{ firstName: user.firstname, lastName: user.surname }],
       countriesOfResidence: [user.country.symbol],
@@ -197,7 +197,7 @@ export class KycService {
 
   async getCustomer(id: number): Promise<Customer> {
     try {
-      return await this.callApi<Customer>(`customers/${id.toString()}`, 'GET');
+      return await this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
     } catch (e) {
       if (e.response.status === 404) {
         return null;
@@ -209,7 +209,7 @@ export class KycService {
 
   async getCustomerInformation(id: number): Promise<CustomerInformationResponse> {
     try {
-      return await this.callApi<CustomerInformationResponse>(`customers/${id.toString()}/information`, 'GET');
+      return await this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`, 'GET');
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to get KYC customer');
@@ -218,7 +218,7 @@ export class KycService {
 
   async getCheckResult(customerCheckId: number): Promise<CheckResult> {
     try {
-      return await this.callApi<CheckResult>(`customers/checks/${customerCheckId.toString()}/result`, 'GET');
+      return await this.callApi<CheckResult>(`customers/checks/${this.reference(customerCheckId)}/result`, 'GET');
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to do get check result');
@@ -227,7 +227,7 @@ export class KycService {
 
   async checkCustomer(id: number): Promise<CheckResponse> {
     try {
-      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [id.toString()]);
+      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
       return results[0];
     } catch (e) {
       console.log(e);
@@ -237,7 +237,7 @@ export class KycService {
 
   async onboardingCustomer(id: number): Promise<ChatBotResponse> {
     const data = {
-      references: [id.toString()],
+      references: [this.reference(id)],
       sendingInvitation: true,
     };
 
@@ -257,11 +257,11 @@ export class KycService {
   async createFileReference(id: number, fileReference: number, lastName: string): Promise<ChatBotResponse> {
     const data = {
       customer: {
-        reference: id.toString(),
+        reference: this.reference(id),
         type: 'PERSON',
         names: [{ lastName: lastName }],
       },
-      contractReference: fileReference.toString(),
+      contractReference: this.reference(fileReference),
     };
 
     try {
@@ -275,7 +275,7 @@ export class KycService {
 
   async onlineIdentificationCustomer(id: number): Promise<IdentificationResponse> {
     try {
-      const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [id.toString()]);
+      const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [this.reference(id)]);
       return result[0];
     } catch (e) {
       console.log(e);
@@ -290,7 +290,7 @@ export class KycService {
       const result = await this.callApi<IdentificationResponse[]>(
         `customers/initiate-document-uploads?${query}`,
         'POST',
-        [id.toString()],
+        [this.reference(id)],
       );
       return result[0];
     } catch (e) {
@@ -308,7 +308,7 @@ export class KycService {
   async getDocumentVersions(id: number, document: string): Promise<CheckVersion> {
     try {
       const result = await this.callApi<CheckVersion[]>(
-        `customers/${id.toString()}/documents/${document}/versions`,
+        `customers/${this.reference(id)}/documents/${document}/versions`,
         'GET',
       );
       return result[result.length - 1];
@@ -336,6 +336,10 @@ export class KycService {
   }
 
   // --- HELPER METHODS --- //
+  private reference(id: number): string {
+    return process.env.KYC_PREFIX ? `${process.env.KYC_PREFIX}${id}` : id.toString();
+  }
+
   private async callApi<T>(url: string, method: Method, data?: any, params?: any): Promise<T> {
     const sessionKey = await this.getSessionKey();
     return this.http.request<T>({
