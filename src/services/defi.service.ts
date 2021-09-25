@@ -1,14 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
-import { MainNet } from '@defichain/jellyfish-network'
+import { MainNet } from '@defichain/jellyfish-network';
 
 @Injectable()
 export class DeFiService {
-  public verifySignature(
-    message: string,
-    address: string,
-    signature: string,
-  ): boolean {
+  public verifySignature(message: string, address: string, signature: string): boolean {
     let isValid = false;
     try {
       isValid = this.verify(message, address, signature);
@@ -37,16 +33,7 @@ export class DeFiService {
     return isValid;
   }
 
-  private verify(
-    message: string,
-    address: string,
-    signature: string,
-  ): boolean {
-    return verify(
-      message,
-      address,
-      signature,
-      MainNet.messagePrefix,
-    );
+  private verify(message: string, address: string, signature: string): boolean {
+    return verify(message, address, signature, MainNet.messagePrefix);
   }
 }
