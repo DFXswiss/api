@@ -15,6 +15,7 @@ param mailRefreshToken string
 
 @secure()
 param kycPassword string
+param kycPrefix string = 'test_'
 
 @secure()
 param githubToken string
@@ -161,6 +162,10 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KYC_PASSWORD'
           value: kycPassword
+        }
+        {
+          name: 'KYC_PREFIX'
+          value: kycPrefix
         }
         {
           name: 'GH_TOKEN'
