@@ -5,6 +5,7 @@ import { HttpService } from './http.service';
 interface CfpResponse {
   number: number;
   title: string;
+  html_url: string;
   labels: { name: string }[];
 }
 
@@ -38,6 +39,7 @@ interface Vote {
 interface CfpResult {
   number: number;
   title: string;
+  html_url: string;
   yes: number;
   neutral: number;
   no: number;
@@ -54,6 +56,7 @@ export class CfpService {
   private cfpResults: CfpResult[];
   private masterNodeCount: number;
   private masterNodes: MasterNodeResponse[] = [];
+  private invalidVotes: string[];
   constructor(private http: HttpService, private deFiService: DeFiService) {}
 
   async getDfxResults(): Promise<any> {
@@ -66,10 +69,15 @@ export class CfpService {
     return this.cfpResults;
   }
 
+  async getAllInvalidVotes(): Promise<any> {
+    if (!this.invalidVotes) await this.doUpdate();
+    return this.invalidVotes;
+  }
+
   async doUpdate(): Promise<void> {
     try {
       await this.getMasterNodes();
-
+      this.invalidVotes = [];
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
       allCfp = allCfp.filter((cfp) => cfp.labels.find((l) => l.name === 'cfp'));
 
@@ -82,11 +90,19 @@ export class CfpService {
 
   // --- HELPER METHODS --- //
   private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
-    const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=1000`);
-    return this.getCfpResult(cfp.title, cfp.number, comments);
+    const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=100`);
+    if (comments.length === 100) {
+      const secondPage = await this.callApi<CommentsResponse[]>(
+        this.issuesUrl,
+        `/${cfp.number}/comments?per_page=100&page=2`,
+      );
+      secondPage.forEach((comment) => comments.push(comment));
+    }
+
+    return this.getCfpResult(cfp, comments);
   }
 
-  private async getCfpResult(title: string, number: number, comments: CommentsResponse[]): Promise<CfpResult> {
+  private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
     const validVotes = comments
       .map((c) => this.getCommentVotes(c.body))
       .reduce((prev, curr) => prev.concat(curr), [])
@@ -98,15 +114,16 @@ export class CfpService {
     const noVoteCount = validVotes.filter((v) => v.vote.endsWith('no')).length;
 
     return {
-      title: title,
-      number: number,
+      title: cfp.title,
+      number: cfp.number,
+      html_url: cfp.html_url,
       yes: yesVoteCount,
       neutral: neutralVoteCount,
       no: noVoteCount,
       votes: voteCount,
       possibleVotes: this.masterNodeCount,
       voteTurnout: Math.round((voteCount / this.masterNodeCount) * 100 * Math.pow(10, 2)) / Math.pow(10, 2),
-      currentResult: yesVoteCount >= noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
+      currentResult: yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
     };
   }
 
@@ -118,7 +135,7 @@ export class CfpService {
     while ((match = regExp.exec(comment)) !== null) {
       matches.push(match);
     }
-
+    if (matches.length === 0) this.invalidVotes.push(comment);
     return matches.map((m) => ({
       address: m[1],
       signature: m[3],
@@ -137,8 +154,9 @@ export class CfpService {
 
   private async getMasterNodes(): Promise<void> {
     const response = await this.callApi<{ [key: string]: MasterNodeResponse }>(this.masterNodeUrl, ``);
-    this.masterNodes = Object.values(response)
-      .filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0 && node.creationHeight < 1204845);
+    this.masterNodes = Object.values(response).filter(
+      (node) => node.state === State.ENABLED && node.mintedBlocks > 0 && node.creationHeight < 1204845 - 1008,
+    );
     this.masterNodeCount = this.masterNodes.length;
   }
 
