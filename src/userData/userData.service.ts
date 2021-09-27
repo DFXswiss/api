@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycStatus, UserData } from './userData.entity';
-import { CheckResult, Customer, CustomerResponse, KycService } from 'src/services/kyc.service';
+import { CheckResult, Customer, CustomerResponse, KycDocument, KycService } from 'src/services/kyc.service';
 import { BankDataRepository } from 'src/bankData/bankData.repository';
 import { UserRepository } from 'src/user/user.repository';
 
@@ -121,10 +121,14 @@ export class UserDataService {
       // update customer
       await this.kycService.updateCustomer(userData.id, user);
 
+      //Create kyc file reference and upload
       userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
+
+      //TODO: upload kyc file reference
       //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
+
       // start onboarding
-      const chatBotData = await this.kycService.onboardingCustomer(userData.id);
+      const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
 
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);

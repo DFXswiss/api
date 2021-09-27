@@ -12,9 +12,9 @@ export enum NameCheckStatus {
 export enum KycStatus {
   NA = 'NA',
   WAIT_CHAT_BOT = 'Chatbot',
-  WAIT_VERIFY_ADDRESS = 'Address',
-  WAIT_VERIFY_ID = 'Address',
-  WAIT_VERIFY_MANUAL = 'Manual',
+  WAIT_ADDRESS = 'Address',
+  WAIT_ONLINE_ID = 'OnlineId',
+  WAIT_MANUAL = 'Manual',
   COMPLETED = 'Completed',
 }
 

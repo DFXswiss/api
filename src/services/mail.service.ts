@@ -41,6 +41,10 @@ export class MailService {
               <td>${userData.id}</td>
           </tr>
           <tr>
+              <td>KYC File Reference:</td>
+              <td>${userData.kycFileReference}</td>
+          </tr>
+          <tr>
               <td>Request date:</td>
               <td>${checkData.creationTime.toLocaleString()}</td>
           </tr>
