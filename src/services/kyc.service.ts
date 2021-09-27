@@ -1,9 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
-import { identity } from 'rxjs';
 import { User } from 'src/user/user.entity';
-import { KycStatus } from 'src/userData/userData.entity';
+import { KycStatus, UserData } from 'src/userData/userData.entity';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { HttpService } from './http.service';
 import { MailService } from './mail.service';
@@ -417,48 +416,66 @@ export class KycService {
   }
 
   async doChatBotCheck(): Promise<void> {
-    const userData = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_CHAT_BOT });
-    for (const key in userData) {
-      const chatBotDocument = await this.getDocumentVersion(userData[key].id, KycDocument.CHATBOT);
-      if (chatBotDocument.state == State.COMPLETED) {
-        userData[key].kycStatus = KycStatus.WAIT_ADDRESS;
-        const customerInformation = await this.getCustomerInformation(userData[key].id);
+    await this.doCheck(
+      KycStatus.WAIT_CHAT_BOT,
+      KycStatus.WAIT_ADDRESS,
+      KycDocument.CHATBOT,
+      async (userData) => {
+        const customerInformation = await this.getCustomerInformation(userData.id);
         const resultNameCheck = await this.getCheckResult(customerInformation.lastCheckId);
-        if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b')
-          await this.checkCustomer(userData[key].id);
-        await this.initiateDocumentUpload(userData[key].id, [KycDocument.INVOICE]);
-        await this.userDataRepository.save(userData);
-      }
-    }
+        if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b') {
+          await this.checkCustomer(userData.id);
+        }
+        await this.initiateDocumentUpload(userData.id, [KycDocument.INVOICE]);
+        return userData;
+      },
+    );
   }
 
   async doAddressCheck(): Promise<void> {
-    const userData = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_ADDRESS });
-    for (const key in userData) {
-      const addressDocument = await this.getDocumentVersion(userData[key].id, KycDocument.INVOICE);
-      if (addressDocument.state == State.COMPLETED) {
-        userData[key].kycStatus = KycStatus.WAIT_ONLINE_ID;
-        await this.userDataRepository.save(userData);
-        await this.initiateOnlineIdentification(userData[key].id);
-      }
-    }
+    await this.doCheck(
+      KycStatus.WAIT_ADDRESS,
+      KycStatus.WAIT_ONLINE_ID,
+      KycDocument.INVOICE,
+      async (userData) => {
+        await this.initiateOnlineIdentification(userData.id);
+        return userData;
+      },
+    );
   }
 
   async doOnlineIdCheck(): Promise<void> {
-    const userData = await this.userDataRepository.find({ kycStatus: KycStatus.WAIT_ONLINE_ID });
-    for (const key in userData) {
-      const addressDocument = await this.getDocumentVersion(userData[key].id, KycDocument.ONLINE_IDENTIFICATION);
-      if (addressDocument.state == State.COMPLETED) {
-        userData[key].kycStatus = KycStatus.WAIT_MANUAL;
-        await this.userDataRepository.save(userData);
-        await this.mailService.sendKycRequestMail(userData[key], addressDocument);
-      }
-    }
+    await this.doCheck(
+      KycStatus.WAIT_ONLINE_ID,
+      KycStatus.WAIT_MANUAL,
+      KycDocument.ONLINE_IDENTIFICATION,
+      async (userData, document) => {
+        await this.mailService.sendKycRequestMail(userData, document);
+        return userData;
+      },
+    );
   }
 
   // --- HELPER METHODS --- //
   private reference(id: number): string {
     return process.env.KYC_PREFIX ? `${process.env.KYC_PREFIX}${id}` : id.toString();
+  }
+
+  private async doCheck(
+    currentStatus: KycStatus,
+    nextStatus: KycStatus,
+    documentType: KycDocument,
+    updateAction: (userData: UserData, documentVersion: CheckVersion) => Promise<UserData>,
+  ): Promise<void> {
+    const userDataList = await this.userDataRepository.find({ kycStatus: currentStatus });
+    for (const key in userDataList) {
+      const documentVersion = await this.getDocumentVersion(userDataList[key].id, documentType);
+      if (documentVersion.state == State.COMPLETED) {
+        userDataList[key].kycStatus = nextStatus;
+        userDataList[key] = await updateAction(userDataList[key], documentVersion);
+      }
+    }
+    await this.userDataRepository.save(userDataList);
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
