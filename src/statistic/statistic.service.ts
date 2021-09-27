@@ -60,4 +60,8 @@ export class StatisticService {
   async getAllCfpResults(): Promise<any> {
     return this.cfpService.getAllCfpResults();
   }
+
+  async getAllInvalidVotes(): Promise<any> {
+    return this.cfpService.getAllInvalidVotes();
+  }
 }
