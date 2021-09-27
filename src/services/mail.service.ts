@@ -16,14 +16,14 @@ export class MailService {
     const htmlBody =
       '<p>Hi ' +
       firstName +
-      ',</p><p><b>Your transaction is successful.</b></p><p><b>Amount: </b>' +
+      ',</p><p><b>Your transaction has been successful.</b></p><p><b>Amount: </b>' +
       Math.round(createLogDto.assetValue * Math.pow(10, 8)) / Math.pow(10, 8) +
       ' ' +
       (await this.assetRepository.getAsset(createLogDto.asset)).name +
       '<p><b>Txid:</b> ' +
       createLogDto.blockchainTx +
       '</p><p>Thanks,</p><p>Your friendly team at DFX</p><p></p><p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>' +
-      '<p>© 2021 DFX AG All rights reserved.</p>';
+      '<p>© 2021 DFX AG</p>';
     await this.mailerService.sendMail({
       to: createLogDto.user.mail,
       subject: subject,

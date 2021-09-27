@@ -87,7 +87,7 @@ import { CfpService } from './services/cfp.service';
         },
       },
       defaults: {
-        from: '"No Reply" <' + process.env.MAIL_USER + '>',
+        from: '"DFX AG" <' + process.env.MAIL_USER + '>',
       },
     }),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
