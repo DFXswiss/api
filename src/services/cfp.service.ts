@@ -92,13 +92,11 @@ export class CfpService {
   private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
     const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=100`);
     if (comments.length === 100) {
-      const comments2 = await this.callApi<CommentsResponse[]>(
+      const secondPage = await this.callApi<CommentsResponse[]>(
         this.issuesUrl,
         `/${cfp.number}/comments?per_page=100&page=2`,
       );
-      for (const key in comments2) {
-        comments.push(comments2[key]);
-      }
+      secondPage.forEach((comment) =>comments.push(comment))
     }
 
     return this.getCfpResult(cfp, comments);
