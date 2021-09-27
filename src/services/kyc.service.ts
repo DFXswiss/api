@@ -250,7 +250,7 @@ export class KycService {
       return await this.callApi<CheckResult>(`customers/checks/${this.reference(customerCheckId)}/result`, 'GET');
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to do get check result');
+      throw new ServiceUnavailableException('Failed to get check result');
     }
   }
 
@@ -259,7 +259,7 @@ export class KycService {
       return await this.callApi<any>(`customers/${this.reference(id)}/documents?`, 'GET');
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to do get check result');
+      throw new ServiceUnavailableException('Failed to get documents');
     }
   }
 
@@ -323,7 +323,7 @@ export class KycService {
 
   async initiateDocumentUpload(id: number, kycDocuments: KycDocument[]): Promise<IdentificationResponse> {
     try {
-      const query: string = await this.getUploadDocumentQuery(kycDocuments);
+      const query: string = this.getUploadDocumentQuery(kycDocuments);
 
       const result = await this.callApi<IdentificationResponse[]>(
         `customers/initiate-document-uploads?${query}`,
@@ -356,7 +356,7 @@ export class KycService {
     }
   }
 
-  async getUploadDocumentQuery(queryArray: KycDocument[]): Promise<string> {
+  getUploadDocumentQuery(queryArray: KycDocument[]): string {
     let resultString: string = '';
     queryArray.forEach((a) => (resultString += 'documentName=' + a + '&'));
     return resultString.slice(0, -1);
@@ -390,7 +390,7 @@ export class KycService {
       return result === 'done';
     } catch (e) {
       console.log(e);
-      throw new ServiceUnavailableException('Failed to create a document version');
+      throw new ServiceUnavailableException('Failed to create a document version part');
     }
   }
 
@@ -416,32 +416,22 @@ export class KycService {
   }
 
   async doChatBotCheck(): Promise<void> {
-    await this.doCheck(
-      KycStatus.WAIT_CHAT_BOT,
-      KycStatus.WAIT_ADDRESS,
-      KycDocument.CHATBOT,
-      async (userData) => {
-        const customerInformation = await this.getCustomerInformation(userData.id);
-        const resultNameCheck = await this.getCheckResult(customerInformation.lastCheckId);
-        if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b') {
-          await this.checkCustomer(userData.id);
-        }
-        await this.initiateDocumentUpload(userData.id, [KycDocument.INVOICE]);
-        return userData;
-      },
-    );
+    await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ADDRESS, KycDocument.CHATBOT, async (userData) => {
+      const customerInformation = await this.getCustomerInformation(userData.id);
+      const resultNameCheck = await this.getCheckResult(customerInformation.lastCheckId);
+      if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b') {
+        await this.checkCustomer(userData.id);
+      }
+      await this.initiateDocumentUpload(userData.id, [KycDocument.INVOICE]);
+      return userData;
+    });
   }
 
   async doAddressCheck(): Promise<void> {
-    await this.doCheck(
-      KycStatus.WAIT_ADDRESS,
-      KycStatus.WAIT_ONLINE_ID,
-      KycDocument.INVOICE,
-      async (userData) => {
-        await this.initiateOnlineIdentification(userData.id);
-        return userData;
-      },
-    );
+    await this.doCheck(KycStatus.WAIT_ADDRESS, KycStatus.WAIT_ONLINE_ID, KycDocument.INVOICE, async (userData) => {
+      await this.initiateOnlineIdentification(userData.id);
+      return userData;
+    });
   }
 
   async doOnlineIdCheck(): Promise<void> {
