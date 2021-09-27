@@ -90,7 +90,17 @@ export class CfpService {
 
   // --- HELPER METHODS --- //
   private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
-    const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=1000`);
+    const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=100`);
+    if (comments.length === 100) {
+      const comments2 = await this.callApi<CommentsResponse[]>(
+        this.issuesUrl,
+        `/${cfp.number}/comments?per_page=100&page=2`,
+      );
+      for (const key in comments2) {
+        comments.push(comments2[key]);
+      }
+    }
+
     return this.getCfpResult(cfp, comments);
   }
 
