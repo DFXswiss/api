@@ -7,6 +7,7 @@ interface CfpResponse {
   title: string;
   html_url: string;
   labels: { name: string }[];
+  comments: number;
 }
 
 interface CommentsResponse {
@@ -90,14 +91,14 @@ export class CfpService {
 
   // --- HELPER METHODS --- //
   private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
-    const comments = await this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=100`);
-    if (comments.length === 100) {
-      const secondPage = await this.callApi<CommentsResponse[]>(
-        this.issuesUrl,
-        `/${cfp.number}/comments?per_page=100&page=2`,
-      );
-      secondPage.forEach((comment) =>comments.push(comment))
-    }
+    const batchSize = 100;
+    const batchCount = Math.ceil(cfp.comments / batchSize);
+    const commentBatches = await Promise.all(
+      [...Array(batchCount).keys()].map((_, i) =>
+        this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=${batchSize}&page=${i + 1}`),
+      ),
+    );
+    const comments = commentBatches.reduce((prev, curr) => prev.concat(curr), []);
 
     return this.getCfpResult(cfp, comments);
   }
