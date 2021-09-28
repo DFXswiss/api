@@ -34,6 +34,7 @@ interface MasterNode {
 interface Vote {
   address: string;
   signature: string;
+  cfpId: string;
   vote: string;
 }
 
@@ -122,7 +123,7 @@ export class CfpService {
     const validVotes: { [address: string]: Vote } = comments
       .map((c) => this.getCommentVotes(c.body))
       .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((v) => this.verifyVote(v.address, v.signature, v.vote))
+      .filter((v) => this.verifyVote(cfp, v))
       .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
     const votes = Object.values(validVotes);
 
@@ -147,9 +148,7 @@ export class CfpService {
 
   private getCommentVotes(comment: string): Vote[] {
     const matches = [];
-    const regExp = /signmessage\s"?(\w*)"?\s"?(cfp-2109-\d*-\w*)"?[\r\n\s]+(\S*=)/gm;
-
-    // TODO: verify CFP number
+    const regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?[\r\n\s]+(\S*=)/gm;
 
     let match;
     while ((match = regExp.exec(comment)) !== null) {
@@ -160,13 +159,18 @@ export class CfpService {
 
     return matches.map((m) => ({
       address: m[1],
-      signature: m[3],
+      signature: m[4],
+      cfpId: m[3],
       vote: m[2],
     }));
   }
 
-  private verifyVote(address: string, signature: string, vote: string): boolean {
-    return this.masterNodes[address] && this.deFiService.verifySignature(vote, address, signature);
+  private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
+    return (
+      this.masterNodes[vote.address] &&
+      cfp.title.includes(vote.cfpId) &&
+      this.deFiService.verifySignature(vote.vote, vote.address, vote.signature)
+    );
   }
 
   private async callApi<T>(baseUrl: string, url: string): Promise<T> {
