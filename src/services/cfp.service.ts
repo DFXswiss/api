@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { DeFiService } from './defi.service';
 import { HttpService } from './http.service';
+import * as MasterNodes from '../../assets/master-nodes.json';
 
 interface CfpResponse {
   number: number;
@@ -24,9 +25,8 @@ enum State {
   PRE_ENABLED = 'PRE_ENABLED',
 }
 
-interface MasterNodeResponse {
+interface MasterNode {
   ownerAuthAddress: string;
-  creationHeight: number;
   mintedBlocks: number;
   state: State;
 }
@@ -54,11 +54,27 @@ interface CfpResult {
 export class CfpService {
   private issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
   private masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
-  private cfpResults: CfpResult[];
+
   private masterNodeCount: number;
-  private masterNodes: MasterNodeResponse[] = [];
+  private masterNodes: { [address: string]: MasterNode };
+  private cfpResults: CfpResult[];
   private invalidVotes: string[];
-  constructor(private http: HttpService, private deFiService: DeFiService) {}
+
+  constructor(private http: HttpService, private deFiService: DeFiService) {
+    const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
+
+    this.masterNodeCount = validMasterNodes.length;
+    this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
+  }
+
+  async getAllMasterNodes(): Promise<MasterNode[]> {
+    const response = await this.callApi<{ [key: string]: MasterNode }>(this.masterNodeUrl, ``);
+    return Object.values(response).map((n) => ({
+      ownerAuthAddress: n.ownerAuthAddress,
+      mintedBlocks: n.mintedBlocks,
+      state: n.state,
+    }));
+  }
 
   async getDfxResults(): Promise<any> {
     if (!this.cfpResults) await this.doUpdate();
@@ -77,7 +93,6 @@ export class CfpService {
 
   async doUpdate(): Promise<void> {
     try {
-      await this.getMasterNodes();
       this.invalidVotes = [];
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
       allCfp = allCfp.filter((cfp) => cfp.labels.find((l) => l.name === 'cfp'));
@@ -104,15 +119,17 @@ export class CfpService {
   }
 
   private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
-    const validVotes = comments
+    const validVotes: { [address: string]: Vote } = comments
       .map((c) => this.getCommentVotes(c.body))
       .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((v) => this.verifyVote(v.address, v.signature, v.vote, this.masterNodes));
+      .filter((v) => this.verifyVote(v.address, v.signature, v.vote))
+      .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
+    const votes = Object.values(validVotes);
 
-    const voteCount = validVotes.length;
-    const yesVoteCount = validVotes.filter((v) => v.vote.endsWith('yes')).length;
-    const neutralVoteCount = validVotes.filter((v) => v.vote.endsWith('neutral')).length;
-    const noVoteCount = validVotes.filter((v) => v.vote.endsWith('no')).length;
+    const voteCount = votes.length;
+    const yesVoteCount = votes.filter((v) => v.vote.endsWith('yes')).length;
+    const neutralVoteCount = votes.filter((v) => v.vote.endsWith('neutral')).length;
+    const noVoteCount = votes.filter((v) => v.vote.endsWith('no')).length;
 
     return {
       title: cfp.title,
@@ -132,11 +149,15 @@ export class CfpService {
     const matches = [];
     const regExp = /signmessage\s"?(\w*)"?\s"?(cfp-2109-\d*-\w*)"?[\r\n\s]+(\S*=)/gm;
 
+    // TODO: verify CFP number
+
     let match;
     while ((match = regExp.exec(comment)) !== null) {
       matches.push(match);
     }
+
     if (matches.length === 0) this.invalidVotes.push(comment);
+
     return matches.map((m) => ({
       address: m[1],
       signature: m[3],
@@ -144,21 +165,8 @@ export class CfpService {
     }));
   }
 
-  private verifyVote(address: string, signature: string, vote: string, masterNodes: MasterNodeResponse[]): boolean {
-    return (
-      address.startsWith('8') &&
-      signature.endsWith('=') &&
-      this.deFiService.verifySignature(vote, address, signature) &&
-      masterNodes.find((n) => n.ownerAuthAddress === address) != null
-    );
-  }
-
-  private async getMasterNodes(): Promise<void> {
-    const response = await this.callApi<{ [key: string]: MasterNodeResponse }>(this.masterNodeUrl, ``);
-    this.masterNodes = Object.values(response).filter(
-      (node) => node.state === State.ENABLED && node.mintedBlocks > 0 && node.creationHeight < 1204845 - 1008,
-    );
-    this.masterNodeCount = this.masterNodes.length;
+  private verifyVote(address: string, signature: string, vote: string): boolean {
+    return this.masterNodes[address] && this.deFiService.verifySignature(vote, address, signature);
   }
 
   private async callApi<T>(baseUrl: string, url: string): Promise<T> {

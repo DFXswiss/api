@@ -52,16 +52,4 @@ export class StatisticService {
       },
     };
   }
-
-  async getDfxCfpResults(): Promise<any> {
-    return this.cfpService.getDfxResults();
-  }
-
-  async getAllCfpResults(): Promise<any> {
-    return this.cfpService.getAllCfpResults();
-  }
-
-  async getAllInvalidVotes(): Promise<any> {
-    return this.cfpService.getAllInvalidVotes();
-  }
 }
