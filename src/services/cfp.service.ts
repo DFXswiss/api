@@ -1,7 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { DeFiService } from './defi.service';
 import { HttpService } from './http.service';
-import * as MasterNodes from '../../assets/master-nodes.json';
+import * as MasterNodes from '../assets/master-nodes.json';
 
 interface CfpResponse {
   number: number;
