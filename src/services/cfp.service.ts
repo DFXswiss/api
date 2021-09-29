@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { DeFiService } from './defi.service';
 import { HttpService } from './http.service';
 import * as MasterNodes from '../assets/master-nodes.json';
+import * as CFP2109 from '../assets/CFP2109.json';
 
 interface CfpResponse {
   number: number;
@@ -63,7 +64,6 @@ export class CfpService {
 
   constructor(private http: HttpService, private deFiService: DeFiService) {
     const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
-
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
@@ -78,13 +78,15 @@ export class CfpService {
   }
 
   async getDfxResults(): Promise<any> {
-    if (!this.cfpResults) await this.doUpdate();
-    return this.cfpResults.filter((r) => [66, 70].includes(r.number));
+    return CFP2109.filter((r) => [66, 70].includes(r.number));
+    //if (!this.cfpResults) await this.doUpdate();
+    //return this.cfpResults.filter((r) => [66, 70].includes(r.number));
   }
 
   async getAllCfpResults(): Promise<any> {
-    if (!this.cfpResults) await this.doUpdate();
-    return this.cfpResults;
+    return CFP2109;
+    //if (!this.cfpResults) await this.doUpdate();
+    //return this.cfpResults;
   }
 
   async getAllInvalidVotes(): Promise<any> {

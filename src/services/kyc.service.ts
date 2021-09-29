@@ -341,12 +341,16 @@ export class KycService {
     try {
       //TODO BODY with PDF rawData
 
+      var fs = require('fs');
+      const image = fs.readFileSync('D:/Projects/api-fiat2defi/src/services/ident.jpg');
+
       const result = await this.callApi<string>(
         `customers/${this.reference(
           id,
         )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentVersion}`,
         'PUT',
-        'application/pdf',
+        image,
+        'image/jpeg',
       );
 
       return result === 'done';
@@ -362,7 +366,7 @@ export class KycService {
     return resultString.slice(0, -1);
   }
 
-  async getDocumentVersion(id: number, document: string): Promise<CheckVersion> {
+  async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion> {
     try {
       const result = await this.callApi<CheckVersion[]>(
         `customers/${this.reference(id)}/documents/${document}/versions`,
@@ -375,10 +379,10 @@ export class KycService {
     }
   }
 
-  async createDocumentVersion(id: number, document: string, version: string): Promise<boolean> {
+  async createDocumentVersion(id: number, document: KycDocument, version: string): Promise<boolean> {
     try {
       const data = {
-        name: 'ident',
+        name: 'ident2',
         state: 'PENDING',
       };
 
@@ -397,10 +401,10 @@ export class KycService {
   async createDocumentVersionPart(id: number, document: string, version: string, part: string): Promise<boolean> {
     try {
       const data = {
-        name: 'ident',
-        label: 'ident',
-        fileName: 'ident.pdf',
-        contentType: 'application/pdf',
+        name: 'ident2',
+        label: 'ident2',
+        fileName: 'ident.img',
+        contentType: 'image/jpeg',
       };
 
       const result = await this.callApi<string>(

@@ -53,11 +53,6 @@ export class StatisticController {
     return this.cfpService.getAllCfpResults();
   }
 
-  @Get('cfp/invalidVotes')
-  async getInvalidVotes(): Promise<any> {
-    return this.cfpService.getAllInvalidVotes();
-  }
-
   @Get('cfp/masterNodes')
   async getMasterNodes(): Promise<any> {
     return this.cfpService.getAllMasterNodes();
