@@ -339,17 +339,13 @@ export class KycService {
 
   async uploadDocument(id: number, kycDocumentVersion: string, kycDocument: KycDocument): Promise<boolean> {
     try {
-      //TODO BODY with PDF rawData
-
-      var fs = require('fs');
-      const image = fs.readFileSync('D:/Projects/api-fiat2defi/src/services/ident.jpg');
+      //TODO BODY with IMG rawData
 
       const result = await this.callApi<string>(
         `customers/${this.reference(
           id,
         )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentVersion}`,
         'PUT',
-        image,
         'image/jpeg',
       );
 
@@ -382,7 +378,7 @@ export class KycService {
   async createDocumentVersion(id: number, document: KycDocument, version: string): Promise<boolean> {
     try {
       const data = {
-        name: 'ident2',
+        name: 'ident',
         state: 'PENDING',
       };
 
@@ -401,8 +397,8 @@ export class KycService {
   async createDocumentVersionPart(id: number, document: string, version: string, part: string): Promise<boolean> {
     try {
       const data = {
-        name: 'ident2',
-        label: 'ident2',
+        name: 'ident',
+        label: 'ident',
         fileName: 'ident.img',
         contentType: 'image/jpeg',
       };
