@@ -148,7 +148,7 @@ export class CfpService {
 
   private getCommentVotes(comment: string): Vote[] {
     const matches = [];
-    const regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?[\r\n\s]+(\S*=)/gm;
+    const regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?\s+(\S{87}=)(?:\s|$)+/gm;
 
     let match;
     while ((match = regExp.exec(comment)) !== null) {
