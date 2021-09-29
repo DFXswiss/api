@@ -2,11 +2,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { CreateWalletDto } from 'src/wallet/dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
-import { DeFiService } from 'src/services/defi.service';
+import { CryptoService } from 'src/ain/services/crypto.service';
 
 @Injectable()
 export class WalletService {
-  constructor(private walletRepository: WalletRepository, private deFiService: DeFiService) {}
+  constructor(private walletRepository: WalletRepository, private deFiService: CryptoService) {}
 
   async createWallet(createWalletDto: CreateWalletDto): Promise<any> {
     if (!this.verifySignature(createWalletDto.address, createWalletDto.signature)) {
@@ -24,8 +24,8 @@ export class WalletService {
     return this.walletRepository.getAllWallet();
   }
 
-  async updateWallet(updatewalletDto: UpdateWalletDto): Promise<any> {
-    return this.walletRepository.updateWallet(updatewalletDto);
+  async updateWallet(updateWalletDto: UpdateWalletDto): Promise<any> {
+    return this.walletRepository.updateWallet(updateWalletDto);
   }
 
   private verifySignature(address: string, signature: string): boolean {
