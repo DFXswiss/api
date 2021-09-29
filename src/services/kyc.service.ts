@@ -247,7 +247,7 @@ export class KycService {
 
   async getCheckResult(customerCheckId: number): Promise<CheckResult> {
     try {
-      return await this.callApi<CheckResult>(`customers/checks/${this.reference(customerCheckId)}/result`, 'GET');
+      return await this.callApi<CheckResult>(`customers/checks/${customerCheckId}/result`, 'GET');
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to get check result');

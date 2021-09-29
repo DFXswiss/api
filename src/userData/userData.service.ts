@@ -119,7 +119,8 @@ export class UserDataService {
 
     if (userData?.kycStatus === KycStatus.NA) {
       // update customer
-      await this.kycService.updateCustomer(userData.id, user);
+      const customer = await this.kycService.updateCustomer(userData.id, user);
+      userData.kycCustomerId = customer.customerId;
 
       //Create kyc file reference and upload
       userData.kycFileReference = await this.userDataRepo.getNextKycFileId();

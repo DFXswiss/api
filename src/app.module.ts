@@ -85,7 +85,7 @@ import { AinModule } from './ain/ain.module';
         },
       },
       defaults: {
-        from: '"DFX AG" <' + process.env.MAIL_USER + '>',
+        from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
       },
     }),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
