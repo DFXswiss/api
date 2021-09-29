@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { DeFiService } from './defi.service';
+import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from './http.service';
 import * as MasterNodes from '../assets/master-nodes.json';
 import * as CFP2109 from '../assets/CFP2109.json';
@@ -62,7 +62,7 @@ export class CfpService {
   private cfpResults: CfpResult[];
   private invalidVotes: string[];
 
-  constructor(private http: HttpService, private deFiService: DeFiService) {
+  constructor(private http: HttpService, private deFiService: CryptoService) {
     const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});

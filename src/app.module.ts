@@ -54,7 +54,6 @@ import { RefController } from './referral/ref.controller';
 import { RefService } from './referral/ref.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { MailService } from './services/mail.service';
-import { DeFiService } from './services/defi.service';
 import { KycService } from './services/kyc.service';
 import { HttpModule } from '@nestjs/axios';
 import { HttpService } from './services/http.service';
@@ -66,12 +65,11 @@ import { BatchRepository } from './batch/batch.repository';
 import { BatchController } from './batch/batch.controller';
 import { BatchService } from './batch/batch.service';
 import { CfpService } from './services/cfp.service';
+import { AinModule } from './ain/ain.module';
 @Module({
   imports: [
     ConfigModule.forRoot(),
     MailerModule.forRoot({
-      // transport: 'smtps://user@example.com:topsecret@smtp.example.com',
-      // or
       transport: {
         host: 'smtp.gmail.com',
         secure: false,
@@ -132,6 +130,7 @@ import { CfpService } from './services/cfp.service';
       BatchRepository,
     ]),
     HttpModule,
+    AinModule,
   ],
   controllers: [
     AppController,
@@ -176,41 +175,12 @@ import { CfpService } from './services/cfp.service';
     RefService,
     AuthService,
     MailService,
-    DeFiService,
     KycService,
     HttpService,
     SchedulerService,
     BatchService,
     CfpService,
   ],
-  exports: [
-    UserService,
-    AuthService,
-    BuyService,
-    SellService,
-    LogService,
-    AssetService,
-    WalletService,
-    DepositService,
-    CountryService,
-    FiatService,
-    TypeOrmModule,
-    JwtStrategy,
-    PassportModule,
-    StatisticService,
-    PaymentService,
-    AllDataService,
-    LanguageService,
-    UserDataService,
-    BankDataService,
-    RefService,
-    MailService,
-    DeFiService,
-    KycService,
-    HttpService,
-    SchedulerService,
-    BatchService,
-    CfpService,
-  ],
+  exports: [],
 })
 export class AppModule {}

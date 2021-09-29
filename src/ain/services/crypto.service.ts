@@ -3,7 +3,7 @@ import { verify } from 'bitcoinjs-message';
 import { MainNet } from '@defichain/jellyfish-network';
 
 @Injectable()
-export class DeFiService {
+export class CryptoService {
   public verifySignature(message: string, address: string, signature: string): boolean {
     let isValid = false;
     try {

@@ -4,7 +4,7 @@ import { UserRepository } from 'src/user/user.repository';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from './jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { DeFiService } from 'src/services/defi.service';
+import { CryptoService } from 'src/ain/services/crypto.service';
 import { UserDataRepository } from 'src/userData/userData.repository';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class AuthService {
     private userRepository: UserRepository,
     private userDataRepository: UserDataRepository,
     private jwtService: JwtService,
-    private deFiService: DeFiService,
+    private deFiService: CryptoService,
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
