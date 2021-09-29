@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { BuyRepository } from 'src/buy/buy.repository';
 import { SellRepository } from 'src/sell/sell.repository';
 import { LogRepository } from 'src/log/log.repository';
-import { CfpService } from 'src/services/cfp.service';
 
 @Injectable()
 export class StatisticService {
@@ -10,7 +9,6 @@ export class StatisticService {
     private buyRepository: BuyRepository,
     private sellRepository: SellRepository,
     private logRepository: LogRepository,
-    private cfpService: CfpService,
   ) {}
 
   async getBuyRoutes(): Promise<number> {
