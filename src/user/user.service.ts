@@ -123,10 +123,11 @@ export class UserService {
 
     if (userData?.kycStatus === KycStatus.NA) {
       // update customer
-      await this.kycService.updateCustomer(userData.id, user);
-
+      const customer = await this.kycService.updateCustomer(userData.id, user);
+      userData.kycCustomerId = customer.customerId;
       userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
       //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
+      
       // start onboarding
       const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
 

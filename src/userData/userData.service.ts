@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycStatus, UserData } from './userData.entity';
-import { CheckResult, Customer, CustomerResponse, KycDocument, KycService } from 'src/services/kyc.service';
+import { CheckResult, Customer, KycService } from 'src/services/kyc.service';
 import { BankDataRepository } from 'src/bankData/bankData.repository';
 import { UserRepository } from 'src/user/user.repository';
 
@@ -107,7 +107,12 @@ export class UserDataService {
           nameCheckRisk: customer.checkResult.risks[0].categoryKey,
         });
       } else {
-        userDataChecks.push({ userDataId: a.toString(), nameCheckRisk: 'no_bank_data' });
+        userDataChecks.push({
+          userDataId: a.toString(),
+          customerId: '',
+          kycFileReference: '',
+          nameCheckRisk: '',
+        });
       }
     }
     return userDataChecks;
@@ -119,7 +124,8 @@ export class UserDataService {
 
     if (userData?.kycStatus === KycStatus.NA) {
       // update customer
-      await this.kycService.updateCustomer(userData.id, user);
+      const customer = await this.kycService.updateCustomer(userData.id, user);
+      userData.kycCustomerId = customer.customerId;
 
       //Create kyc file reference and upload
       userData.kycFileReference = await this.userDataRepo.getNextKycFileId();

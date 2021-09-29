@@ -28,7 +28,9 @@ export class BankDataService {
     const customer = await this.kycService.getCustomer(userData.id);
 
     if (!customer) {
-      await this.kycService.createCustomer(userData.id, bankData.name);
+      const newCustomer = await this.kycService.createCustomer(userData.id, bankData.name);
+      userData.kycCustomerId = newCustomer.customerId;
+      this.userDataRepo.save(userData);
       //await this.kycService.createFileReference(userData.id, userData.kycFileReference, bankData.name);
     }
 

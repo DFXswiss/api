@@ -247,7 +247,7 @@ export class KycService {
 
   async getCheckResult(customerCheckId: number): Promise<CheckResult> {
     try {
-      return await this.callApi<CheckResult>(`customers/checks/${this.reference(customerCheckId)}/result`, 'GET');
+      return await this.callApi<CheckResult>(`customers/checks/${customerCheckId}/result`, 'GET');
     } catch (e) {
       console.log(e);
       throw new ServiceUnavailableException('Failed to get check result');
@@ -339,14 +339,14 @@ export class KycService {
 
   async uploadDocument(id: number, kycDocumentVersion: string, kycDocument: KycDocument): Promise<boolean> {
     try {
-      //TODO BODY with PDF rawData
+      //TODO BODY with IMG rawData
 
       const result = await this.callApi<string>(
         `customers/${this.reference(
           id,
         )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentVersion}`,
         'PUT',
-        'application/pdf',
+        'image/jpeg',
       );
 
       return result === 'done';
@@ -362,7 +362,7 @@ export class KycService {
     return resultString.slice(0, -1);
   }
 
-  async getDocumentVersion(id: number, document: string): Promise<CheckVersion> {
+  async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion> {
     try {
       const result = await this.callApi<CheckVersion[]>(
         `customers/${this.reference(id)}/documents/${document}/versions`,
@@ -375,7 +375,7 @@ export class KycService {
     }
   }
 
-  async createDocumentVersion(id: number, document: string, version: string): Promise<boolean> {
+  async createDocumentVersion(id: number, document: KycDocument, version: string): Promise<boolean> {
     try {
       const data = {
         name: 'ident',
@@ -399,8 +399,8 @@ export class KycService {
       const data = {
         name: 'ident',
         label: 'ident',
-        fileName: 'ident.pdf',
-        contentType: 'application/pdf',
+        fileName: 'ident.img',
+        contentType: 'image/jpeg',
       };
 
       const result = await this.callApi<string>(
