@@ -1,11 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Length } from 'class-validator';
+import { IsNotEmpty, IsString, Length, Matches } from 'class-validator';
 
 export class AuthCredentialsDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  @Length(34, 42)
+  @Matches(/^(8\w{33}|d\w{33}|d\w{41})$/)
   address: string;
 
   @ApiProperty()
