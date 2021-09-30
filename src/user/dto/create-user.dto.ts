@@ -5,13 +5,14 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
 } from 'class-validator';
 
 export class CreateUserDto {
   //TODO überflüssige löschen
 
   @IsNotEmpty()
-  @Length(34, 42)
+  @Matches(/^(8\w{33}|d\w{33}|d\w{41})$/)
   @IsString()
   address: string;
 

@@ -10,21 +10,19 @@ import { createHash } from 'crypto';
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
   async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
-    const assetObject = await getManager()
-      .getCustomRepository(AssetRepository)
-      .getAsset(createBuyDto.asset);
+    const assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(createBuyDto.asset);
     createBuyDto.asset = assetObject;
 
-    const hash = createHash('sha256')
-    hash.update(createBuyDto.user.address + assetObject.name + createBuyDto.iban,);
+    const hash = createHash('sha256');
+    hash.update(createBuyDto.user.address + assetObject.name + createBuyDto.iban);
     const hexHash = hash.digest('hex').toUpperCase();
 
     createBuyDto.bankUsage = `${hexHash.slice(0, 4)}-${hexHash.slice(4, 8)}-${hexHash.slice(8, 12)}`;
-    
-    createBuyDto.iban = (createBuyDto.iban.split(" ")).join("");
+
+    createBuyDto.iban = createBuyDto.iban.split(' ').join('');
 
     const buy = this.create(createBuyDto);
-    const currentUser = await buy.user;
+    const currentUser = buy.user;
     buy.address = currentUser.address;
     try {
       if (buy) {
@@ -32,8 +30,6 @@ export class BuyRepository extends Repository<Buy> {
 
         delete buy.address;
         delete buy.user;
-        delete buy["__user__"];
-        delete buy["__userData__"];
         return buy;
       }
     } catch (error) {
@@ -46,17 +42,13 @@ export class BuyRepository extends Repository<Buy> {
       const buy = await this.findOne(updateBuyDto.id);
 
       if (!buy) throw new NotFoundException('No matching entry for id found');
-      
-      if (buy.address != updateBuyDto.address)
-        throw new ForbiddenException(
-          'You can only change your own sell route',
-        );
+
+      if (buy.address != updateBuyDto.address) throw new ForbiddenException('You can only change your own sell route');
       buy.active = updateBuyDto.active;
       await this.save(buy);
       delete buy.address;
       delete buy.user;
       return buy;
-      
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -77,8 +69,7 @@ export class BuyRepository extends Repository<Buy> {
     try {
       const buy = await this.findOne({ id: id.id });
       if (buy) {
-        if (buy.user != user)
-          throw new ForbiddenException('You can only get your own sell route');
+        if (buy.user != user) throw new ForbiddenException('You can only get your own sell route');
         delete buy.user;
       }
 
@@ -90,21 +81,7 @@ export class BuyRepository extends Repository<Buy> {
 
   async getAllBuy(user: any): Promise<any> {
     try {
-      // const query = this.createQueryBuilder('buy');
-      //   query.where({ address });
-      //   query.innerJoinAndSelect('buy.asset','assetXYZ');
-
-      // const buy = await query.getMany();
-
-      const buy = await this.find({ user: user });
-
-      if (buy) {
-        for (let a = 0; a < buy.length; a++) {
-          delete buy[a].user;
-        }
-      }
-
-      return buy;
+      return await this.find({ user: user });
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -113,7 +90,7 @@ export class BuyRepository extends Repository<Buy> {
   async getBuyOrder(): Promise<number> {
     try {
       const buy = await this.find();
-      return buy.length ;
+      return buy.length;
     } catch (error) {
       throw new ConflictException(error.message);
     }

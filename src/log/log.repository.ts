@@ -73,7 +73,7 @@ export class LogRepository extends Repository<Log> {
         if (createLogDto.user.mail) mailService.sendLogMail(createLogDto, 'Transaction has been completed');
 
         if (log.user) {
-          const currentUser = await log.user;
+          const currentUser = log.user;
 
           if (currentUser.status == UserStatus.NA) {
             currentUser.status = UserStatus.ACTIVE;
@@ -85,9 +85,6 @@ export class LogRepository extends Repository<Log> {
     } catch (error) {
       throw new ConflictException(error.message);
     }
-
-    if (log['__user__']) delete log['__user__'];
-    if (log['__payment__']) delete log['__payment__'];
 
     log.fiat = fiatObject;
     log.asset = assetObject;
@@ -103,9 +100,6 @@ export class LogRepository extends Repository<Log> {
     } catch (error) {
       throw new ConflictException(error.message);
     }
-
-    if (log['__user__']) delete log['__user__'];
-    if (log['__payment__']) delete log['__payment__'];
 
     return log;
   }

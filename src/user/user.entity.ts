@@ -44,7 +44,7 @@ export class User {
   @Column({ unique: true, length: 256 })
   signature: string;
 
-  @ManyToOne(() => Wallet, { lazy: true })
+  @ManyToOne(() => Wallet)
   @JoinColumn()
   wallet: Wallet;
 
@@ -92,11 +92,11 @@ export class User {
   @Column({ default: '0.0.0.0', length: 256 })
   ip: string;
 
-  @OneToMany(() => Buy, (buy) => buy.user, { lazy: true })
+  @OneToMany(() => Buy, (buy) => buy.user)
   @JoinColumn()
   buys: Buy[];
 
-  @OneToMany(() => Sell, (sell) => sell.user, { lazy: true })
+  @OneToMany(() => Sell, (sell) => sell.user)
   @JoinColumn()
   sells: Sell[];
 
@@ -104,7 +104,7 @@ export class User {
   @JoinColumn()
   userData: UserData;
 
-  @OneToMany(() => Log, (logs) => logs.user, { lazy: true })
+  @OneToMany(() => Log, (logs) => logs.user)
   logs: Log[];
 
   @UpdateDateColumn()

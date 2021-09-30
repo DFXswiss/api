@@ -5,7 +5,6 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { UserDataRepository } from 'src/userData/userData.repository';
 import { LogRepository } from 'src/log/log.repository';
 import { KycStatus, UserData } from 'src/userData/userData.entity';
 import { KycService } from 'src/services/kyc.service';
@@ -32,50 +31,24 @@ export class UserService {
     return user;
   }
 
-  async getUser(user: User, detailedUser: boolean): Promise<any> {
-    const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
-    user['kycStatus'] = userData.kycStatus;
+  async getUser(userId: number, detailedUser: boolean): Promise<any> {
+    const currentUser = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: detailedUser ? ['userData', 'buys', 'sells'] : ['userData'],
+    });
 
-    if (detailedUser) {
-      const buys = await user.buys;
+    currentUser['kycStatus'] = currentUser.userData.kycStatus;
+    currentUser['refData'] = await this.getRefData(currentUser);
+    currentUser['userVolume'] = await this.logRepo.getVolume(currentUser);
 
-      if (buys) {
-        for (let a = 0; a < buys.length; a++) {
-          delete buys[a].user;
-        }
-      }
-      const sells = await user.sells;
-
-      if (sells) {
-        for (let a = 0; a < sells.length; a++) {
-          delete sells[a].user;
-        }
-      }
-
-      user.sells = sells;
-    }
-
-    user['refData'] = await this.getRefData(user);
-    user['userVolume'] = await this.logRepo.getVolume(user);
-
-    delete user['__has_buys__'];
-    user['buy'] = user['__buys__'];
-    delete user['__buys__'];
-
-    delete user['__has_sells__'];
-    user['sell'] = user['__sells__'];
-    delete user['__sells__'];
-
-    delete user.signature;
-    delete user.ip;
-    if (user.role != UserRole.VIP) delete user.role;
+    delete currentUser.signature;
+    delete currentUser.ip;
+    if (currentUser.role != UserRole.VIP) delete currentUser.role;
 
     // delete ref for inactive users
-    if (user.status == UserStatus.NA) {
-      delete user.ref;
-    }
+    if (currentUser.status == UserStatus.NA) delete currentUser.ref;
 
-    return user;
+    return currentUser;
   }
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
@@ -99,8 +72,6 @@ export class UserService {
 
     delete user.signature;
     delete user.ip;
-    delete user['__userData__'];
-    delete user['__has_userData__'];
     if (user.role != UserRole.VIP) delete user.role;
 
     return user;
