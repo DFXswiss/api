@@ -127,12 +127,6 @@ export class UserDataService {
       const customer = await this.kycService.updateCustomer(userData.id, user);
       userData.kycCustomerId = customer.customerId;
 
-      //Create kyc file reference and upload
-      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
-
-      //TODO: upload kyc file reference
-      //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-
       // start onboarding
       const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
 
@@ -144,8 +138,8 @@ export class UserDataService {
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
     const [master, slave] = await Promise.all([
-      this.userDataRepo.findOne({where: {id: masterId}, relations: ['users', 'bankDatas']}),
-      this.userDataRepo.findOne({where: {id: slaveId}, relations: ['users', 'bankDatas']})
+      this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'bankDatas'] }),
+      this.userDataRepo.findOne({ where: { id: slaveId }, relations: ['users', 'bankDatas'] }),
     ]);
 
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);

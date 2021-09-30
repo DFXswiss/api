@@ -114,15 +114,15 @@ export class UserRepository extends Repository<User> {
   }
 
   async getUserInternal(addressString: string): Promise<User> {
-    return await this.findOne({ address: addressString });
+    return this.findOne({ address: addressString });
   }
 
   async getRefCount(ref: string): Promise<number> {
-    return await this.count({ usedRef: ref });
+    return this.count({ usedRef: ref });
   }
 
   async getRefCountActive(ref: string): Promise<number> {
-    return await this.count({ usedRef: ref, status: Not(UserStatus.NA) });
+    return this.count({ usedRef: ref, status: Not(UserStatus.NA) });
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {

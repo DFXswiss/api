@@ -7,8 +7,9 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { LogRepository } from 'src/log/log.repository';
-import { KycStatus } from 'src/userData/userData.entity';
+import { KycStatus, UserData } from 'src/userData/userData.entity';
 import { KycService } from 'src/services/kyc.service';
+import { UserDataService } from 'src/userData/userData.service';
 
 @Injectable()
 export class UserService {
@@ -16,7 +17,7 @@ export class UserService {
     private userRepo: UserRepository,
     private logRepo: LogRepository,
     private kycService: KycService,
-    private userDataRepo: UserDataRepository,
+    private userDataService: UserDataService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -117,34 +118,19 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number): Promise<boolean> {
+  async requestKyc(userId: number): Promise<UserData> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
-    if (userData?.kycStatus === KycStatus.NA) {
-      // update customer
-      const customer = await this.kycService.updateCustomer(userData.id, user);
-      userData.kycCustomerId = customer.customerId;
-      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
-      //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-      
-      // start onboarding
-      const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
-
-      if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
-      await this.userDataRepo.save(userData);
-    }
-    return true;
+    return this.userDataService.requestKyc(userData.id);
   }
 
   async getRefData(user: User): Promise<any> {
-    const result = {
+    return {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
       refVolume: await this.logRepo.getRefVolume(user.ref),
     };
-
-    return result;
   }
 }
