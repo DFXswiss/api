@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycStatus, UserData } from './userData.entity';
@@ -82,20 +82,20 @@ export class UserDataService {
     try {
       customerInformation = await this.kycService.getCustomerInformation(userData.id);
     } catch (error) {
-      throw new ConflictException('Customer Information error: ' + error.message);
+      throw new ServiceUnavailableException('Customer information error: ' + error.message);
     }
 
     try {
       resultNameCheck = await this.kycService.getCheckResult(customerInformation.lastCheckId);
     } catch (error) {
-      throw new ConflictException('Customer Check error: ' + error.message);
+      throw new ServiceUnavailableException('Customer check error: ' + error.message);
     }
 
     return resultNameCheck.risks[0].categoryKey;
   }
 
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
-    let userDataChecks: UserDataChecks[] = [];
+    const userDataChecks: UserDataChecks[] = [];
     for (let a = startUserDataId; a <= endUserDataId; a++) {
       const userData = await this.userDataRepo.findOne({ where: { id: a }, relations: ['bankDatas'] });
       if (userData.bankDatas.length > 0) {

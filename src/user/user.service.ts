@@ -110,13 +110,11 @@ export class UserService {
   }
 
   async getRefData(user: User): Promise<any> {
-    const result = {
+    return {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
       refVolume: await this.logRepo.getRefVolume(user.ref),
     };
-
-    return result;
   }
 }

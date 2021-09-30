@@ -22,7 +22,7 @@ export class Sell {
   id: number;
 
   @Column({ length: 256 })
-  address: string;
+  address: string; // TODO: remove
 
   @Column({ length: 256 })
   iban: string;
