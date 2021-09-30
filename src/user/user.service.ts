@@ -31,46 +31,24 @@ export class UserService {
     return user;
   }
 
-  async getUser(user: User, detailedUser: boolean): Promise<any> {
+  async getUser(userId: number, detailedUser: boolean): Promise<any> {
     const currentUser = await this.userRepo.findOne({
-      where: { id: user.id },
-      relations: ['userData', 'buys', 'sells'],
+      where: { id: userId },
+      relations: detailedUser ? ['userData', 'buys', 'sells'] : ['userData'],
     });
-    user['kycStatus'] = currentUser.userData.kycStatus;
 
-    if (detailedUser) {
-      const buys = currentUser.buys;
+    currentUser['kycStatus'] = currentUser.userData.kycStatus;
+    currentUser['refData'] = await this.getRefData(currentUser);
+    currentUser['userVolume'] = await this.logRepo.getVolume(currentUser);
 
-      if (buys) {
-        for (let a = 0; a < buys.length; a++) {
-          delete buys[a].user;
-        }
-      }
-      const sells = currentUser.sells;
-
-      if (sells) {
-        for (let a = 0; a < sells.length; a++) {
-          delete sells[a].user;
-        }
-      }
-
-      user.buys = buys;
-      user.sells = sells;
-    }
-
-    user['refData'] = await this.getRefData(user);
-    user['userVolume'] = await this.logRepo.getVolume(user);
-
-    delete user.signature;
-    delete user.ip;
-    if (user.role != UserRole.VIP) delete user.role;
+    delete currentUser.signature;
+    delete currentUser.ip;
+    if (currentUser.role != UserRole.VIP) delete currentUser.role;
 
     // delete ref for inactive users
-    if (user.status == UserStatus.NA) {
-      delete user.ref;
-    }
+    if (currentUser.status == UserStatus.NA) delete currentUser.ref;
 
-    return user;
+    return currentUser;
   }
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
@@ -121,7 +99,7 @@ export class UserService {
       userData.kycCustomerId = customer.customerId;
       userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
       //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-      
+
       // start onboarding
       const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
 

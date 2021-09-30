@@ -8,32 +8,31 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserRole } from './user.entity';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { UserDataService } from 'src/userData/userData.service';
 
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService, private readonly userDataService: UserDataService) {}
+  constructor(private readonly userService: UserService) {}
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getUser(@GetUser() user: User): Promise<any> {
-    return this.userService.getUser(user, false);
+    return this.userService.getUser(user.id, false);
   }
 
   @Get('detail')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getUserDetail(@GetUser() user: User): Promise<any> {
-    return this.userService.getUser(user, true);
+    return this.userService.getUser(user.id, true);
   }
 
   @Get('ref')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getUserRefData(@GetUser() user: User): Promise<any> {
-    return await this.userService.getRefData(user);
+    return this.userService.getRefData(user);
   }
 
   @Put()
@@ -47,7 +46,7 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async requestKyc(@GetUser() user: User): Promise<boolean> {
-    return await this.userService.requestKyc(user.id);
+    return this.userService.requestKyc(user.id);
   }
 
   @Get('all')
