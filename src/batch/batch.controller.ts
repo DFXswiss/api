@@ -13,7 +13,7 @@ import { UpdateBatchDto } from './dto/update-batch.dto';
 export class BatchController {
   constructor(private readonly batchService: BatchService, private readonly batchRepo: BatchRepository) {}
 
-  @Get('/payments')
+  @Get('/relations')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
@@ -22,21 +22,6 @@ export class BatchController {
   }
 
   @Get(':id')
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    required: true,
-    description: 'integer for the batch id',
-    schema: { type: 'integer' },
-  })
-  @ApiExcludeEndpoint()
-  @UsePipes(ValidationPipe)
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getBatch(@Param() id: any): Promise<any> {
-    return this.batchRepo.findOne(id);
-  }
-
-  @Get(':id/payments')
   @ApiBearerAuth()
   @ApiParam({
     name: 'id',

@@ -81,21 +81,7 @@ export class BuyRepository extends Repository<Buy> {
 
   async getAllBuy(user: any): Promise<any> {
     try {
-      // const query = this.createQueryBuilder('buy');
-      //   query.where({ address });
-      //   query.innerJoinAndSelect('buy.asset','assetXYZ');
-
-      // const buy = await query.getMany();
-
-      const buy = await this.find({ user: user });
-
-      if (buy) {
-        for (let a = 0; a < buy.length; a++) {
-          delete buy[a].user;
-        }
-      }
-
-      return buy;
+      return await this.find({ user: user });
     } catch (error) {
       throw new ConflictException(error.message);
     }
