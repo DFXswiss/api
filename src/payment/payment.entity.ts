@@ -8,7 +8,6 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
-  JoinColumn,
   OneToMany,
 } from 'typeorm';
 
@@ -45,7 +44,6 @@ export abstract class Payment {
   address: string;
 
   @ManyToOne(() => Fiat, { eager: true })
-  @JoinColumn()
   fiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
@@ -55,7 +53,6 @@ export abstract class Payment {
   fiatInCHF: number;
 
   @ManyToOne(() => Asset, { eager: true })
-  @JoinColumn()
   asset: Asset;
 
   @Column({ type: 'datetime2', nullable: true })

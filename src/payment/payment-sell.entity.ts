@@ -1,4 +1,4 @@
-import { Entity, Column, JoinColumn, ManyToOne } from 'typeorm';
+import { Entity, Column, ManyToOne } from 'typeorm';
 import { Payment } from './payment.entity';
 import { Sell } from 'src/sell/sell.entity';
 
@@ -11,6 +11,5 @@ export class SellPayment extends Payment {
   assetValue: number;
 
   @ManyToOne(() => Sell)
-  @JoinColumn()
   sell: Sell;
 }

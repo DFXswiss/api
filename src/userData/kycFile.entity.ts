@@ -7,7 +7,7 @@ export class KycFile {
   id: number; // kycFileReference
 
   @OneToOne(() => UserData, (userData) => userData.kycFile)
-  @JoinColumn() // TODO: remove all other JoinColumn
+  @JoinColumn()
   userData: UserData;
 
   @UpdateDateColumn()

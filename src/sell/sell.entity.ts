@@ -28,7 +28,6 @@ export class Sell {
   iban: string;
 
   @ManyToOne(() => Fiat, { eager: true })
-  @JoinColumn()
   fiat: Fiat;
 
   @OneToOne(() => Deposit, { eager: true })

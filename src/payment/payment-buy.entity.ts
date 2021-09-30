@@ -1,4 +1,4 @@
-import { Entity, Column, JoinColumn, ManyToOne } from 'typeorm';
+import { Entity, Column, ManyToOne } from 'typeorm';
 import { Payment } from './payment.entity';
 import { Buy } from 'src/buy/buy.entity';
 import { Fiat } from 'src/fiat/fiat.entity';
@@ -18,10 +18,8 @@ export class BuyPayment extends Payment {
   originFiatValue: number;
 
   @ManyToOne(() => Fiat, { eager: true })
-  @JoinColumn()
   originFiat: Fiat;
 
   @ManyToOne(() => Buy)
-  @JoinColumn()
   buy: Buy;
 }

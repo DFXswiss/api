@@ -12,7 +12,6 @@ import {
   OneToMany,
   CreateDateColumn,
   ManyToOne,
-  JoinColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -45,7 +44,6 @@ export class User {
   signature: string;
 
   @ManyToOne(() => Wallet)
-  @JoinColumn()
   wallet: Wallet;
 
   @Column({ default: '000-000', length: 256 })
@@ -73,14 +71,12 @@ export class User {
   zip: string;
 
   @ManyToOne(() => Country, { eager: true })
-  @JoinColumn()
   country: Country;
 
   @Column({ length: 256, nullable: true })
   phone: string;
 
   @ManyToOne(() => Language, { eager: true })
-  @JoinColumn()
   language: Language;
 
   @Column({ default: UserRole.USER, length: 256 })
@@ -93,15 +89,12 @@ export class User {
   ip: string;
 
   @OneToMany(() => Buy, (buy) => buy.user)
-  @JoinColumn()
   buys: Buy[];
 
   @OneToMany(() => Sell, (sell) => sell.user)
-  @JoinColumn()
   sells: Sell[];
 
   @ManyToOne(() => UserData)
-  @JoinColumn()
   userData: UserData;
 
   @OneToMany(() => Log, (logs) => logs.user)
