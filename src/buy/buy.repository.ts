@@ -1,15 +1,14 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, Repository } from 'typeorm';
+import { EntityRepository, Repository, getManager } from 'typeorm';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { Buy } from './buy.entity';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { AssetRepository } from 'src/asset/asset.repository';
-import { getManager } from 'typeorm';
 import { createHash } from 'crypto';
 
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
-  async createBuy(createBuyDto: CreateBuyDto): Promise<any> {
+  async createBuy(createBuyDto: CreateBuyDto): Promise<Buy> {
     const assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(createBuyDto.asset);
     createBuyDto.asset = assetObject;
 
@@ -37,7 +36,7 @@ export class BuyRepository extends Repository<Buy> {
     }
   }
 
-  async updateBuy(updateBuyDto: UpdateBuyDto): Promise<any> {
+  async updateBuy(updateBuyDto: UpdateBuyDto): Promise<Buy> {
     try {
       const buy = await this.findOne(updateBuyDto.id);
 
@@ -60,45 +59,6 @@ export class BuyRepository extends Repository<Buy> {
       if (buy) return buy;
 
       return;
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getBuy(id: any, user: any): Promise<any> {
-    try {
-      const buy = await this.findOne({ id: id.id });
-      if (buy) {
-        if (buy.user != user) throw new ForbiddenException('You can only get your own sell route');
-        delete buy.user;
-      }
-
-      return buy;
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getAllBuy(user: any): Promise<any> {
-    try {
-      return await this.find({ user: user });
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getBuyOrder(): Promise<number> {
-    try {
-      const buy = await this.find();
-      return buy.length;
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getAll(): Promise<any> {
-    try {
-      return await this.find();
     } catch (error) {
       throw new ConflictException(error.message);
     }

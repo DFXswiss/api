@@ -10,8 +10,6 @@ import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/bankData/dto/bankData.dto';
 import { BankDataService } from 'src/bankData/bankData.service';
 
-interface NameCheckResults {}
-
 @ApiTags('userData')
 @Controller('userData')
 export class UserDataController {

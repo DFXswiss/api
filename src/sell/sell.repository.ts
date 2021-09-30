@@ -87,14 +87,6 @@ export class SellRepository extends Repository<Sell> {
     throw new BadRequestException('id must be a number');
   }
 
-  async getAll(): Promise<any> {
-    try {
-      return await this.find();
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
   async getSellOrder(): Promise<number> {
     try {
       const sell = await this.find();

@@ -1,12 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
 import { User } from 'src/user/user.entity';
 import { Asset } from 'src/asset/asset.entity';
 import { Fiat } from 'src/fiat/fiat.entity';
@@ -54,7 +46,6 @@ export class Log {
   status: LogStatus;
 
   @ManyToOne(() => Fiat, { eager: true })
-  @JoinColumn()
   fiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
@@ -64,7 +55,6 @@ export class Log {
   fiatInCHF: number;
 
   @ManyToOne(() => Asset, { eager: true })
-  @JoinColumn()
   asset: Asset;
 
   @Column({ type: 'float', nullable: true })
@@ -80,11 +70,9 @@ export class Log {
   blockchainTx: string;
 
   @ManyToOne(() => User)
-  @JoinColumn()
   user: User;
 
   @ManyToOne(() => Payment)
-  @JoinColumn()
   payment: Payment;
 
   @UpdateDateColumn()

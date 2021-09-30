@@ -1,6 +1,7 @@
 import { BankData } from 'src/bankData/bankData.entity';
 import { User } from 'src/user/user.entity';
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm';
+import { KycFile as KycFile } from './kycFile.entity';
 
 export enum NameCheckStatus {
   NA = 'NA',
@@ -41,11 +42,11 @@ export class UserData {
   @Column({ type: 'int', nullable: true })
   kycFileReference: number;
 
-  @Column({ type: 'datetime2', nullable: true })
-  kycRequestDate: Date;
-
   @Column({ default: false })
   kycFailure: boolean;
+
+  @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true })
+  kycFile: KycFile;
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];

@@ -5,56 +5,72 @@ import { WalletRepository } from 'src/wallet/wallet.repository';
 import { LogRepository } from 'src/log/log.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
-import { getManager } from 'typeorm';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { BankDataRepository } from 'src/bankData/bankData.repository';
+import { Buy } from 'src/buy/buy.entity';
+import { Sell } from 'src/sell/sell.entity';
+import { Wallet } from 'src/wallet/wallet.entity';
+import { Injectable } from '@nestjs/common';
 
+@Injectable()
 export class AllDataService {
+  constructor(
+    private readonly userRepo: UserRepository,
+    private readonly userDataRepo: UserDataRepository,
+    private readonly bankDataRepo: BankDataRepository,
+    private readonly buyRepo: BuyRepository,
+    private readonly sellRepo: SellRepository,
+    private readonly walletRepo: WalletRepository,
+    private readonly logRepo: LogRepository,
+    private readonly buyPaymentRepo: BuyPaymentRepository,
+    private readonly sellPaymentRepo: SellPaymentRepository,
+  ) {}
+
   async getAllData(): Promise<any> {
     return {
-      users: await getManager().getCustomRepository(UserRepository).getAllUser(),
-      userData: await getManager().getCustomRepository(UserDataRepository).getAllUserData(),
-      bankData: await getManager().getCustomRepository(BankDataRepository).getAllBankData(),
-      buys: await getManager().getCustomRepository(BuyRepository).getAll(),
-      sells: await getManager().getCustomRepository(SellRepository).getAll(),
-      wallets: await getManager().getCustomRepository(WalletRepository).getAllWallet(),
-      logs: await getManager().getCustomRepository(LogRepository).getAllLog(),
+      users: await this.getAllUser(),
+      userData: await this.getAllUserData(),
+      bankData: await this.getAllBankData(),
+      buys: await this.getAllBuy(),
+      sells: await this.getAllSell(),
+      wallets: await this.getAllWallet(),
+      logs: await this.getAllLog(),
       payments: await this.getAllPayment(),
     };
   }
 
   async getAllUser(): Promise<any> {
-    return await getManager().getCustomRepository(UserRepository).getAllUser();
+    return this.userRepo.getAllUser();
   }
 
   async getAllUserData(): Promise<any> {
-    return await getManager().getCustomRepository(UserDataRepository).getAllUserData();
+    return this.userDataRepo.getAllUserData();
   }
 
   async getAllBankData(): Promise<any> {
-    return await getManager().getCustomRepository(BankDataRepository).getAllBankData();
+    return this.bankDataRepo.getAllBankData();
   }
 
-  async getAllBuy(): Promise<any> {
-    return await getManager().getCustomRepository(BuyRepository).getAll();
+  async getAllBuy(): Promise<Buy[]> {
+    return this.buyRepo.find();
   }
 
-  async getAllSell(): Promise<any> {
-    return await getManager().getCustomRepository(SellRepository).getAll();
+  async getAllSell(): Promise<Sell[]> {
+    return this.sellRepo.find();
   }
 
-  async getAllWallet(): Promise<any> {
-    return await getManager().getCustomRepository(WalletRepository).getAllWallet();
+  async getAllWallet(): Promise<Wallet[]> {
+    return this.walletRepo.find();
   }
 
   async getAllLog(): Promise<any> {
-    return await getManager().getCustomRepository(LogRepository).getAllLog();
+    return this.logRepo.getAllLog();
   }
 
   async getAllPayment(): Promise<any> {
     return {
-      sell: await getManager().getCustomRepository(SellPaymentRepository).getAllPayment(),
-      buy: await getManager().getCustomRepository(BuyPaymentRepository).getAllPayment(),
+      buy: await this.buyPaymentRepo.getAllPayment(),
+      sell: await this.sellPaymentRepo.getAllPayment(),
     };
   }
 }

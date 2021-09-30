@@ -15,17 +15,17 @@ export class StatisticController {
 
   @Get('order')
   async getOrder(): Promise<any> {
-    return this.statisticService.getRoutes();
+    return this.statisticService.getRouteCount();
   }
 
   @Get('order/sell')
   async getSellOrder(): Promise<any> {
-    return this.statisticService.getSellRoutes();
+    return this.statisticService.getSellRouteCount();
   }
 
   @Get('order/buy')
   async getBuyOrder(): Promise<any> {
-    return this.statisticService.getBuyRoutes();
+    return this.statisticService.getBuyRouteCount();
   }
 
   @Get('volume')

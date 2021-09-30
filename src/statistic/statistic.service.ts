@@ -11,18 +11,18 @@ export class StatisticService {
     private logRepository: LogRepository,
   ) {}
 
-  async getBuyRoutes(): Promise<number> {
-    return this.buyRepository.getBuyOrder();
+  async getBuyRouteCount(): Promise<number> {
+    return this.buyRepository.count();
   }
 
-  async getSellRoutes(): Promise<number> {
-    return this.sellRepository.getSellOrder();
+  async getSellRouteCount(): Promise<number> {
+    return this.sellRepository.count();
   }
 
-  async getRoutes(): Promise<any> {
+  async getRouteCount(): Promise<any> {
     return {
-      buy: await this.getBuyRoutes(),
-      sell: await this.getSellRoutes(),
+      buy: await this.getBuyRouteCount(),
+      sell: await this.getSellRouteCount(),
     };
   }
 
@@ -45,7 +45,7 @@ export class StatisticService {
   async getAll(): Promise<any> {
     return {
       dfxStatistic: {
-        routes: await this.getRoutes(),
+        routes: await this.getRouteCount(),
         volume: { DFI: await this.getDFIVolume(), CHF: await this.getCHFVolume() },
       },
     };
