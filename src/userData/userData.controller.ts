@@ -103,4 +103,13 @@ export class UserDataController {
   async getUserDataExtends(@Param('name') name: string, @Param('location') location: string): Promise<UserData> {
     return this.userDataService.getUserData(name, location);
   }
+
+  @Put(':id/merge')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async mergeUserData(@Param('id') masterId: number, @Query('id') slaveId: number): Promise<void> {
+    return this.userDataService.mergeUserData(masterId, slaveId);
+  }
+
 }

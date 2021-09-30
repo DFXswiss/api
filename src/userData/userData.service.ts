@@ -141,4 +141,15 @@ export class UserDataService {
     }
     return userData;
   }
+
+  async mergeUserData(masterId: number, slaveId: number): Promise<void> {
+    const [master, slave] = await Promise.all([
+      this.userDataRepo.findOne({where: {id: masterId}, relations: ['users', 'bankDatas']}),
+      this.userDataRepo.findOne({where: {id: slaveId}, relations: ['users', 'bankDatas']})
+    ]);
+
+    master.bankDatas = master.bankDatas.concat(slave.bankDatas);
+    master.users = master.users.concat(slave.users);
+    await this.userDataRepo.save(master);
+  }
 }
