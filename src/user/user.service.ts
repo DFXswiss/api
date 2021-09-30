@@ -5,10 +5,10 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { UserDataRepository } from 'src/userData/userData.repository';
 import { LogRepository } from 'src/log/log.repository';
 import { KycStatus } from 'src/userData/userData.entity';
 import { KycService } from 'src/services/kyc.service';
+import { UserDataRepository } from 'src/userData/userData.repository';
 
 @Injectable()
 export class UserService {
@@ -32,18 +32,21 @@ export class UserService {
   }
 
   async getUser(user: User, detailedUser: boolean): Promise<any> {
-    const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
-    user['kycStatus'] = userData.kycStatus;
+    const currentUser = await this.userRepo.findOne({
+      where: { id: user.id },
+      relations: ['userData', 'buys', 'sells'],
+    });
+    user['kycStatus'] = currentUser.userData.kycStatus;
 
     if (detailedUser) {
-      const buys = await user.buys;
+      const buys = currentUser.buys;
 
       if (buys) {
         for (let a = 0; a < buys.length; a++) {
           delete buys[a].user;
         }
       }
-      const sells = await user.sells;
+      const sells = currentUser.sells;
 
       if (sells) {
         for (let a = 0; a < sells.length; a++) {
@@ -51,19 +54,12 @@ export class UserService {
         }
       }
 
+      user.buys = buys;
       user.sells = sells;
     }
 
     user['refData'] = await this.getRefData(user);
     user['userVolume'] = await this.logRepo.getVolume(user);
-
-    delete user['__has_buys__'];
-    user['buy'] = user['__buys__'];
-    delete user['__buys__'];
-
-    delete user['__has_sells__'];
-    user['sell'] = user['__sells__'];
-    delete user['__sells__'];
 
     delete user.signature;
     delete user.ip;
@@ -98,8 +94,6 @@ export class UserService {
 
     delete user.signature;
     delete user.ip;
-    delete user['__userData__'];
-    delete user['__has_userData__'];
     if (user.role != UserRole.VIP) delete user.role;
 
     return user;
