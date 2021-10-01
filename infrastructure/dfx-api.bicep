@@ -132,7 +132,7 @@ resource sqlVNetRule 'Microsoft.Sql/servers/virtualNetworkRules@2021-02-01-previ
 
 resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' = if (dbAllowAllIps) {
   parent: sqlServer
-  name: 'All'
+  name: 'all'
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '255.255.255.255'

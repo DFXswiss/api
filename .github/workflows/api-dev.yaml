@@ -1,4 +1,4 @@
-name: CI/CD DEV
+name: API DEV CI/CD
 
 on:
   push:

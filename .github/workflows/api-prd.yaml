@@ -1,4 +1,4 @@
-name: CI/CD PRD
+name: API PRD CI/CD
 
 on:
   push:
