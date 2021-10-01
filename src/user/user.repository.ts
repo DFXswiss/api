@@ -32,7 +32,7 @@ export class UserRepository extends Repository<User> {
     }
 
     if (createUserDto.wallet) {
-      walletObject = await getManager().getCustomRepository(WalletRepository).getWallet(createUserDto.country);
+      walletObject = await getManager().getCustomRepository(WalletRepository).getWallet(createUserDto.wallet);
 
       createUserDto.wallet = walletObject.id;
     } else {
