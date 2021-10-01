@@ -17,7 +17,6 @@ export class UserService {
   constructor(
     private userRepo: UserRepository,
     private logRepo: LogRepository,
-    private kycService: KycService,
     private userDataService: UserDataService,
     private conversionService: ConversionService,
   ) {}
@@ -43,6 +42,7 @@ export class UserService {
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['refData'] = await this.getRefData(currentUser);
     currentUser['userVolume'] = await this.getUserVolume(currentUser);
+    delete currentUser.userData;
 
     delete currentUser.signature;
     delete currentUser.ip;
@@ -67,7 +67,7 @@ export class UserService {
 
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
-
+    delete user.userData;
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
       delete user.ref;
