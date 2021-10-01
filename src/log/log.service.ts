@@ -125,12 +125,7 @@ export class LogService {
     return this.logRepository.getChfVolume(logType, logDirection);
   }
 
-  async getUserVolume(user: User, logDirection: LogDirection, value: string): Promise<any> {
-    return this.conversionService.convertFiatCurrency(
-      await this.logRepository.getUserVolume(user, logDirection),
-      'chf',
-      value,
-      new Date(),
-    );
+  async getUserVolume(user: User, logDirection: LogDirection): Promise<any> {
+    return this.logRepository.getUserVolume(user, logDirection);
   }
 }

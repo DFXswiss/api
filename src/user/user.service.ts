@@ -11,14 +11,15 @@ import { KycService } from 'src/services/kyc.service';
 import { UserDataService } from 'src/userData/userData.service';
 import { LogDirection } from 'src/log/log.entity';
 import { ConversionService } from 'src/services/conversion.service';
+import { LogService } from 'src/log/log.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private userRepo: UserRepository,
-    private logRepo: LogRepository,
     private userDataService: UserDataService,
     private conversionService: ConversionService,
+    private logService: LogService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -102,14 +103,14 @@ export class UserService {
   async getUserVolume(user: User): Promise<any> {
     return {
       buy: await this.conversionService.convertFiatCurrency(
-        await this.logRepo.getUserVolume(user, LogDirection.asset2fiat),
+        await this.logService.getUserVolume(user, LogDirection.asset2fiat),
         'chf',
         'eur',
         new Date(),
       ),
 
       sell: await this.conversionService.convertFiatCurrency(
-        await this.logRepo.getUserVolume(user, LogDirection.fiat2asset),
+        await this.logService.getUserVolume(user, LogDirection.fiat2asset),
         'chf',
         'eur',
         new Date(),
@@ -122,12 +123,10 @@ export class UserService {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.conversionService.convertFiatCurrency(
-        await this.logRepo.getRefVolume(user.ref),
-        'chf',
-        'eur',
-        new Date(),
-      ),
+      refVolume: {
+        buy: await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+        sell: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
+      },
     };
   }
 }
