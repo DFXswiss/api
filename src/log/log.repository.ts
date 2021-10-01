@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { EntityRepository, getManager, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
-import { Log, LogDirection, LogStatus, LogType } from './log.entity';
+import { Log, LogDirection, LogType } from './log.entity';
 import { isString } from 'class-validator';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { AssetRepository } from 'src/asset/asset.repository';
@@ -9,29 +9,20 @@ import { UserRepository } from 'src/user/user.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { MailService } from 'src/services/mail.service';
-import { User } from 'src/user/user.entity';
-import { UserStatus } from 'src/user/user.entity';
+import { User, UserStatus } from 'src/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
-import requestPromise from 'request-promise-native';
-import { ConversionService } from 'src/services/conversion.service';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
   async createLog(createLogDto: CreateLogDto, mailService?: MailService): Promise<any> {
     let fiatObject = null;
     let assetObject = null;
-    let paymentObject = null;
 
     if (createLogDto.payment) {
-      paymentObject = await getManager()
-        .getCustomRepository(BuyPaymentRepository)
-        .getPaymentInternal(createLogDto.payment);
-
-      if (!paymentObject) {
-        paymentObject = await getManager()
-          .getCustomRepository(SellPaymentRepository)
-          .getPaymentInternal(createLogDto.payment);
-      }
+      createLogDto.payment =
+        createLogDto.direction === LogDirection.fiat2asset
+          ? await getManager().getCustomRepository(BuyPaymentRepository).getPaymentInternal(createLogDto.payment)
+          : await getManager().getCustomRepository(SellPaymentRepository).getPaymentInternal(createLogDto.payment);
     } else {
       delete createLogDto.payment;
     }

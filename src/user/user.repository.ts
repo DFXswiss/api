@@ -70,12 +70,6 @@ export class UserRepository extends Repository<User> {
       throw new ConflictException(error.message);
     }
 
-    // if (
-    //   user.ref == createUserDto.usedRef ||
-    //   (!refUser && createUserDto.usedRef)
-    // )
-    //   user.ref = '-1';
-
     return user;
   }
 
@@ -175,9 +169,7 @@ export class UserRepository extends Repository<User> {
       newUser.id = currentUser.id;
 
       await this.save(newUser);
-
-      // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
-      //   user.ref = '-1';
+      
       return this.findOne(currentUser.id);
     } catch (error) {
       throw new ConflictException(error.message);

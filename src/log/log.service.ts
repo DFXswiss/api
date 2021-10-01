@@ -10,8 +10,6 @@ import { FiatRepository } from 'src/fiat/fiat.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { LogDirection, LogType } from './log.entity';
 import { UserRepository } from 'src/user/user.repository';
-import { Fiat } from 'src/fiat/fiat.entity';
-import { ConversionService } from 'src/services/conversion.service';
 import { User } from 'src/user/user.entity';
 
 @Injectable()
@@ -25,7 +23,6 @@ export class LogService {
     private sellPaymentRepo: SellPaymentRepository,
     private fiatRepo: FiatRepository,
     private userRepo: UserRepository,
-    private conversionService: ConversionService,
   ) {}
   private baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
@@ -36,13 +33,15 @@ export class LogService {
   async createVolumeLog(createLogDto: CreateVolumeLogDto): Promise<any> {
     let assetObject = null;
     let fiatObject = null;
-    let paymentObject = null;
 
     if (createLogDto.payment) {
-      paymentObject = await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment);
-
-      if (!paymentObject) {
-        paymentObject = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
+      if (createLogDto.direction === LogDirection.fiat2asset) {
+        createLogDto.payment =
+          createLogDto.direction === LogDirection.fiat2asset
+            ? await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment)
+            : await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
+      } else {
+        createLogDto.payment = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
       }
     } else {
       delete createLogDto.payment;
@@ -69,9 +68,8 @@ export class LogService {
       let resultArray = result['prices'];
 
       let sumPrice = 0;
-
-      for (let a = 0; a < resultArray.length; a++) {
-        sumPrice += Number.parseFloat(resultArray[a][1]);
+      for (const price of resultArray) {
+        sumPrice += Number.parseFloat(price[1]);
       }
 
       const currentDfiPrice = sumPrice / resultArray.length;
