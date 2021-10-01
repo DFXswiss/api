@@ -121,18 +121,20 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getVolume(
-    logType: LogType,
-    logDirection: LogDirection,
-    value: string,
-    currency: string,
-    conversionService: ConversionService,
-  ): Promise<number> {
+  async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<number> {
     const volumeLogs = await this.find({
       type: logType,
       direction: logDirection,
     });
-    return this.sum(volumeLogs, value, currency, conversionService);
+    return this.sum(volumeLogs, 'assetValue', 8);
+  }
+
+  async getChfVolume(logType: LogType, logDirection: LogDirection): Promise<number> {
+    const volumeLogs = await this.find({
+      type: logType,
+      direction: logDirection,
+    });
+    return this.sum(volumeLogs, 'fiatInCHF', 2);
   }
 
   async getLog(key: any): Promise<any> {
@@ -153,36 +155,19 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getRefVolume(ref: string, conversionService: ConversionService): Promise<number> {
+  async getRefVolume(ref: string): Promise<number> {
     const logs = await this.find({ where: { message: ref } });
-    return this.sum(logs, 'fiatValue', 'eur', conversionService);
+    return this.sum(logs, 'fiatInCHF', 2);
   }
 
-  async getUserVolume(
-    user: User,
-    logDirection: LogDirection,
-    currency: string,
-    value: string,
-    conversionService: ConversionService,
-  ): Promise<any> {
+  async getUserVolume(user: User, logDirection: LogDirection): Promise<any> {
     const logs = await this.find({
       where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null },
     });
-    return this.sum(logs, value, currency, conversionService);
+    return this.sum(logs, 'fiatInCHF', 2);
   }
 
-  async sum(logs: Log[], value: string, currency: string, conversionService: ConversionService): Promise<number> {
-    let sum: number = 0;
-    for (const key in logs) {
-      if (logs[key].fiat.name != 'EUR') {
-        sum =
-          sum +
-          (await conversionService.convertFiatCurrency(logs[key][value], logs[key].fiat.name, currency, new Date()));
-      } else {
-        sum = sum + logs[key][value];
-      }
-    }
-
-    return sum;
+  async sum(logs: Log[], value: string, decimals: number): Promise<number> {
+    return Math.round(logs.reduce((sum, log) => sum + log[value], 0) * Math.pow(10, decimals)) / Math.pow(10, decimals);
   }
 }

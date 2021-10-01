@@ -22,7 +22,7 @@ export class ConversionService {
     return Math.round(amount * result[toCurrency.toLowerCase()] * Math.pow(10, 2)) / Math.pow(10, 2);
   }
 
-  public async getRate(amount: number, fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
+  public async getRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
     const baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
     const url = this.isToday(date)
       ? `${baseUrl}/latest/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`

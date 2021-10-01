@@ -117,11 +117,20 @@ export class LogService {
     return this.logRepository.getLog(key);
   }
 
-  async getVolume(logType: LogType, logDirection: LogDirection, value: string): Promise<any> {
-    return this.logRepository.getVolume(logType, logDirection, value, 'eur', this.conversionService);
+  async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
+    return this.logRepository.getAssetVolume(logType, logDirection);
+  }
+
+  async getChfVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
+    return this.logRepository.getChfVolume(logType, logDirection);
   }
 
   async getUserVolume(user: User, logDirection: LogDirection, value: string): Promise<any> {
-    return this.logRepository.getUserVolume(user, logDirection, value, 'eur', this.conversionService);
+    return this.conversionService.convertFiatCurrency(
+      await this.logRepository.getUserVolume(user, logDirection),
+      'chf',
+      value,
+      new Date(),
+    );
   }
 }

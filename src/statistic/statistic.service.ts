@@ -35,26 +35,26 @@ export class StatisticService {
         routes: await this.getRouteCount(),
         volume: {
           DFI: {
-            buy: await this.logService.getVolume(LogType.VOLUME, LogDirection.fiat2asset, 'assetValue'),
-            sell: await this.logService.getVolume(LogType.VOLUME, LogDirection.asset2fiat, 'assetValue'),
+            buy: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.fiat2asset),
+            sell: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.asset2fiat),
           },
           EUR: {
-            buy: this.conversionService.convertFiatCurrency(
-              await this.logService.getVolume(LogType.VOLUME, LogDirection.fiat2asset, 'fiatInCHF'),
+            buy: await this.conversionService.convertFiatCurrency(
+              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
               'chf',
               'eur',
               new Date(),
             ),
-            sell: this.conversionService.convertFiatCurrency(
-              await this.logService.getVolume(LogType.VOLUME, LogDirection.asset2fiat, 'fiatInCHF'),
+            sell: await this.conversionService.convertFiatCurrency(
+              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
               'chf',
               'eur',
               new Date(),
             ),
           },
           CHF: {
-            buy: await this.logService.getVolume(LogType.VOLUME, LogDirection.fiat2asset, 'fiatInCHF'),
-            sell: await this.logService.getVolume(LogType.VOLUME, LogDirection.asset2fiat, 'fiatInCHF'),
+            buy: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
+            sell: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
           },
         },
       },
