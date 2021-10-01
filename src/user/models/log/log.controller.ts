@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, UseGuards, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, UseGuards, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { LogService } from './log.service';
@@ -8,6 +8,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { UpdateLogDto } from './dto/update-log.dto';
 
 @ApiTags('log')
 @Controller('log')
@@ -49,5 +50,13 @@ export class LogController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createVolumeLog(@Body() createLogDto: CreateVolumeLogDto): Promise<any> {
     return this.logService.createVolumeLog(createLogDto);
+  }
+
+  @Put()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  updateLog(@Body() updateLogDto: UpdateLogDto): Promise<any> {
+    return this.logService.updateLog(updateLogDto);
   }
 }
