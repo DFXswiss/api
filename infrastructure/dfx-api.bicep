@@ -1,10 +1,12 @@
 // --- PARAMETERS --- //
 param location string = 'westeurope'
-param environment string = 'dev'
+param env string = 'dev'
 
+param dbAllowAllIps bool = false
 param dbAdminLogin string = 'sql-admin'
 @secure()
 param dbAdminPassword string
+
 @secure()
 param jwtSecret string = newGuid()
 
@@ -20,18 +22,95 @@ param kycPrefix string = 'test_'
 @secure()
 param githubToken string
 
+
 // --- VARIABLES --- //
-var systemName = 'dfx-api'
+var compName = 'dfx'
+var apiName = 'api'
+var nodeName = 'node'
 
-var sqlServerName = 'sql-${systemName}-${environment}'
-var sqlDbName = 'sqldb-${systemName}-${environment}'
+var virtualNetName = 'vnet-${compName}-${apiName}-${env}'
+var subNetName = 'snet-${compName}-${apiName}-${env}'
 
-var appServicePlanName = 'plan-${systemName}-${environment}'
-var appServiceName = 'app-${systemName}-${environment}'
-var appInsightsName = 'appi-${systemName}-${environment}'
+var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
+var dbBackupContainerName = 'db-bak'
+
+var sqlServerName = 'sql-${compName}-${apiName}-${env}'
+var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
+
+var servicePlanName = 'plan-${compName}-${apiName}-${env}'
+var apiAppName = 'app-${compName}-${apiName}-${env}'
+var nodeAppName = 'app-${compName}-${nodeName}-${env}'
+var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
 
 // --- RESOURCES --- //
+
+// Virtual Network
+resource virtualNet 'Microsoft.Network/virtualNetworks@2020-11-01' = {
+  name: virtualNetName
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16'
+      ]
+    }
+    subnets: [
+      {
+        name: subNetName
+        properties: {
+          addressPrefix: '10.0.0.0/24'
+          serviceEndpoints: [
+            {
+              service: 'Microsoft.Web'
+              locations: [
+                '*'
+              ]
+            }
+            {
+              service: 'Microsoft.Sql'
+              locations: [
+                '*'
+              ]
+            }
+          ]
+          delegations: [
+            {
+              name: '0'
+              properties: {
+                serviceName: 'Microsoft.Web/serverFarms'
+              }
+            }
+          ]
+          privateEndpointNetworkPolicies: 'Enabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
+        }
+      }
+    ]
+  }
+}
+
+
+// Storage Account
+resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
+  name: storageAccountName
+  location: location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
+  properties: {
+    allowBlobPublicAccess: true
+    allowSharedKeyAccess: true
+    supportsHttpsTrafficOnly: true
+    accessTier: 'Hot'
+  }
+}
+
+resource dbBackupContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-04-01' = {
+  name: '${storageAccount.name}/default/${dbBackupContainerName}'
+}
+
 
 // SQL Database
 resource sqlServer 'Microsoft.Sql/servers@2021-02-01-preview' = {
@@ -40,6 +119,23 @@ resource sqlServer 'Microsoft.Sql/servers@2021-02-01-preview' = {
   properties: {
     administratorLogin: dbAdminLogin
     administratorLoginPassword: dbAdminPassword
+  }
+}
+
+resource sqlVNetRule 'Microsoft.Sql/servers/virtualNetworkRules@2021-02-01-preview' = {
+ parent: sqlServer
+ name: 'apiVNetRule'
+ properties: {
+   virtualNetworkSubnetId: virtualNet.properties.subnets[0].id
+ }
+}
+
+resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' = if (dbAllowAllIps) {
+  parent: sqlServer
+  name: 'All'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '255.255.255.255'
   }
 }
 
@@ -54,42 +150,39 @@ resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
   }
 }
 
-resource allowAzureIps 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' = {
-  parent: sqlServer
-  name: 'AllowAllWindowsAzureIps'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'
-  }
-}
 
 // App Service
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
-  name: appServicePlanName
+  name: servicePlanName
   location: location
   kind: 'linux'
   properties: {
       reserved: true
   }
   sku: {
-    name: 'B1'
-    tier: 'Basic'
+    name: 'S1'
+    tier: 'Standard'
     capacity: 1
   }
 }
 
-resource appService 'Microsoft.Web/sites@2018-11-01' = {
-  name: appServiceName
+resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
+  name: apiAppName
   location: location
   kind: 'app,linux'
   properties: {
     serverFarmId: appServicePlan.id
+    httpsOnly: true
+    virtualNetworkSubnetId: virtualNet.properties.subnets[0].id
+    
     siteConfig: {
       alwaysOn: true
       linuxFxVersion: 'NODE|14-lts'
       appCommandLine: 'npm run start:prod'
       httpLoggingEnabled: true
       logsDirectorySizeLimit: 100
+      vnetRouteAllEnabled: true
+      
       appSettings: [
         {
           name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
@@ -157,7 +250,7 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'KYC_USER'
-          value: api
+          value: 'api'
         }
         {
           name: 'KYC_PASSWORD'
@@ -173,7 +266,80 @@ resource appService 'Microsoft.Web/sites@2018-11-01' = {
         }
       ]
     }
+  }
+}
+
+resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
+  name: nodeAppName
+  location: location
+  kind: 'app,linux,container'
+  properties: {
+    serverFarmId: appServicePlan.id
     httpsOnly: true
+
+    siteConfig: {
+      alwaysOn: true
+      linuxFxVersion: 'COMPOSE|'
+      httpLoggingEnabled: true
+      logsDirectorySizeLimit: 100
+      ipSecurityRestrictions: [
+        {
+          vnetSubnetResourceId: virtualNet.properties.subnets[0].id
+          action: 'Allow'
+          tag: 'Default'
+          priority: 100
+          name: 'Allow VNet'
+          description: 'Allow all from VNet'
+        }
+      ]
+      appSettings: [
+        {
+          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
+          value: 'true'
+        }
+        {
+          name: 'WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG'
+          value: '1'
+        }
+      ]
+    }
+  }
+}
+resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = {
+  parent: nodeAppService
+  name: 'stg'
+  location: location
+  kind: 'app,linux,container'
+  properties: {
+    serverFarmId: appServicePlan.id
+    httpsOnly: true
+
+    siteConfig: {
+      alwaysOn: true
+      linuxFxVersion: 'COMPOSE|'
+      httpLoggingEnabled: true
+      logsDirectorySizeLimit: 100
+      ipSecurityRestrictions: [
+        {
+          vnetSubnetResourceId: virtualNet.properties.subnets[0].id
+          action: 'Allow'
+          tag: 'Default'
+          priority: 100
+          name: 'Allow VNet'
+          description: 'Allow all from VNet'
+        }
+      ]
+      appSettings: [
+        {
+          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
+          value: 'true'
+        }
+        {
+          name: 'WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG'
+          value: '1'
+        }
+      ]
+    }
   }
 }
 
