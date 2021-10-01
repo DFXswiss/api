@@ -1,6 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { CfpService } from 'src/services/cfp.service';
+import { CfpResult, CfpService, MasterNode } from 'src/services/cfp.service';
 import { StatisticService } from './statistic.service';
 
 @ApiTags('statistic')
@@ -14,17 +14,27 @@ export class StatisticController {
   }
 
   @Get('cfp')
-  async getDfxCfp(): Promise<any> {
-    return this.cfpService.getDfxResults();
+  async getCfpList(): Promise<CfpResult[]> {
+    const cfpResults = await this.cfpService.getCfpResults('latest');
+    return cfpResults.filter((r) => [66, 70].includes(r.number));
+
+    // TODO:
+    // return this.cfpService.getCfpList();
   }
 
+  // TODO: remove
   @Get('cfp/all')
-  async getAllCfp(): Promise<any> {
-    return this.cfpService.getAllCfpResults();
+  async getAllCfp(): Promise<CfpResult[]> {
+    return this.cfpService.getCfpResults('latest');
+  }
+
+  @Get('cfp/:id')
+  async getCfpResults(@Param('id') cfpId: string): Promise<CfpResult[]> {
+    return this.cfpService.getCfpResults(cfpId);
   }
 
   @Get('cfp/masterNodes')
-  async getMasterNodes(): Promise<any> {
-    return this.cfpService.getAllMasterNodes();
+  async getMasterNodes(): Promise<MasterNode[]> {
+    return this.cfpService.getMasterNodes();
   }
 }

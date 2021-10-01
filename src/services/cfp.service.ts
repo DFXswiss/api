@@ -1,8 +1,8 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from './http.service';
 import * as MasterNodes from '../assets/master-nodes.json';
-import * as CFP2109 from '../assets/CFP2109.json';
+import * as CfpResults from '../assets/cfp-results.json';
 
 interface CfpResponse {
   number: number;
@@ -26,12 +26,6 @@ enum State {
   PRE_ENABLED = 'PRE_ENABLED',
 }
 
-interface MasterNode {
-  ownerAuthAddress: string;
-  mintedBlocks: number;
-  state: State;
-}
-
 interface Vote {
   address: string;
   signature: string;
@@ -39,7 +33,13 @@ interface Vote {
   vote: string;
 }
 
-interface CfpResult {
+export interface MasterNode {
+  ownerAuthAddress: string;
+  mintedBlocks: number;
+  state: State;
+}
+
+export interface CfpResult {
   number: number;
   title: string;
   html_url: string;
@@ -54,13 +54,14 @@ interface CfpResult {
 
 @Injectable()
 export class CfpService {
+  private isCfpInProgress = false;
+  private regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?\s+(\S{87}=)(?:\s|$)+/gm;
   private issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
   private masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
 
   private masterNodeCount: number;
   private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
-  private invalidVotes: string[];
 
   constructor(private http: HttpService, private deFiService: CryptoService) {
     const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
@@ -68,7 +69,7 @@ export class CfpService {
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
 
-  async getAllMasterNodes(): Promise<MasterNode[]> {
+  async getMasterNodes(): Promise<MasterNode[]> {
     const response = await this.callApi<{ [key: string]: MasterNode }>(this.masterNodeUrl, ``);
     return Object.values(response).map((n) => ({
       ownerAuthAddress: n.ownerAuthAddress,
@@ -77,26 +78,30 @@ export class CfpService {
     }));
   }
 
-  async getDfxResults(): Promise<any> {
-    return CFP2109.filter((r) => [66, 70].includes(r.number));
-    //if (!this.cfpResults) await this.doUpdate();
-    //return this.cfpResults.filter((r) => [66, 70].includes(r.number));
+  getCfpList(): string[] {
+    return Object.keys(CfpResults);
   }
 
-  async getAllCfpResults(): Promise<any> {
-    return CFP2109;
-    //if (!this.cfpResults) await this.doUpdate();
-    //return this.cfpResults;
-  }
+  async getCfpResults(cfpId: string): Promise<CfpResult[]> {
+    if (cfpId === 'latest') {
+      if (this.isCfpInProgress) {
+        // return current data from GitHub
+        if (!this.cfpResults) await this.doUpdate();
+        return this.cfpResults;
+      }
 
-  async getAllInvalidVotes(): Promise<any> {
-    if (!this.invalidVotes) await this.doUpdate();
-    return this.invalidVotes;
+      // return newest cached data
+      cfpId = Object.keys(CfpResults)[0];
+    }
+
+    const results = CfpResults[cfpId];
+    if (!results) throw new NotFoundException('No CFP result for id found');
+
+    return results;
   }
 
   async doUpdate(): Promise<void> {
     try {
-      this.invalidVotes = [];
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
       allCfp = allCfp.filter((cfp) => cfp.labels.find((l) => l.name === 'cfp'));
 
@@ -150,14 +155,11 @@ export class CfpService {
 
   private getCommentVotes(comment: string): Vote[] {
     const matches = [];
-    const regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?\s+(\S{87}=)(?:\s|$)+/gm;
 
     let match;
-    while ((match = regExp.exec(comment)) !== null) {
+    while ((match = this.regExp.exec(comment)) !== null) {
       matches.push(match);
     }
-
-    if (matches.length === 0) this.invalidVotes.push(comment);
 
     return matches.map((m) => ({
       address: m[1],
