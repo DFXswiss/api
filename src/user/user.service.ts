@@ -9,6 +9,8 @@ import { LogRepository } from 'src/log/log.repository';
 import { KycStatus, UserData } from 'src/userData/userData.entity';
 import { KycService } from 'src/services/kyc.service';
 import { UserDataService } from 'src/userData/userData.service';
+import { LogDirection } from 'src/log/log.entity';
+import { ConversionService } from 'src/services/conversion.service';
 
 @Injectable()
 export class UserService {
@@ -17,6 +19,7 @@ export class UserService {
     private logRepo: LogRepository,
     private kycService: KycService,
     private userDataService: UserDataService,
+    private conversionService: ConversionService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -39,7 +42,7 @@ export class UserService {
 
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['refData'] = await this.getRefData(currentUser);
-    currentUser['userVolume'] = await this.logRepo.getVolume(currentUser);
+    currentUser['userVolume'] = await this.getUserVolume(currentUser);
 
     delete currentUser.signature;
     delete currentUser.ip;
@@ -60,7 +63,7 @@ export class UserService {
     const user = await this.userRepo.updateUser(oldUser, newUser);
 
     user['refData'] = await this.getRefData(user);
-    user['userVolume'] = await this.logRepo.getVolume(user);
+    user['userVolume'] = await this.getUserVolume(user);
 
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
@@ -89,11 +92,19 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number): Promise<UserData> {
+  async requestKyc(userId: number): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
     return this.userDataService.requestKyc(userData.id);
+  }
+
+  async getUserVolume(user: User): Promise<any> {
+    return {
+      buy: await this.logRepo.getUserVolume(user, LogDirection.asset2fiat, 'eur', 'fiatInCHF', this.conversionService),
+
+      sell: await this.logRepo.getUserVolume(user, LogDirection.fiat2asset, 'eur', 'fiatInCHF', this.conversionService),
+    };
   }
 
   async getRefData(user: User): Promise<any> {
@@ -101,7 +112,7 @@ export class UserService {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logRepo.getRefVolume(user.ref),
+      refVolume: await this.logRepo.getRefVolume(user.ref, this.conversionService),
     };
   }
 }

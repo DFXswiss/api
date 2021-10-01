@@ -66,6 +66,7 @@ import { BatchController } from './batch/batch.controller';
 import { BatchService } from './batch/batch.service';
 import { CfpService } from './services/cfp.service';
 import { AinModule } from './ain/ain.module';
+import { ConversionService } from './services/conversion.service';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -180,6 +181,7 @@ import { AinModule } from './ain/ain.module';
     SchedulerService,
     BatchService,
     CfpService,
+    ConversionService,
   ],
   exports: [],
 })

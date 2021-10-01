@@ -13,36 +13,6 @@ export class StatisticController {
     return this.statisticService.getAll();
   }
 
-  @Get('order')
-  async getOrder(): Promise<any> {
-    return this.statisticService.getRouteCount();
-  }
-
-  @Get('order/sell')
-  async getSellOrder(): Promise<any> {
-    return this.statisticService.getSellRouteCount();
-  }
-
-  @Get('order/buy')
-  async getBuyOrder(): Promise<any> {
-    return this.statisticService.getBuyRouteCount();
-  }
-
-  @Get('volume')
-  async getVolume(): Promise<any> {
-    return this.statisticService.getDFIVolume();
-  }
-
-  @Get('volume/buy')
-  async getBuyVolume(): Promise<any> {
-    return this.statisticService.getDFIBuyVolume();
-  }
-
-  @Get('volume/sell')
-  async getSellVolume(): Promise<any> {
-    return this.statisticService.getDFISellVolume();
-  }
-
   @Get('cfp')
   async getDfxCfp(): Promise<any> {
     return this.cfpService.getDfxResults();

@@ -118,7 +118,7 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userDataId: number): Promise<UserData> {
+  async requestKyc(userDataId: number): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
@@ -132,8 +132,10 @@ export class UserDataService {
 
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);
+      return true;
+    } else {
+      return false;
     }
-    return userData;
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {

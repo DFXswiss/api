@@ -440,12 +440,11 @@ export class KycService {
       KycStatus.WAIT_MANUAL,
       KycDocument.ONLINE_IDENTIFICATION,
       async (userData, document) => {
-      
         //Create kyc file reference and upload
-      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
+        //userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
 
-      //TODO: upload kyc file reference
-      //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
+        //TODO: upload kyc file reference
+        //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
 
         await this.mailService.sendKycRequestMail(userData, document);
         return userData;

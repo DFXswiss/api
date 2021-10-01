@@ -8,8 +8,11 @@ import { AssetRepository } from 'src/asset/asset.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
-import { LogType } from './log.entity';
+import { LogDirection, LogType } from './log.entity';
 import { UserRepository } from 'src/user/user.repository';
+import { Fiat } from 'src/fiat/fiat.entity';
+import { ConversionService } from 'src/services/conversion.service';
+import { User } from 'src/user/user.entity';
 
 @Injectable()
 export class LogService {
@@ -22,6 +25,7 @@ export class LogService {
     private sellPaymentRepo: SellPaymentRepository,
     private fiatRepo: FiatRepository,
     private userRepo: UserRepository,
+    private conversionService: ConversionService,
   ) {}
   private baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
@@ -109,11 +113,15 @@ export class LogService {
     return this.logRepository.getAllUserLog(address);
   }
 
-  // async updateDeposit(update: any): Promise<any> {
-  //   return this.depositRepository.updateDeposit(update);
-  // }
-
   async getLog(key: any): Promise<any> {
     return this.logRepository.getLog(key);
+  }
+
+  async getVolume(logType: LogType, logDirection: LogDirection, value: string): Promise<any> {
+    return this.logRepository.getVolume(logType, logDirection, value, 'eur', this.conversionService);
+  }
+
+  async getUserVolume(user: User, logDirection: LogDirection, value: string): Promise<any> {
+    return this.logRepository.getUserVolume(user, logDirection, value, 'eur', this.conversionService);
   }
 }

@@ -13,6 +13,7 @@ import { User } from 'src/user/user.entity';
 import { UserStatus } from 'src/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import requestPromise from 'request-promise-native';
+import { ConversionService } from 'src/services/conversion.service';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
@@ -120,91 +121,18 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getBuyDFIVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.fiat2asset,
-      });
-      let buyVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        buyVolume += volumeLogs[a].assetValue;
-      }
-
-      return Math.round(buyVolume * Math.pow(10, 8)) / Math.pow(10, 8);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getSellDFIVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.asset2fiat,
-      });
-      let sellVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        sellVolume += volumeLogs[a].assetValue;
-      }
-      return Math.round(sellVolume * Math.pow(10, 8)) / Math.pow(10, 8);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getDFIVolume(): Promise<any> {
-    try {
-      return {
-        buy: await this.getBuyDFIVolume(),
-        sell: await this.getSellDFIVolume(),
-      };
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getBuyCHFVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.fiat2asset,
-      });
-      let buyVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        buyVolume += volumeLogs[a].fiatInCHF;
-      }
-      return Math.round(buyVolume * Math.pow(10, 2)) / Math.pow(10, 2);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getSellCHFVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.asset2fiat,
-      });
-      let sellVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        sellVolume += volumeLogs[a].fiatInCHF;
-      }
-      return Math.round(sellVolume * Math.pow(10, 2)) / Math.pow(10, 2);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getCHFVolume(): Promise<any> {
-    try {
-      return {
-        buy: await this.getBuyCHFVolume(),
-        sell: await this.getSellCHFVolume(),
-      };
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
+  async getVolume(
+    logType: LogType,
+    logDirection: LogDirection,
+    value: string,
+    currency: string,
+    conversionService: ConversionService,
+  ): Promise<number> {
+    const volumeLogs = await this.find({
+      type: logType,
+      direction: logDirection,
+    });
+    return this.sum(volumeLogs, value, currency, conversionService);
   }
 
   async getLog(key: any): Promise<any> {
@@ -225,28 +153,36 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getRefVolume(ref: string): Promise<number> {
-    const logs = await this.find({ select: ['fiatValue'], where: { message: ref } });
-    return this.sumFiat(logs);
+  async getRefVolume(ref: string, conversionService: ConversionService): Promise<number> {
+    const logs = await this.find({ where: { message: ref } });
+    return this.sum(logs, 'fiatValue', 'eur', conversionService);
   }
 
-  async getVolume(user: User): Promise<any> {
-    const buyLogs = await this.find({
-      select: ['fiatValue'],
-      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset, status: null },
+  async getUserVolume(
+    user: User,
+    logDirection: LogDirection,
+    currency: string,
+    value: string,
+    conversionService: ConversionService,
+  ): Promise<any> {
+    const logs = await this.find({
+      where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null },
     });
-    const sellLogs = await this.find({
-      select: ['fiatValue'],
-      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat, status: null },
-    });
-
-    return {
-      buyVolume: this.sumFiat(buyLogs),
-      sellVolume: this.sumFiat(sellLogs),
-    };
+    return this.sum(logs, value, currency, conversionService);
   }
 
-  private sumFiat(logs: Log[]): number {
-    return Math.round(logs.reduce((sum, log) => sum + log.fiatValue, 0) * Math.pow(10, 0)) / Math.pow(10, 0);
+  async sum(logs: Log[], value: string, currency: string, conversionService: ConversionService): Promise<number> {
+    let sum: number = 0;
+    for (const key in logs) {
+      if (logs[key].fiat.name != 'EUR') {
+        sum =
+          sum +
+          (await conversionService.convertFiatCurrency(logs[key][value], logs[key].fiat.name, currency, new Date()));
+      } else {
+        sum = sum + logs[key][value];
+      }
+    }
+
+    return sum;
   }
 }
