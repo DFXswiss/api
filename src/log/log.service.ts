@@ -8,8 +8,9 @@ import { AssetRepository } from 'src/asset/asset.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
-import { LogType } from './log.entity';
+import { LogDirection, LogType } from './log.entity';
 import { UserRepository } from 'src/user/user.repository';
+import { User } from 'src/user/user.entity';
 
 @Injectable()
 export class LogService {
@@ -32,13 +33,15 @@ export class LogService {
   async createVolumeLog(createLogDto: CreateVolumeLogDto): Promise<any> {
     let assetObject = null;
     let fiatObject = null;
-    let paymentObject = null;
 
     if (createLogDto.payment) {
-      paymentObject = await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment);
-
-      if (!paymentObject) {
-        paymentObject = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
+      if (createLogDto.direction === LogDirection.fiat2asset) {
+        createLogDto.payment =
+          createLogDto.direction === LogDirection.fiat2asset
+            ? await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment)
+            : await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
+      } else {
+        createLogDto.payment = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
       }
     } else {
       delete createLogDto.payment;
@@ -65,9 +68,8 @@ export class LogService {
       let resultArray = result['prices'];
 
       let sumPrice = 0;
-
-      for (let a = 0; a < resultArray.length; a++) {
-        sumPrice += Number.parseFloat(resultArray[a][1]);
+      for (const price of resultArray) {
+        sumPrice += Number.parseFloat(price[1]);
       }
 
       const currentDfiPrice = sumPrice / resultArray.length;
@@ -109,11 +111,19 @@ export class LogService {
     return this.logRepository.getAllUserLog(address);
   }
 
-  // async updateDeposit(update: any): Promise<any> {
-  //   return this.depositRepository.updateDeposit(update);
-  // }
-
   async getLog(key: any): Promise<any> {
     return this.logRepository.getLog(key);
+  }
+
+  async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
+    return this.logRepository.getAssetVolume(logType, logDirection);
+  }
+
+  async getChfVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
+    return this.logRepository.getChfVolume(logType, logDirection);
+  }
+
+  async getUserVolume(user: User, logDirection: LogDirection): Promise<any> {
+    return this.logRepository.getUserVolume(user, logDirection);
   }
 }

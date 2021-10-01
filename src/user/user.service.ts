@@ -6,17 +6,20 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LogRepository } from 'src/log/log.repository';
-import { KycStatus } from 'src/userData/userData.entity';
+import { KycStatus, UserData } from 'src/userData/userData.entity';
 import { KycService } from 'src/services/kyc.service';
-import { UserDataRepository } from 'src/userData/userData.repository';
+import { UserDataService } from 'src/userData/userData.service';
+import { LogDirection } from 'src/log/log.entity';
+import { ConversionService } from 'src/services/conversion.service';
+import { LogService } from 'src/log/log.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private userRepo: UserRepository,
-    private logRepo: LogRepository,
-    private kycService: KycService,
-    private userDataRepo: UserDataRepository,
+    private userDataService: UserDataService,
+    private conversionService: ConversionService,
+    private logService: LogService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -39,7 +42,8 @@ export class UserService {
 
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['refData'] = await this.getRefData(currentUser);
-    currentUser['userVolume'] = await this.logRepo.getVolume(currentUser);
+    currentUser['userVolume'] = await this.getUserVolume(currentUser);
+    delete currentUser.userData;
 
     delete currentUser.signature;
     delete currentUser.ip;
@@ -60,11 +64,11 @@ export class UserService {
     const user = await this.userRepo.updateUser(oldUser, newUser);
 
     user['refData'] = await this.getRefData(user);
-    user['userVolume'] = await this.logRepo.getVolume(user);
+    user['userVolume'] = await this.getUserVolume(user);
 
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
-
+    delete user.userData;
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
       delete user.ref;
@@ -93,20 +97,25 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
-    if (userData?.kycStatus === KycStatus.NA) {
-      // update customer
-      const customer = await this.kycService.updateCustomer(userData.id, user);
-      userData.kycCustomerId = customer.customerId;
-      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
-      //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
+    return this.userDataService.requestKyc(userData.id);
+  }
 
-      // start onboarding
-      const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
+  async getUserVolume(user: User): Promise<any> {
+    return {
+      buy: await this.conversionService.convertFiatCurrency(
+        await this.logService.getUserVolume(user, LogDirection.asset2fiat),
+        'chf',
+        'eur',
+        new Date(),
+      ),
 
-      if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
-      await this.userDataRepo.save(userData);
-    }
-    return true;
+      sell: await this.conversionService.convertFiatCurrency(
+        await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+        'chf',
+        'eur',
+        new Date(),
+      ),
+    };
   }
 
   async getRefData(user: User): Promise<any> {
@@ -114,7 +123,10 @@ export class UserService {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logRepo.getRefVolume(user.ref),
+      refVolume: {
+        buy: await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+        sell: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
+      },
     };
   }
 }

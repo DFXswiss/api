@@ -58,7 +58,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@Param('id') id: number): Promise<UserData> {
+  async requestKyc(@Param('id') id: number): Promise<boolean> {
     return this.userDataService.requestKyc(id);
   }
 
@@ -109,5 +109,4 @@ export class UserDataController {
   async mergeUserData(@Param('id') masterId: number, @Query('id') slaveId: number): Promise<void> {
     return this.userDataService.mergeUserData(masterId, slaveId);
   }
-
 }

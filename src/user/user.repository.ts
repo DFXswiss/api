@@ -70,12 +70,6 @@ export class UserRepository extends Repository<User> {
       throw new ConflictException(error.message);
     }
 
-    // if (
-    //   user.ref == createUserDto.usedRef ||
-    //   (!refUser && createUserDto.usedRef)
-    // )
-    //   user.ref = '-1';
-
     return user;
   }
 
@@ -110,15 +104,15 @@ export class UserRepository extends Repository<User> {
   }
 
   async getUserInternal(addressString: string): Promise<User> {
-    return await this.findOne({ address: addressString });
+    return this.findOne({ address: addressString });
   }
 
   async getRefCount(ref: string): Promise<number> {
-    return await this.count({ usedRef: ref });
+    return this.count({ usedRef: ref });
   }
 
   async getRefCountActive(ref: string): Promise<number> {
-    return await this.count({ usedRef: ref, status: Not(UserStatus.NA) });
+    return this.count({ usedRef: ref, status: Not(UserStatus.NA) });
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
@@ -175,9 +169,7 @@ export class UserRepository extends Repository<User> {
       newUser.id = currentUser.id;
 
       await this.save(newUser);
-
-      // if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef))
-      //   user.ref = '-1';
+      
       return this.findOne(currentUser.id);
     } catch (error) {
       throw new ConflictException(error.message);

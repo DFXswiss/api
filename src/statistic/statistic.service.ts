@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { BuyRepository } from 'src/buy/buy.repository';
 import { SellRepository } from 'src/sell/sell.repository';
-import { LogRepository } from 'src/log/log.repository';
+import { LogService } from 'src/log/log.service';
+import { LogDirection, LogType } from 'src/log/log.entity';
+import { ConversionService } from 'src/services/conversion.service';
 
 @Injectable()
 export class StatisticService {
   constructor(
     private buyRepository: BuyRepository,
     private sellRepository: SellRepository,
-    private logRepository: LogRepository,
+    private logService: LogService,
+    private conversionService: ConversionService,
   ) {}
 
   async getBuyRouteCount(): Promise<number> {
@@ -26,27 +29,34 @@ export class StatisticService {
     };
   }
 
-  async getDFIBuyVolume(): Promise<any> {
-    return this.logRepository.getBuyDFIVolume();
-  }
-
-  async getDFISellVolume(): Promise<any> {
-    return this.logRepository.getSellDFIVolume();
-  }
-
-  async getDFIVolume(): Promise<any> {
-    return this.logRepository.getDFIVolume();
-  }
-
-  async getCHFVolume(): Promise<any> {
-    return this.logRepository.getCHFVolume();
-  }
-
   async getAll(): Promise<any> {
     return {
       dfxStatistic: {
         routes: await this.getRouteCount(),
-        volume: { DFI: await this.getDFIVolume(), CHF: await this.getCHFVolume() },
+        volume: {
+          DFI: {
+            buy: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.fiat2asset),
+            sell: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.asset2fiat),
+          },
+          EUR: {
+            buy: await this.conversionService.convertFiatCurrency(
+              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
+              'chf',
+              'eur',
+              new Date(),
+            ),
+            sell: await this.conversionService.convertFiatCurrency(
+              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
+              'chf',
+              'eur',
+              new Date(),
+            ),
+          },
+          CHF: {
+            buy: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
+            sell: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
+          },
+        },
       },
     };
   }

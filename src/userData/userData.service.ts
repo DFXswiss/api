@@ -118,7 +118,7 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userDataId: number): Promise<UserData> {
+  async requestKyc(userDataId: number): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
@@ -127,25 +127,21 @@ export class UserDataService {
       const customer = await this.kycService.updateCustomer(userData.id, user);
       userData.kycCustomerId = customer.customerId;
 
-      //Create kyc file reference and upload
-      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
-
-      //TODO: upload kyc file reference
-      //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-
       // start onboarding
       const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
 
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);
+      return true;
+    } else {
+      return false;
     }
-    return userData;
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
     const [master, slave] = await Promise.all([
-      this.userDataRepo.findOne({where: {id: masterId}, relations: ['users', 'bankDatas']}),
-      this.userDataRepo.findOne({where: {id: slaveId}, relations: ['users', 'bankDatas']})
+      this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'bankDatas'] }),
+      this.userDataRepo.findOne({ where: { id: slaveId }, relations: ['users', 'bankDatas'] }),
     ]);
 
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
