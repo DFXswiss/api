@@ -40,6 +40,7 @@
     "applicationinsights": "^2.1.6",
     "axios": "^0.21.1",
     "bcrypt": "^5.0.1",
+    "bignumber.js": "^9.0.1",
     "bitcoinjs-message": "^2.2.0",
     "chalk": "^4.1.0",
     "class-transformer": "^0.3.1",
