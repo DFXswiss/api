@@ -2,7 +2,7 @@ name: Node DEV CD
 
 on:
   push:
-    branches: [ feature/defi-node ]
+    branches: [ develop ]
     paths: [ infrastructure/defi-node-test.yml ]
   workflow_dispatch:
 
