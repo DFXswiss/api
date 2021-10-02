@@ -98,33 +98,6 @@ interface Risk {
   categoryKey: string;
 }
 
-export interface CustomerResponse {
-  id: number;
-  versionId: number;
-  reference: string;
-  emails: [string];
-  structuredAddresses: [
-    {
-      street: string;
-      houseNumber: string;
-      zipCode: string;
-      city: string;
-      countryCode: string;
-    },
-  ];
-  telephones: [string];
-  countriesOfResidence: [string];
-  preferredLanguage: string;
-  activationDate: { year: string; month: string; day: string };
-  deactivationDate: { year: string; month: string; day: string };
-  gender: string;
-  title: string;
-  names: [{ firstName: string; lastName: string }];
-  datesOfBirth: [{ year: string; month: string; day: string }];
-  placesOfBirth: [{ year: string; month: string; day: string }];
-  citizenships: [string];
-}
-
 export interface Customer {
   reference: number;
   type: string;
@@ -178,12 +151,7 @@ export class KycService {
       names: [{ lastName: name }],
     };
 
-    try {
-      return await this.callApi<CreateResponse>('customers/simple', 'POST', data);
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to register KYC customer');
-    }
+    return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
 
   async updateCustomer(id: number, user: User): Promise<CreateResponse> {
@@ -208,20 +176,10 @@ export class KycService {
       activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
     };
 
-    try {
-      return await this.callApi<CreateResponse>('customers/simple', 'POST', data);
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to update KYC customer');
-    }
+    return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
   async getAllCustomer(): Promise<string[]> {
-    try {
-      return await this.callApi<string[]>(`customers`, 'GET');
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to get KYC customer');
-    }
+    return this.callApi<string[]>(`customers`, 'GET');
   }
 
   async getCustomer(id: number): Promise<Customer> {
@@ -231,46 +189,25 @@ export class KycService {
       if (e.response.status === 404) {
         return null;
       }
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to get KYC customer');
+      throw e;
     }
   }
 
   async getCustomerInformation(id: number): Promise<CustomerInformationResponse> {
-    try {
-      return await this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`, 'GET');
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to get KYC customer');
-    }
+    return this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`, 'GET');
   }
 
   async getCheckResult(customerCheckId: number): Promise<CheckResult> {
-    try {
-      return await this.callApi<CheckResult>(`customers/checks/${customerCheckId}/result`, 'GET');
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to get check result');
-    }
+    return this.callApi<CheckResult>(`customers/checks/${customerCheckId}/result`, 'GET');
   }
 
   async getDocuments(id: number): Promise<CheckResult> {
-    try {
-      return await this.callApi<any>(`customers/${this.reference(id)}/documents?`, 'GET');
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to get documents');
-    }
+    return this.callApi<any>(`customers/${this.reference(id)}/documents?`, 'GET');
   }
 
   async checkCustomer(id: number): Promise<CheckResponse> {
-    try {
-      const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
-      return results[0];
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to do name check');
-    }
+    const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
+    return results[0];
   }
 
   async initiateOnboardingChatBot(id: number): Promise<ChatBotResponse> {
@@ -279,17 +216,12 @@ export class KycService {
       sendingInvitation: true,
     };
 
-    try {
-      const result = await this.callApi<ChatBotResponse[]>(
-        'customers/initiate-onboarding-chatbot-sessions',
-        'POST',
-        data,
-      );
-      return result[0];
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to onboard chatbot for customer');
-    }
+    const result = await this.callApi<ChatBotResponse[]>(
+      'customers/initiate-onboarding-chatbot-sessions',
+      'POST',
+      data,
+    );
+    return result[0];
   }
 
   async createFileReference(id: number, fileReference: number, lastName: string): Promise<ChatBotResponse> {
@@ -302,58 +234,38 @@ export class KycService {
       contractReference: this.reference(fileReference),
     };
 
-    try {
-      const result = await this.callApi<any>('customers/contract-linked', 'POST', data);
-      return result[0];
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to create file reference');
-    }
+    const result = await this.callApi<any>('customers/contract-linked', 'POST', data);
+    return result[0];
   }
 
   async initiateOnlineIdentification(id: number): Promise<IdentificationResponse> {
-    try {
-      const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [this.reference(id)]);
-      return result[0];
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to initiate online identification');
-    }
+    const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [this.reference(id)]);
+    return result[0];
   }
 
   async initiateDocumentUpload(id: number, kycDocuments: KycDocument[]): Promise<IdentificationResponse> {
-    try {
-      const query: string = this.getUploadDocumentQuery(kycDocuments);
+    const query: string = this.getUploadDocumentQuery(kycDocuments);
 
-      const result = await this.callApi<IdentificationResponse[]>(
-        `customers/initiate-document-uploads?${query}`,
-        'POST',
-        [this.reference(id)],
-      );
-      return result[0];
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to initiate upload document');
-    }
+    const result = await this.callApi<IdentificationResponse[]>(
+      `customers/initiate-document-uploads?${query}`,
+      'POST',
+      [this.reference(id)],
+    );
+    return result[0];
   }
 
   async uploadDocument(id: number, kycDocumentVersion: string, kycDocument: KycDocument): Promise<boolean> {
-    try {
-      //TODO BODY with IMG rawData
+    //TODO BODY with IMG rawData
 
-      const result = await this.callApi<string>(
-        `customers/${this.reference(
-          id,
-        )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentVersion}`,
-        'PUT',
-        'image/jpeg',
-      );
+    const result = await this.callApi<string>(
+      `customers/${this.reference(
+        id,
+      )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentVersion}`,
+      'PUT',
+      'image/jpeg',
+    );
 
-      return result === 'done';
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to initiate upload document');
-    }
+    return result === 'done';
   }
 
   getUploadDocumentQuery(queryArray: KycDocument[]): string {
@@ -363,56 +275,41 @@ export class KycService {
   }
 
   async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion> {
-    try {
-      const result = await this.callApi<CheckVersion[]>(
-        `customers/${this.reference(id)}/documents/${document}/versions`,
-        'GET',
-      );
-      return result[result.length - 1];
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to get document version');
-    }
+    const result = await this.callApi<CheckVersion[]>(
+      `customers/${this.reference(id)}/documents/${document}/versions`,
+      'GET',
+    );
+    return result[result.length - 1];
   }
 
   async createDocumentVersion(id: number, document: KycDocument, version: string): Promise<boolean> {
-    try {
-      const data = {
-        name: 'ident',
-        state: 'PENDING',
-      };
+    const data = {
+      name: 'ident',
+      state: 'PENDING',
+    };
 
-      const result = await this.callApi<string>(
-        `customers/${this.reference(id)}/documents/${document}/versions/${version}`,
-        'PUT',
-        data,
-      );
-      return result === 'done';
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to create a document version part');
-    }
+    const result = await this.callApi<string>(
+      `customers/${this.reference(id)}/documents/${document}/versions/${version}`,
+      'PUT',
+      data,
+    );
+    return result === 'done';
   }
 
   async createDocumentVersionPart(id: number, document: string, version: string, part: string): Promise<boolean> {
-    try {
-      const data = {
-        name: 'ident',
-        label: 'ident',
-        fileName: 'ident.img',
-        contentType: 'image/jpeg',
-      };
+    const data = {
+      name: 'ident',
+      label: 'ident',
+      fileName: 'ident.img',
+      contentType: 'image/jpeg',
+    };
 
-      const result = await this.callApi<string>(
-        `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/${part}/metadata`,
-        'PUT',
-        data,
-      );
-      return result === 'done';
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException('Failed to create a document version');
-    }
+    const result = await this.callApi<string>(
+      `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/${part}/metadata`,
+      'PUT',
+      data,
+    );
+    return result === 'done';
   }
 
   async doChatBotCheck(): Promise<void> {
@@ -475,16 +372,21 @@ export class KycService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    const sessionKey = await this.getSessionKey();
-    return this.http.request<T>({
-      url: `${this.baseUrl}/${url}`,
-      method: method,
-      data: data,
-      headers: {
-        'Content-Type': contentType ?? 'application/json',
-        'Session-Key': sessionKey,
-      },
-    });
+    try {
+      const sessionKey = await this.getSessionKey();
+      return this.http.request<T>({
+        url: `${this.baseUrl}/${url}`,
+        method: method,
+        data: data,
+        headers: {
+          'Content-Type': contentType ?? 'application/json',
+          'Session-Key': sessionKey,
+        },
+      });
+    } catch (e) {
+      console.log(e);
+      throw new ServiceUnavailableException(e);
+    }
   }
 
   private async getSessionKey(): Promise<string> {
