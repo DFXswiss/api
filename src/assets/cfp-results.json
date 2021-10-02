@@ -10,7 +10,9 @@
       "votes": 434,
       "possibleVotes": 8871,
       "voteTurnout": 4.89,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 1893
     },
     {
       "title": "CFP 2109-17: DeFiChain Accelerator (50 000 DFI)",
@@ -22,7 +24,9 @@
       "votes": 457,
       "possibleVotes": 8871,
       "voteTurnout": 5.15,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 50000
     },
     {
       "title": "CFP 2109-16: DFX - Decentralized Finance Exchange (135 000 DFI)",
@@ -34,7 +38,9 @@
       "votes": 487,
       "possibleVotes": 8871,
       "voteTurnout": 5.49,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 135000
     },
     {
       "title": "CFP 2109-15: saiive.live - Jellyfish Compatibility (5 000 DFI)",
@@ -46,7 +52,9 @@
       "votes": 425,
       "possibleVotes": 8871,
       "voteTurnout": 4.79,
-      "currentResult": "Not approved"
+      "currentResult": "Not approved",
+      "type":"cfp",
+      "dfiAmount": 5000
     },
     {
       "title": "CFP 2109-14: DeFiChain Master Noder Signer (6 000 DFI)",
@@ -58,7 +66,9 @@
       "votes": 428,
       "possibleVotes": 8871,
       "voteTurnout": 4.82,
-      "currentResult": "Not approved"
+      "currentResult": "Not approved",
+      "type":"cfp",
+      "dfiAmount": 6000
     },
     {
       "title": "CFP 2109-13: DFX Smartphone App (26 000 DFI)",
@@ -70,7 +80,9 @@
       "votes": 475,
       "possibleVotes": 8871,
       "voteTurnout": 5.35,
-      "currentResult": "Not approved"
+      "currentResult": "Not approved",
+      "type":"cfp",
+      "dfiAmount": 26000
     },
     {
       "title": "CFP 2109-12: DeFiChain Value - Be ahead, follow the strategies (16 000 DFI)",
@@ -82,7 +94,9 @@
       "votes": 437,
       "possibleVotes": 8871,
       "voteTurnout": 4.93,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 18000
     },
     {
       "title": "CFP 2109-11: Defichain helps decarbonizing Defichain (20 000 DFI) ￼",
@@ -94,7 +108,9 @@
       "votes": 446,
       "possibleVotes": 8871,
       "voteTurnout": 5.03,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 20000
     },
     {
       "title": "CFP 2109-10: DefiChain YouTube formats (DeFiChain News Team) (20 000 DFI)",
@@ -106,7 +122,9 @@
       "votes": 422,
       "possibleVotes": 8871,
       "voteTurnout": 4.76,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 20000
     },
     {
       "title": "CFP 2109-09: DeFiChain WebWallet (65 772 DFI)",
@@ -118,7 +136,9 @@
       "votes": 474,
       "possibleVotes": 8871,
       "voteTurnout": 5.34,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 65772
     },
     {
       "title": "CFP 2109-08: Masternode Health (5 000 DFI)",
@@ -130,7 +150,9 @@
       "votes": 436,
       "possibleVotes": 8871,
       "voteTurnout": 4.91,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 5000
     },
     {
       "title": "CFP 2109-07:  Defilinks.io - the Gateway into the DeFiChain Universe (20 000 DFI)",
@@ -142,7 +164,9 @@
       "votes": 417,
       "possibleVotes": 8871,
       "voteTurnout": 4.7,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 20000
     },
     {
       "title": "CFP 2109-06: „Promotion tools“ (1 500 DFi)",
@@ -154,7 +178,9 @@
       "votes": 436,
       "possibleVotes": 8871,
       "voteTurnout": 4.91,
-      "currentResult": "Not approved"
+      "currentResult": "Not approved",
+      "type":"cfp",
+      "dfiAmount": 1500
     },
     {
       "title": "CFP 2109-05: Telegram Moderators (5 500 DFI)",
@@ -166,7 +192,9 @@
       "votes": 439,
       "possibleVotes": 8871,
       "voteTurnout": 4.95,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 5500
     },
     {
       "title": "CFP 2109-04: The DefiMate (39 200 DFI)",
@@ -178,7 +206,9 @@
       "votes": 445,
       "possibleVotes": 8871,
       "voteTurnout": 5.02,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 39200
     },
     {
       "title": "CFP 2109-03: DeFined designed - DeFiNode 3D printing service (20 000 DFI)",
@@ -190,7 +220,9 @@
       "votes": 460,
       "possibleVotes": 8871,
       "voteTurnout": 5.19,
-      "currentResult": "Not approved"
+      "currentResult": "Not approved",
+      "type":"cfp",
+      "dfiAmount": 20000
     },
     {
       "title": "CFP 2109-02: for moderation and technical improvement concerning the Telegram group: Crypto Steuern DE (585 DFI)",
@@ -202,7 +234,9 @@
       "votes": 421,
       "possibleVotes": 8871,
       "voteTurnout": 4.75,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 585
     },
     {
       "title": "CFP 2109-01: Defichain Chrome Extension (13 500 DFI)",
@@ -214,7 +248,123 @@
       "votes": 435,
       "possibleVotes": 8871,
       "voteTurnout": 4.9,
-      "currentResult": "Approved"
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 13500
+    }
+  ],
+  "2107":[
+    {
+      "title": "DFIP 2107-B: Reallocation of block reward for decentralized tokenization incentives",
+      "number": 50,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/50",
+      "yes": 181,
+      "neutral": 0,
+      "no": 0,
+      "votes": 181,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.1,
+      "currentResult": "Approved",
+      "type":"dfip",
+      "dfiAmount": null
+    },
+    {
+      "title": "DFIP 2107-A: Introduction of USDC-DFI DEX and reallocation of liquidity mining reward from USDT-DFI",
+      "number": 49,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/49",
+      "yes": 180,
+      "neutral": 0,
+      "no": 0,
+      "votes": 180,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.1,
+      "currentResult": "Approved",
+      "type":"dfip",
+      "dfiAmount": null
+    },
+    {
+      "title": "CFP 2107-06: Appreciation for CryptoID Chainz DeFiChain blockchain explorer (15 000 DFI)",
+      "number": 48,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/48",
+      "yes": 142,
+      "neutral": 29,
+      "no": 4,
+      "votes": 175,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.1,
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 15000
+    },
+    {
+      "title": "CFP 2107-05: DeFiChain bug bounty fund pre-allocation (20 000 DFI)",
+      "number": 47,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/47",
+      "yes": 174,
+      "neutral": 0,
+      "no": 0,
+      "votes": 174,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.0,
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 20000
+    },
+    {
+      "title": "CFP 2107-04: defichain-income CFP#2 Long term (20 000 DFI)",
+      "number": 46,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/46",
+      "yes": 164,
+      "neutral": 4,
+      "no": 6,
+      "votes": 174,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.0,
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 20000
+    },
+    {
+      "title": "CFP 2107-03: DFI Signal (10 000 DFI)",
+      "number": 45,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/45",
+      "yes": 156,
+      "neutral": 22,
+      "no": 16,
+      "votes": 184,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.1,
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 10000
+    },
+    {
+      "title": "CFP 2107-02: Payment New DefiChain Foundation (21 000 DFI)",
+      "number": 44,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/44",
+      "yes": 174,
+      "neutral": 0,
+      "no": 0,
+      "votes": 174,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.0,
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 21000
+    },
+    {
+      "title": "CFP 2107-01: saiive.live - DeFi Wallet - Light Wallet (40 000 DFI)",
+      "number": 43,
+      "html_url": "https://github.com/DeFiCh/dfips/issues/43",
+      "yes": 129,
+      "neutral": 33,
+      "no": 8,
+      "votes": 170,
+      "possibleVotes": 8304,
+      "voteTurnout": 2.0,
+      "currentResult": "Approved",
+      "type":"cfp",
+      "dfiAmount": 40000
     }
   ]
 }

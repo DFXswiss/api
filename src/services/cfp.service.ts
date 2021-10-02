@@ -91,7 +91,7 @@ export class CfpService {
       }
 
       // return newest cached data
-      cfpId = Object.keys(CfpResults)[0];
+      cfpId = Object.keys(CfpResults).pop();
     }
 
     const results = CfpResults[cfpId];

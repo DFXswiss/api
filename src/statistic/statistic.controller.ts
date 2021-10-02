@@ -14,12 +14,8 @@ export class StatisticController {
   }
 
   @Get('cfp')
-  async getCfpList(): Promise<CfpResult[]> {
-    const cfpResults = await this.cfpService.getCfpResults('latest');
-    return cfpResults.filter((r) => [66, 70].includes(r.number));
-
-    // TODO:
-    // return this.cfpService.getCfpList();
+  async getCfpList(): Promise<string[]> {
+    return this.cfpService.getCfpList();
   }
 
   // TODO: remove
