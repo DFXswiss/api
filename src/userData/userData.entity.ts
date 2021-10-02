@@ -1,6 +1,14 @@
 import { BankData } from 'src/bankData/bankData.entity';
 import { User } from 'src/user/user.entity';
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToOne,
+} from 'typeorm';
 import { KycFile as KycFile } from './kycFile.entity';
 
 export enum NameCheckStatus {
@@ -17,6 +25,13 @@ export enum KycStatus {
   WAIT_ONLINE_ID = 'OnlineId',
   WAIT_MANUAL = 'Manual',
   COMPLETED = 'Completed',
+}
+
+export enum UiKycStatus {
+  KYC_NO_KYC = 'no',
+  KYC_PENDING = 'pending',
+  KYC_PROV = 'prov',
+  KYC_COMPLETED = 'completed',
 }
 
 @Entity()

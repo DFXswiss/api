@@ -6,12 +6,13 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { LogRepository } from 'src/log/log.repository';
-import { KycStatus, UserData } from 'src/userData/userData.entity';
+import { KycStatus } from 'src/userData/userData.entity';
 import { KycService } from 'src/services/kyc.service';
 import { UserDataService } from 'src/userData/userData.service';
 import { LogDirection } from 'src/log/log.entity';
 import { ConversionService } from 'src/services/conversion.service';
 import { LogService } from 'src/log/log.service';
+import { UiKycStatus } from 'src/userData/userData.entity';
 
 @Injectable()
 export class UserService {
@@ -41,6 +42,7 @@ export class UserService {
     });
 
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
+    currentUser['uiKycStatus'] = this.getUiStatus(currentUser.userData.kycStatus);
     currentUser['refData'] = await this.getRefData(currentUser);
     currentUser['userVolume'] = await this.getUserVolume(currentUser);
     delete currentUser.userData;
@@ -68,6 +70,7 @@ export class UserService {
 
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
+    user['uiKycStatus'] = this.getUiStatus(userData.kycStatus);
     delete user.userData;
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
@@ -102,15 +105,15 @@ export class UserService {
 
   async getUserVolume(user: User): Promise<any> {
     return {
-      buy: await this.conversionService.convertFiatCurrency(
-        await this.logService.getUserVolume(user, LogDirection.asset2fiat),
+      buyVolume: await this.conversionService.convertFiatCurrency(
+        await this.logService.getUserVolume(user, LogDirection.fiat2asset),
         'chf',
         'eur',
         new Date(),
       ),
 
-      sell: await this.conversionService.convertFiatCurrency(
-        await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+      sellVolume: await this.conversionService.convertFiatCurrency(
+        await this.logService.getUserVolume(user, LogDirection.asset2fiat),
         'chf',
         'eur',
         new Date(),
@@ -123,10 +126,27 @@ export class UserService {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: {
-        buy: await this.logService.getUserVolume(user, LogDirection.fiat2asset),
-        sell: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
-      },
+      refVolume: await this.logService.getUserVolume(user, LogDirection.fiat2asset),
     };
+  }
+
+  getUiStatus(kycStatus: KycStatus): UiKycStatus {
+    switch (kycStatus) {
+      case KycStatus.NA:
+        return UiKycStatus.NO_KYC;
+      case KycStatus.WAIT_CHAT_BOT:
+      case KycStatus.WAIT_ADDRESS:
+      case KycStatus.WAIT_ONLINE_ID:
+        return UiKycStatus.KYC_PENDING;
+
+      case KycStatus.WAIT_MANUAL:
+        return UiKycStatus.KYC_PROV;
+
+      case KycStatus.COMPLETED:
+        return UiKycStatus.KYC;
+
+      default:
+        return UiKycStatus.NO_KYC;
+    }
   }
 }
