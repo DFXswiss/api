@@ -13,7 +13,6 @@ import { CreateLogDto } from 'src/log/dto/create-log.dto';
 import { LogDirection, LogStatus, LogType } from 'src/log/log.entity';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { CountryRepository } from 'src/country/country.repository';
-import * as requestPromise from 'request-promise-native';
 import { UserRepository } from 'src/user/user.repository';
 import { UserStatus } from 'src/user/user.entity';
 import { NameCheckStatus } from 'src/userData/userData.entity';
