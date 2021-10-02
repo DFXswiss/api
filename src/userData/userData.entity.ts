@@ -28,7 +28,7 @@ export enum KycStatus {
 }
 
 export enum UiKycStatus {
-  KYC_NO_KYC = 'no',
+  KYC_NO = 'no',
   KYC_PENDING = 'pending',
   KYC_PROV = 'prov',
   KYC_COMPLETED = 'completed',

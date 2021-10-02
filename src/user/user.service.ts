@@ -133,7 +133,7 @@ export class UserService {
   getUiStatus(kycStatus: KycStatus): UiKycStatus {
     switch (kycStatus) {
       case KycStatus.NA:
-        return UiKycStatus.NO_KYC;
+        return UiKycStatus.KYC_NO;
       case KycStatus.WAIT_CHAT_BOT:
       case KycStatus.WAIT_ADDRESS:
       case KycStatus.WAIT_ONLINE_ID:
@@ -143,10 +143,10 @@ export class UserService {
         return UiKycStatus.KYC_PROV;
 
       case KycStatus.COMPLETED:
-        return UiKycStatus.KYC;
+        return UiKycStatus.KYC_COMPLETED;
 
       default:
-        return UiKycStatus.NO_KYC;
+        return UiKycStatus.KYC_NO;
     }
   }
 }
