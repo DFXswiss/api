@@ -178,10 +178,6 @@ export class CfpService {
   }
 
   private async callApi<T>(baseUrl: string, url: string): Promise<T> {
-    return this.http.request<T>({
-      url: `${baseUrl}${url}`,
-      method: 'GET',
-      headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` },
-    });
+    return this.http.get<T>(`${baseUrl}${url}`, { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` } });
   }
 }

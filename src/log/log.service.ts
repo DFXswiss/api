@@ -60,12 +60,8 @@ export class LogService {
     if (assetObject.name != 'DFI') {
       assetObject = await this.assetRepository.getAsset('DFI');
 
-      let result = await this.http.request({
-        url: `${this.baseUrl}`,
-        method: 'GET',
-      });
-
-      let resultArray = result['prices'];
+      const result = await this.http.get(`${this.baseUrl}`);
+      const resultArray = result['prices'];
 
       let sumPrice = 0;
       for (const price of resultArray) {
