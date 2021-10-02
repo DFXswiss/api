@@ -3,7 +3,7 @@ import { BuyRepository } from 'src/buy/buy.repository';
 import { SellRepository } from 'src/sell/sell.repository';
 import { LogService } from 'src/log/log.service';
 import { LogDirection, LogType } from 'src/log/log.entity';
-import { ConversionService } from 'src/services/conversion.service';
+import { ConversionService } from 'src/shared/services/conversion.service';
 
 @Injectable()
 export class StatisticService {
@@ -43,13 +43,11 @@ export class StatisticService {
               await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
               'chf',
               'eur',
-              new Date(),
             ),
             sell: await this.conversionService.convertFiatCurrency(
               await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
               'chf',
               'eur',
-              new Date(),
             ),
           },
           CHF: {

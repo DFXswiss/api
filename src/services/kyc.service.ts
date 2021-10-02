@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { User } from 'src/user/user.entity';
 import { KycStatus, UserData } from 'src/userData/userData.entity';
 import { UserDataRepository } from 'src/userData/userData.repository';
-import { HttpService } from './http.service';
+import { HttpService } from '../shared/services/http.service';
 import { MailService } from './mail.service';
 
 export enum State {
@@ -136,7 +136,7 @@ interface CustomerInformationResponse {
 
 @Injectable()
 export class KycService {
-  private baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
+  private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
 
   constructor(
     private http: HttpService,

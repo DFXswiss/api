@@ -6,11 +6,11 @@ import { ApiExcludeEndpoint } from '@nestjs/swagger';
 
 @Controller('test')
 export class TestController {
-  private user = 'dfx-api';
-  private password = '84r_qmy927jeVbHNC6-CPFKAU02B3c9wS8KaR_LKZUM=';
-  private nodeUrl = 'https://app-dfx-node-dev.azurewebsites.net';
+  private readonly user = 'dfx-api';
+  private readonly password = '84r_qmy927jeVbHNC6-CPFKAU02B3c9wS8KaR_LKZUM=';
+  private readonly nodeUrl = 'https://app-dfx-node-dev.azurewebsites.net';
 
-  private client: ApiClient;
+  private readonly client: ApiClient;
 
   constructor() {
     this.client = this.createJellyfishClient();
@@ -25,7 +25,7 @@ export class TestController {
   private async callNode<T>(call: () => Promise<T>): Promise<T> {
     try {
       return await call();
-    } catch(e) {
+    } catch (e) {
       // TODO: retries?
       console.log(e);
       throw new ServiceUnavailableException(e);
@@ -33,7 +33,11 @@ export class TestController {
   }
 
   private createJellyfishClient(): ApiClient {
+    return new JsonRpcClient(this.nodeUrl, { headers: this.createHeaders() });
+  }
+
+  private createHeaders(): { [key: string]: string } {
     const passwordHash = Buffer.from(`${this.user}:${this.password}`).toString('base64');
-    return new JsonRpcClient(this.nodeUrl, { headers: { Authorization: 'Basic ' + passwordHash } });
+    return { Authorization: 'Basic ' + passwordHash };
   }
 }

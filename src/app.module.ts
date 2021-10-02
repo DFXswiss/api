@@ -55,8 +55,6 @@ import { RefService } from './referral/ref.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { MailService } from './services/mail.service';
 import { KycService } from './services/kyc.service';
-import { HttpModule } from '@nestjs/axios';
-import { HttpService } from './services/http.service';
 import { BankDataRepository } from './bankData/bankData.repository';
 import { BankDataService } from './bankData/bankData.service';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -66,7 +64,7 @@ import { BatchController } from './batch/batch.controller';
 import { BatchService } from './batch/batch.service';
 import { CfpService } from './services/cfp.service';
 import { AinModule } from './ain/ain.module';
-import { ConversionService } from './services/conversion.service';
+import { SharedModule } from './shared/shared.module';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -130,7 +128,7 @@ import { ConversionService } from './services/conversion.service';
       RefRepository,
       BatchRepository,
     ]),
-    HttpModule,
+    SharedModule,
     AinModule,
   ],
   controllers: [
@@ -177,11 +175,9 @@ import { ConversionService } from './services/conversion.service';
     AuthService,
     MailService,
     KycService,
-    HttpService,
     SchedulerService,
     BatchService,
     CfpService,
-    ConversionService,
   ],
   exports: [],
 })

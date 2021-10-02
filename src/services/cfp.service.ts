@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CryptoService } from 'src/ain/services/crypto.service';
-import { HttpService } from './http.service';
+import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from '../assets/master-nodes.json';
 import * as CfpResults from '../assets/cfp-results.json';
 
@@ -54,10 +54,10 @@ export interface CfpResult {
 
 @Injectable()
 export class CfpService {
-  private isCfpInProgress = false;
-  private regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?\s+(\S{87}=)(?:\s|$)+/gm;
-  private issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
-  private masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
+  private readonly isCfpInProgress = false;
+  private readonly regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?\s+(\S{87}=)(?:\s|$)+/gm;
+  private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
+  private readonly masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
 
   private masterNodeCount: number;
   private masterNodes: { [address: string]: MasterNode };

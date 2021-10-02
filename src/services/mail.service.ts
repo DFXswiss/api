@@ -8,7 +8,7 @@ import { CheckVersion } from './kyc.service';
 
 @Injectable()
 export class MailService {
-  private supportMail = 'support@dfx.swiss';
+  private readonly supportMail = 'support@dfx.swiss';
 
   constructor(
     private mailerService: MailerService,

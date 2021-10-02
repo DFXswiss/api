@@ -3,7 +3,7 @@ import { LogRepository } from './log.repository';
 import { CreateLogDto } from './dto/create-log.dto';
 import { MailService } from 'src/services/mail.service';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
-import { HttpService } from 'src/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 import { AssetRepository } from 'src/asset/asset.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { FiatRepository } from 'src/fiat/fiat.repository';
@@ -24,7 +24,7 @@ export class LogService {
     private fiatRepo: FiatRepository,
     private userRepo: UserRepository,
   ) {}
-  private baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
+  private readonly baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
   async createLog(createLogDto: CreateLogDto): Promise<any> {
     return this.logRepository.createLog(createLogDto, this.mailService);

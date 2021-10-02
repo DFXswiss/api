@@ -5,14 +5,11 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { LogRepository } from 'src/log/log.repository';
-import { KycStatus } from 'src/userData/userData.entity';
-import { KycService } from 'src/services/kyc.service';
+import { KycStatus, UiKycStatus } from 'src/userData/userData.entity';
 import { UserDataService } from 'src/userData/userData.service';
 import { LogDirection } from 'src/log/log.entity';
-import { ConversionService } from 'src/services/conversion.service';
+import { ConversionService } from 'src/shared/services/conversion.service';
 import { LogService } from 'src/log/log.service';
-import { UiKycStatus } from 'src/userData/userData.entity';
 
 @Injectable()
 export class UserService {
@@ -109,14 +106,12 @@ export class UserService {
         await this.logService.getUserVolume(user, LogDirection.fiat2asset),
         'chf',
         'eur',
-        new Date(),
       ),
 
       sellVolume: await this.conversionService.convertFiatCurrency(
         await this.logService.getUserVolume(user, LogDirection.asset2fiat),
         'chf',
         'eur',
-        new Date(),
       ),
     };
   }
