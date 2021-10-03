@@ -121,7 +121,11 @@ export class UserService {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+      refVolume: await this.conversionService.convertFiatCurrency(
+        await this.logService.getRefVolume(user.ref),
+        'chf',
+        'eur',
+      ),
     };
   }
 

@@ -111,6 +111,10 @@ export class LogService {
     return this.logRepository.getLog(key);
   }
 
+  async getRefVolume(ref: string): Promise<any> {
+    return this.logRepository.getRefVolume(ref);
+  }
+
   async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
     return this.logRepository.getAssetVolume(logType, logDirection);
   }
