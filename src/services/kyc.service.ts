@@ -274,12 +274,8 @@ export class KycService {
     return resultString.slice(0, -1);
   }
 
-  async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion> {
-    const result = await this.callApi<CheckVersion[]>(
-      `customers/${this.reference(id)}/documents/${document}/versions`,
-      'GET',
-    );
-    return result[result.length - 1];
+  async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion[]> {
+    return this.callApi<CheckVersion[]>(`customers/${this.reference(id)}/documents/${document}/versions`, 'GET');
   }
 
   async createDocumentVersion(id: number, document: KycDocument, version: string): Promise<boolean> {
@@ -363,7 +359,7 @@ export class KycService {
     const userDataList = await this.userDataRepository.find({ kycStatus: currentStatus });
     for (const key in userDataList) {
       const documentVersion = await this.getDocumentVersion(userDataList[key].id, documentType);
-      if (documentVersion.state == State.COMPLETED) {
+      if (documentVersion.find((document) => document.state === State.COMPLETED) != null) {
         userDataList[key].kycStatus = nextStatus;
         userDataList[key] = await updateAction(userDataList[key]);
       }

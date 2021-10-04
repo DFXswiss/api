@@ -84,7 +84,7 @@ export class CfpService {
   }
 
   getCfpList(): string[] {
-    return Object.keys(CfpResults);
+    return Object.keys(CfpResults).reverse();
   }
 
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
