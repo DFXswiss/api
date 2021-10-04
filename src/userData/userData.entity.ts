@@ -8,6 +8,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { KycFile as KycFile } from './kycFile.entity';
 
@@ -60,8 +61,9 @@ export class UserData {
   @Column({ default: false })
   kycFailure: boolean;
 
-  @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true })
-  kycFile: KycFile;
+  // @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true })
+  // @JoinColumn()
+  // kycFile: KycFile;
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
