@@ -27,9 +27,4 @@ export class UserDataRepository extends Repository<UserData> {
       throw new ServiceUnavailableException(error.message);
     }
   }
-
-  async getNextKycFileId(): Promise<number> {
-    const { max } = await this.createQueryBuilder().select('MAX(kycFileReference)', 'max').getRawOne();
-    return max + 1;
-  }
 }
