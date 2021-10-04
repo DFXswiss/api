@@ -1,20 +1,19 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, Not, Repository } from 'typeorm';
+import { EntityRepository, Not, Repository, getManager } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserStatus } from './user.entity';
-import { CountryRepository } from 'src/country/country.repository';
-import { getManager } from 'typeorm';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { LanguageRepository } from 'src/language/language.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { KycStatus } from 'src/userData/userData.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { LanguageService } from 'src/shared/models/language/language.service';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
   userRepository: any;
-  async createUser(createUserDto: CreateUserDto): Promise<User> {
+  async createUser(createUserDto: CreateUserDto, languageService: LanguageService, countryService: CountryService): Promise<User> {
     let countryObject = null;
     let languageObject = null;
     let walletObject = null;
@@ -24,7 +23,7 @@ export class UserRepository extends Repository<User> {
     }
 
     if (createUserDto.country) {
-      countryObject = await getManager().getCustomRepository(CountryRepository).getCountry(createUserDto.country);
+      countryObject = await countryService.getCountry(createUserDto.country);
 
       createUserDto.country = countryObject.id;
     } else {
@@ -42,11 +41,11 @@ export class UserRepository extends Repository<User> {
     }
 
     if (createUserDto.language) {
-      languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage(createUserDto.language);
+      languageObject = await languageService.getLanguage(createUserDto.language);
 
       createUserDto.language = languageObject.id;
     } else {
-      languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage('DE');
+      languageObject = await languageService.getLanguage('DE');
 
       createUserDto.language = languageObject.id;
     }
@@ -115,7 +114,7 @@ export class UserRepository extends Repository<User> {
     return this.count({ usedRef: ref, status: Not(UserStatus.NA) });
   }
 
-  async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
+  async updateUser(oldUser: User, newUser: UpdateUserDto, languageService: LanguageService, countryService: CountryService): Promise<any> {
     try {
       const currentUser = await this.findOne(oldUser.id);
       if (!currentUser) throw new NotFoundException('No matching user for id found');
@@ -151,17 +150,17 @@ export class UserRepository extends Repository<User> {
       }
 
       if (newUser.country) {
-        countryObject = await getManager().getCustomRepository(CountryRepository).getCountry(newUser.country);
+        countryObject = await countryService.getCountry(newUser.country);
 
         newUser.country = countryObject;
       }
 
       if (newUser.language) {
-        languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage(newUser.language);
+        languageObject = await languageService.getLanguage(newUser.language);
 
         newUser.language = languageObject;
       } else {
-        languageObject = await getManager().getCustomRepository(LanguageRepository).getLanguage('EN');
+        languageObject = await languageService.getLanguage('EN');
 
         newUser.language = languageObject;
       }

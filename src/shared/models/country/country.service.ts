@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { CreateCountryDto } from 'src/country/dto/create-country.dto';
-import { CountryRepository } from 'src/country/country.repository';
+import { CreateCountryDto } from 'src/shared/models/country/dto/create-country.dto';
+import { CountryRepository } from 'src/shared/models/country/country.repository';
 import { UpdateCountryDto } from './dto/update-country.dto';
 
 @Injectable()

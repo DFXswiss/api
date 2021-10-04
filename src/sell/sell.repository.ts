@@ -1,21 +1,20 @@
 import { NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
-import { EntityRepository, Repository } from 'typeorm';
+import { EntityRepository, Repository, getManager } from 'typeorm';
 import { CreateSellDto } from './dto/create-sell.dto';
 import { UpdateSellDto } from './dto/update-sell.dto';
 import { Sell } from './sell.entity';
 import { DepositRepository } from 'src/deposit/deposit.repository';
-import { FiatRepository } from 'src/fiat/fiat.repository';
-import { getManager } from 'typeorm';
 import { UserRepository } from 'src/user/user.repository';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @EntityRepository(Sell)
 export class SellRepository extends Repository<Sell> {
-  async createSell(createSellDto: CreateSellDto): Promise<any> {
+  async createSell(createSellDto: CreateSellDto, fiatService: FiatService): Promise<any> {
     const userObject = await getManager().getCustomRepository(UserRepository).verifyUser(createSellDto.user.address);
 
     if (!userObject.result) throw new ForbiddenException('user data missing, verify');
 
-    const fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createSellDto.fiat);
+    const fiatObject = await fiatService.getFiat(createSellDto.fiat);
 
     const depositObject = await getManager().getCustomRepository(DepositRepository).getNextDeposit();
 

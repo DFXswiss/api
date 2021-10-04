@@ -1,19 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
-import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
-import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
+import { SellPaymentRepository } from './payment-sell.repository';
+import { BuyPaymentRepository } from './payment-buy.repository';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
-import { MailService } from 'src/services/mail.service';
-import { KycService } from 'src/services/kyc.service';
 
 @Injectable()
 export class PaymentService {
   constructor(
     private sellRepository: SellPaymentRepository,
     private buyRepository: BuyPaymentRepository,
-    private mailService: MailService,
-    private kycService: KycService,
   ) {}
 
   // async createBuyPayment(createPaymentDto: CreateBuyPaymentDto): Promise<any> {
@@ -38,13 +34,13 @@ export class PaymentService {
   //   return this.sellRepository.getPayment(id);
   // }
 
-  // async getAllBuyPayment(): Promise<any> {
-  //   return this.buyRepository.getAllPayment();
-  // }
+  async getAllBuyPayment(): Promise<any> {
+    return this.buyRepository.getAllPayment();
+  }
 
-  // async getAllSellPayment(): Promise<any> {
-  //   return this.sellRepository.getAllPayment();
-  // }
+  async getAllSellPayment(): Promise<any> {
+    return this.sellRepository.getAllPayment();
+  }
 
   // async updateBuyPayment(updatePaymentDto: UpdatePaymentDto): Promise<any> {
   //   return this.buyRepository.updatePayment(updatePaymentDto, this.mailService);

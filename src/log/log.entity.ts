@@ -1,8 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
 import { User } from 'src/user/user.entity';
-import { Asset } from 'src/asset/asset.entity';
-import { Fiat } from 'src/fiat/fiat.entity';
-import { Payment } from 'src/payment/payment.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Payment } from 'src/payment/models/payment/payment.entity';
 
 export enum LogDirection {
   fiat2asset = 'fiat-to-asset',

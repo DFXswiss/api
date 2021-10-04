@@ -1,7 +1,7 @@
 import { Entity, Column, ManyToOne } from 'typeorm';
 import { Payment } from './payment.entity';
 import { Buy } from 'src/buy/buy.entity';
-import { Fiat } from 'src/fiat/fiat.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 @Entity()
 export class BuyPayment extends Payment {

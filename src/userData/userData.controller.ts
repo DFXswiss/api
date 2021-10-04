@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
-import { RoleGuard } from 'src/guards/role.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';

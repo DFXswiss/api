@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, UseGuards, Post, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
-import { RoleGuard } from 'src/guards/role.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
 import { LogService } from './log.service';
 import { CreateLogDto } from './dto/create-log.dto';
 import { AuthGuard } from '@nestjs/passport';

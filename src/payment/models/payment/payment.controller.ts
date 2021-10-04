@@ -15,7 +15,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { RoleGuard } from 'src/guards/role.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
 import { PaymentService } from './payment.service';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { UserRole } from 'src/user/user.entity';

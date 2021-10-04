@@ -10,6 +10,8 @@ import { UserDataService } from 'src/userData/userData.service';
 import { LogDirection } from 'src/log/log.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { LogService } from 'src/log/log.service';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { LanguageService } from 'src/shared/models/language/language.service';
 
 @Injectable()
 export class UserService {
@@ -18,10 +20,12 @@ export class UserService {
     private userDataService: UserDataService,
     private conversionService: ConversionService,
     private logService: LogService,
+    private countryService: CountryService,
+    private languageService: LanguageService
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-    const user = await this.userRepo.createUser(createUserDto);
+    const user = await this.userRepo.createUser(createUserDto, this.languageService, this.countryService);
 
     delete user.signature;
     delete user.ip;
@@ -60,7 +64,7 @@ export class UserService {
   }
 
   async updateUser(oldUser: User, newUser: UpdateUserDto): Promise<any> {
-    const user = await this.userRepo.updateUser(oldUser, newUser);
+    const user = await this.userRepo.updateUser(oldUser, newUser, this.languageService, this.countryService);
 
     user['refData'] = await this.getRefData(user);
     user['userVolume'] = await this.getUserVolume(user);

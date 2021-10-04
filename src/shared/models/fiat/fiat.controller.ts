@@ -15,7 +15,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { RoleGuard } from 'src/guards/role.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
 import { FiatService } from './fiat.service';
 import { CreateFiatDto } from './dto/create-fiat.dto';
 import { UpdateFiatDto } from './dto/update-fiat.dto';

@@ -10,7 +10,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
-import { RoleGuard } from 'src/guards/role.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
 import { DepositService } from './deposit.service';
 import { CreateDepositDto } from 'src/deposit/dto/create-deposit.dto';
 import { UpdateDepositDto } from './dto/update-deposit.dto';

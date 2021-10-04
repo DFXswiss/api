@@ -3,13 +3,14 @@ import { CreateBuyDto } from 'src/buy/dto/create-buy.dto';
 import { BuyRepository } from 'src/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @Injectable()
 export class BuyService {
-  constructor(private buyRepo: BuyRepository) {}
+  constructor(private buyRepo: BuyRepository, private assetService: AssetService) {}
 
   async createBuy(createBuyDto: CreateBuyDto): Promise<Buy> {
-    return this.buyRepo.createBuy(createBuyDto);
+    return this.buyRepo.createBuy(createBuyDto, this.assetService);
   }
 
   async getBuy(id: number, userId: number): Promise<Buy> {

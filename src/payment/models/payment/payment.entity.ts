@@ -1,5 +1,5 @@
-import { Asset } from 'src/asset/asset.entity';
-import { Fiat } from 'src/fiat/fiat.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Log } from 'src/log/log.entity';
 import {
   Entity,

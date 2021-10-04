@@ -3,14 +3,13 @@ import { BuyRepository } from 'src/buy/buy.repository';
 import { SellRepository } from 'src/sell/sell.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { LogRepository } from 'src/log/log.repository';
-import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
-import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { BankDataRepository } from 'src/bankData/bankData.repository';
 import { Buy } from 'src/buy/buy.entity';
 import { Sell } from 'src/sell/sell.entity';
 import { Wallet } from 'src/wallet/wallet.entity';
 import { Injectable } from '@nestjs/common';
+import { PaymentService } from 'src/payment/models/payment/payment.service';
 
 @Injectable()
 export class AllDataService {
@@ -22,8 +21,7 @@ export class AllDataService {
     private readonly sellRepo: SellRepository,
     private readonly walletRepo: WalletRepository,
     private readonly logRepo: LogRepository,
-    private readonly buyPaymentRepo: BuyPaymentRepository,
-    private readonly sellPaymentRepo: SellPaymentRepository,
+    private readonly paymentService: PaymentService,
   ) {}
 
   async getAllData(): Promise<any> {
@@ -34,6 +32,7 @@ export class AllDataService {
       buys: await this.getAllBuy(),
       sells: await this.getAllSell(),
       wallets: await this.getAllWallet(),
+      // TODO(david): move to payment-module
       logs: await this.getAllLog(),
       payments: await this.getAllPayment(),
     };
@@ -69,8 +68,8 @@ export class AllDataService {
 
   async getAllPayment(): Promise<any> {
     return {
-      buy: await this.buyPaymentRepo.getAllPayment(),
-      sell: await this.sellPaymentRepo.getAllPayment(),
+      buy: await this.paymentService.getAllBuyPayment(),
+      sell: await this.paymentService.getAllSellPayment(),
     };
   }
 }

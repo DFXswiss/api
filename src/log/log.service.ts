@@ -4,13 +4,11 @@ import { CreateLogDto } from './dto/create-log.dto';
 import { MailService } from 'src/services/mail.service';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { HttpService } from 'src/shared/services/http.service';
-import { AssetRepository } from 'src/asset/asset.repository';
-import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
-import { FiatRepository } from 'src/fiat/fiat.repository';
-import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { LogDirection, LogType } from './log.entity';
 import { UserRepository } from 'src/user/user.repository';
 import { User } from 'src/user/user.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @Injectable()
 export class LogService {
@@ -18,16 +16,14 @@ export class LogService {
     private logRepository: LogRepository,
     private mailService: MailService,
     private http: HttpService,
-    private assetRepository: AssetRepository,
-    private buyPaymentRepo: BuyPaymentRepository,
-    private sellPaymentRepo: SellPaymentRepository,
-    private fiatRepo: FiatRepository,
+    private assetService: AssetService,
+    private fiatService: FiatService,
     private userRepo: UserRepository,
   ) {}
   private readonly baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
   async createLog(createLogDto: CreateLogDto): Promise<any> {
-    return this.logRepository.createLog(createLogDto, this.mailService);
+    return this.logRepository.createLog(createLogDto, this.assetService, this.fiatService, this.mailService);
   }
 
   async createVolumeLog(createLogDto: CreateVolumeLogDto): Promise<any> {
@@ -35,30 +31,31 @@ export class LogService {
     let fiatObject = null;
 
     if (createLogDto.payment) {
-      if (createLogDto.direction === LogDirection.fiat2asset) {
-        createLogDto.payment =
-          createLogDto.direction === LogDirection.fiat2asset
-            ? await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment)
-            : await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
-      } else {
-        createLogDto.payment = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
-      }
+      // if (createLogDto.direction === LogDirection.fiat2asset) {
+      // TODO: re-enable
+      //   createLogDto.payment =
+      //     createLogDto.direction === LogDirection.fiat2asset
+      //       ? await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment)
+      //       : await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
+      // } else {
+      //   createLogDto.payment = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
+      // }
     } else {
       delete createLogDto.payment;
     }
 
     if (createLogDto.fiat) {
-      fiatObject = await this.fiatRepo.getFiat(createLogDto.fiat);
+      fiatObject = await this.fiatService.getFiat(createLogDto.fiat);
     } else {
       delete createLogDto.fiat;
     }
 
     if (createLogDto.asset) {
-      assetObject = await this.assetRepository.getAsset(createLogDto.asset);
+      assetObject = await this.assetService.getAsset(createLogDto.asset);
     }
 
     if (assetObject.name != 'DFI') {
-      assetObject = await this.assetRepository.getAsset('DFI');
+      assetObject = await this.assetService.getAsset('DFI');
 
       const result = await this.http.get(`${this.baseUrl}`);
       const resultArray = result['prices'];

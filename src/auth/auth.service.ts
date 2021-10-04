@@ -2,10 +2,12 @@ import { BadRequestException, Injectable, NotFoundException, UnauthorizedExcepti
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserRepository } from 'src/user/user.repository';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import { JwtPayload } from './jwt-payload.interface';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { UserDataRepository } from 'src/userData/userData.repository';
+import { LanguageService } from 'src/shared/models/language/language.service';
+import { CountryService } from 'src/shared/models/country/country.service';
 
 @Injectable()
 export class AuthService {
@@ -14,16 +16,18 @@ export class AuthService {
     private userDataRepository: UserDataRepository,
     private jwtService: JwtService,
     private deFiService: CryptoService,
+    private languageService: LanguageService,
+    private countryService: CountryService
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
-    // TODO mit App Update überarbeiten
+    // TODO(david) mit App Update überarbeiten
     if (!this.verifySignature(createUserDto.address, createUserDto.signature) && createUserDto.signature.length != 96) {
       throw new BadRequestException('Wrong signature');
     }
 
     // create user and user data entry
-    const user = await this.userRepository.createUser(createUserDto);
+    const user = await this.userRepository.createUser(createUserDto, this.languageService, this.countryService);
     await this.userDataRepository.save({ users: [user] });
 
     return this.signIn(createUserDto);

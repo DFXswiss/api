@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Put, UseGuards, Post, UsePipes, Validatio
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/get-user.decorator';
-import { RoleGuard } from 'src/guards/role.guard';
+import { RoleGuard } from 'src/shared/auth/role.guard';
 import { User, UserRole } from 'src/user/user.entity';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';

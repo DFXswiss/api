@@ -2,13 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { CreateSellDto } from 'src/sell/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/sell/dto/update-sell.dto';
 import { SellRepository } from 'src/sell/sell.repository';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @Injectable()
 export class SellService {
-  constructor(private sellRepository: SellRepository) {}
+  constructor(private sellRepository: SellRepository, private fiatService: FiatService) {}
 
   async createSell(createBuyDto: CreateSellDto): Promise<any> {
-    return this.sellRepository.createSell(createBuyDto);
+    return this.sellRepository.createSell(createBuyDto, this.fiatService);
   }
 
   async getSell(id: any, address: string): Promise<any> {

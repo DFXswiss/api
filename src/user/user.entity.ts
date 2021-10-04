@@ -1,6 +1,6 @@
 import { Buy } from 'src/buy/buy.entity';
-import { Country } from 'src/country/country.entity';
-import { Language } from 'src/language/language.entity';
+import { Country } from 'src/shared/models/country/country.entity';
+import { Language } from 'src/shared/models/language/language.entity';
 import { Log } from 'src/log/log.entity';
 import { Sell } from 'src/sell/sell.entity';
 import { UserData } from 'src/userData/userData.entity';

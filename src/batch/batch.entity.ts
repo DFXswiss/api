@@ -1,4 +1,4 @@
-import { Payment } from 'src/payment/payment.entity';
+import { Payment } from 'src/payment/models/payment/payment.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
 
 @Entity()

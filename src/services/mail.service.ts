@@ -1,11 +1,12 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { AssetRepository } from 'src/asset/asset.repository';
-import { FiatRepository } from 'src/fiat/fiat.repository';
 import { CreateLogDto } from 'src/log/dto/create-log.dto';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { UserData } from 'src/userData/userData.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
+// TODO(david): move to shared
 @Injectable()
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
@@ -13,14 +14,14 @@ export class MailService {
   constructor(
     private mailerService: MailerService,
     private conversionService: ConversionService,
-    private assetRepository: AssetRepository,
-    private fiatRepository: FiatRepository,
+    private assetService: AssetService,
+    private fiatService: FiatService,
   ) {}
 
   async sendLogMail(createLogDto: CreateLogDto, subject: string) {
     const firstName = createLogDto.user.firstname ?? 'DFX Dude';
-    const fiat = (await this.fiatRepository.getFiat(createLogDto.fiat)).name;
-    const asset = (await this.assetRepository.getAsset(createLogDto.asset)).name;
+    const fiat = (await this.fiatService.getFiat(createLogDto.fiat)).name;
+    const asset = (await this.assetService.getAsset(createLogDto.asset)).name;
 
     const fiatValue = this.conversionService.round(createLogDto.fiatValue, 2);
     const assetValue = this.conversionService.round(createLogDto.assetValue, 8);

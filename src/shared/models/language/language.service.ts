@@ -1,8 +1,8 @@
 import {
     Injectable,
   } from '@nestjs/common';
-  import { CreateLanguageDto } from 'src/language/dto/create-language.dto';
-  import { LanguageRepository } from 'src/language/language.repository';
+  import { CreateLanguageDto } from 'src/shared/models/language/dto/create-language.dto';
+  import { LanguageRepository } from 'src/shared/models/language/language.repository';
   import { UpdateLanguageDto } from './dto/update-language.dto';
   
   @Injectable()

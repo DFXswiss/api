@@ -8,9 +8,9 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import { Asset } from 'src/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/user.entity';
-import { BuyPayment } from 'src/payment/payment-buy.entity';
+import { BuyPayment } from 'src/payment/models/payment/payment-buy.entity';
 
 @Entity()
 @Index('ibanAddressAsset', (buy: Buy) => [buy.iban, buy.asset, buy.address], { unique: true })

@@ -1,15 +1,15 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, Repository, getManager } from 'typeorm';
+import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { Buy } from './buy.entity';
 import { UpdateBuyDto } from './dto/update-buy.dto';
-import { AssetRepository } from 'src/asset/asset.repository';
 import { createHash } from 'crypto';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @EntityRepository(Buy)
 export class BuyRepository extends Repository<Buy> {
-  async createBuy(createBuyDto: CreateBuyDto): Promise<Buy> {
-    const assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(createBuyDto.asset);
+  async createBuy(createBuyDto: CreateBuyDto, assetService: AssetService): Promise<Buy> {
+    const assetObject = await assetService.getAsset(createBuyDto.asset);
     createBuyDto.asset = assetObject;
 
     const hash = createHash('sha256');

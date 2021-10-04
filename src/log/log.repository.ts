@@ -3,38 +3,37 @@ import { EntityRepository, getManager, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
 import { Log, LogDirection, LogType } from './log.entity';
 import { isString } from 'class-validator';
-import { FiatRepository } from 'src/fiat/fiat.repository';
-import { AssetRepository } from 'src/asset/asset.repository';
 import { UserRepository } from 'src/user/user.repository';
-import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
-import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { MailService } from 'src/services/mail.service';
 import { User, UserStatus } from 'src/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
-  async createLog(createLogDto: CreateLogDto, mailService?: MailService): Promise<any> {
+  async createLog(createLogDto: CreateLogDto, assetService: AssetService, fiatService: FiatService, mailService?: MailService): Promise<any> {
     let fiatObject = null;
     let assetObject = null;
 
     if (createLogDto.payment) {
-      createLogDto.payment =
-        createLogDto.direction === LogDirection.fiat2asset
-          ? await getManager().getCustomRepository(BuyPaymentRepository).getPaymentInternal(createLogDto.payment)
-          : await getManager().getCustomRepository(SellPaymentRepository).getPaymentInternal(createLogDto.payment);
+      // TODO: re-enable
+      // createLogDto.payment =
+      //   createLogDto.direction === LogDirection.fiat2asset
+      //     ? await getManager().getCustomRepository(BuyPaymentRepository).getPaymentInternal(createLogDto.payment)
+      //     : await getManager().getCustomRepository(SellPaymentRepository).getPaymentInternal(createLogDto.payment);
     } else {
       delete createLogDto.payment;
     }
 
     if (createLogDto.fiat) {
-      fiatObject = await getManager().getCustomRepository(FiatRepository).getFiat(createLogDto.fiat);
+      fiatObject = await fiatService.getFiat(createLogDto.fiat);
     } else {
       delete createLogDto.fiat;
     }
 
     if (createLogDto.asset) {
-      assetObject = await getManager().getCustomRepository(AssetRepository).getAsset(createLogDto.asset);
+      assetObject = await assetService.getAsset(createLogDto.asset);
     } else {
       delete createLogDto.asset;
     }
