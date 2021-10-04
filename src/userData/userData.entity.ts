@@ -58,7 +58,7 @@ export class UserData {
   @Column({ default: false })
   kycFailure: boolean;
 
-  @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true })
+  @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true, eager: true })
   @JoinColumn()
   kycFile: KycFile;
 

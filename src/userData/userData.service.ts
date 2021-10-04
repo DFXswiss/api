@@ -103,7 +103,7 @@ export class UserDataService {
         userDataChecks.push({
           userDataId: a.toString(),
           customerId: customer.customer.id.toString(),
-          kycFileReference: userData.kycFile.id.toString(),
+          kycFileReference: userData.kycFile?.id.toString() ?? '',
           nameCheckRisk: customer.checkResult.risks[0].categoryKey,
         });
       } else {
