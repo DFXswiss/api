@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { CfpService } from '../statistic/cfp.service';
-import { KycService } from './kyc.service';
+import { KycService } from '../user/services/kyc.service';
 
 @Injectable()
 export class SchedulerService {

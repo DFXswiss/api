@@ -12,7 +12,7 @@ import {
   import { AuthGuard } from '@nestjs/passport';
   import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
   import { RoleGuard } from 'src/shared/auth/role.guard';
-  import { UserRole } from 'src/user/user.entity';
+  import { UserRole } from 'src/shared/auth/user-role.enum';
   import { LanguageService } from './language.service';
   import { CreateLanguageDto } from './dto/create-language.dto';
   import { UpdateLanguageDto } from './dto/update-language.dto';

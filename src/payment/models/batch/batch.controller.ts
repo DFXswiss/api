@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Put, UseGuards, Post, UsePipes, Validatio
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserRole } from 'src/user/user.entity';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BatchRepository } from './batch.repository';
 import { BatchService } from './batch.service';
 import { CreateBatchDto } from './dto/create-batch.dto';

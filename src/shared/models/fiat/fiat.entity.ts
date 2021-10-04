@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
-import { Sell } from 'src/sell/sell.entity';
-import { Log } from 'src/log/log.entity';
+import { Sell } from 'src/user/models/sell/sell.entity';
+import { Log } from 'src/user/models/log/log.entity';
 
 @Entity()
 export class Fiat {

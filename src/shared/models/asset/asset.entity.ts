@@ -1,5 +1,5 @@
-import { Buy } from 'src/buy/buy.entity';
-import { Log } from 'src/log/log.entity';
+import { Buy } from 'src/user/models/buy/buy.entity';
+import { Log } from 'src/user/models/log/log.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,

@@ -16,15 +16,65 @@ import { LanguageController } from './models/language/language.controller';
 import { CountryService } from './models/country/country.service';
 import { LanguageService } from './models/language/language.service';
 import { PassportModule } from '@nestjs/passport';
+import { MailService } from './services/mail.service';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
+import { JwtStrategy } from './auth/jwt.strategy';
+import { MailerModule } from '@nestjs-modules/mailer';
 
 @Module({
   imports: [
+    ConfigModule.forRoot(),
     HttpModule,
     TypeOrmModule.forFeature([AssetRepository, FiatRepository, CountryRepository, LanguageRepository]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+      signOptions: {
+        expiresIn: 172800,
+      },
+    }),
+    MailerModule.forRoot({
+      transport: {
+        host: 'smtp.gmail.com',
+        secure: false,
+        auth: {
+          type: 'OAuth2',
+          user: process.env.MAIL_USER,
+          clientId: process.env.MAIL_CLIENT_ID,
+          clientSecret: process.env.MAIL_CLIENT_SECRET,
+          refreshToken: process.env.MAIL_REFRESH_TOKEN,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      },
+      defaults: {
+        from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
+      },
+    }),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController],
-  providers: [ConversionService, HttpService, AssetService, FiatService, CountryService, LanguageService],
-  exports: [PassportModule, ConversionService, HttpService, AssetService, FiatService, CountryService, LanguageService],
+  providers: [
+    ConversionService,
+    MailService,
+    HttpService,
+    AssetService,
+    FiatService,
+    CountryService,
+    LanguageService,
+    JwtStrategy,
+  ],
+  exports: [
+    PassportModule,
+    JwtModule,
+    ConversionService,
+    MailService,
+    HttpService,
+    AssetService,
+    FiatService,
+    CountryService,
+    LanguageService,
+  ],
 })
 export class SharedModule {}

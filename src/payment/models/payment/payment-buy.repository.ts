@@ -2,22 +2,22 @@ import { NotFoundException, BadRequestException, ConflictException, ForbiddenExc
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateBuyPaymentDto } from './dto/create-buy-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
-import { BuyPayment } from './payment-buy.entity';
+import { BuyPayment } from './payment.entity';
 import { FiatRepository } from 'src/shared/models/fiat/fiat.repository';
 import { getManager } from 'typeorm';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
-import { BuyRepository } from 'src/buy/buy.repository';
+import { BuyRepository } from 'src/user/models/buy/buy.repository';
 import { PaymentStatus } from './payment.entity';
-import { LogRepository } from 'src/log/log.repository';
-import { CreateLogDto } from 'src/log/dto/create-log.dto';
-import { LogDirection, LogStatus, LogType } from 'src/log/log.entity';
-import { UserDataRepository } from 'src/userData/userData.repository';
+import { LogRepository } from 'src/user/models/log/log.repository';
+import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
+import { LogDirection, LogStatus, LogType } from 'src/user/models/log/log.entity';
+import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { CountryRepository } from 'src/shared/models/country/country.repository';
-import { UserRepository } from 'src/user/user.repository';
-import { UserStatus } from 'src/user/user.entity';
-import { NameCheckStatus } from 'src/userData/userData.entity';
-import { MailService } from 'src/services/mail.service';
-import { KycService } from 'src/services/kyc.service';
+import { UserRepository } from 'src/user/models/user/user.repository';
+import { UserStatus } from 'src/user/models/user/user.entity';
+import { NameCheckStatus } from 'src/user/models/userData/userData.entity';
+import { MailService } from 'src/shared/services/mail.service';
+import { KycService } from 'src/user/services/kyc.service';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {

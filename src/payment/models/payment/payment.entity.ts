@@ -1,6 +1,8 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Log } from 'src/log/log.entity';
+import { Buy } from 'src/user/models/buy/buy.entity';
+import { Log } from 'src/user/models/log/log.entity';
+import { Sell } from 'src/user/models/sell/sell.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -80,4 +82,38 @@ export abstract class Payment {
 
   @CreateDateColumn()
   created: Date;
+}
+
+@Entity()
+export class BuyPayment extends Payment {
+  @Column({ type: 'float', nullable: true })
+  fiatValue: number;
+
+  @Column({ length: 256, nullable: true })
+  iban: string;
+
+  @Column({ length: 256, unique: true })
+  bankTransactionId: string;
+
+  @Column({ type: 'float', nullable: true })
+  originFiatValue: number;
+
+  @ManyToOne(() => Fiat, { eager: true })
+  originFiat: Fiat;
+
+  @ManyToOne(() => Buy)
+  buy: Buy;
+}
+
+
+@Entity()
+export class SellPayment extends Payment {
+  @Column({ length: 256, nullable: true })
+  depositAddress: string;
+
+  @Column({ type: 'float', nullable: true })
+  assetValue: number;
+
+  @ManyToOne(() => Sell)
+  sell: Sell;
 }

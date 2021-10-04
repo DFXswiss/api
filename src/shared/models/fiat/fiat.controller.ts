@@ -20,7 +20,7 @@ import { FiatService } from './fiat.service';
 import { CreateFiatDto } from './dto/create-fiat.dto';
 import { UpdateFiatDto } from './dto/update-fiat.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { UserRole } from 'src/user/user.entity';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 
 @ApiTags('fiat')
 @Controller('fiat')

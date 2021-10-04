@@ -3,7 +3,7 @@ import { EntityRepository, Repository } from 'typeorm';
 import { CreateSellPaymentDto } from './dto/create-sell-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { PaymentError, PaymentStatus } from './payment.entity';
-import { SellPayment } from './payment-sell.entity';
+import { SellPayment } from './payment.entity';
 import { FiatRepository } from 'src/shared/models/fiat/fiat.repository';
 import { getManager } from 'typeorm';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
