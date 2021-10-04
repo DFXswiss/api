@@ -336,14 +336,14 @@ export class KycService {
       KycStatus.WAIT_ONLINE_ID,
       KycStatus.WAIT_MANUAL,
       KycDocument.ONLINE_IDENTIFICATION,
-      async (userData, document) => {
+      async (userData) => {
         //Create kyc file reference and upload
         userData.kycFileReference = await this.userDataRepository.getNextKycFileId();
 
         //TODO: upload kyc file reference
         //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
 
-        await this.mailService.sendKycRequestMail(userData, document);
+        await this.mailService.sendKycRequestMail(userData);
         return userData;
       },
     );
@@ -358,14 +358,14 @@ export class KycService {
     currentStatus: KycStatus,
     nextStatus: KycStatus,
     documentType: KycDocument,
-    updateAction: (userData: UserData, documentVersion: CheckVersion) => Promise<UserData>,
+    updateAction: (userData: UserData) => Promise<UserData>,
   ): Promise<void> {
     const userDataList = await this.userDataRepository.find({ kycStatus: currentStatus });
     for (const key in userDataList) {
       const documentVersion = await this.getDocumentVersion(userDataList[key].id, documentType);
       if (documentVersion.state == State.COMPLETED) {
         userDataList[key].kycStatus = nextStatus;
-        userDataList[key] = await updateAction(userDataList[key], documentVersion);
+        userDataList[key] = await updateAction(userDataList[key]);
       }
     }
     await this.userDataRepository.save(userDataList);

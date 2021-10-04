@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
+import { ConversionService } from 'src/shared/services/conversion.service';
 import * as MasterNodes from '../assets/master-nodes.json';
 import * as CfpResults from '../assets/cfp-results.json';
 
@@ -63,7 +64,11 @@ export class CfpService {
   private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
 
-  constructor(private http: HttpService, private deFiService: CryptoService) {
+  constructor(
+    private http: HttpService,
+    private cryptoService: CryptoService,
+    private conversionService: ConversionService,
+  ) {
     const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
@@ -148,7 +153,7 @@ export class CfpService {
       no: noVoteCount,
       votes: voteCount,
       possibleVotes: this.masterNodeCount,
-      voteTurnout: Math.round((voteCount / this.masterNodeCount) * 100 * Math.pow(10, 2)) / Math.pow(10, 2),
+      voteTurnout: this.conversionService.round(voteCount / this.masterNodeCount * 100, 2),
       currentResult: yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
     };
   }
@@ -173,7 +178,7 @@ export class CfpService {
     return (
       this.masterNodes[vote.address] &&
       cfp.title.includes(vote.cfpId) &&
-      this.deFiService.verifySignature(vote.vote, vote.address, vote.signature)
+      this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
     );
   }
 

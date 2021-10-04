@@ -5,6 +5,10 @@ import { HttpService } from './http.service';
 export class ConversionService {
   constructor(private http: HttpService) {}
 
+  public round(amount: number, decimals: number): number {
+    return Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  }
+
   public async convertFiatCurrency(
     amount: number,
     fromCurrency: string,
@@ -12,7 +16,7 @@ export class ConversionService {
     date: Date = new Date(),
   ): Promise<number> {
     const rate = await this.getRate(fromCurrency, toCurrency, date);
-    return Math.round(amount * rate * Math.pow(10, 2)) / Math.pow(10, 2);
+    return this.round(amount * rate, 2);
   }
 
   public async getRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
