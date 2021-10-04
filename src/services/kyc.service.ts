@@ -1,9 +1,12 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { User } from 'src/user/user.entity';
+import { KycFile } from 'src/userData/kycFile.entity';
 import { KycStatus, UserData } from 'src/userData/userData.entity';
 import { UserDataRepository } from 'src/userData/userData.repository';
+import { Repository } from 'typeorm';
 import { HttpService } from '../shared/services/http.service';
 import { MailService } from './mail.service';
 
@@ -140,8 +143,10 @@ export class KycService {
 
   constructor(
     private http: HttpService,
-    private userDataRepository: UserDataRepository,
     private mailService: MailService,
+    @InjectRepository(KycFile)
+    private kycFileRepo: Repository<KycFile>,
+    private userDataRepository: UserDataRepository,
   ) {}
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
@@ -333,8 +338,9 @@ export class KycService {
       KycStatus.WAIT_MANUAL,
       KycDocument.ONLINE_IDENTIFICATION,
       async (userData) => {
-        //Create kyc file reference and upload
-        userData.kycFileReference = await this.userDataRepository.getNextKycFileId();
+        // create KYC file reference and upload
+        const kycFile = await this.kycFileRepo.save({userData: userData});
+        userData.kycFile = kycFile;
 
         //TODO: upload kyc file reference
         //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);

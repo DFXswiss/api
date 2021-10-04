@@ -64,6 +64,7 @@ import { BatchService } from './batch/batch.service';
 import { CfpService } from './services/cfp.service';
 import { AinModule } from './ain/ain.module';
 import { SharedModule } from './shared/shared.module';
+import { KycFile } from './userData/kycFile.entity';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -126,6 +127,7 @@ import { SharedModule } from './shared/shared.module';
       BankDataRepository,
       RefRepository,
       BatchRepository,
+      KycFile
     ]),
     SharedModule,
     AinModule,

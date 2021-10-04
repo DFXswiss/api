@@ -55,15 +55,12 @@ export class UserData {
   @Column({ type: 'int', nullable: true })
   kycCustomerId: number;
 
-  @Column({ type: 'int', nullable: true })
-  kycFileReference: number;
-
   @Column({ default: false })
   kycFailure: boolean;
 
-  // @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true })
-  // @JoinColumn()
-  // kycFile: KycFile;
+  @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true })
+  @JoinColumn()
+  kycFile: KycFile;
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];

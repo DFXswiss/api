@@ -59,7 +59,7 @@ export class MailService {
           </tr>
           <tr>
               <td>KYC File Reference:</td>
-              <td>${userData.kycFileReference}</td>
+              <td>${userData.kycFile.id}</td>
           </tr>
       </table>
       <p>Best,</p>
