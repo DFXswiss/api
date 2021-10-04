@@ -41,13 +41,11 @@ import { BankDataRepository } from './bankData/bankData.repository';
 import { BankDataService } from './bankData/bankData.service';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SchedulerService } from './services/scheduler.service';
-import { BatchRepository } from './batch/batch.repository';
-import { BatchController } from './batch/batch.controller';
-import { BatchService } from './batch/batch.service';
-import { CfpService } from './services/cfp.service';
+import { CfpService } from './statistic/cfp.service';
 import { AinModule } from './ain/ain.module';
 import { SharedModule } from './shared/shared.module';
 import { PaymentModule } from './payment/payment.module';
+import { UserModule } from './user/user.module';
 @Module({
   imports: [
     ConfigModule.forRoot(),
@@ -102,11 +100,11 @@ import { PaymentModule } from './payment/payment.module';
       DepositRepository,
       BankDataRepository,
       RefRepository,
-      BatchRepository,
     ]),
     SharedModule,
     AinModule,
     PaymentModule,
+    UserModule,
   ],
   controllers: [
     AppController,
@@ -122,7 +120,6 @@ import { PaymentModule } from './payment/payment.module';
     UserDataController,
     RefController,
     AuthController,
-    BatchController,
   ],
   providers: [
     UserService,
@@ -142,7 +139,6 @@ import { PaymentModule } from './payment/payment.module';
     MailService,
     KycService,
     SchedulerService,
-    BatchService,
     CfpService,
   ],
   exports: [],

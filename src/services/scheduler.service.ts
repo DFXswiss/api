@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { CfpService } from './cfp.service';
+import { CfpService } from '../statistic/cfp.service';
 import { KycService } from './kyc.service';
 
 @Injectable()
