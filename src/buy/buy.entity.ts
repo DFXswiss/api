@@ -6,7 +6,6 @@ import {
   CreateDateColumn,
   OneToMany,
   ManyToOne,
-  JoinColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Asset } from 'src/asset/asset.entity';
@@ -20,7 +19,7 @@ export class Buy {
   id: number;
 
   @Column({ length: 256 })
-  address: string;
+  address: string; // TODO: remove
 
   @Column({ length: 256 })
   iban: string;
@@ -31,11 +30,10 @@ export class Buy {
   @Column({ default: true })
   active: boolean;
 
-  @ManyToOne(() => User, (user) => user.buys, { lazy: true })
+  @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
   @ManyToOne(() => Asset, { eager: true })
-  @JoinColumn()
   asset: Asset;
 
   @OneToMany(() => BuyPayment, (buyPayment) => buyPayment.buy)

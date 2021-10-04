@@ -1,14 +1,5 @@
 import { UserData } from 'src/userData/userData.entity';
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  Index,
-  UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, UpdateDateColumn, ManyToOne } from 'typeorm';
 
 @Entity()
 @Index('nameLocationIban', (bankData: BankData) => [bankData.name, bankData.location, bankData.iban], { unique: true })
@@ -29,7 +20,6 @@ export class BankData {
   iban: string;
 
   @ManyToOne(() => UserData)
-  @JoinColumn()
   userData: UserData;
 
   @UpdateDateColumn()

@@ -1,0 +1,33 @@
+name: Node DEV CD
+
+on:
+  push:
+    branches: [ develop ]
+    paths: [ infrastructure/defi-node-test.yml ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Deploy to DEV
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.DEV_CREDENTIALS }}
+
+      - name: Deploy to Azure App Service (DEV)
+        uses: azure/CLI@v1
+        with:
+          azcliversion: 2.0.72
+          inlineScript: |
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/defi-node-test.yml --slot stg
+      
+      - name: Logout
+        run: |
+          az logout
+        if: always()
+

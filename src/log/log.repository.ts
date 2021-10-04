@@ -1,7 +1,7 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { EntityRepository, getManager, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
-import { Log, LogDirection, LogStatus, LogType } from './log.entity';
+import { Log, LogDirection, LogType } from './log.entity';
 import { isString } from 'class-validator';
 import { FiatRepository } from 'src/fiat/fiat.repository';
 import { AssetRepository } from 'src/asset/asset.repository';
@@ -9,28 +9,20 @@ import { UserRepository } from 'src/user/user.repository';
 import { BuyPaymentRepository } from 'src/payment/payment-buy.repository';
 import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { MailService } from 'src/services/mail.service';
-import { User } from 'src/user/user.entity';
-import { UserStatus } from 'src/user/user.entity';
+import { User, UserStatus } from 'src/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
-import requestPromise from 'request-promise-native';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
   async createLog(createLogDto: CreateLogDto, mailService?: MailService): Promise<any> {
     let fiatObject = null;
     let assetObject = null;
-    let paymentObject = null;
 
     if (createLogDto.payment) {
-      paymentObject = await getManager()
-        .getCustomRepository(BuyPaymentRepository)
-        .getPaymentInternal(createLogDto.payment);
-
-      if (!paymentObject) {
-        paymentObject = await getManager()
-          .getCustomRepository(SellPaymentRepository)
-          .getPaymentInternal(createLogDto.payment);
-      }
+      createLogDto.payment =
+        createLogDto.direction === LogDirection.fiat2asset
+          ? await getManager().getCustomRepository(BuyPaymentRepository).getPaymentInternal(createLogDto.payment)
+          : await getManager().getCustomRepository(SellPaymentRepository).getPaymentInternal(createLogDto.payment);
     } else {
       delete createLogDto.payment;
     }
@@ -73,7 +65,7 @@ export class LogRepository extends Repository<Log> {
         if (createLogDto.user.mail) mailService.sendLogMail(createLogDto, 'Transaction has been completed');
 
         if (log.user) {
-          const currentUser = await log.user;
+          const currentUser = log.user;
 
           if (currentUser.status == UserStatus.NA) {
             currentUser.status = UserStatus.ACTIVE;
@@ -85,9 +77,6 @@ export class LogRepository extends Repository<Log> {
     } catch (error) {
       throw new ConflictException(error.message);
     }
-
-    if (log['__user__']) delete log['__user__'];
-    if (log['__payment__']) delete log['__payment__'];
 
     log.fiat = fiatObject;
     log.asset = assetObject;
@@ -103,9 +92,6 @@ export class LogRepository extends Repository<Log> {
     } catch (error) {
       throw new ConflictException(error.message);
     }
-
-    if (log['__user__']) delete log['__user__'];
-    if (log['__payment__']) delete log['__payment__'];
 
     return log;
   }
@@ -126,91 +112,20 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getBuyDFIVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.fiat2asset,
-      });
-      let buyVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        buyVolume += volumeLogs[a].assetValue;
-      }
-
-      return Math.round(buyVolume * Math.pow(10, 8)) / Math.pow(10, 8);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
+  async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<number> {
+    const volumeLogs = await this.find({
+      type: logType,
+      direction: logDirection,
+    });
+    return this.sum(volumeLogs, 'assetValue', 8);
   }
 
-  async getSellDFIVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.asset2fiat,
-      });
-      let sellVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        sellVolume += volumeLogs[a].assetValue;
-      }
-      return Math.round(sellVolume * Math.pow(10, 8)) / Math.pow(10, 8);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getDFIVolume(): Promise<any> {
-    try {
-      return {
-        buy: await this.getBuyDFIVolume(),
-        sell: await this.getSellDFIVolume(),
-      };
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getBuyCHFVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.fiat2asset,
-      });
-      let buyVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        buyVolume += volumeLogs[a].fiatInCHF;
-      }
-      return Math.round(buyVolume * Math.pow(10, 2)) / Math.pow(10, 2);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getSellCHFVolume(): Promise<any> {
-    try {
-      const volumeLogs = await this.find({
-        type: LogType.VOLUME,
-        direction: LogDirection.asset2fiat,
-      });
-      let sellVolume = 0;
-      for (let a = 0; a < volumeLogs.length; a++) {
-        sellVolume += volumeLogs[a].fiatInCHF;
-      }
-      return Math.round(sellVolume * Math.pow(10, 2)) / Math.pow(10, 2);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async getCHFVolume(): Promise<any> {
-    try {
-      return {
-        buy: await this.getBuyCHFVolume(),
-        sell: await this.getSellCHFVolume(),
-      };
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
+  async getChfVolume(logType: LogType, logDirection: LogDirection): Promise<number> {
+    const volumeLogs = await this.find({
+      type: logType,
+      direction: logDirection,
+    });
+    return this.sum(volumeLogs, 'fiatInCHF', 2);
   }
 
   async getLog(key: any): Promise<any> {
@@ -232,27 +147,18 @@ export class LogRepository extends Repository<Log> {
   }
 
   async getRefVolume(ref: string): Promise<number> {
-    const logs = await this.find({ select: ['fiatValue'], where: { message: ref } });
-    return this.sumFiat(logs);
+    const logs = await this.find({ where: { message: ref } });
+    return this.sum(logs, 'fiatInCHF', 2);
   }
 
-  async getVolume(user: User): Promise<any> {
-    const buyLogs = await this.find({
-      select: ['fiatValue'],
-      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.fiat2asset, status: null },
+  async getUserVolume(user: User, logDirection: LogDirection): Promise<any> {
+    const logs = await this.find({
+      where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null },
     });
-    const sellLogs = await this.find({
-      select: ['fiatValue'],
-      where: { type: LogType.TRANSACTION, address: user.address, direction: LogDirection.asset2fiat, status: null },
-    });
-
-    return {
-      buyVolume: this.sumFiat(buyLogs),
-      sellVolume: this.sumFiat(sellLogs),
-    };
+    return this.sum(logs, 'fiatInCHF', 2);
   }
 
-  private sumFiat(logs: Log[]): number {
-    return Math.round(logs.reduce((sum, log) => sum + log.fiatValue, 0) * Math.pow(10, 0)) / Math.pow(10, 0);
+  async sum(logs: Log[], value: string, decimals: number): Promise<number> {
+    return Math.round(logs.reduce((sum, log) => sum + log[value], 0) * Math.pow(10, decimals)) / Math.pow(10, decimals);
   }
 }

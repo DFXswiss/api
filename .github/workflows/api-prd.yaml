@@ -1,18 +1,18 @@
-name: CI/CD DEV
+name: API PRD CI/CD
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ master ]
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: app-dfx-api-dev
+  AZURE_WEBAPP_NAME: app-dfx-api-prd
   AZURE_WEBAPP_PACKAGE_PATH: '.'
   NODE_VERSION: '14.x'
 
 jobs:
   build-and-deploy:
-    name: Build and deploy to DEV
+    name: Build and deploy to PRD
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,12 +25,12 @@ jobs:
 
       - name: Install packages and build
         run: |
-          npm install
+          npm ci
           npm run build
 
-      - name: Deploy to Azure App Service (DEV)
+      - name: Deploy to Azure App Service (PRD)
         uses: azure/webapps-deploy@0b651ed7546ecfc75024011f76944cb9b381ef1e
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.DEV_PUBLISH_PROFILE }}
+          publish-profile: ${{ secrets.PRD_PUBLISH_PROFILE }}
           package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}

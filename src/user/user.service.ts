@@ -5,18 +5,19 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { UserDataRepository } from 'src/userData/userData.repository';
-import { LogRepository } from 'src/log/log.repository';
-import { KycStatus } from 'src/userData/userData.entity';
-import { KycService } from 'src/services/kyc.service';
+import { KycStatus, UiKycStatus } from 'src/userData/userData.entity';
+import { UserDataService } from 'src/userData/userData.service';
+import { LogDirection } from 'src/log/log.entity';
+import { ConversionService } from 'src/shared/services/conversion.service';
+import { LogService } from 'src/log/log.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private userRepo: UserRepository,
-    private logRepo: LogRepository,
-    private kycService: KycService,
-    private userDataRepo: UserDataRepository,
+    private userDataService: UserDataService,
+    private conversionService: ConversionService,
+    private logService: LogService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -31,50 +32,26 @@ export class UserService {
     return user;
   }
 
-  async getUser(user: User, detailedUser: boolean): Promise<any> {
-    const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
-    user['kycStatus'] = userData.kycStatus;
+  async getUser(userId: number, detailedUser: boolean): Promise<any> {
+    const currentUser = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: detailedUser ? ['userData', 'buys', 'sells'] : ['userData'],
+    });
 
-    if (detailedUser) {
-      const buys = await user.buys;
+    currentUser['kycStatus'] = currentUser.userData.kycStatus;
+    currentUser['uiKycStatus'] = this.getUiStatus(currentUser.userData.kycStatus);
+    currentUser['refData'] = await this.getRefData(currentUser);
+    currentUser['userVolume'] = await this.getUserVolume(currentUser);
+    delete currentUser.userData;
 
-      if (buys) {
-        for (let a = 0; a < buys.length; a++) {
-          delete buys[a].user;
-        }
-      }
-      const sells = await user.sells;
-
-      if (sells) {
-        for (let a = 0; a < sells.length; a++) {
-          delete sells[a].user;
-        }
-      }
-
-      user.sells = sells;
-    }
-
-    user['refData'] = await this.getRefData(user);
-    user['userVolume'] = await this.logRepo.getVolume(user);
-
-    delete user['__has_buys__'];
-    user['buy'] = user['__buys__'];
-    delete user['__buys__'];
-
-    delete user['__has_sells__'];
-    user['sell'] = user['__sells__'];
-    delete user['__sells__'];
-
-    delete user.signature;
-    delete user.ip;
-    if (user.role != UserRole.VIP) delete user.role;
+    delete currentUser.signature;
+    delete currentUser.ip;
+    if (currentUser.role != UserRole.VIP) delete currentUser.role;
 
     // delete ref for inactive users
-    if (user.status == UserStatus.NA) {
-      delete user.ref;
-    }
+    if (currentUser.status == UserStatus.NA) delete currentUser.ref;
 
-    return user;
+    return currentUser;
   }
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
@@ -86,11 +63,12 @@ export class UserService {
     const user = await this.userRepo.updateUser(oldUser, newUser);
 
     user['refData'] = await this.getRefData(user);
-    user['userVolume'] = await this.logRepo.getVolume(user);
+    user['userVolume'] = await this.getUserVolume(user);
 
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
-
+    user['uiKycStatus'] = this.getUiStatus(userData.kycStatus);
+    delete user.userData;
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
       delete user.ref;
@@ -98,8 +76,6 @@ export class UserService {
 
     delete user.signature;
     delete user.ip;
-    delete user['__userData__'];
-    delete user['__has_userData__'];
     if (user.role != UserRole.VIP) delete user.role;
 
     return user;
@@ -121,29 +97,55 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
-    if (userData?.kycStatus === KycStatus.NA) {
-      // update customer
-      await this.kycService.updateCustomer(userData.id, user);
+    return this.userDataService.requestKyc(userData.id);
+  }
 
-      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
+  async getUserVolume(user: User): Promise<any> {
+    return {
+      buyVolume: await this.conversionService.convertFiatCurrency(
+        await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+        'chf',
+        'eur',
+      ),
 
-      // start onboarding
-      const chatBotData = await this.kycService.onboardingCustomer(userData.id);
-
-      if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
-      await this.userDataRepo.save(userData);
-    }
-    return true;
+      sellVolume: await this.conversionService.convertFiatCurrency(
+        await this.logService.getUserVolume(user, LogDirection.asset2fiat),
+        'chf',
+        'eur',
+      ),
+    };
   }
 
   async getRefData(user: User): Promise<any> {
-    const result = {
+    return {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logRepo.getRefVolume(user.ref),
+      refVolume: await this.conversionService.convertFiatCurrency(
+        await this.logService.getRefVolume(user.ref),
+        'chf',
+        'eur',
+      ),
     };
+  }
 
-    return result;
+  getUiStatus(kycStatus: KycStatus): UiKycStatus {
+    switch (kycStatus) {
+      case KycStatus.NA:
+        return UiKycStatus.KYC_NO;
+      case KycStatus.WAIT_CHAT_BOT:
+      case KycStatus.WAIT_ADDRESS:
+      case KycStatus.WAIT_ONLINE_ID:
+        return UiKycStatus.KYC_PENDING;
+
+      case KycStatus.WAIT_MANUAL:
+        return UiKycStatus.KYC_PROV;
+
+      case KycStatus.COMPLETED:
+        return UiKycStatus.KYC_COMPLETED;
+
+      default:
+        return UiKycStatus.KYC_NO;
+    }
   }
 }

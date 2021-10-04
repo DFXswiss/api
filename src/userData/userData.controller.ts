@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/guards/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/user.entity';
-import { UserDataService } from './userData.service';
+import { CustomerDataDetailed, UserDataChecks, UserDataService } from './userData.service';
 import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/bankData/dto/bankData.dto';
@@ -35,6 +35,17 @@ export class UserDataController {
     return this.userDataService.updateUserData(userData);
   }
 
+  @Get('nameCheck')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  getNameChecks(
+    @Query('startUserId') startUserId: number,
+    @Query('endUserId') endUserId: number,
+  ): Promise<UserDataChecks[]> {
+    return this.userDataService.getManyCheckStatus(startUserId, endUserId);
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -47,15 +58,15 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@Param('id') id: number): Promise<UserData> {
-    return await this.userDataService.requestKyc(id);
+  async requestKyc(@Param('id') id: number): Promise<boolean> {
+    return this.userDataService.requestKyc(id);
   }
 
   @Get(':id/customer')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getCustomer(@Param('id') id: number): Promise<string> {
+  async getCustomer(@Param('id') id: number): Promise<CustomerDataDetailed> {
     return this.userDataService.getCustomer(id);
   }
 
@@ -89,5 +100,13 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getUserDataExtends(@Param('name') name: string, @Param('location') location: string): Promise<UserData> {
     return this.userDataService.getUserData(name, location);
+  }
+
+  @Put(':id/merge')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async mergeUserData(@Param('id') masterId: number, @Query('id') slaveId: number): Promise<void> {
+    return this.userDataService.mergeUserData(masterId, slaveId);
   }
 }

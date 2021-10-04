@@ -1,67 +1,61 @@
 import { Injectable } from '@nestjs/common';
 import { BuyRepository } from 'src/buy/buy.repository';
 import { SellRepository } from 'src/sell/sell.repository';
-import { LogRepository } from 'src/log/log.repository';
-import { CfpService } from 'src/services/cfp.service';
+import { LogService } from 'src/log/log.service';
+import { LogDirection, LogType } from 'src/log/log.entity';
+import { ConversionService } from 'src/shared/services/conversion.service';
 
 @Injectable()
 export class StatisticService {
   constructor(
     private buyRepository: BuyRepository,
     private sellRepository: SellRepository,
-    private logRepository: LogRepository,
-    private cfpService: CfpService,
+    private logService: LogService,
+    private conversionService: ConversionService,
   ) {}
 
-  async getBuyRoutes(): Promise<number> {
-    return this.buyRepository.getBuyOrder();
+  async getBuyRouteCount(): Promise<number> {
+    return this.buyRepository.count();
   }
 
-  async getSellRoutes(): Promise<number> {
-    return this.sellRepository.getSellOrder();
+  async getSellRouteCount(): Promise<number> {
+    return this.sellRepository.count();
   }
 
-  async getRoutes(): Promise<any> {
+  async getRouteCount(): Promise<any> {
     return {
-      buy: await this.getBuyRoutes(),
-      sell: await this.getSellRoutes(),
+      buy: await this.getBuyRouteCount(),
+      sell: await this.getSellRouteCount(),
     };
-  }
-
-  async getDFIBuyVolume(): Promise<any> {
-    return this.logRepository.getBuyDFIVolume();
-  }
-
-  async getDFISellVolume(): Promise<any> {
-    return this.logRepository.getSellDFIVolume();
-  }
-
-  async getDFIVolume(): Promise<any> {
-    return this.logRepository.getDFIVolume();
-  }
-
-  async getCHFVolume(): Promise<any> {
-    return this.logRepository.getCHFVolume();
   }
 
   async getAll(): Promise<any> {
     return {
       dfxStatistic: {
-        routes: await this.getRoutes(),
-        volume: { DFI: await this.getDFIVolume(), CHF: await this.getCHFVolume() },
+        routes: await this.getRouteCount(),
+        volume: {
+          DFI: {
+            buy: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.fiat2asset),
+            sell: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.asset2fiat),
+          },
+          EUR: {
+            buy: await this.conversionService.convertFiatCurrency(
+              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
+              'chf',
+              'eur',
+            ),
+            sell: await this.conversionService.convertFiatCurrency(
+              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
+              'chf',
+              'eur',
+            ),
+          },
+          CHF: {
+            buy: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
+            sell: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
+          },
+        },
       },
     };
-  }
-
-  async getDfxCfpResults(): Promise<any> {
-    return this.cfpService.getDfxResults();
-  }
-
-  async getAllCfpResults(): Promise<any> {
-    return this.cfpService.getAllCfpResults();
-  }
-
-  async getAllInvalidVotes(): Promise<any> {
-    return this.cfpService.getAllInvalidVotes();
   }
 }

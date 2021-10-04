@@ -37,7 +37,6 @@ import { StatisticController } from './statistic/statistic.controller';
 import { StatisticService } from './statistic/statistic.service';
 import { LogController } from './log/log.controller';
 import { LogService } from './log/log.service';
-import { HealthController } from './health/health.controller';
 import { LogRepository } from './log/log.repository';
 import { SellPaymentRepository } from './payment/payment-sell.repository';
 import { BuyPaymentRepository } from './payment/payment-buy.repository';
@@ -54,10 +53,7 @@ import { RefController } from './referral/ref.controller';
 import { RefService } from './referral/ref.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { MailService } from './services/mail.service';
-import { DeFiService } from './services/defi.service';
 import { KycService } from './services/kyc.service';
-import { HttpModule } from '@nestjs/axios';
-import { HttpService } from './services/http.service';
 import { BankDataRepository } from './bankData/bankData.repository';
 import { BankDataService } from './bankData/bankData.service';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -66,12 +62,12 @@ import { BatchRepository } from './batch/batch.repository';
 import { BatchController } from './batch/batch.controller';
 import { BatchService } from './batch/batch.service';
 import { CfpService } from './services/cfp.service';
+import { AinModule } from './ain/ain.module';
+import { SharedModule } from './shared/shared.module';
 @Module({
   imports: [
     ConfigModule.forRoot(),
     MailerModule.forRoot({
-      // transport: 'smtps://user@example.com:topsecret@smtp.example.com',
-      // or
       transport: {
         host: 'smtp.gmail.com',
         secure: false,
@@ -87,7 +83,7 @@ import { CfpService } from './services/cfp.service';
         },
       },
       defaults: {
-        from: '"No Reply" <' + process.env.MAIL_USER + '>',
+        from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
       },
     }),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
@@ -131,7 +127,8 @@ import { CfpService } from './services/cfp.service';
       RefRepository,
       BatchRepository,
     ]),
-    HttpModule,
+    SharedModule,
+    AinModule,
   ],
   controllers: [
     AppController,
@@ -146,7 +143,6 @@ import { CfpService } from './services/cfp.service';
     CountryController,
     FiatController,
     StatisticController,
-    HealthController,
     PaymentController,
     AllDataController,
     LanguageController,
@@ -176,41 +172,11 @@ import { CfpService } from './services/cfp.service';
     RefService,
     AuthService,
     MailService,
-    DeFiService,
     KycService,
-    HttpService,
     SchedulerService,
     BatchService,
     CfpService,
   ],
-  exports: [
-    UserService,
-    AuthService,
-    BuyService,
-    SellService,
-    LogService,
-    AssetService,
-    WalletService,
-    DepositService,
-    CountryService,
-    FiatService,
-    TypeOrmModule,
-    JwtStrategy,
-    PassportModule,
-    StatisticService,
-    PaymentService,
-    AllDataService,
-    LanguageService,
-    UserDataService,
-    BankDataService,
-    RefService,
-    MailService,
-    DeFiService,
-    KycService,
-    HttpService,
-    SchedulerService,
-    BatchService,
-    CfpService,
-  ],
+  exports: [],
 })
 export class AppModule {}

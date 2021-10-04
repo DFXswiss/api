@@ -1,10 +1,22 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycStatus, UserData } from './userData.entity';
-import { KycService } from 'src/services/kyc.service';
+import { CheckResult, Customer, KycService } from 'src/services/kyc.service';
 import { BankDataRepository } from 'src/bankData/bankData.repository';
 import { UserRepository } from 'src/user/user.repository';
+
+export interface UserDataChecks {
+  userDataId: string;
+  customerId?: string;
+  kycFileReference?: string;
+  nameCheckRisk: string;
+}
+
+export interface CustomerDataDetailed {
+  customer: Customer;
+  checkResult: CheckResult;
+}
 
 @Injectable()
 export class UserDataService {
@@ -31,11 +43,10 @@ export class UserDataService {
   }
 
   async getAllCustomer(): Promise<any> {
-    const customer = await this.kycService.getAllCustomer();
-    return customer;
+    return this.kycService.getAllCustomer();
   }
 
-  async getCustomer(userDataId: number): Promise<any> {
+  async getCustomer(userDataId: number): Promise<CustomerDataDetailed> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
@@ -71,34 +82,70 @@ export class UserDataService {
     try {
       customerInformation = await this.kycService.getCustomerInformation(userData.id);
     } catch (error) {
-      throw new ConflictException('Customer Information error: ' + error.message);
+      throw new ServiceUnavailableException('Customer information error: ' + error.message);
     }
 
     try {
       resultNameCheck = await this.kycService.getCheckResult(customerInformation.lastCheckId);
     } catch (error) {
-      throw new ConflictException('Customer Check error: ' + error.message);
+      throw new ServiceUnavailableException('Customer check error: ' + error.message);
     }
 
     return resultNameCheck.risks[0].categoryKey;
   }
 
-  async requestKyc(userDataId: number): Promise<UserData> {
+  async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
+    const userDataChecks: UserDataChecks[] = [];
+    for (let a = startUserDataId; a <= endUserDataId; a++) {
+      const userData = await this.userDataRepo.findOne({ where: { id: a }, relations: ['bankDatas'] });
+      if (userData.bankDatas.length > 0) {
+        const customer = await this.getCustomer(a);
+        userDataChecks.push({
+          userDataId: a.toString(),
+          customerId: customer.customer.id.toString(),
+          kycFileReference: userData.kycFileReference.toString(),
+          nameCheckRisk: customer.checkResult.risks[0].categoryKey,
+        });
+      } else {
+        userDataChecks.push({
+          userDataId: a.toString(),
+          customerId: '',
+          kycFileReference: '',
+          nameCheckRisk: '',
+        });
+      }
+    }
+    return userDataChecks;
+  }
+
+  async requestKyc(userDataId: number): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
     if (userData?.kycStatus === KycStatus.NA) {
       // update customer
-      await this.kycService.updateCustomer(userData.id, user);
-
-      userData.kycFileReference = await this.userDataRepo.getNextKycFileId();
+      const customer = await this.kycService.updateCustomer(userData.id, user);
+      userData.kycCustomerId = customer.customerId;
 
       // start onboarding
-      const chatBotData = await this.kycService.onboardingCustomer(userData.id);
+      const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
 
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);
+      return true;
+    } else {
+      return false;
     }
-    return userData;
+  }
+
+  async mergeUserData(masterId: number, slaveId: number): Promise<void> {
+    const [master, slave] = await Promise.all([
+      this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'bankDatas'] }),
+      this.userDataRepo.findOne({ where: { id: slaveId }, relations: ['users', 'bankDatas'] }),
+    ]);
+
+    master.bankDatas = master.bankDatas.concat(slave.bankDatas);
+    master.users = master.users.concat(slave.users);
+    await this.userDataRepo.save(master);
   }
 }

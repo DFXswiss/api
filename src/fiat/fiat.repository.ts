@@ -1,8 +1,4 @@
-import {
-  NotFoundException,
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
 import { CreateFiatDto } from './dto/create-fiat.dto';
 import { UpdateFiatDto } from './dto/update-fiat.dto';
@@ -12,7 +8,6 @@ import { isString } from 'class-validator';
 @EntityRepository(Fiat)
 export class FiatRepository extends Repository<Fiat> {
   async createFiat(createFiatDto: CreateFiatDto): Promise<any> {
-
     const fiat = this.create(createFiatDto);
 
     try {
@@ -36,8 +31,7 @@ export class FiatRepository extends Repository<Fiat> {
     try {
       const currentFiat = await this.findOne({ id: fiat.id });
 
-      if (!currentFiat)
-        throw new NotFoundException('No matching fiat for id found');
+      if (!currentFiat) throw new NotFoundException('No matching fiat for id found');
 
       return Object.assign(currentFiat, await this.save(fiat));
     } catch (error) {
@@ -86,8 +80,6 @@ export class FiatRepository extends Repository<Fiat> {
       throw new NotFoundException('No matching fiat found');
     }
 
-    throw new BadRequestException(
-      'key must be number or string or JSON-Object',
-    );
+    throw new BadRequestException('key must be number or string or JSON-Object');
   }
 }

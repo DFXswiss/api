@@ -12,7 +12,6 @@ import {
   OneToMany,
   CreateDateColumn,
   ManyToOne,
-  JoinColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -44,8 +43,7 @@ export class User {
   @Column({ unique: true, length: 256 })
   signature: string;
 
-  @ManyToOne(() => Wallet, { lazy: true })
-  @JoinColumn()
+  @ManyToOne(() => Wallet)
   wallet: Wallet;
 
   @Column({ default: '000-000', length: 256 })
@@ -73,14 +71,12 @@ export class User {
   zip: string;
 
   @ManyToOne(() => Country, { eager: true })
-  @JoinColumn()
   country: Country;
 
   @Column({ length: 256, nullable: true })
   phone: string;
 
   @ManyToOne(() => Language, { eager: true })
-  @JoinColumn()
   language: Language;
 
   @Column({ default: UserRole.USER, length: 256 })
@@ -92,19 +88,16 @@ export class User {
   @Column({ default: '0.0.0.0', length: 256 })
   ip: string;
 
-  @OneToMany(() => Buy, (buy) => buy.user, { lazy: true })
-  @JoinColumn()
+  @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
-  @OneToMany(() => Sell, (sell) => sell.user, { lazy: true })
-  @JoinColumn()
+  @OneToMany(() => Sell, (sell) => sell.user)
   sells: Sell[];
 
   @ManyToOne(() => UserData)
-  @JoinColumn()
   userData: UserData;
 
-  @OneToMany(() => Log, (logs) => logs.user, { lazy: true })
+  @OneToMany(() => Log, (logs) => logs.user)
   logs: Log[];
 
   @UpdateDateColumn()

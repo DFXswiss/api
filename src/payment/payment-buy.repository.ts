@@ -13,7 +13,6 @@ import { CreateLogDto } from 'src/log/dto/create-log.dto';
 import { LogDirection, LogStatus, LogType } from 'src/log/log.entity';
 import { UserDataRepository } from 'src/userData/userData.repository';
 import { CountryRepository } from 'src/country/country.repository';
-import * as requestPromise from 'request-promise-native';
 import { UserRepository } from 'src/user/user.repository';
 import { UserStatus } from 'src/user/user.entity';
 import { NameCheckStatus } from 'src/userData/userData.entity';
@@ -67,8 +66,8 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   //     name: createPaymentDto.name,
   //     location: createPaymentDto.location,
   //   });
-  //   const user = await buy.user;
-  //   const referencedUserData = await user.userData;
+  //   const user = buy.user;
+  //   const referencedUserData = user.userData;
 
   //   if (!referencedUserData) {
   //     if (!userData) {
@@ -140,7 +139,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   // }
 
   // async updatePayment(payment: UpdatePaymentDto, mailService?: MailService): Promise<any> {
-  //   const currentPayment = await this.findOne({ id: payment.id });
+  //   const currentPayment = await this.findOne({where: { id: payment.id }, relations: ['']});
 
   //   if (!currentPayment) throw new NotFoundException('No matching payment for id found');
   //   if (currentPayment.status == PaymentStatus.PROCESSED) throw new ForbiddenException('Payment is already processed!');
@@ -191,11 +190,11 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   //       logDto.fiatInCHF = currentPayment.fiatInCHF;
 
   //       if (currentPayment.buy) {
-  //         const currentBuy = await currentPayment.buy;
+  //         const currentBuy = currentPayment.buy;
 
-  //         let currentUser = await currentBuy.user;
+  //         let currentUser = currentBuy.user;
 
-  //         let currentUserData = await currentUser.userData;
+  //         let currentUserData = currentUser.userData;
 
   //         if (!currentUserData)
   //           throw new ForbiddenException('You cannot process a payment without a referenced userData');
@@ -209,7 +208,7 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
 
   //           let refUserData = null;
 
-  //           refUserData = await refUser.userData;
+  //           refUserData = refUser.userData;
   //           if (refUserData && currentUserData) {
   //             if (refUserData.id == currentUserData.id) currentUser.usedRef = '000-000';
   //           }
@@ -293,43 +292,16 @@ export class BuyPaymentRepository extends Repository<BuyPayment> {
   }
 
   // async getUnprocessedPayment(): Promise<any> {
-  //   const payments = await this.find({ status: PaymentStatus.UNPROCESSED });
-
-  //   for (let a = 0; a < payments.length; a++) {
-  //     let buy = null;
-  //     let user = null;
-
-  //     if(payments[a].buy) {
-  //       buy = await payments[a].buy;
-  //       if(buy) {
-  //         user = await buy.user;
-  //         if(user) await user.userData;
-  //       }
-  //     }
-  //   }
+  //   const payments = await this.find({where: { status: PaymentStatus.UNPROCESSED }, relations: ['buy','buy.user','buy.user.userData']});
 
   //   return payments;
   // }
 
   // async getUnprocessedAcceptedPayment(): Promise<any> {
-  //   const payments = await this.find({
+  //   const payments = await this.find({where: {
   //     status: PaymentStatus.UNPROCESSED,
   //     accepted: true,
-  //   });
-
-  //   for (let a = 0; a < payments.length; a++) {
-
-  //     let buy = null;
-  //     let user = null;
-
-  //     if(payments[a].buy) {
-  //       buy = await payments[a].buy;
-  //       if(buy) {
-  //         user = await buy.user;
-  //         if(user) await user.userData;
-  //       }
-  //     }
-  //   }
+  //   }, relations: ['buy','buy.user','buy.user.userData']});
 
   //   return payments;
   // }
