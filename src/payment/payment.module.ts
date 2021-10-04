@@ -8,11 +8,12 @@ import { BuyPaymentRepository } from './models/payment/payment-buy.repository';
 import { SellPaymentRepository } from './models/payment/payment-sell.repository';
 import { PaymentController } from './models/payment/payment.controller';
 import { PaymentService } from './models/payment/payment.service';
+import { ExchangeService } from './services/exchange.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([BuyPaymentRepository, SellPaymentRepository, BatchRepository]), SharedModule],
   controllers: [PaymentController, BatchController],
-  providers: [PaymentService, BatchService],
+  providers: [PaymentService, BatchService, ExchangeService],
   exports: [PaymentService],
 })
 export class PaymentModule {}
