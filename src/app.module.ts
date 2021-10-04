@@ -37,7 +37,6 @@ import { StatisticController } from './statistic/statistic.controller';
 import { StatisticService } from './statistic/statistic.service';
 import { LogController } from './log/log.controller';
 import { LogService } from './log/log.service';
-import { HealthController } from './health/health.controller';
 import { LogRepository } from './log/log.repository';
 import { SellPaymentRepository } from './payment/payment-sell.repository';
 import { BuyPaymentRepository } from './payment/payment-buy.repository';
@@ -144,7 +143,6 @@ import { SharedModule } from './shared/shared.module';
     CountryController,
     FiatController,
     StatisticController,
-    HealthController,
     PaymentController,
     AllDataController,
     LanguageController,
