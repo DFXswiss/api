@@ -11,6 +11,7 @@ export interface UserDataChecks {
   customerId?: string;
   kycFileReference?: string;
   nameCheckRisk: string;
+  activationDate: Date;
 }
 
 export interface CustomerDataDetailed {
@@ -96,23 +97,32 @@ export class UserDataService {
 
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
     const userDataChecks: UserDataChecks[] = [];
-    for (let a = startUserDataId; a <= endUserDataId; a++) {
-      const userData = await this.userDataRepo.findOne({ where: { id: a }, relations: ['bankDatas'] });
-      if (userData.bankDatas.length > 0) {
-        const customer = await this.getCustomer(a);
-        userDataChecks.push({
-          userDataId: a.toString(),
-          customerId: customer.customer.id.toString(),
-          kycFileReference: userData.kycFile?.id.toString() ?? '',
-          nameCheckRisk: customer.checkResult.risks[0].categoryKey,
-        });
-      } else {
-        userDataChecks.push({
-          userDataId: a.toString(),
-          customerId: '',
-          kycFileReference: '',
-          nameCheckRisk: '',
-        });
+    for (let userDataId = startUserDataId; userDataId <= endUserDataId; userDataId++) {
+      const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
+      if (userData) {
+        if (userData.bankDatas.length > 0) {
+          const customer = await this.getCustomer(userDataId);
+          userDataChecks.push({
+            userDataId: userDataId.toString(),
+            customerId: customer.customer.id.toString(),
+            kycFileReference: userData.kycFile?.id.toString() ?? null,
+            nameCheckRisk: customer.checkResult.risks[0].categoryKey,
+            activationDate: new Date(
+              Number.parseInt(customer.customer.activationDate.year),
+              Number.parseInt(customer.customer.activationDate.month) - 1,
+              Number.parseInt(customer.customer.activationDate.day),
+              2,
+            ),
+          });
+        } else {
+          userDataChecks.push({
+            userDataId: userDataId.toString(),
+            customerId: null,
+            kycFileReference: null,
+            nameCheckRisk: null,
+            activationDate: null,
+          });
+        }
       }
     }
     return userDataChecks;
