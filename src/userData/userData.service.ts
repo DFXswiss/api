@@ -97,13 +97,13 @@ export class UserDataService {
 
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
     const userDataChecks: UserDataChecks[] = [];
-    for (let a = startUserDataId; a <= endUserDataId; a++) {
-      const userData = await this.userDataRepo.findOne({ where: { id: a }, relations: ['bankDatas'] });
+    for (let userDataId = startUserDataId; userDataId <= endUserDataId; userDataId++) {
+      const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
       if (userData) {
         if (userData.bankDatas.length > 0) {
-          const customer = await this.getCustomer(a);
+          const customer = await this.getCustomer(userDataId);
           userDataChecks.push({
-            userDataId: a.toString(),
+            userDataId: userDataId.toString(),
             customerId: customer.customer.id.toString(),
             kycFileReference: userData.kycFile?.id.toString() ?? null,
             nameCheckRisk: customer.checkResult.risks[0].categoryKey,
@@ -116,7 +116,7 @@ export class UserDataService {
           });
         } else {
           userDataChecks.push({
-            userDataId: a.toString(),
+            userDataId: userDataId.toString(),
             customerId: null,
             kycFileReference: null,
             nameCheckRisk: null,
