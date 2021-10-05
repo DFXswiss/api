@@ -94,25 +94,27 @@ export class UserDataService {
     return resultNameCheck.risks[0].categoryKey;
   }
 
-  async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
+  async getManyCheckStatus(startUserDataId: string, endUserDataId: string): Promise<UserDataChecks[]> {
     const userDataChecks: UserDataChecks[] = [];
-    for (let a = startUserDataId; a <= endUserDataId; a++) {
+    for (let a = Number.parseInt(startUserDataId); a <= Number.parseInt(endUserDataId); a++) {
       const userData = await this.userDataRepo.findOne({ where: { id: a }, relations: ['bankDatas'] });
-      if (userData.bankDatas.length > 0) {
-        const customer = await this.getCustomer(a);
-        userDataChecks.push({
-          userDataId: a.toString(),
-          customerId: customer.customer.id.toString(),
-          kycFileReference: userData.kycFile?.id.toString() ?? '',
-          nameCheckRisk: customer.checkResult.risks[0].categoryKey,
-        });
-      } else {
-        userDataChecks.push({
-          userDataId: a.toString(),
-          customerId: '',
-          kycFileReference: '',
-          nameCheckRisk: '',
-        });
+      if (userData) {
+        if (userData.bankDatas.length > 0) {
+          const customer = await this.getCustomer(a);
+          userDataChecks.push({
+            userDataId: a.toString(),
+            customerId: customer.customer.id.toString(),
+            kycFileReference: userData.kycFile?.id.toString() ?? '',
+            nameCheckRisk: customer.checkResult.risks[0].categoryKey,
+          });
+        } else {
+          userDataChecks.push({
+            userDataId: a.toString(),
+            customerId: '',
+            kycFileReference: '',
+            nameCheckRisk: '',
+          });
+        }
       }
     }
     return userDataChecks;

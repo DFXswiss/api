@@ -40,8 +40,8 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   getNameChecks(
-    @Query('startUserId') startUserId: number,
-    @Query('endUserId') endUserId: number,
+    @Query('startUserId') startUserId: string,
+    @Query('endUserId') endUserId: string,
   ): Promise<UserDataChecks[]> {
     return this.userDataService.getManyCheckStatus(startUserId, endUserId);
   }
