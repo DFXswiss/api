@@ -8,6 +8,7 @@ import * as chalk from 'chalk';
 import * as appInsights from 'applicationinsights';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { AllExceptionFilter } from './shared/filters/exception.filter';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -23,6 +24,7 @@ async function bootstrap() {
   app.use(cors());
   app.setGlobalPrefix('v1', { exclude: [''] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalFilters(new AllExceptionFilter());
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX-API')
