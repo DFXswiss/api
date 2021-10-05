@@ -110,10 +110,9 @@ export class UserDataService {
               nameCheckRisk: customer.checkResult.risks[0].categoryKey,
               activationDate: customer.customer.activationDate
                 ? new Date(
-                    Number.parseInt(customer.customer.activationDate.year),
-                    Number.parseInt(customer.customer.activationDate.month) - 1,
-                    Number.parseInt(customer.customer.activationDate.day),
-                    2,
+                    +customer.customer.activationDate.year,
+                    +customer.customer.activationDate.month - 1,
+                    +customer.customer.activationDate.day,
                   )
                 : null,
             });
