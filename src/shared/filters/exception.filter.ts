@@ -2,7 +2,7 @@ import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from
 
 @Catch()
 export class AllExceptionFilter implements ExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: { message: string }, host: ArgumentsHost) {
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     if (status >= 500) {
       // log server errors
@@ -12,7 +12,7 @@ export class AllExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
     response.status(status).json({
-      message: exception['message'],
+      message: exception.message,
       statusCode: status,
     });
   }
