@@ -11,6 +11,7 @@ export interface UserDataChecks {
   customerId?: string;
   kycFileReference?: string;
   nameCheckRisk: string;
+  activationDate: Date;
 }
 
 export interface CustomerDataDetailed {
@@ -104,15 +105,22 @@ export class UserDataService {
           userDataChecks.push({
             userDataId: a.toString(),
             customerId: customer.customer.id.toString(),
-            kycFileReference: userData.kycFile?.id.toString() ?? '',
+            kycFileReference: userData.kycFile?.id.toString() ?? null,
             nameCheckRisk: customer.checkResult.risks[0].categoryKey,
+            activationDate: new Date(
+              Number.parseInt(customer.customer.activationDate.year),
+              Number.parseInt(customer.customer.activationDate.month) - 1,
+              Number.parseInt(customer.customer.activationDate.day),
+              2,
+            ),
           });
         } else {
           userDataChecks.push({
             userDataId: a.toString(),
-            customerId: '',
-            kycFileReference: '',
-            nameCheckRisk: '',
+            customerId: null,
+            kycFileReference: null,
+            nameCheckRisk: null,
+            activationDate: null,
           });
         }
       }
