@@ -95,9 +95,9 @@ export class UserDataService {
     return resultNameCheck.risks[0].categoryKey;
   }
 
-  async getManyCheckStatus(startUserDataId: string, endUserDataId: string): Promise<UserDataChecks[]> {
+  async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
     const userDataChecks: UserDataChecks[] = [];
-    for (let a = Number.parseInt(startUserDataId); a <= Number.parseInt(endUserDataId); a++) {
+    for (let a = startUserDataId; a <= endUserDataId; a++) {
       const userData = await this.userDataRepo.findOne({ where: { id: a }, relations: ['bankDatas'] });
       if (userData) {
         if (userData.bankDatas.length > 0) {

@@ -43,7 +43,7 @@ export class UserDataController {
     @Query('startUserId') startUserId: string,
     @Query('endUserId') endUserId: string,
   ): Promise<UserDataChecks[]> {
-    return this.userDataService.getManyCheckStatus(startUserId, endUserId);
+    return this.userDataService.getManyCheckStatus(+startUserId, +endUserId);
   }
 
   @Get(':id')
