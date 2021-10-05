@@ -35,7 +35,7 @@ export class UserDataController {
     return this.userDataService.updateUserData(userData);
   }
 
-  @Get('nameCheck')
+  @Get('kycData')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
