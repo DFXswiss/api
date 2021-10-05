@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, UseGuards, Post } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -6,7 +6,6 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BatchRepository } from './batch.repository';
 import { BatchService } from './batch.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
-import { UpdateBatchDto } from './dto/update-batch.dto';
 
 @ApiTags('batch')
 @Controller('batch')
@@ -30,7 +29,6 @@ export class BatchController {
     schema: { type: 'integer' },
   })
   @ApiExcludeEndpoint()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getBatchPayments(@Param() batchId: any): Promise<any> {
     return this.batchRepo.findOne({ where: { id: batchId.id }, relations: ['payments'] });
@@ -48,7 +46,6 @@ export class BatchController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @UsePipes(ValidationPipe)
   createBatch(@Body() createBatchDto: CreateBatchDto): Promise<any> {
     return this.batchService.createBatch(createBatchDto);
   }
@@ -57,7 +54,6 @@ export class BatchController {
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  // @UsePipes(ValidationPipe)
   // async updateBatch(@Body() batch: UpdateBatchDto) {
   //   return this.batchService.updateBatch(batch);
   // }

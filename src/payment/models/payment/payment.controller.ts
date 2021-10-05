@@ -1,20 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Put,
-  UseGuards,
-  Post,
-  UsePipes,
-  ValidationPipe,
-} from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiExcludeEndpoint,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Put, UseGuards, Post, UsePipes } from '@nestjs/common';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { PaymentService } from './payment.service';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -31,7 +16,6 @@ export class PaymentController {
   // @Get('buy/unprocessed')
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // async getUnprocessedBuyPayment(): Promise<any> {
   //   return this.paymentService.getUnprocessedBuyPayment();
@@ -40,7 +24,6 @@ export class PaymentController {
   // @Get('buy/unprocessed/accepted')
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // async getUnprocessedAcceptedBuyPayment(): Promise<any> {
   //   return this.paymentService.getUnprocessedAcceptedBuyPayment();
@@ -49,7 +32,6 @@ export class PaymentController {
   // @Get('sell/unprocessed')
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // async getUnprocessedSellPayment(): Promise<any> {
   //   return this.paymentService.getUnprocessedSellPayment();
@@ -58,7 +40,6 @@ export class PaymentController {
   // @Get('buy')
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // async getAllBuyPayment(): Promise<any> {
   //   return this.paymentService.getAllBuyPayment();
@@ -67,7 +48,6 @@ export class PaymentController {
   // @Get('sell')
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // async getAllSellPayment(): Promise<any> {
   //   return this.paymentService.getAllSellPayment();
@@ -76,7 +56,6 @@ export class PaymentController {
   // @Post('buy')
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // createBuyPayment(@Body() createSellDto: CreateBuyPaymentDto): Promise<any> {
   //   return this.paymentService.createBuyPayment(createSellDto);
@@ -85,7 +64,6 @@ export class PaymentController {
   // @Post('sell')
   // @ApiBearerAuth()
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // createSellPayment(@Body() createSellDto: CreateSellPaymentDto): Promise<any> {
   //   return this.paymentService.createSellPayment(createSellDto);
@@ -120,7 +98,6 @@ export class PaymentController {
   //   schema: { type: 'integer' },
   // })
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // async getBuyPayment(@Param() id: any): Promise<any> {
   //   return this.paymentService.getBuyPayment(id);
@@ -135,7 +112,6 @@ export class PaymentController {
   //   schema: { type: 'integer' },
   // })
   // @ApiExcludeEndpoint()
-  // @UsePipes(ValidationPipe)
   // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   // async getSellPayment(@Param() id: any): Promise<any> {
   //   return this.paymentService.getSellPayment(id);

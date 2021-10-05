@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Put,
-  UseGuards,
-  Post,
-  UsePipes,
-  ValidationPipe,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -26,12 +16,10 @@ export class CountryController {
   @ApiParam({
     name: 'key',
     required: true,
-    description:
-      'either an integer for the country id or a string for the country symbol',
+    description: 'either an integer for the country id or a string for the country symbol',
     schema: { oneOf: [{ type: 'string' }, { type: 'integer' }] },
   })
   @ApiBearerAuth()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getCountry(@Param() country: any): Promise<any> {
     return this.countryService.getCountry(country);
@@ -48,7 +36,6 @@ export class CountryController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @UsePipes(ValidationPipe)
   createCountry(@Body() createCountryDto: CreateCountryDto): Promise<any> {
     return this.countryService.createCountry(createCountryDto);
   }
@@ -57,7 +44,6 @@ export class CountryController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @UsePipes(ValidationPipe)
   async updateCountryRoute(@Body() country: UpdateCountryDto) {
     return this.countryService.updateCountry(country);
   }

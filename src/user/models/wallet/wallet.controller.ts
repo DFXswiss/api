@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { WalletService } from './wallet.service';
@@ -31,7 +31,6 @@ export class WalletController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createWallet(@Body() createWalletDto: CreateWalletDto): Promise<any> {
     return this.walletService.createWallet(createWalletDto);

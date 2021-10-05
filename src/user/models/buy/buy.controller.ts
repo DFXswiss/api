@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -23,7 +23,6 @@ export class BuyController {
     description: 'Buy ID',
     schema: { type: 'integer' },
   })
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: number): Promise<Buy> {
     return this.buyService.getBuy(id, jwt.id);
@@ -31,7 +30,6 @@ export class BuyController {
 
   @Get()
   @ApiBearerAuth()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllBuyRoute(@GetJwt() jwt: JwtPayload): Promise<Buy[]> {
     return this.buyService.getAllBuy(jwt.id);
@@ -39,7 +37,6 @@ export class BuyController {
 
   @Post()
   @ApiBearerAuth()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   createBuy(@GetJwt() jwt: JwtPayload, @Body() createBuyDto: CreateBuyDto): Promise<Buy> {
     return this.buyService.createBuy(jwt.id, createBuyDto);

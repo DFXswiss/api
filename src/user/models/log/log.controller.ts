@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, UseGuards, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, UseGuards, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { LogService } from './log.service';
@@ -17,7 +17,6 @@ export class LogController {
   @Get('/id/:key')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @UsePipes(ValidationPipe)
   async getLog(@Param() log: any): Promise<any> {
     return this.logService.getLog(log);
   }
@@ -39,7 +38,6 @@ export class LogController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createLog(@Body() createLogDto: CreateLogDto): Promise<any> {
     return this.logService.createLog(createLogDto);
@@ -48,7 +46,6 @@ export class LogController {
   @Post('volume')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createVolumeLog(@Body() createLogDto: CreateVolumeLogDto): Promise<any> {
     return this.logService.createVolumeLog(createLogDto);

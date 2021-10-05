@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
 import { CryptoService } from './services/crypto.service';
-import { TestController } from './test/test.controller';
+import { NodeController } from './node/node.controller';
 
 @Module({
   imports: [SharedModule],
   providers: [CryptoService],
   exports: [CryptoService],
-  controllers: [TestController],
+  controllers: [NodeController],
 })
 export class AinModule {}

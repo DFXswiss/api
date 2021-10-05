@@ -1,20 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Put,
-  UseGuards,
-  Post,
-  UsePipes,
-  ValidationPipe,
-} from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiExcludeEndpoint,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { FiatService } from './fiat.service';
 import { CreateFiatDto } from './dto/create-fiat.dto';
@@ -32,11 +17,9 @@ export class FiatController {
   @ApiParam({
     name: 'key',
     required: true,
-    description:
-      'either an integer for the fiat id or a string for the fiat name',
+    description: 'either an integer for the fiat id or a string for the fiat name',
     schema: { oneOf: [{ type: 'string' }, { type: 'integer' }] },
   })
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getFiat(@Param() fiat: any): Promise<any> {
     return this.fiatService.getFiat(fiat);
@@ -44,7 +27,6 @@ export class FiatController {
 
   @Get()
   @ApiBearerAuth()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllFiat(): Promise<any> {
     return this.fiatService.getAllFiat();
@@ -53,7 +35,6 @@ export class FiatController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   createFiat(@Body() createFiatDto: CreateFiatDto): Promise<any> {
     return this.fiatService.createFiat(createFiatDto);
@@ -63,7 +44,6 @@ export class FiatController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @UsePipes(ValidationPipe)
   async updateFiat(@Body() fiat: UpdateFiatDto) {
     return this.fiatService.updateFiat(fiat);
   }

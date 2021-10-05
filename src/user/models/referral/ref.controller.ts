@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, Res, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Details, UserAgent } from 'express-useragent';
@@ -12,8 +12,7 @@ export class RefController {
 
   @Get()
   @ApiExcludeEndpoint()
-  @UsePipes(ValidationPipe)
-  async createRef(@RealIP() ip: string, @Query('code') ref, @Req() req: Request, @Res() res: Response): Promise<void> {
+  async createRef(@RealIP() ip: string, @Query('code') ref: string, @Req() req: Request, @Res() res: Response): Promise<void> {
     if (ip && ref) {
       await this.refService.addOrUpdate(ip, ref);
 

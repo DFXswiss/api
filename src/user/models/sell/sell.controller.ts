@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { SellService } from './sell.service';
@@ -22,7 +22,6 @@ export class SellController {
     description: 'integer for the sell id',
     schema: { type: 'integer' },
   })
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getSellRoute(@GetJwt() jwt: JwtPayload, @Param() id: any): Promise<any> {
     return this.sellService.getSell(id, jwt.address);
@@ -30,7 +29,6 @@ export class SellController {
 
   @Get()
   @ApiBearerAuth()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllSellRoute(@GetJwt() jwt: JwtPayload): Promise<any> {
     return this.sellService.getAllSell(jwt.address);
@@ -38,7 +36,6 @@ export class SellController {
 
   @Post()
   @ApiBearerAuth()
-  @UsePipes(ValidationPipe)
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<any> {
     return this.sellService.createSell(jwt.id, createSellDto);
