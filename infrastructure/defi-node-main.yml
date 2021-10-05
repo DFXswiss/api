@@ -14,3 +14,4 @@ services:
       -rpcallowip=0.0.0.0/0
       -rpcbind=0.0.0.0
       -rpcauth=dfx-api:5b7790834236ab3ec18e79933dbfae77$90ec34d4954d5c2579f006805dbdf597d316b56434a7bd9d8728dde669dfe94a
+      -spv=0
