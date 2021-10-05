@@ -35,15 +35,15 @@ export class UserDataController {
     return this.userDataService.updateUserData(userData);
   }
 
-  @Get('nameCheck')
+  @Get('kycData')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   getNameChecks(
-    @Query('startUserId') startUserId: number,
-    @Query('endUserId') endUserId: number,
+    @Query('startUserId') startUserId: string,
+    @Query('endUserId') endUserId: string,
   ): Promise<UserDataChecks[]> {
-    return this.userDataService.getManyCheckStatus(startUserId, endUserId);
+    return this.userDataService.getManyCheckStatus(+startUserId, +endUserId);
   }
 
   @Get(':id')
