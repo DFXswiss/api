@@ -65,7 +65,7 @@ export class UserData {
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
 
-  @OneToMany(() => User, (user) => user.userData, { eager: true })
+  @OneToMany(() => User, (user) => user.userData)
   users: User[];
 
   @UpdateDateColumn()
