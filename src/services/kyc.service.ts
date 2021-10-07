@@ -207,7 +207,7 @@ export class KycService {
   }
 
   async getDocuments(id: number): Promise<CheckResult> {
-    return this.callApi<any>(`customers/${this.reference(id)}/documents?`, 'GET');
+    return this.callApi<any>(`customers/${this.reference(id)}/documents`, 'GET');
   }
 
   async checkCustomer(id: number): Promise<CheckResponse> {
@@ -274,7 +274,7 @@ export class KycService {
   }
 
   getUploadDocumentQuery(queryArray: KycDocument[]): string {
-    let resultString: string = '';
+    let resultString = '';
     queryArray.forEach((a) => (resultString += 'documentName=' + a + '&'));
     return resultString.slice(0, -1);
   }
@@ -339,7 +339,26 @@ export class KycService {
       KycDocument.ONLINE_IDENTIFICATION,
       async (userData) => {
         // create KYC file reference and upload
-        const kycFile = await this.kycFileRepo.save({userData: userData});
+        const kycFile = await this.kycFileRepo.save({ userData: userData });
+        userData.kycFile = kycFile;
+
+        //TODO: upload kyc file reference
+        //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
+
+        await this.mailService.sendKycRequestMail(userData);
+        return userData;
+      },
+    );
+  }
+
+  async doVideoIdentCheck(): Promise<void> {
+    await this.doCheck(
+      KycStatus.WAIT_ONLINE_ID,
+      KycStatus.WAIT_MANUAL,
+      KycDocument.VIDEO_IDENTIFICATION,
+      async (userData) => {
+        // create KYC file reference and upload
+        const kycFile = await this.kycFileRepo.save({ userData: userData });
         userData.kycFile = kycFile;
 
         //TODO: upload kyc file reference
