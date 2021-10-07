@@ -137,9 +137,17 @@ interface CustomerInformationResponse {
   lastCheckVerificationId: number;
 }
 
+interface KycError {
+  response?: {
+    status?: number;
+  };
+}
+
 @Injectable()
 export class KycService {
   private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
+
+  private sessionKey = 'session-key-will-be-updated';
 
   constructor(
     private http: HttpService,
@@ -207,7 +215,7 @@ export class KycService {
   }
 
   async getDocuments(id: number): Promise<CheckResult> {
-    return this.callApi<any>(`customers/${this.reference(id)}/documents?`, 'GET');
+    return this.callApi<any>(`customers/${this.reference(id)}/documents`, 'GET');
   }
 
   async checkCustomer(id: number): Promise<CheckResponse> {
@@ -274,7 +282,7 @@ export class KycService {
   }
 
   getUploadDocumentQuery(queryArray: KycDocument[]): string {
-    let resultString: string = '';
+    let resultString = '';
     queryArray.forEach((a) => (resultString += 'documentName=' + a + '&'));
     return resultString.slice(0, -1);
   }
@@ -333,22 +341,27 @@ export class KycService {
   }
 
   async doOnlineIdCheck(): Promise<void> {
-    await this.doCheck(
-      KycStatus.WAIT_ONLINE_ID,
-      KycStatus.WAIT_MANUAL,
-      KycDocument.ONLINE_IDENTIFICATION,
-      async (userData) => {
-        // create KYC file reference and upload
-        const kycFile = await this.kycFileRepo.save({userData: userData});
-        userData.kycFile = kycFile;
-
-        //TODO: upload kyc file reference
-        //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-
-        await this.mailService.sendKycRequestMail(userData);
-        return userData;
-      },
+    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.ONLINE_IDENTIFICATION, (u) =>
+      this.createKycFile(u),
     );
+  }
+
+  async doVideoIdentCheck(): Promise<void> {
+    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u) =>
+      this.createKycFile(u),
+    );
+  }
+
+  private async createKycFile(userData: UserData): Promise<UserData> {
+    // create KYC file reference
+    const kycFile = await this.kycFileRepo.save({ userData: userData });
+    userData.kycFile = kycFile;
+
+    //TODO: upload KYC file reference
+    //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
+
+    await this.mailService.sendKycRequestMail(userData);
+    return userData;
   }
 
   // --- HELPER METHODS --- //
@@ -374,24 +387,34 @@ export class KycService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    try {
-      const sessionKey = await this.getSessionKey();
-      return this.http.request<T>({
-        url: `${this.baseUrl}/${url}`,
-        method: method,
-        data: data,
-        headers: {
-          'Content-Type': contentType ?? 'application/json',
-          'Session-Key': sessionKey,
-        },
+    return this.request<T>(this.sessionKey, url, method, data, contentType)
+      .catch((e: KycError) => {
+        if (e.response?.status === 403) {
+          return this.getNewSessionKey().then((key) => {
+            this.sessionKey = key;
+            return this.request<T>(key, url, method, data, contentType);
+          });
+        }
+        throw e;
+      })
+      .catch((e) => {
+        throw new ServiceUnavailableException(e);
       });
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException(e);
-    }
   }
 
-  private async getSessionKey(): Promise<string> {
+  private async request<T>(sessionKey: string, url: string, method: Method, data?: any, contentType?: any): Promise<T> {
+    return this.http.request<T>({
+      url: `${this.baseUrl}/${url}`,
+      method: method,
+      data: data,
+      headers: {
+        'Content-Type': contentType ?? 'application/json',
+        'Session-Key': sessionKey,
+      },
+    });
+  }
+
+  private async getNewSessionKey(): Promise<string> {
     // get the challenge
     const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
 

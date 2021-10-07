@@ -12,6 +12,7 @@ export interface UserDataChecks {
   kycFileReference?: string;
   nameCheckRisk: string;
   activationDate: Date;
+  kycStatus: KycStatus;
 }
 
 export interface CustomerDataDetailed {
@@ -114,6 +115,7 @@ export class UserDataService {
                   +customer.customer.activationDate.day,
                 )
               : null,
+            kycStatus: userData.kycStatus,
           });
         } else {
           userDataChecks.push({
@@ -122,6 +124,7 @@ export class UserDataService {
             kycFileReference: null,
             nameCheckRisk: null,
             activationDate: null,
+            kycStatus: null,
           });
         }
       }

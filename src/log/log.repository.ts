@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, getManager, Repository } from 'typeorm';
+import { EntityRepository, getManager, Not, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
 import { Log, LogDirection, LogType } from './log.entity';
 import { isString } from 'class-validator';
@@ -146,15 +146,8 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getRefVolume(ref: string): Promise<number> {
+  async getRefVolumeChf(ref: string): Promise<number> {
     const logs = await this.find({ where: { message: ref } });
-    return this.sum(logs, 'fiatInCHF', 2);
-  }
-
-  async getUserVolume(user: User, logDirection: LogDirection): Promise<any> {
-    const logs = await this.find({
-      where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null },
-    });
     return this.sum(logs, 'fiatInCHF', 2);
   }
 
