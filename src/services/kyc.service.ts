@@ -345,17 +345,7 @@ export class KycService {
       KycStatus.WAIT_ONLINE_ID,
       KycStatus.WAIT_MANUAL,
       KycDocument.ONLINE_IDENTIFICATION,
-      async (userData) => {
-        // create KYC file reference and upload
-        const kycFile = await this.kycFileRepo.save({ userData: userData });
-        userData.kycFile = kycFile;
-
-        //TODO: upload kyc file reference
-        //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-
-        await this.mailService.sendKycRequestMail(userData);
-        return userData;
-      },
+      (u) => this.createKycFile(u),
     );
   }
 
@@ -364,18 +354,20 @@ export class KycService {
       KycStatus.WAIT_ONLINE_ID,
       KycStatus.WAIT_MANUAL,
       KycDocument.VIDEO_IDENTIFICATION,
-      async (userData) => {
-        // create KYC file reference and upload
-        const kycFile = await this.kycFileRepo.save({ userData: userData });
-        userData.kycFile = kycFile;
-
-        //TODO: upload kyc file reference
-        //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-
-        await this.mailService.sendKycRequestMail(userData);
-        return userData;
-      },
+      (u) => this.createKycFile(u),
     );
+  }
+
+  private async createKycFile(userData: UserData): Promise<UserData> {
+    // create KYC file reference
+    const kycFile = await this.kycFileRepo.save({ userData: userData });
+    userData.kycFile = kycFile;
+
+    //TODO: upload KYC file reference
+    //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
+
+    await this.mailService.sendKycRequestMail(userData);
+    return userData;
   }
 
   // --- HELPER METHODS --- //
