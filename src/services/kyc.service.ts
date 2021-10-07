@@ -137,9 +137,17 @@ interface CustomerInformationResponse {
   lastCheckVerificationId: number;
 }
 
+interface KycError {
+  response?: {
+    status?: number;
+  };
+}
+
 @Injectable()
 export class KycService {
   private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
+
+  private sessionKey = 'session-key-will-be-updated';
 
   constructor(
     private http: HttpService,
@@ -393,24 +401,34 @@ export class KycService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    try {
-      const sessionKey = await this.getSessionKey();
-      return this.http.request<T>({
-        url: `${this.baseUrl}/${url}`,
-        method: method,
-        data: data,
-        headers: {
-          'Content-Type': contentType ?? 'application/json',
-          'Session-Key': sessionKey,
-        },
+    return this.request<T>(this.sessionKey, url, method, data, contentType)
+      .catch((e: KycError) => {
+        if (e.response?.status === 403) {
+          return this.getNewSessionKey().then((key) => {
+            this.sessionKey = key;
+            return this.request<T>(key, url, method, data, contentType);
+          });
+        }
+        throw e;
+      })
+      .catch((e) => {
+        throw new ServiceUnavailableException(e);
       });
-    } catch (e) {
-      console.log(e);
-      throw new ServiceUnavailableException(e);
-    }
   }
 
-  private async getSessionKey(): Promise<string> {
+  private async request<T>(sessionKey: string, url: string, method: Method, data?: any, contentType?: any): Promise<T> {
+    return this.http.request<T>({
+      url: `${this.baseUrl}/${url}`,
+      method: method,
+      data: data,
+      headers: {
+        'Content-Type': contentType ?? 'application/json',
+        'Session-Key': sessionKey,
+      },
+    });
+  }
+
+  private async getNewSessionKey(): Promise<string> {
     // get the challenge
     const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
 
