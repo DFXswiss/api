@@ -117,17 +117,15 @@ export class LogService {
   async getRefVolume(ref: string): Promise<any> {
     const logsWithoutEur = await this.logRepository.find({ where: { message: ref, fiat: Not(2) } });
     const logsEur = await this.logRepository.find({ where: { message: ref, fiat: 2 } });
-    return (
-      Math.round(
-        (await this.conversionService.convertFiatCurrency(
-          await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 0),
-          'chf',
-          'eur',
-          new Date(),
-        )) +
-          (await this.logRepository.sum(logsEur, 'fiatValue', 0)) * Math.pow(10, 0),
-      ) / Math.pow(10, 0)
+    const volumeWithoutEur = await this.conversionService.convertFiatCurrency(
+      await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
+      'chf',
+      'eur',
+      new Date(),
     );
+    const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
+
+    return this.conversionService.round(volumeWithoutEur + volumeEur, 0);
   }
 
   async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
@@ -146,16 +144,14 @@ export class LogService {
       where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null, fiat: 2 },
     });
 
-   return (
-      Math.round(
-        (await this.conversionService.convertFiatCurrency(
-          await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
-          'chf',
-          'eur',
-          new Date(),
-        )) +
-          (await this.logRepository.sum(logsEur, 'fiatValue', 2)) * Math.pow(10, 0),
-      ) / Math.pow(10, 0)
+    const volumeWithoutEur = await this.conversionService.convertFiatCurrency(
+      await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
+      'chf',
+      'eur',
+      new Date(),
     );
+    const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
+
+    return this.conversionService.round(volumeWithoutEur + volumeEur, 0);
   }
 }

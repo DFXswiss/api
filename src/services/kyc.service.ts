@@ -341,20 +341,14 @@ export class KycService {
   }
 
   async doOnlineIdCheck(): Promise<void> {
-    await this.doCheck(
-      KycStatus.WAIT_ONLINE_ID,
-      KycStatus.WAIT_MANUAL,
-      KycDocument.ONLINE_IDENTIFICATION,
-      (u) => this.createKycFile(u),
+    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.ONLINE_IDENTIFICATION, (u) =>
+      this.createKycFile(u),
     );
   }
 
   async doVideoIdentCheck(): Promise<void> {
-    await this.doCheck(
-      KycStatus.WAIT_ONLINE_ID,
-      KycStatus.WAIT_MANUAL,
-      KycDocument.VIDEO_IDENTIFICATION,
-      (u) => this.createKycFile(u),
+    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u) =>
+      this.createKycFile(u),
     );
   }
 
