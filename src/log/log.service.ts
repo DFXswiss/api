@@ -11,6 +11,8 @@ import { SellPaymentRepository } from 'src/payment/payment-sell.repository';
 import { LogDirection, LogType } from './log.entity';
 import { UserRepository } from 'src/user/user.repository';
 import { User } from 'src/user/user.entity';
+import { Not } from 'typeorm';
+import { ConversionService } from 'src/shared/services/conversion.service';
 
 @Injectable()
 export class LogService {
@@ -23,6 +25,7 @@ export class LogService {
     private sellPaymentRepo: SellPaymentRepository,
     private fiatRepo: FiatRepository,
     private userRepo: UserRepository,
+    private conversionService: ConversionService,
   ) {}
   private readonly baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
@@ -112,7 +115,19 @@ export class LogService {
   }
 
   async getRefVolume(ref: string): Promise<any> {
-    return this.logRepository.getRefVolume(ref);
+    const logsWithoutEur = await this.logRepository.find({ where: { message: ref, fiat: Not(2) } });
+    const logsEur = await this.logRepository.find({ where: { message: ref, fiat: 2 } });
+    return (
+      Math.round(
+        (await this.conversionService.convertFiatCurrency(
+          await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 0),
+          'chf',
+          'eur',
+          new Date(),
+        )) +
+          (await this.logRepository.sum(logsEur, 'fiatValue', 0)) * Math.pow(10, 0),
+      ) / Math.pow(10, 0)
+    );
   }
 
   async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
@@ -124,6 +139,23 @@ export class LogService {
   }
 
   async getUserVolume(user: User, logDirection: LogDirection): Promise<any> {
-    return this.logRepository.getUserVolume(user, logDirection);
+    const logsWithoutEur = await this.logRepository.find({
+      where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null, fiat: Not(2) },
+    });
+    const logsEur = await this.logRepository.find({
+      where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null, fiat: 2 },
+    });
+
+   return (
+      Math.round(
+        (await this.conversionService.convertFiatCurrency(
+          await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
+          'chf',
+          'eur',
+          new Date(),
+        )) +
+          (await this.logRepository.sum(logsEur, 'fiatValue', 2)) * Math.pow(10, 0),
+      ) / Math.pow(10, 0)
+    );
   }
 }
