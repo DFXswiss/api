@@ -108,17 +108,8 @@ export class UserService {
 
   async getUserVolume(user: User): Promise<any> {
     return {
-      buyVolume: await this.conversionService.convertFiatCurrency(
-        await this.logService.getUserVolume(user, LogDirection.fiat2asset),
-        'chf',
-        'eur',
-      ),
-
-      sellVolume: await this.conversionService.convertFiatCurrency(
-        await this.logService.getUserVolume(user, LogDirection.asset2fiat),
-        'chf',
-        'eur',
-      ),
+      buyVolume: await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+      sellVolume: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
     };
   }
 
@@ -132,11 +123,7 @@ export class UserService {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.conversionService.convertFiatCurrency(
-        await this.logService.getRefVolume(user.ref),
-        'chf',
-        'eur',
-      ),
+      refVolume: await this.logService.getRefVolume(user.ref),
     };
   }
 

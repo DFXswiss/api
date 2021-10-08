@@ -12,6 +12,7 @@ export class SchedulerService {
     await this.kycService.doChatBotCheck();
     await this.kycService.doAddressCheck();
     await this.kycService.doOnlineIdCheck();
+    await this.kycService.doVideoIdentCheck();
   }
 
   @Interval(600000)

@@ -74,9 +74,7 @@ export class UserRepository extends Repository<User> {
 
   async getAllUser(): Promise<any> {
     try {
-      let users = await this.find({ relations: ['userData', 'wallet'] });
-
-      return users;
+      return this.find({ relations: ['userData', 'wallet'] });
     } catch (error) {
       throw new ConflictException(error.message);
     }
