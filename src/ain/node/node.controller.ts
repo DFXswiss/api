@@ -20,9 +20,7 @@ export class NodeController {
   }
 
   @Get(':node/info')
-  @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async activeNodeInfo(@Param('node') node: NodeType): Promise<BlockchainInfo> {
     return this.nodeService.getInfo(node);
   }
