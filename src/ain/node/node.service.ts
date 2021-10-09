@@ -35,6 +35,25 @@ export class NodeService {
     return this.callNode(node, (c) => c.blockchain.getBlockchainInfo());
   }
 
+  async checkNodes(): Promise<string[]> {
+    return Promise.all([this.getInfo(NodeType.ACTIVE), this.getInfo(NodeType.PASSIVE)])
+      .then(([activeInfo, passiveInfo]) => {
+        const errors = [];
+        if (activeInfo.blocks < activeInfo.headers - 10) {
+          errors.push(`Active node out of sync (blocks: ${activeInfo.blocks}, headers: ${activeInfo.headers})`);
+        }
+        if (passiveInfo.blocks < passiveInfo.headers - 10) {
+          errors.push(`Passive node out of sync (blocks: ${passiveInfo.blocks}, headers: ${passiveInfo.headers})`);
+        }
+        if (Math.abs(activeInfo.blocks - passiveInfo.blocks) > 10) {
+          errors.push(`Nodes not in sync (active blocks: ${activeInfo.blocks}, passive blocks: ${passiveInfo.blocks})`);
+        }
+
+        return errors;
+      })
+      .catch(() => ['Failed to get node infos']);
+  }
+
   // --- HELPER METHODS --- //
   private client(node: NodeType): ApiClient {
     return node === NodeType.ACTIVE ? this.activeClient : this.passiveClient;

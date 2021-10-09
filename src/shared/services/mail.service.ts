@@ -7,6 +7,7 @@ import { UserData } from 'src/user/models/userData/userData.entity';
 @Injectable()
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
+  private readonly techMail = ' cto@dfx.swiss';
 
   constructor(private mailerService: MailerService, private conversionService: ConversionService) {}
 
@@ -62,6 +63,25 @@ export class MailService {
     await this.mailerService.sendMail({
       to: this.supportMail,
       subject: 'New KYC onboarding',
+      html: htmlBody,
+    });
+  }
+
+  async sendNodeErrorMail(errors: string[]): Promise<void> {
+    const htmlBody = `
+    <h1>Hi DFX Tech Support</h1>
+    <p>there seem to be some problems with the DeFiChain nodes on (TODO: add system here!):</p>
+    <ul>
+      ${errors.map((e) => '<li>' + e + '</li>')}
+    </ul>
+    <p>Best,</p>
+    <p>DFX API</p>
+    <p>© 2021 DFX AG</p>
+    `;
+
+    await this.mailerService.sendMail({
+      to: this.techMail,
+      subject: 'Node Error',
       html: htmlBody,
     });
   }

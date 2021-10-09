@@ -7,7 +7,7 @@ import { NodeService } from './node/node.service';
 @Module({
   imports: [SharedModule],
   providers: [CryptoService, NodeService],
-  exports: [CryptoService],
+  exports: [CryptoService, NodeService],
   controllers: [NodeController],
 })
 export class AinModule {}
