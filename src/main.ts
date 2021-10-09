@@ -9,6 +9,7 @@ import * as appInsights from 'applicationinsights';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionFilter } from './shared/filters/exception.filter';
+import { json, text } from 'express';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -22,6 +23,10 @@ async function bootstrap() {
   app.use(morgan('dev'));
   app.use(helmet());
   app.use(cors());
+
+  app.use('*', json({type: 'application/json'}));
+  app.use('/v1/node/*/rpc', text({type: 'text/plain'}));
+
   app.setGlobalPrefix('v1', { exclude: [''] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new AllExceptionFilter());
