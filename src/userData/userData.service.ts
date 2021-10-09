@@ -49,15 +49,12 @@ export class UserDataService {
   }
 
   async getCustomer(userDataId: number): Promise<CustomerDataDetailed> {
-    try {
-      const customer = await this.kycService.getCustomer(userDataId);
-      const customerInformation = await this.kycService.getCustomerInformation(userDataId);
-      const checkResult = await this.kycService.getCheckResult(customerInformation.lastCheckId);
-      return { customer: customer, checkResult: checkResult };
-    } catch (error) {
-      console.log(error);
-      return null;
-    }
+    const customer = await this.kycService.getCustomer(userDataId);
+    if (!customer) return null;
+
+    const customerInformation = await this.kycService.getCustomerInformation(userDataId);
+    const checkResult = await this.kycService.getCheckResult(customerInformation.lastCheckId);
+    return { customer: customer, checkResult: checkResult };
   }
 
   async doNameCheck(userDataId: number): Promise<string> {
