@@ -49,12 +49,10 @@ export class UserDataService {
   }
 
   async getCustomer(userDataId: number): Promise<CustomerDataDetailed> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
-    if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
-    if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
+    const customer = await this.kycService.getCustomer(userDataId);
+    if (!customer) return null;
 
-    const customer = await this.kycService.getCustomer(userData.id);
-    const customerInformation = await this.kycService.getCustomerInformation(userData.id);
+    const customerInformation = await this.kycService.getCustomerInformation(userDataId);
     const checkResult = await this.kycService.getCheckResult(customerInformation.lastCheckId);
     return { customer: customer, checkResult: checkResult };
   }
@@ -99,36 +97,35 @@ export class UserDataService {
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
     const userDataChecks: UserDataChecks[] = [];
     for (let userDataId = startUserDataId; userDataId <= endUserDataId; userDataId++) {
-      const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
-      if (userData) {
-        if (userData.bankDatas.length > 0) {
-          const customer = await this.getCustomer(userDataId);
-          userDataChecks.push({
-            userDataId: userDataId.toString(),
-            customerId: customer.customer.id.toString(),
-            kycFileReference: userData.kycFile?.id.toString() ?? null,
-            nameCheckRisk: customer.checkResult.risks[0].categoryKey,
-            activationDate: customer.customer.activationDate
-              ? new Date(
-                  +customer.customer.activationDate.year,
-                  +customer.customer.activationDate.month - 1,
-                  +customer.customer.activationDate.day,
-                )
-              : null,
-            kycStatus: userData.kycStatus,
-          });
-        } else {
-          userDataChecks.push({
-            userDataId: userDataId.toString(),
-            customerId: null,
-            kycFileReference: null,
-            nameCheckRisk: null,
-            activationDate: null,
-            kycStatus: null,
-          });
-        }
+      const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+      const customer = await this.getCustomer(userDataId);
+      if (customer) {
+        userDataChecks.push({
+          userDataId: userDataId.toString(),
+          customerId: customer.customer.id.toString(),
+          kycFileReference: userData?.kycFile?.id.toString() ?? null,
+          nameCheckRisk: customer.checkResult.risks[0].categoryKey,
+          activationDate: customer.customer.activationDate
+            ? new Date(
+                +customer.customer.activationDate.year,
+                +customer.customer.activationDate.month - 1,
+                +customer.customer.activationDate.day,
+              )
+            : null,
+          kycStatus: userData?.kycStatus,
+        });
+      } else {
+        userDataChecks.push({
+          userDataId: userDataId.toString(),
+          customerId: null,
+          kycFileReference: userData?.kycFile?.id.toString() ?? null,
+          nameCheckRisk: null,
+          activationDate: null,
+          kycStatus: userData?.kycStatus,
+        });
       }
     }
+
     return userDataChecks;
   }
 
