@@ -68,11 +68,12 @@ export class MailService {
   }
 
   async sendNodeErrorMail(errors: string[]): Promise<void> {
+    const env = process.env.ENVIRONMENT.toUpperCase();
     const htmlBody = `
     <h1>Hi DFX Tech Support</h1>
-    <p>there seem to be some problems with the DeFiChain nodes on (TODO: add system here!):</p>
+    <p>there seem to be some problems with the DeFiChain nodes on ${env}:</p>
     <ul>
-      ${errors.map((e) => '<li>' + e + '</li>')}
+      ${errors.reduce((prev, curr) => prev + '<li>' + curr + '</li>', '')}
     </ul>
     <p>Best,</p>
     <p>DFX API</p>
@@ -81,7 +82,7 @@ export class MailService {
 
     await this.mailerService.sendMail({
       to: this.techMail,
-      subject: 'Node Error',
+      subject: `Node Error (${env})`,
       html: htmlBody,
     });
   }
