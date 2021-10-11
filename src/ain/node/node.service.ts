@@ -16,6 +16,7 @@ export class NodeService {
   private readonly password = '84r_qmy927jeVbHNC6-CPFKAU02B3c9wS8KaR_LKZUM=';
   private readonly activeNodeUrl = 'https://app-dfx-node-dev.azurewebsites.net';
   private readonly passiveNodeUrl = 'https://app-dfx-node-dev-stg.azurewebsites.net';
+  private readonly walletPassword = 'password';
 
   private readonly activeClient: ApiClient;
   private readonly passiveClient: ApiClient;
@@ -23,6 +24,10 @@ export class NodeService {
   constructor(private readonly http: HttpService) {
     this.activeClient = this.createJellyfishClient(this.activeNodeUrl);
     this.passiveClient = this.createJellyfishClient(this.passiveNodeUrl);
+  }
+
+  async unlock(node: NodeType, timeout = 10): Promise<any> {
+    return this.callNode(node, (c) => c.call('walletpassphrase', [this.walletPassword, timeout], 'number'));
   }
 
   async forward(node: NodeType, command: string): Promise<any> {
@@ -33,13 +38,15 @@ export class NodeService {
       .catch((error: HttpError) => error.response?.data);
   }
 
-  async sendCommand(node: NodeType, command: string): Promise<any> {
+  async sendCommand(node: NodeType, command: string, noAutoUnlock = false): Promise<any> {
     const cmdParts = command.split(' ');
 
     const method = cmdParts.shift();
     const params = cmdParts.map((p) => JSON.parse(p));
 
-    return this.callNode(node, (c) => c.call(method, params, 'number')).catch((error: HttpError) => error);
+    return (noAutoUnlock ? Promise.resolve() : this.unlock(node))
+      .then(() => this.callNode(node, (c) => c.call(method, params, 'number')))
+      .catch((error: HttpError) => error);
   }
 
   async getInfo(node: NodeType): Promise<BlockchainInfo> {

@@ -4,6 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { CommandDto } from './dto/command.dto';
 import { NodeService, NodeType } from './node.service';
 
 @Controller('node')
@@ -23,8 +24,8 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async cmd(@Param('node') node: NodeType, @Body() { command }: { command: string }): Promise<any> {
-    return this.nodeService.sendCommand(node, command);
+  async cmd(@Param('node') node: NodeType, @Body() dto: CommandDto): Promise<any> {
+    return this.nodeService.sendCommand(node, dto.command, dto.noAutoUnlock);
   }
 
   @Get(':node/info')
