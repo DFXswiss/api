@@ -15,13 +15,21 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async forwardActive(@Param('node') node: NodeType, @Body() command: string): Promise<any> {
+  async rpc(@Param('node') node: NodeType, @Body() command: string): Promise<any> {
     return this.nodeService.forward(node, command);
+  }
+
+  @Post(':node/cmd')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async cmd(@Param('node') node: NodeType, @Body() { command }: { command: string }): Promise<any> {
+    return this.nodeService.sendCommand(node, command);
   }
 
   @Get(':node/info')
   @ApiExcludeEndpoint()
-  async activeNodeInfo(@Param('node') node: NodeType): Promise<BlockchainInfo> {
+  async nodeInfo(@Param('node') node: NodeType): Promise<BlockchainInfo> {
     return this.nodeService.getInfo(node);
   }
 }

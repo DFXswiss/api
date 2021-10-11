@@ -33,6 +33,15 @@ export class NodeService {
       .catch((error: HttpError) => error.response?.data);
   }
 
+  async sendCommand(node: NodeType, command: string): Promise<any> {
+    const cmdParts = command.split(' ');
+
+    const method = cmdParts.shift();
+    const params = cmdParts.map((p) => JSON.parse(p));
+
+    return this.callNode(node, (c) => c.call(method, params, 'number')).catch((error: HttpError) => error);
+  }
+
   async getInfo(node: NodeType): Promise<BlockchainInfo> {
     return this.callNode(node, (c) => c.blockchain.getBlockchainInfo());
   }
