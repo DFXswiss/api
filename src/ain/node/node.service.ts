@@ -11,23 +11,18 @@ export enum NodeType {
 
 @Injectable()
 export class NodeService {
-  // TODO: environment
-  private readonly user = 'dfx-api';
-  private readonly password = '84r_qmy927jeVbHNC6-CPFKAU02B3c9wS8KaR_LKZUM=';
-  private readonly activeNodeUrl = 'https://app-dfx-node-dev.azurewebsites.net';
-  private readonly passiveNodeUrl = 'https://app-dfx-node-dev-stg.azurewebsites.net';
-  private readonly walletPassword = 'password';
-
   private readonly activeClient: ApiClient;
   private readonly passiveClient: ApiClient;
 
   constructor(private readonly http: HttpService) {
-    this.activeClient = this.createJellyfishClient(this.activeNodeUrl);
-    this.passiveClient = this.createJellyfishClient(this.passiveNodeUrl);
+    this.activeClient = this.createJellyfishClient(process.env.NODE_URL_ACTIVE);
+    this.passiveClient = this.createJellyfishClient(process.env.NODE_URL_PASSIVE);
   }
 
   async unlock(node: NodeType, timeout = 10): Promise<any> {
-    return this.callNode(node, (c) => c.call('walletpassphrase', [this.walletPassword, timeout], 'number'));
+    return this.callNode(node, (c) =>
+      c.call('walletpassphrase', [process.env.NODE_WALLET_PASSWORD, timeout], 'number'),
+    );
   }
 
   async forward(node: NodeType, command: string): Promise<any> {
@@ -78,7 +73,7 @@ export class NodeService {
   }
 
   private nodeUrl(node: NodeType): string {
-    return node === NodeType.ACTIVE ? this.activeNodeUrl : this.passiveNodeUrl;
+    return node === NodeType.ACTIVE ? process.env.NODE_URL_ACTIVE : process.env.NODE_URL_PASSIVE;
   }
 
   private async callNode<T>(node: NodeType, call: (client: ApiClient) => Promise<T>): Promise<T> {
@@ -96,7 +91,7 @@ export class NodeService {
   }
 
   private createHeaders(): { [key: string]: string } {
-    const passwordHash = Buffer.from(`${this.user}:${this.password}`).toString('base64');
+    const passwordHash = Buffer.from(`${process.env.NODE_USER}:${process.env.NODE_PASSWORD}`).toString('base64');
     return { Authorization: 'Basic ' + passwordHash };
   }
 }
