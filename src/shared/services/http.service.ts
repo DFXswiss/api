@@ -1,11 +1,17 @@
-import { HttpService as Http } from "@nestjs/axios";
-import { Injectable } from "@nestjs/common";
-import { AxiosRequestConfig } from "axios";
-import { firstValueFrom } from "rxjs";
+import { HttpService as Http } from '@nestjs/axios';
+import { Injectable } from '@nestjs/common';
+import { AxiosRequestConfig } from 'axios';
+import { firstValueFrom } from 'rxjs';
+
+export interface HttpError {
+  response?: {
+    status?: number;
+    data?: any;
+  };
+}
 
 @Injectable()
 export class HttpService {
-
   constructor(private http: Http) {}
 
   public async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {

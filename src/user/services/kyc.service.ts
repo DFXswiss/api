@@ -7,7 +7,7 @@ import { KycFile } from 'src/user/models/userData/kycFile.entity';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { Repository } from 'typeorm';
-import { HttpService } from '../../shared/services/http.service';
+import { HttpError, HttpService } from '../../shared/services/http.service';
 import { MailService } from '../../shared/services/mail.service';
 
 export enum State {
@@ -135,12 +135,6 @@ interface CustomerInformationResponse {
   lastCheckId: number;
   lastCheckTime: number;
   lastCheckVerificationId: number;
-}
-
-interface KycError {
-  response?: {
-    status?: number;
-  };
 }
 
 @Injectable()
@@ -388,7 +382,7 @@ export class KycService {
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
     return this.request<T>(this.sessionKey, url, method, data, contentType)
-      .catch((e: KycError) => {
+      .catch((e: HttpError) => {
         if (e.response?.status === 403) {
           return this.getNewSessionKey().then((key) => {
             this.sessionKey = key;

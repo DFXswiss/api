@@ -2,7 +2,7 @@ import { ApiClient } from '@defichain/jellyfish-api-core';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { HttpService } from 'src/shared/services/http.service';
+import { HttpError, HttpService } from 'src/shared/services/http.service';
 
 export enum NodeType {
   ACTIVE = 'active',
@@ -26,9 +26,11 @@ export class NodeService {
   }
 
   async forward(node: NodeType, command: string): Promise<any> {
-    return this.http.post(this.nodeUrl(node), command, {
-      headers: { ...this.createHeaders(), 'Content-Type': 'text/plain' },
-    });
+    return this.http
+      .post(this.nodeUrl(node), command, {
+        headers: { ...this.createHeaders(), 'Content-Type': 'text/plain' },
+      })
+      .catch((error: HttpError) => error.response?.data);
   }
 
   async getInfo(node: NodeType): Promise<BlockchainInfo> {
