@@ -190,14 +190,7 @@ export class KycService {
   }
 
   async getCustomer(id: number): Promise<Customer> {
-    try {
-      return await this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
-    } catch (e) {
-      if (e.response.status === 404) {
-        return null;
-      }
-      throw e;
-    }
+    return await this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
   }
 
   async getCustomerInformation(id: number): Promise<CustomerInformationResponse> {
@@ -391,7 +384,11 @@ export class KycService {
         }
         throw e;
       })
-      .catch((e) => {
+      .catch((e: KycError) => {
+        if (e.response?.status === 404) {
+          return null;
+        }
+
         throw new ServiceUnavailableException(e);
       });
   }

@@ -118,7 +118,6 @@ export class LogService {
       await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
       'chf',
       'eur',
-      new Date(),
     );
     const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
 
@@ -145,7 +144,6 @@ export class LogService {
       await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
       'chf',
       'eur',
-      new Date(),
     );
     const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
 
