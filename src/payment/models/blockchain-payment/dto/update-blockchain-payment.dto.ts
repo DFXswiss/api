@@ -1,15 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsEnum,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
-import { BlockchainPaymentType } from '../blockchainPayment.entity';
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { BlockchainPaymentType } from '../blockchain-payment.entity';
 
-export class CreateBlockchainPaymentDto {
+export class UpdateBlockchainPaymentDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsInt()
+  id: number;
 
   @ApiProperty()
   @IsNotEmpty()
