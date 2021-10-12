@@ -16,7 +16,7 @@ export class BankData {
   @Column({ length: 256, nullable: true })
   country: string;
 
-  @Column({ length: 256, nullable: true }) // TODO(david): not nullable
+  @Column({ length: 256 })
   iban: string;
 
   @ManyToOne(() => UserData)
