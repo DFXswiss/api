@@ -17,13 +17,15 @@ export class BankDataService {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
 
-    const bankData = this.bankDataRepo.create({ ...bankDataDto, userData: userData });
+    const bankDataCheck = await this.bankDataRepo.findOne({
+      iban: bankDataDto.iban,
+      location: bankDataDto.location,
+      name: bankDataDto.name,
+    });
 
-    try {
-      await this.bankDataRepo.save(bankData);
-    } catch (e) {
-      throw new ConflictException(e.message);
-    }
+    if (bankDataCheck) throw new ConflictException('Bank data with duplicate key');
+
+    const bankData = this.bankDataRepo.create({ ...bankDataDto, userData: userData });
 
     const customer = await this.kycService.getCustomer(userData.id);
 
@@ -31,6 +33,12 @@ export class BankDataService {
       const newCustomer = await this.kycService.createCustomer(userData.id, bankData.name);
       userData.kycCustomerId = newCustomer.customerId;
       this.userDataRepo.save(userData);
+    }
+
+    try {
+      await this.bankDataRepo.save(bankData);
+    } catch (e) {
+      throw new ConflictException(e.message);
     }
 
     userData.bankDatas.push(bankData);
