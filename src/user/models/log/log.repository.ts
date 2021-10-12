@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { EntityRepository, getManager, Not, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
 import { Log, LogDirection, LogType } from './log.entity';
@@ -9,10 +9,16 @@ import { User, UserStatus } from 'src/user/models/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { UpdateLogDto } from './dto/update-log.dto';
 
 @EntityRepository(Log)
 export class LogRepository extends Repository<Log> {
-  async createLog(createLogDto: CreateLogDto, assetService: AssetService, fiatService: FiatService, mailService?: MailService): Promise<any> {
+  async createLog(
+    createLogDto: CreateLogDto,
+    assetService: AssetService,
+    fiatService: FiatService,
+    mailService?: MailService,
+  ): Promise<any> {
     let fiatObject = null;
     let assetObject = null;
 
@@ -64,7 +70,7 @@ export class LogRepository extends Repository<Log> {
         if (createLogDto.user.mail) {
           const fiat = (await fiatService.getFiat(createLogDto.fiat)).name;
           const asset = (await assetService.getAsset(createLogDto.asset)).name;
-      
+
           await mailService.sendLogMail(createLogDto, 'Transaction has been completed', fiat, asset);
         }
 
@@ -157,5 +163,16 @@ export class LogRepository extends Repository<Log> {
 
   async sum(logs: Log[], value: string, decimals: number): Promise<number> {
     return Math.round(logs.reduce((sum, log) => sum + log[value], 0) * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  }
+
+  async updateLog(updatedLog: UpdateLogDto): Promise<any> {
+    try {
+      const log = await this.findOne({ id: updatedLog.id });
+      if (!log) throw new NotFoundException('No matching user for id found');
+
+      return Object.assign(log, await this.save(updatedLog));
+    } catch (error) {
+      throw new ServiceUnavailableException(error.message);
+    }
   }
 }
