@@ -3,7 +3,7 @@ name: Node DEV CD
 on:
   push:
     branches: [ develop ]
-    paths: [ infrastructure/defi-node-test.yml ]
+    paths: [ infrastructure/docker/defi-node-test.yml ]
   workflow_dispatch:
 
 jobs:

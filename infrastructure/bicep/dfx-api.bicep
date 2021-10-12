@@ -1,9 +1,9 @@
 // --- PARAMETERS --- //
-param location string = 'westeurope'
-param env string = 'dev'
+param location string
+param env string
 
-param dbAllowAllIps bool = false
-param dbAdminLogin string = 'sql-admin'
+param dbAllowAllIps bool
+param dbAdminLogin string
 @secure()
 param dbAdminPassword string
 
@@ -17,10 +17,15 @@ param mailRefreshToken string
 
 @secure()
 param kycPassword string
-param kycPrefix string = 'test_'
+param kycPrefix string
 
 @secure()
 param githubToken string
+
+@secure()
+param nodePassword string
+@secure()
+param nodeWalletPassword string
 
 
 // --- VARIABLES --- //
@@ -33,13 +38,18 @@ var subNetName = 'snet-${compName}-${apiName}-${env}'
 
 var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
 var dbBackupContainerName = 'db-bak'
+var nodeFileShareNameA = 'node-data-a'
+var nodeFileShareNameB = 'node-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
 
-var servicePlanName = 'plan-${compName}-${apiName}-${env}'
+var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
 var apiAppName = 'app-${compName}-${apiName}-${env}'
+
+var nodeServicePlanName = 'plan-${compName}-${nodeName}-${env}'
 var nodeAppName = 'app-${compName}-${nodeName}-${env}'
+
 var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
 
@@ -92,6 +102,7 @@ resource virtualNet 'Microsoft.Network/virtualNetworks@2020-11-01' = {
 
 
 // Storage Account
+// TODO: VNet integration
 resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
   name: storageAccountName
   location: location
@@ -100,7 +111,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
   }
   kind: 'StorageV2'
   properties: {
-    allowBlobPublicAccess: true
+    allowBlobPublicAccess: false
     allowSharedKeyAccess: true
     supportsHttpsTrafficOnly: true
     accessTier: 'Hot'
@@ -109,6 +120,14 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
 
 resource dbBackupContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2021-04-01' = {
   name: '${storageAccount.name}/default/${dbBackupContainerName}'
+}
+
+resource nodeFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeFileShareNameA}'
+}
+
+resource nodeFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeFileShareNameB}'
 }
 
 
@@ -153,15 +172,15 @@ resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
 
 // App Service
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
-  name: servicePlanName
+  name: apiServicePlanName
   location: location
   kind: 'linux'
   properties: {
       reserved: true
   }
   sku: {
-    name: 'S1'
-    tier: 'Standard'
+    name: 'P1v2'
+    tier: 'PremiumV2'
     capacity: 1
   }
 }
@@ -187,6 +206,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
           value: appInsights.properties.InstrumentationKey
+        }
+        {
+          name: 'ENVIRONMENT'
+          value: env
         }
         {
           name: 'SQL_HOST'
@@ -264,82 +287,43 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           name: 'GH_TOKEN'
           value: githubToken
         }
+
+        {
+          name: 'NODE_USER'
+          value: 'dfx-api'
+        }
+        {
+          name: 'NODE_PASSWORD'
+          value: nodePassword
+        }
+        {
+          name: 'NODE_URL_ACTIVE'
+          value: node.outputs.url
+        }
+        {
+          name: 'NODE_URL_PASSIVE'
+          value: node.outputs.urlStg
+        }
+        {
+          name: 'NODE_WALLET_PASSWORD'
+          value: nodeWalletPassword
+        }
       ]
     }
   }
 }
 
-resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
-  name: nodeAppName
-  location: location
-  kind: 'app,linux,container'
-  properties: {
-    serverFarmId: appServicePlan.id
-    httpsOnly: true
-
-    siteConfig: {
-      alwaysOn: true
-      linuxFxVersion: 'COMPOSE|'
-      httpLoggingEnabled: true
-      logsDirectorySizeLimit: 100
-      ipSecurityRestrictions: [
-        {
-          vnetSubnetResourceId: virtualNet.properties.subnets[0].id
-          action: 'Allow'
-          tag: 'Default'
-          priority: 100
-          name: 'Allow VNet'
-          description: 'Allow all from VNet'
-        }
-      ]
-      appSettings: [
-        {
-          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
-          value: 'true'
-        }
-        {
-          name: 'WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG'
-          value: '1'
-        }
-      ]
-    }
-  }
-}
-resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = {
-  parent: nodeAppService
-  name: 'stg'
-  location: location
-  kind: 'app,linux,container'
-  properties: {
-    serverFarmId: appServicePlan.id
-    httpsOnly: true
-
-    siteConfig: {
-      alwaysOn: true
-      linuxFxVersion: 'COMPOSE|'
-      httpLoggingEnabled: true
-      logsDirectorySizeLimit: 100
-      ipSecurityRestrictions: [
-        {
-          vnetSubnetResourceId: virtualNet.properties.subnets[0].id
-          action: 'Allow'
-          tag: 'Default'
-          priority: 100
-          name: 'Allow VNet'
-          description: 'Allow all from VNet'
-        }
-      ]
-      appSettings: [
-        {
-          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
-          value: 'true'
-        }
-        {
-          name: 'WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG'
-          value: '1'
-        }
-      ]
-    }
+module node 'defi-node.bicep' = {
+  name: '${env}-nodes'
+  params: {
+    location: location
+    servicePlanName: nodeServicePlanName
+    appName: nodeAppName
+    subnetId: virtualNet.properties.subnets[0].id
+    storageAccountName: storageAccountName
+    storageAccountId: storageAccount.id
+    fileShareNameA: nodeFileShareNameA
+    fileShareNameB: nodeFileShareNameB
   }
 }
 
