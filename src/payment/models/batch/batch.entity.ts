@@ -1,3 +1,4 @@
+import { BlockchainPayment } from 'src/payment/models/blockchain-payment/blockchain-payment.entity';
 import { Payment } from 'src/payment/models/payment/payment.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
 
@@ -6,7 +7,7 @@ export class Batch {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 256, unique: true })
+  @Column({ length: 256, unique: true })
   name: string;
 
   @Column({ type: 'float', nullable: true })
@@ -15,11 +16,11 @@ export class Batch {
   @Column({ type: 'float', nullable: true })
   balanceAfter: number;
 
-  //TODO payment über richtige Spalte referenzieren
-  @OneToMany(() => Payment, (payment) => payment.asset)
+  @OneToMany(() => Payment, (payment) => payment.batch)
   payments: Payment[];
 
-  //TODO blockchainPayment referenzieren
+  @OneToMany(() => BlockchainPayment, (blockchainPayment) => blockchainPayment.batch)
+  blockchainPayments: BlockchainPayment[];
 
   @UpdateDateColumn()
   updated: Date;

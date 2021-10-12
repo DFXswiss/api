@@ -12,6 +12,7 @@ import {
   ManyToOne,
   OneToMany,
 } from 'typeorm';
+import { Batch } from '../batch/batch.entity';
 
 export enum PaymentType {
   BUY = 'Buy',
@@ -21,13 +22,13 @@ export enum PaymentType {
 export enum PaymentError {
   NA = 'NA',
   IBAN = 'IBAN',
-  BANKUSAGE = 'Bankusage',
+  BANK_USAGE = 'BankUsage',
   FIAT = 'Fiat',
   ASSET = 'Asset',
   KYC = 'KYC',
-  ACCOUNTCHECK = 'Account-check',
-  NAMECHECK = 'Name-check',
-  USERDATA = 'UserData',
+  ACCOUNT_CHECK = 'AccountCheck',
+  NAME_CHECK = 'NameCheck',
+  USER_DATA = 'UserData',
 }
 
 export enum PaymentStatus {
@@ -75,7 +76,8 @@ export abstract class Payment {
   @OneToMany(() => Log, (log) => log.payment)
   logs: Log[];
 
-  //TODO Batch referenzieren
+  @ManyToOne(() => Batch, (batch) => batch.payments)
+  batch: Batch;
 
   @UpdateDateColumn()
   updated: Date;

@@ -384,7 +384,7 @@ export class KycService {
         }
         throw e;
       })
-      .catch((e: KycError) => {
+      .catch((e: HttpError) => {
         if (e.response?.status === 404) {
           return null;
         }
