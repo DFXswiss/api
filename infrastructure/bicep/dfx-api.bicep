@@ -50,6 +50,7 @@ var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
 
 var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
 var apiAppName = 'app-${compName}-${apiName}-${env}'
+var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
 var nodeInpServicePlanName = 'plan-${compName}-${nodeName}-inp-${env}'
 var nodeInpAppName = 'app-${compName}-${nodeName}-inp-${env}'
@@ -58,8 +59,29 @@ var nodeDexAppName = 'app-${compName}-${nodeName}-dex-${env}'
 var nodeOutServicePlanName = 'plan-${compName}-${nodeName}-out-${env}'
 var nodeOutAppName = 'app-${compName}-${nodeName}-out-${env}'
 
-var appInsightsName = 'appi-${compName}-${apiName}-${env}'
-
+var nodeProps = [
+  {
+    name: 'nodes-input-${env}'
+    servicePlanName: nodeInpServicePlanName
+    appName: nodeInpAppName
+    fileShareNameA: nodeInpFileShareNameA
+    fileShareNameB: nodeInpFileShareNameB
+  }
+  {
+    name: 'nodes-dex-${env}'
+    servicePlanName: nodeDexServicePlanName
+    appName: nodeDexAppName
+    fileShareNameA: nodeDexFileShareNameA
+    fileShareNameB: nodeDexFileShareNameB
+  }
+  {
+    name: 'nodes-output-${env}'
+    servicePlanName: nodeOutServicePlanName
+    appName: nodeOutAppName
+    fileShareNameA: nodeOutFileShareNameA
+    fileShareNameB: nodeOutFileShareNameB
+  }
+]
 
 // --- RESOURCES --- //
 
@@ -326,27 +348,27 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'NODE_INP_URL_ACTIVE'
-          value: nodeInp.outputs.url
+          value: nodes[0].outputs.url
         }
         {
           name: 'NODE_INP_URL_PASSIVE'
-          value: nodeInp.outputs.urlStg
+          value: nodes[0].outputs.urlStg
         }
         {
           name: 'NODE_DEX_URL_ACTIVE'
-          value: nodeDex.outputs.url
+          value: nodes[1].outputs.url
         }
         {
           name: 'NODE_DEX_URL_PASSIVE'
-          value: nodeDex.outputs.urlStg
+          value: nodes[1].outputs.urlStg
         }
         {
           name: 'NODE_OUT_URL_ACTIVE'
-          value: nodeOut.outputs.url
+          value: nodes[2].outputs.url
         }
         {
           name: 'NODE_OUT_URL_PASSIVE'
-          value: nodeOut.outputs.urlStg
+          value: nodes[2].outputs.urlStg
         }
       ]
     }
@@ -367,44 +389,16 @@ resource appInsights 'microsoft.insights/components@2020-02-02-preview' = {
 
 
 // DeFi Nodes
-module nodeInp 'defi-node.bicep' = {
-  name: 'nodes-input-${env}'
+module nodes 'defi-node.bicep' = [for node in nodeProps: {
+  name: node.name
   params: {
     location: location
-    servicePlanName: nodeInpServicePlanName
-    appName: nodeInpAppName
+    servicePlanName: node.servicePlanName
+    appName: node.appName
     subnetId: virtualNet.properties.subnets[0].id
     storageAccountName: storageAccountName
     storageAccountId: storageAccount.id
-    fileShareNameA: nodeInpFileShareNameA
-    fileShareNameB: nodeInpFileShareNameB
+    fileShareNameA: node.fileShareNameA
+    fileShareNameB: node.fileShareNameB
   }
-}
-
-module nodeDex 'defi-node.bicep' = {
-  name: 'nodes-dex-${env}'
-  params: {
-    location: location
-    servicePlanName: nodeDexServicePlanName
-    appName: nodeDexAppName
-    subnetId: virtualNet.properties.subnets[0].id
-    storageAccountName: storageAccountName
-    storageAccountId: storageAccount.id
-    fileShareNameA: nodeDexFileShareNameA
-    fileShareNameB: nodeDexFileShareNameB
-  }
-}
-
-module nodeOut 'defi-node.bicep' = {
-  name: 'nodes-output-${env}'
-  params: {
-    location: location
-    servicePlanName: nodeOutServicePlanName
-    appName: nodeOutAppName
-    subnetId: virtualNet.properties.subnets[0].id
-    storageAccountName: storageAccountName
-    storageAccountId: storageAccount.id
-    fileShareNameA: nodeOutFileShareNameA
-    fileShareNameB: nodeOutFileShareNameB
-  }
-}
+}]
