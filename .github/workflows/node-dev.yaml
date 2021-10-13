@@ -24,7 +24,9 @@ jobs:
         with:
           azcliversion: 2.0.72
           inlineScript: |
-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/defi-node-test.yml --slot stg
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-inp-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/defi-node-test.yml --slot stg
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dex-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/defi-node-test.yml --slot stg
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-out-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/defi-node-test.yml --slot stg
       
       - name: Logout
         run: |
