@@ -60,7 +60,6 @@ resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
         }
       }
       appSettings: [
-        // TODO: remove?
         {
           name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
           value: 'true'
