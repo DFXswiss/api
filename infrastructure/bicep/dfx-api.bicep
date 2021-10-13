@@ -38,8 +38,12 @@ var subNetName = 'snet-${compName}-${apiName}-${env}'
 
 var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
 var dbBackupContainerName = 'db-bak'
-var nodeFileShareNameA = 'node-data-a'
-var nodeFileShareNameB = 'node-data-b'
+var nodeInpFileShareNameA = 'node-inp-data-a'
+var nodeInpFileShareNameB = 'node-inp-data-b'
+var nodeDexFileShareNameA = 'node-dex-data-a'
+var nodeDexFileShareNameB = 'node-dex-data-b'
+var nodeOutFileShareNameA = 'node-out-data-a'
+var nodeOutFileShareNameB = 'node-out-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -47,8 +51,12 @@ var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
 var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
 var apiAppName = 'app-${compName}-${apiName}-${env}'
 
-var nodeServicePlanName = 'plan-${compName}-${nodeName}-${env}'
-var nodeAppName = 'app-${compName}-${nodeName}-${env}'
+var nodeInpServicePlanName = 'plan-${compName}-${nodeName}-inp-${env}'
+var nodeInpAppName = 'app-${compName}-${nodeName}-inp-${env}'
+var nodeDexServicePlanName = 'plan-${compName}-${nodeName}-dex-${env}'
+var nodeDexAppName = 'app-${compName}-${nodeName}-dex-${env}'
+var nodeOutServicePlanName = 'plan-${compName}-${nodeName}-out-${env}'
+var nodeOutAppName = 'app-${compName}-${nodeName}-out-${env}'
 
 var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
@@ -122,12 +130,28 @@ resource dbBackupContainer 'Microsoft.Storage/storageAccounts/blobServices/conta
   name: '${storageAccount.name}/default/${dbBackupContainerName}'
 }
 
-resource nodeFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeFileShareNameA}'
+resource nodeInpFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeInpFileShareNameA}'
 }
 
-resource nodeFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeFileShareNameB}'
+resource nodeInpFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeInpFileShareNameB}'
+}
+
+resource nodeDexFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeDexFileShareNameA}'
+}
+
+resource nodeDexFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeDexFileShareNameB}'
+}
+
+resource nodeOutFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeOutFileShareNameA}'
+}
+
+resource nodeOutFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeOutFileShareNameB}'
 }
 
 
@@ -170,7 +194,7 @@ resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
 }
 
 
-// App Service
+// API App Service
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
   name: apiServicePlanName
   location: location
@@ -297,33 +321,35 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: nodePassword
         }
         {
-          name: 'NODE_URL_ACTIVE'
-          value: node.outputs.url
-        }
-        {
-          name: 'NODE_URL_PASSIVE'
-          value: node.outputs.urlStg
-        }
-        {
           name: 'NODE_WALLET_PASSWORD'
           value: nodeWalletPassword
         }
+        {
+          name: 'NODE_INP_URL_ACTIVE'
+          value: nodeInp.outputs.url
+        }
+        {
+          name: 'NODE_INP_URL_PASSIVE'
+          value: nodeInp.outputs.urlStg
+        }
+        {
+          name: 'NODE_DEX_URL_ACTIVE'
+          value: nodeDex.outputs.url
+        }
+        {
+          name: 'NODE_DEX_URL_PASSIVE'
+          value: nodeDex.outputs.urlStg
+        }
+        {
+          name: 'NODE_OUT_URL_ACTIVE'
+          value: nodeOut.outputs.url
+        }
+        {
+          name: 'NODE_OUT_URL_PASSIVE'
+          value: nodeOut.outputs.urlStg
+        }
       ]
     }
-  }
-}
-
-module node 'defi-node.bicep' = {
-  name: '${env}-nodes'
-  params: {
-    location: location
-    servicePlanName: nodeServicePlanName
-    appName: nodeAppName
-    subnetId: virtualNet.properties.subnets[0].id
-    storageAccountName: storageAccountName
-    storageAccountId: storageAccount.id
-    fileShareNameA: nodeFileShareNameA
-    fileShareNameB: nodeFileShareNameB
   }
 }
 
@@ -336,5 +362,49 @@ resource appInsights 'microsoft.insights/components@2020-02-02-preview' = {
     IngestionMode: 'ApplicationInsights'
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
+  }
+}
+
+
+// DeFi Nodes
+module nodeInp 'defi-node.bicep' = {
+  name: 'nodes-input-${env}'
+  params: {
+    location: location
+    servicePlanName: nodeInpServicePlanName
+    appName: nodeInpAppName
+    subnetId: virtualNet.properties.subnets[0].id
+    storageAccountName: storageAccountName
+    storageAccountId: storageAccount.id
+    fileShareNameA: nodeInpFileShareNameA
+    fileShareNameB: nodeInpFileShareNameB
+  }
+}
+
+module nodeDex 'defi-node.bicep' = {
+  name: 'nodes-dex-${env}'
+  params: {
+    location: location
+    servicePlanName: nodeDexServicePlanName
+    appName: nodeDexAppName
+    subnetId: virtualNet.properties.subnets[0].id
+    storageAccountName: storageAccountName
+    storageAccountId: storageAccount.id
+    fileShareNameA: nodeDexFileShareNameA
+    fileShareNameB: nodeDexFileShareNameB
+  }
+}
+
+module nodeOut 'defi-node.bicep' = {
+  name: 'nodes-output-${env}'
+  params: {
+    location: location
+    servicePlanName: nodeOutServicePlanName
+    appName: nodeOutAppName
+    subnetId: virtualNet.properties.subnets[0].id
+    storageAccountName: storageAccountName
+    storageAccountId: storageAccount.id
+    fileShareNameA: nodeOutFileShareNameA
+    fileShareNameB: nodeOutFileShareNameB
   }
 }
