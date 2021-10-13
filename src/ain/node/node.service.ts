@@ -5,80 +5,124 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 
 export enum NodeType {
+  INPUT = 'inp',
+  DEX = 'dex',
+  OUTPUT = 'out',
+}
+
+export enum NodeMode {
   ACTIVE = 'active',
   PASSIVE = 'passive',
 }
 
+export enum NodeCommand {
+  UNLOCK = 'walletpassphrase',
+}
+
 @Injectable()
 export class NodeService {
-  private readonly activeClient: ApiClient;
-  private readonly passiveClient: ApiClient;
+  private readonly urls: Record<NodeType, Record<NodeMode, string>>;
+  private readonly clients: Record<NodeType, Record<NodeMode, ApiClient>>;
 
   constructor(private readonly http: HttpService) {
-    this.activeClient = this.createJellyfishClient(process.env.NODE_URL_ACTIVE);
-    this.passiveClient = this.createJellyfishClient(process.env.NODE_URL_PASSIVE);
+    this.urls = {
+      [NodeType.INPUT]: {
+        [NodeMode.ACTIVE]: process.env.NODE_INP_URL_ACTIVE,
+        [NodeMode.PASSIVE]: process.env.NODE_INP_URL_PASSIVE,
+      },
+      [NodeType.DEX]: {
+        [NodeMode.ACTIVE]: process.env.NODE_DEX_URL_ACTIVE,
+        [NodeMode.PASSIVE]: process.env.NODE_DEX_URL_PASSIVE,
+      },
+      [NodeType.OUTPUT]: {
+        [NodeMode.ACTIVE]: process.env.NODE_OUT_URL_ACTIVE,
+        [NodeMode.PASSIVE]: process.env.NODE_OUT_URL_PASSIVE,
+      },
+    };
+
+    this.clients = {
+      [NodeType.INPUT]: {
+        [NodeMode.ACTIVE]: this.createJellyfishClient(NodeType.INPUT, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createJellyfishClient(NodeType.INPUT, NodeMode.PASSIVE),
+      },
+      [NodeType.DEX]: {
+        [NodeMode.ACTIVE]: this.createJellyfishClient(NodeType.DEX, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createJellyfishClient(NodeType.DEX, NodeMode.PASSIVE),
+      },
+      [NodeType.OUTPUT]: {
+        [NodeMode.ACTIVE]: this.createJellyfishClient(NodeType.OUTPUT, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createJellyfishClient(NodeType.OUTPUT, NodeMode.PASSIVE),
+      },
+    };
   }
 
-  async unlock(node: NodeType, timeout = 10): Promise<any> {
-    return this.callNode(node, (c) =>
-      c.call('walletpassphrase', [process.env.NODE_WALLET_PASSWORD, timeout], 'number'),
+  async unlock(node: NodeType, mode: NodeMode, timeout = 10): Promise<any> {
+    return this.callNode(node, mode, (c) =>
+      c.call(NodeCommand.UNLOCK, [process.env.NODE_WALLET_PASSWORD, timeout], 'number'),
     );
   }
 
-  async forward(node: NodeType, command: string): Promise<any> {
+  async forward(node: NodeType, mode: NodeMode, command: string): Promise<any> {
     return this.http
-      .post(this.nodeUrl(node), command, {
+      .post(this.urls[node][mode], command, {
         headers: { ...this.createHeaders(), 'Content-Type': 'text/plain' },
       })
       .catch((error: HttpError) => error.response?.data);
   }
 
-  async sendCommand(node: NodeType, command: string, noAutoUnlock = false): Promise<any> {
+  async sendCommand(node: NodeType, mode: NodeMode, command: string, noAutoUnlock = false): Promise<any> {
     const cmdParts = command.split(' ');
 
     const method = cmdParts.shift();
     const params = cmdParts.map((p) => JSON.parse(p));
 
-    return (noAutoUnlock ? Promise.resolve() : this.unlock(node))
-      .then(() => this.callNode(node, (c) => c.call(method, params, 'number')))
+    return (noAutoUnlock ? Promise.resolve() : this.unlock(node, mode))
+      .then(() => this.callNode(node, mode, (c) => c.call(method, params, 'number')))
       .catch((error: HttpError) => error);
   }
 
-  async getInfo(node: NodeType): Promise<BlockchainInfo> {
-    return this.callNode(node, (c) => c.blockchain.getBlockchainInfo());
+  async getInfo(node: NodeType, mode: NodeMode): Promise<BlockchainInfo> {
+    return this.callNode(node, mode, (c) => c.blockchain.getBlockchainInfo());
   }
 
   async checkNodes(): Promise<string[]> {
-    return Promise.all([this.getInfo(NodeType.ACTIVE), this.getInfo(NodeType.PASSIVE)])
+    return Promise.all([
+      this.checkNode(NodeType.INPUT),
+      this.checkNode(NodeType.DEX),
+      this.checkNode(NodeType.OUTPUT),
+    ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
+  }
+
+  // --- HELPER METHODS --- //
+  private async checkNode(node: NodeType): Promise<string[]> {
+    const nodeName = node.toUpperCase();
+    return Promise.all([this.getInfo(node, NodeMode.ACTIVE), this.getInfo(node, NodeMode.PASSIVE)])
       .then(([activeInfo, passiveInfo]) => {
         const errors = [];
         if (activeInfo.blocks < activeInfo.headers - 10) {
-          errors.push(`Active node out of sync (blocks: ${activeInfo.blocks}, headers: ${activeInfo.headers})`);
+          errors.push(
+            `${nodeName} active node out of sync (blocks: ${activeInfo.blocks}, headers: ${activeInfo.headers})`,
+          );
         }
         if (passiveInfo.blocks < passiveInfo.headers - 10) {
-          errors.push(`Passive node out of sync (blocks: ${passiveInfo.blocks}, headers: ${passiveInfo.headers})`);
+          errors.push(
+            `${nodeName} passive node out of sync (blocks: ${passiveInfo.blocks}, headers: ${passiveInfo.headers})`,
+          );
         }
         if (Math.abs(activeInfo.blocks - passiveInfo.blocks) > 10) {
-          errors.push(`Nodes not in sync (active blocks: ${activeInfo.blocks}, passive blocks: ${passiveInfo.blocks})`);
+          errors.push(
+            `${nodeName} nodes not in sync (active blocks: ${activeInfo.blocks}, passive blocks: ${passiveInfo.blocks})`,
+          );
         }
 
         return errors;
       })
-      .catch(() => ['Failed to get node infos']);
+      .catch(() => [`Failed to get ${nodeName} node infos`]);
   }
 
-  // --- HELPER METHODS --- //
-  private client(node: NodeType): ApiClient {
-    return node === NodeType.ACTIVE ? this.activeClient : this.passiveClient;
-  }
-
-  private nodeUrl(node: NodeType): string {
-    return node === NodeType.ACTIVE ? process.env.NODE_URL_ACTIVE : process.env.NODE_URL_PASSIVE;
-  }
-
-  private async callNode<T>(node: NodeType, call: (client: ApiClient) => Promise<T>): Promise<T> {
+  private async callNode<T>(node: NodeType, mode: NodeMode, call: (client: ApiClient) => Promise<T>): Promise<T> {
     try {
-      return await call(this.client(node));
+      return await call(this.clients[node][mode]);
     } catch (e) {
       // TODO: retries?
       console.log(e);
@@ -86,8 +130,8 @@ export class NodeService {
     }
   }
 
-  private createJellyfishClient(url: string): ApiClient {
-    return new JsonRpcClient(url, { headers: this.createHeaders() });
+  private createJellyfishClient(node: NodeType, mode: NodeMode): ApiClient {
+    return new JsonRpcClient(this.urls[node][mode], { headers: this.createHeaders() });
   }
 
   private createHeaders(): { [key: string]: string } {
