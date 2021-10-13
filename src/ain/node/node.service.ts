@@ -95,29 +95,33 @@ export class NodeService {
 
   // --- HELPER METHODS --- //
   private async checkNode(node: NodeType): Promise<string[]> {
-    const nodeName = node.toUpperCase();
-    return Promise.all([this.getInfo(node, NodeMode.ACTIVE), this.getInfo(node, NodeMode.PASSIVE)])
-      .then(([activeInfo, passiveInfo]) => {
-        const errors = [];
-        if (activeInfo.blocks < activeInfo.headers - 10) {
-          errors.push(
-            `${nodeName} active node out of sync (blocks: ${activeInfo.blocks}, headers: ${activeInfo.headers})`,
-          );
-        }
-        if (passiveInfo.blocks < passiveInfo.headers - 10) {
-          errors.push(
-            `${nodeName} passive node out of sync (blocks: ${passiveInfo.blocks}, headers: ${passiveInfo.headers})`,
-          );
-        }
-        if (Math.abs(activeInfo.blocks - passiveInfo.blocks) > 10) {
-          errors.push(
-            `${nodeName} nodes not in sync (active blocks: ${activeInfo.blocks}, passive blocks: ${passiveInfo.blocks})`,
-          );
-        }
+    return Promise.all([this.getNodeErrors(node, NodeMode.ACTIVE), this.getNodeErrors(node, NodeMode.PASSIVE)]).then(
+      ([{ errors: activeErrors, info: activeInfo }, { errors: passiveErrors, info: passiveInfo }]) => {
+        const errors = activeErrors.concat(passiveErrors);
 
+        if (activeInfo && passiveInfo && Math.abs(activeInfo.headers - passiveInfo.headers) > 10) {
+          errors.push(
+            `${node} nodes not in sync (active headers: ${activeInfo.headers}, passive headers: ${passiveInfo.headers})`,
+          );
+        }
         return errors;
-      })
-      .catch(() => [`Failed to get ${nodeName} node infos`]);
+      },
+    );
+  }
+
+  private async getNodeErrors(
+    node: NodeType,
+    mode: NodeMode,
+  ): Promise<{ errors: string[]; info: BlockchainInfo | undefined }> {
+    return this.getInfo(node, mode)
+      .then((info) => ({
+        errors:
+          info.blocks < info.headers - 10
+            ? [`${node} ${mode} node out of sync (blocks: ${info.blocks}, headers: ${info.headers})`]
+            : [],
+        info,
+      }))
+      .catch(() => ({ errors: [`Failed to get ${node} ${mode} node infos`], info: undefined }));
   }
 
   private async callNode<T>(node: NodeType, mode: NodeMode, call: (client: ApiClient) => Promise<T>): Promise<T> {
