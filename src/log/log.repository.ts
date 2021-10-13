@@ -98,7 +98,7 @@ export class LogRepository extends Repository<Log> {
 
   async getAllLog(): Promise<any> {
     try {
-      return await this.find();
+      return await this.find({ relations: ['user'] });
     } catch (error) {
       throw new ConflictException(error.message);
     }
