@@ -13,7 +13,9 @@ import { json, text } from 'express';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
-    appInsights.setup().setAutoCollectConsole(true, true);
+    appInsights.setup()
+      .setAutoDependencyCorrelation(true)
+      .setAutoCollectConsole(true, true);
     appInsights.defaultClient.context.tags[appInsights.defaultClient.context.keys.cloudRole] = 'dfx-api';
     appInsights.start();
   }
