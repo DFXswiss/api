@@ -1,13 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Length,
-  IsNumber,
-  IsEnum,
-} from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Length, IsNumber, IsEnum } from 'class-validator';
 import { LogDirection, LogStatus } from '../log.entity';
 
 export class UpdateLogDto {
@@ -40,6 +32,11 @@ export class UpdateLogDto {
   @IsOptional()
   @IsNumber()
   fiatValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  btcValue: number;
 
   @ApiProperty()
   @IsOptional()

@@ -5,6 +5,7 @@ import { KycStatus, UserData } from './userData.entity';
 import { CheckResult, Customer, KycService } from 'src/user/services/kyc.service';
 import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
+import { MailService } from 'src/shared/services/mail.service';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -27,6 +28,7 @@ export class UserDataService {
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly kycService: KycService,
+    private readonly mailService: MailService,
   ) {}
 
   async getUserData(name: string, location: string): Promise<UserData> {
@@ -135,8 +137,7 @@ export class UserDataService {
 
     if (userData?.kycStatus === KycStatus.NA) {
       // update customer
-      const customer = await this.kycService.updateCustomer(userData.id, user);
-      userData.kycCustomerId = customer.customerId;
+      await this.kycService.updateCustomer(userData.id, user);
 
       // start onboarding
       const chatBotData = await this.kycService.initiateOnboardingChatBot(userData.id);
@@ -144,6 +145,9 @@ export class UserDataService {
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);
       return true;
+    } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.WAIT_MANUAL) {
+      const customer = await this.kycService.getCustomer(userData.id);
+      await this.mailService.sendLimitSupportMail(userData, customer.id);
     } else {
       return false;
     }

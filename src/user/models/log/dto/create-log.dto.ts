@@ -46,6 +46,11 @@ export class CreateLogDto {
 
   @ApiProperty()
   @IsOptional()
+  @IsNumber()
+  btcValue: number;
+
+  @ApiProperty()
+  @IsOptional()
   asset: any;
 
   @ApiProperty()

@@ -76,6 +76,10 @@ export class CreateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  currency: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   // TODO: user phonenumber decorator instead of string --> Figure it out
   // @IsPhoneNumber()

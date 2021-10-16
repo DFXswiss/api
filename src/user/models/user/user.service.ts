@@ -5,7 +5,6 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { KycStatus, UiKycStatus } from 'src/user/models/userData/userData.entity';
 import { UserDataService } from 'src/user/models/userData/userData.service';
 import { LogDirection } from 'src/user/models/log/log.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
@@ -22,7 +21,7 @@ export class UserService {
     private conversionService: ConversionService,
     private logService: LogService,
     private countryService: CountryService,
-    private languageService: LanguageService
+    private languageService: LanguageService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -40,11 +39,10 @@ export class UserService {
   async getUser(userId: number, detailedUser = false): Promise<User> {
     const currentUser = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser ? ['userData', 'buys', 'sells'] : ['userData'],
+      relations: detailedUser ? ['userData', 'buys', 'sells', 'currency'] : ['userData', 'currency'],
     });
 
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
-    currentUser['uiKycStatus'] = this.getUiStatus(currentUser.userData.kycStatus);
     currentUser['refData'] = await this.getRefData(currentUser);
     currentUser['userVolume'] = await this.getUserVolume(currentUser);
     delete currentUser.userData;
@@ -73,7 +71,7 @@ export class UserService {
 
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
-    user['uiKycStatus'] = this.getUiStatus(userData.kycStatus);
+    user['kycState'] = userData.kycState;
     delete user.userData;
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
@@ -123,27 +121,8 @@ export class UserService {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logService.getRefVolume(user.ref),
+      refVolumeBtc: await this.logService.getRefVolumeBtc(user.ref),
+      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase()),
     };
-  }
-
-  getUiStatus(kycStatus: KycStatus): UiKycStatus {
-    switch (kycStatus) {
-      case KycStatus.NA:
-        return UiKycStatus.KYC_NO;
-      case KycStatus.WAIT_CHAT_BOT:
-      case KycStatus.WAIT_ADDRESS:
-      case KycStatus.WAIT_ONLINE_ID:
-        return UiKycStatus.KYC_PENDING;
-
-      case KycStatus.WAIT_MANUAL:
-        return UiKycStatus.KYC_PROV;
-
-      case KycStatus.COMPLETED:
-        return UiKycStatus.KYC_COMPLETED;
-
-      default:
-        return UiKycStatus.KYC_NO;
-    }
   }
 }

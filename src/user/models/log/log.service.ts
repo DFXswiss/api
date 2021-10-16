@@ -111,17 +111,22 @@ export class LogService {
     return this.logRepository.getLog(key);
   }
 
-  async getRefVolume(ref: string): Promise<any> {
+  async getRefVolume(ref: string, fiat: string): Promise<any> {
     const logsWithoutEur = await this.logRepository.find({ where: { message: ref, fiat: Not(2) } });
     const logsEur = await this.logRepository.find({ where: { message: ref, fiat: 2 } });
     const volumeWithoutEur = await this.conversionService.convertFiatCurrency(
       await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
       'chf',
-      'eur',
+      fiat,
     );
     const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
 
     return this.conversionService.round(volumeWithoutEur + volumeEur, 0);
+  }
+
+  async getRefVolumeBtc(ref: string): Promise<any> {
+    const logs = await this.logRepository.find({ where: { message: ref } });
+    return await this.logRepository.sum(logs, 'btcValue', 8);
   }
 
   async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {

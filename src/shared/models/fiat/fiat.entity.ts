@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
 import { Sell } from 'src/user/models/sell/sell.entity';
 import { Log } from 'src/user/models/log/log.entity';
+import { User } from 'src/user/models/user/user.entity';
 
 @Entity()
 export class Fiat {
@@ -18,6 +19,9 @@ export class Fiat {
 
   @OneToMany(() => Log, (log) => log.fiat)
   logs: Log[];
+
+  @OneToMany(() => User, (user) => user.currency)
+  users: User[];
 
   @UpdateDateColumn()
   updated: Date;

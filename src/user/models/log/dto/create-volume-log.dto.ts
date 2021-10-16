@@ -34,6 +34,11 @@ export class CreateVolumeLogDto {
 
   @ApiProperty()
   @IsNotEmpty()
+  @IsNumber()
+  btcValue: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
   asset: any;
 
   @ApiProperty()

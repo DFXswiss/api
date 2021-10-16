@@ -2,7 +2,8 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import { UserData } from 'src/user/models/userData/userData.entity';
+import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { User } from 'src/user/models/user/user.entity';
 
 @Injectable()
 export class MailService {
@@ -26,7 +27,7 @@ export class MailService {
       <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>
       <p><b>Txid:</b> ${createLogDto.blockchainTx}</p>
       <p>Thanks,</p>
-      <p> Your friendly team at DFX</p>
+      <p>Your friendly team at DFX</p>
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>2021 DFX AG</p>`;
@@ -37,8 +38,10 @@ export class MailService {
     });
   }
 
-  async sendKycRequestMail(userData: UserData): Promise<void> {
-    const htmlBody = `
+  async sendKycMail(userData: UserData, user: User, kycCustomerId: number): Promise<void> {
+    const firstName = user.firstname ?? 'DFX Dude';
+
+    const htmlSupportBody = `
       <h1>Hi DFX Support</h1>
       <p>a new customer has finished onboarding chatbot, address verification and online identification:</p>
       <table>
@@ -48,7 +51,7 @@ export class MailService {
           </tr>
           <tr>
               <td>Customer ID:</td>
-              <td>${userData.kycCustomerId}</td>
+              <td>${kycCustomerId}</td>
           </tr>
           <tr>
               <td>KYC File Reference:</td>
@@ -63,7 +66,109 @@ export class MailService {
     await this.mailerService.sendMail({
       to: this.supportMail,
       subject: 'New KYC onboarding',
-      html: htmlBody,
+      html: htmlSupportBody,
+    });
+
+    if (user?.mail) {
+      const htmlUserBody = `
+      <h1>Hi ${firstName},</h1>
+      <p>your KYC process is complete and will be checked manually.</p>
+      <p>You can now transfer 50 000€.</p>
+      <p></p>
+      <p>Thanks,</p>
+      <p>Your friendly team at DFX</p>
+      <p></p>
+      <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
+      <p>2021 DFX AG</p>`;
+
+      await this.mailerService.sendMail({
+        to: user.mail,
+        subject: 'KYC process is complete',
+        html: htmlUserBody,
+      });
+    }
+  }
+
+  async sendReminderMail(user: User, kycStatus: KycStatus): Promise<void> {
+    const firstName = user.firstname ?? 'DFX Dude';
+
+    if (user?.mail) {
+      const htmlBody = `
+      <h1>Hi ${firstName},</h1>
+      <p>friendly reminder of your ${this.getStatus(kycStatus)}.</p>
+      <p>Please check your mails.</p>
+      <p></p>
+      <p>Thanks,</p>
+      <p>Your friendly team at DFX</p>
+      <p></p>
+      <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
+      <p>2021 DFX AG</p>`;
+
+      await this.mailerService.sendMail({
+        to: user.mail,
+        subject: `KYC Reminder`,
+        html: htmlBody,
+      });
+    }
+  }
+
+  async sendSupportFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
+    const htmlSupportBody = `
+      <h1>Hi DFX Support</h1>
+      <p>a customer has failed or expired during progress ${this.getStatus(userData.kycStatus)}.</p>
+      <table>
+          <tr>
+              <td>Reference:</td>
+              <td>${userData.id}</td>
+          </tr>
+          <tr>
+              <td>Customer ID:</td>
+              <td>${kycCustomerId}</td>
+          </tr>
+          <tr>
+              <td>KYC File Reference:</td>
+              <td>${userData.kycFile.id}</td>
+          </tr>
+      </table>
+      <p>Best,</p>
+      <p>DFX API</p>
+      <p>© 2021 DFX AG</p>
+    `;
+
+    await this.mailerService.sendMail({
+      to: 'danielklaiber@web.de',
+      subject: 'KYC failed or expired',
+      html: htmlSupportBody,
+    });
+  }
+
+  async sendLimitSupportMail(userData: UserData, kycCustomerId: number): Promise<void> {
+    const htmlSupportBody = `
+      <h1>Hi DFX Support</h1>
+      <p>a customer want to increase his deposit limit.</p>
+      <table>
+          <tr>
+              <td>Reference:</td>
+              <td>${userData.id}</td>
+          </tr>
+          <tr>
+              <td>Customer ID:</td>
+              <td>${kycCustomerId}</td>
+          </tr>
+          <tr>
+              <td>KYC File Reference:</td>
+              <td>${userData.kycFile.id}</td>
+          </tr>
+      </table>
+      <p>Best,</p>
+      <p>DFX API</p>
+      <p>© 2021 DFX AG</p>
+    `;
+
+    await this.mailerService.sendMail({
+      to: 'danielklaiber@web.de',
+      subject: 'Increase deposit limit',
+      html: htmlSupportBody,
     });
   }
 
@@ -85,5 +190,24 @@ export class MailService {
       subject: `Node Error (${env})`,
       html: htmlBody,
     });
+  }
+
+  private getStatus(kycStatus: KycStatus): string {
+    let status = '';
+    switch (kycStatus) {
+      case KycStatus.WAIT_CHAT_BOT: {
+        status = 'chatbot onboarding';
+        break;
+      }
+      case KycStatus.WAIT_ADDRESS: {
+        status = 'invoice upload';
+        break;
+      }
+      case KycStatus.WAIT_ONLINE_ID: {
+        status = 'online identification';
+        break;
+      }
+    }
+    return status;
   }
 }

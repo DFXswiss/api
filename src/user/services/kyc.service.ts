@@ -4,11 +4,12 @@ import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { User } from 'src/user/models/user/user.entity';
 import { KycFile } from 'src/user/models/userData/kycFile.entity';
-import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { HttpError, HttpService } from '../../shared/services/http.service';
 import { MailService } from '../../shared/services/mail.service';
+import { UserRepository } from '../models/user/user.repository';
 
 export enum State {
   PENDING = 'PENDING',
@@ -149,6 +150,7 @@ export class KycService {
     @InjectRepository(KycFile)
     private kycFileRepo: Repository<KycFile>,
     private userDataRepository: UserDataRepository,
+    private userRepository: UserRepository,
   ) {}
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
@@ -156,6 +158,7 @@ export class KycService {
       reference: this.reference(id),
       type: 'PERSON',
       names: [{ lastName: name }],
+      preferredLanguage: 'de',
     };
 
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
@@ -342,12 +345,14 @@ export class KycService {
   private async createKycFile(userData: UserData): Promise<UserData> {
     // create KYC file reference
     const kycFile = await this.kycFileRepo.save({ userData: userData });
+    const user = await this.userRepository.findOne({ where: { mail: Not('') }, relations: ['userData'] });
+
     userData.kycFile = kycFile;
 
     //TODO: upload KYC file reference
     //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
 
-    await this.mailService.sendKycRequestMail(userData);
+    await this.mailService.sendKycMail(userData, user, (await this.getCustomer(userData.id)).id);
     return userData;
   }
 
@@ -362,12 +367,30 @@ export class KycService {
     documentType: KycDocument,
     updateAction: (userData: UserData) => Promise<UserData>,
   ): Promise<void> {
-    const userDataList = await this.userDataRepository.find({ kycStatus: currentStatus });
+    const userDataList = await this.userDataRepository.find({
+      where: [{ kycStatus: currentStatus }],
+    });
     for (const key in userDataList) {
       const documentVersion = await this.getDocumentVersion(userDataList[key].id, documentType);
       if (documentVersion.find((document) => document.state === State.COMPLETED) != null) {
         userDataList[key].kycStatus = nextStatus;
         userDataList[key] = await updateAction(userDataList[key]);
+      } else if (
+        userDataList[key].kycState != KycState.REMINDED &&
+        this.dateDiffInDays(documentVersion[0].creationTime) > 2 &&
+        this.dateDiffInDays(documentVersion[0].creationTime) < 7
+      ) {
+        const user = await this.userRepository.findOne({ where: { mail: Not('') }, relations: ['userData'] });
+        this.mailService.sendReminderMail(user, currentStatus);
+        userDataList[key].kycState = KycState.REMINDED;
+      } else if (
+        documentVersion.find(
+          (document) => document.state === State.FAILED || this.dateDiffInDays(document.creationTime) > 7,
+        ) != null &&
+        userDataList[key].kycState != KycState.FAILED
+      ) {
+        userDataList[key].kycState = KycState.FAILED;
+        this.mailService.sendSupportFailedMail(userDataList[key], (await this.getCustomer(userDataList[key].id)).id);
       }
     }
     await this.userDataRepository.save(userDataList);
@@ -425,5 +448,10 @@ export class KycService {
     await this.http.post(`${this.baseUrl}/authenticate`, data);
 
     return key;
+  }
+
+  private dateDiffInDays(creationTime: number) {
+    const timeDiff = new Date().getTime() - new Date(creationTime).getTime();
+    return timeDiff / (1000 * 3600 * 24);
   }
 }

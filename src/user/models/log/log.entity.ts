@@ -54,6 +54,9 @@ export class Log {
   @Column({ type: 'float', nullable: true })
   fiatInCHF: number;
 
+  @Column({ type: 'float', nullable: true })
+  btcValue: number;
+
   @ManyToOne(() => Asset, { eager: true })
   asset: Asset;
 
