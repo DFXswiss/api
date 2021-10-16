@@ -11,6 +11,8 @@ param storageAccountId string
 param fileShareNameA string
 param fileShareNameB string
 
+param allowAllIps bool
+
 
 // --- RESOURCES --- //
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
@@ -40,7 +42,7 @@ resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
       linuxFxVersion: 'COMPOSE|'
       httpLoggingEnabled: true
       logsDirectorySizeLimit: 100
-      ipSecurityRestrictions: [
+      ipSecurityRestrictions: allowAllIps ? [] : [
         {
           vnetSubnetResourceId: subnetId
           action: 'Allow'
@@ -86,7 +88,7 @@ resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = {
       linuxFxVersion: 'COMPOSE|'
       httpLoggingEnabled: true
       logsDirectorySizeLimit: 100
-      ipSecurityRestrictions: [
+      ipSecurityRestrictions: allowAllIps ? [] : [
         {
           vnetSubnetResourceId: subnetId
           action: 'Allow'
