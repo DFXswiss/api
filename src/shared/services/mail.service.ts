@@ -136,13 +136,13 @@ export class MailService {
     `;
 
     await this.mailerService.sendMail({
-      to: 'danielklaiber@web.de',
+      to: this.supportMail,
       subject: 'KYC failed or expired',
       html: htmlSupportBody,
     });
   }
 
-  async sendLimitSupportMail(userData: UserData, kycCustomerId: number): Promise<void> {
+  async sendLimitSupportMail(userData: UserData, kycCustomerId: number, depositLimit: string): Promise<void> {
     const htmlSupportBody = `
       <h1>Hi DFX Support</h1>
       <p>a customer want to increase his deposit limit.</p>
@@ -159,6 +159,12 @@ export class MailService {
               <td>KYC File Reference:</td>
               <td>${userData.kycFile.id}</td>
           </tr>
+          <tr>
+              <td>Wanted deposit limit:</td>
+              <td>${depositLimit}</td>
+          </tr>
+
+          
       </table>
       <p>Best,</p>
       <p>DFX API</p>
@@ -166,7 +172,7 @@ export class MailService {
     `;
 
     await this.mailerService.sendMail({
-      to: 'danielklaiber@web.de',
+      to: this.supportMail,
       subject: 'Increase deposit limit',
       html: htmlSupportBody,
     });

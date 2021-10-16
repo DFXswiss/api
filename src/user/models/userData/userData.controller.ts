@@ -58,8 +58,8 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@Param('id') id: number): Promise<boolean> {
-    return this.userDataService.requestKyc(id);
+  async requestKyc(@Param('id') id: number, @Param('depositLimit') depositLimit?: string): Promise<boolean> {
+    return this.userDataService.requestKyc(id, depositLimit);
   }
 
   @Get(':id/customer')

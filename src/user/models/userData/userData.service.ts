@@ -131,7 +131,7 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userDataId: number): Promise<boolean> {
+  async requestKyc(userDataId: number,depositLimit?:string): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
@@ -147,7 +147,7 @@ export class UserDataService {
       return true;
     } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.WAIT_MANUAL) {
       const customer = await this.kycService.getCustomer(userData.id);
-      await this.mailService.sendLimitSupportMail(userData, customer.id);
+      await this.mailService.sendLimitSupportMail(userData, customer.id,depositLimit);
     } else {
       return false;
     }

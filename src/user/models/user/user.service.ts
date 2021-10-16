@@ -43,6 +43,7 @@ export class UserService {
     });
 
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
+    currentUser['depositLimit'] = currentUser.userData.depositLimit;
     currentUser['refData'] = await this.getRefData(currentUser);
     currentUser['userVolume'] = await this.getUserVolume(currentUser);
     delete currentUser.userData;
@@ -97,11 +98,11 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number): Promise<boolean> {
+  async requestKyc(userId: number,depositLimit: string): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
-    return this.userDataService.requestKyc(userData.id);
+    return this.userDataService.requestKyc(userData.id,depositLimit);
   }
 
   async getUserVolume(user: User): Promise<any> {
