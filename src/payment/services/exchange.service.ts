@@ -28,17 +28,18 @@ class ExchangeService {
     return this._exchange.fetchOrderBook(currencyPair);
   }
 
-  private async _pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 24): Promise<string> {
+  private _delay(ms: number) {
+    return new Promise( resolve => setTimeout(resolve, ms) );
+  }
+
+  private async _pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 720): Promise<string> {
     let checkOrder: Order;
     let checkOrderCounter = 0;
   
     do {
-      setTimeout(async () => 
-      {
+        this._delay(pollInterval);
         checkOrder = await this._exchange.fetchOrder(orderId, currencyPair);
         checkOrderCounter++;
-      },
-      pollInterval);
     } while (!['closed', 'canceled'].includes(checkOrder.status) && checkOrderCounter < maxPollRetries);
 
     return checkOrder.status;
@@ -54,7 +55,7 @@ class ExchangeService {
       orderStatus = await this._pollOrder(order.id, currencyPair);
       orderRetryCounter++;
     } while (orderStatus == 'canceled');
-    
+
     return order;
   }
 
@@ -79,6 +80,14 @@ class ExchangeService {
     return this._tryToOrder(currencyPair, 'limit', orderSide, wantedCurrencyAmount, currentPrice);
 
     // TODO: What if order was partially filled and our retry times out?
+  }
+
+  async withdrawFunds(token: string, amount: number, address: string, params?: any): Promise<WithdrawalResponse> {
+    /*
+        Kraken requires you so store the address and give it a label (key). This needs to be added to the parameters
+        await exchange.withdrawFunds('LTC', order.amount, 'xxx', {'key': 'cake-ltc'})
+    */
+    return this._exchange.withdraw(token, amount, address, undefined, params);
   }
 }
 
