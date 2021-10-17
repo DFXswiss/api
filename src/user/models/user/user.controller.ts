@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -9,6 +9,7 @@ import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { StringDecoder } from 'string_decoder';
 
 @ApiTags('user')
 @Controller('user')
@@ -46,8 +47,8 @@ export class UserController {
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetJwt() jwt: JwtPayload): Promise<boolean> {
-    return this.userService.requestKyc(jwt.id);
+  async requestKyc(@GetJwt() jwt: JwtPayload, @Query('depositLimit') depositLimit?: string): Promise<boolean> {
+    return this.userService.requestKyc(jwt.id, depositLimit);
   }
 
   @Get('all')

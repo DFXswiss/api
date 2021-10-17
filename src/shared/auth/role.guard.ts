@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Observable } from 'rxjs';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -16,9 +11,7 @@ export class RoleGuard implements CanActivate {
     this.entryRole = role;
   }
 
-  canActivate(
-    context: ExecutionContext,
-  ): boolean | Promise<boolean> | Observable<boolean> {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
     const request = context.switchToHttp().getRequest();
 
     if (request.user.role === UserRole.ADMIN) {
@@ -38,8 +31,15 @@ export class RoleGuard implements CanActivate {
         if (
           userRole === UserRole.USER ||
           userRole === UserRole.EMPLOYEE ||
-          userRole === UserRole.VIP
+          userRole === UserRole.VIP ||
+          userRole === UserRole.BETA
         ) {
+          return true;
+        } else {
+          return false;
+        }
+      case UserRole.BETA:
+        if (userRole === UserRole.EMPLOYEE || userRole === UserRole.BETA) {
           return true;
         } else {
           return false;

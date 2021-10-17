@@ -15,6 +15,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -65,6 +66,9 @@ export class User {
 
   @ManyToOne(() => Country, { eager: true })
   country: Country;
+
+  @ManyToOne(() => Fiat, { eager: true })
+  currency: Fiat;
 
   @Column({ length: 256, nullable: true })
   phone: string;

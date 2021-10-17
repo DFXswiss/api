@@ -16,7 +16,7 @@ export enum NameCheckStatus {
   NA = 'NA',
   SAFE = 'Safe',
   WARNING = 'Warning',
-  HIGHRISK = 'HighRisk',
+  HIGH_RISK = 'HighRisk',
 }
 
 export enum KycStatus {
@@ -28,11 +28,12 @@ export enum KycStatus {
   COMPLETED = 'Completed',
 }
 
-export enum UiKycStatus {
-  KYC_NO = 'no',
-  KYC_PENDING = 'pending',
-  KYC_PROV = 'prov',
-  KYC_COMPLETED = 'completed',
+export enum KycState {
+  NA = 'NA',
+  PENDING = 'Pending',
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
+  REMINDED = 'Reminded',
 }
 
 @Entity()
@@ -43,20 +44,14 @@ export class UserData {
   @Column({ length: 256, default: NameCheckStatus.NA })
   nameCheck: NameCheckStatus;
 
-  @Column({ type: 'datetime2', nullable: true })
-  nameCheckOverrideDate: Date;
-
-  @Column({ length: 256, nullable: true })
-  nameCheckOverrideComment: string;
-
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
-  @Column({ type: 'int', nullable: true })
-  kycCustomerId: number;
+  @Column({ length: 256, default: KycState.NA })
+  kycState: KycState;
 
-  @Column({ default: false })
-  kycFailure: boolean;
+  @Column({ type: 'float', default: 45000 })
+  depositLimit: number;
 
   @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true, eager: true })
   @JoinColumn()

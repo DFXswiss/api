@@ -35,6 +35,11 @@ export class UpdateLogDto {
 
   @ApiProperty()
   @IsOptional()
+  @IsNumber()
+  btcValue: number;
+
+  @ApiProperty()
+  @IsOptional()
   asset: any;
 
   @ApiProperty()

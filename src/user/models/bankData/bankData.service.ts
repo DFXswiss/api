@@ -31,8 +31,7 @@ export class BankDataService {
     const customer = await this.kycService.getCustomer(userData.id);
 
     if (!customer) {
-      const newCustomer = await this.kycService.createCustomer(userData.id, bankData.name);
-      userData.kycCustomerId = newCustomer.customerId;
+      await this.kycService.createCustomer(userData.id, bankData.name);
       this.userDataRepo.save(userData);
     }
 

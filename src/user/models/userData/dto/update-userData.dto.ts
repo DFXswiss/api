@@ -10,4 +10,9 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(NameCheckStatus)
   nameCheck: NameCheckStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  depositLimit: number;
 }

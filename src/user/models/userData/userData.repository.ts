@@ -17,12 +17,13 @@ export class UserDataRepository extends Repository<UserData> {
 
   async updateUserData(updatedUser: UpdateUserDataDto): Promise<any> {
     try {
-      const user = await this.findOne({ id: updatedUser.id });
-      if (!user) throw new NotFoundException('No matching user for id found');
+      const userData = await this.findOne({ id: updatedUser.id });
+      if (!userData) throw new NotFoundException('No matching user for id found');
 
-      if (updatedUser.nameCheck) user.nameCheck = updatedUser.nameCheck;
+      if (updatedUser.nameCheck) userData.nameCheck = updatedUser.nameCheck;
+      if (updatedUser.depositLimit) userData.depositLimit = updatedUser.depositLimit;
 
-      return await this.save(user);
+      return await this.save(userData);
     } catch (error) {
       throw new ServiceUnavailableException(error.message);
     }
