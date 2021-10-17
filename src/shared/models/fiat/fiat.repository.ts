@@ -39,7 +39,7 @@ export class FiatRepository extends Repository<Fiat> {
     }
   }
 
-  async getFiat(key: any): Promise<any> {
+  async getFiat(key: any): Promise<Fiat> {
     if (key.key) {
       if (!isNaN(key.key)) {
         const fiat = await this.findOne({ id: key.key });

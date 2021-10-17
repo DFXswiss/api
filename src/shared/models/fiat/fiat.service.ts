@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CreateFiatDto } from 'src/shared/models/fiat/dto/create-fiat.dto';
 import { UpdateFiatDto } from './dto/update-fiat.dto';
 import { FiatRepository } from 'src/shared/models/fiat/fiat.repository';
+import { Fiat } from './fiat.entity';
 
 @Injectable()
 export class FiatService {
@@ -19,7 +20,7 @@ export class FiatService {
     return this.fiatRepository.updateFiat(fiat);
   }
 
-  async getFiat(key: any): Promise<any> {
+  async getFiat(key: any): Promise<Fiat> {
     return this.fiatRepository.getFiat(key);
   }
 }

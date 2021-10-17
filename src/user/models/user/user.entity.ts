@@ -16,6 +16,7 @@ import {
 } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { AnyRecord } from 'dns';
 
 export enum UserStatus {
   NA = 'NA',
@@ -102,4 +103,5 @@ export class User {
 
   @CreateDateColumn()
   created: Date;
+  currentUser: Promise<any>;
 }

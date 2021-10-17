@@ -8,6 +8,7 @@ import { CryptoService } from 'src/ain/services/crypto.service';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @Injectable()
 export class AuthService {
@@ -17,7 +18,8 @@ export class AuthService {
     private jwtService: JwtService,
     private cryptoService: CryptoService,
     private languageService: LanguageService,
-    private countryService: CountryService
+    private countryService: CountryService,
+    private fiatService: FiatService,
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
@@ -27,7 +29,12 @@ export class AuthService {
     }
 
     // create user and user data entry
-    const user = await this.userRepository.createUser(createUserDto, this.languageService, this.countryService);
+    const user = await this.userRepository.createUser(
+      createUserDto,
+      this.languageService,
+      this.countryService,
+      this.fiatService,
+    );
     await this.userDataRepository.save({ users: [user] });
 
     return this.signIn(createUserDto);
