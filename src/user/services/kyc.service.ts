@@ -374,6 +374,7 @@ export class KycService {
       const documentVersion = await this.getDocumentVersion(userDataList[key].id, documentType);
       if (documentVersion.find((document) => document.state === State.COMPLETED) != null) {
         userDataList[key].kycStatus = nextStatus;
+        userDataList[key].kycState = KycState.PENDING;
         userDataList[key] = await updateAction(userDataList[key]);
       } else if (
         userDataList[key].kycState != KycState.REMINDED &&
