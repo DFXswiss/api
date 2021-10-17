@@ -87,6 +87,10 @@ export class UserDataService {
       throw new ServiceUnavailableException('Customer information error: ' + error.message);
     }
 
+    if (customerInformation.lastCheckId < 0) {
+      throw new NotFoundException(`User with id ${userDataId} has no name check yet`);
+    }
+
     try {
       resultNameCheck = await this.kycService.getCheckResult(customerInformation.lastCheckId);
     } catch (error) {

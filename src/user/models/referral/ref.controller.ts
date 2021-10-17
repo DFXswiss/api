@@ -22,7 +22,7 @@ export class RefController {
       if (agent.isAndroid) url = 'https://play.google.com/store/apps/details?id=com.defichain.app.dfx';
       if (agent.isiPhone) url = 'https://apps.apple.com/app/id1582633093';
 
-      res.redirect(url, 307);
+      res.redirect(307, url);
     } else {
       ref = await this.refService.get(ip);
       res.status(200).send({ ref });
@@ -30,6 +30,6 @@ export class RefController {
   }
 
   private getAgentDetails(req: Request): Details {
-    return new UserAgent().parse(req.headers['user-agent']);
+    return new UserAgent().parse(req.headers['user-agent'] ?? '');
   }
 }

@@ -22,6 +22,7 @@ param kycPrefix string
 @secure()
 param githubToken string
 
+param nodeAllowAllIps bool
 @secure()
 param nodePassword string
 @secure()
@@ -400,5 +401,6 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
     storageAccountId: storageAccount.id
     fileShareNameA: node.fileShareNameA
     fileShareNameB: node.fileShareNameB
+    allowAllIps: nodeAllowAllIps
   }
 }]

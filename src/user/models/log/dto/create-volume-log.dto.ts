@@ -47,6 +47,57 @@ export class CreateVolumeLogDto {
   assetValue: number;
 
   @ApiProperty()
+  @IsOptional()
+  @IsString()
+  usedRef: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  refFeePercent: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  refFeeValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  refFeeAsset: any;
+
+  @ApiProperty()
+  @IsOptional()
+  usedWallet: any;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  walletFeeValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  walletFeePercent: number;
+
+  @ApiProperty()
+  @IsOptional()
+  walletFeeAsset: any;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  dfxFeePercent: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  dfxFeeValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  dfxFeeAsset: any;
+
+  @ApiProperty()
   @IsNotEmpty()
   @IsEnum(LogDirection)
   direction: LogDirection;
