@@ -99,18 +99,6 @@ export class LogService {
     return log;
   }
 
-  async getAllLog(): Promise<any> {
-    return this.logRepository.getAllLog();
-  }
-
-  async getAllUserLog(address: string): Promise<any> {
-    return this.logRepository.getAllUserLog(address);
-  }
-
-  async getLog(key: any): Promise<any> {
-    return this.logRepository.getLog(key);
-  }
-
   async getRefVolume(ref: string): Promise<any> {
     const logsWithoutEur = await this.logRepository.find({ where: { message: ref, fiat: Not(2) } });
     const logsEur = await this.logRepository.find({ where: { message: ref, fiat: 2 } });

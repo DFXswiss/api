@@ -61,6 +61,39 @@ export class Log {
   assetValue: number;
 
   @Column({ nullable: true, length: 256 })
+  usedRef: string;
+
+  @Column({ type: 'float', nullable: true })
+  refFeePercent: number;
+
+  @Column({ type: 'float', nullable: true })
+  refFeeValue: number;
+
+  @ManyToOne(() => Asset, { eager: true })
+  refFeeAsset: Asset;
+
+  @Column({ nullable: true, length: 256 })
+  usedWallet: string;
+
+  @Column({ type: 'float', nullable: true })
+  walletFeePercent: number;
+
+  @Column({ type: 'float', nullable: true })
+  walletFeeValue: number;
+
+  @ManyToOne(() => Asset, { eager: true })
+  walletFeeAsset: Asset;
+
+  @Column({ type: 'float', nullable: true })
+  dfxFeePercent: number;
+
+  @Column({ type: 'float', nullable: true })
+  dfxFeeValue: number;
+
+  @ManyToOne(() => Asset, { eager: true })
+  dfxFeeAsset: Asset;
+
+  @Column({ nullable: true, length: 256 })
   direction: LogDirection;
 
   @Column({ nullable: true, length: 256 })
