@@ -73,7 +73,7 @@ export class MailService {
       const htmlUserBody = `
       <h1>Hi ${firstName},</h1>
       <p>your KYC process is complete and will be checked manually.</p>
-      <p>You can now transfer 50 000€.</p>
+      <p>You can now transfer 45 000€ per year.</p>
       <p></p>
       <p>Thanks,</p>
       <p>Your friendly team at DFX</p>
