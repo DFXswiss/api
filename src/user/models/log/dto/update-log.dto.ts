@@ -1,10 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Length, IsNumber, IsEnum } from 'class-validator';
-<<<<<<< HEAD
-import { LogDirection, LogStatus } from '../log.entity';
-=======
 import { LogDirection, LogStatus, LogType } from '../log.entity';
->>>>>>> origin/develop
 
 export class UpdateLogDto {
   @ApiProperty()
