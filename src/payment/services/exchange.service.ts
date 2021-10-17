@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Exchange, OrderBook, Order, Balances, kraken } from 'ccxt';
+import { Exchange, OrderBook, Order, Balances, kraken, WithdrawalResponse } from 'ccxt';
 
 enum OrderSide {
   BUY = 'buy',
-  SELL = 'sell'
+  SELL = 'sell',
 }
 
 @Injectable()
-class ExchangeService {
+export class ExchangeService {
   private readonly _exchange: Exchange;
   public balances: Promise<any>;
 
@@ -29,29 +29,43 @@ class ExchangeService {
   }
 
   private _delay(ms: number) {
-    return new Promise( resolve => setTimeout(resolve, ms) );
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private async _pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 720): Promise<string> {
+  private async _pollOrder(
+    orderId: string,
+    currencyPair: string,
+    pollInterval = 5000,
+    maxPollRetries = 720,
+  ): Promise<string> {
     let checkOrder: Order;
     let checkOrderCounter = 0;
-  
+
     do {
-        this._delay(pollInterval);
-        checkOrder = await this._exchange.fetchOrder(orderId, currencyPair);
-        checkOrderCounter++;
+      this._delay(pollInterval);
+      checkOrder = await this._exchange.fetchOrder(orderId, currencyPair);
+      checkOrderCounter++;
     } while (!['closed', 'canceled'].includes(checkOrder.status) && checkOrderCounter < maxPollRetries);
 
     return checkOrder.status;
   }
 
-  private async _tryToOrder(currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number, currentPrice: number, maxRetries = 5): Promise<Order> {
+  private async _tryToOrder(
+    currencyPair: string,
+    orderType: string,
+    orderSide: OrderSide,
+    wantedCurrencyAmount: number,
+    currentPrice: number,
+    maxRetries = 5,
+  ): Promise<Order> {
     let order: Order;
     let orderStatus: string;
-    let orderRetryCounter = 0
+    let orderRetryCounter = 0;
 
     do {
-      order = await this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
+      order = await this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {
+        oflags: 'post',
+      });
       orderStatus = await this._pollOrder(order.id, currencyPair);
       orderRetryCounter++;
     } while (orderStatus == 'canceled');
@@ -63,7 +77,7 @@ class ExchangeService {
     const balances = await this.balances;
     const orderBook = await this.fetchOrderBook(currencyPair);
     const [token1, token2] = currencyPair.split('/');
-    const depositedToken = (orderSide == OrderSide.BUY) ? token2 : token1;
+    const depositedToken = orderSide == OrderSide.BUY ? token2 : token1;
 
     if (exchangeAmount > balances.total[depositedToken]) {
       throw new Error('There is not enough balance for token ' + depositedToken);
@@ -75,8 +89,8 @@ class ExchangeService {
         If 'sell' we want to sell token1 using token2. Example BTC/EUR on 'sell' means we sell BTC using EUR
             > We want to have the lowest 'asks' price in the orderbook
     */
-    const currentPrice = (orderSide == OrderSide.BUY) ? orderBook.bids[0][0] : orderBook.asks[0][0];
-    const wantedCurrencyAmount = (orderSide == OrderSide.BUY) ? exchangeAmount / currentPrice: exchangeAmount;
+    const currentPrice = orderSide == OrderSide.BUY ? orderBook.bids[0][0] : orderBook.asks[0][0];
+    const wantedCurrencyAmount = orderSide == OrderSide.BUY ? exchangeAmount / currentPrice : exchangeAmount;
     return this._tryToOrder(currencyPair, 'limit', orderSide, wantedCurrencyAmount, currentPrice);
 
     // TODO: What if order was partially filled and our retry times out?
@@ -93,6 +107,6 @@ class ExchangeService {
 
 class Kraken extends ExchangeService {
   constructor(params: any) {
-      super(new kraken(params));
+    super(new kraken(params));
   }
 }
