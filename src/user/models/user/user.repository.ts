@@ -9,13 +9,20 @@ import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { KycStatus } from 'src/user/models/userData/userData.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
   userRepository: any;
-  async createUser(createUserDto: CreateUserDto, languageService: LanguageService, countryService: CountryService): Promise<User> {
+  async createUser(
+    createUserDto: CreateUserDto,
+    languageService: LanguageService,
+    countryService: CountryService,
+    fiatService: FiatService,
+  ): Promise<User> {
     let countryObject = null;
     let languageObject = null;
+    let currencyObject = null;
     let walletObject = null;
 
     if (!(createUserDto.address.length == 34 || createUserDto.address.length == 42)) {
@@ -48,6 +55,16 @@ export class UserRepository extends Repository<User> {
       languageObject = await languageService.getLanguage('DE');
 
       createUserDto.language = languageObject.id;
+    }
+
+    if (createUserDto.currency) {
+      currencyObject = await fiatService.getFiat(createUserDto.currency);
+
+      createUserDto.currency = currencyObject.id;
+    } else {
+      currencyObject = await fiatService.getFiat('eur');
+
+      createUserDto.currency = currencyObject.id;
     }
 
     const user = this.create(createUserDto);
@@ -112,7 +129,13 @@ export class UserRepository extends Repository<User> {
     return this.count({ usedRef: ref, status: Not(UserStatus.NA) });
   }
 
-  async updateUser(oldUser: User, newUser: UpdateUserDto, languageService: LanguageService, countryService: CountryService): Promise<any> {
+  async updateUser(
+    oldUser: User,
+    newUser: UpdateUserDto,
+    languageService: LanguageService,
+    countryService: CountryService,
+    fiatService: FiatService,
+  ): Promise<any> {
     try {
       const currentUser = await this.findOne(oldUser.id);
       if (!currentUser) throw new NotFoundException('No matching user for id found');
@@ -133,6 +156,7 @@ export class UserRepository extends Repository<User> {
 
       let countryObject = null;
       let languageObject = null;
+      let currencyObject = null;
 
       // user with kyc cannot change their data
       if (currentUserData.kycStatus != KycStatus.NA) {
@@ -163,10 +187,20 @@ export class UserRepository extends Repository<User> {
         newUser.language = languageObject;
       }
 
+      if (newUser.currency) {
+        currencyObject = await fiatService.getFiat(newUser.currency);
+
+        newUser.currency = currencyObject.id;
+      } else {
+        currencyObject = await fiatService.getFiat('eur');
+
+        newUser.currency = currencyObject.id;
+      }
+
       newUser.id = currentUser.id;
 
       await this.save(newUser);
-      
+
       return this.findOne(currentUser.id);
     } catch (error) {
       throw new ConflictException(error.message);

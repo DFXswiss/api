@@ -12,20 +12,26 @@ import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private userRepo: UserRepository,
     private userDataService: UserDataService,
-    private conversionService: ConversionService,
     private logService: LogService,
     private countryService: CountryService,
     private languageService: LanguageService,
+    private fiatService: FiatService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-    const user = await this.userRepo.createUser(createUserDto, this.languageService, this.countryService);
+    const user = await this.userRepo.createUser(
+      createUserDto,
+      this.languageService,
+      this.countryService,
+      this.fiatService,
+    );
 
     delete user.signature;
     delete user.ip;
@@ -42,6 +48,7 @@ export class UserService {
       relations: detailedUser ? ['userData', 'buys', 'sells', 'currency'] : ['userData', 'currency'],
     });
 
+    if (!currentUser.currency) currentUser.currency = await this.fiatService.getFiat('eur');
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['depositLimit'] = currentUser.userData.depositLimit;
     currentUser['refData'] = await this.getRefData(currentUser);
@@ -65,7 +72,13 @@ export class UserService {
 
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
     const oldUser = await this.userRepo.findOne(oldUserId);
-    const user = await this.userRepo.updateUser(oldUser, newUser, this.languageService, this.countryService);
+    const user = await this.userRepo.updateUser(
+      oldUser,
+      newUser,
+      this.languageService,
+      this.countryService,
+      this.fiatService,
+    );
 
     user['refData'] = await this.getRefData(user);
     user['userVolume'] = await this.getUserVolume(user);
@@ -98,11 +111,11 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number,depositLimit: string): Promise<boolean> {
+  async requestKyc(userId: number, depositLimit: string): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
-    return this.userDataService.requestKyc(userData.id,depositLimit);
+    return this.userDataService.requestKyc(userData.id, depositLimit);
   }
 
   async getUserVolume(user: User): Promise<any> {
