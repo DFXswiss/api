@@ -7,12 +7,12 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserDataService } from 'src/user/models/userData/userData.service';
 import { LogDirection } from 'src/user/models/log/log.entity';
-import { ConversionService } from 'src/shared/services/conversion.service';
 import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @Injectable()
 export class UserService {
@@ -23,6 +23,7 @@ export class UserService {
     private countryService: CountryService,
     private languageService: LanguageService,
     private fiatService: FiatService,
+    private assetService: AssetService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
@@ -31,6 +32,7 @@ export class UserService {
       this.languageService,
       this.countryService,
       this.fiatService,
+      this.assetService,
     );
 
     delete user.signature;
@@ -45,10 +47,11 @@ export class UserService {
   async getUser(userId: number, detailedUser = false): Promise<User> {
     const currentUser = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser ? ['userData', 'buys', 'sells', 'currency'] : ['userData', 'currency'],
+      relations: detailedUser ? ['userData', 'buys', 'sells', 'currency','refFeeAsset'] : ['userData', 'currency','refFeeAsset'],
     });
 
     if (!currentUser.currency) currentUser.currency = await this.fiatService.getFiat('eur');
+    if (!currentUser.refFeeAsset) currentUser.refFeeAsset = await this.assetService.getAsset('dBTC');
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['depositLimit'] = currentUser.userData.depositLimit;
     currentUser['refData'] = await this.getRefData(currentUser);
@@ -78,6 +81,7 @@ export class UserService {
       this.languageService,
       this.countryService,
       this.fiatService,
+      this.assetService,
     );
 
     user['refData'] = await this.getRefData(user);

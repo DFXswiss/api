@@ -16,6 +16,7 @@ import {
 } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -33,6 +34,9 @@ export class User {
 
   @Column({ type: 'float', default: 0.5 })
   refFeePercent: number;
+
+  @ManyToOne(() => Asset, { eager: true })
+  refFeeAsset: Asset;
 
   @Column({ length: 256, unique: true })
   address: string;
