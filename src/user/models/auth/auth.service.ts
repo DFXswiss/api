@@ -9,6 +9,7 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
     private languageService: LanguageService,
     private countryService: CountryService,
     private fiatService: FiatService,
+    private assetService: AssetService,
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
@@ -34,6 +36,7 @@ export class AuthService {
       this.languageService,
       this.countryService,
       this.fiatService,
+      this.assetService,
     );
     await this.userDataRepository.save({ users: [user] });
 

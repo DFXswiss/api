@@ -10,6 +10,7 @@ import { KycStatus } from 'src/user/models/userData/userData.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -19,11 +20,13 @@ export class UserRepository extends Repository<User> {
     languageService: LanguageService,
     countryService: CountryService,
     fiatService: FiatService,
+    assetService: AssetService,
   ): Promise<User> {
     let countryObject = null;
     let languageObject = null;
     let currencyObject = null;
     let walletObject = null;
+    let refFeeAssetObject = null;
 
     if (!(createUserDto.address.length == 34 || createUserDto.address.length == 42)) {
       throw new BadRequestException('address length does not match');
@@ -65,6 +68,16 @@ export class UserRepository extends Repository<User> {
       currencyObject = await fiatService.getFiat('eur');
 
       createUserDto.currency = currencyObject.id;
+    }
+
+    if (createUserDto.refFeeAsset) {
+      refFeeAssetObject = await assetService.getAsset(createUserDto.refFeeAsset);
+
+      createUserDto.refFeeAsset = refFeeAssetObject.id;
+    } else {
+      refFeeAssetObject = await assetService.getAsset('dBTC');
+
+      createUserDto.refFeeAsset = refFeeAssetObject.id;
     }
 
     const user = this.create(createUserDto);
@@ -135,6 +148,7 @@ export class UserRepository extends Repository<User> {
     languageService: LanguageService,
     countryService: CountryService,
     fiatService: FiatService,
+    assetService: AssetService,
   ): Promise<any> {
     try {
       const currentUser = await this.findOne(oldUser.id);
@@ -157,6 +171,7 @@ export class UserRepository extends Repository<User> {
       let countryObject = null;
       let languageObject = null;
       let currencyObject = null;
+      let refFeeAssetObject = null;
 
       // user with kyc cannot change their data
       if (currentUserData.kycStatus != KycStatus.NA) {
@@ -195,6 +210,16 @@ export class UserRepository extends Repository<User> {
         currencyObject = await fiatService.getFiat('eur');
 
         newUser.currency = currencyObject.id;
+      }
+
+      if (newUser.refFeeAsset) {
+        refFeeAssetObject = await assetService.getAsset(newUser.refFeeAsset);
+
+        newUser.refFeeAsset = refFeeAssetObject.id;
+      } else {
+        refFeeAssetObject = await assetService.getAsset('dBTC');
+
+        newUser.refFeeAsset = refFeeAssetObject.id;
       }
 
       newUser.id = currentUser.id;
