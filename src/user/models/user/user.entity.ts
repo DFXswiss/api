@@ -31,6 +31,9 @@ export class User {
   @Column({ length: 256 })
   ref: string;
 
+  @Column({ type: 'float', default: 0.5 })
+  refFeePercent: number;
+
   @Column({ length: 256, unique: true })
   address: string;
 
