@@ -1,0 +1,19 @@
+version: '3.7'
+
+services:
+  testnet-node:
+    image: defi/defichain:1.8.4
+    restart: always
+    ports:
+      - '8000:18554'
+    volumes:
+      - node-data:/data
+    command: >
+      defid
+      -rpcallowip=0.0.0.0/0
+      -rpcbind=0.0.0.0
+      -rpcauth=dfx-api:4f837667add69ad2b09697722717f6e2$c7270ccb3238953a72b3297fb4bd865742de95d0fc9d3e9e50989f9779b9554b
+      -wallet=dfx-api
+      -addresstype=bech32
+      -spv=0
+      -testnet=1

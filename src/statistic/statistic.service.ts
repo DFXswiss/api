@@ -1,25 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { BuyRepository } from 'src/buy/buy.repository';
-import { SellRepository } from 'src/sell/sell.repository';
-import { LogService } from 'src/log/log.service';
-import { LogDirection, LogType } from 'src/log/log.entity';
+import { LogService } from 'src/user/models/log/log.service';
+import { LogDirection, LogType } from 'src/user/models/log/log.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
+import { BuyService } from 'src/user/models/buy/buy.service';
+import { SellService } from 'src/user/models/sell/sell.service';
 
 @Injectable()
 export class StatisticService {
   constructor(
-    private buyRepository: BuyRepository,
-    private sellRepository: SellRepository,
+    private buyService: BuyService,
+    private sellService: SellService,
     private logService: LogService,
     private conversionService: ConversionService,
   ) {}
 
   async getBuyRouteCount(): Promise<number> {
-    return this.buyRepository.count();
+    return this.buyService.count();
   }
 
   async getSellRouteCount(): Promise<number> {
-    return this.sellRepository.count();
+    return this.sellService.count();
   }
 
   async getRouteCount(): Promise<any> {

@@ -9,10 +9,13 @@ import * as appInsights from 'applicationinsights';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionFilter } from './shared/filters/exception.filter';
+import { json, text } from 'express';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
-    appInsights.setup().setAutoCollectConsole(true, true);
+    appInsights.setup()
+      .setAutoDependencyCorrelation(true)
+      .setAutoCollectConsole(true, true);
     appInsights.defaultClient.context.tags[appInsights.defaultClient.context.keys.cloudRole] = 'dfx-api';
     appInsights.start();
   }
@@ -22,6 +25,10 @@ async function bootstrap() {
   app.use(morgan('dev'));
   app.use(helmet());
   app.use(cors());
+
+  app.use('*', json({type: 'application/json'}));
+  app.use('/v1/node/*/rpc', text({type: 'text/plain'}));
+
   app.setGlobalPrefix('v1', { exclude: [''] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new AllExceptionFilter());
@@ -29,7 +36,7 @@ async function bootstrap() {
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX-API')
     .setDescription('Investiere in jedes DeFiChain Asset mit EUR, CHF & USD via Banküberweisung')
-    .setVersion('v0.2')
+    .setVersion('v0.4')
     .addBearerAuth()
     .build();
 

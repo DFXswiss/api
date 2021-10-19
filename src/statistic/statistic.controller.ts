@@ -1,6 +1,6 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { CfpResult, CfpService, MasterNode } from 'src/services/cfp.service';
+import { CfpResult, CfpService, MasterNode } from 'src/statistic/cfp.service';
 import { StatisticService } from './statistic.service';
 
 @ApiTags('statistic')
