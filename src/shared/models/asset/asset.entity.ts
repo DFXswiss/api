@@ -35,9 +35,6 @@ export class Asset {
   @OneToMany(() => Log, (log) => log.asset)
   logs: Log[];
 
-  @OneToMany(() => User, (user) => user.refFeeAsset)
-  users: User[];
-
   @UpdateDateColumn()
   updated: Date;
 

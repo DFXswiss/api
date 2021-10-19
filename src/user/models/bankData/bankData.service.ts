@@ -32,7 +32,6 @@ export class BankDataService {
 
     if (!customer) {
       await this.kycService.createCustomer(userData.id, bankData.name);
-      this.userDataRepo.save(userData);
     }
 
     userData.bankDatas.push(bankData);
