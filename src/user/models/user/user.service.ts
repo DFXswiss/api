@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
@@ -47,9 +47,12 @@ export class UserService {
   async getUser(userId: number, detailedUser = false): Promise<User> {
     const currentUser = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser ? ['userData', 'buys', 'sells', 'currency','refFeeAsset'] : ['userData', 'currency','refFeeAsset'],
+      relations: detailedUser
+        ? ['userData', 'buys', 'sells', 'currency', 'refFeeAsset']
+        : ['userData', 'currency', 'refFeeAsset'],
     });
 
+    if (!currentUser) throw new NotFoundException('No matching user for id found');
     if (!currentUser.currency) currentUser.currency = await this.fiatService.getFiat('eur');
     if (!currentUser.refFeeAsset) currentUser.refFeeAsset = await this.assetService.getAsset('dBTC');
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
