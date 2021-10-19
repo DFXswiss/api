@@ -125,10 +125,6 @@ export class MailService {
               <td>Customer ID:</td>
               <td>${kycCustomerId}</td>
           </tr>
-          <tr>
-              <td>KYC File Reference:</td>
-              <td>${userData.kycFile.id}</td>
-          </tr>
       </table>
       <p>Best,</p>
       <p>DFX API</p>
