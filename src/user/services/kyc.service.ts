@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
@@ -152,6 +153,14 @@ export class KycService {
     private userDataRepository: UserDataRepository,
     private userRepository: UserRepository,
   ) {}
+
+  @Interval(300000)
+  async doChecks() {
+    await this.doChatBotCheck();
+    await this.doAddressCheck();
+    await this.doOnlineIdCheck();
+    await this.doVideoIdentCheck();
+  }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {

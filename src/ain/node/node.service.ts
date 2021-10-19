@@ -2,7 +2,9 @@ import { ApiClient } from '@defichain/jellyfish-api-core';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { MailService } from 'src/shared/services/mail.service';
 
 export enum NodeType {
   INPUT = 'inp',
@@ -24,7 +26,7 @@ export class NodeService {
   private readonly urls: Record<NodeType, Record<NodeMode, string>>;
   private readonly clients: Record<NodeType, Record<NodeMode, ApiClient>>;
 
-  constructor(private readonly http: HttpService) {
+  constructor(private readonly http: HttpService, private readonly mailService: MailService) {
     this.urls = {
       [NodeType.INPUT]: {
         [NodeMode.ACTIVE]: process.env.NODE_INP_URL_ACTIVE,
@@ -56,6 +58,20 @@ export class NodeService {
     };
   }
 
+  @Interval(3600000)
+  async checkNodes(): Promise<void> {
+    const errors = await Promise.all([
+      this.checkNode(NodeType.INPUT),
+      this.checkNode(NodeType.DEX),
+      this.checkNode(NodeType.OUTPUT),
+    ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
+
+    if (errors.length > 0) {
+      console.log(`Node errors: ${errors}`);
+      await this.mailService.sendNodeErrorMail(errors);
+    }
+  }
+
   async unlock(node: NodeType, mode: NodeMode, timeout = 10): Promise<any> {
     return this.callNode(node, mode, (c) =>
       c.call(NodeCommand.UNLOCK, [process.env.NODE_WALLET_PASSWORD, timeout], 'number'),
@@ -83,14 +99,6 @@ export class NodeService {
 
   async getInfo(node: NodeType, mode: NodeMode): Promise<BlockchainInfo> {
     return this.callNode(node, mode, (c) => c.blockchain.getBlockchainInfo());
-  }
-
-  async checkNodes(): Promise<string[]> {
-    return Promise.all([
-      this.checkNode(NodeType.INPUT),
-      this.checkNode(NodeType.DEX),
-      this.checkNode(NodeType.OUTPUT),
-    ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
   }
 
   // --- HELPER METHODS --- //

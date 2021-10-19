@@ -9,7 +9,6 @@ import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { StringDecoder } from 'string_decoder';
 
 @ApiTags('user')
 @Controller('user')
