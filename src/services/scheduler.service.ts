@@ -16,10 +16,14 @@ export class SchedulerService {
 
   @Interval(300000)
   async chatBot() {
-    await this.kycService.doChatBotCheck();
-    await this.kycService.doAddressCheck();
-    await this.kycService.doOnlineIdCheck();
-    await this.kycService.doVideoIdentCheck();
+    try {
+      await this.kycService.doChatBotCheck();
+      await this.kycService.doAddressCheck();
+      await this.kycService.doOnlineIdCheck();
+      await this.kycService.doVideoIdentCheck();
+    } catch (e) {
+      console.log(`Exception during KYC checks: ${e}`);
+    }
   }
 
   @Interval(600000)

@@ -368,7 +368,7 @@ export class KycService {
     updateAction: (userData: UserData) => Promise<UserData>,
   ): Promise<void> {
     const userDataList = await this.userDataRepository.find({
-      where: [{ kycStatus: currentStatus }],
+      where: [{ kycStatus: currentStatus, kycState: Not(KycState.FAILED) }],
     });
     for (const key in userDataList) {
       const documentVersion = await this.getDocumentVersion(userDataList[key].id, documentType);
