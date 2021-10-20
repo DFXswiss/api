@@ -368,18 +368,19 @@ export class KycService {
     updateAction: (userData: UserData) => Promise<UserData>,
   ): Promise<void> {
     const userDataList = await this.userDataRepository.find({
-      where: [{ kycStatus: currentStatus, kycState: Not(KycState.FAILED) }],
+      where: { kycStatus: currentStatus },
     });
     for (const key in userDataList) {
       const documentVersions = await this.getDocumentVersion(userDataList[key].id, documentType);
       if (!documentVersions?.length) continue;
-      
+
       const isCompleted = documentVersions.find((document) => document.state === State.COMPLETED) != null;
       const isFailed =
         documentVersions.find(
           (document) => document.state != State.FAILED && this.dateDiffInDays(document.creationTime) < 7,
         ) == null;
       const shouldBeReminded =
+        !isFailed &&
         this.dateDiffInDays(documentVersions[0].creationTime) > 2 &&
         this.dateDiffInDays(documentVersions[0].creationTime) < 7;
 
