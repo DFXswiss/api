@@ -372,28 +372,25 @@ export class KycService {
     });
     for (const key in userDataList) {
       const documentVersions = await this.getDocumentVersion(userDataList[key].id, documentType);
-      if (documentVersions.find((document) => document.state === State.COMPLETED) != null) {
+
+      const isCompleted = documentVersions.find((document) => document.state === State.COMPLETED) != null;
+      const isFailed =
+        documentVersions.find(
+          (document) => document.state != State.FAILED && this.dateDiffInDays(document.creationTime) < 7,
+        ) == null;
+      const shouldBeReminded =
+        this.dateDiffInDays(documentVersions[0].creationTime) > 2 &&
+        this.dateDiffInDays(documentVersions[0].creationTime) < 7;
+
+      if (isCompleted) {
         userDataList[key].kycStatus = nextStatus;
         userDataList[key].kycState = KycState.PENDING;
         userDataList[key] = await updateAction(userDataList[key]);
-      } else if (
-        documentVersions.find(
-          (document) => document.state != State.FAILED && this.dateDiffInDays(document.creationTime) < 7,
-        ) == null &&
-        userDataList[key].kycState != KycState.FAILED
-      ) {
+      } else if (isFailed && userDataList[key].kycState != KycState.FAILED) {
         userDataList[key].kycState = KycState.FAILED;
-        await this.mailService.sendSupportFailedMail(
-          userDataList[key],
-          (
-            await this.getCustomer(userDataList[key].id)
-          ).id,
-        );
-      } else if (
-        userDataList[key].kycState != KycState.REMINDED &&
-        this.dateDiffInDays(documentVersions[0].creationTime) > 2 &&
-        this.dateDiffInDays(documentVersions[0].creationTime) < 7
-      ) {
+        const customer = await this.getCustomer(userDataList[key].id);
+        await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
+      } else if (shouldBeReminded && userDataList[key].kycState != KycState.REMINDED) {
         const user = await this.userRepository.findOne({ where: { mail: Not('') }, relations: ['userData'] });
         await this.mailService.sendReminderMail(user, currentStatus);
         userDataList[key].kycState = KycState.REMINDED;
