@@ -38,9 +38,7 @@ export class MailService {
     });
   }
 
-  async sendKycMail(userData: UserData, user: User, kycCustomerId: number): Promise<void> {
-    const firstName = user.firstname ?? 'DFX Dude';
-
+  async sendKycMail(userData: UserData, firstName: string, mail: string, kycCustomerId: number): Promise<void> {
     const htmlSupportBody = `
       <h1>Hi DFX Support</h1>
       <p>a new customer has finished onboarding chatbot, address verification and online identification:</p>
@@ -69,24 +67,22 @@ export class MailService {
       html: htmlSupportBody,
     });
 
-    if (user?.mail) {
-      const htmlUserBody = `
-      <h1>Hi ${firstName},</h1>
-      <p>your KYC process is complete and will be checked manually.</p>
-      <p>You can now transfer 45 000€ per year.</p>
-      <p></p>
-      <p>Thanks,</p>
-      <p>Your friendly team at DFX</p>
-      <p></p>
-      <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
-      <p>2021 DFX AG</p>`;
+    const htmlUserBody = `
+    <h1>Hi ${firstName},</h1>
+    <p>your KYC process is complete and will be checked manually.</p>
+    <p>You can now transfer 45 000€ per year.</p>
+    <p></p>
+    <p>Thanks,</p>
+    <p>Your friendly team at DFX</p>
+    <p></p>
+    <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
+    <p>2021 DFX AG</p>`;
 
-      await this.mailerService.sendMail({
-        to: user.mail,
-        subject: 'KYC process is complete',
-        html: htmlUserBody,
-      });
-    }
+    await this.mailerService.sendMail({
+      to: mail,
+      subject: 'KYC process is complete',
+      html: htmlUserBody,
+    });
   }
 
   async sendReminderMail(firstName: string, mail: string, kycStatus: KycStatus): Promise<void> {
