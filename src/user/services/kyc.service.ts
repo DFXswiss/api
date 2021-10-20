@@ -344,28 +344,26 @@ export class KycService {
   }
 
   async doOnlineIdCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.ONLINE_IDENTIFICATION, (u) =>
-      this.createKycFile(u),
+    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.ONLINE_IDENTIFICATION, (u, c) =>
+      this.createKycFile(u, c),
     );
   }
 
   async doVideoIdentCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u) =>
-      this.createKycFile(u),
+    await this.doCheck(KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u, c) =>
+      this.createKycFile(u, c),
     );
   }
 
-  private async createKycFile(userData: UserData): Promise<UserData> {
+  private async createKycFile(userData: UserData, customer: Customer): Promise<UserData> {
     // create KYC file reference
     const kycFile = await this.kycFileRepo.save({ userData: userData });
-    const user = await this.userRepository.findOne({ where: { mail: Not('') }, relations: ['userData'] });
-
     userData.kycFile = kycFile;
 
     //TODO: upload KYC file reference
     //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
 
-    await this.mailService.sendKycMail(userData, user, (await this.getCustomer(userData.id)).id);
+    await this.mailService.sendKycMail(userData, customer.names[0].firstName, customer.emails[0], customer.id);
     return userData;
   }
 
@@ -378,7 +376,7 @@ export class KycService {
     currentStatus: KycStatus,
     nextStatus: KycStatus,
     documentType: KycDocument,
-    updateAction: (userData: UserData) => Promise<UserData>,
+    updateAction: (userData: UserData, customer: Customer) => Promise<UserData>,
   ): Promise<void> {
     const userDataList = await this.userDataRepository.find({
       where: { kycStatus: currentStatus },
@@ -387,6 +385,7 @@ export class KycService {
       const documentVersions = await this.getDocumentVersion(userDataList[key].id, documentType);
       if (!documentVersions?.length) continue;
 
+      const customer = await this.getCustomer(userDataList[key].id);
       const isCompleted = documentVersions.find((document) => document.state === State.COMPLETED) != null;
       const isFailed =
         documentVersions.find(
@@ -400,15 +399,13 @@ export class KycService {
       if (isCompleted) {
         userDataList[key].kycStatus = nextStatus;
         userDataList[key].kycState = KycState.PENDING;
-        userDataList[key] = await updateAction(userDataList[key]);
+        userDataList[key] = await updateAction(userDataList[key], customer);
       } else if (isFailed && userDataList[key].kycState != KycState.FAILED) {
         userDataList[key].kycState = KycState.FAILED;
-        const customer = await this.getCustomer(userDataList[key].id);
         await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
       } else if (shouldBeReminded && userDataList[key].kycState != KycState.REMINDED) {
-        const customer = await this.getCustomer(userDataList[key].id);
-        await this.mailService.sendReminderMail(customer.names[0].firstName,customer.emails[0], currentStatus);
         userDataList[key].kycState = KycState.REMINDED;
+        await this.mailService.sendReminderMail(customer.names[0].firstName, customer.emails[0], currentStatus);
       }
     }
     await this.userDataRepository.save(userDataList);
