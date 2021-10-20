@@ -1,99 +1,159 @@
 import { Injectable } from '@nestjs/common';
-import { Exchange, OrderBook, Order, Balances, kraken, WithdrawalResponse } from 'ccxt';
+import { Exchange, OrderBook, Order, WithdrawalResponse, kraken, OrderNotFound } from 'ccxt';
 
 enum OrderSide {
   BUY = 'buy',
-  SELL = 'sell',
+  SELL = 'sell'
+}
+
+type KrakenOrder = {
+  id: string,
+  price: number,
+  amount: number
+}
+
+type KrakenOrderResponse = {
+  order: KrakenOrder;
+  partialFills: Array<KrakenOrder>;
 }
 
 @Injectable()
 export class ExchangeService {
   private readonly _exchange: Exchange;
-  public balances: Promise<any>;
 
   constructor(exchange: Exchange) {
     this._exchange = exchange;
-    this.balances = this.updateBalances();
-  }
-
-  async updateBalances(): Promise<Balances> {
-    return this._exchange.fetchBalance();
-  }
-
-  async fetchBalances() {
-    return this.balances;
-  }
-
-  async fetchOrderBook(currencyPair: string): Promise<OrderBook> {
-    return this._exchange.fetchOrderBook(currencyPair);
   }
 
   private _delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise( resolve => setTimeout(resolve, ms) );
   }
 
-  private async _pollOrder(
-    orderId: string,
-    currencyPair: string,
-    pollInterval = 5000,
-    maxPollRetries = 720,
-  ): Promise<string> {
+  private async _pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 12): Promise<string> {
     let checkOrder: Order;
     let checkOrderCounter = 0;
-
+  
     do {
-      this._delay(pollInterval);
-      checkOrder = await this._exchange.fetchOrder(orderId, currencyPair);
-      checkOrderCounter++;
+        this._delay(pollInterval);
+        try {
+          checkOrder = await this._exchange.fetchOrder(orderId, currencyPair);
+          checkOrderCounter++;
+        } catch (e) {
+          if (e instanceof OrderNotFound) {
+            console.log("NOT FOUND");
+            console.log(checkOrder);
+            continue;
+          }
+        }
     } while (!['closed', 'canceled'].includes(checkOrder.status) && checkOrderCounter < maxPollRetries);
 
     return checkOrder.status;
   }
 
-  private async _tryToOrder(
-    currencyPair: string,
-    orderType: string,
-    orderSide: OrderSide,
-    wantedCurrencyAmount: number,
-    currentPrice: number,
-    maxRetries = 5,
-  ): Promise<Order> {
-    let order: Order;
-    let orderStatus: string;
-    let orderRetryCounter = 0;
-
-    do {
-      order = await this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {
-        oflags: 'post',
-      });
-      orderStatus = await this._pollOrder(order.id, currencyPair);
-      orderRetryCounter++;
-    } while (orderStatus == 'canceled');
-
-    return order;
-  }
-
-  async createOrder(orderSide: OrderSide, currencyPair: string, exchangeAmount: number): Promise<Order> {
-    const balances = await this.balances;
-    const orderBook = await this.fetchOrderBook(currencyPair);
-    const [token1, token2] = currencyPair.split('/');
-    const depositedToken = orderSide == OrderSide.BUY ? token2 : token1;
-
-    if (exchangeAmount > balances.total[depositedToken]) {
-      throw new Error('There is not enough balance for token ' + depositedToken);
-    }
-
+  private async _fetchOrderPrice(currencyPair: string, orderSide: OrderSide): Promise<number> {
     /* 
         If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
             > We want to have the highest 'bids' price in the orderbook
         If 'sell' we want to sell token1 using token2. Example BTC/EUR on 'sell' means we sell BTC using EUR
             > We want to have the lowest 'asks' price in the orderbook
     */
-    const currentPrice = orderSide == OrderSide.BUY ? orderBook.bids[0][0] : orderBook.asks[0][0];
-    const wantedCurrencyAmount = orderSide == OrderSide.BUY ? exchangeAmount / currentPrice : exchangeAmount;
-    return this._tryToOrder(currencyPair, 'limit', orderSide, wantedCurrencyAmount, currentPrice);
+    const orderBook = await this.fetchOrderBook(currencyPair);
+    return (orderSide == OrderSide.BUY) ? orderBook.bids[0][0] : orderBook.asks[0][0];
+  }
 
-    // TODO: What if order was partially filled and our retry times out?
+  private async _recreateOrder(order: Order, currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number): Promise<Order> {
+    const newPrice = await this._fetchOrderPrice(currencyPair, orderSide);
+    if (newPrice != order.price) {
+      await this._exchange.cancelOrder(order.id, currencyPair);
+      return this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, newPrice, {'oflags': 'post'});
+    }
+
+    return order;
+  }
+
+  private async _tryToOrder(currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number, currentPrice: number): Promise<KrakenOrderResponse> {
+    let order: Order;
+    let orderStatus: string;
+    let partialOrders = []
+
+    do {
+      if (order == undefined) {
+        order = await this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
+      } else {
+        // cancel existing order. Check if partially filled
+        if (orderStatus == 'canceled') {
+          // recreate order
+          order = await this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
+        } else {
+          // Order has not yet been filled. Lets check if it was partially filled
+          if (order.filled != undefined) {
+            // Partial order exists
+            const partialOrder: KrakenOrder = {
+              id: order.id,
+              price: order.price,
+              amount: order.filled
+            };
+
+            partialOrders.push(partialOrder);
+            wantedCurrencyAmount -= order.filled;
+          }
+
+          order = await this._recreateOrder(order, currencyPair, orderType, orderSide, wantedCurrencyAmount);
+        }
+      }
+
+      orderStatus = await this._pollOrder(order.id, currencyPair);
+    } while (['open', 'canceled'].includes(orderStatus));
+
+    let amount = order.amount;
+    if (partialOrders.length > 0) {
+      const amount_sum = partialOrders.reduce((a, b) => a.amount + b.amount, 0);
+      amount = amount_sum / partialOrders.length;
+    }
+
+    const krakenOrder: KrakenOrder = {
+      id: order.id,
+      price: order.price,
+      amount: amount
+    }
+  
+    const krakenResponse: KrakenOrderResponse = {
+      order: krakenOrder,
+      partialFills: partialOrders
+    }
+
+    return krakenResponse;
+  }
+
+  async fetchBalances() {
+    return this._exchange.fetchBalance();
+  }
+
+  async fetchOrderBook(currencyPair: string): Promise<OrderBook> {
+    return this._exchange.fetchOrderBook(currencyPair);
+  }
+
+  async createOrder(orderSide: OrderSide, currencyPair: string, exchangeAmount: number): Promise<KrakenOrderResponse> {
+    /*
+      The following logic is applied
+
+      1. place order
+      2. query every 5s if order has been filled up to 60s
+      3. if after 60s order is not filled then cancel order and go back to 1.)
+      4. if after 60s order is partially filled then cancel order and go back to 1 with the remaining funds that were not filled
+      5. return buy/sell price. If partially filled then return average price over all the orders
+    */
+    const balances = await this.fetchBalances();
+    const [token1, token2] = currencyPair.split('/');
+    const depositedToken = (orderSide == OrderSide.BUY) ? token2 : token1;
+
+    if (exchangeAmount > balances.total[depositedToken]) {
+      throw new Error('There is not enough balance for token ' + depositedToken + '. Current balance: ' + balances.total[depositedToken] + ' requested balance: ' + exchangeAmount);
+    }
+
+    const currentPrice = await this._fetchOrderPrice(currencyPair, orderSide);
+    const wantedCurrencyAmount = (orderSide == OrderSide.BUY) ? exchangeAmount / currentPrice: exchangeAmount;
+    return this._tryToOrder(currencyPair, 'limit', orderSide, wantedCurrencyAmount, currentPrice);
   }
 
   async withdrawFunds(token: string, amount: number, address: string, params?: any): Promise<WithdrawalResponse> {
@@ -107,6 +167,6 @@ export class ExchangeService {
 
 class Kraken extends ExchangeService {
   constructor(params: any) {
-    super(new kraken(params));
+      super(new kraken(params));
   }
 }
