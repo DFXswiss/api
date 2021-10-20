@@ -112,7 +112,7 @@ export class CfpService {
 
       this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
     } catch (e) {
-      console.log(`Exception during CFP update: ${e}`);
+      console.log('Exception during CFP update:', e);
       throw new ServiceUnavailableException('Failed to update');
     }
   }
@@ -153,7 +153,7 @@ export class CfpService {
       no: noVoteCount,
       votes: voteCount,
       possibleVotes: this.masterNodeCount,
-      voteTurnout: this.conversionService.round(voteCount / this.masterNodeCount * 100, 2),
+      voteTurnout: this.conversionService.round((voteCount / this.masterNodeCount) * 100, 2),
       currentResult: yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
     };
   }
