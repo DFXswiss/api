@@ -407,7 +407,7 @@ export class KycService {
         await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
       } else if (shouldBeReminded && userDataList[key].kycState != KycState.REMINDED) {
         const customer = await this.getCustomer(userDataList[key].id);
-        await this.mailService.sendReminderMail(customer, currentStatus);
+        await this.mailService.sendReminderMail(customer.names[0].firstName,customer.emails[0], currentStatus);
         userDataList[key].kycState = KycState.REMINDED;
       }
     }
