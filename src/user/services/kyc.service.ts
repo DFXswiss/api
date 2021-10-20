@@ -371,26 +371,31 @@ export class KycService {
       where: [{ kycStatus: currentStatus, kycState: Not(KycState.FAILED) }],
     });
     for (const key in userDataList) {
-      const documentVersion = await this.getDocumentVersion(userDataList[key].id, documentType);
-      if (documentVersion.find((document) => document.state === State.COMPLETED) != null) {
+      const documentVersions = await this.getDocumentVersion(userDataList[key].id, documentType);
+      if (documentVersions.find((document) => document.state === State.COMPLETED) != null) {
         userDataList[key].kycStatus = nextStatus;
         userDataList[key].kycState = KycState.PENDING;
         userDataList[key] = await updateAction(userDataList[key]);
       } else if (
-        documentVersion.find(
+        documentVersions.find(
           (document) => document.state != State.FAILED && this.dateDiffInDays(document.creationTime) < 7,
         ) == null &&
         userDataList[key].kycState != KycState.FAILED
       ) {
         userDataList[key].kycState = KycState.FAILED;
-        this.mailService.sendSupportFailedMail(userDataList[key], (await this.getCustomer(userDataList[key].id)).id);
+        await this.mailService.sendSupportFailedMail(
+          userDataList[key],
+          (
+            await this.getCustomer(userDataList[key].id)
+          ).id,
+        );
       } else if (
         userDataList[key].kycState != KycState.REMINDED &&
-        this.dateDiffInDays(documentVersion[0].creationTime) > 2 &&
-        this.dateDiffInDays(documentVersion[0].creationTime) < 7
+        this.dateDiffInDays(documentVersions[0].creationTime) > 2 &&
+        this.dateDiffInDays(documentVersions[0].creationTime) < 7
       ) {
         const user = await this.userRepository.findOne({ where: { mail: Not('') }, relations: ['userData'] });
-        this.mailService.sendReminderMail(user, currentStatus);
+        await this.mailService.sendReminderMail(user, currentStatus);
         userDataList[key].kycState = KycState.REMINDED;
       }
     }
