@@ -372,8 +372,7 @@ export class KycService {
     });
     for (const key in userDataList) {
       const documentVersions = await this.getDocumentVersion(userDataList[key].id, documentType);
-
-      if (!documentVersions) continue;
+      if (!documentVersions?.length) continue;
       
       const isCompleted = documentVersions.find((document) => document.state === State.COMPLETED) != null;
       const isFailed =
