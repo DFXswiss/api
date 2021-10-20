@@ -4,6 +4,7 @@ import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { User } from 'src/user/models/user/user.entity';
+import { Customer } from 'src/user/services/kyc.service';
 
 @Injectable()
 export class MailService {
@@ -89,12 +90,10 @@ export class MailService {
     }
   }
 
-  async sendReminderMail(user: User, kycStatus: KycStatus): Promise<void> {
-    const firstName = user.firstname ?? 'DFX Dude';
-
-    if (user?.mail) {
+  async sendReminderMail(user: Customer, kycStatus: KycStatus): Promise<void> {
+    if (user?.emails[0]) {
       const htmlBody = `
-      <h1>Hi ${firstName},</h1>
+      <h1>Hi ${user.names[0]?.firstName},</h1>
       <p>friendly reminder of your ${this.getStatus(kycStatus)}.</p>
       <p>Please check your mails.</p>
       <p></p>
@@ -105,7 +104,7 @@ export class MailService {
       <p>2021 DFX AG</p>`;
 
       await this.mailerService.sendMail({
-        to: user.mail,
+        to: user?.emails[0],
         subject: `KYC Reminder`,
         html: htmlBody,
       });
@@ -207,6 +206,10 @@ export class MailService {
       }
       case KycStatus.WAIT_ONLINE_ID: {
         status = 'online identification';
+        break;
+      }
+      case KycStatus.WAIT_VIDEO_ID: {
+        status = 'video identification';
         break;
       }
     }
