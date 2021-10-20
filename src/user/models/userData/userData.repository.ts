@@ -20,7 +20,6 @@ export class UserDataRepository extends Repository<UserData> {
       const userData = await this.findOne({ id: updatedUser.id });
       if (!userData) throw new NotFoundException('No matching user for id found');
 
-      if (updatedUser.nameCheck) userData.nameCheck = updatedUser.nameCheck;
       if (updatedUser.depositLimit) userData.depositLimit = updatedUser.depositLimit;
       if (updatedUser.kycStatus) userData.kycStatus = updatedUser.kycStatus;
       if (updatedUser.kycState) userData.kycState = updatedUser.kycState;
