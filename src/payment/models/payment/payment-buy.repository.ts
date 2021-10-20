@@ -15,7 +15,6 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { CountryRepository } from 'src/shared/models/country/country.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
-import { NameCheckStatus } from 'src/user/models/userData/userData.entity';
 import { MailService } from 'src/shared/services/mail.service';
 import { KycService } from 'src/user/services/kyc.service';
 
