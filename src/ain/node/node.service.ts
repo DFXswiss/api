@@ -137,7 +137,7 @@ export class NodeService {
       return await call(this.clients[node][mode]);
     } catch (e) {
       // TODO: retries?
-      console.log(e);
+      console.warn('Exception during node call:', e);
       throw new ServiceUnavailableException(e);
     }
   }
