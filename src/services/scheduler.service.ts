@@ -22,7 +22,7 @@ export class SchedulerService {
       await this.kycService.doOnlineIdCheck();
       await this.kycService.doVideoIdentCheck();
     } catch (e) {
-      console.log('Exception during KYC checks:', e);
+      console.error('Exception during KYC checks:', e);
     }
   }
 
@@ -35,7 +35,7 @@ export class SchedulerService {
   async checkNodes() {
     const errors = await this.nodeService.checkNodes();
     if (errors.length > 0) {
-      console.log(`Node errors: ${errors}`);
+      console.error(`Node errors: ${errors}`);
       await this.mailService.sendNodeErrorMail(errors);
     }
   }
