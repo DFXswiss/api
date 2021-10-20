@@ -22,7 +22,7 @@ export class SchedulerService {
       await this.kycService.doOnlineIdCheck();
       await this.kycService.doVideoIdentCheck();
     } catch (e) {
-      console.log(`Exception during KYC checks: ${e}`);
+      console.log('Exception during KYC checks:', e);
     }
   }
 
