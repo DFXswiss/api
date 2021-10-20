@@ -19,10 +19,9 @@ export class BankDataService {
 
     const bankDataCheck = await this.bankDataRepo.findOne({
       iban: bankDataDto.iban,
-      location: bankDataDto.location,
+      location: bankDataDto.location ?? null,
       name: bankDataDto.name,
     });
-
     if (bankDataCheck) throw new ConflictException('Bank data with duplicate key');
 
     const bankData = this.bankDataRepo.create({ ...bankDataDto, userData: userData });

@@ -12,18 +12,12 @@ import {
 } from 'typeorm';
 import { KycFile as KycFile } from './kycFile.entity';
 
-export enum NameCheckStatus {
-  NA = 'NA',
-  SAFE = 'Safe',
-  WARNING = 'Warning',
-  HIGH_RISK = 'HighRisk',
-}
-
 export enum KycStatus {
   NA = 'NA',
   WAIT_CHAT_BOT = 'Chatbot',
   WAIT_ADDRESS = 'Address',
   WAIT_ONLINE_ID = 'OnlineId',
+  WAIT_VIDEO_ID = 'VideoId',
   WAIT_MANUAL = 'Manual',
   COMPLETED = 'Completed',
 }
@@ -40,9 +34,6 @@ export enum KycState {
 export class UserData {
   @PrimaryGeneratedColumn()
   id: number;
-
-  @Column({ length: 256, default: NameCheckStatus.NA })
-  nameCheck: NameCheckStatus;
 
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;

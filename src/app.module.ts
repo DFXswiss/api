@@ -4,7 +4,6 @@ import { AppController } from './app.controller';
 import { StatisticController } from './statistic/statistic.controller';
 import { StatisticService } from './statistic/statistic.service';
 import { ScheduleModule } from '@nestjs/schedule';
-import { SchedulerService } from './services/scheduler.service';
 import { CfpService } from './statistic/cfp.service';
 import { AinModule } from './ain/ain.module';
 import { SharedModule } from './shared/shared.module';
@@ -12,7 +11,6 @@ import { PaymentModule } from './payment/payment.module';
 import { UserModule } from './user/user.module';
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'mssql',
       host: process.env.SQL_HOST,
@@ -34,7 +32,7 @@ import { UserModule } from './user/user.module';
     UserModule,
   ],
   controllers: [AppController, StatisticController],
-  providers: [StatisticService, SchedulerService, CfpService],
+  providers: [StatisticService, CfpService],
   exports: [],
 })
 export class AppModule {}

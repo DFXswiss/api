@@ -21,6 +21,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { MailerModule } from '@nestjs-modules/mailer';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
         from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
       },
     }),
+    ScheduleModule.forRoot(),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController],
   providers: [
@@ -68,6 +70,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
   exports: [
     PassportModule,
     JwtModule,
+    ScheduleModule,
     ConversionService,
     MailService,
     HttpService,

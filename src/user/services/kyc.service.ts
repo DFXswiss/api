@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
@@ -152,6 +153,18 @@ export class KycService {
     private userDataRepository: UserDataRepository,
     private userRepository: UserRepository,
   ) {}
+
+  @Interval(300000)
+  async doChecks() {
+    try {
+      await this.doChatBotCheck();
+      await this.doAddressCheck();
+      await this.doOnlineIdCheck();
+      await this.doVideoIdentCheck();
+    } catch (e) {
+      console.error('Exception during KYC checks:', e);
+    }
+  }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
@@ -337,7 +350,7 @@ export class KycService {
   }
 
   async doVideoIdentCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u) =>
+    await this.doCheck(KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u) =>
       this.createKycFile(u),
     );
   }
@@ -393,8 +406,8 @@ export class KycService {
         const customer = await this.getCustomer(userDataList[key].id);
         await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
       } else if (shouldBeReminded && userDataList[key].kycState != KycState.REMINDED) {
-        const user = await this.userRepository.findOne({ where: { mail: Not('') }, relations: ['userData'] });
-        await this.mailService.sendReminderMail(user, currentStatus);
+        const customer = await this.getCustomer(userDataList[key].id);
+        await this.mailService.sendReminderMail(customer, currentStatus);
         userDataList[key].kycState = KycState.REMINDED;
       }
     }

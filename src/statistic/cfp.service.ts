@@ -4,6 +4,7 @@ import { HttpService } from '../shared/services/http.service';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import * as MasterNodes from '../assets/master-nodes.json';
 import * as CfpResults from '../assets/cfp-results.json';
+import { Interval } from '@nestjs/schedule';
 
 interface CfpResponse {
   number: number;
@@ -74,6 +75,19 @@ export class CfpService {
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
 
+  @Interval(600000)
+  async doUpdate(): Promise<void> {
+    try {
+      let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
+      allCfp = allCfp.filter((cfp) => cfp.labels.find((l) => l.name === 'cfp'));
+
+      this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+    } catch (e) {
+      console.error('Exception during CFP update:', e);
+      throw new ServiceUnavailableException('Failed to update');
+    }
+  }
+
   async getMasterNodes(): Promise<MasterNode[]> {
     const response = await this.callApi<{ [key: string]: MasterNode }>(this.masterNodeUrl, ``);
     return Object.values(response).map((n) => ({
@@ -103,18 +117,6 @@ export class CfpService {
     if (!results) throw new NotFoundException('No CFP result for id found');
 
     return results;
-  }
-
-  async doUpdate(): Promise<void> {
-    try {
-      let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter((cfp) => cfp.labels.find((l) => l.name === 'cfp'));
-
-      this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
-    } catch (e) {
-      console.error('Exception during CFP update:', e);
-      throw new ServiceUnavailableException('Failed to update');
-    }
   }
 
   // --- HELPER METHODS --- //
