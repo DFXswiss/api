@@ -112,7 +112,7 @@ export class CfpService {
 
       this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
     } catch (e) {
-      console.log(e);
+      console.log(`Exception during CFP update: ${e}`);
       throw new ServiceUnavailableException('Failed to update');
     }
   }

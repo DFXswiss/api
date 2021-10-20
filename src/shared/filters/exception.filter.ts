@@ -6,7 +6,7 @@ export class AllExceptionFilter implements ExceptionFilter {
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     if (status >= 500) {
       // log server errors
-      console.log(exception);
+      console.log(`Exception during request: ${exception}`);
     }
 
     const ctx = host.switchToHttp();
