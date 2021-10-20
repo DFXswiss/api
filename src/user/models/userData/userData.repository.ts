@@ -22,6 +22,8 @@ export class UserDataRepository extends Repository<UserData> {
 
       if (updatedUser.nameCheck) userData.nameCheck = updatedUser.nameCheck;
       if (updatedUser.depositLimit) userData.depositLimit = updatedUser.depositLimit;
+      if (updatedUser.kycStatus) userData.kycStatus = updatedUser.kycStatus;
+      if (updatedUser.kycState) userData.kycState = updatedUser.kycState;
 
       return await this.save(userData);
     } catch (error) {
