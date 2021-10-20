@@ -156,10 +156,14 @@ export class KycService {
 
   @Interval(300000)
   async doChecks() {
-    await this.doChatBotCheck();
-    await this.doAddressCheck();
-    await this.doOnlineIdCheck();
-    await this.doVideoIdentCheck();
+    try {
+      await this.doChatBotCheck();
+      await this.doAddressCheck();
+      await this.doOnlineIdCheck();
+      await this.doVideoIdentCheck();
+    } catch (e) {
+      console.error('Exception during KYC checks:', e);
+    }
   }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
