@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { Exchange, OrderBook, Order, WithdrawalResponse, kraken } from 'ccxt';
 
 enum OrderSide {
@@ -150,7 +150,7 @@ export class ExchangeService {
     const depositedToken = (orderSide == OrderSide.BUY) ? token2 : token1;
 
     if (exchangeAmount > balances.total[depositedToken]) {
-      throw new Error('There is not enough balance for token ' + depositedToken + '. Current balance: ' + balances.total[depositedToken] + ' requested balance: ' + exchangeAmount);
+      throw new BadRequestException(`There is not enough balance for token ${depositedToken}. Current balance: ${balances.total[depositedToken]} requested balance: ${exchangeAmount}`);
     }
 
     const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
