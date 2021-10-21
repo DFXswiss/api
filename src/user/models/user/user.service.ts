@@ -57,10 +57,13 @@ export class UserService {
     if (!currentUser.refFeeAsset) currentUser.refFeeAsset = await this.assetService.getAsset('dBTC');
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['depositLimit'] = currentUser.userData.depositLimit;
-    currentUser['refData'] = await this.getRefData(currentUser);
-    currentUser['userVolume'] = await this.getUserVolume(currentUser);
-    delete currentUser.userData;
 
+    if (detailedUser) {
+      currentUser['refData'] = await this.getRefData(currentUser);
+      currentUser['userVolume'] = await this.getUserVolume(currentUser);
+    }
+
+    delete currentUser.userData;
     delete currentUser.signature;
     delete currentUser.ip;
     if (currentUser.role != UserRole.VIP) delete currentUser.role;
@@ -110,8 +113,27 @@ export class UserService {
     return this.userRepo.getAllUser();
   }
 
-  async verifyUser(address: string): Promise<any> {
-    return this.userRepo.verifyUser(address);
+  async verifyUser(id: number): Promise<{ result: boolean; errors: { [error: string]: string } }> {
+    const currentUser = await this.userRepo.findOne(id);
+    if (!currentUser) throw new NotFoundException('No matching user for id found');
+
+    const requiredFields = [
+      'mail',
+      'firstname',
+      'surname',
+      'street',
+      'houseNumber',
+      'location',
+      'zip',
+      'country',
+      'phone',
+    ];
+    const errors = requiredFields.filter((f) => !currentUser[f]);
+
+    return {
+      result: errors.length === 0,
+      errors: errors.reduce((prev, curr) => ({ ...prev, [curr]: 'missing' }), {}),
+    };
   }
 
   async updateRole(user: UpdateRoleDto): Promise<any> {

@@ -16,28 +16,25 @@ import { Deposit } from 'src/user/models/deposit/deposit.entity';
 import { SellPayment } from 'src/payment/models/payment/payment.entity';
 
 @Entity()
-@Index('ibanAsset', (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
+@Index('ibanFiat', (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
 export class Sell {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column({ length: 256 })
-  address: string; // TODO: remove
-
-  @Column({ length: 256 })
   iban: string;
 
-  @ManyToOne(() => Fiat, { eager: true })
+  @ManyToOne(() => Fiat, { eager: true, nullable: false })
   fiat: Fiat;
 
-  @OneToOne(() => Deposit, { eager: true })
+  @OneToOne(() => Deposit, (deposit) => deposit.sell, { eager: true, nullable: false })
   @JoinColumn()
   deposit: Deposit;
 
   @Column({ default: true })
   active: boolean;
 
-  @ManyToOne(() => User, (user) => user.sells)
+  @ManyToOne(() => User, (user) => user.sells, { nullable: false })
   user: User;
 
   @OneToMany(() => SellPayment, (sellPayment) => sellPayment.sell)

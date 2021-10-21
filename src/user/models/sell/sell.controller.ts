@@ -8,6 +8,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { Sell } from './sell.entity';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -16,36 +17,29 @@ export class SellController {
 
   @Get(':id')
   @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    required: true,
-    description: 'integer for the sell id',
-    schema: { type: 'integer' },
-  })
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getSellRoute(@GetJwt() jwt: JwtPayload, @Param() id: any): Promise<any> {
-    return this.sellService.getSell(id, jwt.address);
+  async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<Sell> {
+    return this.sellService.getSell(+id, jwt.id);
   }
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllSellRoute(@GetJwt() jwt: JwtPayload): Promise<any> {
-    return this.sellService.getAllSell(jwt.address);
+  async getAllSell(@GetJwt() jwt: JwtPayload): Promise<Sell[]> {
+    return this.sellService.getAllSell(jwt.id);
   }
 
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<any> {
+  createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<Sell> {
     return this.sellService.createSell(jwt.id, createSellDto);
   }
 
   @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateSellRoute(@GetJwt() jwt: JwtPayload, @Body() updateSellDto: UpdateSellDto): Promise<any> {
-    updateSellDto.address = jwt.address;
-    return this.sellService.updateSell(updateSellDto);
+  async updateSell(@GetJwt() jwt: JwtPayload, @Body() updateSellDto: UpdateSellDto): Promise<Sell> {
+    return this.sellService.updateSell(jwt.id, updateSellDto);
   }
 }

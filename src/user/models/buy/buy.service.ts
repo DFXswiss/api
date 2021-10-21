@@ -30,7 +30,7 @@ export class BuyService {
   async updateBuy(userId: number, updateBuyDto: UpdateBuyDto): Promise<Buy> {
     updateBuyDto.address = (await this.userService.getUser(userId)).address;
     return this.buyRepo.updateBuy(updateBuyDto);
-  }
+  } 
 
   async count(): Promise<number> {
     return this.buyRepo.count();
