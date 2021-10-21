@@ -27,17 +27,24 @@ export class LogService {
 
   async createLog(createLogDto: CreateLogDto): Promise<any> {
     if (createLogDto.type === LogType.TRANSACTION && !createLogDto.status) {
-      if (!createLogDto.user) {
-        const userObject = await this.userRepo.getUserInternal(createLogDto.address);
+      if (!createLogDto.user && createLogDto.address) {
+        const userObject = await this.userRepo.findOne({
+          where: { address: createLogDto.address },
+          relations: ['wallet'],
+        });
 
         createLogDto.user = userObject;
         createLogDto.usedRef = userObject.usedRef;
         createLogDto.refFeePercent = userObject.refFeePercent;
         createLogDto.usedWallet = userObject.wallet.id;
-      } else {
+      } else if (createLogDto.user) {
         createLogDto.usedRef = createLogDto.user.usedRef;
         createLogDto.refFeePercent = createLogDto.user.refFeePercent;
         createLogDto.usedWallet = createLogDto.user.wallet.id;
+      } else {
+        delete createLogDto.usedRef;
+        delete createLogDto.usedWallet;
+        delete createLogDto.refFeePercent;
       }
     } else {
       delete createLogDto.usedRef;
