@@ -19,24 +19,24 @@ type KrakenOrderResponse = {
 
 @Injectable()
 export class ExchangeService {
-  private readonly _exchange: Exchange;
+  private readonly exchange: Exchange;
 
   constructor(exchange: Exchange) {
-    this._exchange = exchange;
+    this.exchange = exchange;
   }
 
-  private _delay(ms: number) {
+  private async delay(ms: number) {
     return new Promise( resolve => setTimeout(resolve, ms) );
   }
 
-  private async _pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 12): Promise<string> {
+  private async pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 12): Promise<string> {
     let checkOrder: Order;
     let checkOrderCounter = 0;
   
     do {
-        this._delay(pollInterval);
+        await this.delay(pollInterval);
         try {
-          checkOrder = await this._exchange.fetchOrder(orderId, currencyPair);
+          checkOrder = await this.exchange.fetchOrder(orderId, currencyPair);
           checkOrderCounter++;
         } catch (e) {
           if (e instanceof OrderNotFound) {
@@ -50,7 +50,7 @@ export class ExchangeService {
     return checkOrder.status;
   }
 
-  private async _fetchOrderPrice(currencyPair: string, orderSide: OrderSide): Promise<number> {
+  private async fetchOrderPrice(currencyPair: string, orderSide: OrderSide): Promise<number> {
     /* 
         If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
             > We want to have the highest 'bids' price in the orderbook
@@ -61,29 +61,29 @@ export class ExchangeService {
     return (orderSide == OrderSide.BUY) ? orderBook.bids[0][0] : orderBook.asks[0][0];
   }
 
-  private async _recreateOrder(order: Order, currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number): Promise<Order> {
-    const newPrice = await this._fetchOrderPrice(currencyPair, orderSide);
+  private async recreateOrder(order: Order, currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number): Promise<Order> {
+    const newPrice = await this.fetchOrderPrice(currencyPair, orderSide);
     if (newPrice != order.price) {
-      await this._exchange.cancelOrder(order.id, currencyPair);
-      return this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, newPrice, {'oflags': 'post'});
+      await this.exchange.cancelOrder(order.id, currencyPair);
+      return this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, newPrice, {'oflags': 'post'});
     }
 
     return order;
   }
 
-  private async _tryToOrder(currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number, currentPrice: number): Promise<KrakenOrderResponse> {
+  private async tryToOrder(currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number, currentPrice: number): Promise<KrakenOrderResponse> {
     let order: Order;
     let orderStatus: string;
     let partialOrders = []
 
     do {
       if (order == undefined) {
-        order = await this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
+        order = await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
       } else {
         // cancel existing order. Check if partially filled
         if (orderStatus == 'canceled') {
           // recreate order
-          order = await this._exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
+          order = await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
         } else {
           // Order has not yet been filled. Lets check if it was partially filled
           if (order.filled != undefined) {
@@ -98,11 +98,11 @@ export class ExchangeService {
             wantedCurrencyAmount -= order.filled;
           }
 
-          order = await this._recreateOrder(order, currencyPair, orderType, orderSide, wantedCurrencyAmount);
+          order = await this.recreateOrder(order, currencyPair, orderType, orderSide, wantedCurrencyAmount);
         }
       }
 
-      orderStatus = await this._pollOrder(order.id, currencyPair);
+      orderStatus = await this.pollOrder(order.id, currencyPair);
     } while (['open', 'canceled'].includes(orderStatus));
 
     let amount = order.amount;
@@ -126,11 +126,11 @@ export class ExchangeService {
   }
 
   async fetchBalances() {
-    return this._exchange.fetchBalance();
+    return this.exchange.fetchBalance();
   }
 
   async fetchOrderBook(currencyPair: string): Promise<OrderBook> {
-    return this._exchange.fetchOrderBook(currencyPair);
+    return this.exchange.fetchOrderBook(currencyPair);
   }
 
   async createOrder(orderSide: OrderSide, currencyPair: string, exchangeAmount: number): Promise<KrakenOrderResponse> {
@@ -151,9 +151,9 @@ export class ExchangeService {
       throw new Error('There is not enough balance for token ' + depositedToken + '. Current balance: ' + balances.total[depositedToken] + ' requested balance: ' + exchangeAmount);
     }
 
-    const currentPrice = await this._fetchOrderPrice(currencyPair, orderSide);
+    const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
     const wantedCurrencyAmount = (orderSide == OrderSide.BUY) ? exchangeAmount / currentPrice: exchangeAmount;
-    return this._tryToOrder(currencyPair, 'limit', orderSide, wantedCurrencyAmount, currentPrice);
+    return this.tryToOrder(currencyPair, 'limit', orderSide, wantedCurrencyAmount, currentPrice);
   }
 
   async withdrawFunds(token: string, amount: number, address: string, params?: any): Promise<WithdrawalResponse> {
@@ -161,7 +161,7 @@ export class ExchangeService {
         Kraken requires you so store the address and give it a label (key). This needs to be added to the parameters
         await exchange.withdrawFunds('LTC', order.amount, 'xxx', {'key': 'cake-ltc'})
     */
-    return this._exchange.withdraw(token, amount, address, undefined, params);
+    return this.exchange.withdraw(token, amount, address, undefined, params);
   }
 }
 
