@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { Exchange, OrderBook, Order, WithdrawalResponse, kraken, OrderNotFound } from 'ccxt';
+import { Exchange, OrderBook, Order, WithdrawalResponse, kraken } from 'ccxt';
 
 enum OrderSide {
   BUY = 'buy',
   SELL = 'sell'
+}
+
+enum OrderStatus {
+  OPEN = 'open',
+  CLOSED = 'closed',
+  CANCELED = 'canceled'
 }
 
 type KrakenOrder = {
@@ -14,7 +20,7 @@ type KrakenOrder = {
 
 type KrakenOrderResponse = {
   order: KrakenOrder;
-  partialFills: Array<KrakenOrder>;
+  partialFills: KrakenOrder[];
 }
 
 @Injectable()
@@ -29,7 +35,7 @@ export class ExchangeService {
     return new Promise( resolve => setTimeout(resolve, ms) );
   }
 
-  private async pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 12): Promise<string> {
+  private async pollOrder(orderId: string, currencyPair: string, pollInterval = 5000, maxPollRetries = 12): Promise<OrderStatus> {
     let checkOrder: Order;
     let checkOrderCounter = 0;
   
@@ -39,15 +45,11 @@ export class ExchangeService {
           checkOrder = await this.exchange.fetchOrder(orderId, currencyPair);
           checkOrderCounter++;
         } catch (e) {
-          if (e instanceof OrderNotFound) {
-            console.log("NOT FOUND");
-            console.log(checkOrder);
-            continue;
-          }
+          continue;
         }
-    } while (!['closed', 'canceled'].includes(checkOrder.status) && checkOrderCounter < maxPollRetries);
+    } while (![OrderStatus.CLOSED, OrderStatus.CANCELED].includes(checkOrder.status as OrderStatus) && checkOrderCounter < maxPollRetries);
 
-    return checkOrder.status;
+    return checkOrder.status as OrderStatus;
   }
 
   private async fetchOrderPrice(currencyPair: string, orderSide: OrderSide): Promise<number> {
@@ -73,7 +75,7 @@ export class ExchangeService {
 
   private async tryToOrder(currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number, currentPrice: number): Promise<KrakenOrderResponse> {
     let order: Order;
-    let orderStatus: string;
+    let orderStatus: OrderStatus;
     let partialOrders = []
 
     do {
@@ -81,7 +83,7 @@ export class ExchangeService {
         order = await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
       } else {
         // cancel existing order. Check if partially filled
-        if (orderStatus == 'canceled') {
+        if (orderStatus == OrderStatus.CANCELED) {
           // recreate order
           order = await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
         } else {
@@ -103,7 +105,7 @@ export class ExchangeService {
       }
 
       orderStatus = await this.pollOrder(order.id, currencyPair);
-    } while (['open', 'canceled'].includes(orderStatus));
+    } while ([OrderStatus.OPEN, OrderStatus.CANCELED].includes(orderStatus));
 
     let amount = order.amount;
     if (partialOrders.length > 0) {
