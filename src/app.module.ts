@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { StatisticController } from './statistic/statistic.controller';
 import { StatisticService } from './statistic/statistic.service';
-import { ScheduleModule } from '@nestjs/schedule';
 import { CfpService } from './statistic/cfp.service';
 import { AinModule } from './ain/ain.module';
 import { SharedModule } from './shared/shared.module';

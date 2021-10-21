@@ -78,6 +78,6 @@ import { KycService } from './services/kyc.service';
     KycService,
     AuthService,
   ],
-  exports: [BuyService, SellService, LogService, KycService],
+  exports: [BuyService, SellService, LogService, KycService, RefService],
 })
 export class UserModule {}
