@@ -104,7 +104,7 @@ export class UserRepository extends Repository<User> {
 
   async getAllUser(): Promise<any> {
     try {
-      return this.find({ relations: ['userData', 'wallet'] });
+      return await this.find({ relations: ['userData', 'wallet'] });
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -226,7 +226,7 @@ export class UserRepository extends Repository<User> {
 
       await this.save(newUser);
 
-      return this.findOne(currentUser.id);
+      return await this.findOne(currentUser.id);
     } catch (error) {
       throw new ConflictException(error.message);
     }
@@ -246,28 +246,5 @@ export class UserRepository extends Repository<User> {
     } catch (error) {
       throw new ConflictException(error.message);
     }
-  }
-
-  async verifyUser(address: string): Promise<any> {
-    const currentUser = await this.findOne({ address: address });
-    if (!currentUser) throw new NotFoundException('No matching user for id found');
-
-    const requiredFields = [
-      'mail',
-      'firstname',
-      'surname',
-      'street',
-      'houseNumber',
-      'location',
-      'zip',
-      'country',
-      'phone',
-    ];
-    const errors = requiredFields.filter((f) => !currentUser[f]);
-
-    return {
-      result: errors.length === 0,
-      errors: errors.reduce((prev, curr) => ({ ...prev, [curr]: 'missing' }), {}),
-    };
   }
 }

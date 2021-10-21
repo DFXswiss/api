@@ -9,11 +9,8 @@ export class Deposit {
   @Column({ unique: true, length: 256 })
   address: string;
 
-  @Column({ default: false })
-  used: boolean;
-
   @OneToOne(() => Sell, (sell) => sell.deposit)
-  sells: Sell[];
+  sell: Sell;
 
   @UpdateDateColumn()
   updated: Date;
