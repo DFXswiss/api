@@ -16,7 +16,7 @@ export class BuyService {
   }
 
   async getBuy(id: number, userId: number): Promise<Buy> {
-    const buy = await this.buyRepo.findOne({ where: { id, user: { id: userId} } });
+    const buy = await this.buyRepo.findOne({ where: { id, user: { id: userId } } });
 
     if (!buy) throw new NotFoundException('No matching buy route for id found');
 
@@ -30,7 +30,7 @@ export class BuyService {
   async updateBuy(userId: number, updateBuyDto: UpdateBuyDto): Promise<Buy> {
     updateBuyDto.address = (await this.userService.getUser(userId)).address;
     return this.buyRepo.updateBuy(updateBuyDto);
-  } 
+  }
 
   async count(): Promise<number> {
     return this.buyRepo.count();
