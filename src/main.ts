@@ -29,7 +29,7 @@ async function bootstrap() {
   app.use('*', json({type: 'application/json'}));
   app.use('/v1/node/*/rpc', text({type: 'text/plain'}));
 
-  app.setGlobalPrefix('v1', { exclude: [''] });
+  app.setGlobalPrefix('v1', { exclude: ['', 'app'] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new AllExceptionFilter());
 

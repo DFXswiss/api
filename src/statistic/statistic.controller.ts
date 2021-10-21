@@ -18,12 +18,6 @@ export class StatisticController {
     return this.cfpService.getCfpList();
   }
 
-  // TODO: remove
-  @Get('cfp/all')
-  async getAllCfp(): Promise<CfpResult[]> {
-    return this.cfpService.getCfpResults('latest');
-  }
-
   @Get('cfp/:id')
   async getCfpResults(@Param('id') cfpId: string): Promise<CfpResult[]> {
     return this.cfpService.getCfpResults(cfpId);

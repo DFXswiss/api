@@ -63,10 +63,6 @@ resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
       }
       appSettings: [
         {
-          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
-          value: 'true'
-        }
-        {
           name: 'WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG'
           value: '1'
         }
@@ -108,10 +104,6 @@ resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = {
         }
       }
       appSettings: [
-        {
-          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
-          value: 'true'
-        }
         {
           name: 'WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG'
           value: '1'
