@@ -3,7 +3,7 @@ name: Node DEV CD
 on:
   push:
     branches: [ develop ]
-    paths: [ infrastructure/docker/defi-node-test.yml ]
+    paths: [ infrastructure/docker/defi-node-dev.yml ]
   workflow_dispatch:
 
 jobs:
@@ -24,9 +24,9 @@ jobs:
         with:
           azcliversion: 2.0.72
           inlineScript: |
-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-inp-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-test.yml --slot stg
-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dex-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-test.yml --slot stg
-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-out-dev --enable-app-service-storage true --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-test.yml --slot stg
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-inp-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dex-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-out-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
       
       - name: Logout
         run: |

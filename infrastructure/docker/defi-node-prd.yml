@@ -5,14 +5,14 @@ services:
     image: defi/defichain:1.8.4
     restart: always
     ports:
-      - '8000:8555'
+      - '8000:8554'
     volumes:
       - node-data:/data
     command: >
       defid
       -rpcallowip=0.0.0.0/0
       -rpcbind=0.0.0.0
-      -rpcauth=dfx-api:5b7790834236ab3ec18e79933dbfae77$90ec34d4954d5c2579f006805dbdf597d316b56434a7bd9d8728dde669dfe94a
+      -rpcauth=dfx-api:01025f658be49497fce79ac437ccabd5$ca30862f0e10b6be845a3c4d8c0d24961cd6aeef0f021bb8b882ed713704c6c6
       -wallet=dfx-api
       -addresstype=bech32
       -spv=0
