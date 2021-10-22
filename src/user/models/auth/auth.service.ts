@@ -25,8 +25,7 @@ export class AuthService {
   ) {}
 
   async signUp(createUserDto: CreateUserDto): Promise<any> {
-    // TODO(david) mit App Update überarbeiten
-    if (!this.verifySignature(createUserDto.address, createUserDto.signature) && createUserDto.signature.length != 96) {
+    if (!this.verifySignature(createUserDto.address, createUserDto.signature)) {
       throw new BadRequestException('Wrong signature');
     }
 
@@ -53,19 +52,11 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    let credentialsValid;
-    if (user.signature == signature || signature.length == 96) {
-      credentialsValid = true;
-    } else {
-      if (user.signature.length == 96) {
-        // temporary code to update old wallet signatures
-        credentialsValid = this.verifySignature(address, signature);
-        if (credentialsValid) {
-          await this.userRepository.update({ id: user.id }, { signature: signature });
-        }
-      } else {
-        credentialsValid = false;
-      }
+    const credentialsValid = this.verifySignature(address, signature);
+
+    // TODO: temporary code to update old wallet signatures
+    if (credentialsValid && user.signature.length !== 88) {
+      await this.userRepository.update({ id: user.id }, { signature: signature });
     }
 
     if (credentialsValid) {
