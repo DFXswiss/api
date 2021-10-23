@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, IsInt, IsNumber } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsInt, IsNumber, Matches } from 'class-validator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export class UpdateUserDto {
@@ -11,6 +11,7 @@ export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Matches(/^(\w{1,3}-\w{1,3})$/)
   usedRef: string;
 
   @ApiPropertyOptional()
