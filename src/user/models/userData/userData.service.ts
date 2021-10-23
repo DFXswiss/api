@@ -39,7 +39,7 @@ export class UserDataService {
   }
 
   async updateUserData(newUser: UpdateUserDataDto): Promise<any> {
-    if (newUser.kycStatus) {
+    if (newUser.kycStatus && !newUser.kycState) {
       if (newUser.kycStatus == KycStatus.COMPLETED || newUser.kycStatus == KycStatus.NA) {
         newUser.kycState = KycState.NA;
       } else {
