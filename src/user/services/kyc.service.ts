@@ -398,7 +398,7 @@ export class KycService {
 
       if (isCompleted) {
         userDataList[key].kycStatus = nextStatus;
-        userDataList[key].kycState = KycState.PENDING;
+        userDataList[key].kycState = KycState.NA;
         userDataList[key] = await updateAction(userDataList[key], customer);
       } else if (isFailed && userDataList[key].kycState != KycState.FAILED) {
         userDataList[key].kycState = KycState.FAILED;
