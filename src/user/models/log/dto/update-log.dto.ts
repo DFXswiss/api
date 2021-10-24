@@ -8,6 +8,10 @@ export class UpdateLogDto {
   @IsInt()
   id: number;
 
+  @IsOptional()
+  @IsString()
+  orderId: string;
+
   @ApiProperty()
   @IsOptional()
   @Length(34, 42)
@@ -32,6 +36,11 @@ export class UpdateLogDto {
   @IsOptional()
   @IsNumber()
   fiatValue: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  fiatInCHF: number;
 
   @ApiProperty()
   @IsOptional()
@@ -107,4 +116,9 @@ export class UpdateLogDto {
   @IsOptional()
   @IsString()
   message: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  blockchainTx: string;
 }
