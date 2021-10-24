@@ -17,8 +17,8 @@ export class CreateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Length(7, 7)
   @IsString()
+  @Matches(/^(\w{1,3}-\w{1,3})$/)
   usedRef: string;
 
   @ApiPropertyOptional()

@@ -1,9 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsInt, IsEnum } from 'class-validator';
+import { IsOptional, IsInt, IsEnum, IsNotEmpty } from 'class-validator';
 import { KycState, KycStatus } from '../userData.entity';
 
 export class UpdateUserDataDto {
   @IsInt()
+  @IsNotEmpty()
   id: number;
 
   @ApiPropertyOptional()

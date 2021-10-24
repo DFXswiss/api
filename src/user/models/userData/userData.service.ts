@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { KycStatus, UserData } from './userData.entity';
+import { KycState, KycStatus, UserData } from './userData.entity';
 import { CheckResult, Customer, KycService } from 'src/user/services/kyc.service';
 import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
@@ -39,6 +39,10 @@ export class UserDataService {
   }
 
   async updateUserData(newUser: UpdateUserDataDto): Promise<any> {
+    if (newUser.kycStatus && !newUser.kycState) {  
+      newUser.kycState = KycState.NA;
+    }
+
     return this.userDataRepo.updateUserData(newUser);
   }
 
@@ -135,7 +139,7 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userDataId: number,depositLimit?:string): Promise<boolean> {
+  async requestKyc(userDataId: number, depositLimit?: string): Promise<boolean> {
     const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData'] });
     const userData = user.userData;
 
@@ -151,7 +155,7 @@ export class UserDataService {
       return true;
     } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.WAIT_MANUAL) {
       const customer = await this.kycService.getCustomer(userData.id);
-      await this.mailService.sendLimitSupportMail(userData, customer.id,depositLimit);
+      await this.mailService.sendLimitSupportMail(userData, customer.id, depositLimit);
     } else {
       return false;
     }

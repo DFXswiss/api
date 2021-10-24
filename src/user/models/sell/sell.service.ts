@@ -52,8 +52,7 @@ export class SellService {
     const sell = await this.sellRepo.findOne({ id: dto.id, user: { id: userId } });
     if (!sell) throw new NotFoundException('No matching entry found');
 
-    sell.active = dto.active;
-    return await this.sellRepo.save(sell);
+    return await this.sellRepo.save({ ...sell, ...dto });
   }
 
   async count(): Promise<number> {

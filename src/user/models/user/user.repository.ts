@@ -157,7 +157,7 @@ export class UserRepository extends Repository<User> {
 
       const refUser = await this.findOne({ ref: newUser.usedRef });
 
-      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef)) {
+      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef) || newUser.usedRef == null) {
         newUser.usedRef = '000-000';
       } else {
         if (refUser) {
