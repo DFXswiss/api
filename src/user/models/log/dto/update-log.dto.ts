@@ -15,7 +15,7 @@ export class UpdateLogDto {
   address: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsEnum(LogType)
   type: LogType;
 
