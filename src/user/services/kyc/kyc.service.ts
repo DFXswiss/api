@@ -6,7 +6,7 @@ import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { Repository } from 'typeorm';
 import { MailService } from '../../../shared/services/mail.service';
-import { KycApi } from './kyc.api';
+import { KycApiService } from './kyc.api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class KycService {
     @InjectRepository(KycFile)
     private kycFileRepo: Repository<KycFile>,
     private userDataRepository: UserDataRepository,
-    private kycApi: KycApi,
+    private kycApi: KycApiService,
   ) {}
 
   @Interval(300000)

@@ -7,7 +7,7 @@ import { BankDataRepository } from 'src/user/models/bankData/bankData.repository
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
 import { KycService } from 'src/user/services/kyc/kyc.service';
-import { KycApi } from 'src/user/services/kyc/kyc.api';
+import { KycApiService } from 'src/user/services/kyc/kyc.api.service';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -29,9 +29,8 @@ export class UserDataService {
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
-    private readonly kycService: KycService,
     private readonly mailService: MailService,
-    private readonly kycApi: KycApi,
+    private readonly kycApi: KycApiService,
   ) {}
 
   async getUserData(name: string, location: string): Promise<UserData> {

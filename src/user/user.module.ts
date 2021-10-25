@@ -33,6 +33,7 @@ import { UserController } from './models/user/user.controller';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { KycFile } from './models/userData/kycFile.entity';
+import { KycApiService } from './services/kyc/kyc.api.service';
 import { KycService } from './services/kyc/kyc.service';
 
 @Module({
@@ -76,8 +77,9 @@ import { KycService } from './services/kyc/kyc.service';
     RefService,
     AllDataService,
     KycService,
+    KycApiService,
     AuthService,
   ],
-  exports: [BuyService, SellService, LogService, KycService, RefService],
+  exports: [BuyService, SellService, LogService, KycService,KycApiService, RefService],
 })
 export class UserModule {}

@@ -17,7 +17,7 @@ import {
 } from './dto/kyc.dto';
 
 @Injectable()
-export class KycApi {
+export class KycApiService {
   private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
 
   private sessionKey = 'session-key-will-be-updated';
