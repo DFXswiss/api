@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export class CreateUserDto {
@@ -11,8 +11,8 @@ export class CreateUserDto {
   address: string;
 
   @IsNotEmpty()
-  @Length(88, 96)
   @IsString()
+  @Matches(/^.{87}=$/)
   signature: string;
 
   @ApiPropertyOptional()
