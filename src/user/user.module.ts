@@ -33,7 +33,7 @@ import { UserController } from './models/user/user.controller';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { KycFile } from './models/userData/kycFile.entity';
-import { KycService } from './services/kyc.service';
+import { KycService } from './services/kyc/kyc.service';
 
 @Module({
   imports: [
