@@ -12,6 +12,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Not } from 'typeorm';
 import { ConversionService } from 'src/shared/services/conversion.service';
 
+// TODO: crypto conversion to service
 @Injectable()
 export class LogService {
   constructor(
