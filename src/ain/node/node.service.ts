@@ -1,10 +1,9 @@
-import { ApiClient } from '@defichain/jellyfish-api-core';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
-import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
+import { NodeClient } from './node-client';
 
 export enum NodeType {
   INPUT = 'inp',
@@ -17,22 +16,10 @@ export enum NodeMode {
   PASSIVE = 'passive',
 }
 
-export enum NodeCommand {
-  UNLOCK = 'walletpassphrase',
-}
-
-export interface NodeClient {
-  getInfo(): Promise<BlockchainInfo>;
-  unlock(): Promise<any>;
-  sendRpcCommand(command: string): Promise<any>;
-  sendCliCommand(command: string, noAutoUnlock): Promise<any>;
-  call<T>(call: (client: ApiClient) => Promise<T>): Promise<T>
-}
-
 @Injectable()
 export class NodeService {
   private readonly urls: Record<NodeType, Record<NodeMode, string>>;
-  private readonly clients: Record<NodeType, Record<NodeMode, ApiClient>>;
+  private readonly clients: Record<NodeType, Record<NodeMode, NodeClient>>;
 
   constructor(private readonly http: HttpService, private readonly mailService: MailService) {
     this.urls = {
@@ -52,16 +39,16 @@ export class NodeService {
 
     this.clients = {
       [NodeType.INPUT]: {
-        [NodeMode.ACTIVE]: this.createJellyfishClient(NodeType.INPUT, NodeMode.ACTIVE),
-        [NodeMode.PASSIVE]: this.createJellyfishClient(NodeType.INPUT, NodeMode.PASSIVE),
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.PASSIVE),
       },
       [NodeType.DEX]: {
-        [NodeMode.ACTIVE]: this.createJellyfishClient(NodeType.DEX, NodeMode.ACTIVE),
-        [NodeMode.PASSIVE]: this.createJellyfishClient(NodeType.DEX, NodeMode.PASSIVE),
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.DEX, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.DEX, NodeMode.PASSIVE),
       },
       [NodeType.OUTPUT]: {
-        [NodeMode.ACTIVE]: this.createJellyfishClient(NodeType.OUTPUT, NodeMode.ACTIVE),
-        [NodeMode.PASSIVE]: this.createJellyfishClient(NodeType.OUTPUT, NodeMode.PASSIVE),
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.PASSIVE),
       },
     };
   }
@@ -81,46 +68,16 @@ export class NodeService {
   }
 
   getClient(node: NodeType, mode: NodeMode): NodeClient {
-    return {
-      getInfo: () => this.getInfo(node, mode),
-      unlock: () => this.unlock(node, mode),
-      sendRpcCommand: (command: string) => this.sendRpcCommand(node, mode, command),
-      sendCliCommand: (command: string, noAutoUnlock = false) => this.sendCliCommand(node, mode, command, noAutoUnlock),
-      call: <T>(call: (client: ApiClient) => Promise<T>) => this.callNode<T>(node, mode, call)
-    }
+    return this.clients[node][mode];
   }
 
   // --- HELPER METHODS --- //
 
   // utility
-  private async getInfo(node: NodeType, mode: NodeMode): Promise<BlockchainInfo> {
-    return this.callNode(node, mode, (c) => c.blockchain.getBlockchainInfo());
+  createNodeClient(node: NodeType, mode: NodeMode): NodeClient {
+    return new NodeClient(this.http, this.urls[node][mode]);
   }
-
-  private async unlock(node: NodeType, mode: NodeMode, timeout = 10): Promise<any> {
-    return this.callNode(node, mode, (c) =>
-      c.call(NodeCommand.UNLOCK, [process.env.NODE_WALLET_PASSWORD, timeout], 'number'),
-    );
-  }
-
-  private async sendRpcCommand(node: NodeType, mode: NodeMode, command: string): Promise<any> {
-    return this.http
-      .post(this.urls[node][mode], command, {
-        headers: { ...this.createHeaders(), 'Content-Type': 'text/plain' },
-      })
-      .catch((error: HttpError) => error.response?.data);
-  }
-
-  private async sendCliCommand(node: NodeType, mode: NodeMode, command: string, noAutoUnlock: boolean): Promise<any> {
-    const cmdParts = command.split(' ');
-
-    const method = cmdParts.shift();
-    const params = cmdParts.map((p) => JSON.parse(p));
-
-    return (noAutoUnlock ? Promise.resolve() : this.unlock(node, mode))
-      .then(() => this.callNode(node, mode, (c) => c.call(method, params, 'number')))
-      .catch((error: HttpError) => error);
-  }
+  
 
   // health checks
   private async checkNode(node: NodeType): Promise<string[]> {
@@ -142,7 +99,7 @@ export class NodeService {
     node: NodeType,
     mode: NodeMode,
   ): Promise<{ errors: string[]; info: BlockchainInfo | undefined }> {
-    return this.getInfo(node, mode)
+    return this.getClient(node, mode).getInfo()
       .then((info) => ({
         errors:
           info.blocks < info.headers - 10
@@ -151,25 +108,5 @@ export class NodeService {
         info,
       }))
       .catch(() => ({ errors: [`Failed to get ${node} ${mode} node infos`], info: undefined }));
-  }
-
-  // basic
-  private async callNode<T>(node: NodeType, mode: NodeMode, call: (client: ApiClient) => Promise<T>): Promise<T> {
-    try {
-      return await call(this.clients[node][mode]);
-    } catch (e) {
-      // TODO: retries?
-      console.warn('Exception during node call:', e);
-      throw new ServiceUnavailableException(e);
-    }
-  }
-
-  private createJellyfishClient(node: NodeType, mode: NodeMode): ApiClient {
-    return new JsonRpcClient(this.urls[node][mode], { headers: this.createHeaders() });
-  }
-
-  private createHeaders(): { [key: string]: string } {
-    const passwordHash = Buffer.from(`${process.env.NODE_USER}:${process.env.NODE_PASSWORD}`).toString('base64');
-    return { Authorization: 'Basic ' + passwordHash };
   }
 }
