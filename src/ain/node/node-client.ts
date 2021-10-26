@@ -8,6 +8,7 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
+  SEND_UTXO = 'sendutxosfrom',
 }
 
 export class NodeClient {
@@ -40,7 +41,7 @@ export class NodeClient {
 
   async sendUtxo(fromAddress: string, toAddress: string, amount: number): Promise<string> {
     return this.callNode(
-      (c) => c.call('sendutxosfrom', [fromAddress, toAddress, amount - this.utxoFee], 'number'),
+      (c) => c.call(NodeCommand.SEND_UTXO, [fromAddress, toAddress, amount - this.utxoFee], 'number'),
       true,
     );
   }
