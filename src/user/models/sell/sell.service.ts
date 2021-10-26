@@ -16,6 +16,10 @@ export class SellService {
     private readonly depositService: DepositService,
   ) {}
 
+  async getSellForAddress(depositAddress: string): Promise<Sell> {
+    return this.sellRepo.findOne({ where: { deposit: { address: depositAddress } } });
+  }
+
   async getSell(id: number, userId: number): Promise<Sell> {
     const sell = await this.sellRepo.findOne({ where: { id, user: { id: userId } } });
     if (!sell) throw new NotFoundException('No matching sell route for id found');

@@ -27,6 +27,7 @@ param nodeAllowAllIps bool
 param nodePassword string
 @secure()
 param nodeWalletPassword string
+param hotWalletAddress string
 
 
 // --- VARIABLES --- //
@@ -370,6 +371,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'NODE_OUT_URL_PASSIVE'
           value: nodes[2].outputs.urlStg
+        }
+        {
+          name: 'HOT_WALLET_ADDRESS'
+          value: hotWalletAddress
         }
       ]
     }

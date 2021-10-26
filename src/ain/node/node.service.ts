@@ -77,7 +77,6 @@ export class NodeService {
   createNodeClient(node: NodeType, mode: NodeMode): NodeClient {
     return new NodeClient(this.http, this.urls[node][mode]);
   }
-  
 
   // health checks
   private async checkNode(node: NodeType): Promise<string[]> {
@@ -99,7 +98,8 @@ export class NodeService {
     node: NodeType,
     mode: NodeMode,
   ): Promise<{ errors: string[]; info: BlockchainInfo | undefined }> {
-    return this.getClient(node, mode).getInfo()
+    return this.getClient(node, mode)
+      .getInfo()
       .then((info) => ({
         errors:
           info.blocks < info.headers - 10
