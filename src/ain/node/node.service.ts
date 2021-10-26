@@ -21,6 +21,14 @@ export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
 }
 
+export interface NodeClient {
+  getInfo(): Promise<BlockchainInfo>;
+  unlock(): Promise<any>;
+  sendRpcCommand(command: string): Promise<any>;
+  sendCliCommand(command: string, noAutoUnlock): Promise<any>;
+  call<T>(call: (client: ApiClient) => Promise<T>): Promise<T>
+}
+
 @Injectable()
 export class NodeService {
   private readonly urls: Record<NodeType, Record<NodeMode, string>>;
@@ -72,13 +80,30 @@ export class NodeService {
     }
   }
 
-  async unlock(node: NodeType, mode: NodeMode, timeout = 10): Promise<any> {
+  getClient(node: NodeType, mode: NodeMode): NodeClient {
+    return {
+      getInfo: () => this.getInfo(node, mode),
+      unlock: () => this.unlock(node, mode),
+      sendRpcCommand: (command: string) => this.sendRpcCommand(node, mode, command),
+      sendCliCommand: (command: string, noAutoUnlock = false) => this.sendCliCommand(node, mode, command, noAutoUnlock),
+      call: <T>(call: (client: ApiClient) => Promise<T>) => this.callNode<T>(node, mode, call)
+    }
+  }
+
+  // --- HELPER METHODS --- //
+
+  // utility
+  private async getInfo(node: NodeType, mode: NodeMode): Promise<BlockchainInfo> {
+    return this.callNode(node, mode, (c) => c.blockchain.getBlockchainInfo());
+  }
+
+  private async unlock(node: NodeType, mode: NodeMode, timeout = 10): Promise<any> {
     return this.callNode(node, mode, (c) =>
       c.call(NodeCommand.UNLOCK, [process.env.NODE_WALLET_PASSWORD, timeout], 'number'),
     );
   }
 
-  async forward(node: NodeType, mode: NodeMode, command: string): Promise<any> {
+  private async sendRpcCommand(node: NodeType, mode: NodeMode, command: string): Promise<any> {
     return this.http
       .post(this.urls[node][mode], command, {
         headers: { ...this.createHeaders(), 'Content-Type': 'text/plain' },
@@ -86,7 +111,7 @@ export class NodeService {
       .catch((error: HttpError) => error.response?.data);
   }
 
-  async sendCommand(node: NodeType, mode: NodeMode, command: string, noAutoUnlock = false): Promise<any> {
+  private async sendCliCommand(node: NodeType, mode: NodeMode, command: string, noAutoUnlock: boolean): Promise<any> {
     const cmdParts = command.split(' ');
 
     const method = cmdParts.shift();
@@ -97,11 +122,7 @@ export class NodeService {
       .catch((error: HttpError) => error);
   }
 
-  async getInfo(node: NodeType, mode: NodeMode): Promise<BlockchainInfo> {
-    return this.callNode(node, mode, (c) => c.blockchain.getBlockchainInfo());
-  }
-
-  // --- HELPER METHODS --- //
+  // health checks
   private async checkNode(node: NodeType): Promise<string[]> {
     return Promise.all([this.getNodeErrors(node, NodeMode.ACTIVE), this.getNodeErrors(node, NodeMode.PASSIVE)]).then(
       ([{ errors: activeErrors, info: activeInfo }, { errors: passiveErrors, info: passiveInfo }]) => {
@@ -132,6 +153,7 @@ export class NodeService {
       .catch(() => ({ errors: [`Failed to get ${node} ${mode} node infos`], info: undefined }));
   }
 
+  // basic
   private async callNode<T>(node: NodeType, mode: NodeMode, call: (client: ApiClient) => Promise<T>): Promise<T> {
     try {
       return await call(this.clients[node][mode]);
