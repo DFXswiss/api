@@ -90,8 +90,18 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // get user wallet address (TODO: remove!)
+      const inputWithUser = await this.cryptoInputRepo.findOne({
+        where: { id: input.id },
+        relations: ['sell', 'sell.user'],
+      });
+      console.log('Input with user: ', inputWithUser);
       const userAddress = await this.cryptoInputRepo
-        .findOne({ where: { id: input.id }, relations: ['sell', 'sell.user'] })
+        .createQueryBuilder('input')
+        .leftJoin('input.sell', 'sell')
+        .leftJoin('sell.user', 'user')
+        .where('input.id = :id', { id: 1 })
+        .addSelect(['sell.id', 'user.address'])
+        .getOne()
         .then((i) => i.sell.user.address);
 
       // forward
