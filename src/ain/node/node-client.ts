@@ -83,7 +83,7 @@ export class NodeClient {
       return await call(this.client);
     } catch (e) {
       // TODO: retries?
-      console.warn('Exception during node call:', e);
+      console.log('Exception during node call:', e);
       throw new ServiceUnavailableException(e);
     }
   }
