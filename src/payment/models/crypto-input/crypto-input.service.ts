@@ -40,6 +40,10 @@ export class CryptoInputService {
         .then((i) => Promise.all(i.map((u) => this.client.getHistory(u.address, lastHeight + 1, currentHeight))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
         .then((i) => i.filter((h) => h.type === 'receive'))
+        .then((i) => {
+          console.log('New crypto inputs: ', i);
+          return i;
+        })
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
@@ -95,15 +99,8 @@ export class CryptoInputService {
         relations: ['sell', 'sell.user'],
       });
       console.log('Input with user: ', inputWithUser);
-      const userAddress = await this.cryptoInputRepo
-        .createQueryBuilder('input')
-        .leftJoin('input.sell', 'sell')
-        .leftJoin('sell.user', 'user')
-        .where('input.id = :id', { id: 1 })
-        .addSelect(['sell.id', 'user.address'])
-        .getOne()
-        .then((i) => i.sell.user.address);
-
+      const userAddress = inputWithUser.sell.user.address
+      
       // forward
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
