@@ -36,12 +36,15 @@ export class CryptoInputService {
         // get UTXOs >= 0.1 DFI
         .getUtxo()
         .then((i) => i.filter((u) => u.amount.toNumber() >= 0.1))
+        // get distinct addresses
+        .then((i) => i.map((u) => u.address))
+        .then((i) => i.filter((u, j) => i.indexOf(u) === j))
         // get receive history
-        .then((i) => Promise.all(i.map((u) => this.client.getHistory(u.address, lastHeight + 1, currentHeight))))
+        .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
         .then((i) => i.filter((h) => h.type === 'receive'))
         .then((i) => {
-          console.log('New crypto inputs: ', i);
+          if (i.length > 0) console.log('New crypto inputs: ', i);
           return i;
         })
         // map to entities
@@ -94,13 +97,13 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // get user wallet address (TODO: remove!)
-      const inputWithUser = await this.cryptoInputRepo.findOne({
-        where: { id: input.id },
-        relations: ['sell', 'sell.user'],
-      });
-      console.log('Input with user: ', inputWithUser);
-      const userAddress = inputWithUser.sell.user.address
-      
+      const userAddress = await this.cryptoInputRepo
+        .findOne({
+          where: { id: input.id },
+          relations: ['sell', 'sell.user'],
+        })
+        .then((i) => i.sell.user.address);
+
       // forward
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
