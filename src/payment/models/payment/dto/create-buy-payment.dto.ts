@@ -20,7 +20,7 @@ export class CreateBuyPaymentDto {
 
   @IsOptional()
   @Length(34, 34)
-  address: string;
+  address: string; // TODO: remove?
 
   @ApiProperty()
   @IsNotEmpty()

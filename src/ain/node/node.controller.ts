@@ -16,7 +16,7 @@ export class NodeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async rpc(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Body() command: string): Promise<any> {
-    return this.nodeService.forward(node, mode, command);
+    return this.nodeService.getClient(node, mode).sendRpcCommand(command);
   }
 
   @Post(':node/:mode/cmd')
@@ -24,12 +24,12 @@ export class NodeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async cmd(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Body() dto: CommandDto): Promise<any> {
-    return this.nodeService.sendCommand(node, mode, dto.command, dto.noAutoUnlock);
+    return this.nodeService.getClient(node, mode).sendCliCommand(dto.command, dto.noAutoUnlock);
   }
 
   @Get(':node/:mode/info')
   @ApiExcludeEndpoint()
   async nodeInfo(@Param('node') node: NodeType, @Param('mode') mode: NodeMode): Promise<BlockchainInfo> {
-    return this.nodeService.getInfo(node, mode);
+    return this.nodeService.getClient(node, mode).getInfo();
   }
 }
