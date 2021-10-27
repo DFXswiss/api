@@ -20,7 +20,7 @@ export class SellService {
     // does not work with find options
     return this.sellRepo
       .createQueryBuilder('sell')
-      .leftJoin('sell.deposit', 'deposit')
+      .leftJoinAndSelect('sell.deposit', 'deposit')
       .where('deposit.address = :addr', { addr: depositAddress })
       .getOne();
   }
