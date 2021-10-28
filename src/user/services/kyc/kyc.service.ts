@@ -74,11 +74,6 @@ export class KycService {
     return userData;
   }
 
-  // --- HELPER METHODS --- //
-  private reference(id: number): string {
-    return process.env.KYC_PREFIX ? `${process.env.KYC_PREFIX}${id}` : id.toString();
-  }
-
   private async doCheck(
     currentStatus: KycStatus,
     nextStatus: KycStatus,
@@ -104,13 +99,17 @@ export class KycService {
         this.dateDiffInDays(documentVersions[0].creationTime) < 7;
 
       if (isCompleted) {
+        console.log(`KYC change: Changed status of user ${userDataList[key].id} from ${userDataList[key].kycStatus} to ${nextStatus}`);
         userDataList[key].kycStatus = nextStatus;
         userDataList[key].kycState = KycState.NA;
         userDataList[key] = await updateAction(userDataList[key], customer);
+      
       } else if (isFailed && userDataList[key].kycState != KycState.FAILED) {
+        console.log(`KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.FAILED}`);
         userDataList[key].kycState = KycState.FAILED;
         await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
       } else if (shouldBeReminded && userDataList[key].kycState != KycState.REMINDED) {
+        console.log(`KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.REMINDED}`);
         userDataList[key].kycState = KycState.REMINDED;
         await this.mailService.sendReminderMail(customer.names[0].firstName, customer.emails[0], currentStatus);
       }
