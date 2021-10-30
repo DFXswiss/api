@@ -220,24 +220,32 @@ export class KycApiService {
   }
 
   private async getNewSessionKey(): Promise<string> {
-    // get the challenge
-    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
+    for (let tries = 0; tries < 3; tries++) {
+      const timeBefore = new Date();
 
-    // determine response
-    const response = key + process.env.KYC_MANDATOR + process.env.KYC_USER + process.env.KYC_PASSWORD + challenge;
-    const hash = createHash('sha1');
-    hash.update(response);
+      // get the challenge
+      const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
 
-    const data = {
-      key: key,
-      mandator: process.env.KYC_MANDATOR,
-      user: process.env.KYC_USER,
-      response: hash.digest('hex'),
-    };
+      // determine response
+      const response = key + process.env.KYC_MANDATOR + process.env.KYC_USER + process.env.KYC_PASSWORD + challenge;
+      const hash = createHash('sha1');
+      hash.update(response);
 
-    // enable the session key
-    await this.http.post(`${this.baseUrl}/authenticate`, data);
+      const data = {
+        key: key,
+        mandator: process.env.KYC_MANDATOR,
+        user: process.env.KYC_USER,
+        response: hash.digest('hex'),
+      };
 
-    return key;
+      // enable the session key
+      await this.http.post(`${this.baseUrl}/authenticate`, data);
+
+      // only accept the key, if acquisition took less than 5 seconds (expires after 10 seconds)
+      const timeSpent = new Date().getTime() - timeBefore.getTime();
+      if (timeSpent < 5000) return key;
+    }
+
+    throw new ServiceUnavailableException('Failed to acquire session key in time');
   }
 }
