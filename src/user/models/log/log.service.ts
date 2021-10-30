@@ -12,6 +12,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Not } from 'typeorm';
 import { ConversionService } from 'src/shared/services/conversion.service';
 
+// TODO: crypto conversion to service
 @Injectable()
 export class LogService {
   constructor(
@@ -138,8 +139,8 @@ export class LogService {
   }
 
   async getRefVolume(ref: string, fiat: string): Promise<any> {
-    const logsWithoutEur = await this.logRepository.find({ where: { message: ref, fiat: Not(2) } });
-    const logsEur = await this.logRepository.find({ where: { message: ref, fiat: 2 } });
+    const logsWithoutEur = await this.logRepository.find({ where: { usedRef: ref, fiat: Not(2) } });
+    const logsEur = await this.logRepository.find({ where: { usedRef: ref, fiat: 2 } });
     const volumeWithoutEur = await this.conversionService.convertFiatCurrency(
       await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
       'chf',
@@ -151,7 +152,7 @@ export class LogService {
   }
 
   async getRefVolumeBtc(ref: string): Promise<any> {
-    const logs = await this.logRepository.find({ where: { message: ref } });
+    const logs = await this.logRepository.find({ where: { usedRef: ref } });
     return await this.logRepository.sum(logs, 'btcValue', 8);
   }
 

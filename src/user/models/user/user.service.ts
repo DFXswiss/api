@@ -53,7 +53,7 @@ export class UserService {
     });
 
     if (!currentUser) throw new NotFoundException('No matching user for id found');
-    if (!currentUser.currency) currentUser.currency = await this.fiatService.getFiat('eur');
+    if (!currentUser.currency) currentUser.currency = await this.fiatService.getFiat('eur'); // TODO: add as default values on create?
     if (!currentUser.refFeeAsset) currentUser.refFeeAsset = await this.assetService.getAsset('dBTC');
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['depositLimit'] = currentUser.userData.depositLimit;

@@ -16,6 +16,15 @@ export class SellService {
     private readonly depositService: DepositService,
   ) {}
 
+  async getSellForAddress(depositAddress: string): Promise<Sell> {
+    // does not work with find options
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .leftJoinAndSelect('sell.deposit', 'deposit')
+      .where('deposit.address = :addr', { addr: depositAddress })
+      .getOne();
+  }
+
   async getSell(id: number, userId: number): Promise<Sell> {
     const sell = await this.sellRepo.findOne({ where: { id, user: { id: userId } } });
     if (!sell) throw new NotFoundException('No matching sell route for id found');
@@ -39,6 +48,9 @@ export class SellService {
     // check if exists
     const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat } });
     if (existing) throw new ConflictException('Sell route already exists');
+
+    // remove spaces in IBAN
+    dto.iban = dto.iban.split(' ').join('');
 
     // create the entity
     const sell = this.sellRepo.create(dto);
