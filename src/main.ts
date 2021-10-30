@@ -13,9 +13,7 @@ import { json, text } from 'express';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
-    appInsights.setup()
-      .setAutoDependencyCorrelation(true)
-      .setAutoCollectConsole(true, true);
+    appInsights.setup().setAutoDependencyCorrelation(true).setAutoCollectConsole(true, true);
     appInsights.defaultClient.context.tags[appInsights.defaultClient.context.keys.cloudRole] = 'dfx-api';
     appInsights.start();
   }
@@ -26,10 +24,10 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cors());
 
-  app.use('*', json({type: 'application/json'}));
-  app.use('/v1/node/*/rpc', text({type: 'text/plain'}));
+  app.use('*', json({ type: 'application/json' }));
+  app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 
-  app.setGlobalPrefix('v1', { exclude: ['', 'app'] });
+  app.setGlobalPrefix('v1', { exclude: ['', 'app', 'sendMail'] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new AllExceptionFilter());
 
