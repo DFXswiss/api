@@ -14,9 +14,9 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async sendMail(@Body() sendMailDto: SendMailDto[]): Promise<void> {
-    sendMailDto.forEach(
-      async (entry) => await this.mailService.sendMail(entry.mail, entry.salutation, entry.subject, entry.body),
-    );
+  async sendMail(@Body() sendMailDtoList: SendMailDto[]): Promise<void> {
+    for (const sendMailDto of sendMailDtoList) {
+      await this.mailService.sendMail(sendMailDto.mail, sendMailDto.salutation, sendMailDto.subject, sendMailDto.body);
+    }
   }
 }
