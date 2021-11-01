@@ -3,11 +3,10 @@ import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Details, UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
-import { MailService } from './shared/services/mail.service';
 import { RefService } from './user/models/referral/ref.service';
 @Controller('')
 export class AppController {
-  constructor(private readonly refService: RefService, readonly mailService: MailService) {}
+  constructor(private readonly refService: RefService) {}
   @Get()
   @Redirect('api')
   @ApiExcludeEndpoint()
