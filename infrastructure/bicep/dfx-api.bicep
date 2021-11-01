@@ -27,7 +27,7 @@ param nodeAllowAllIps bool
 param nodePassword string
 @secure()
 param nodeWalletPassword string
-param hotWalletAddress string
+param dexWalletAddress string
 
 
 // --- VARIABLES --- //
@@ -373,8 +373,8 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: nodes[2].outputs.urlStg
         }
         {
-          name: 'HOT_WALLET_ADDRESS'
-          value: hotWalletAddress
+          name: 'DEX_WALLET_ADDRESS'
+          value: dexWalletAddress
         }
       ]
     }
