@@ -189,12 +189,12 @@ export class KycApiService {
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
     return this.request<T>(this.sessionKey, url, method, data, contentType)
-      .catch((e: HttpError) => {
+      .catch(async (e: HttpError) => {
         if (e.response?.status === 403) {
-          return this.getNewSessionKey().then((key) => {
-            this.sessionKey = key;
-            return this.request<T>(key, url, method, data, contentType);
-          });
+          for (let tries = 0; tries < 2; tries++) {
+            this.sessionKey = await this.getNewSessionKey();
+            return this.request<T>(this.sessionKey, url, method, data, contentType);
+          }
         }
         throw e;
       })
@@ -220,32 +220,24 @@ export class KycApiService {
   }
 
   private async getNewSessionKey(): Promise<string> {
-    for (let tries = 0; tries < 3; tries++) {
-      const timeBefore = new Date();
+    // get the challenge
+    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
 
-      // get the challenge
-      const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
+    // determine response
+    const response = key + process.env.KYC_MANDATOR + process.env.KYC_USER + process.env.KYC_PASSWORD + challenge;
+    const hash = createHash('sha1');
+    hash.update(response);
 
-      // determine response
-      const response = key + process.env.KYC_MANDATOR + process.env.KYC_USER + process.env.KYC_PASSWORD + challenge;
-      const hash = createHash('sha1');
-      hash.update(response);
+    const data = {
+      key: key,
+      mandator: process.env.KYC_MANDATOR,
+      user: process.env.KYC_USER,
+      response: hash.digest('hex'),
+    };
 
-      const data = {
-        key: key,
-        mandator: process.env.KYC_MANDATOR,
-        user: process.env.KYC_USER,
-        response: hash.digest('hex'),
-      };
+    // enable the session key
+    await this.http.post(`${this.baseUrl}/authenticate`, data);
 
-      // enable the session key
-      await this.http.post(`${this.baseUrl}/authenticate`, data);
-
-      // only accept the key, if acquisition took less than 5 seconds (expires after 10 seconds)
-      const timeSpent = new Date().getTime() - timeBefore.getTime();
-      if (timeSpent < 5000) return key;
-    }
-
-    throw new ServiceUnavailableException('Failed to acquire session key in time');
+    return key;
   }
 }
