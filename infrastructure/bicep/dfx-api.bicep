@@ -29,6 +29,9 @@ param nodePassword string
 param nodeWalletPassword string
 param dexWalletAddress string
 
+@secure()
+param ftpPassword string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -375,6 +378,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'DEX_WALLET_ADDRESS'
           value: dexWalletAddress
+        }
+        {
+          name: 'FTP_HOST'
+          value: '138.201.74.234'
+        }
+        {
+          name: 'FTP_USER'
+          value: 'Administrator'
+        }
+        {
+          name: 'FTP_PASSWORD'
+          value: ftpPassword
         }
       ]
     }

@@ -39,6 +39,7 @@
     "@nestjs/typeorm": "^8.0.1",
     "applicationinsights": "^2.1.6",
     "axios": "^0.21.1",
+    "basic-ftp": "^4.6.6",
     "bcrypt": "^5.0.1",
     "bignumber.js": "^9.0.1",
     "bitcoinjs-message": "^2.2.0",
