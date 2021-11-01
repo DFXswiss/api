@@ -96,19 +96,11 @@ export class CryptoInputService {
       // save
       await this.cryptoInputRepo.save(input);
 
-      // get user wallet address (TODO: remove!)
-      const userAddress = await this.cryptoInputRepo
-        .findOne({
-          where: { id: input.id },
-          relations: ['sell', 'sell.user'],
-        })
-        .then((i) => i.sell.user.address);
-
       // forward
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
         input.sell.deposit.address,
-        userAddress, // TODO: process.env.HOT_WALLET_ADDRESS,
+        process.env.DEX_WALLET_ADDRESS,
         input.amount,
       );
 

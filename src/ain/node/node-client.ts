@@ -40,7 +40,6 @@ export class NodeClient {
   }
 
   async sendUtxo(fromAddress: string, toAddress: string, amount: number): Promise<string> {
-    console.log(`Node command: ${NodeCommand.SEND_UTXO} ${fromAddress} ${toAddress} ${amount - this.utxoFee}`)
     return this.callNode(
       (c) => c.call(NodeCommand.SEND_UTXO, [fromAddress, toAddress, amount - this.utxoFee], 'number'),
       true,
