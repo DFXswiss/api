@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
-import { User } from 'src/user/models/user/user.entity';
 
 @Injectable()
 export class MailService {
