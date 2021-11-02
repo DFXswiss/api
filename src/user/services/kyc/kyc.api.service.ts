@@ -188,35 +188,45 @@ export class KycApiService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    return this.request<T>(this.sessionKey, url, method, data, contentType)
-      .catch(async (e: HttpError) => {
-        if (e.response?.status === 403) {
-          for (let tries = 0; tries < 2; tries++) {
-            this.sessionKey = await this.getNewSessionKey();
-            return this.request<T>(this.sessionKey, url, method, data, contentType);
-          }
-        }
-        throw e;
-      })
-      .catch((e: HttpError) => {
-        if (e.response?.status === 404) {
-          return null;
-        }
+    return this.request<T>(this.sessionKey, url, method, data, contentType).catch((e: HttpError) => {
+      if (e.response?.status === 404) {
+        return null;
+      }
 
-        throw new ServiceUnavailableException(e);
-      });
+      throw new ServiceUnavailableException(e);
+    });
   }
 
-  private async request<T>(sessionKey: string, url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    return this.http.request<T>({
-      url: `${this.baseUrl}/${url}`,
-      method: method,
-      data: data,
-      headers: {
-        'Content-Type': contentType ?? 'application/json',
-        'Session-Key': sessionKey,
-      },
-    });
+  private async request<T>(
+    sessionKey: string,
+    url: string,
+    method: Method,
+    nthTry = 3,
+    data?: any,
+    contentType?: any,
+  ): Promise<T> {
+    try {
+      const requestData = await this.http.request<T>({
+        url: `${this.baseUrl}/${url}`,
+        method: method,
+        data: data,
+        headers: {
+          'Content-Type': contentType ?? 'application/json',
+          'Session-Key': sessionKey,
+        },
+      });
+
+      return requestData;
+    } catch (e) {
+      if (nthTry === 1) {
+        return Promise.reject(e);
+      }
+
+      console.log(`KYC call: Retry ${this.baseUrl}/${url} (Try number ${4 - nthTry})`);
+      this.sessionKey = await this.getNewSessionKey();
+
+      return this.request(this.sessionKey, url, method, nthTry - 1, data, contentType);
+    }
   }
 
   private async getNewSessionKey(): Promise<string> {
