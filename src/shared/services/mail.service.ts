@@ -24,14 +24,14 @@ export class MailService {
 
     if (createLogDto.direction === LogDirection.fiat2asset) {
       htmlBody = `<p><b>Your transaction has been successful.</b></p>
-        <p><b>Bank transfer: </b>${fiatValue} ${fiatName}</p>
+        <p><b>Bank deposit: </b>${fiatValue} ${fiatName}</p>
         <p><b>Asset received: </b>${assetValue} ${assetName}</p>
         <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>
         <p><b>Txid:</b> ${createLogDto.blockchainTx}</p>`;
     } else if (createLogDto.direction === LogDirection.asset2fiat) {
       htmlBody = `<p><b>Your transaction has been successful.</b></p>
-        <p><b>Asset transfer: </b>${assetValue} ${assetName}</p>
-        <p><b>Bank received: </b>${fiatValue} ${fiatName}</p>
+        <p><b>Asset withdrawal: </b>${assetValue} ${assetName}</p>
+        <p><b>Bank transfer: </b>${fiatValue} ${fiatName}</p>
         <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>`;
     }
 
