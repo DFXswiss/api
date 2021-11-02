@@ -4,6 +4,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { FiatInputBatch } from './fiat-input-batch.entity';
 import { FiatInputService } from './fiat-input.service';
 
 @ApiTags('fiatInput')
@@ -16,8 +17,7 @@ export class FiatInputController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   @UseInterceptors(FilesInterceptor('files'))
-  async uploadSepaFiles(@UploadedFiles() files: Express.Multer.File[]): Promise<any> {
-    // TODO: any
+  async uploadSepaFiles(@UploadedFiles() files: Express.Multer.File[]): Promise<FiatInputBatch[]> {
     return this.fiatInputService.storeSepaFiles(files.map((f) => f.buffer.toString()));
   }
 }

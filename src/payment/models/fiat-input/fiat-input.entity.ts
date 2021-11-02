@@ -1,9 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Column, ManyToOne } from 'typeorm';
+import { FiatInputBatch } from './fiat-input-batch.entity';
 
 @Entity()
 export class FiatInput {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @ManyToOne(() => FiatInputBatch, (batch) => batch.fiatInputs, { nullable: false })
+  batch: FiatInputBatch;
 
   // TODO
 
@@ -12,7 +16,6 @@ export class FiatInput {
 
   @CreateDateColumn()
   created: Date;
-
 
   // Robin's generic columns
   @Column({ length: 256, nullable: true })

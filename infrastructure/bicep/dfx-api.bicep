@@ -31,6 +31,7 @@ param dexWalletAddress string
 
 @secure()
 param ftpPassword string
+param ftpFolder string
 
 
 // --- VARIABLES --- //
@@ -390,6 +391,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'FTP_PASSWORD'
           value: ftpPassword
+        }
+        {
+          name: 'FTP_FOLDER'
+          value: ftpFolder
         }
       ]
     }
