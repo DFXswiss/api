@@ -7,7 +7,7 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { Repository } from 'typeorm';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc.api.service';
-import { Customer, KycDocument, State } from './dto/kyc.dto';
+import { CheckVersion, Customer, KycDocument, State } from './dto/kyc.dto';
 
 @Injectable()
 export class KycService {
@@ -24,15 +24,14 @@ export class KycService {
     try {
       await this.doChatBotCheck();
       await this.doAddressCheck();
-      await this.doOnlineIdCheck();
-      await this.doVideoIdentCheck();
+      await this.doIdCheck();
     } catch (e) {
       console.error('Exception during KYC checks:', e);
     }
   }
 
   async doChatBotCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ADDRESS, KycDocument.CHATBOT, async (userData) => {
+    await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ADDRESS, [KycDocument.CHATBOT], async (userData) => {
       const customerInformation = await this.kycApi.getCustomerInformation(userData.id);
       const resultNameCheck = await this.kycApi.getCheckResult(customerInformation.lastCheckId);
       if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b') {
@@ -44,21 +43,18 @@ export class KycService {
   }
 
   async doAddressCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ADDRESS, KycStatus.WAIT_ONLINE_ID, KycDocument.INVOICE, async (userData) => {
+    await this.doCheck(KycStatus.WAIT_ADDRESS, KycStatus.WAIT_ID, [KycDocument.INVOICE], async (userData) => {
       await this.kycApi.initiateOnlineIdentification(userData.id);
       return userData;
     });
   }
 
-  async doOnlineIdCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.ONLINE_IDENTIFICATION, (u, c) =>
-      this.createKycFile(u, c),
-    );
-  }
-
-  async doVideoIdentCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u, c) =>
-      this.createKycFile(u, c),
+  async doIdCheck(): Promise<void> {
+    await this.doCheck(
+      KycStatus.WAIT_ID,
+      KycStatus.WAIT_MANUAL,
+      [KycDocument.ONLINE_IDENTIFICATION, KycDocument.VIDEO_IDENTIFICATION],
+      (u, c) => this.createKycFile(u, c),
     );
   }
 
@@ -77,14 +73,29 @@ export class KycService {
   private async doCheck(
     currentStatus: KycStatus,
     nextStatus: KycStatus,
-    documentType: KycDocument,
+    documentTypes: KycDocument[],
     updateAction: (userData: UserData, customer: Customer) => Promise<UserData>,
   ): Promise<void> {
     const userDataList = await this.userDataRepository.find({
       where: { kycStatus: currentStatus },
     });
     for (const key in userDataList) {
-      const documentVersions = await this.kycApi.getDocumentVersion(userDataList[key].id, documentType);
+      let documentVersions: CheckVersion[];
+      let documentTypeNumber = 0;
+      let documentCreationTime = 0;
+      for (const documentType of documentTypes) {
+        const documentVersion = await this.kycApi.getDocumentVersion(userDataList[key].id, documentType);
+
+        if (!documentVersions) {
+          documentVersions = documentVersion;
+        } else {
+          if (documentVersion) documentVersions = [...documentVersions, ...documentVersion];
+          if (documentVersion[0].creationTime > documentCreationTime)
+            documentTypeNumber = documentVersions.length - documentVersion.length;
+        }
+        documentCreationTime = documentVersion[0].creationTime;
+      }
+
       if (!documentVersions?.length) continue;
 
       const customer = await this.kycApi.getCustomer(userDataList[key].id);
@@ -95,8 +106,8 @@ export class KycService {
         ) == null;
       const shouldBeReminded =
         !isFailed &&
-        this.dateDiffInDays(documentVersions[0].creationTime) > 2 &&
-        this.dateDiffInDays(documentVersions[0].creationTime) < 7;
+        this.dateDiffInDays(documentVersions[documentTypeNumber].creationTime) > 2 &&
+        this.dateDiffInDays(documentVersions[documentTypeNumber].creationTime) < 7;
 
       if (isCompleted) {
         console.log(
