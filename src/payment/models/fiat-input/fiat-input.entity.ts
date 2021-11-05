@@ -19,92 +19,92 @@ export class FiatInput {
 
   // Robin's generic columns
   @Column({ length: 256, nullable: true })
-  f1?: string;
+  field1?: string;
 
   @Column({ length: 256, nullable: true })
-  f2?: string;
+  field2$?: string;
 
   @Column({ length: 256, nullable: true })
-  f3?: string;
+  field3$?: string;
 
   @Column({ length: 256, nullable: true })
-  f4?: string;
+  field4$?: string;
 
   @Column({ length: 256, nullable: true })
-  f5?: string;
+  field5$?: string;
 
   @Column({ length: 256, nullable: true })
-  f6?: string;
+  field6$?: string;
 
   @Column({ length: 256, nullable: true })
-  f7?: string;
+  field7$?: string;
 
   @Column({ length: 256, nullable: true })
-  f8?: string;
+  field8$?: string;
 
   @Column({ length: 256, nullable: true })
-  f9?: string;
+  field9$?: string;
 
   @Column({ length: 256, nullable: true })
-  f10?: string;
+  field1$0?: string;
 
   @Column({ length: 256, nullable: true })
-  f11?: string;
+  field1$1?: string;
 
   @Column({ length: 256, nullable: true })
-  f12?: string;
+  field1$2?: string;
 
   @Column({ length: 256, nullable: true })
-  f13?: string;
+  field1$3?: string;
 
   @Column({ length: 256, nullable: true })
-  f14?: string;
+  field1$4?: string;
 
   @Column({ length: 256, nullable: true })
-  f15?: string;
+  field1$5?: string;
 
   @Column({ length: 256, nullable: true })
-  f16?: string;
+  field1$6?: string;
 
   @Column({ length: 256, nullable: true })
-  f17?: string;
+  field1$7?: string;
 
   @Column({ length: 256, nullable: true })
-  f18?: string;
+  field1$8?: string;
 
   @Column({ length: 256, nullable: true })
-  f19?: string;
+  field1$9?: string;
 
   @Column({ length: 256, nullable: true })
-  f20?: string;
+  field2$0?: string;
 
   @Column({ length: 256, nullable: true })
-  f21?: string;
+  field2$1?: string;
 
   @Column({ length: 256, nullable: true })
-  f22?: string;
+  field2$2?: string;
 
   @Column({ length: 256, nullable: true })
-  f23?: string;
+  field2$3?: string;
 
   @Column({ length: 256, nullable: true })
-  f24?: string;
+  field2$4?: string;
 
   @Column({ length: 256, nullable: true })
-  f25?: string;
+  field2$5?: string;
 
   @Column({ length: 256, nullable: true })
-  f26?: string;
+  field2$6?: string;
 
   @Column({ length: 256, nullable: true })
-  f27?: string;
+  field2$7?: string;
 
   @Column({ length: 256, nullable: true })
-  f28?: string;
+  field2$8?: string;
 
   @Column({ length: 256, nullable: true })
-  f29?: string;
+  field2$9?: string;
 
   @Column({ length: 256, nullable: true })
-  f30?: string;
+  field3$0?: string;
 }
