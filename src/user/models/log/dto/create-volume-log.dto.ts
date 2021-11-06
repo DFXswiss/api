@@ -107,6 +107,11 @@ export class CreateVolumeLogDto {
   @IsString()
   message: string;
 
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  blockchainTx: string;
+
   @IsOptional()
   user: any;
 
