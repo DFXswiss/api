@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { LogDirection } from 'src/user/models/log/log.entity';
 
 @Injectable()
 export class MailService {
@@ -19,11 +20,20 @@ export class MailService {
     const assetValue = this.conversionService.round(createLogDto.assetValue, 8);
     const exchangeRate = this.conversionService.round(createLogDto.fiatValue / createLogDto.assetValue, 2);
 
-    const htmlBody = `<p><b>Your transaction has been successful.</b></p>
-      <p><b>Bank transfer: </b>${fiatValue} ${fiatName}</p>
-      <p><b>Asset received: </b>${assetValue} ${assetName}</p>
-      <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>
-      <p><b>Txid:</b> ${createLogDto.blockchainTx}</p>`;
+    let htmlBody = null;
+
+    if (createLogDto.direction === LogDirection.fiat2asset) {
+      htmlBody = `<p><b>Your transaction has been successful.</b></p>
+        <p><b>Bank deposit: </b>${fiatValue} ${fiatName}</p>
+        <p><b>Asset received: </b>${assetValue} ${assetName}</p>
+        <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>
+        <p><b>Txid:</b> ${createLogDto.blockchainTx}</p>`;
+    } else if (createLogDto.direction === LogDirection.asset2fiat) {
+      htmlBody = `<p><b>Your transaction has been successful.</b></p>
+        <p><b>Asset withdrawal: </b>${assetValue} ${assetName}</p>
+        <p><b>Bank transfer: </b>${fiatValue} ${fiatName}</p>
+        <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>`;
+    }
 
     await this.sendMail(createLogDto.user.mail, `Hi ${firstName}`, subject, htmlBody);
   }
