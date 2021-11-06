@@ -8,6 +8,7 @@ import { BatchRepository } from './models/batch/batch.repository';
 import { BatchService } from './models/batch/batch.service';
 import { CryptoInputRepository } from './models/crypto-input/crypto-input.repository';
 import { CryptoInputService } from './models/crypto-input/crypto-input.service';
+import { FiatInputBatchRepository } from './models/fiat-input/fiat-input-batch.repository';
 import { FiatInputController } from './models/fiat-input/fiat-input.controller';
 import { FiatInputRepository } from './models/fiat-input/fiat-input.repository';
 import { FiatInputService } from './models/fiat-input/fiat-input.service';
@@ -24,6 +25,7 @@ import { PaymentService } from './models/payment/payment.service';
       BatchRepository,
       CryptoInputRepository,
       FiatInputRepository,
+      FiatInputBatchRepository,
     ]),
     SharedModule,
     AinModule,

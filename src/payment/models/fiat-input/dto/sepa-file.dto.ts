@@ -1,3 +1,6 @@
+import { SepaAmount, SepaCdi } from './sepa.dto';
+import { SepaEntry } from './sepa-entry.dto';
+
 export interface SepaFile {
   BkToCstmrStmt: {
     Stmt: {
@@ -16,18 +19,12 @@ export interface SepaFile {
       };
       Bal: [
         {
-          Amt: {
-            '@Ccy': string;
-            '#text': string;
-          };
-          CdtDbtInd: string;
+          Amt: SepaAmount;
+          CdtDbtInd: SepaCdi;
         },
         {
-          Amt: {
-            '@Ccy': string;
-            '#text': string;
-          };
-          CdtDbtInd: string;
+          Amt: SepaAmount;
+          CdtDbtInd: SepaCdi;
         },
       ];
       TxsSummry: {
@@ -35,7 +32,7 @@ export interface SepaFile {
           NbOfNtries: string;
           TtlNetNtry: {
             Amt: string;
-            CdtDbtInd: string;
+            CdtDbtInd: SepaCdi;
           };
         };
         TtlCdtNtries: {
@@ -47,6 +44,7 @@ export interface SepaFile {
           Sum: string;
         };
       };
+      Ntry: SepaEntry[];
     };
   };
 }
