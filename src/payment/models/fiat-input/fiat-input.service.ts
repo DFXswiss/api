@@ -5,6 +5,7 @@ import { FiatInputRepository } from './fiat-input.repository';
 import { FiatInputBatchRepository } from './fiat-input-batch.repository';
 import { FiatInputBatch } from './fiat-input-batch.entity';
 import { SepaParser } from './sepa-parser.service';
+import { In } from 'typeorm';
 
 @Injectable()
 export class FiatInputService {
@@ -59,9 +60,15 @@ export class FiatInputService {
     const batch = this.fiatInputBatchRepo.create(SepaParser.parseBatch(sepaFile));
     await this.fiatInputBatchRepo.save(batch);
 
-    // store the entries
+    // store the entries (without duplicates)
     const inputs = this.fiatInputRepo.create(SepaParser.parseEntries(sepaFile, batch));
-    await this.fiatInputRepo.save(inputs);
+    const duplicates = await this.fiatInputRepo
+      .find({ accountServiceRef: In(inputs.map((i) => i.accountServiceRef)) })
+      .then((list) => list.map((i) => i.accountServiceRef));
+    if (duplicates.length > 0) {
+      console.log(`Duplicate SEPA entries found:`, duplicates);
+    }
+    await this.fiatInputRepo.save(inputs.filter((i) => !duplicates.includes(i.accountServiceRef)));
 
     batch.fiatInputs = inputs;
     return batch;

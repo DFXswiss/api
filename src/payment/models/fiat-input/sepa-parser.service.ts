@@ -29,12 +29,12 @@ export class SepaParser {
         toDate: new Date(info?.FrToDt?.ToDtTm),
         duplicate: info?.CpyDplctInd,
         iban: info?.Acct?.Id?.IBAN,
-        balanceBeforeAmount: +info?.Bal[0]?.Amt['#text'],
-        balanceBeforeCurrency: info?.Bal[0]?.Amt['@_Ccy'],
-        balanceBeforeCdi: info?.Bal[0]?.CdtDbtInd,
-        balanceAfterAmount: +info?.Bal[1]?.Amt['#text'],
-        balanceAfterCurrency: info?.Bal[1]?.Amt['@_Ccy'],
-        balanceAfterCdi: info?.Bal[1]?.CdtDbtInd,
+        balanceBeforeAmount: +info?.Bal?.[0]?.Amt?.['#text'],
+        balanceBeforeCurrency: info?.Bal?.[0]?.Amt?.['@_Ccy'],
+        balanceBeforeCdi: info?.Bal?.[0]?.CdtDbtInd,
+        balanceAfterAmount: +info?.Bal?.[1]?.Amt?.['#text'],
+        balanceAfterCurrency: info?.Bal?.[1]?.Amt?.['@_Ccy'],
+        balanceAfterCdi: info?.Bal?.[1]?.CdtDbtInd,
         totalCount: +info?.TxsSummry?.TtlNtries?.NbOfNtries,
         totalAmount: +info?.TxsSummry?.TtlNtries?.TtlNetNtry?.Amt,
         totalCdi: info?.TxsSummry?.TtlNtries?.TtlNetNtry?.CdtDbtInd,
@@ -54,8 +54,13 @@ export class SepaParser {
   }
 
   static parseEntries(file: SepaFile, batch: FiatInputBatch): Partial<FiatInput>[] {
-    return file.BkToCstmrStmt.Stmt.Ntry.map((entry) => {
-      const accountServiceRef = entry.NtryDtls.TxDtls.Refs.AcctSvcrRef;
+    const entries = Array.isArray(file.BkToCstmrStmt.Stmt.Ntry)
+      ? file.BkToCstmrStmt.Stmt.Ntry
+      : [file.BkToCstmrStmt.Stmt.Ntry];
+
+    return entries.map((entry) => {
+      const accountServiceRef =
+        entry.NtryDtls.TxDtls.Refs.AcctSvcrRef ?? `CUSTOM/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
       let data: Partial<FiatInput> = {};
       try {
@@ -66,19 +71,16 @@ export class SepaParser {
           endToEndId: entry?.NtryDtls?.TxDtls?.Refs?.EndToEndId,
           instructionId: entry?.NtryDtls?.TxDtls?.Refs?.InstrId,
           txId: entry?.NtryDtls?.TxDtls?.Refs?.TxId,
-          amount: +entry?.NtryDtls?.TxDtls?.Amt['#text'],
-          currency: entry?.NtryDtls?.TxDtls?.Amt['@_Ccy'],
+          amount: +entry?.NtryDtls?.TxDtls?.Amt?.['#text'],
+          currency: entry?.NtryDtls?.TxDtls?.Amt?.['@_Ccy'],
           creditDebitIndicator: entry?.NtryDtls?.TxDtls?.CdtDbtInd,
-          instructedAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt['#text'],
-          instructedCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt['@_Ccy'],
-          txAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt['#text'],
-          txCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt['@_Ccy'],
+          instructedAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['#text'],
+          instructedCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.InstdAmt?.Amt?.['@_Ccy'],
+          txAmount: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['#text'],
+          txCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.Amt?.['@_Ccy'],
           exchangeSourceCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy,
           exchangeTargetCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy,
           exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
-          chargeAmount: +entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd?.Amt['#text'],
-          chargeCurrency: entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd?.Amt['@_Ccy'],
-          chargeCdi: entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd?.CdtDbtInd,
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
           remittanceInfo: entry?.NtryDtls?.TxDtls?.RmtInf?.Ustrd,
@@ -98,13 +100,14 @@ export class SepaParser {
 
   private static getRelatedPartyInfo(entry: SepaEntry): Partial<FiatInput> {
     const parties = entry?.NtryDtls?.TxDtls?.RltdPties;
-    const { party, account } =
+    const { party, account, ultimateParty } =
       entry?.NtryDtls?.TxDtls?.CdtDbtInd === SepaCdi.CREDIT
-        ? { party: parties?.Dbtr, account: parties?.DbtrAcct }
-        : { party: parties?.Cdtr, account: parties?.CdtrAcct };
+        ? { party: parties?.Dbtr, account: parties?.DbtrAcct, ultimateParty: parties?.UltmtDbtr }
+        : { party: parties?.Cdtr, account: parties?.CdtrAcct, ultimateParty: parties?.UltmtCdtr };
 
     return {
       name: party?.Nm,
+      ultimateName: ultimateParty?.Nm,
       ...this.getAddress(party?.PstlAdr),
       iban: account?.Id?.IBAN,
     };

@@ -1,4 +1,4 @@
-import { SepaAddress, SepaAgent, SepaAmount, SepaCdi } from "./sepa.dto";
+import { SepaAddress, SepaAgent, SepaAmount, SepaCdi } from './sepa.dto';
 
 export interface SepaEntry {
   BookgDt: {
@@ -33,12 +33,6 @@ export interface SepaEntry {
           };
         };
       };
-      Chrgs: {
-        Rcrd: {
-          Amt: SepaAmount;
-          CdtDbtInd: SepaCdi;
-        };
-      };
       RltdPties: {
         Dbtr: {
           Nm: string;
@@ -49,6 +43,9 @@ export interface SepaEntry {
             IBAN: string;
           };
         };
+        UltmtDbtr: {
+          Nm: string;
+        };
         Cdtr: {
           Nm: string;
           PstlAdr: SepaAddress;
@@ -57,6 +54,9 @@ export interface SepaEntry {
           Id: {
             IBAN: string;
           };
+        };
+        UltmtCdtr: {
+          Nm: string;
         };
       };
       RltdAgts: {
@@ -69,4 +69,5 @@ export interface SepaEntry {
       AddtlTxInf: string;
     };
   };
+  AddtlNtryInf: string;
 }

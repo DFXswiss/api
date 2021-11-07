@@ -44,7 +44,7 @@ export interface SepaFile {
           Sum: string;
         };
       };
-      Ntry: SepaEntry[];
+      Ntry: SepaEntry | SepaEntry[];
     };
   };
 }

@@ -58,18 +58,12 @@ export class FiatInput {
   @Column({ type: 'float', nullable: true })
   exchangeRate?: number;
 
-  @Column({ type: 'float', nullable: true })
-  chargeAmount?: number;
-
-  @Column({ length: 256, nullable: true })
-  chargeCurrency?: string;
-
-  @Column({ length: 256, nullable: true })
-  chargeCdi?: string;
-
   // related party info
   @Column({ length: 256, nullable: true })
   name?: string;
+
+  @Column({ length: 256, nullable: true })
+  ultimateName?: string;
 
   @Column({ length: 256, nullable: true })
   addressLine1?: string;
