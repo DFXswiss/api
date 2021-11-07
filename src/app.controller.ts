@@ -1,14 +1,11 @@
-import { Controller, Get, Query, Req, Res, Redirect, Post, UseGuards, Body } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { Controller, Get, Query, Req, Res, Redirect } from '@nestjs/common';
+import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Details, UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
-import { SendMailDto } from './dto/send-mail.dto';
-import { RoleGuard } from './shared/auth/role.guard';
-import { UserRole } from './shared/auth/user-role.enum';
 import { MailService } from './shared/services/mail.service';
 import { RefService } from './user/models/referral/ref.service';
+
 @Controller('')
 export class AppController {
   constructor(private readonly refService: RefService, readonly mailService: MailService) {}
@@ -37,16 +34,6 @@ export class AppController {
     if (agent.isiPhone) url = 'https://apps.apple.com/app/id1582633093';
 
     res.redirect(307, url);
-  }
-
-  @Post('sendMail')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async sendMail(@Body() sendMailDto: SendMailDto[]): Promise<void> {
-    sendMailDto.forEach(
-      async (entry) => await this.mailService.sendMail(entry.mail, entry.salutation, entry.subject, entry.body),
-    );
   }
 
   private getAgentDetails(req: Request): Details {
