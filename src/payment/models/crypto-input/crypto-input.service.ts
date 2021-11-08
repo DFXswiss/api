@@ -44,7 +44,7 @@ export class CryptoInputService {
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
         .then((i) => i.filter((h) => h.type === 'receive'))
         .then((i) => {
-          if (i.length > 0) console.log('New crypto inputs: ', i);
+          if (i.length > 0) console.log('New crypto inputs:', i);
           return i;
         })
         // map to entities
@@ -68,14 +68,14 @@ export class CryptoInputService {
         // get asset
         const asset = await this.assetService.getAsset(assetName);
         if (!asset) {
-          console.error(`Failed to process crypto input. No asset ${assetName} found. History entry: `, history);
+          console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
           return null;
         }
 
         // get sell route
         const sell = await this.sellService.getSellForAddress(history.owner);
         if (!sell) {
-          console.error(`Failed to process crypto input. No matching sell found. History entry: `, history);
+          console.error(`Failed to process crypto input. No matching sell found. History entry:`, history);
           return null;
         }
 
@@ -107,7 +107,7 @@ export class CryptoInputService {
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
     } catch (e) {
-      console.error(`Failed to process crypto input: `, e);
+      console.error(`Failed to process crypto input:`, e);
     }
   }
 }

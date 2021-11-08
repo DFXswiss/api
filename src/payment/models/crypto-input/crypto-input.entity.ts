@@ -35,92 +35,92 @@ export class CryptoInput {
 
   // Robin's generic columns
   @Column({ length: 256, nullable: true })
-  f1?: string;
+  field1?: string;
 
   @Column({ length: 256, nullable: true })
-  f2?: string;
+  field2?: string;
 
   @Column({ length: 256, nullable: true })
-  f3?: string;
+  field3?: string;
 
   @Column({ length: 256, nullable: true })
-  f4?: string;
+  field4?: string;
 
   @Column({ length: 256, nullable: true })
-  f5?: string;
+  field5?: string;
 
   @Column({ length: 256, nullable: true })
-  f6?: string;
+  field6?: string;
 
   @Column({ length: 256, nullable: true })
-  f7?: string;
+  field7?: string;
 
   @Column({ length: 256, nullable: true })
-  f8?: string;
+  field8?: string;
 
   @Column({ length: 256, nullable: true })
-  f9?: string;
+  field9?: string;
 
   @Column({ length: 256, nullable: true })
-  f10?: string;
+  field10?: string;
 
   @Column({ length: 256, nullable: true })
-  f11?: string;
+  field11?: string;
 
   @Column({ length: 256, nullable: true })
-  f12?: string;
+  field12?: string;
 
   @Column({ length: 256, nullable: true })
-  f13?: string;
+  field13?: string;
 
   @Column({ length: 256, nullable: true })
-  f14?: string;
+  field14?: string;
 
   @Column({ length: 256, nullable: true })
-  f15?: string;
+  field15?: string;
 
   @Column({ length: 256, nullable: true })
-  f16?: string;
+  field16?: string;
 
   @Column({ length: 256, nullable: true })
-  f17?: string;
+  field17?: string;
 
   @Column({ length: 256, nullable: true })
-  f18?: string;
+  field18?: string;
 
   @Column({ length: 256, nullable: true })
-  f19?: string;
+  field19?: string;
 
   @Column({ length: 256, nullable: true })
-  f20?: string;
+  field20?: string;
 
   @Column({ length: 256, nullable: true })
-  f21?: string;
+  field21?: string;
 
   @Column({ length: 256, nullable: true })
-  f22?: string;
+  field22?: string;
 
   @Column({ length: 256, nullable: true })
-  f23?: string;
+  field23?: string;
 
   @Column({ length: 256, nullable: true })
-  f24?: string;
+  field24?: string;
 
   @Column({ length: 256, nullable: true })
-  f25?: string;
+  field25?: string;
 
   @Column({ length: 256, nullable: true })
-  f26?: string;
+  field26?: string;
 
   @Column({ length: 256, nullable: true })
-  f27?: string;
+  field27?: string;
 
   @Column({ length: 256, nullable: true })
-  f28?: string;
+  field28?: string;
 
   @Column({ length: 256, nullable: true })
-  f29?: string;
+  field29?: string;
 
   @Column({ length: 256, nullable: true })
-  f30?: string;
+  field30?: string;
 }

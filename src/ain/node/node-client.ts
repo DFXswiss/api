@@ -61,7 +61,7 @@ export class NodeClient {
     const method = cmdParts.shift();
     const params = cmdParts.map((p) => JSON.parse(p));
 
-    return this.callNode((c) => c.call(method, params, 'number'), !noAutoUnlock).catch((error: HttpError) => error);
+    return this.callNode((c) => c.call(method, params, 'number'), !noAutoUnlock);
   }
 
   // generic
