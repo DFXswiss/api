@@ -38,6 +38,7 @@ export class FiatInputService {
 
     // read file list
     const fileInfos = await client.listFiles();
+    if (fileInfos.length > 0) console.log('New SEPA files to import:', fileInfos);
 
     // store and move files to archive folder
     for (const fileInfo of fileInfos) {

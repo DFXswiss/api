@@ -44,7 +44,7 @@ export class CryptoInputService {
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
         .then((i) => i.filter((h) => h.type === 'receive'))
         .then((i) => {
-          if (i.length > 0) console.log('New crypto inputs: ', i);
+          if (i.length > 0) console.log('New crypto inputs:', i);
           return i;
         })
         // map to entities
