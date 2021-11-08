@@ -66,16 +66,7 @@ export class BankTxService {
     if (duplicates.length > 0) {
       console.log(`Duplicate SEPA entries found:`, duplicates);
     }
-
-    // store in batches
-    const batchSize = 50;
-    let remaining = txList.filter((i) => !duplicates.includes(i.accountServiceRef));
-    do {
-      const batch = remaining.slice(0, batchSize);
-      remaining = remaining.slice(batchSize);
-
-      await this.bankTxRepo.save(batch);
-    } while (remaining.length > 0);
+    await this.bankTxRepo.save(txList.filter((i) => !duplicates.includes(i.accountServiceRef)));
 
     batch.transactions = txList;
     return batch;
