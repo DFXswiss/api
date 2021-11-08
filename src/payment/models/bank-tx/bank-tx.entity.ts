@@ -1,8 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Column, ManyToOne } from 'typeorm';
-import { FiatInputBatch } from './fiat-input-batch.entity';
+import { BankTxBatch } from './bank-tx-batch.entity';
 
 @Entity()
-export class FiatInput {
+export class BankTx {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -102,8 +102,8 @@ export class FiatInput {
   @Column({ length: 256, nullable: true })
   txInfo?: string;
 
-  @ManyToOne(() => FiatInputBatch, (batch) => batch.fiatInputs, { nullable: false })
-  batch: FiatInputBatch;
+  @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: false })
+  batch: BankTxBatch;
 
   @UpdateDateColumn()
   updated: Date;
