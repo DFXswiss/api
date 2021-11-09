@@ -98,8 +98,11 @@ export class KycService {
       if (!documentVersions?.length) continue;
 
       const customer = await this.kycApi.getCustomer(userDataList[key].id);
-      const isCompleted = allDocumentVersions.find((document) => document.state === State.COMPLETED) != null;
-      const isFailed = true;
+      const isCompleted = documentVersions.find((document) => document.state === State.COMPLETED) != null;
+      const isFailed =
+        documentVersions.find(
+          (document) => document.state != State.FAILED && this.dateDiffInDays(document.creationTime) < 7,
+        ) == null;
 
       const shouldBeReminded =
         !isFailed &&

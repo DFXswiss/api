@@ -45,12 +45,12 @@ export class SellService {
     const fiat = await this.fiatService.getFiat(dto.fiat.id);
     if (!fiat) throw new NotFoundException('No fiat for id found');
 
+    // remove spaces in IBAN
+    dto.iban = dto.iban.split(' ').join('');
+
     // check if exists
     const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat } });
     if (existing) throw new ConflictException('Sell route already exists');
-
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
 
     // create the entity
     const sell = this.sellRepo.create(dto);
