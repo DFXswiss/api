@@ -60,8 +60,7 @@ export class UserDataService {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (!customer) return null;
 
-    const customerInformation = await this.kycApi.getCustomerInformation(userDataId);
-    const checkResult = await this.kycApi.getCheckResult(customerInformation.lastCheckId);
+    const checkResult = await this.kycApi.getCheckResult(userDataId);
     return { customer: customer, checkResult: checkResult };
   }
 
@@ -70,8 +69,8 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
 
-    const nameCheck = await this.kycApi.checkCustomer(userData.id);
-    const resultNameCheck = await this.kycApi.getCheckResult(nameCheck.checkId);
+    await this.kycApi.checkCustomer(userData.id);
+    const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
 
     // save
     await this.userDataRepo.save(userData);

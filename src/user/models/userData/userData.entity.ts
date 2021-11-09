@@ -16,7 +16,8 @@ export enum KycStatus {
   NA = 'NA',
   WAIT_CHAT_BOT = 'Chatbot',
   WAIT_ADDRESS = 'Address',
-  WAIT_ID = 'Identification',
+  WAIT_ONLINE_ID = 'OnlineId',
+  WAIT_VIDEO_ID = 'VideoId',
   WAIT_MANUAL = 'Manual',
   COMPLETED = 'Completed',
 }
@@ -25,6 +26,7 @@ export enum KycState {
   NA = 'NA',
   FAILED = 'Failed',
   REMINDED = 'Reminded',
+  RETRIED = 'Retried',
 }
 
 @Entity()

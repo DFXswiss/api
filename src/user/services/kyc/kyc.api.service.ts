@@ -64,14 +64,16 @@ export class KycApiService {
   }
 
   async getCustomer(id: number): Promise<Customer> {
-    return await this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
+    return this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
   }
 
   async getCustomerInformation(id: number): Promise<CustomerInformationResponse> {
     return this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`, 'GET');
   }
 
-  async getCheckResult(customerCheckId: number): Promise<CheckResult> {
+  async getCheckResult(id: number): Promise<CheckResult> {
+    const customerCheckId = await this.getCustomerInformation(id);
+    if (!customerCheckId) return null;
     return this.callApi<CheckResult>(`customers/checks/${customerCheckId}/result`, 'GET');
   }
 
@@ -114,6 +116,11 @@ export class KycApiService {
 
   async initiateOnlineIdentification(id: number): Promise<IdentificationResponse> {
     const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [this.reference(id)]);
+    return result[0];
+  }
+
+  async initiateVideoIdentification(id: number): Promise<IdentificationResponse> {
+    const result = await this.callApi<any>('customers/initiate-video-identifications', 'POST', [this.reference(id)]);
     return result[0];
   }
 
@@ -188,7 +195,7 @@ export class KycApiService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    return this.request<T>(this.sessionKey, url, method, data, contentType).catch((e: HttpError) => {
+    return this.request<T>(this.sessionKey, url, method, 3, data, contentType).catch((e: HttpError) => {
       if (e.response?.status === 404) {
         return null;
       }

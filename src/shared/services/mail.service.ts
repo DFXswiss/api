@@ -147,8 +147,12 @@ export class MailService {
         status = 'invoice upload';
         break;
       }
-      case KycStatus.WAIT_ID: {
-        status = 'identification';
+      case KycStatus.WAIT_ONLINE_ID: {
+        status = 'online identification';
+        break;
+      }
+      case KycStatus.WAIT_VIDEO_ID: {
+        status = 'video identification';
         break;
       }
     }
