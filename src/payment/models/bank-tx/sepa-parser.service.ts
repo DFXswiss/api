@@ -53,14 +53,14 @@ export class SepaParser {
     };
   }
 
-  static parseEntries(file: SepaFile, batch: BankTxBatch): Partial<BankTx>[] {
+  static parseEntries(file: SepaFile): Partial<BankTx>[] {
     const entries = Array.isArray(file.BkToCstmrStmt.Stmt.Ntry)
       ? file.BkToCstmrStmt.Stmt.Ntry
       : [file.BkToCstmrStmt.Stmt.Ntry];
 
     return entries.map((entry) => {
       const accountServiceRef =
-        entry.NtryDtls.TxDtls.Refs.AcctSvcrRef ?? `CUSTOM/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
+        entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ?? `CUSTOM/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
       let data: Partial<BankTx> = {};
       try {
@@ -92,8 +92,7 @@ export class SepaParser {
 
       return {
         accountServiceRef,
-        ...data,
-        batch: batch,
+        ...data
       };
     });
   }

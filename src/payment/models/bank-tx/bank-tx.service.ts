@@ -11,7 +11,7 @@ import { In } from 'typeorm';
 export class BankTxService {
   constructor(private readonly bankTxRepo: BankTxRepository, private readonly bankTxBatchRepo: BankTxBatchRepository) {}
 
-  @Interval(3600000)
+  @Interval(600000)
   async importSepaFiles(): Promise<void> {
     try {
       await this.fetchAndStoreSepaFiles();
@@ -54,19 +54,26 @@ export class BankTxService {
   private async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
-    // store the batch
+    // parse the file
     const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
+    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile));
+
+    // store the batch
     await this.bankTxBatchRepo.save(batch);
 
-    // store the entries (without duplicates)
-    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch));
+    // find duplicate entries
     const duplicates = await this.bankTxRepo
       .find({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
       .then((list) => list.map((i) => i.accountServiceRef));
     if (duplicates.length > 0) {
       console.log(`Duplicate SEPA entries found:`, duplicates);
     }
-    await this.bankTxRepo.save(txList.filter((i) => !duplicates.includes(i.accountServiceRef)));
+
+    // store the entries
+    const newTxs = txList
+      .filter((i) => !duplicates.includes(i.accountServiceRef))
+      .map((tx) => ({ batch: batch, ...tx }));
+    await this.bankTxRepo.save(newTxs);
 
     batch.transactions = txList;
     return batch;
