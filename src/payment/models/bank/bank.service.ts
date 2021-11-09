@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as bankInfo from 'src/payment/assets/bankInfo.json';
 
 @Injectable()
 export class BankService {
@@ -8,5 +9,7 @@ export class BankService {
 
   async getBankByName(bankName: any): Promise<any> {}
 
-  async getAllBank(): Promise<any> {}
+  async getAllBank(): Promise<any> {
+    return bankInfo;
+  }
 }
