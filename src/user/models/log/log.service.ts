@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { LogRepository } from './log.repository';
 import { CreateLogDto } from './dto/create-log.dto';
 import { MailService } from 'src/shared/services/mail.service';
@@ -27,6 +27,34 @@ export class LogService {
   private readonly baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
   async createLog(createLogDto: CreateLogDto): Promise<any> {
+    let existingLog;
+
+    if (createLogDto.blockchainTx) {
+      if (createLogDto.address) {
+        existingLog = (
+          await this.logRepository
+            .createQueryBuilder('log')
+            .innerJoin('log.user', 'user')
+            .where('user.address = :address', { address: createLogDto.address })
+            .andWhere('log.blockchainTx = :blockchainTx', { blockchainTx: createLogDto.blockchainTx })
+            .andWhere('log.type = :type', { type: createLogDto.type })
+            .getRawMany()
+        )[0];
+      } else if (createLogDto.user) {
+        existingLog = (
+          await this.logRepository
+            .createQueryBuilder('log')
+            .innerJoin('log.user', 'user')
+            .where('user.address = :address', { address: createLogDto.user.address })
+            .andWhere('log.blockchainTx = :blockchainTx', { blockchainTx: createLogDto.blockchainTx })
+            .andWhere('log.type = :type', { type: createLogDto.type })
+            .getRawMany()
+        )[0];
+      }
+    }
+
+    if (existingLog) throw new ForbiddenException('Log already existing - duplicate log');
+
     if (createLogDto.type === LogType.TRANSACTION && !createLogDto.status) {
       if (!createLogDto.user && createLogDto.address) {
         const userObject = await this.userRepo.findOne({
@@ -59,6 +87,35 @@ export class LogService {
   async createVolumeLog(createLogDto: CreateVolumeLogDto): Promise<any> {
     let assetObject = null;
     let fiatObject = null;
+    let existingLog;
+
+    createLogDto.type = LogType.VOLUME;
+
+    if (createLogDto.blockchainTx) {
+      if (createLogDto.address) {
+        existingLog = (
+          await this.logRepository
+            .createQueryBuilder('log')
+            .innerJoin('log.user', 'user')
+            .where('user.address = :address', { address: createLogDto.address })
+            .andWhere('log.blockchainTx = :blockchainTx', { blockchainTx: createLogDto.blockchainTx })
+            .andWhere('log.type = :type', { type: createLogDto.type })
+            .getRawMany()
+        )[0];
+      } else if (createLogDto.user) {
+        existingLog = (
+          await this.logRepository
+            .createQueryBuilder('log')
+            .innerJoin('log.user', 'user')
+            .where('user.address = :address', { address: createLogDto.user.address })
+            .andWhere('log.blockchainTx = :blockchainTx', { blockchainTx: createLogDto.blockchainTx })
+            .andWhere('log.type = :type', { type: createLogDto.type })
+            .getRawMany()
+        )[0];
+      }
+    }
+
+    if (existingLog) throw new ForbiddenException('Log already existing - duplicate log');
 
     if (createLogDto.payment) {
       // TODO: re-enable
