@@ -84,21 +84,23 @@ export class KycService {
     });
     for (const key in userDataList) {
       let allDocumentVersions: CheckVersion[];
-      let videoCheckVersion: CheckVersion[];
-
       const documentVersions = await this.kycApi.getDocumentVersion(userDataList[key].id, documentType);
+      allDocumentVersions = documentVersions;
+
       if (documentType === KycDocument.ONLINE_IDENTIFICATION || KycDocument.VIDEO_IDENTIFICATION) {
-        videoCheckVersion = await this.kycApi.getDocumentVersion(
+        const secondCheckVersion = await this.kycApi.getDocumentVersion(
           userDataList[key].id,
-          KycDocument.VIDEO_IDENTIFICATION,
+          documentType === KycDocument.ONLINE_IDENTIFICATION
+            ? KycDocument.ONLINE_IDENTIFICATION
+            : KycDocument.VIDEO_IDENTIFICATION,
         );
-        allDocumentVersions = [...documentVersions, ...videoCheckVersion];
+        allDocumentVersions = [...documentVersions, ...secondCheckVersion];
       }
 
       if (!documentVersions?.length) continue;
 
       const customer = await this.kycApi.getCustomer(userDataList[key].id);
-      const isCompleted = documentVersions.find((document) => document.state === State.COMPLETED) != null;
+      const isCompleted = allDocumentVersions.find((document) => document.state === State.COMPLETED) != null;
       const isFailed =
         documentVersions.find(
           (document) => document.state != State.FAILED && this.dateDiffInDays(document.creationTime) < 7,
