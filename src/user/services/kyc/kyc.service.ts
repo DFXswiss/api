@@ -143,7 +143,7 @@ export class KycSchedulerService {
           );
           userDataList[key].kycState = KycState.FAILED;
         }
-      } else if (shouldBeReminded && [KycState.REMINDED, KycState.REMINDED].includes(userDataList[key].kycState)) {
+      } else if (shouldBeReminded && ![KycState.REMINDED, KycState.RETRIED].includes(userDataList[key].kycState)) {
         await this.mailService.sendReminderMail(customer.names[0].firstName, customer.emails[0], currentStatus);
         console.log(
           `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.REMINDED}`,
