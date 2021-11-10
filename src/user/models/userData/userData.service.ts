@@ -82,26 +82,8 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
 
-    let customerInformation = null;
-    let resultNameCheck = null;
-
-    try {
-      customerInformation = await this.kycApi.getCustomerInformation(userData.id);
-    } catch (error) {
-      throw new ServiceUnavailableException('Customer information error: ' + error.message);
-    }
-
-    if (customerInformation.lastCheckId < 0) {
-      throw new NotFoundException(`User with id ${userDataId} has no name check yet`);
-    }
-
-    try {
-      resultNameCheck = await this.kycApi.getCheckResult(customerInformation.lastCheckId);
-    } catch (error) {
-      throw new ServiceUnavailableException('Customer check error: ' + error.message);
-    }
-
-    return resultNameCheck.risks[0].categoryKey;
+    const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
+    return resultNameCheck?.risks?.[0]?.categoryKey;
   }
 
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {

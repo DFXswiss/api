@@ -67,12 +67,12 @@ export class KycApiService {
     return this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
   }
 
-  async getCustomerInformation(id: number): Promise<CustomerInformationResponse> {
-    return this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`, 'GET');
+  async getCustomerInformation(userDataId: number): Promise<CustomerInformationResponse> {
+    return this.callApi<CustomerInformationResponse>(`customers/${this.reference(userDataId)}/information`, 'GET');
   }
 
-  async getCheckResult(id: number): Promise<CheckResult> {
-    const customerCheckId = await this.getCustomerInformation(id);
+  async getCheckResult(userDataId: number): Promise<CheckResult> {
+    const customerCheckId = await this.getCustomerInformation(userDataId);
     if (!customerCheckId) return null;
     return this.callApi<CheckResult>(`customers/checks/${customerCheckId}/result`, 'GET');
   }
