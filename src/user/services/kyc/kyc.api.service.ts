@@ -50,10 +50,10 @@ export class KycApiService {
           houseNumber: user.houseNumber,
           zipCode: user.zip,
           city: user.location,
-          countryCode: user.country.symbol,
+          countryCode: user.country?.symbol?.toLowerCase() ?? 'de',
         },
       ],
-      preferredLanguage: user.language?.symbol.toLowerCase() ?? 'de',
+      preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
       activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
     };
 

@@ -10,7 +10,7 @@ import { KycApiService } from './kyc.api.service';
 import { CheckVersion, Customer, KycDocument, State } from './dto/kyc.dto';
 
 @Injectable()
-export class KycService {
+export class KycSchedulerService {
   constructor(
     private mailService: MailService,
     @InjectRepository(KycFile)
@@ -31,10 +31,10 @@ export class KycService {
     }
   }
 
-  async doChatBotCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ADDRESS, KycDocument.CHATBOT, async (userData) => {
+  private async doChatBotCheck(): Promise<void> {
+    await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ADDRESS, [KycDocument.CHATBOT], async (userData) => {
       const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
-      if (resultNameCheck.risks[0].categoryKey === 'a' || resultNameCheck.risks[0].categoryKey === 'b') {
+      if (['a', 'b'].includes(resultNameCheck.risks[0].categoryKey)) {
         await this.kycApi.checkCustomer(userData.id);
       }
       await this.kycApi.initiateDocumentUpload(userData.id, [KycDocument.INVOICE]);
@@ -42,22 +42,28 @@ export class KycService {
     });
   }
 
-  async doAddressCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ADDRESS, KycStatus.WAIT_ONLINE_ID, KycDocument.INVOICE, async (userData) => {
+  private async doAddressCheck(): Promise<void> {
+    await this.doCheck(KycStatus.WAIT_ADDRESS, KycStatus.WAIT_ONLINE_ID, [KycDocument.INVOICE], async (userData) => {
       await this.kycApi.initiateOnlineIdentification(userData.id);
       return userData;
     });
   }
 
-  async doOnlineIdCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, KycDocument.ONLINE_IDENTIFICATION, (u, c) =>
-      this.createKycFile(u, c),
+  private async doOnlineIdCheck(): Promise<void> {
+    await this.doCheck(
+      KycStatus.WAIT_ONLINE_ID,
+      KycStatus.WAIT_MANUAL,
+      [KycDocument.ONLINE_IDENTIFICATION, KycDocument.VIDEO_IDENTIFICATION],
+      (u, c) => this.createKycFile(u, c),
     );
   }
 
-  async doVideoIdCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_MANUAL, KycDocument.VIDEO_IDENTIFICATION, (u, c) =>
-      this.createKycFile(u, c),
+  private async doVideoIdCheck(): Promise<void> {
+    await this.doCheck(
+      KycStatus.WAIT_VIDEO_ID,
+      KycStatus.WAIT_MANUAL,
+      [KycDocument.VIDEO_IDENTIFICATION, KycDocument.ONLINE_IDENTIFICATION],
+      (u, c) => this.createKycFile(u, c),
     );
   }
 
@@ -76,7 +82,7 @@ export class KycService {
   private async doCheck(
     currentStatus: KycStatus,
     nextStatus: KycStatus,
-    documentType: KycDocument,
+    documentTypes: KycDocument[],
     updateAction: (userData: UserData, customer: Customer) => Promise<UserData>,
   ): Promise<void> {
     const userDataList = await this.userDataRepository.find({
@@ -84,16 +90,11 @@ export class KycService {
     });
     for (const key in userDataList) {
       let allDocumentVersions: CheckVersion[];
-      const documentVersions = await this.kycApi.getDocumentVersion(userDataList[key].id, documentType);
+      const documentVersions = await this.kycApi.getDocumentVersion(userDataList[key].id, documentTypes[0]);
       allDocumentVersions = documentVersions;
 
-      if (documentType === KycDocument.ONLINE_IDENTIFICATION || KycDocument.VIDEO_IDENTIFICATION) {
-        const secondCheckVersion = await this.kycApi.getDocumentVersion(
-          userDataList[key].id,
-          documentType === KycDocument.ONLINE_IDENTIFICATION
-            ? KycDocument.ONLINE_IDENTIFICATION
-            : KycDocument.VIDEO_IDENTIFICATION,
-        );
+      if (documentTypes.length > 0) {
+        const secondCheckVersion = await this.kycApi.getDocumentVersion(userDataList[key].id, documentTypes[1]);
         allDocumentVersions = [...documentVersions, ...secondCheckVersion];
       }
 
@@ -142,7 +143,7 @@ export class KycService {
           );
           userDataList[key].kycState = KycState.FAILED;
         }
-      } else if (shouldBeReminded && userDataList[key].kycState != KycState.REMINDED) {
+      } else if (shouldBeReminded && [KycState.REMINDED, KycState.REMINDED].includes(userDataList[key].kycState)) {
         await this.mailService.sendReminderMail(customer.names[0].firstName, customer.emails[0], currentStatus);
         console.log(
           `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.REMINDED}`,
