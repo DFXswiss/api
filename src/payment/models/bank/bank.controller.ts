@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, UseGuards, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, UseGuards, Post, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -10,39 +10,27 @@ import { BankService } from './bank.service';
 export class BankController {
   constructor(private readonly bankService: BankService) {}
 
-  @Get(':id')
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'id',
-    required: true,
-    description: 'integer for the blz',
-    schema: { type: 'integer' },
-  })
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getBankById(@Param() blz: any): Promise<any> {
-    return this.bankService.getBankByBlz(blz);
-  }
-
-  @Get(':bankName')
-  @ApiBearerAuth()
-  @ApiParam({
-    name: 'bankName',
-    required: true,
-    description: 'string for bankName',
-    schema: { type: 'string' },
-  })
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getBankByName(@Param() bankName: any): Promise<any> {
-    return this.bankService.getBankByBlz(bankName);
-  }
+  // @Get('id/:id')
+  // @ApiBearerAuth()
+  // @ApiParam({
+  //   name: 'id',
+  //   required: true,
+  //   description: 'integer for id',
+  //   schema: { type: 'integer' },
+  // })
+  // @ApiExcludeEndpoint()
+  // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  // async getBankById(@Param() id: number): Promise<any> {
+  //   return this.bankService.getBankById(id);
+  // }
 
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getAllBatch(): Promise<any> {
+  async getBankByName(@Query('bankName') bankName: string, @Query('blz') blz: string): Promise<any> {
+    if (bankName) return this.bankService.getBankByName(bankName);
+    if (blz) return this.bankService.getBankByBlz(blz);
     return this.bankService.getAllBank();
   }
 }
