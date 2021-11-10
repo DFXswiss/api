@@ -16,7 +16,7 @@ import { CountryRepository } from 'src/shared/models/country/country.repository'
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { MailService } from 'src/shared/services/mail.service';
-import { KycSchedulerService } from 'src/user/services/kyc/kyc.service';
+import { KycSchedulerService } from 'src/user/services/kyc/kyc-scheduler.service';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {

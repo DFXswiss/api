@@ -6,7 +6,7 @@ import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { Repository } from 'typeorm';
 import { MailService } from '../../../shared/services/mail.service';
-import { KycApiService } from './kyc.api.service';
+import { KycApiService } from './kyc-api.service';
 import { CheckVersion, Customer, KycDocument, State } from './dto/kyc.dto';
 
 @Injectable()
@@ -89,23 +89,16 @@ export class KycSchedulerService {
       where: { kycStatus: currentStatus },
     });
     for (const key in userDataList) {
-      let allDocumentVersions: CheckVersion[];
-      const documentVersions = await this.kycApi.getDocumentVersion(userDataList[key].id, documentTypes[0]);
-      allDocumentVersions = documentVersions;
-
-      if (documentTypes.length > 0) {
-        const secondCheckVersion = await this.kycApi.getDocumentVersion(userDataList[key].id, documentTypes[1]);
-        allDocumentVersions = [...documentVersions, ...secondCheckVersion];
-      }
-
+      // get all versions of all document types
+      const documentVersions = await Promise.all(
+        documentTypes.map((t) => this.kycApi.getDocumentVersion(userDataList[key].id, t)),
+      ).then((versions) => versions.reduce((prev, curr) => prev.concat(curr)));
       if (!documentVersions?.length) continue;
 
       const customer = await this.kycApi.getCustomer(userDataList[key].id);
-      const isCompleted = allDocumentVersions.find((document) => document.state === State.COMPLETED) != null;
+      const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
       const isFailed =
-        documentVersions.find(
-          (document) => document.state != State.FAILED && this.dateDiffInDays(document.creationTime) < 7,
-        ) == null;
+        documentVersions.find((doc) => doc.state != State.FAILED && this.dateDiffInDays(doc.creationTime) < 7) == null;
 
       const shouldBeReminded =
         !isFailed &&

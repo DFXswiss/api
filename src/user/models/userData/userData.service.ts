@@ -6,8 +6,7 @@ import { CheckResult, Customer } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
-import { KycService } from 'src/user/services/kyc/kyc.service';
-import { KycApiService } from 'src/user/services/kyc/kyc.api.service';
+import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
 
 export interface UserDataChecks {
   userDataId: string;

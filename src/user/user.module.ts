@@ -33,8 +33,8 @@ import { UserController } from './models/user/user.controller';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { KycFile } from './models/userData/kycFile.entity';
-import { KycApiService } from './services/kyc/kyc.api.service';
-import { KycSchedulerService } from './services/kyc/kyc.service';
+import { KycApiService } from './services/kyc/kyc-api.service';
+import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
 
 @Module({
   imports: [
