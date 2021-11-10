@@ -7,7 +7,7 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { Repository } from 'typeorm';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
-import { CheckVersion, Customer, KycDocument, State } from './dto/kyc.dto';
+import { Customer, KycDocument, State } from './dto/kyc.dto';
 
 @Injectable()
 export class KycSchedulerService {
