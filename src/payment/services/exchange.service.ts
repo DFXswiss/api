@@ -126,14 +126,14 @@ class ExchangeService {
     return this.exchange.fetchOrderBook(currencyPair);
   }
 
-  async currencyPairFromTo(from: string, to: string): Promise<[string, OrderSide]> {
+  async currencyPairFromTo(fromCurrency: string, toCurrency: string): Promise<[string, OrderSide]> {
     const currencyPairs = ['BTC/EUR', 'LTC/EUR']
-    const selectedPair = currencyPairs.find((p) => p.includes(from.toUpperCase()) && p.includes(to.toUpperCase()));
-    const selectedDirection = selectedPair.startsWith(to) ? OrderSide.BUY : OrderSide.SELL;
+    const selectedPair = currencyPairs.find((p) => p.includes(fromCurrency.toUpperCase()) && p.includes(toCurrency.toUpperCase()));
+    const selectedDirection = selectedPair.startsWith(toCurrency) ? OrderSide.BUY : OrderSide.SELL;
 
 
     if (!selectedPair || !selectedDirection)
-      throw new BadRequestException(`Pair with ${from} and ${to} not supported`);
+      throw new BadRequestException(`Pair with ${fromCurrency} and ${toCurrency} not supported`);
 
     return [selectedPair, selectedDirection];
   }
