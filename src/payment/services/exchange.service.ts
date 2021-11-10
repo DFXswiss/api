@@ -24,7 +24,7 @@ type KrakenOrderResponse = {
 }
 
 @Injectable()
-export class ExchangeService {
+class ExchangeService {
   private readonly exchange: Exchange;
 
   constructor(exchange: Exchange) {
@@ -107,16 +107,16 @@ export class ExchangeService {
       orderStatus = await this.pollOrder(order.id, currencyPair);
     } while ([OrderStatus.OPEN, OrderStatus.CANCELED].includes(orderStatus));
 
-    let amount = order.amount;
+    let price = order.price;
     if (partialOrders.length > 0) {
-      const amount_sum = partialOrders.reduce((a, b) => a.amount + b.amount, 0);
-      amount = amount_sum / partialOrders.length;
+      const price_sum = partialOrders.reduce((a, b) => a + b.price, 0);
+      price = price_sum / partialOrders.length;
     }
 
     const krakenOrder: KrakenOrder = {
       id: order.id,
-      price: order.price,
-      amount: amount
+      price: price,
+      amount: order.amount
     }
   
     const krakenResponse: KrakenOrderResponse = {
@@ -167,7 +167,7 @@ export class ExchangeService {
   }
 }
 
-class Kraken extends ExchangeService {
+export class Kraken extends ExchangeService {
   constructor(params: any) {
       super(new kraken(params));
   }
