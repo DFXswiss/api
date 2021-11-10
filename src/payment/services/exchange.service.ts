@@ -74,38 +74,29 @@ class ExchangeService {
   }
 
   private async tryToOrder(currencyPair: string, orderType: string, orderSide: OrderSide, wantedCurrencyAmount: number, currentPrice: number): Promise<KrakenOrderResponse> {
-    let order: Order;
-    let orderStatus: OrderStatus;
-    let partialOrders = []
+    const partialOrders = []
+    let order = await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
 
-    do {
-      if (order == undefined) {
-        order = await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
-      } else {
-        // cancel existing order. Check if partially filled
-        if (orderStatus == OrderStatus.CANCELED) {
-          // recreate order
-          order = await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'});
-        } else {
-          // Order has not yet been filled. Lets check if it was partially filled
-          if (order.filled != undefined) {
-            // Partial order exists
-            const partialOrder: KrakenOrder = {
-              id: order.id,
-              price: order.price,
-              amount: order.filled
-            };
+    while(true) {
+      const orderStatus = await this.pollOrder(order.id, currencyPair);
+      if (orderStatus === OrderStatus.CLOSED) break;
 
-            partialOrders.push(partialOrder);
-            wantedCurrencyAmount -= order.filled;
-          }
+      if (order.filled != undefined) {
+        // Partial order exists
+        const partialOrder: KrakenOrder = {
+          id: order.id,
+          price: order.price,
+          amount: order.filled
+        };
 
-          order = await this.recreateOrder(order, currencyPair, orderType, orderSide, wantedCurrencyAmount);
-        }
+        partialOrders.push(partialOrder);
+        wantedCurrencyAmount -= order.filled;
       }
 
-      orderStatus = await this.pollOrder(order.id, currencyPair);
-    } while ([OrderStatus.OPEN, OrderStatus.CANCELED].includes(orderStatus));
+      order = orderStatus == OrderStatus.CANCELED
+        ? await this.exchange.createOrder(currencyPair, orderType, orderSide, wantedCurrencyAmount, currentPrice, {'oflags': 'post'})
+        : await this.recreateOrder(order, currencyPair, orderType, orderSide, wantedCurrencyAmount);
+    }
 
     let price = order.price;
     if (partialOrders.length > 0) {
@@ -135,7 +126,19 @@ class ExchangeService {
     return this.exchange.fetchOrderBook(currencyPair);
   }
 
-  async createOrder(orderSide: OrderSide, currencyPair: string, exchangeAmount: number): Promise<KrakenOrderResponse> {
+  async currencyPairFromTo(from: string, to: string): Promise<[string, OrderSide]> {
+    const currencyPairs = ['BTC/EUR', 'LTC/EUR']
+    const selectedPair = currencyPairs.find((p) => p.includes(from.toUpperCase()) && p.includes(to.toUpperCase()));
+    const selectedDirection = selectedPair.startsWith(to) ? OrderSide.BUY : OrderSide.SELL;
+
+
+    if (!selectedPair || !selectedDirection)
+      throw new BadRequestException(`Pair with ${from} and ${to} not supported`);
+
+    return [selectedPair, selectedDirection];
+  }
+
+  async createOrder(from: string, to: string, exchangeAmount: number): Promise<KrakenOrderResponse> {
     /*
       The following logic is applied
 
@@ -146,11 +149,10 @@ class ExchangeService {
       5. return buy/sell price. If partially filled then return average price over all the orders
     */
     const balances = await this.fetchBalances();
-    const [token1, token2] = currencyPair.split('/');
-    const depositedToken = (orderSide == OrderSide.BUY) ? token2 : token1;
+    const [currencyPair, orderSide] = await this.currencyPairFromTo(from, to);
 
-    if (exchangeAmount > balances.total[depositedToken]) {
-      throw new BadRequestException(`There is not enough balance for token ${depositedToken}. Current balance: ${balances.total[depositedToken]} requested balance: ${exchangeAmount}`);
+    if (exchangeAmount > balances.total[from]) {
+      throw new BadRequestException(`There is not enough balance for token ${from}. Current balance: ${balances.total[from]} requested balance: ${exchangeAmount}`);
     }
 
     const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
@@ -169,6 +171,6 @@ class ExchangeService {
 
 export class Kraken extends ExchangeService {
   constructor(params: any) {
-      super(new kraken(params));
+    super(new kraken(params));
   }
 }
