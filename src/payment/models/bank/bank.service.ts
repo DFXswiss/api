@@ -1,17 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import * as BankInfo from 'src/payment/assets/bankInfo.json';
+import * as BankInfos from 'src/payment/assets/bank-infos.json';
+import { BankInfo } from './bank.entity';
 
 @Injectable()
 export class BankService {
-  constructor() {}
+  constructor(private readonly bankInfos = BankInfos as BankInfo[]) {}
 
-  async getBankByBlz(blz: any): Promise<any> {}
+  async getBankByBlz(blz: any): Promise<any> {
+    let result = this.bankInfos.find(blz);
+    return result;
+  }
 
   async getBankByName(bankName: any): Promise<any> {
-    //return await
+    let result = this.bankInfos.find(bankName);
+    return result;
   }
 
   async getAllBank(): Promise<any> {
-    return BankInfo;
+    return this.bankInfos;
   }
 }
