@@ -7,7 +7,7 @@ import { BankService } from './bank.service';
 
 @ApiTags('bank')
 @Controller('bank')
-export class BatchController {
+export class BankController {
   constructor(private readonly bankService: BankService) {}
 
   @Get(':id')
