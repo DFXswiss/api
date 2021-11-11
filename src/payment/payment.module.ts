@@ -33,8 +33,8 @@ import { PaymentService } from './models/payment/payment.service';
     AinModule,
     UserModule,
   ],
-  controllers: [PaymentController, BatchController, FiatInputController, BankController],
-  providers: [PaymentService, BatchService, CryptoInputService, FiatInputService, BankService],
+  controllers: [PaymentController, BatchController, BankController],
+  providers: [PaymentService, BatchService, CryptoInputService, BankService],
   exports: [PaymentService],
 })
 export class PaymentModule {}
