@@ -130,7 +130,7 @@ export class ExchangeService {
       }
 
       numRetries++;
-    } while (order.status !== OrderStatus.CLOSED || numRetries >= maxRetries)
+    } while (order.status !== OrderStatus.CLOSED && numRetries < maxRetries)
 
     // Push closed order
     const avg = this.getWeightedAveragePrice(orderList);
