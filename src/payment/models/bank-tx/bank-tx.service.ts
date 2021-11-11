@@ -1,20 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { FtpService } from 'src/shared/services/ftp.service';
 import { Interval } from '@nestjs/schedule';
-import { FiatInputRepository } from './fiat-input.repository';
-import { FiatInputBatchRepository } from './fiat-input-batch.repository';
-import { FiatInputBatch } from './fiat-input-batch.entity';
+import { BankTxRepository } from './bank-tx.repository';
+import { BankTxBatchRepository } from './bank-tx-batch.repository';
+import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 
 @Injectable()
-export class FiatInputService {
-  constructor(
-    private readonly fiatInputRepo: FiatInputRepository,
-    private readonly fiatInputBatchRepo: FiatInputBatchRepository,
-  ) {}
+export class BankTxService {
+  constructor(private readonly bankTxRepo: BankTxRepository, private readonly bankTxBatchRepo: BankTxBatchRepository) {}
 
-  @Interval(3600000)
+  @Interval(600000)
   async importSepaFiles(): Promise<void> {
     try {
       await this.fetchAndStoreSepaFiles();
@@ -23,7 +20,7 @@ export class FiatInputService {
     }
   }
 
-  async storeSepaFiles(files: string[]): Promise<FiatInputBatch[]> {
+  async storeSepaFiles(files: string[]): Promise<BankTxBatch[]> {
     return Promise.all(files.map((f) => this.storeSepaFile(f)));
   }
 
@@ -38,6 +35,7 @@ export class FiatInputService {
 
     // read file list
     const fileInfos = await client.listFiles();
+    if (fileInfos.length > 0) console.log('New SEPA files to import:', fileInfos);
 
     // store and move files to archive folder
     for (const fileInfo of fileInfos) {
@@ -53,24 +51,31 @@ export class FiatInputService {
     client.close();
   }
 
-  private async storeSepaFile(xmlFile: string): Promise<FiatInputBatch> {
+  private async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
-    // store the batch
-    const batch = this.fiatInputBatchRepo.create(SepaParser.parseBatch(sepaFile));
-    await this.fiatInputBatchRepo.save(batch);
+    // parse the file
+    const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
+    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile));
 
-    // store the entries (without duplicates)
-    const inputs = this.fiatInputRepo.create(SepaParser.parseEntries(sepaFile, batch));
-    const duplicates = await this.fiatInputRepo
-      .find({ accountServiceRef: In(inputs.map((i) => i.accountServiceRef)) })
+    // store the batch
+    await this.bankTxBatchRepo.save(batch);
+
+    // find duplicate entries
+    const duplicates = await this.bankTxRepo
+      .find({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
       .then((list) => list.map((i) => i.accountServiceRef));
     if (duplicates.length > 0) {
       console.log(`Duplicate SEPA entries found:`, duplicates);
     }
-    await this.fiatInputRepo.save(inputs.filter((i) => !duplicates.includes(i.accountServiceRef)));
 
-    batch.fiatInputs = inputs;
+    // store the entries
+    const newTxs = txList
+      .filter((i) => !duplicates.includes(i.accountServiceRef))
+      .map((tx) => ({ batch: batch, ...tx }));
+    await this.bankTxRepo.save(newTxs);
+
+    batch.transactions = txList;
     return batch;
   }
 }

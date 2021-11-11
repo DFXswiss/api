@@ -62,7 +62,7 @@ export class NodeService {
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
 
     if (errors.length > 0) {
-      console.error(`Node errors: ${errors}`);
+      console.error(`Node errors:`, errors);
       await this.mailService.sendNodeErrorMail(errors);
     }
   }

@@ -1,8 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Column, OneToMany } from 'typeorm';
-import { FiatInput } from './fiat-input.entity';
+import { BankTx } from './bank-tx.entity';
 
 @Entity()
-export class FiatInputBatch {
+export class BankTxBatch {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -68,8 +68,8 @@ export class FiatInputBatch {
   @Column({ type: 'float', nullable: true })
   debitAmount?: number;
 
-  @OneToMany(() => FiatInput, (input) => input.batch)
-  fiatInputs: FiatInput[];
+  @OneToMany(() => BankTx, (input) => input.batch)
+  transactions: BankTx[];
 
   @UpdateDateColumn()
   updated: Date;

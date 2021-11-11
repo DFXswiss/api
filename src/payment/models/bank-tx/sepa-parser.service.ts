@@ -1,8 +1,8 @@
 import { SepaEntry } from './dto/sepa-entry.dto';
 import { SepaFile } from './dto/sepa-file.dto';
 import { SepaCdi, SepaAddress } from './dto/sepa.dto';
-import { FiatInputBatch } from './fiat-input-batch.entity';
-import { FiatInput } from './fiat-input.entity';
+import { BankTxBatch } from './bank-tx-batch.entity';
+import { BankTx } from './bank-tx.entity';
 import * as XmlParser from 'fast-xml-parser';
 
 export class SepaParser {
@@ -15,12 +15,12 @@ export class SepaParser {
     return XmlParser.parse(xmlFile, { ignoreAttributes: false }).Document;
   }
 
-  static parseBatch(file: SepaFile): Partial<FiatInputBatch> {
+  static parseBatch(file: SepaFile): Partial<BankTxBatch> {
     const info = file.BkToCstmrStmt.Stmt;
     const identification = info.Id;
 
     // try to parse the data
-    let data: Partial<FiatInputBatch> = {};
+    let data: Partial<BankTxBatch> = {};
     try {
       data = {
         sequenceNumber: +info?.ElctrncSeqNb,
@@ -53,16 +53,16 @@ export class SepaParser {
     };
   }
 
-  static parseEntries(file: SepaFile, batch: FiatInputBatch): Partial<FiatInput>[] {
+  static parseEntries(file: SepaFile): Partial<BankTx>[] {
     const entries = Array.isArray(file.BkToCstmrStmt.Stmt.Ntry)
       ? file.BkToCstmrStmt.Stmt.Ntry
       : [file.BkToCstmrStmt.Stmt.Ntry];
 
     return entries.map((entry) => {
       const accountServiceRef =
-        entry.NtryDtls.TxDtls.Refs.AcctSvcrRef ?? `CUSTOM/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
+        entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ?? `CUSTOM/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
-      let data: Partial<FiatInput> = {};
+      let data: Partial<BankTx> = {};
       try {
         data = {
           bookingDate: new Date(entry?.BookgDt?.Dt),
@@ -92,13 +92,12 @@ export class SepaParser {
 
       return {
         accountServiceRef,
-        ...data,
-        batch: batch,
+        ...data
       };
     });
   }
 
-  private static getRelatedPartyInfo(entry: SepaEntry): Partial<FiatInput> {
+  private static getRelatedPartyInfo(entry: SepaEntry): Partial<BankTx> {
     const parties = entry?.NtryDtls?.TxDtls?.RltdPties;
     const { party, account, ultimateParty } =
       entry?.NtryDtls?.TxDtls?.CdtDbtInd === SepaCdi.CREDIT
@@ -113,7 +112,7 @@ export class SepaParser {
     };
   }
 
-  private static getRelatedAgentInfo(entry: SepaEntry): Partial<FiatInput> {
+  private static getRelatedAgentInfo(entry: SepaEntry): Partial<BankTx> {
     const agents = entry?.NtryDtls?.TxDtls?.RltdAgts;
     const agent = entry?.NtryDtls?.TxDtls?.CdtDbtInd === SepaCdi.CREDIT ? agents?.DbtrAgt : agents?.CdtrAgt;
 
@@ -127,7 +126,7 @@ export class SepaParser {
     };
   }
 
-  private static getAddress(address: SepaAddress): Partial<FiatInput> {
+  private static getAddress(address: SepaAddress): Partial<BankTx> {
     return {
       addressLine1:
         (Array.isArray(address?.AdrLine) ? address?.AdrLine[0] : address?.AdrLine) ??

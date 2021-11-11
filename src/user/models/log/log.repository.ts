@@ -67,12 +67,12 @@ export class LogRepository extends Repository<Log> {
     try {
       await this.save(log);
       if (log.type === LogType.TRANSACTION && !log.status) {
-        if (createLogDto.user.mail) {
-          const fiat = (await fiatService.getFiat(createLogDto.fiat)).name;
-          const asset = (await assetService.getAsset(createLogDto.asset)).name;
+        // if (createLogDto.user.mail) {
+        //   const fiat = (await fiatService.getFiat(createLogDto.fiat)).name;
+        //   const asset = (await assetService.getAsset(createLogDto.asset)).name;
 
-          await mailService.sendLogMail(createLogDto, 'Transaction has been completed', fiat, asset);
-        }
+        //   await mailService.sendLogMail(createLogDto, 'Transaction has been completed', fiat, asset);
+        // }
 
         if (log.user) {
           const currentUser = log.user;
