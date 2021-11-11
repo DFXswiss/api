@@ -20,10 +20,15 @@ describe('ExchangeService', () => {
   });
 
   it('should return BTC/EUR and buy', () => {
-    expect(service.getCurrencyPair('EUR', 'BTC')).toEqual(['BTC/EUR', OrderSide.BUY]);
+    expect(service.getCurrencyPair('EUR', 'BTC')).toEqual({pair: 'BTC/EUR', direction: OrderSide.BUY});
   });
 
   it('should return BTC/EUR and sell', () => {
-    expect(service.getCurrencyPair('BTC', 'EUR')).toEqual(['BTC/EUR', OrderSide.SELL]);
+    expect(service.getCurrencyPair('BTC', 'EUR')).toEqual({pair: 'BTC/EUR', direction: OrderSide.SELL});
   });
+
+  it('should return correct weighted average', () => {
+    const list = [{price: 0.1, amount: 3}, {price: 1.2, amount: 2}];
+    expect(service.getWeightedAveragePrice(list)).toEqual(0.54)
+  })
 });

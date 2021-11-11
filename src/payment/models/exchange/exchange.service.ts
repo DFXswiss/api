@@ -28,7 +28,7 @@ export class ExchangeService {
     orderId: string,
     currencyPair: string,
     pollInterval = 5000,
-    maxPollRetries = 12,
+    maxPollRetries = 24,
   ): Promise<Order> {
     let checkOrder: Order;
     let checkOrderCounter = 0;
@@ -85,13 +85,32 @@ export class ExchangeService {
     return order;
   }
 
+  getWeightedAveragePrice(list: any[]): number {
+    const price_sum = list.reduce((a, b) => a + (b.price*b.amount), 0);
+    const price = price_sum / list.reduce((a, b) => a + b.amount, 0);
+
+    return price;
+  }
+
+  private getPartialOrderResponse(order: Order): PartialOrderResponse {
+    const partialOrder: PartialOrderResponse = {
+      id: order.id,
+      price: order.price,
+      amount: order.filled,
+      timestamp: order.timestamp,
+      orderSide: order.side
+    };
+
+    return partialOrder;
+  }
+
   private async tryToOrder(
     currencyPair: string,
     orderType: string,
     orderSide: OrderSide,
     amount: number
   ): Promise<OrderResponse> {
-    const partialOrders = [];
+    const orderList = [];
     let order;
 
     do {
@@ -99,40 +118,26 @@ export class ExchangeService {
       order = await this.createOrder(currencyPair, orderType, orderSide, amount, order);
 
       // wait for completion
-      order = await this.pollOrder(order.id, currencyPair); // TODO: should we increase the timeout? Kraken will probably anyway cancel our order
+      order = await this.pollOrder(order.id, currencyPair);
 
       // check for partial orders
       if (order.status == OrderStatus.OPEN && order.filled) {
-        const partialOrder: PartialOrderResponse = {
-          id: order.id,
-          price: order.price,
-          amount: order.filled,
-          timestamp: order.timestamp,
-          orderSide: order.side
-        };
-
-        partialOrders.push(partialOrder);
+        orderList.push(this.getPartialOrderResponse(order));
         amount -= order.filled;
       }
-    } while (order.status !== OrderStatus.CLOSED) // TODO: cancellation condition
+    } while (order.status !== OrderStatus.CLOSED)
 
-    // TODO: order.price also needs to be considered if order was closed (or add partial order above also on closed?)
-    // TODO: weighted average (based on volume)
-    let price = order.price;
-    if (partialOrders.length > 0) {
-      const price_sum = partialOrders.reduce((a, b) => a + b.price, 0);
-      price = price_sum / partialOrders.length;
-    }
+    // Push closed order
+    orderList.push(this.getPartialOrderResponse(order));
+    const price = this.getWeightedAveragePrice(orderList);
 
     return {
-      order: {
-        id: order.id,
+      orderSummary: {
         price: price,
         amount: order.amount,
-        timestamp: order.timestamp,
         orderSide: order.side
       },
-      partialFills: partialOrders,
+      orderList: orderList,
     };
   }
 
@@ -145,7 +150,8 @@ export class ExchangeService {
   }
 
   getCurrencyPair(fromCurrency: string, toCurrency: string): { pair: string, direction: OrderSide } {
-    const currencyPairs = ['BTC/EUR', 'LTC/EUR']; // TODO
+    this.exchange.fetch
+    const currencyPairs = ['BTC/EUR'];
     const selectedPair = currencyPairs.find((p) => p.includes(fromCurrency) && p.includes(toCurrency));
     if (!selectedPair) throw new BadRequestException(`Pair with ${fromCurrency} and ${toCurrency} not supported`);
 

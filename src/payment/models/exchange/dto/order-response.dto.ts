@@ -6,7 +6,13 @@ export interface PartialOrderResponse {
   orderSide: string;
 }
 
+export interface OrderSummary {
+  price: number;
+  amount: number;
+  orderSide: string;
+}
+
 export interface OrderResponse {
-  order: PartialOrderResponse;
-  partialFills: PartialOrderResponse[];
+  orderSummary: OrderSummary;
+  orderList: PartialOrderResponse[];
 }
