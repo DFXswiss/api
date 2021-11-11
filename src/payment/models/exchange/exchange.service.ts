@@ -85,11 +85,12 @@ export class ExchangeService {
     return order;
   }
 
-  getWeightedAveragePrice(list: any[]): number {
-    const price_sum = list.reduce((a, b) => a + (b.price*b.amount), 0);
-    const price = price_sum / list.reduce((a, b) => a + b.amount, 0);
+  getWeightedAveragePrice(list: any[]): {avgPrice: number, amountSum: number} {
+    const priceSum = list.reduce((a, b) => a + (b.price*b.amount), 0);
+    const amountSum = list.reduce((a, b) => a + b.amount, 0);
+    const price = priceSum / amountSum;
 
-    return price;
+    return {avgPrice: price, amountSum: amountSum};
   }
 
   private getPartialOrderResponse(order: Order): PartialOrderResponse {
@@ -108,10 +109,12 @@ export class ExchangeService {
     currencyPair: string,
     orderType: string,
     orderSide: OrderSide,
-    amount: number
+    amount: number,
+    maxRetries?: 100,
   ): Promise<OrderResponse> {
     const orderList = [];
     let order;
+    let numRetries = 0;
 
     do {
       // (re)create order
@@ -121,21 +124,22 @@ export class ExchangeService {
       order = await this.pollOrder(order.id, currencyPair);
 
       // check for partial orders
-      if (order.status == OrderStatus.OPEN && order.filled) {
+      if (order.status != OrderStatus.CANCELED && order.filled) {
         orderList.push(this.getPartialOrderResponse(order));
         amount -= order.filled;
       }
-    } while (order.status !== OrderStatus.CLOSED)
+
+      numRetries++;
+    } while (order.status !== OrderStatus.CLOSED || numRetries >= maxRetries)
 
     // Push closed order
-    orderList.push(this.getPartialOrderResponse(order));
-    const price = this.getWeightedAveragePrice(orderList);
+    const avg = this.getWeightedAveragePrice(orderList);
 
     return {
       orderSummary: {
-        price: price,
-        amount: order.amount,
-        orderSide: order.side
+        price: avg.avgPrice,
+        amount: avg.amountSum,
+        orderSide: orderSide
       },
       orderList: orderList,
     };

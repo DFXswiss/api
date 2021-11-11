@@ -29,6 +29,6 @@ describe('ExchangeService', () => {
 
   it('should return correct weighted average', () => {
     const list = [{price: 0.1, amount: 3}, {price: 1.2, amount: 2}];
-    expect(service.getWeightedAveragePrice(list)).toEqual(0.54)
+    expect(service.getWeightedAveragePrice(list)).toEqual({avgPrice: 0.54, amountSum: 5});
   })
 });
