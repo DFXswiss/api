@@ -105,6 +105,8 @@ export class ExchangeService {
           id: order.id,
           price: order.price,
           amount: order.filled,
+          timestamp: order.timestamp,
+          orderSide: order.side
         };
 
         partialOrders.push(partialOrder);
@@ -129,6 +131,8 @@ export class ExchangeService {
       id: order.id,
       price: price,
       amount: order.amount,
+      timestamp: order.timestamp,
+      orderSide: order.side
     };
 
     const krakenResponse: OrderResponse = {

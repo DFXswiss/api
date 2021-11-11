@@ -22,4 +22,8 @@ describe('ExchangeService', () => {
   it('should return BTC/EUR and buy', () => {
     expect(service.currencyPairFromTo('EUR', 'BTC')).toEqual(['BTC/EUR', OrderSide.BUY]);
   });
+
+  it('should return BTC/EUR and sell', () => {
+    expect(service.currencyPairFromTo('BTC', 'EUR')).toEqual(['BTC/EUR', OrderSide.SELL]);
+  });
 });
