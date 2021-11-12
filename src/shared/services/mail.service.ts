@@ -133,7 +133,7 @@ export class MailService {
       <p>${body}</p>
       <p></p>
       <p>Thanks,</p>
-      <p>Your friendly team at DFX</p>
+      <p>Your DFX team</p>
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>2021 DFX AG</p>`;
