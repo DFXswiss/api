@@ -13,6 +13,11 @@ export class StatisticController {
     return this.statisticService.getAll();
   }
 
+  @Get('cfp/masterNodes')
+  async getMasterNodes(): Promise<MasterNode[]> {
+    return this.cfpService.getMasterNodes();
+  }
+
   @Get('cfp')
   async getCfpList(): Promise<string[]> {
     return this.cfpService.getCfpList();
@@ -21,10 +26,5 @@ export class StatisticController {
   @Get('cfp/:id')
   async getCfpResults(@Param('id') cfpId: string): Promise<CfpResult[]> {
     return this.cfpService.getCfpResults(cfpId);
-  }
-
-  @Get('cfp/masterNodes')
-  async getMasterNodes(): Promise<MasterNode[]> {
-    return this.cfpService.getMasterNodes();
   }
 }
