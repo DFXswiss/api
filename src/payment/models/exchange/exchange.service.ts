@@ -15,6 +15,7 @@ enum OrderStatus {
 
 export class ExchangeService {
   private readonly exchange: Exchange;
+  private currencyPairs: string[];
 
   constructor(exchange: Exchange) {
     this.exchange = exchange;
@@ -71,7 +72,6 @@ export class ExchangeService {
 
     // create a new order, if order undefined or price changed
     if (currentPrice != order?.price) {
-
       // cancel existing order
       if (order?.status === OrderStatus.OPEN) {
         await this.exchange.cancelOrder(order.id, currencyPair);
@@ -85,12 +85,12 @@ export class ExchangeService {
     return order;
   }
 
-  getWeightedAveragePrice(list: any[]): {avgPrice: number, amountSum: number} {
-    const priceSum = list.reduce((a, b) => a + (b.price*b.amount), 0);
+  getWeightedAveragePrice(list: any[]): { avgPrice: number; amountSum: number } {
+    const priceSum = list.reduce((a, b) => a + b.price * b.amount, 0);
     const amountSum = list.reduce((a, b) => a + b.amount, 0);
     const price = priceSum / amountSum;
 
-    return {avgPrice: price, amountSum: amountSum};
+    return { avgPrice: price, amountSum: amountSum };
   }
 
   private getPartialOrderResponse(order: Order): PartialOrderResponse {
@@ -99,7 +99,7 @@ export class ExchangeService {
       price: order.price,
       amount: order.filled,
       timestamp: order.timestamp,
-      orderSide: order.side
+      orderSide: order.side,
     };
 
     return partialOrder;
@@ -110,7 +110,7 @@ export class ExchangeService {
     orderType: string,
     orderSide: OrderSide,
     amount: number,
-    maxRetries?: 100,
+    maxRetries = 100,
   ): Promise<OrderResponse> {
     const orderList = [];
     let order;
@@ -130,7 +130,7 @@ export class ExchangeService {
       }
 
       numRetries++;
-    } while (order.status !== OrderStatus.CLOSED && numRetries < maxRetries)
+    } while (order.status !== OrderStatus.CLOSED && numRetries < maxRetries);
 
     // Push closed order
     const avg = this.getWeightedAveragePrice(orderList);
@@ -139,7 +139,7 @@ export class ExchangeService {
       orderSummary: {
         price: avg.avgPrice,
         amount: avg.amountSum,
-        orderSide: orderSide
+        orderSide: orderSide,
       },
       orderList: orderList,
     };
@@ -153,9 +153,8 @@ export class ExchangeService {
     return this.exchange.fetchOrderBook(currencyPair);
   }
 
-  getCurrencyPair(fromCurrency: string, toCurrency: string): { pair: string, direction: OrderSide } {
-    this.exchange.fetch
-    const currencyPairs = ['BTC/EUR'];
+  async getCurrencyPair(fromCurrency: string, toCurrency: string): Promise<{ pair: string; direction: OrderSide }> {
+    const currencyPairs = await this.getCurrencyPairs();
     const selectedPair = currencyPairs.find((p) => p.includes(fromCurrency) && p.includes(toCurrency));
     if (!selectedPair) throw new BadRequestException(`Pair with ${fromCurrency} and ${toCurrency} not supported`);
 
@@ -177,17 +176,21 @@ export class ExchangeService {
       4. if after 60s order is partially filled then cancel order and go back to 1 with the remaining funds that were not filled
       5. return buy/sell price. If partially filled then return average price over all the orders
     */
-    const balances = await this.fetchBalances();
-    const { pair, direction } = this.getCurrencyPair(fromCurrency, toCurrency);
 
+    // check balance
+    const balances = await this.fetchBalances();
     if (amount > balances.total[fromCurrency]) {
       throw new BadRequestException(
         `There is not enough balance for token ${fromCurrency}. Current balance: ${balances.total[fromCurrency]} requested balance: ${amount}`,
       );
     }
 
+    // determine price and amount
+    const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
     const currentPrice = await this.fetchOrderPrice(pair, direction);
     const currencyAmount = direction == OrderSide.BUY ? amount / currentPrice : amount;
+
+    // place the order
     return this.tryToOrder(pair, 'limit', direction, currencyAmount);
   }
 
@@ -197,5 +200,13 @@ export class ExchangeService {
         await exchange.withdrawFunds('LTC', order.amount, 'xxx', {'key': 'cake-ltc'})
     */
     return this.exchange.withdraw(token, amount, address, undefined, params);
+  }
+
+  private async getCurrencyPairs(): Promise<string[]> {
+    if (!this.currencyPairs) {
+      this.currencyPairs = await this.exchange.fetchMarkets().then((l) => l.map((m) => m.symbol));
+    }
+
+    return this.currencyPairs;
   }
 }
