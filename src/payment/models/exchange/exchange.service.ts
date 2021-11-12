@@ -52,12 +52,12 @@ export class ExchangeService {
     return this.tryToOrder(pair, 'limit', direction, amount);
   }
 
-  async withdrawFunds(token: string, amount: number, address: string, params?: any): Promise<WithdrawalResponse> {
+  async withdrawFunds(token: string, amount: number, address: string, key: string): Promise<WithdrawalResponse> {
     /*
         Kraken requires you so store the address and give it a label (key). This needs to be added to the parameters
         await exchange.withdrawFunds('LTC', order.amount, 'xxx', {'key': 'cake-ltc'})
     */
-    return this.exchange.withdraw(token, amount, address, undefined, params);
+    return this.exchange.withdraw(token, amount, address, undefined, {'key': key});
   }
 
   // --- Helper Methods --- //
