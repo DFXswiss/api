@@ -2,11 +2,11 @@ export interface PartialOrderResponse {
   id: string;
   price: number;
   amount: number;
-  timestamp: number;
-  orderSide: string;
+  timestamp: Date;
 }
 
 export interface OrderSummary {
+  currencyPair: string;
   price: number;
   amount: number;
   orderSide: string;

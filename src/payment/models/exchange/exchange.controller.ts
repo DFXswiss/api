@@ -21,11 +21,11 @@ export class ExchangeController {
     return this.krakenService.fetchBalances();
   }
 
-  @Post('kraken/swap')
+  @Post('kraken/trade')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  swap(@Body() orderDto: Order): Promise<OrderResponse> {
-    return this.krakenService.swap(orderDto.from, orderDto.to, orderDto.amount);
+  trade(@Body() orderDto: Order): Promise<OrderResponse> {
+    return this.krakenService.trade(orderDto.from, orderDto.to, orderDto.amount);
   }
 }
