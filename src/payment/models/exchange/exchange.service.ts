@@ -124,6 +124,7 @@ export class ExchangeService {
           price: order.price,
           amount: order.filled,
           timestamp: new Date(order.timestamp),
+          fee: order.fee,
         });
         amount -= order.filled;
       }
@@ -138,6 +139,7 @@ export class ExchangeService {
         price: avg.avgPrice,
         amount: avg.amountSum,
         orderSide: orderSide,
+        fees: avg.feeSum,
       },
       orderList: orderList,
     };
@@ -197,11 +199,12 @@ export class ExchangeService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  getWeightedAveragePrice(list: any[]): { avgPrice: number; amountSum: number } {
+  getWeightedAveragePrice(list: any[]): { avgPrice: number; amountSum: number, feeSum: number} {
     const priceSum = list.reduce((a, b) => a + b.price * b.amount, 0);
     const amountSum = list.reduce((a, b) => a + b.amount, 0);
     const price = priceSum / amountSum;
+    const fees = list.reduce((a, b) => a + b.fee.cost, 0);
 
-    return { avgPrice: price, amountSum: amountSum };
+    return { avgPrice: price, amountSum: amountSum, feeSum: fees };
   }
 }

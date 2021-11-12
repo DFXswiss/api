@@ -1,8 +1,11 @@
+import { Fee } from "ccxt";
+
 export interface PartialOrderResponse {
   id: string;
   price: number;
   amount: number;
   timestamp: Date;
+  fee: Fee;
 }
 
 export interface OrderSummary {
@@ -10,6 +13,7 @@ export interface OrderSummary {
   price: number;
   amount: number;
   orderSide: string;
+  fees: number;
 }
 
 export interface OrderResponse {
