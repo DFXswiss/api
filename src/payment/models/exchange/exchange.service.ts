@@ -47,13 +47,9 @@ export class ExchangeService {
       );
     }
 
-    // determine price and amount
-    const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
-    const currentPrice = await this.fetchOrderPrice(pair, direction);
-    const currencyAmount = direction == OrderSide.BUY ? amount / currentPrice : amount;
-
     // place the order
-    return this.tryToOrder(pair, 'limit', direction, currencyAmount);
+    const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
+    return this.tryToOrder(pair, 'limit', direction, amount);
   }
 
   async withdrawFunds(token: string, amount: number, address: string, params?: any): Promise<WithdrawalResponse> {
@@ -115,7 +111,6 @@ export class ExchangeService {
 
       // wait for completion
       order = await this.pollOrder(order.id, currencyPair);
-      console.log(order.status);
 
       // check for partial orders
       if (order.status != OrderStatus.CANCELED && order.filled) {
@@ -126,7 +121,7 @@ export class ExchangeService {
           timestamp: new Date(order.timestamp),
           fee: order.fee,
         });
-        amount -= order.filled;
+        amount -= orderSide == OrderSide.BUY ? order.filled * order.price : order.filled;
       }
 
       numRetries++;
@@ -154,6 +149,9 @@ export class ExchangeService {
   ): Promise<Order> {
     const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
 
+    // determine price and amount
+    const currencyAmount = orderSide == OrderSide.BUY ? amount / currentPrice : amount;
+
     // create a new order, if order undefined or price changed
     if (currentPrice != order?.price) {
       // cancel existing order
@@ -161,7 +159,7 @@ export class ExchangeService {
         await this.exchange.cancelOrder(order.id, currencyPair);
       }
 
-      return this.exchange.createOrder(currencyPair, orderType, orderSide, amount, currentPrice, {
+      return this.exchange.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
         oflags: 'post',
       });
     }
