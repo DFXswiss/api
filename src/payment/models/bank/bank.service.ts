@@ -13,18 +13,18 @@ export class BankService {
   //   return result;
   // }
 
-  async getBankByName(bankName: any): Promise<any> {
+  async getBankByName(bankName: string): Promise<BankInfo> {
     let result = this.bankInfos.find((l) => l.Bezeichnung == bankName);
     if (!result) result = this.bankInfos.find((l) => l.Kurzbezeichnung == bankName);
     return result;
   }
 
-  async getBankByBlz(blz: any): Promise<any> {
+  async getBankByBlz(blz: string): Promise<BankInfo> {
     let result = this.bankInfos.find((l) => l.Bankleitzahl == blz);
     return result;
   }
 
-  async getAllBank(): Promise<any> {
+  async getAllBank(): Promise<BankInfo[]> {
     return this.bankInfos;
   }
 }
