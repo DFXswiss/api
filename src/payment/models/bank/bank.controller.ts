@@ -11,20 +11,6 @@ import { BankService } from './bank.service';
 export class BankController {
   constructor(private readonly bankService: BankService) {}
 
-  // @Get('id/:id')
-  // @ApiBearerAuth()
-  // @ApiParam({
-  //   name: 'id',
-  //   required: true,
-  //   description: 'integer for id',
-  //   schema: { type: 'integer' },
-  // })
-  // @ApiExcludeEndpoint()
-  // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  // async getBankById(@Param() id: number): Promise<any> {
-  //   return this.bankService.getBankById(id);
-  // }
-
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
