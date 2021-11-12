@@ -76,7 +76,9 @@ export class ExchangeService {
 
   async getCurrencyPair(fromCurrency: string, toCurrency: string): Promise<{ pair: string; direction: OrderSide }> {
     const currencyPairs = await this.getCurrencyPairs();
-    const selectedPair = currencyPairs.find((p) => p.includes(fromCurrency) && p.includes(toCurrency));
+    const selectedPair = currencyPairs.find(
+      (p) => p === `${fromCurrency}/${toCurrency}` || p === `${toCurrency}/${fromCurrency}`,
+    );
     if (!selectedPair) throw new BadRequestException(`Pair with ${fromCurrency} and ${toCurrency} not supported`);
 
     const selectedDirection = selectedPair.startsWith(toCurrency) ? OrderSide.BUY : OrderSide.SELL;
