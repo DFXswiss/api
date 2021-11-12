@@ -117,7 +117,7 @@ export class ExchangeService {
         orderList.push({
           id: order.id,
           price: order.price,
-          amount: order.filled,
+          amount: orderSide == OrderSide.BUY ? order.filled : order.filled * order.price,
           timestamp: new Date(order.timestamp),
           fee: order.fee,
         });
