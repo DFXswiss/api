@@ -57,7 +57,7 @@ export class ExchangeService {
         Kraken requires you so store the address and give it a label (key). This needs to be added to the parameters
         await exchange.withdrawFunds('LTC', order.amount, 'xxx', {'key': 'cake-ltc'})
     */
-    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key: key }));
+    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key }));
   }
 
   // --- Helper Methods --- //

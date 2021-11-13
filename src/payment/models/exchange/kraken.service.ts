@@ -6,8 +6,8 @@ import { Exchange, kraken } from 'ccxt';
 export class KrakenService extends ExchangeService {
   constructor() {
     const params: Partial<Exchange> = {
-      apiKey: 'TODO',
-      secret: 'TODO',
+      apiKey: process.env.KRAKEN_KEY,
+      secret: process.env.KRAKEN_SECRET,
       enableRateLimit: true,
     };
     super(new kraken(params));
