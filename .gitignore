@@ -3,6 +3,7 @@
 /node_modules
 api-dfx/dist
 api-dfx/node_modules
+tmp
 
 # Logs
 logs

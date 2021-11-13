@@ -2,8 +2,8 @@ import { Injectable, NotFoundException, ServiceUnavailableException } from '@nes
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import * as MasterNodes from '../assets/master-nodes.json';
-import * as CfpResults from '../assets/cfp-results.json';
+import * as MasterNodes from './assets/master-nodes.json';
+import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 
 interface CfpResponse {
