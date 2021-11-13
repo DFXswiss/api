@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, Order, WithdrawalResponse } from 'ccxt';
 import { OrderResponse, PartialOrderResponse } from './dto/order-response.dto';
 
@@ -22,7 +22,7 @@ export class ExchangeService {
   }
 
   async fetchBalances() {
-    return this.exchange.fetchBalance();
+    return this.callApi((e) => e.fetchBalance());
   }
 
   async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<OrderResponse> {
@@ -57,14 +57,14 @@ export class ExchangeService {
         Kraken requires you so store the address and give it a label (key). This needs to be added to the parameters
         await exchange.withdrawFunds('LTC', order.amount, 'xxx', {'key': 'cake-ltc'})
     */
-    return this.exchange.withdraw(token, amount, address, undefined, {'key': key});
+    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key: key }));
   }
 
   // --- Helper Methods --- //
   // currency pairs
   private async getCurrencyPairs(): Promise<string[]> {
     if (!this.currencyPairs) {
-      this.currencyPairs = await this.exchange.fetchMarkets().then((l) => l.map((m) => m.symbol));
+      this.currencyPairs = await this.callApi((e) => e.fetchMarkets().then((l) => l.map((m) => m.symbol)));
     }
 
     return this.currencyPairs;
@@ -89,7 +89,7 @@ export class ExchangeService {
         If 'sell' we want to sell token1 using token2. Example BTC/EUR on 'sell' means we sell BTC using EUR
             > We want to have the lowest 'asks' price in the orderbook
     */
-    const orderBook = await this.exchange.fetchOrderBook(currencyPair);
+    const orderBook = await this.callApi((e) => e.fetchOrderBook(currencyPair));
     return orderSide == OrderSide.BUY ? orderBook.bids[0][0] : orderBook.asks[0][0];
   }
 
@@ -131,7 +131,7 @@ export class ExchangeService {
     return {
       orderSummary: {
         currencyPair: currencyPair,
-        price: avg.avgPrice,
+        price: avg.price,
         amount: avg.amountSum,
         orderSide: orderSide,
         fees: avg.feeSum,
@@ -147,21 +147,22 @@ export class ExchangeService {
     amount: number,
     order?: Order,
   ): Promise<Order> {
-    const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
-
     // determine price and amount
+    const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
     const currencyAmount = orderSide == OrderSide.BUY ? amount / currentPrice : amount;
 
     // create a new order, if order undefined or price changed
     if (currentPrice != order?.price) {
       // cancel existing order
       if (order?.status === OrderStatus.OPEN) {
-        await this.exchange.cancelOrder(order.id, currencyPair);
+        await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
       }
 
-      return this.exchange.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
-        oflags: 'post',
-      });
+      return this.callApi((e) =>
+        e.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
+          oflags: 'post',
+        }),
+      );
     }
 
     return order;
@@ -179,7 +180,7 @@ export class ExchangeService {
     do {
       await this.delay(pollInterval);
       try {
-        checkOrder = await this.exchange.fetchOrder(orderId, currencyPair);
+        checkOrder = await this.callApi((e) => e.fetchOrder(orderId, currencyPair));
         checkOrderCounter++;
       } catch (e) {
         continue;
@@ -193,16 +194,22 @@ export class ExchangeService {
   }
 
   // other
+  private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
+    return action(this.exchange).catch((e) => {
+      throw new ServiceUnavailableException(e);
+    });
+  }
+
   private async delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  getWeightedAveragePrice(list: any[]): { avgPrice: number; amountSum: number, feeSum: number} {
+  getWeightedAveragePrice(list: any[]): { price: number; amountSum: number; feeSum: number } {
     const priceSum = list.reduce((a, b) => a + b.price * b.amount, 0);
     const amountSum = list.reduce((a, b) => a + b.amount, 0);
     const price = priceSum / amountSum;
-    const fees = list.reduce((a, b) => a + b.fee.cost, 0);
+    const feeSum = list.reduce((a, b) => a + b.fee.cost, 0);
 
-    return { avgPrice: price, amountSum: amountSum, feeSum: fees };
+    return { price, amountSum, feeSum };
   }
 }
