@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
-import { ConversionService } from 'src/shared/services/conversion.service';
 import * as MasterNodes from './assets/master-nodes.json';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
+import { Util } from 'src/shared/util';
 
 interface CfpResponse {
   number: number;
@@ -65,11 +65,7 @@ export class CfpService {
   private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
 
-  constructor(
-    private http: HttpService,
-    private cryptoService: CryptoService,
-    private conversionService: ConversionService,
-  ) {
+  constructor(private readonly http: HttpService, private readonly cryptoService: CryptoService) {
     const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
@@ -155,7 +151,7 @@ export class CfpService {
       no: noVoteCount,
       votes: voteCount,
       possibleVotes: this.masterNodeCount,
-      voteTurnout: this.conversionService.round((voteCount / this.masterNodeCount) * 100, 2),
+      voteTurnout: Util.round((voteCount / this.masterNodeCount) * 100, 2),
       currentResult: yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
     };
   }
