@@ -20,8 +20,7 @@ export class MailService {
     const assetValue = this.conversionService.round(createLogDto.assetValue, 8);
     const exchangeRate = this.conversionService.round(createLogDto.fiatValue / createLogDto.assetValue, 2);
 
-    let htmlBody = null;
-
+    let htmlBody;
     if (createLogDto.direction === LogDirection.fiat2asset) {
       htmlBody = `<p><b>Your transaction has been successful.</b></p>
         <p><b>Bank deposit: </b>${fiatValue} ${fiatName}</p>
@@ -134,7 +133,7 @@ export class MailService {
       <p>${body}</p>
       <p></p>
       <p>Thanks,</p>
-      <p>Your friendly team at DFX</p>
+      <p>Your DFX team</p>
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>2021 DFX AG</p>`;
