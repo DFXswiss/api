@@ -165,8 +165,8 @@ export class CfpService {
     const votes = Object.values(validVotes);
 
     const voteCount = votes.length;
-    const yesVoteCount = 6; // votes.filter((v) => v.vote.endsWith('yes')).length;
-    const noVoteCount = 4; // votes.filter((v) => v.vote.endsWith('no')).length;
+    const yesVoteCount = votes.filter((v) => v.vote.endsWith('yes')).length;
+    const noVoteCount = votes.filter((v) => v.vote.endsWith('no')).length;
     const neutralVoteCount = votes.filter((v) => v.vote.endsWith('neutral')).length;
 
     const yesVotes = votes.filter((v) => v.vote.endsWith('yes'));
