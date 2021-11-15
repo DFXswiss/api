@@ -4,7 +4,6 @@ import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
-import { ConversionService } from 'src/shared/services/conversion.service';
 import { Util } from 'src/shared/util';
 interface CfpResponse {
   number: number;
@@ -86,10 +85,7 @@ export class CfpService {
   private cfpResults: CfpResult[];
 
   constructor(private http: HttpService, private cryptoService: CryptoService) {
-    let validMasterNodes = [];
-    Object.entries(MasterNodes).forEach(([key, value]) => validMasterNodes.push(value));
-
-    validMasterNodes = validMasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
+    const validMasterNodes = Object.values(MasterNodes).filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
@@ -180,6 +176,7 @@ export class CfpService {
       currentResult =
         yesVoteCount / (yesVoteCount + noVoteCount) > 2 / 3 ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
     }
+    
     return {
       title: cfp.title,
       number: cfp.number,
