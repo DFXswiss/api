@@ -13,7 +13,6 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Util } from 'src/shared/util';
 
 @Injectable()
 export class UserService {

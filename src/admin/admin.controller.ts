@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards, Body, Get, Query, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -9,7 +9,7 @@ import { SendMailDto } from './dto/send-mail.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly mailService: MailService) { }
+  constructor(private readonly mailService: MailService) {}
 
   @Post('mail')
   @ApiBearerAuth()
@@ -30,11 +30,16 @@ export class AdminController {
       .createQueryBuilder()
       .from(table, table)
       .getRawMany()
-      .catch((e) => { throw new BadRequestException(e) });
+      .catch((e) => {
+        throw new BadRequestException(e);
+      });
 
-    return data.length > 0 ? {
-      keys: Object.keys(data[0]),
-      values: data.map((e) => Object.values(e)),
-    } : undefined;
+    // transform to array
+    return data.length > 0
+      ? {
+          keys: Object.keys(data[0]),
+          values: data.map((e) => Object.values(e)),
+        }
+      : undefined;
   }
 }
