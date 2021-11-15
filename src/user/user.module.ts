@@ -80,6 +80,6 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     KycApiService,
     AuthService,
   ],
-  exports: [BuyService, SellService, LogService, KycSchedulerService, KycApiService, RefService, UserService],
+  exports: [BuyService, SellService, LogService, KycSchedulerService, KycApiService, RefService],
 })
 export class UserModule {}

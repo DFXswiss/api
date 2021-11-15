@@ -169,9 +169,4 @@ export class UserService {
       refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase()),
     };
   }
-
-  async getRaw(): Promise<any> {
-    const users = await this.userRepo.createQueryBuilder('user').getRawMany();
-    return users.map((u) => Util.replaceInKeys(u, 'user_', ''));
-  }
 }
