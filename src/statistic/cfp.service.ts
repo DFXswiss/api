@@ -64,16 +64,17 @@ export interface CfpResult {
   neutralVotes: Vote[];
   startDate: string;
   endDate: string;
-  type: string;
+  type: VotingType;
   dfiAmount: number;
 }
 
 @Injectable()
 export class CfpService {
-  private readonly isCfpInProgress = true;
-  private readonly regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?\s+(\S{87}=)(?:\s|$)+/gm;
   private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
   private readonly masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
+
+  // current voting round
+  private readonly isCfpInProgress = true;
   private readonly currentRound = '2111';
   private readonly startDate = '2021-11-22T23:59:59+00:00';
   private readonly endDate = '2021-11-29T23:59:59+00:00';
@@ -153,8 +154,10 @@ export class CfpService {
   }
 
   private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
+    const type = cfp.labels.map((a) => a.name).includes(VotingType.CFP) ? VotingType.CFP : VotingType.DFIP;
+
     const validVotes: { [address: string]: Vote } = comments
-      .map((c) => this.getCommentVotes(c))
+      .map((c) => this.getCommentVotes(type, c))
       .reduce((prev, curr) => prev.concat(curr), [])
       .filter((v) => this.verifyVote(cfp, v))
       .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
@@ -184,16 +187,17 @@ export class CfpService {
       yesVotes: yesVotes,
       noVotes: noVotes,
       neutralVotes: neutralVotes,
-      type: cfp.labels.map((a) => a.name).includes(VotingType.CFP) ? VotingType.CFP : VotingType.DFIP,
-      dfiAmount: 1000,
+      type: type,
+      dfiAmount: 1000, // TODO
     };
   }
 
-  private getCommentVotes(commentResponse: CommentsResponse): Vote[] {
+  private getCommentVotes(type: VotingType, commentResponse: CommentsResponse): Vote[] {
     const matches = [];
 
     let match;
-    while ((match = this.regExp.exec(commentResponse.body)) !== null) {
+    const regExp = this.getRegExp(this.currentRound, type);
+    while ((match = regExp.exec(commentResponse.body)) !== null) {
       matches.push(match);
     }
 
@@ -204,6 +208,10 @@ export class CfpService {
       vote: m[2],
       createdAt: commentResponse.created_at,
     }));
+  }
+
+  private getRegExp(votingRound: string, type: VotingType): RegExp {
+    return new RegExp(`signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\d*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`, 'gm');
   }
 
   private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
