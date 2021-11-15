@@ -4,8 +4,8 @@ import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
+import { ConversionService } from 'src/shared/services/conversion.service';
 import { Util } from 'src/shared/util';
-
 interface CfpResponse {
   number: number;
   title: string;
@@ -16,6 +16,7 @@ interface CfpResponse {
 
 interface CommentsResponse {
   body: string;
+  created_at: string;
 }
 
 enum ResultStatus {
@@ -28,11 +29,17 @@ enum State {
   PRE_ENABLED = 'PRE_ENABLED',
 }
 
+enum VotingType {
+  CFP = 'cfp',
+  DFIP = 'dfip',
+}
+
 interface Vote {
   address: string;
   signature: string;
   cfpId: string;
   vote: string;
+  createdAt: string;
 }
 
 export interface MasterNode {
@@ -44,7 +51,7 @@ export interface MasterNode {
 export interface CfpResult {
   number: number;
   title: string;
-  html_url: string;
+  htmlUrl: string;
   yes: number;
   neutral: number;
   no: number;
@@ -52,21 +59,37 @@ export interface CfpResult {
   possibleVotes: number;
   voteTurnout: number;
   currentResult: ResultStatus;
+  yesVotes: Vote[];
+  noVotes: Vote[];
+  neutralVotes: Vote[];
+  startDate: string;
+  endDate: string;
+  type: VotingType;
+  dfiAmount: number;
 }
 
 @Injectable()
 export class CfpService {
-  private readonly isCfpInProgress = false;
-  private readonly regExp = /signmessage\s"?(\w*)"?\s"?(cfp-(2109-\d*)-\w*)"?\s+(\S{87}=)(?:\s|$)+/gm;
   private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
   private readonly masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
+
+  // current voting round
+
+  private readonly isCfpInProgress = true;
+  private readonly currentRound = '2111';
+
+  private readonly startDate = '2021-11-22T23:59:59+00:00';
+  private readonly endDate = '2021-11-29T23:59:59+00:00';
 
   private masterNodeCount: number;
   private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
 
-  constructor(private readonly http: HttpService, private readonly cryptoService: CryptoService) {
-    const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
+  constructor(private http: HttpService, private cryptoService: CryptoService) {
+    let validMasterNodes = [];
+    Object.entries(MasterNodes).forEach(([key, value]) => validMasterNodes.push(value));
+
+    validMasterNodes = validMasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
@@ -75,7 +98,9 @@ export class CfpService {
   async doUpdate(): Promise<void> {
     try {
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter((cfp) => cfp.labels.find((l) => l.name === 'cfp'));
+      allCfp = allCfp.filter((cfp) =>
+        cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)),
+      );
 
       this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
     } catch (e) {
@@ -98,7 +123,7 @@ export class CfpService {
   }
 
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
-    if (cfpId === 'latest') {
+    if (['latest', this.currentRound].includes(cfpId)) {
       if (this.isCfpInProgress) {
         // return current data from GitHub
         if (!this.cfpResults) await this.doUpdate();
@@ -130,37 +155,63 @@ export class CfpService {
   }
 
   private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
+    const type = cfp.labels.map((a) => a.name).includes(VotingType.CFP) ? VotingType.CFP : VotingType.DFIP;
+
     const validVotes: { [address: string]: Vote } = comments
-      .map((c) => this.getCommentVotes(c.body))
+      .map((c) => this.getCommentVotes(type, c))
       .reduce((prev, curr) => prev.concat(curr), [])
       .filter((v) => this.verifyVote(cfp, v))
       .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
     const votes = Object.values(validVotes);
 
     const voteCount = votes.length;
-    const yesVoteCount = votes.filter((v) => v.vote.endsWith('yes')).length;
+    const yesVoteCount = 6; // votes.filter((v) => v.vote.endsWith('yes')).length;
+    const noVoteCount = 4; // votes.filter((v) => v.vote.endsWith('no')).length;
     const neutralVoteCount = votes.filter((v) => v.vote.endsWith('neutral')).length;
-    const noVoteCount = votes.filter((v) => v.vote.endsWith('no')).length;
 
+    const yesVotes = votes.filter((v) => v.vote.endsWith('yes'));
+    const noVotes = votes.filter((v) => v.vote.endsWith('no'));
+    const neutralVotes = votes.filter((v) => v.vote.endsWith('neutral'));
+
+    let currentResult;
+    if (type === VotingType.CFP) {
+      currentResult = yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
+    } else {
+      currentResult =
+        yesVoteCount / (yesVoteCount + noVoteCount) > 2 / 3 ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
+    }
     return {
       title: cfp.title,
       number: cfp.number,
-      html_url: cfp.html_url,
+      htmlUrl: cfp.html_url,
       yes: yesVoteCount,
-      neutral: neutralVoteCount,
       no: noVoteCount,
+      neutral: neutralVoteCount,
       votes: voteCount,
       possibleVotes: this.masterNodeCount,
       voteTurnout: Util.round((voteCount / this.masterNodeCount) * 100, 2),
-      currentResult: yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
+
+      currentResult: currentResult,
+      startDate: this.startDate,
+      endDate: this.endDate,
+      yesVotes: yesVotes,
+      noVotes: noVotes,
+      neutralVotes: neutralVotes,
+      type: type,
+      dfiAmount: +cfp.title
+        ?.split('(')[1]
+        ?.split('DFI)')[0]
+        ?.replace(/[',. ]/g, ''),
     };
   }
 
-  private getCommentVotes(comment: string): Vote[] {
+  private getCommentVotes(type: VotingType, commentResponse: CommentsResponse): Vote[] {
     const matches = [];
 
     let match;
-    while ((match = this.regExp.exec(comment)) !== null) {
+    const regExp = this.getRegExp(this.currentRound, type);
+
+    while ((match = regExp.exec(commentResponse.body)) !== null) {
       matches.push(match);
     }
 
@@ -169,7 +220,15 @@ export class CfpService {
       signature: m[4],
       cfpId: m[3],
       vote: m[2],
+      createdAt: commentResponse.created_at,
     }));
+  }
+
+  private getRegExp(votingRound: string, type: VotingType): RegExp {
+    return new RegExp(
+      `signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\d*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
+      'gm',
+    );
   }
 
   private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
