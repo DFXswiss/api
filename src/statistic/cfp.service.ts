@@ -88,7 +88,10 @@ export class CfpService {
     private cryptoService: CryptoService,
     private conversionService: ConversionService,
   ) {
-    const validMasterNodes = MasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
+    let validMasterNodes = [];
+    Object.entries(MasterNodes).forEach(([key, value]) => validMasterNodes.push(value));
+
+    validMasterNodes = validMasterNodes.filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
@@ -164,13 +167,21 @@ export class CfpService {
     const votes = Object.values(validVotes);
 
     const voteCount = votes.length;
-    const yesVoteCount = votes.filter((v) => v.vote.endsWith('yes')).length;
-    const noVoteCount = votes.filter((v) => v.vote.endsWith('no')).length;
+    const yesVoteCount = 6; // votes.filter((v) => v.vote.endsWith('yes')).length;
+    const noVoteCount = 4; // votes.filter((v) => v.vote.endsWith('no')).length;
     const neutralVoteCount = votes.filter((v) => v.vote.endsWith('neutral')).length;
 
     const yesVotes = votes.filter((v) => v.vote.endsWith('yes'));
     const noVotes = votes.filter((v) => v.vote.endsWith('no'));
     const neutralVotes = votes.filter((v) => v.vote.endsWith('neutral'));
+
+    let currentResult;
+    if (type === VotingType.CFP) {
+      currentResult = yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
+    } else {
+      currentResult =
+        yesVoteCount / (yesVoteCount + noVoteCount) > 2 / 3 ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
+    }
     return {
       title: cfp.title,
       number: cfp.number,
@@ -181,14 +192,17 @@ export class CfpService {
       votes: voteCount,
       possibleVotes: this.masterNodeCount,
       voteTurnout: this.conversionService.round((voteCount / this.masterNodeCount) * 100, 2),
-      currentResult: yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED,
+      currentResult: currentResult,
       startDate: this.startDate,
       endDate: this.endDate,
       yesVotes: yesVotes,
       noVotes: noVotes,
       neutralVotes: neutralVotes,
       type: type,
-      dfiAmount: 1000, // TODO
+      dfiAmount: +cfp.title
+        ?.split('(')[1]
+        ?.split('DFI)')[0]
+        ?.replace(/[',. ]/g, ''),
     };
   }
 
