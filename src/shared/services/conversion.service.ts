@@ -1,13 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { Util } from '../util';
 import { HttpService } from './http.service';
 
 @Injectable()
 export class ConversionService {
   constructor(private http: HttpService) {}
-
-  public round(amount: number, decimals: number): number {
-    return Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
-  }
 
   public async convertFiatCurrency(
     amount: number,
@@ -16,7 +13,7 @@ export class ConversionService {
     date: Date = new Date(),
   ): Promise<number> {
     const rate = await this.getRate(fromCurrency, toCurrency, date);
-    return this.round(amount * rate, 2);
+    return Util.round(amount * rate, 2);
   }
 
   public async getRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {

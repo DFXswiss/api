@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { Details, UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
 import { RefService } from './user/models/referral/ref.service';
+
 @Controller('')
 export class AppController {
   constructor(private readonly refService: RefService) {}

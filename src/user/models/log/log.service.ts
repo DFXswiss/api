@@ -11,6 +11,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Not } from 'typeorm';
 import { ConversionService } from 'src/shared/services/conversion.service';
+import { Util } from 'src/shared/util';
 
 // TODO: crypto conversion to service
 @Injectable()
@@ -191,7 +192,7 @@ export class LogService {
     );
     const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
 
-    return this.conversionService.round(volumeWithoutEur + volumeEur, 0);
+    return Util.round(volumeWithoutEur + volumeEur, 0);
   }
 
   async getRefVolumeBtc(ref: string): Promise<any> {
@@ -222,6 +223,6 @@ export class LogService {
     );
     const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
 
-    return this.conversionService.round(volumeWithoutEur + volumeEur, 0);
+    return Util.round(volumeWithoutEur + volumeEur, 0);
   }
 }

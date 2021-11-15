@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
-import { ConversionService } from 'src/shared/services/conversion.service';
 import * as MasterNodes from './assets/master-nodes.json';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
-
+import { ConversionService } from 'src/shared/services/conversion.service';
+import { Util } from 'src/shared/util';
 interface CfpResponse {
   number: number;
   title: string;
@@ -74,8 +74,10 @@ export class CfpService {
   private readonly masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
 
   // current voting round
+
   private readonly isCfpInProgress = true;
   private readonly currentRound = '2111';
+
   private readonly startDate = '2021-11-22T23:59:59+00:00';
   private readonly endDate = '2021-11-29T23:59:59+00:00';
 
@@ -83,11 +85,7 @@ export class CfpService {
   private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
 
-  constructor(
-    private http: HttpService,
-    private cryptoService: CryptoService,
-    private conversionService: ConversionService,
-  ) {
+  constructor(private http: HttpService, private cryptoService: CryptoService) {
     let validMasterNodes = [];
     Object.entries(MasterNodes).forEach(([key, value]) => validMasterNodes.push(value));
 
@@ -191,7 +189,8 @@ export class CfpService {
       neutral: neutralVoteCount,
       votes: voteCount,
       possibleVotes: this.masterNodeCount,
-      voteTurnout: this.conversionService.round((voteCount / this.masterNodeCount) * 100, 2),
+      voteTurnout: Util.round((voteCount / this.masterNodeCount) * 100, 2),
+
       currentResult: currentResult,
       startDate: this.startDate,
       endDate: this.endDate,
@@ -211,6 +210,7 @@ export class CfpService {
 
     let match;
     const regExp = this.getRegExp(this.currentRound, type);
+
     while ((match = regExp.exec(commentResponse.body)) !== null) {
       matches.push(match);
     }
@@ -225,7 +225,10 @@ export class CfpService {
   }
 
   private getRegExp(votingRound: string, type: VotingType): RegExp {
-    return new RegExp(`signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\d*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`, 'gm');
+    return new RegExp(
+      `signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\d*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
+      'gm',
+    );
   }
 
   private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
