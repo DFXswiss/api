@@ -85,7 +85,9 @@ export class CfpService {
   private cfpResults: CfpResult[];
 
   constructor(private http: HttpService, private cryptoService: CryptoService) {
-    const validMasterNodes = Object.values(MasterNodes).filter((node) => node.state === State.ENABLED && node.mintedBlocks > 0);
+    const validMasterNodes = Object.values(MasterNodes).filter(
+      (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
+    );
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
@@ -160,14 +162,14 @@ export class CfpService {
       .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
     const votes = Object.values(validVotes);
 
-    const voteCount = votes.length;
-    const yesVoteCount = votes.filter((v) => v.vote.endsWith('yes')).length;
-    const noVoteCount = votes.filter((v) => v.vote.endsWith('no')).length;
-    const neutralVoteCount = votes.filter((v) => v.vote.endsWith('neutral')).length;
-
     const yesVotes = votes.filter((v) => v.vote.endsWith('yes'));
     const noVotes = votes.filter((v) => v.vote.endsWith('no'));
     const neutralVotes = votes.filter((v) => v.vote.endsWith('neutral'));
+
+    const voteCount = votes.length;
+    const yesVoteCount = yesVotes.length;
+    const noVoteCount = noVotes.length;
+    const neutralVoteCount = neutralVotes.length;
 
     let currentResult;
     if (type === VotingType.CFP) {
@@ -176,7 +178,10 @@ export class CfpService {
       currentResult =
         yesVoteCount / (yesVoteCount + noVoteCount) > 2 / 3 ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
     }
-    
+
+    const amountMatches = /\(([\d,. ]*)DFI\)/g.exec(cfp.title);
+    const amount = amountMatches ? +amountMatches[1].replace(/[',. ]/g, '') : undefined;
+
     return {
       title: cfp.title,
       number: cfp.number,
@@ -195,10 +200,7 @@ export class CfpService {
       noVotes: noVotes,
       neutralVotes: neutralVotes,
       type: type,
-      dfiAmount: +cfp.title
-        ?.split('(')[1]
-        ?.split('DFI)')[0]
-        ?.replace(/[',. ]/g, ''),
+      dfiAmount: amount,
     };
   }
 
@@ -223,7 +225,7 @@ export class CfpService {
 
   private getRegExp(votingRound: string, type: VotingType): RegExp {
     return new RegExp(
-      `signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\d*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
+      `signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
       'gm',
     );
   }
