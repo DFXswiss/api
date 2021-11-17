@@ -53,16 +53,16 @@ export interface CfpResult {
   number: number;
   title: string;
   htmlUrl: string;
+  total: number;
+  possible: number;
+  turnout: number;
   yes: number;
   neutral: number;
   no: number;
-  total: number;
   cakeYes: number;
   cakeNeutral: number;
   cakeNo: number;
   cakeTotal: number;
-  possible: number;
-  turnout: number;
   currentResult: ResultStatus;
   yesVotes: Vote[];
   noVotes: Vote[];
@@ -166,27 +166,22 @@ export class CfpService {
       .reduce((prev, curr) => prev.concat(curr), [])
       .filter((v) => this.verifyVote(cfp, v))
       .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
-    const votes = Object.values(validVotes);
 
+    const votes = Object.values(validVotes);
     const yesVotes = votes.filter((v) => v.vote.endsWith('yes'));
     const noVotes = votes.filter((v) => v.vote.endsWith('no'));
     const neutralVotes = votes.filter((v) => v.vote.endsWith('neutral'));
 
-    const yesVotesCake = votes.filter((v) => v.vote.endsWith('yes') && v.isCake);
-    const noVotesCake = votes.filter((v) => v.vote.endsWith('no') && v.isCake);
-    const neutralVotesCake = votes.filter((v) => v.vote.endsWith('neutral') && v.isCake);
-
     const cakeVotes = votes.filter((v) => v.isCake);
+    const yesVotesCake = yesVotes.filter((v) => v.isCake);
+    const noVotesCake = noVotes.filter((v) => v.isCake);
+    const neutralVotesCake = neutralVotes.filter((v) => v.isCake);
 
-    let currentResult;
-    if (type === VotingType.CFP) {
-      currentResult = yesVotes.length > noVotes.length ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
-    } else {
-      currentResult =
-        yesVotes.length / (yesVotes.length + noVotes.length) > 2 / 3
-          ? ResultStatus.APPROVED
-          : ResultStatus.NOT_APPROVED;
-    }
+    const requiredVotes = type === VotingType.CFP ? 1 / 2 : 2 / 3;
+    const currentResult =
+      yesVotes.length / (yesVotes.length + noVotes.length) > requiredVotes
+        ? ResultStatus.APPROVED
+        : ResultStatus.NOT_APPROVED;
 
     const amountMatches = /\(([\d,. ]*)DFI\)/g.exec(cfp.title);
     const amount = amountMatches ? +amountMatches[1].replace(/[',. ]/g, '') : undefined;
@@ -195,16 +190,16 @@ export class CfpService {
       title: cfp.title,
       number: cfp.number,
       htmlUrl: cfp.html_url,
+      total: votes.length,
+      possible: this.masterNodeCount,
+      turnout: Util.round((votes.length / this.masterNodeCount) * 100, 2),
       yes: yesVotes.length,
       no: noVotes.length,
       neutral: neutralVotes.length,
-      total: votes.length,
       cakeYes: yesVotesCake.length,
       cakeNo: noVotesCake.length,
       cakeNeutral: neutralVotesCake.length,
       cakeTotal: cakeVotes.length,
-      possible: this.masterNodeCount,
-      turnout: Util.round((votes.length / this.masterNodeCount) * 100, 2),
       currentResult: currentResult,
       startDate: this.startDate,
       endDate: this.endDate,
@@ -232,7 +227,7 @@ export class CfpService {
       cfpId: m[3],
       vote: m[2],
       createdAt: commentResponse.created_at,
-      isCake: Object.values(CakeMasterNodes).filter((node) => node.address === m[1]).length > 0 ? true : false,
+      isCake: Object.values(CakeMasterNodes).find((n) => n.address === m[1]) != null,
     }));
   }
 
