@@ -70,13 +70,6 @@ export class NodeClient {
   }
 
   // --- HELPER METHODS --- //
-  private async unlock(timeout = 10): Promise<any> {
-    return this.callNode(
-      (c) => c.call(NodeCommand.UNLOCK, [process.env.NODE_WALLET_PASSWORD, timeout], 'number'),
-      false,
-    );
-  }
-
   private async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
     try {
       if (unlock) await this.unlock();
@@ -86,6 +79,10 @@ export class NodeClient {
       console.log('Exception during node call:', e);
       throw new ServiceUnavailableException(e);
     }
+  }
+
+  private async unlock(timeout = 10): Promise<any> {
+    return this.client.call(NodeCommand.UNLOCK, [process.env.NODE_WALLET_PASSWORD, timeout], 'number');
   }
 
   private createJellyfishClient(): ApiClient {
