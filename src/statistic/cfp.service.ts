@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ServiceUnavailableException } from '@nes
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
+import * as CakeMasterNodes from './assets/cake-mn.json';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/util';
@@ -39,6 +40,7 @@ interface Vote {
   cfpId: string;
   vote: string;
   createdAt: string;
+  isCake: boolean;
 }
 
 export interface MasterNode {
@@ -54,9 +56,13 @@ export interface CfpResult {
   yes: number;
   neutral: number;
   no: number;
-  votes: number;
-  possibleVotes: number;
-  voteTurnout: number;
+  total: number;
+  cakeYes: number;
+  cakeNeutral: number;
+  cakeNo: number;
+  cakeTotal: number;
+  possible: number;
+  turnout: number;
   currentResult: ResultStatus;
   yesVotes: Vote[];
   noVotes: Vote[];
@@ -166,17 +172,20 @@ export class CfpService {
     const noVotes = votes.filter((v) => v.vote.endsWith('no'));
     const neutralVotes = votes.filter((v) => v.vote.endsWith('neutral'));
 
-    const voteCount = votes.length;
-    const yesVoteCount = yesVotes.length;
-    const noVoteCount = noVotes.length;
-    const neutralVoteCount = neutralVotes.length;
+    const yesVotesCake = votes.filter((v) => v.vote.endsWith('yes') && v.isCake);
+    const noVotesCake = votes.filter((v) => v.vote.endsWith('no') && v.isCake);
+    const neutralVotesCake = votes.filter((v) => v.vote.endsWith('neutral') && v.isCake);
+
+    const cakeVotes = votes.filter((v) => v.isCake);
 
     let currentResult;
     if (type === VotingType.CFP) {
-      currentResult = yesVoteCount > noVoteCount ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
+      currentResult = yesVotes.length > noVotes.length ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
     } else {
       currentResult =
-        yesVoteCount / (yesVoteCount + noVoteCount) > 2 / 3 ? ResultStatus.APPROVED : ResultStatus.NOT_APPROVED;
+        yesVotes.length / (yesVotes.length + noVotes.length) > 2 / 3
+          ? ResultStatus.APPROVED
+          : ResultStatus.NOT_APPROVED;
     }
 
     const amountMatches = /\(([\d,. ]*)DFI\)/g.exec(cfp.title);
@@ -186,13 +195,16 @@ export class CfpService {
       title: cfp.title,
       number: cfp.number,
       htmlUrl: cfp.html_url,
-      yes: yesVoteCount,
-      no: noVoteCount,
-      neutral: neutralVoteCount,
-      votes: voteCount,
-      possibleVotes: this.masterNodeCount,
-      voteTurnout: Util.round((voteCount / this.masterNodeCount) * 100, 2),
-
+      yes: yesVotes.length,
+      no: noVotes.length,
+      neutral: neutralVotes.length,
+      total: votes.length,
+      cakeYes: yesVotesCake.length,
+      cakeNo: noVotesCake.length,
+      cakeNeutral: neutralVotesCake.length,
+      cakeTotal: cakeVotes.length,
+      possible: this.masterNodeCount,
+      turnout: Util.round((votes.length / this.masterNodeCount) * 100, 2),
       currentResult: currentResult,
       startDate: this.startDate,
       endDate: this.endDate,
@@ -220,6 +232,7 @@ export class CfpService {
       cfpId: m[3],
       vote: m[2],
       createdAt: commentResponse.created_at,
+      isCake: Object.values(CakeMasterNodes).filter((node) => node.address === m[1]).length > 0 ? true : false,
     }));
   }
 
