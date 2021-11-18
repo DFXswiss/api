@@ -72,9 +72,9 @@ export class KycApiService {
   }
 
   async getCheckResult(userDataId: number): Promise<CheckResult> {
-    const customerCheckId = await this.getCustomerInformation(userDataId);
-    return customerCheckId?.lastCheckId >= 0
-      ? await this.callApi<CheckResult>(`customers/checks/${customerCheckId.lastCheckId}/result`, 'GET')
+    const customerInfo = await this.getCustomerInformation(userDataId);
+    return customerInfo?.lastCheckId >= 0
+      ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET')
       : null;
   }
 
@@ -225,7 +225,6 @@ export class KycApiService {
       });
     } catch (e) {
       if (nthTry > 1 && e.response?.status === 403) {
-        console.log(`KYC call: Retry ${this.baseUrl}/${url} (Try number ${4 - nthTry})`);
         this.sessionKey = await this.getNewSessionKey();
         return this.request(this.sessionKey, url, method, nthTry - 1, data, contentType);
       }
