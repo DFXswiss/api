@@ -18,6 +18,8 @@ import { BuyPaymentRepository } from './models/payment/payment-buy.repository';
 import { SellPaymentRepository } from './models/payment/payment-sell.repository';
 import { PaymentController } from './models/payment/payment.controller';
 import { PaymentService } from './models/payment/payment.service';
+import { KrakenService } from './models/exchange/kraken.service';
+import { ExchangeController } from './models/exchange/exchange.controller';
 
 @Module({
   imports: [
@@ -33,8 +35,8 @@ import { PaymentService } from './models/payment/payment.service';
     AinModule,
     UserModule,
   ],
-  controllers: [PaymentController, BatchController, BankTxController, BankController],
-  providers: [PaymentService, BatchService, CryptoInputService, BankTxService, BankService],
+  controllers: [PaymentController, BatchController, BankTxController, BankController, ExchangeController],
+  providers: [PaymentService, BatchService, CryptoInputService, BankTxService, BankService, KrakenService],
   exports: [PaymentService],
 })
 export class PaymentModule {}

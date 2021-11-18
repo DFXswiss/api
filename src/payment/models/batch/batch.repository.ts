@@ -33,7 +33,7 @@ export class BatchRepository extends Repository<Batch> {
 
       return batch;
     } else if (isString(key)) {
-      let batch = await this.findOne({ name: key });
+      const batch = await this.findOne({ name: key });
 
       return batch;
     } else if (key.id) {

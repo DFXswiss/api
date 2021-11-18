@@ -9,6 +9,7 @@ import { SharedModule } from './shared/shared.module';
 import { PaymentModule } from './payment/payment.module';
 import { UserModule } from './user/user.module';
 import { AdminController } from './admin/admin.controller';
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({

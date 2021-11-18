@@ -26,6 +26,7 @@ export enum KycState {
   NA = 'NA',
   FAILED = 'Failed',
   REMINDED = 'Reminded',
+  RETRIED = 'Retried',
 }
 
 @Entity()

@@ -16,14 +16,14 @@ import { CountryRepository } from 'src/shared/models/country/country.repository'
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { MailService } from 'src/shared/services/mail.service';
-import { KycService } from 'src/user/services/kyc.service';
+import { KycSchedulerService } from 'src/user/services/kyc/kyc-scheduler.service';
 
 @EntityRepository(BuyPayment)
 export class BuyPaymentRepository extends Repository<BuyPayment> {
   // async createPayment(
   //   createPaymentDto: CreateBuyPaymentDto,
   //   mailService?: MailService,
-  //   kycService?: KycService,
+  //   kycService?: KycSchedulerService,
   // ): Promise<any> {
   //   const fiatRepo = getManager().getCustomRepository(FiatRepository);
   //   const buyRepo = getManager().getCustomRepository(BuyRepository);
