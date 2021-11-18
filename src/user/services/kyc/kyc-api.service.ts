@@ -73,8 +73,9 @@ export class KycApiService {
 
   async getCheckResult(userDataId: number): Promise<CheckResult> {
     const customerCheckId = await this.getCustomerInformation(userDataId);
-    if (!customerCheckId) return null;
-    return this.callApi<CheckResult>(`customers/checks/${customerCheckId.lastCheckId}/result`, 'GET');
+    return customerCheckId?.lastCheckId >= 0
+      ? await this.callApi<CheckResult>(`customers/checks/${customerCheckId.lastCheckId}/result`, 'GET')
+      : null;
   }
 
   async getDocuments(id: number): Promise<CheckResult> {

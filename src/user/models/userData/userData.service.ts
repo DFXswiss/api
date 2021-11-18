@@ -96,7 +96,7 @@ export class UserDataService {
           userDataId: userDataId.toString(),
           customerId: customer.customer.id.toString(),
           kycFileReference: userData?.kycFile?.id.toString() ?? null,
-          nameCheckRisk: customer.checkResult.risks[0].categoryKey,
+          nameCheckRisk: customer.checkResult?.risks[0].categoryKey,
           activationDate: customer.customer.activationDate
             ? new Date(
                 +customer.customer.activationDate.year,
