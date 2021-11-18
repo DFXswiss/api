@@ -22,7 +22,7 @@ export class KycApiService {
 
   private sessionKey = 'session-key-will-be-updated';
 
-  constructor(private http: HttpService) {}
+  constructor(private http: HttpService) { }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
@@ -213,7 +213,7 @@ export class KycApiService {
     contentType?: any,
   ): Promise<T> {
     try {
-      const requestData = await this.http.request<T>({
+      return await this.http.request<T>({
         url: `${this.baseUrl}/${url}`,
         method: method,
         data: data,
@@ -222,17 +222,14 @@ export class KycApiService {
           'Session-Key': sessionKey,
         },
       });
-
-      return requestData;
     } catch (e) {
-      if (nthTry === 1) {
-        return Promise.reject(e);
+      if (nthTry > 1 && e.response?.status === 403) {
+        console.log(`KYC call: Retry ${this.baseUrl}/${url} (Try number ${4 - nthTry})`);
+        this.sessionKey = await this.getNewSessionKey();
+        return this.request(this.sessionKey, url, method, nthTry - 1, data, contentType);
       }
 
-      console.log(`KYC call: Retry ${this.baseUrl}/${url} (Try number ${4 - nthTry})`);
-      this.sessionKey = await this.getNewSessionKey();
-
-      return this.request(this.sessionKey, url, method, nthTry - 1, data, contentType);
+      throw e;
     }
   }
 
