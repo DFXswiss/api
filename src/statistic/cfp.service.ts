@@ -52,25 +52,31 @@ export interface MasterNode {
 export interface CfpResult {
   number: number;
   title: string;
-  htmlUrl: string;
-  total: number;
-  possible: number;
-  turnout: number;
-  yes: number;
-  neutral: number;
-  no: number;
-  cakeYes: number;
-  cakeNeutral: number;
-  cakeNo: number;
-  cakeTotal: number;
-  currentResult: ResultStatus;
-  yesVotes: Vote[];
-  noVotes: Vote[];
-  neutralVotes: Vote[];
-  startDate: string;
-  endDate: string;
   type: VotingType;
   dfiAmount: number;
+  htmlUrl: string;
+  currentResult: ResultStatus;
+  totalVotes: {
+    total: number;
+    possible: number;
+    turnout: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  cakeVotes: {
+    total: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  voteDetails: {
+    yes: Vote[];
+    neutral: Vote[];
+    no: Vote[];
+  };
+  startDate: string;
+  endDate: string;
 }
 
 @Injectable()
@@ -79,10 +85,8 @@ export class CfpService {
   private readonly masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
 
   // current voting round
-
   private readonly isCfpInProgress = true;
   private readonly currentRound = '2111';
-
   private readonly startDate = '2021-11-22T23:59:59+00:00';
   private readonly endDate = '2021-11-29T23:59:59+00:00';
 
@@ -189,25 +193,31 @@ export class CfpService {
     return {
       title: cfp.title,
       number: cfp.number,
-      htmlUrl: cfp.html_url,
-      total: votes.length,
-      possible: this.masterNodeCount,
-      turnout: Util.round((votes.length / this.masterNodeCount) * 100, 2),
-      yes: yesVotes.length,
-      no: noVotes.length,
-      neutral: neutralVotes.length,
-      cakeYes: yesVotesCake.length,
-      cakeNo: noVotesCake.length,
-      cakeNeutral: neutralVotesCake.length,
-      cakeTotal: cakeVotes.length,
-      currentResult: currentResult,
-      startDate: this.startDate,
-      endDate: this.endDate,
-      yesVotes: yesVotes,
-      noVotes: noVotes,
-      neutralVotes: neutralVotes,
       type: type,
       dfiAmount: amount,
+      htmlUrl: cfp.html_url,
+      currentResult: currentResult,
+      totalVotes: {
+        total: votes.length,
+        possible: this.masterNodeCount,
+        turnout: Util.round((votes.length / this.masterNodeCount) * 100, 2),
+        yes: yesVotes.length,
+        neutral: neutralVotes.length,
+        no: noVotes.length,
+      },
+      cakeVotes: {
+        total: cakeVotes.length,
+        yes: yesVotesCake.length,
+        neutral: neutralVotesCake.length,
+        no: noVotesCake.length,
+      },
+      voteDetails: {
+        yes: yesVotes,
+        neutral: neutralVotes,
+        no: noVotes,
+      },
+      startDate: this.startDate,
+      endDate: this.endDate,
     };
   }
 
