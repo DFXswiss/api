@@ -34,7 +34,8 @@ export class BankTxService {
     });
 
     // read file list
-    const fileInfos = await client.listFiles();
+    const fileInfos = await client.listFiles()
+      .then((i) => i.filter((f) => f.name.endsWith('.xml')));
     if (fileInfos.length > 0) console.log('New SEPA files to import:', fileInfos);
 
     // store and move files to archive folder

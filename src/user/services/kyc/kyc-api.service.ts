@@ -22,7 +22,7 @@ export class KycApiService {
 
   private sessionKey = 'session-key-will-be-updated';
 
-  constructor(private http: HttpService) { }
+  constructor(private http: HttpService) {}
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
@@ -72,9 +72,10 @@ export class KycApiService {
   }
 
   async getCheckResult(userDataId: number): Promise<CheckResult> {
-    const customerCheckId = await this.getCustomerInformation(userDataId);
-    if (!customerCheckId) return null;
-    return this.callApi<CheckResult>(`customers/checks/${customerCheckId.lastCheckId}/result`, 'GET');
+    const customerInfo = await this.getCustomerInformation(userDataId);
+    return customerInfo?.lastCheckId >= 0
+      ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET')
+      : null;
   }
 
   async getDocuments(id: number): Promise<CheckResult> {
@@ -195,7 +196,7 @@ export class KycApiService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    return this.request<T>(this.sessionKey, url, method, 3, data, contentType).catch((e: HttpError) => {
+    return this.request<T>(url, method, data, contentType).catch((e: HttpError) => {
       if (e.response?.status === 404) {
         return null;
       }
@@ -205,28 +206,28 @@ export class KycApiService {
   }
 
   private async request<T>(
-    sessionKey: string,
     url: string,
     method: Method,
-    nthTry = 3,
     data?: any,
     contentType?: any,
+    nthTry = 3,
+    getNewKey = false,
   ): Promise<T> {
     try {
+      if (getNewKey) this.sessionKey = await this.getNewSessionKey();
+
       return await this.http.request<T>({
         url: `${this.baseUrl}/${url}`,
         method: method,
         data: data,
         headers: {
           'Content-Type': contentType ?? 'application/json',
-          'Session-Key': sessionKey,
+          'Session-Key': this.sessionKey,
         },
       });
     } catch (e) {
       if (nthTry > 1 && e.response?.status === 403) {
-        console.log(`KYC call: Retry ${this.baseUrl}/${url} (Try number ${4 - nthTry})`);
-        this.sessionKey = await this.getNewSessionKey();
-        return this.request(this.sessionKey, url, method, nthTry - 1, data, contentType);
+        return this.request(url, method, data, contentType, nthTry - 1, true);
       }
 
       throw e;
