@@ -29,6 +29,10 @@ param nodePassword string
 param nodeWalletPassword string
 param dexWalletAddress string
 
+param nodeServicePlanSkuName string
+param nodeServicePlanSkuTier string
+param hasBackupNodes bool
+
 @secure()
 param ftpPassword string
 param ftpFolder string
@@ -55,6 +59,8 @@ var nodeDexFileShareNameA = 'node-dex-data-a'
 var nodeDexFileShareNameB = 'node-dex-data-b'
 var nodeOutFileShareNameA = 'node-out-data-a'
 var nodeOutFileShareNameB = 'node-out-data-b'
+var nodeIntFileShareNameA = 'node-int-data-a'
+var nodeIntFileShareNameB = 'node-int-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -69,6 +75,8 @@ var nodeDexServicePlanName = 'plan-${compName}-${nodeName}-dex-${env}'
 var nodeDexAppName = 'app-${compName}-${nodeName}-dex-${env}'
 var nodeOutServicePlanName = 'plan-${compName}-${nodeName}-out-${env}'
 var nodeOutAppName = 'app-${compName}-${nodeName}-out-${env}'
+var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
+var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
 
 var nodeProps = [
   {
@@ -91,6 +99,13 @@ var nodeProps = [
     appName: nodeOutAppName
     fileShareNameA: nodeOutFileShareNameA
     fileShareNameB: nodeOutFileShareNameB
+  }
+  {
+    name: 'nodes-int-${env}'
+    servicePlanName: nodeIntServicePlanName
+    appName: nodeIntAppName
+    fileShareNameA: nodeIntFileShareNameA
+    fileShareNameB: nodeIntFileShareNameB
   }
 ]
 
@@ -185,6 +200,14 @@ resource nodeOutFileShareA 'Microsoft.Storage/storageAccounts/fileServices/share
 
 resource nodeOutFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
   name: '${storageAccount.name}/default/${nodeOutFileShareNameB}'
+}
+
+resource nodeIntFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeIntFileShareNameA}'
+}
+
+resource nodeIntFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeIntFileShareNameB}'
 }
 
 
@@ -382,6 +405,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: nodes[2].outputs.urlStg
         }
         {
+          name: 'NODE_INT_URL_ACTIVE'
+          value: nodes[3].outputs.url
+        }
+        {
+          name: 'NODE_INT_URL_PASSIVE'
+          value: nodes[3].outputs.urlStg
+        }
+        {
           name: 'DEX_WALLET_ADDRESS'
           value: dexWalletAddress
         }
@@ -433,6 +464,8 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
   params: {
     location: location
     servicePlanName: node.servicePlanName
+    servicePlanSkuName: nodeServicePlanSkuName
+    servicePlanSkuTier: nodeServicePlanSkuTier
     appName: node.appName
     subnetId: virtualNet.properties.subnets[0].id
     storageAccountName: storageAccountName
@@ -440,5 +473,6 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
     fileShareNameA: node.fileShareNameA
     fileShareNameB: node.fileShareNameB
     allowAllIps: nodeAllowAllIps
+    hasBackup: hasBackupNodes
   }
 }]

@@ -9,6 +9,7 @@ export enum NodeType {
   INPUT = 'inp',
   DEX = 'dex',
   OUTPUT = 'out',
+  INT = 'int',
 }
 
 export enum NodeMode {
@@ -35,6 +36,10 @@ export class NodeService {
         [NodeMode.ACTIVE]: process.env.NODE_OUT_URL_ACTIVE,
         [NodeMode.PASSIVE]: process.env.NODE_OUT_URL_PASSIVE,
       },
+      [NodeType.INT]: {
+        [NodeMode.ACTIVE]: process.env.NODE_INT_URL_ACTIVE,
+        [NodeMode.PASSIVE]: process.env.NODE_INT_URL_PASSIVE,
+      },
     };
 
     this.clients = {
@@ -49,6 +54,10 @@ export class NodeService {
       [NodeType.OUTPUT]: {
         [NodeMode.ACTIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.ACTIVE),
         [NodeMode.PASSIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.PASSIVE),
+      },
+      [NodeType.INT]: {
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INT, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INT, NodeMode.PASSIVE),
       },
     };
   }
