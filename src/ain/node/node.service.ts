@@ -1,5 +1,5 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
@@ -9,6 +9,7 @@ export enum NodeType {
   INPUT = 'inp',
   DEX = 'dex',
   OUTPUT = 'out',
+  INT = 'int',
 }
 
 export enum NodeMode {
@@ -19,7 +20,7 @@ export enum NodeMode {
 @Injectable()
 export class NodeService {
   private readonly urls: Record<NodeType, Record<NodeMode, string>>;
-  private readonly clients: Record<NodeType, Record<NodeMode, NodeClient>>;
+  private readonly clients: Record<NodeType, Record<NodeMode, NodeClient | undefined>>;
 
   constructor(private readonly http: HttpService, private readonly mailService: MailService) {
     this.urls = {
@@ -34,6 +35,10 @@ export class NodeService {
       [NodeType.OUTPUT]: {
         [NodeMode.ACTIVE]: process.env.NODE_OUT_URL_ACTIVE,
         [NodeMode.PASSIVE]: process.env.NODE_OUT_URL_PASSIVE,
+      },
+      [NodeType.INT]: {
+        [NodeMode.ACTIVE]: process.env.NODE_INT_URL_ACTIVE,
+        [NodeMode.PASSIVE]: process.env.NODE_INT_URL_PASSIVE,
       },
     };
 
@@ -50,6 +55,10 @@ export class NodeService {
         [NodeMode.ACTIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.ACTIVE),
         [NodeMode.PASSIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.PASSIVE),
       },
+      [NodeType.INT]: {
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INT, NodeMode.ACTIVE),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INT, NodeMode.PASSIVE),
+      },
     };
   }
 
@@ -59,6 +68,7 @@ export class NodeService {
       this.checkNode(NodeType.INPUT),
       this.checkNode(NodeType.DEX),
       this.checkNode(NodeType.OUTPUT),
+      this.checkNode(NodeType.INT),
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
 
     if (errors.length > 0) {
@@ -68,14 +78,19 @@ export class NodeService {
   }
 
   getClient(node: NodeType, mode: NodeMode): NodeClient {
-    return this.clients[node][mode];
+    const client = this.clients[node][mode];
+    if (client) {
+      return client;
+    }
+
+    throw new ServiceUnavailableException(`No node for type '${node}' and mode '${mode}'`);
   }
 
   // --- HELPER METHODS --- //
 
   // utility
-  createNodeClient(node: NodeType, mode: NodeMode): NodeClient {
-    return new NodeClient(this.http, this.urls[node][mode]);
+  createNodeClient(node: NodeType, mode: NodeMode): NodeClient | undefined {
+    return this.urls[node][mode] ? new NodeClient(this.http, this.urls[node][mode]) : undefined;
   }
 
   // health checks
@@ -98,15 +113,18 @@ export class NodeService {
     node: NodeType,
     mode: NodeMode,
   ): Promise<{ errors: string[]; info: BlockchainInfo | undefined }> {
-    return this.getClient(node, mode)
-      .getInfo()
-      .then((info) => ({
-        errors:
-          info.blocks < info.headers - 10
-            ? [`${node} ${mode} node out of sync (blocks: ${info.blocks}, headers: ${info.headers})`]
-            : [],
-        info,
-      }))
-      .catch(() => ({ errors: [`Failed to get ${node} ${mode} node infos`], info: undefined }));
+    const client = this.clients[node][mode];
+    return client
+      ? client
+          .getInfo()
+          .then((info) => ({
+            errors:
+              info.blocks < info.headers - 10
+                ? [`${node} ${mode} node out of sync (blocks: ${info.blocks}, headers: ${info.headers})`]
+                : [],
+            info,
+          }))
+          .catch(() => ({ errors: [`Failed to get ${node} ${mode} node infos`], info: undefined }))
+      : { errors: [], info: undefined };
   }
 }

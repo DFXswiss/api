@@ -4,7 +4,7 @@ import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/bloc
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
-import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { HttpService } from 'src/shared/services/http.service';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -48,11 +48,9 @@ export class NodeClient {
 
   // forwarding
   async sendRpcCommand(command: string): Promise<any> {
-    return this.http
-      .post(this.url, command, {
-        headers: { ...this.createHeaders(), 'Content-Type': 'text/plain' },
-      })
-      .catch((error: HttpError) => error.response?.data);
+    return this.http.post(this.url, command, {
+      headers: { ...this.createHeaders(), 'Content-Type': 'text/plain' },
+    });
   }
 
   async sendCliCommand(command: string, noAutoUnlock?: boolean): Promise<any> {

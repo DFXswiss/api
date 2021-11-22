@@ -2,6 +2,8 @@
 param location string
 
 param servicePlanName string
+param servicePlanSkuName string
+param servicePlanSkuTier string
 param appName string
 
 param subnetId string
@@ -13,6 +15,8 @@ param fileShareNameB string
 
 param allowAllIps bool
 
+param hasBackup bool
+
 
 // --- RESOURCES --- //
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
@@ -23,8 +27,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
       reserved: true
   }
   sku: {
-    name: 'P1v2'
-    tier: 'PremiumV2'
+    name: servicePlanSkuName
+    tier: servicePlanSkuTier
     capacity: 1
   }
 }
@@ -70,7 +74,7 @@ resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
     }
   }
 }
-resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = {
+resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = if (hasBackup) {
   parent: nodeAppService
   name: 'stg'
   location: location
@@ -114,4 +118,4 @@ resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = {
 }
 
 output url string = 'https://${nodeAppService.properties.defaultHostName}'
-output urlStg string = 'https://${nodeStgAppService.properties.defaultHostName}'
+output urlStg string = hasBackup ? 'https://${nodeStgAppService.properties.defaultHostName}' : ''

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "westeurope"
+    },
+    "env": {
+      "value": "loc"
+    },
+    "dbAllowAllIps": {
+      "value": true
+    },
+    "dbAdminLogin": {
+      "value": "xxx"
+    },
+    "dbAdminPassword": {
+      "value": "xxx"
+    },
+    "mailClientSecret": {
+      "value": "xxx"
+    },
+    "mailRefreshToken": {
+      "value": "xxx"
+    },
+    "kycPassword": {
+      "value": "xxx"
+    },
+    "kycPrefix": {
+      "value": "test_"
+    },
+    "githubToken": {
+      "value": "xxx"
+    },
+    "nodeAllowAllIps": {
+      "value": true
+    },
+    "nodePassword": {
+      "value": "xxx"
+    },
+    "nodeWalletPassword": {
+      "value": "xxx"
+    },
+    "dexWalletAddress": {
+      "value": "xxx"
+    },
+    "nodeServicePlanSkuName": {
+      "value": "B1"
+    },
+    "nodeServicePlanSkuTier": {
+      "value": "Basic"
+    },
+    "hasBackupNodes": {
+      "value": false
+    },
+    "ftpPassword": {
+      "value": "xxx"
+    },
+    "ftpFolder": {
+      "value": "bank_loc"
+    },
+    "krakenKey": {
+      "value": "xxx"
+    },
+    "krakenSecret": {
+      "value": "xxx"
+    }
+  }
+}
