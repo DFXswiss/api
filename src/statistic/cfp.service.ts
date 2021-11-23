@@ -251,7 +251,7 @@ export class CfpService {
   private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
     return (
       this.masterNodes[vote.address] &&
-      cfp.title.includes(vote.cfpId) &&
+      cfp.title.toLowerCase().includes(vote.cfpId) &&
       this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
     );
   }
