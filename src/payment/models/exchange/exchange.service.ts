@@ -1,6 +1,7 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, Order, WithdrawalResponse } from 'ccxt';
 import { OrderResponse, PartialOrderResponse } from './dto/order-response.dto';
+import { Price } from './dto/price.dto';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -21,14 +22,21 @@ export class ExchangeService {
     this.exchange = exchange;
   }
 
-  async fetchBalances() {
+  async getBalances() {
     return this.callApi((e) => e.fetchBalance());
   }
 
-  async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<OrderResponse> {
-    fromCurrency = fromCurrency.toUpperCase();
-    toCurrency = toCurrency.toUpperCase();
+  async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
+    const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
+    const price = await this.fetchOrderPrice(pair, direction);
+    return {
+      currencyPair: pair,
+      orderSide: direction,
+      price: direction === OrderSide.BUY ? price : 1 / price,
+    };
+  }
 
+  async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<OrderResponse> {
     /*
       The following logic is applied
 
@@ -40,7 +48,7 @@ export class ExchangeService {
     */
 
     // check balance
-    const balances = await this.fetchBalances();
+    const balances = await this.getBalances();
     if (amount > balances.total[fromCurrency]) {
       throw new BadRequestException(
         `There is not enough balance for token ${fromCurrency}. Current balance: ${balances.total[fromCurrency]} requested balance: ${amount}`,

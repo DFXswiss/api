@@ -1,5 +1,5 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
@@ -83,7 +83,7 @@ export class NodeService {
       return client;
     }
 
-    throw new ServiceUnavailableException(`No node for type '${node}' and mode '${mode}'`);
+    throw new BadRequestException(`No node for type '${node}' and mode '${mode}'`);
   }
 
   // --- HELPER METHODS --- //

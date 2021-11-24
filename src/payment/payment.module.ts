@@ -20,6 +20,7 @@ import { PaymentController } from './models/payment/payment.controller';
 import { PaymentService } from './models/payment/payment.service';
 import { KrakenService } from './models/exchange/kraken.service';
 import { ExchangeController } from './models/exchange/exchange.controller';
+import { BinanceService } from './models/exchange/binance.service';
 
 @Module({
   imports: [
@@ -36,7 +37,15 @@ import { ExchangeController } from './models/exchange/exchange.controller';
     UserModule,
   ],
   controllers: [PaymentController, BatchController, BankTxController, BankController, ExchangeController],
-  providers: [PaymentService, BatchService, CryptoInputService, BankTxService, BankService, KrakenService],
+  providers: [
+    PaymentService,
+    BatchService,
+    CryptoInputService,
+    BankTxService,
+    BankService,
+    KrakenService,
+    BinanceService,
+  ],
   exports: [PaymentService],
 })
 export class PaymentModule {}
