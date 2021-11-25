@@ -15,13 +15,8 @@ enum OrderStatus {
 }
 
 export class ExchangeService {
-  private readonly exchange: Exchange;
   private currencyPairs: string[];
-
-  constructor(exchange: Exchange) {
-    this.exchange = exchange;
-  }
-
+  constructor(private readonly exchange: Exchange) {}
   async getBalances() {
     return this.callApi((e) => e.fetchBalance());
   }
