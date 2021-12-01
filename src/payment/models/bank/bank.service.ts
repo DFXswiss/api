@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as BankInfos from 'src/payment/assets/bank-infos.json';
-import { BankInfo } from './bank.dto';
+import { BankInfo } from './dto/bank.dto';
 
 @Injectable()
 export class BankService {
@@ -14,7 +14,7 @@ export class BankService {
     return result;
   }
 
-  async getBankByBlz(blz: string): Promise<BankInfo> {
+  async getBankByBlz(blz: number): Promise<BankInfo> {
     let result = this.bankInfos.find((l) => l.Bankleitzahl == blz);
     return result;
   }
