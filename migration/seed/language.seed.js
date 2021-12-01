@@ -23,6 +23,12 @@ let LanguageSeed = [
     foreignName: 'Français',
     enable: true,
   },
+  {
+    symbol: 'PT',
+    name: 'Portuguese',
+    foreignName: 'Português',
+    enable: true,
+  },
 ];
 
 module.exports = { LanguageSeed }
