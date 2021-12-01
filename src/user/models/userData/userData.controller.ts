@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
@@ -59,7 +59,11 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async requestKyc(@Param('id') id: number, @Param('depositLimit') depositLimit?: string): Promise<boolean> {
-    return this.userDataService.requestKyc(id, depositLimit);
+    const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
+    const user = userData.users[0];
+    if (!user) throw new BadRequestException('UserData has no user');
+
+    return this.userDataService.requestKyc(user.id, depositLimit);
   }
 
   @Get(':id/customer')

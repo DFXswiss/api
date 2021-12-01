@@ -121,8 +121,8 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userDataId: number, depositLimit?: string): Promise<boolean> {
-    const user = await this.userRepo.findOne({ where: { userData: userDataId }, relations: ['userData', 'country'] });
+  async requestKyc(userId: number, depositLimit?: string): Promise<boolean> {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
     if (userData?.kycStatus === KycStatus.NA) {
