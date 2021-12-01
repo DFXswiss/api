@@ -141,10 +141,7 @@ export class UserService {
   }
 
   async requestKyc(userId: number, depositLimit: string): Promise<boolean> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
-    const userData = user.userData;
-
-    return this.userDataService.requestKyc(userData.id, depositLimit);
+    return this.userDataService.requestKyc(userId, depositLimit);
   }
 
   async getUserVolume(user: User): Promise<any> {
