@@ -50,6 +50,10 @@ export class UserData {
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
 
+  @OneToOne(() => BankData, { nullable: true })
+  @JoinColumn()
+  mainBankData: BankData;
+
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
 

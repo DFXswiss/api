@@ -23,7 +23,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getAllUserData(): Promise<any> {
+  async getAllUserData(): Promise<UserData[]> {
     return this.userDataService.getAllUserData();
   }
 
@@ -31,7 +31,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateUserData(@Body() userData: UpdateUserDataDto): Promise<any> {
+  async updateUserData(@Body() userData: UpdateUserDataDto): Promise<UserData> {
     return this.userDataService.updateUserData(userData);
   }
 

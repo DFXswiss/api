@@ -21,4 +21,9 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(KycState)
   kycState: KycState;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  mainBankDataId: number;
 }
