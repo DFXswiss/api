@@ -11,13 +11,18 @@ export enum NodeCommand {
   SEND_UTXO = 'sendutxosfrom',
 }
 
-export class NodeClient {
-  private readonly utxoFee = 0.00000132;
+enum Chain {
+  TEST = 'test',
+  MAIN = 'main',
+}
 
+export class NodeClient {
+  private chain: Chain = Chain.MAIN;
   private readonly client: ApiClient;
 
   constructor(private readonly http: HttpService, private readonly url: string) {
     this.client = this.createJellyfishClient();
+    this.getChain().then((c) => (this.chain = c));
   }
 
   // common
@@ -39,10 +44,24 @@ export class NodeClient {
     return this.callNode((c) => c.wallet.listUnspent());
   }
 
-  async sendUtxo(fromAddress: string, toAddress: string, amount: number): Promise<string> {
+  async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
     return this.callNode(
-      (c) => c.call(NodeCommand.SEND_UTXO, [fromAddress, toAddress, amount - this.utxoFee], 'number'),
+      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, amount - this.utxoFee], 'number'),
       true,
+    );
+  }
+
+  // token
+  async testPoolSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<string> {
+    // TODO: use custom address
+    return this.callNode((c) =>
+      c.poolpair.testPoolSwap({
+        from: address,
+        tokenFrom: tokenFrom,
+        amountFrom: amount,
+        to: address,
+        tokenTo: tokenTo,
+      }),
     );
   }
 
@@ -90,5 +109,13 @@ export class NodeClient {
   private createHeaders(): { [key: string]: string } {
     const passwordHash = Buffer.from(`${process.env.NODE_USER}:${process.env.NODE_PASSWORD}`).toString('base64');
     return { Authorization: 'Basic ' + passwordHash };
+  }
+
+  private async getChain(): Promise<Chain> {
+    return this.callNode((c) => c.blockchain.getBlockchainInfo()).then((i) => i.chain as Chain);
+  }
+
+  private get utxoFee(): number {
+    return this.chain === Chain.MAIN ? 0.00000132 : 0.0000222;
   }
 }
