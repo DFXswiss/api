@@ -39,15 +39,28 @@ export class UserDataService {
     return bankData.userData;
   }
 
-  async updateUserData(newUser: UpdateUserDataDto): Promise<any> {
-    if (newUser.kycStatus && !newUser.kycState) {
-      newUser.kycState = KycState.NA;
+  async updateUserData(updatedUser: UpdateUserDataDto): Promise<UserData> {
+    if (updatedUser.kycStatus && !updatedUser.kycState) {
+      updatedUser.kycState = KycState.NA;
     }
 
-    return this.userDataRepo.updateUserData(newUser);
+    const userData = await this.userDataRepo.findOne(updatedUser.id);
+    if (!userData) throw new NotFoundException('No user for id found');
+
+    if (updatedUser.mainBankDataId) {
+      const bankData = await this.bankDataRepo.findOne(updatedUser.mainBankDataId);
+      if (!bankData) throw new NotFoundException(`No bank data for id ${updatedUser.mainBankDataId} found`);
+      userData.mainBankData = bankData;
+    }
+
+    if (updatedUser.depositLimit) userData.depositLimit = updatedUser.depositLimit;
+    if (updatedUser.kycStatus) userData.kycStatus = updatedUser.kycStatus;
+    if (updatedUser.kycState) userData.kycState = updatedUser.kycState;
+
+    return await this.userDataRepo.save(userData);
   }
 
-  async getAllUserData(): Promise<any> {
+  async getAllUserData(): Promise<UserData[]> {
     return this.userDataRepo.getAllUserData();
   }
 

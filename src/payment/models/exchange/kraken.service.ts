@@ -9,6 +9,7 @@ export class KrakenService extends ExchangeService {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
       enableRateLimit: true,
+      timeout: 30000,
     };
     super(new kraken(params));
   }
