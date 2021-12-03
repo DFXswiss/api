@@ -92,7 +92,7 @@ export class KycSchedulerService {
       // get all versions of all document types
       const documentVersions = await Promise.all(
         documentTypes.map((t) => this.kycApi.getDocumentVersion(userDataList[key].id, t)),
-      ).then((versions) => versions.reduce((prev, curr) => prev.concat(curr)));
+      ).then((versions) => versions.filter((v) => v).reduce((prev, curr) => prev.concat(curr), []));
       if (!documentVersions?.length) continue;
 
       const customer = await this.kycApi.getCustomer(userDataList[key].id);
