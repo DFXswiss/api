@@ -16,9 +16,15 @@ enum OrderStatus {
 
 export class ExchangeService {
   private currencyPairs: string[];
+
   constructor(private readonly exchange: Exchange) {}
+
   async getBalances() {
     return this.callApi((e) => e.fetchBalance());
+  }
+
+  async getBalance(currency: string): Promise<number> {
+    return this.getBalances().then((b) => b.total[currency]);
   }
 
   async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
@@ -43,10 +49,10 @@ export class ExchangeService {
     */
 
     // check balance
-    const balances = await this.getBalances();
-    if (amount > balances.total[fromCurrency]) {
+    const balance = await this.getBalance(fromCurrency);
+    if (amount > balance) {
       throw new BadRequestException(
-        `There is not enough balance for token ${fromCurrency}. Current balance: ${balances.total[fromCurrency]} requested balance: ${amount}`,
+        `There is not enough balance for token ${fromCurrency}. Current balance: ${balance} requested balance: ${amount}`,
       );
     }
 
@@ -161,6 +167,7 @@ export class ExchangeService {
         await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
       }
 
+      console.debug(`Creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
       return this.callApi((e) =>
         e.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
           oflags: 'post',
