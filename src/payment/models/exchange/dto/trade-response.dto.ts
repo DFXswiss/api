@@ -1,6 +1,6 @@
 import { Fee } from "ccxt";
 
-export interface PartialOrderResponse {
+export interface PartialTradeResponse {
   id: string;
   price: number;
   amount: number;
@@ -8,7 +8,7 @@ export interface PartialOrderResponse {
   fee: Fee;
 }
 
-export interface OrderSummary {
+export interface TradeSummary {
   currencyPair: string;
   price: number;
   amount: number;
@@ -16,7 +16,7 @@ export interface OrderSummary {
   fees: number;
 }
 
-export interface OrderResponse {
-  orderSummary: OrderSummary;
-  orderList: PartialOrderResponse[];
+export interface TradeResponse {
+  orderSummary: TradeSummary;
+  orderList: PartialTradeResponse[];
 }

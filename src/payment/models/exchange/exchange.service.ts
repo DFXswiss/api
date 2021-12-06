@@ -1,6 +1,6 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, Order, WithdrawalResponse } from 'ccxt';
-import { OrderResponse, PartialOrderResponse } from './dto/order-response.dto';
+import { TradeResponse, PartialTradeResponse } from './dto/trade-response.dto';
 import { Price } from './dto/price.dto';
 
 export enum OrderSide {
@@ -37,7 +37,7 @@ export class ExchangeService {
     };
   }
 
-  async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<OrderResponse> {
+  async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<TradeResponse> {
     /*
       The following logic is applied
 
@@ -109,8 +109,8 @@ export class ExchangeService {
     orderSide: OrderSide,
     amount: number,
     maxRetries = 100,
-  ): Promise<OrderResponse> {
-    const orderList: PartialOrderResponse[] = [];
+  ): Promise<TradeResponse> {
+    const orderList: PartialTradeResponse[] = [];
     let order: Order;
     let numRetries = 0;
 

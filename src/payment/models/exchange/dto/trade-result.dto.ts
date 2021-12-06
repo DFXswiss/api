@@ -1,5 +1,5 @@
 import { WithdrawalResponse } from 'ccxt';
-import { OrderResponse } from './order-response.dto';
+import { TradeResponse } from './trade-response.dto';
 
 export enum TradeStatus {
   OPEN = 'open',
@@ -10,7 +10,7 @@ export enum TradeStatus {
 
 export interface TradeResult {
   status: TradeStatus;
-  trade?: OrderResponse;
+  trade?: TradeResponse;
   withdraw?: WithdrawalResponse;
   error?: Error;
 }

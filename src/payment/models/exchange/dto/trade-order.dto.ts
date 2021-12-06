@@ -1,22 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNotEmpty, IsString, IsNumber, IsOptional, IsObject, ValidateNested, IsBoolean } from 'class-validator';
+import { WithdrawalOrderBase } from './withdrawal-order.dto';
 
-export class TradeWithdrawal {
+export class TradeWithdrawal extends WithdrawalOrderBase {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   withdrawAll?: boolean;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  address: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  key: string;
 }
 
 export class TradeOrder {
