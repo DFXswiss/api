@@ -23,19 +23,20 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install packages and build
+      - name: Install packages
         run: |
           npm ci
+
+      - name: Build code
+        run: |
           npm run build
 
       - name: Run tests
         run: |
-          npm ci
           npm run test
 
       - name: Run linter
         run: |
-          npm ci
           npm run lint
 
       - name: Deploy to Azure App Service (DEV)

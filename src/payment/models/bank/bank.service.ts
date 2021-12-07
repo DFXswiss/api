@@ -4,8 +4,6 @@ import { BankInfo } from './dto/bank.dto';
 
 @Injectable()
 export class BankService {
-  constructor() {}
-
   private readonly bankInfos = BankInfos as BankInfo[];
 
   async getBankByName(bankName: string): Promise<BankInfo> {
@@ -15,7 +13,7 @@ export class BankService {
   }
 
   async getBankByBlz(blz: number): Promise<BankInfo> {
-    let result = this.bankInfos.find((l) => l.Bankleitzahl == blz);
+    const result = this.bankInfos.find((l) => l.Bankleitzahl == blz);
     return result;
   }
 
