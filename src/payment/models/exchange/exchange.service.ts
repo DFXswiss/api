@@ -2,6 +2,7 @@ import { BadRequestException, ServiceUnavailableException } from '@nestjs/common
 import { Exchange, Order, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from './dto/trade-response.dto';
 import { Price } from './dto/price.dto';
+import { Util } from 'src/shared/util';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -216,9 +217,9 @@ export class ExchangeService {
 
   getWeightedAveragePrice(list: any[]): { price: number; amountSum: number; feeSum: number } {
     const priceSum = list.reduce((a, b) => a + b.price * b.amount, 0);
-    const amountSum = list.reduce((a, b) => a + b.amount, 0);
-    const price = priceSum / amountSum;
-    const feeSum = list.reduce((a, b) => a + b.fee.cost, 0);
+    const amountSum = Util.round(list.reduce((a, b) => a + b.amount, 0), 8);
+    const price = Util.round(priceSum / amountSum, 8);
+    const feeSum = Util.round(list.reduce((a, b) => a + b.fee.cost, 0), 8);
 
     return { price, amountSum, feeSum };
   }
