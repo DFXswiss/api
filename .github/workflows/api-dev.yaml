@@ -28,6 +28,16 @@ jobs:
           npm ci
           npm run build
 
+      - name: Run tests
+        run: |
+          npm ci
+          npm run test
+
+      - name: Run linter
+        run: |
+          npm ci
+          npm run lint
+
       - name: Deploy to Azure App Service (DEV)
         uses: azure/webapps-deploy@0b651ed7546ecfc75024011f76944cb9b381ef1e
         with:
