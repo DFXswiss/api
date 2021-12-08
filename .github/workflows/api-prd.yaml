@@ -23,10 +23,21 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install packages and build
+      - name: Install packages
         run: |
           npm ci
+
+      - name: Build code
+        run: |
           npm run build
+
+      - name: Run tests
+        run: |
+          npm run test
+
+      - name: Run linter
+        run: |
+          npm run lint
 
       - name: Deploy to Azure App Service (PRD)
         uses: azure/webapps-deploy@0b651ed7546ecfc75024011f76944cb9b381ef1e
