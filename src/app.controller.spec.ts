@@ -1,4 +1,3 @@
-import { PassportModule } from '@nestjs/passport';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { RefService } from './user/models/referral/ref.service';
