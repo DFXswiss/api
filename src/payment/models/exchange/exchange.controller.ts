@@ -15,17 +15,17 @@ import { Balances, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BinanceService } from './binance.service';
-import { Order } from './dto/order.dto';
+import { TradeOrder } from './dto/trade-order.dto';
 import { Price } from './dto/price.dto';
-import { Trade, TradeStatus } from './dto/trade.dto';
-import { Withdraw } from './dto/withdraw.dto';
+import { TradeResult, TradeStatus } from './dto/trade-result.dto';
+import { WithdrawalOrder } from './dto/withdrawal-order.dto';
 import { ExchangeService } from './exchange.service';
 import { KrakenService } from './kraken.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
-  private trades: { [key: number]: Trade } = {};
+  private trades: { [key: number]: TradeResult } = {};
 
   constructor(private readonly krakenService: KrakenService, private readonly binanceService: BinanceService) {}
 
@@ -49,18 +49,31 @@ export class ExchangeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async trade(@Param('exchange') exchange: string, @Body() orderDto: Order): Promise<number> {
+  async trade(@Param('exchange') exchange: string, @Body() orderDto: TradeOrder): Promise<number> {
     // register trade
     const tradeId = Math.round(Math.random() * 1000000000);
-    this.trades[tradeId] = { status: TradeStatus.OPEN, result: undefined };
+    this.trades[tradeId] = { status: TradeStatus.OPEN };
 
     // run trade (without waiting)
     this.getExchange(exchange)
+      // trade
       .trade(orderDto.from.toUpperCase(), orderDto.to.toUpperCase(), orderDto.amount)
-      .then((r) => (this.trades[tradeId] = { status: TradeStatus.CLOSED, result: r }))
+      .then((r) => this.updateTrade(tradeId, { status: TradeStatus.WITHDRAWING, trade: r }))
+      // withdraw
+      .then((r) =>
+        orderDto.withdrawal
+          ? this.withdrawFunds(exchange, {
+              token: orderDto.to,
+              amount: orderDto.withdrawal.withdrawAll ? undefined : r.trade.orderSummary.amount,
+              ...orderDto.withdrawal,
+            })
+          : undefined,
+      )
+      .then((r) => this.updateTrade(tradeId, { status: TradeStatus.CLOSED, withdraw: r }))
+      // error
       .catch((e) => {
         console.error(`Exception during trade:`, e);
-        this.trades[tradeId] = { status: TradeStatus.FAILED, result: e };
+        this.updateTrade(tradeId, { status: TradeStatus.FAILED, error: e });
       });
 
     return tradeId;
@@ -70,11 +83,11 @@ export class ExchangeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getTrade(@Param('id') tradeId: string): Promise<Trade> {
+  async getTrade(@Param('id') tradeId: string): Promise<TradeResult> {
     const trade = this.trades[+tradeId];
     if (!trade) throw new NotFoundException(`No trade found for id ${tradeId}`);
-    if (trade.status !== TradeStatus.OPEN) delete this.trades[+tradeId];
-    
+    if ([TradeStatus.CLOSED, TradeStatus.FAILED].includes(trade.status)) delete this.trades[+tradeId];
+
     return trade;
   }
 
@@ -82,13 +95,14 @@ export class ExchangeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  withdrawFunds(@Param('exchange') exchange: string, @Body() withdrawDto: Withdraw): Promise<WithdrawalResponse> {
-    return this.getExchange(exchange).withdrawFunds(
-      withdrawDto.token.toUpperCase(),
-      withdrawDto.amount,
-      withdrawDto.address,
-      withdrawDto.key,
-    );
+  async withdrawFunds(
+    @Param('exchange') exchange: string,
+    @Body() withdrawalDto: WithdrawalOrder,
+  ): Promise<WithdrawalResponse> {
+    const token = withdrawalDto.token.toUpperCase();
+    const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.getExchange(exchange).getBalance(token);
+
+    return this.getExchange(exchange).withdrawFunds(token, amount, withdrawalDto.address, withdrawalDto.key);
   }
 
   private getExchange(exchange: string): ExchangeService {
@@ -100,5 +114,9 @@ export class ExchangeController {
       default:
         throw new BadRequestException(`No service for exchange '${exchange}'`);
     }
+  }
+
+  private updateTrade(tradeId: number, result: Partial<TradeResult>): TradeResult {
+    return (this.trades[tradeId] = { ...this.trades[tradeId], ...result });
   }
 }

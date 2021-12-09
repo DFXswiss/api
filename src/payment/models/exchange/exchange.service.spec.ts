@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { kraken } from 'ccxt';
 import { ExchangeService, OrderSide } from './exchange.service';
 
@@ -6,12 +5,6 @@ describe('ExchangeService', () => {
   let service: ExchangeService;
 
   beforeEach(async () => {
-    // const module: TestingModule = await Test.createTestingModule({
-    //   providers: [ExchangeService],
-    // }).compile();
-
-    // service = module.get<ExchangeService>(ExchangeService);
-
     service = new ExchangeService(new kraken({}));
   });
 
@@ -20,15 +13,18 @@ describe('ExchangeService', () => {
   });
 
   it('should return BTC/EUR and buy', () => {
-    expect(service.getCurrencyPair('EUR', 'BTC')).toEqual({pair: 'BTC/EUR', direction: OrderSide.BUY});
+    expect(service.getCurrencyPair('EUR', 'BTC')).resolves.toEqual({ pair: 'BTC/EUR', direction: OrderSide.BUY });
   });
 
   it('should return BTC/EUR and sell', () => {
-    expect(service.getCurrencyPair('BTC', 'EUR')).toEqual({pair: 'BTC/EUR', direction: OrderSide.SELL});
+    expect(service.getCurrencyPair('BTC', 'EUR')).resolves.toEqual({ pair: 'BTC/EUR', direction: OrderSide.SELL });
   });
 
   it('should return correct weighted average', () => {
-    const list = [{price: 0.1, amount: 3}, {price: 1.2, amount: 2}];
-    expect(service.getWeightedAveragePrice(list)).toEqual({avgPrice: 0.54, amountSum: 5});
-  })
+    const list = [
+      { price: 0.1, amount: 3.8, fee: { cost: 2.3 } },
+      { price: 1.2, amount: 1.4, fee: { cost: 1.4 } },
+    ];
+    expect(service.getWeightedAveragePrice(list)).toEqual({ price: 0.39615385, amountSum: 5.2, feeSum: 3.7 });
+  });
 });

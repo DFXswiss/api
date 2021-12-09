@@ -1,20 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
+import { RefService } from './user/models/referral/ref.service';
 
 describe('AppController', () => {
-  let appController: AppController;
+  let controller: AppController;
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
+      providers: [{ provide: RefService, useValue: {} }],
     }).compile();
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    appController = app.get<AppController>(AppController);
+    controller = app.get<AppController>(AppController);
   });
 
-  describe('root', () => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    it('should return "Hello World!"', () => {});
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
   });
 });

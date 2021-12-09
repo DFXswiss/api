@@ -5,6 +5,7 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/util';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -46,7 +47,7 @@ export class NodeClient {
 
   async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
     return this.callNode(
-      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, amount - this.utxoFee], 'number'),
+      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee)], 'number'),
       true,
     );
   }
@@ -58,7 +59,7 @@ export class NodeClient {
       c.poolpair.testPoolSwap({
         from: address,
         tokenFrom: tokenFrom,
-        amountFrom: amount,
+        amountFrom: this.roundAmount(amount),
         to: address,
         tokenTo: tokenTo,
       }),
@@ -117,5 +118,9 @@ export class NodeClient {
 
   private get utxoFee(): number {
     return this.chain === Chain.MAIN ? 0.00000132 : 0.0000222;
+  }
+
+  private roundAmount(amount: number): number {
+    return Util.round(amount, 8);
   }
 }

@@ -23,9 +23,10 @@ jobs:
         uses: azure/CLI@v1
         with:
           inlineScript: |
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-inp-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml
+            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dex-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml
             az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-inp-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
             az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dex-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-out-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
       
       - name: Logout
         run: |

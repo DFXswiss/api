@@ -1,7 +1,8 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, Order, WithdrawalResponse } from 'ccxt';
-import { OrderResponse, PartialOrderResponse } from './dto/order-response.dto';
+import { TradeResponse, PartialTradeResponse } from './dto/trade-response.dto';
 import { Price } from './dto/price.dto';
+import { Util } from 'src/shared/util';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -16,9 +17,15 @@ enum OrderStatus {
 
 export class ExchangeService {
   private currencyPairs: string[];
+
   constructor(private readonly exchange: Exchange) {}
+
   async getBalances() {
     return this.callApi((e) => e.fetchBalance());
+  }
+
+  async getBalance(currency: string): Promise<number> {
+    return this.getBalances().then((b) => b.total[currency]);
   }
 
   async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
@@ -31,7 +38,7 @@ export class ExchangeService {
     };
   }
 
-  async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<OrderResponse> {
+  async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<TradeResponse> {
     /*
       The following logic is applied
 
@@ -43,10 +50,10 @@ export class ExchangeService {
     */
 
     // check balance
-    const balances = await this.getBalances();
-    if (amount > balances.total[fromCurrency]) {
+    const balance = await this.getBalance(fromCurrency);
+    if (amount > balance) {
       throw new BadRequestException(
-        `There is not enough balance for token ${fromCurrency}. Current balance: ${balances.total[fromCurrency]} requested balance: ${amount}`,
+        `There is not enough balance for token ${fromCurrency}. Current balance: ${balance} requested balance: ${amount}`,
       );
     }
 
@@ -103,8 +110,8 @@ export class ExchangeService {
     orderSide: OrderSide,
     amount: number,
     maxRetries = 100,
-  ): Promise<OrderResponse> {
-    const orderList: PartialOrderResponse[] = [];
+  ): Promise<TradeResponse> {
+    const orderList: PartialTradeResponse[] = [];
     let order: Order;
     let numRetries = 0;
 
@@ -161,6 +168,7 @@ export class ExchangeService {
         await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
       }
 
+      console.debug(`Creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
       return this.callApi((e) =>
         e.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
           oflags: 'post',
@@ -209,9 +217,9 @@ export class ExchangeService {
 
   getWeightedAveragePrice(list: any[]): { price: number; amountSum: number; feeSum: number } {
     const priceSum = list.reduce((a, b) => a + b.price * b.amount, 0);
-    const amountSum = list.reduce((a, b) => a + b.amount, 0);
-    const price = priceSum / amountSum;
-    const feeSum = list.reduce((a, b) => a + b.fee.cost, 0);
+    const amountSum = Util.round(list.reduce((a, b) => a + b.amount, 0), 8);
+    const price = Util.round(priceSum / amountSum, 8);
+    const feeSum = Util.round(list.reduce((a, b) => a + b.fee.cost, 0), 8);
 
     return { price, amountSum, feeSum };
   }
