@@ -173,19 +173,6 @@ export class UserRepository extends Repository<User> {
       let currencyObject = null;
       let refFeeAssetObject = null;
 
-      // user with kyc cannot change their data
-      if (currentUserData.kycStatus != KycStatus.NA) {
-        if (newUser.firstname) delete newUser.firstname;
-        if (newUser.surname) delete newUser.surname;
-        if (newUser.mail) delete newUser.mail;
-        if (newUser.street) delete newUser.street;
-        if (newUser.houseNumber) delete newUser.houseNumber;
-        if (newUser.location) delete newUser.location;
-        if (newUser.zip) delete newUser.zip;
-        if (newUser.country) delete newUser.country;
-        if (newUser.phone) delete newUser.phone;
-      }
-
       if (newUser.country) {
         countryObject = await countryService.getCountry(newUser.country);
 
