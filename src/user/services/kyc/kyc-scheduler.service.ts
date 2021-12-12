@@ -23,7 +23,7 @@ export class KycSchedulerService {
   async doChecks() {
     try {
       await this.doChatBotCheck();
-      await this.doAddressCheck();
+      //await this.doAddressCheck();
       await this.doOnlineIdCheck();
       await this.doVideoIdCheck();
     } catch (e) {
@@ -32,12 +32,13 @@ export class KycSchedulerService {
   }
 
   private async doChatBotCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ADDRESS, [KycDocument.CHATBOT], async (userData) => {
+    await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
       const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
       if (['a', 'b'].includes(resultNameCheck.risks[0].categoryKey)) {
         await this.kycApi.checkCustomer(userData.id);
       }
-      await this.kycApi.initiateDocumentUpload(userData.id, [KycDocument.INVOICE]);
+      await this.kycApi.initiateOnlineIdentification(userData.id);
+      //await this.kycApi.initiateDocumentUpload(userData.id, [KycDocument.INVOICE]);
       return userData;
     });
   }
@@ -71,10 +72,6 @@ export class KycSchedulerService {
     // create KYC file reference
     const kycFile = await this.kycFileRepo.save({ userData: userData });
     userData.kycFile = kycFile;
-
-    //TODO: upload KYC file reference
-    //await this.kycService.createFileReference(userData.id, userData.kycFileReference, user.surname);
-
     await this.mailService.sendKycMail(userData, customer.names[0].firstName, customer.emails[0], customer.id);
     return userData;
   }

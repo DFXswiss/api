@@ -141,19 +141,33 @@ export class UserDataService {
     if (userData?.kycStatus === KycStatus.NA) {
       // update customer
       await this.kycApi.updateCustomer(userData.id, user);
-
       // start onboarding
       const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id);
-
+      // set status to chatbot
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
+      await this.userDataRepo.save(userData);
+      return true;
+    } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT && userData?.kycState === KycState.FAILED) {
+      // change state back to NA
+      userData.kycState = KycState.NA;
+      // start onboarding
+      await this.kycApi.initiateOnboardingChatBot(userData.id);
+      await this.userDataRepo.save(userData);
+      return true;
+    } else if (userData?.kycStatus === KycStatus.WAIT_VIDEO_ID && userData?.kycState === KycState.FAILED) {
+      // change state back to NA
+      userData.kycState = KycState.NA;
+      // initiate video identification
+      await this.kycApi.initiateVideoIdentification(userData.id);
       await this.userDataRepo.save(userData);
       return true;
     } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.WAIT_MANUAL) {
       const customer = await this.kycApi.getCustomer(userData.id);
+      // send mail to support
       await this.mailService.sendLimitSupportMail(userData, customer.id, depositLimit);
-    } else {
-      return false;
+      return true;
     }
+    return false;
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
