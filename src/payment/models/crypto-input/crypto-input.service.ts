@@ -96,6 +96,10 @@ export class CryptoInputService {
       // save
       await this.cryptoInputRepo.save(input);
 
+      // store BTC price
+      const btcAmount = await this.client.testPoolSwap(input.sell.deposit.address, "DFI", "BTC", input.amount);
+      await this.cryptoInputRepo.update({ id: input.id }, { btcAmount: +btcAmount.split('@')[0] });
+
       // forward
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
@@ -106,10 +110,6 @@ export class CryptoInputService {
 
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
-
-      // store BTC price
-      const btcAmount = await this.client.testPoolSwap(input.sell.deposit.address, "DFI", "BTC", input.amount);
-      await this.cryptoInputRepo.update({ id: input.id }, { btcAmount: +btcAmount.split('@')[0] });
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
