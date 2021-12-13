@@ -1,5 +1,556 @@
-{ "2111":[],
-  "2109": [
+{ "2111":[
+  {
+      "title": "DFIP 2111-B: Vote of confidence: Ethereum Virtual Machine (EVM) Support",
+      "number": 962,
+      "type": "dfip",
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/96",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 586,
+          "possible": 10251,
+          "turnout": 5.72,
+          "yes": 537,
+          "neutral": 11,
+          "no": 38
+      },
+      "cakeVotes": {
+          "total": 310,
+          "yes": 294,
+          "neutral": 10,
+          "no": 6
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-21: DeFiChain Brave Campaign (13 800 DFI)",
+      "number": 95,
+      "type": "cfp",
+      "dfiAmount": 13800,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/95",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 605,
+          "possible": 10251,
+          "turnout": 5.9,
+          "yes": 595,
+          "neutral": 1,
+          "no": 9
+      },
+      "cakeVotes": {
+          "total": 326,
+          "yes": 319,
+          "neutral": 1,
+          "no": 6
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-20: DeFiChain.Info - News, Social media, Education, Bringing DeFiChain to .NET (20 000 DFI)",
+      "number": 94,
+      "type": "cfp",
+      "dfiAmount": 20000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/94",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 567,
+          "possible": 10251,
+          "turnout": 5.53,
+          "yes": 332,
+          "neutral": 9,
+          "no": 226
+      },
+      "cakeVotes": {
+          "total": 305,
+          "yes": 188,
+          "neutral": 9,
+          "no": 108
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-19: #roadto50: LET’S MAKE SOME NOISE (5 000 DFI)",
+      "number": 93,
+      "type": "cfp",
+      "dfiAmount": 5000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/93",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 557,
+          "possible": 10251,
+          "turnout": 5.43,
+          "yes": 539,
+          "neutral": 0,
+          "no": 18
+      },
+      "cakeVotes": {
+          "total": 280,
+          "yes": 270,
+          "neutral": 0,
+          "no": 10
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-18: IT’S ABOUT MARKETING: making DeFiChain INTERNATIONAL (40 000 DFI)",
+      "number": 92,
+      "type": "cfp",
+      "dfiAmount": 40000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/92",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 597,
+          "possible": 10251,
+          "turnout": 5.82,
+          "yes": 561,
+          "neutral": 0,
+          "no": 36
+      },
+      "cakeVotes": {
+          "total": 316,
+          "yes": 293,
+          "neutral": 0,
+          "no": 23
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-17: DeFiChain Promo — January to June 2022 (10 000 DFI)",
+      "number": 91,
+      "type": "cfp",
+      "dfiAmount": 10000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/91",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 544,
+          "possible": 10251,
+          "turnout": 5.31,
+          "yes": 526,
+          "neutral": 2,
+          "no": 16
+      },
+      "cakeVotes": {
+          "total": 268,
+          "yes": 252,
+          "neutral": 2,
+          "no": 14
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-16: Non-custodial, Decentralised Chain-Interoperability and Funds-Transfer Solution Between DeFiChain and the Ethereum Ecosystem (100 000 DFI)",
+      "number": 90,
+      "type": "cfp",
+      "dfiAmount": 100000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/90",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 607,
+          "possible": 10251,
+          "turnout": 5.92,
+          "yes": 593,
+          "neutral": 0,
+          "no": 14
+      },
+      "cakeVotes": {
+          "total": 321,
+          "yes": 307,
+          "neutral": 0,
+          "no": 14
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-15: DefichainGaS\" your Giveawayservice (1 500 DFI)",
+      "number": 89,
+      "type": "cfp",
+      "dfiAmount": 1500,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/89",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 559,
+          "possible": 10251,
+          "turnout": 5.45,
+          "yes": 279,
+          "neutral": 4,
+          "no": 276
+      },
+      "cakeVotes": {
+          "total": 276,
+          "yes": 134,
+          "neutral": 4,
+          "no": 138
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-14: DeFined designed - DeFiNode 3D printing service (13 100 DFI)",
+      "number": 88,
+      "type": "cfp",
+      "dfiAmount": 13100,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/88",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 533,
+          "possible": 10251,
+          "turnout": 5.2,
+          "yes": 104,
+          "neutral": 48,
+          "no": 381
+      },
+      "cakeVotes": {
+          "total": 271,
+          "yes": 75,
+          "neutral": 48,
+          "no": 148
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-13: Boost the defichain testnet infrastructure for a better testing and improved future product integration testing capabilities (35 000 DFI)",
+      "number": 87,
+      "type": "cfp",
+      "dfiAmount": 35000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/87",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 590,
+          "possible": 10251,
+          "turnout": 5.76,
+          "yes": 506,
+          "neutral": 1,
+          "no": 83
+      },
+      "cakeVotes": {
+          "total": 312,
+          "yes": 297,
+          "neutral": 1,
+          "no": 14
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-12: DeFiChain NFTs for the DeFiChain Community (3 000 DFI)",
+      "number": 86,
+      "type": "cfp",
+      "dfiAmount": 3000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/86",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 488,
+          "possible": 10251,
+          "turnout": 4.76,
+          "yes": 100,
+          "neutral": 13,
+          "no": 375
+      },
+      "cakeVotes": {
+          "total": 276,
+          "yes": 70,
+          "neutral": 13,
+          "no": 193
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-11: DFX Smartphone App (40 000 DFI)",
+      "number": 85,
+      "type": "cfp",
+      "dfiAmount": 40000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/85",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 588,
+          "possible": 10251,
+          "turnout": 5.74,
+          "yes": 242,
+          "neutral": 7,
+          "no": 339
+      },
+      "cakeVotes": {
+          "total": 305,
+          "yes": 158,
+          "neutral": 4,
+          "no": 143
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-10: DFX Masternode service – Free of charge on- and off-ramp and automatic transaction service for Masternode operators (60 000 DFI)",
+      "number": 84,
+      "type": "cfp",
+      "dfiAmount": 60000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/84",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 570,
+          "possible": 10251,
+          "turnout": 5.56,
+          "yes": 140,
+          "neutral": 4,
+          "no": 426
+      },
+      "cakeVotes": {
+          "total": 285,
+          "yes": 96,
+          "neutral": 4,
+          "no": 185
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-09: Expansion of the DeFiChain Community to Spanish-speaking countries (5 000 DFI)",
+      "number": 83,
+      "type": "cfp",
+      "dfiAmount": 5000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/83",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 579,
+          "possible": 10251,
+          "turnout": 5.65,
+          "yes": 286,
+          "neutral": 4,
+          "no": 289
+      },
+      "cakeVotes": {
+          "total": 294,
+          "yes": 153,
+          "neutral": 2,
+          "no": 139
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-08: Establish a Platform for virtual Community Meetups to better connect the Community (20 000 DFI)",
+      "number": 82,
+      "type": "cfp",
+      "dfiAmount": 20000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/82",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 564,
+          "possible": 10251,
+          "turnout": 5.5,
+          "yes": 189,
+          "neutral": 8,
+          "no": 367
+      },
+      "cakeVotes": {
+          "total": 294,
+          "yes": 102,
+          "neutral": 8,
+          "no": 184
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-07: saiive.live iOS/Mac Store Release + Apple Watch (10 000 DFI)",
+      "number": 81,
+      "type": "cfp",
+      "dfiAmount": 10000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/81",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 556,
+          "possible": 10251,
+          "turnout": 5.42,
+          "yes": 492,
+          "neutral": 7,
+          "no": 57
+      },
+      "cakeVotes": {
+          "total": 295,
+          "yes": 249,
+          "neutral": 7,
+          "no": 39
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-06: saiive.live - New Features (5 000 DFI)",
+      "number": 80,
+      "type": "cfp",
+      "dfiAmount": 5000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/80",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 575,
+          "possible": 10251,
+          "turnout": 5.61,
+          "yes": 528,
+          "neutral": 8,
+          "no": 39
+      },
+      "cakeVotes": {
+          "total": 301,
+          "yes": 271,
+          "neutral": 8,
+          "no": 22
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "DFIP 2111-A: Adding liquidity pool Luna/Dfi",
+      "number": 79,
+      "type": "dfip",
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/79",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 401,
+          "possible": 10251,
+          "turnout": 3.91,
+          "yes": 64,
+          "neutral": 14,
+          "no": 323
+      },
+      "cakeVotes": {
+          "total": 219,
+          "yes": 52,
+          "neutral": 9,
+          "no": 158
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-05: DFI.TAX (24 000 DFI)",
+      "number": 78,
+      "type": "cfp",
+      "dfiAmount": 24000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/78",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 597,
+          "possible": 10251,
+          "turnout": 5.82,
+          "yes": 521,
+          "neutral": 42,
+          "no": 34
+      },
+      "cakeVotes": {
+          "total": 317,
+          "yes": 253,
+          "neutral": 42,
+          "no": 22
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-04: Spanish and French translation for Desktop, Mobile APP and Website during 1 year (5 000 DFI)",
+      "number": 77,
+      "type": "cfp",
+      "dfiAmount": 5000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/77",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 567,
+          "possible": 10251,
+          "turnout": 5.53,
+          "yes": 248,
+          "neutral": 5,
+          "no": 314
+      },
+      "cakeVotes": {
+          "total": 294,
+          "yes": 128,
+          "neutral": 5,
+          "no": 161
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-03: DeFiChain Society Foundation (20 000 DFI)",
+      "number": 76,
+      "type": "cfp",
+      "dfiAmount": 20000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/76",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 525,
+          "possible": 10251,
+          "turnout": 5.12,
+          "yes": 90,
+          "neutral": 7,
+          "no": 428
+      },
+      "cakeVotes": {
+          "total": 255,
+          "yes": 37,
+          "neutral": 7,
+          "no": 211
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-02: Vault and loan monitor with enhanced notifications (45 000 DFI)",
+      "number": 75,
+      "type": "cfp",
+      "dfiAmount": 45000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/75",
+      "currentResult": "Approved",
+      "totalVotes": {
+          "total": 592,
+          "possible": 10251,
+          "turnout": 5.78,
+          "yes": 567,
+          "neutral": 1,
+          "no": 24
+      },
+      "cakeVotes": {
+          "total": 313,
+          "yes": 290,
+          "neutral": 1,
+          "no": 22
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  },
+  {
+      "title": "CFP 2111-01: defichain-history - Visualize Pool Data (25 000 DFI)",
+      "number": 74,
+      "type": "cfp",
+      "dfiAmount": 25000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/74",
+      "currentResult": "Not approved",
+      "totalVotes": {
+          "total": 559,
+          "possible": 10251,
+          "turnout": 5.45,
+          "yes": 167,
+          "neutral": 12,
+          "no": 380
+      },
+      "cakeVotes": {
+          "total": 298,
+          "yes": 115,
+          "neutral": 5,
+          "no": 178
+      },
+      "startDate": "2021-11-22T23:59:59+00:00",
+      "endDate": "2021-11-29T23:59:59+00:00"
+  }
+],
+   "2109": [
     {
       "title": "CFP 2109-18: DeFiChain Networkmap (1 893 DFI)",
       "number": 72,
