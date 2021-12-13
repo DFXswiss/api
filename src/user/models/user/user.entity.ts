@@ -21,6 +21,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
+  ACTIVESELL = 'ActiveSell',
   VERIFY = 'Verified',
 }
 
