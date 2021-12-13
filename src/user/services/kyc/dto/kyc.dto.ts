@@ -85,7 +85,7 @@ export interface CheckResult {
 }
 
 export interface Risk {
-  criterionKey: string;
+  criterionPath: string;
   categoryKey: string;
 }
 

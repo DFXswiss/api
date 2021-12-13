@@ -6,7 +6,6 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserStatus } from './user.entity';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
-import { KycStatus } from 'src/user/models/userData/userData.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';

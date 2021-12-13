@@ -56,6 +56,7 @@ export class UserService {
     if (!currentUser.currency) currentUser.currency = await this.fiatService.getFiat('eur'); // TODO: add as default values on create?
     if (!currentUser.refFeeAsset) currentUser.refFeeAsset = await this.assetService.getAsset('dBTC');
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
+    currentUser['kycState'] = currentUser.userData.kycState;
     currentUser['depositLimit'] = currentUser.userData.depositLimit;
 
     if (detailedUser) {
@@ -69,7 +70,7 @@ export class UserService {
     if (currentUser.role != UserRole.VIP) delete currentUser.role;
 
     // delete ref for inactive users
-    if (currentUser.status == UserStatus.NA) delete currentUser.ref;
+    if (currentUser.status != UserStatus.ACTIVE) delete currentUser.ref;
 
     return currentUser;
   }

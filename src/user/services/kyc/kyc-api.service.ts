@@ -174,12 +174,12 @@ export class KycApiService {
     return result === 'done';
   }
 
-  async createDocumentVersionPart(id: number, document: string, version: string, part: string): Promise<boolean> {
+  async createDocumentVersionPart(id: number, document: KycDocument, version: string, part: string): Promise<boolean> {
     const data = {
-      name: 'ident',
-      label: 'ident',
-      fileName: 'ident.img',
-      contentType: 'image/jpeg',
+      name: part,
+      label: part,
+      fileName: part + '.png',
+      contentType: 'image/png',
     };
 
     const result = await this.callApi<string>(
