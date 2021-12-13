@@ -1,5 +1,5 @@
 import { Client, AccessOptions, FileInfo } from 'basic-ftp';
-import { readFile } from 'fs';
+import { Util } from '../util';
 
 export class FtpService {
   private readonly tmpFile = 'tmp';
@@ -27,7 +27,7 @@ export class FtpService {
 
   async readFile(fileInfo: FileInfo): Promise<string> {
     await this.client.downloadTo(this.tmpFile, fileInfo.name);
-    return this.readFileFromDisk(this.tmpFile);
+    return Util.readFileFromDisk(this.tmpFile);
   }
 
   async moveFile(file: string, directory: string, newFile?: string) {
@@ -36,18 +36,6 @@ export class FtpService {
   }
 
   // --- HELPER METHODS --- //
-  private async readFileFromDisk(fileName: string): Promise<string> {
-    return new Promise((resolve, reject) =>
-      readFile(fileName, (err, data) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(data.toString());
-        }
-      }),
-    );
-  }
-
   private async ensureDir(directory: string): Promise<void> {
     const current = await this.client.pwd();
     await this.client.ensureDir(directory);

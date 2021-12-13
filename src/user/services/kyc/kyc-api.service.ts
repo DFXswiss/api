@@ -3,7 +3,6 @@ import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { User } from 'src/user/models/user/user.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
-import { readFile } from 'fs';
 import {
   Challenge,
   ChatBotResponse,
@@ -255,17 +254,5 @@ export class KycApiService {
     await this.http.post(`${this.baseUrl}/authenticate`, data);
 
     return key;
-  }
-
-  private async readFileFromDisk(fileName: string): Promise<Buffer> {
-    return new Promise((resolve, reject) =>
-      readFile(fileName, (err, data) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(data);
-        }
-      }),
-    );
   }
 }
