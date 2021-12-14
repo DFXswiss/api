@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { CreateAssetDto } from 'src/shared/models/asset/dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
-import { UserRepository } from 'src/user/models/user/user.repository';
 
 @Injectable()
 export class AssetService {

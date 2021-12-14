@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { LogRepository } from './log.repository';
 import { CreateLogDto } from './dto/create-log.dto';
 import { MailService } from 'src/shared/services/mail.service';
