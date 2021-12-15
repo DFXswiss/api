@@ -1,16 +1,6 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  Index,
-  CreateDateColumn,
-  OneToMany,
-  ManyToOne,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
-import { BuyPayment } from 'src/payment/models/payment/payment.entity';
 
 @Entity()
 @Index('ibanAssetUser', (buy: Buy) => [buy.iban, buy.asset, buy.user], { unique: true })
@@ -32,9 +22,6 @@ export class Buy {
 
   @ManyToOne(() => Asset, { eager: true })
   asset: Asset;
-
-  @OneToMany(() => BuyPayment, (buyPayment) => buyPayment.buy)
-  buyPayment: BuyPayment[];
 
   @UpdateDateColumn()
   updated: Date;

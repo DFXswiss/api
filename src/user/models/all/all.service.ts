@@ -9,7 +9,6 @@ import { Buy } from 'src/user/models/buy/buy.entity';
 import { Sell } from 'src/user/models/sell/sell.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
 import { Injectable } from '@nestjs/common';
-import { PaymentService } from 'src/payment/models/payment/payment.service';
 
 @Injectable()
 export class AllDataService {
@@ -21,7 +20,7 @@ export class AllDataService {
     private readonly sellRepo: SellRepository,
     private readonly walletRepo: WalletRepository,
     private readonly logRepo: LogRepository,
-  ) // private readonly paymentService: PaymentService,
+  )
   {}
 
   async getAllData(): Promise<any> {
@@ -34,7 +33,6 @@ export class AllDataService {
       wallets: await this.getAllWallet(),
       // TODO(david): move to payment-module
       logs: await this.getAllLog(),
-      payments: await this.getAllPayment(),
     };
   }
 
@@ -70,12 +68,5 @@ export class AllDataService {
 
   async getAllLog(): Promise<any> {
     return this.logRepo.getAllLog();
-  }
-
-  async getAllPayment(): Promise<any> {
-    return {
-      buy: [], // await this.paymentService.getAllBuyPayment(),
-      sell: [], // await this.paymentService.getAllSellPayment(),
-    };
   }
 }
