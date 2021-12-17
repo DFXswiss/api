@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
@@ -160,10 +160,20 @@ export class UserService {
   async getRefData(user: User): Promise<any> {
     return {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
+      refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
       refVolumeBtc: await this.logService.getRefVolumeBtc(user.ref),
       refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase()),
     };
+  }
+
+  async updateRefFee(userId: number, fee: number): Promise<number> {
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new NotFoundException('No matching user found');
+
+    if (user.refFeePercent < fee) throw new BadRequestException('Ref fee can only be decreased');
+    await this.userRepo.update({ id: userId }, { refFeePercent: fee });
+    return fee;
   }
 }
