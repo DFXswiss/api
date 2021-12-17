@@ -1,4 +1,5 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
+import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
@@ -40,5 +41,11 @@ export class NodeController {
   @ApiExcludeEndpoint()
   async nodeInfo(@Param('node') node: NodeType, @Param('mode') mode: NodeMode): Promise<BlockchainInfo> {
     return this.nodeService.getClient(node, mode).getInfo();
+  }
+
+  @Get(':node/:mode/tx/:txId')
+  @ApiExcludeEndpoint()
+  async waitForTx(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Param('txId') txId: string): Promise<InWalletTransaction> {
+    return this.nodeService.getClient(node, mode).waitForTx(txId);
   }
 }

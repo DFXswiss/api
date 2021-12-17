@@ -1,7 +1,7 @@
 import { ApiClient } from '@defichain/jellyfish-api-core';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
-import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
@@ -38,6 +38,18 @@ export class NodeClient {
         maxBlockHeight: toBlock,
       }),
     );
+  }
+
+  async waitForTx(txId: string, timeout = 300000): Promise<InWalletTransaction> {
+    const tx = await Util.poll(
+      () => this.callNode((c) => c.wallet.getTransaction(txId)),
+      (t) => t?.confirmations > 0,
+      5000,
+      timeout,
+    );
+
+    if (!(tx?.confirmations > 0)) throw new ServiceUnavailableException('Wait for TX timed out');
+    return tx;
   }
 
   // UTXO

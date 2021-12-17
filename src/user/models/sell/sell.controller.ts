@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { SellService } from './sell.service';
 import { CreateSellDto } from './dto/create-sell.dto';

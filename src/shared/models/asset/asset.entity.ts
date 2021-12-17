@@ -1,6 +1,5 @@
 import { Buy } from 'src/user/models/buy/buy.entity';
 import { Log } from 'src/user/models/log/log.entity';
-import { User } from 'src/user/models/user/user.entity';
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
 
 export enum AssetType {
