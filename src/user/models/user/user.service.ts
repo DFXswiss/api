@@ -58,11 +58,14 @@ export class UserService {
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['kycState'] = currentUser.userData.kycState;
     currentUser['depositLimit'] = currentUser.userData.depositLimit;
+    currentUser['fees'] = await this.getFees(currentUser);
 
     if (detailedUser) {
       currentUser['refData'] = await this.getRefData(currentUser);
       currentUser['userVolume'] = await this.getUserVolume(currentUser);
     }
+
+    if (currentUser.usedRef === '000-000') delete currentUser.usedRef;
 
     delete currentUser.userData;
     delete currentUser.signature;
@@ -97,6 +100,9 @@ export class UserService {
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
     user['kycState'] = userData.kycState;
+    user['depositLimit'] = userData.depositLimit;
+    user['fees'] = await this.getFees(user);
+
     delete user.userData;
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
@@ -106,6 +112,8 @@ export class UserService {
     delete user.signature;
     delete user.ip;
     if (user.role != UserRole.VIP) delete user.role;
+
+    if (user.usedRef === '000-000') delete user.usedRef;
 
     return user;
   }
@@ -175,5 +183,15 @@ export class UserService {
     if (user.refFeePercent < fee) throw new BadRequestException('Ref fee can only be decreased');
     await this.userRepo.update({ id: userId }, { refFeePercent: fee });
     return fee;
+  }
+
+  async getFees(user: User): Promise<{ buy: number; refBonus: number; sell: number }> {
+    const refUser = await this.userRepo.findOne({ ref: user.usedRef });
+    const refBonus = 1 - (refUser?.refFeePercent ?? 1);
+    return {
+      buy: 3 - refBonus,
+      refBonus,
+      sell: 3,
+    };
   }
 }
