@@ -6,6 +6,7 @@ import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
   ChatBotResponse,
+  ChatbotStyle,
   CheckResponse,
   CheckResult,
   CheckVersion,
@@ -91,6 +92,37 @@ export class KycApiService {
     const data = {
       references: [this.reference(id)],
       sendingInvitation: true,
+    };
+
+    const result = await this.callApi<ChatBotResponse[]>(
+      'customers/initiate-onboarding-chatbot-sessions',
+      'POST',
+      data,
+    );
+    return result[0];
+  }
+
+  async getChatBot(id: number): Promise<ChatBotResponse> {
+    const style = {
+      headerColor: '#FFFFFF',
+      textColor: '#FFFFFF',
+      warningColor: '#F5516C',
+      backgroundColor: '#072440',
+      overlayBackgroundColor: '#072440',
+      buttonColor: '#FFFFFF',
+      buttonBackgroundColor: '#F5516C',
+      bubbleLeftColor: '#FFFFFF',
+      bubbleLeftBackgroundColor: '#0A355C',
+      bubbleRightColor: '#FFFFFF',
+      bubbleRightBackgroundColor: '#0A355C',
+      htmlHeaderInclude: '#072440',
+      htmlBodyInclude: '#072440',
+    };
+
+    const data = {
+      references: [this.reference(id)],
+      sendingInvitation: false,
+      overridingStyleInfo :style,
     };
 
     const result = await this.callApi<ChatBotResponse[]>(
