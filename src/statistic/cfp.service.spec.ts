@@ -19,7 +19,7 @@ describe('CfpService', () => {
   });
 
   it('should return the CFP list', () => {
-    expect(service.getCfpList()).toEqual(['2111', '2109', '2107', '2106', '2104', '2101', '2009']);
+    expect(service.getCfpList()).toEqual(['2112', '2111', '2109', '2107', '2106', '2104', '2101', '2009']);
   });
 
   it('should return 2109 CFPs', () => {
