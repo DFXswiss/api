@@ -77,10 +77,10 @@ export class UserDataService {
   }
 
   async doNameCheck(userDataId: number): Promise<string> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
-    if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
-
+    const kycData = await this.kycApi.getCustomer(userData.id);
+    if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
     await this.kycApi.checkCustomer(userData.id);
     const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
 
@@ -91,9 +91,10 @@ export class UserDataService {
   }
 
   async getCheckStatus(userDataId: number): Promise<string> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
-    if (userData.bankDatas.length == 0) throw new NotFoundException(`User with id ${userDataId} has no bank data`);
+    const kycData = await this.kycApi.getCustomer(userData.id);
+    if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
 
     const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
     return resultNameCheck?.risks?.[0]?.categoryKey;
@@ -139,8 +140,11 @@ export class UserDataService {
     const userData = user.userData;
 
     if (userData?.kycStatus === KycStatus.NA) {
+      const kycUser = await this.kycApi.getCustomer(userData.id);
       // update customer
-      await this.kycApi.updateCustomer(userData.id, user);
+      const kycUserNew = await this.kycApi.updateCustomer(userData.id, user);
+
+      if (!kycUser && kycUserNew) await this.kycApi.checkCustomer(userData.id);
       // start onboarding
       const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id);
       // set status to chatbot
