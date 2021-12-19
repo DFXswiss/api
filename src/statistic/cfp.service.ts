@@ -85,10 +85,10 @@ export class CfpService {
   private readonly masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
 
   // current voting round
-  private readonly isCfpInProgress = false;
-  private readonly currentRound = '2111';
-  private readonly startDate = '2021-11-22T23:59:59+00:00';
-  private readonly endDate = '2021-11-29T23:59:59+00:00';
+  private readonly isCfpInProgress = true;
+  private readonly currentRound = '2112';
+  private readonly startDate = '2021-12-17T23:59:59+00:00';
+  private readonly endDate = '2021-12-20T23:59:59+00:00';
 
   private masterNodeCount: number;
   private masterNodes: { [address: string]: MasterNode };
