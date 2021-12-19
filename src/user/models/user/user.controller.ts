@@ -43,6 +43,13 @@ export class UserController {
     return this.userService.updateUser(jwt.id, newUser);
   }
 
+  @Put('ref')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async updateRef(@GetJwt() jwt: JwtPayload, @Body() { fee }: { fee: number }): Promise<number> {
+    return this.userService.updateRefFee(jwt.id, fee);
+  }
+
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
