@@ -26,13 +26,14 @@ import { AdminController } from './admin/admin.controller';
       cli: {
         migrationsDir: 'migration',
       },
+      connectionTimeout: 30000,
     }),
     SharedModule,
     AinModule,
     PaymentModule,
     UserModule,
   ],
-  controllers: [AppController, StatisticController,AdminController],
+  controllers: [AppController, StatisticController, AdminController],
   providers: [StatisticService, CfpService],
   exports: [],
 })
