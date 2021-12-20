@@ -13,13 +13,10 @@ import { User } from 'src/user/models/user/user.entity';
 import { BuyPayment } from 'src/payment/models/payment/payment.entity';
 
 @Entity()
-@Index('ibanAddressAsset', (buy: Buy) => [buy.iban, buy.asset, buy.address], { unique: true })
+@Index('ibanAssetUser', (buy: Buy) => [buy.iban, buy.asset, buy.user], { unique: true })
 export class Buy {
   @PrimaryGeneratedColumn()
   id: number;
-
-  @Column({ length: 256 })
-  address: string; // TODO: remove
 
   @Column({ length: 256 })
   iban: string;
