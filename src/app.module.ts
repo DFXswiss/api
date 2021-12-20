@@ -26,6 +26,7 @@ import { AdminController } from './admin/admin.controller';
       cli: {
         migrationsDir: 'migration',
       },
+      options: { encrypt: false },
     }),
     SharedModule,
     AinModule,
