@@ -34,6 +34,22 @@ export class AdminController {
         throw new BadRequestException(e);
       });
 
+    if (table === 'buy') {
+      //workaround for GS's TODO: Remove
+
+      const userTable = await getConnection()
+        .createQueryBuilder()
+        .from('user', 'user')
+        .getRawMany()
+        .catch((e) => {
+          throw new BadRequestException(e);
+        });
+
+      for (const buy of data) {
+        buy['address'] = userTable.find((u) => u.id === buy.userId).address;
+      }
+    }
+
     // transform to array
     return data.length > 0
       ? {
