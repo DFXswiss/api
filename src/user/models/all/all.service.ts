@@ -51,12 +51,11 @@ export class AllDataService {
   }
 
   async getAllBuy(): Promise<Buy[]> {
-    const allBuy = await this.buyRepo.find();
+    const allBuy = await this.buyRepo.find({relations: ['user']});
 
     //workaround for GS's TODO: Remove
     for (const buy of allBuy) {
-      const user = await this.userRepo.findOne(buy.user);
-      buy['address'] = user.address;
+      buy['address'] = buy.user?.address;
     }
     return allBuy;
   }
