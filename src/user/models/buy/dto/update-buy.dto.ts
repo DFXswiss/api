@@ -1,12 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Length,
-} from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty } from 'class-validator';
 
 export class UpdateBuyDto {
   @ApiProperty()
@@ -18,9 +11,4 @@ export class UpdateBuyDto {
   @IsNotEmpty()
   @IsBoolean()
   active: boolean;
-
-  @Length(34, 42)
-  @IsString()
-  @IsOptional()
-  address: string;
 }

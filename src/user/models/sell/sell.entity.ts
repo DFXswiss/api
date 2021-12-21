@@ -16,7 +16,7 @@ import { Deposit } from 'src/user/models/deposit/deposit.entity';
 import { SellPayment } from 'src/payment/models/payment/payment.entity';
 
 @Entity()
-@Index('ibanFiat', (sell: Sell) => [sell.iban, sell.fiat], { unique: true })
+@Index('ibanFiatUser', (sell: Sell) => [sell.iban, sell.fiat, sell.user], { unique: true })
 export class Sell {
   @PrimaryGeneratedColumn()
   id: number;

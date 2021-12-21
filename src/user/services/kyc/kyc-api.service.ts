@@ -101,6 +101,37 @@ export class KycApiService {
     return result[0];
   }
 
+  async getChatBot(id: number): Promise<ChatBotResponse> {
+    const style = {
+      headerColor: '#FFFFFF',
+      textColor: '#FFFFFF',
+      warningColor: '#F5516C',
+      backgroundColor: '#072440',
+      overlayBackgroundColor: '#072440',
+      buttonColor: '#FFFFFF',
+      buttonBackgroundColor: '#F5516C',
+      bubbleLeftColor: '#FFFFFF',
+      bubbleLeftBackgroundColor: '#0A355C',
+      bubbleRightColor: '#FFFFFF',
+      bubbleRightBackgroundColor: '#0A355C',
+      htmlHeaderInclude: '',
+      htmlBodyInclude: '',
+    };
+
+    const data = {
+      references: [this.reference(id)],
+      sendingInvitation: false,
+      overridingStyleInfo: style,
+    };
+
+    const result = await this.callApi<ChatBotResponse[]>(
+      'customers/initiate-onboarding-chatbot-sessions',
+      'POST',
+      data,
+    );
+    return result[0];
+  }
+
   async createFileReference(id: number, fileReference: number, lastName: string): Promise<ChatBotResponse> {
     const data = {
       customer: {

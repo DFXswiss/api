@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
@@ -58,11 +58,14 @@ export class UserService {
     currentUser['kycStatus'] = currentUser.userData.kycStatus;
     currentUser['kycState'] = currentUser.userData.kycState;
     currentUser['depositLimit'] = currentUser.userData.depositLimit;
+    currentUser['fees'] = await this.getFees(currentUser);
 
     if (detailedUser) {
       currentUser['refData'] = await this.getRefData(currentUser);
       currentUser['userVolume'] = await this.getUserVolume(currentUser);
     }
+
+    if (currentUser.usedRef === '000-000') delete currentUser.usedRef;
 
     delete currentUser.userData;
     delete currentUser.signature;
@@ -97,6 +100,9 @@ export class UserService {
     const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
     user['kycStatus'] = userData.kycStatus;
     user['kycState'] = userData.kycState;
+    user['depositLimit'] = userData.depositLimit;
+    user['fees'] = await this.getFees(user);
+
     delete user.userData;
     // delete ref for inactive users
     if (user.status == UserStatus.NA) {
@@ -106,6 +112,8 @@ export class UserService {
     delete user.signature;
     delete user.ip;
     if (user.role != UserRole.VIP) delete user.role;
+
+    if (user.usedRef === '000-000') delete user.usedRef;
 
     return user;
   }
@@ -142,6 +150,9 @@ export class UserService {
   }
 
   async requestKyc(userId: number, depositLimit: string): Promise<boolean> {
+    const verification = await this.verifyUser(userId);
+    if (!verification.result) throw new BadRequestException('User data missing');
+
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 
@@ -160,10 +171,30 @@ export class UserService {
   async getRefData(user: User): Promise<any> {
     return {
       ref: user.status == UserStatus.NA ? undefined : user.ref,
+      refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
       refVolumeBtc: await this.logService.getRefVolumeBtc(user.ref),
       refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase()),
+    };
+  }
+
+  async updateRefFee(userId: number, fee: number): Promise<number> {
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new NotFoundException('No matching user found');
+
+    if (user.refFeePercent < fee) throw new BadRequestException('Ref fee can only be decreased');
+    await this.userRepo.update({ id: userId }, { refFeePercent: fee });
+    return fee;
+  }
+
+  async getFees(user: User): Promise<{ buy: number; refBonus: number; sell: number }> {
+    const refUser = await this.userRepo.findOne({ ref: user.usedRef });
+    const refBonus = 1 - (refUser?.refFeePercent ?? 1);
+    return {
+      buy: 3 - refBonus,
+      refBonus,
+      sell: 3,
     };
   }
 }

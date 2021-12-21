@@ -1,13 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
-import { User } from 'src/user/models/user/user.entity';
+import { IsNotEmpty } from 'class-validator';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export class CreateBuyDto {
-
   @ApiProperty()
   @IsNotEmpty()
   // @IsIBAN()
@@ -15,11 +10,5 @@ export class CreateBuyDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  asset: any;
-
-  user: User;
-
-  @IsOptional()
-  @IsString()
-  bankUsage: string;
+  asset: Asset;
 }

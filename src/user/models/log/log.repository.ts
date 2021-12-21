@@ -1,11 +1,11 @@
 import { ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { EntityRepository, getManager, Not, Repository } from 'typeorm';
+import { EntityRepository, getManager, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
 import { Log, LogDirection, LogType } from './log.entity';
 import { isString } from 'class-validator';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
-import { User, UserStatus } from 'src/user/models/user/user.entity';
+import { UserStatus } from 'src/user/models/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';

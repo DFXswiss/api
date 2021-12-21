@@ -120,10 +120,16 @@ export class ExchangeService {
       order = await this.createOrder(currencyPair, orderType, orderSide, amount, order);
 
       // wait for completion
-      order = await this.pollOrder(order.id, currencyPair);
+      order = await Util.poll<Order>(
+        () => this.callApi((e) => e.fetchOrder(order.id, currencyPair)),
+        (o) => [OrderStatus.CLOSED, OrderStatus.CANCELED].includes(o?.status as OrderStatus),
+        5000,
+        120000,
+        true,
+      );
 
       // check for partial orders
-      if (order.status != OrderStatus.CANCELED && order.filled) {
+      if (order?.status != OrderStatus.CANCELED && order?.filled) {
         orderList.push({
           id: order.id,
           price: order.price,
@@ -135,7 +141,12 @@ export class ExchangeService {
       }
 
       numRetries++;
-    } while (order.status !== OrderStatus.CLOSED && numRetries < maxRetries);
+    } while (order?.status !== OrderStatus.CLOSED && numRetries < maxRetries);
+
+    // cancel existing order
+    if (order?.status === OrderStatus.OPEN) {
+      await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
+    }
 
     const avg = this.getWeightedAveragePrice(orderList);
     return {
@@ -179,40 +190,11 @@ export class ExchangeService {
     return order;
   }
 
-  private async pollOrder(
-    orderId: string,
-    currencyPair: string,
-    pollInterval = 5000,
-    maxPollRetries = 24,
-  ): Promise<Order> {
-    let checkOrder: Order;
-    let checkOrderCounter = 0;
-
-    do {
-      await this.delay(pollInterval);
-      try {
-        checkOrder = await this.callApi((e) => e.fetchOrder(orderId, currencyPair));
-        checkOrderCounter++;
-      } catch (e) {
-        continue;
-      }
-    } while (
-      ![OrderStatus.CLOSED, OrderStatus.CANCELED].includes(checkOrder.status as OrderStatus) &&
-      checkOrderCounter < maxPollRetries
-    );
-
-    return checkOrder;
-  }
-
   // other
   private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
     return action(this.exchange).catch((e) => {
       throw new ServiceUnavailableException(e);
     });
-  }
-
-  private async delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   getWeightedAveragePrice(list: any[]): { price: number; amountSum: number; feeSum: number } {

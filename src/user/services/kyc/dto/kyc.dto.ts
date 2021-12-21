@@ -124,3 +124,19 @@ export interface CustomerInformationResponse {
   lastCheckTime: number;
   lastCheckVerificationId: number;
 }
+
+export interface ChatbotStyle {
+  headerColor: string;
+  textColor: string;
+  warningColor: string;
+  backgroundColor: string;
+  overlayBackgroundColor: string;
+  buttonColor: string;
+  buttonBackgroundColor: string;
+  bubbleLeftColor: string;
+  bubbleLeftBackgroundColor: string;
+  bubbleRightColor: string;
+  bubbleRightBackgroundColor: string;
+  htmlHeaderInclude: string;
+  htmlBodyInclude: string;
+}
