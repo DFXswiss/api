@@ -87,7 +87,7 @@ export class UserDataService {
     // save
     await this.userDataRepo.save(userData);
 
-    return resultNameCheck.risks[0].categoryKey;
+    return resultNameCheck?.risks?.[0]?.categoryKey;
   }
 
   async getCheckStatus(userDataId: number): Promise<string> {

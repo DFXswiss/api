@@ -28,13 +28,14 @@ export class KycSchedulerService {
       await this.doVideoIdCheck();
     } catch (e) {
       console.error('Exception during KYC checks:', e);
+      await this.mailService.sendErrorMail('Exception during KYC checks:', e);
     }
   }
 
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
       const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
-      if (['a', 'b'].includes(resultNameCheck.risks[0].categoryKey)) {
+      if (['a', 'b'].includes(resultNameCheck?.risks?.[0].categoryKey)) {
         await this.kycApi.checkCustomer(userData.id);
       }
       await this.kycApi.initiateOnlineIdentification(userData.id);
@@ -86,62 +87,68 @@ export class KycSchedulerService {
       where: { kycStatus: currentStatus },
     });
     for (const key in userDataList) {
-      // get all versions of all document types
-      const documentVersions = await Promise.all(
-        documentTypes.map((t) => this.kycApi.getDocumentVersion(userDataList[key].id, t)),
-      ).then((versions) => versions.filter((v) => v).reduce((prev, curr) => prev.concat(curr), []));
-      if (!documentVersions?.length) continue;
+      try {
+        // get all versions of all document types
+        const documentVersions = await Promise.all(
+          documentTypes.map((t) => this.kycApi.getDocumentVersion(userDataList[key].id, t)),
+        ).then((versions) => versions.filter((v) => v).reduce((prev, curr) => prev.concat(curr), []));
+        if (!documentVersions?.length) continue;
 
-      const customer = await this.kycApi.getCustomer(userDataList[key].id);
-      const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
-      const isFailed =
-        documentVersions.find((doc) => doc.state != State.FAILED && this.dateDiffInDays(doc.creationTime) < 7) == null;
+        const customer = await this.kycApi.getCustomer(userDataList[key].id);
+        const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
+        const isFailed =
+          documentVersions.find((doc) => doc.state != State.FAILED && this.dateDiffInDays(doc.creationTime) < 7) ==
+          null;
 
-      const shouldBeReminded =
-        !isFailed &&
-        this.dateDiffInDays(documentVersions[0].creationTime) > 2 &&
-        this.dateDiffInDays(documentVersions[0].creationTime) < 7;
+        const shouldBeReminded =
+          !isFailed &&
+          this.dateDiffInDays(documentVersions[0].creationTime) > 2 &&
+          this.dateDiffInDays(documentVersions[0].creationTime) < 7;
 
-      if (isCompleted) {
-        console.log(
-          `KYC change: Changed status of user ${userDataList[key].id} from ${userDataList[key].kycStatus} to ${nextStatus}`,
-        );
-        userDataList[key].kycStatus = nextStatus;
-        userDataList[key].kycState = KycState.NA;
-        userDataList[key] = await updateAction(userDataList[key], customer);
-      } else if (isFailed && userDataList[key].kycState != KycState.FAILED) {
-        if (userDataList[key].kycStatus === KycStatus.WAIT_ONLINE_ID) {
-          await this.kycApi.initiateVideoIdentification(userDataList[key].id);
+        if (isCompleted) {
           console.log(
-            `KYC change: Changed status of user ${userDataList[key].id} from status ${userDataList[key].kycStatus} to ${KycStatus.WAIT_VIDEO_ID}`,
+            `KYC change: Changed status of user ${userDataList[key].id} from ${userDataList[key].kycStatus} to ${nextStatus}`,
           );
-          userDataList[key].kycStatus = KycStatus.WAIT_VIDEO_ID;
+          userDataList[key].kycStatus = nextStatus;
           userDataList[key].kycState = KycState.NA;
-        } else if (
-          userDataList[key].kycStatus === KycStatus.WAIT_VIDEO_ID &&
-          userDataList[key].kycState != KycState.RETRIED
-        ) {
-          await this.kycApi.initiateVideoIdentification(userDataList[key].id);
+          userDataList[key] = await updateAction(userDataList[key], customer);
+        } else if (isFailed && userDataList[key].kycState != KycState.FAILED) {
+          if (userDataList[key].kycStatus === KycStatus.WAIT_ONLINE_ID) {
+            await this.kycApi.initiateVideoIdentification(userDataList[key].id);
+            console.log(
+              `KYC change: Changed status of user ${userDataList[key].id} from status ${userDataList[key].kycStatus} to ${KycStatus.WAIT_VIDEO_ID}`,
+            );
+            userDataList[key].kycStatus = KycStatus.WAIT_VIDEO_ID;
+            userDataList[key].kycState = KycState.NA;
+          } else if (
+            userDataList[key].kycStatus === KycStatus.WAIT_VIDEO_ID &&
+            userDataList[key].kycState != KycState.RETRIED
+          ) {
+            await this.kycApi.initiateVideoIdentification(userDataList[key].id);
+            console.log(
+              `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.RETRIED}`,
+            );
+            userDataList[key].kycState = KycState.RETRIED;
+          } else {
+            await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
+            console.log(
+              `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.FAILED}`,
+            );
+            userDataList[key].kycState = KycState.FAILED;
+          }
+        } else if (shouldBeReminded && ![KycState.REMINDED, KycState.RETRIED].includes(userDataList[key].kycState)) {
+          await this.mailService.sendReminderMail(customer.names[0].firstName, customer.emails[0], currentStatus);
           console.log(
-            `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.RETRIED}`,
+            `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.REMINDED}`,
           );
-          userDataList[key].kycState = KycState.RETRIED;
-        } else {
-          await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
-          console.log(
-            `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.FAILED}`,
-          );
-          userDataList[key].kycState = KycState.FAILED;
+          userDataList[key].kycState = KycState.REMINDED;
         }
-      } else if (shouldBeReminded && ![KycState.REMINDED, KycState.RETRIED].includes(userDataList[key].kycState)) {
-        await this.mailService.sendReminderMail(customer.names[0].firstName, customer.emails[0], currentStatus);
-        console.log(
-          `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.REMINDED}`,
-        );
-        userDataList[key].kycState = KycState.REMINDED;
+        await this.userDataRepository.save(userDataList);
+      } catch (e) {
+        console.error('Exception during KYC checks:', e);
+        await this.mailService.sendErrorMail('Exception during KYC checks:', e);
       }
     }
-    await this.userDataRepository.save(userDataList);
   }
 
   private dateDiffInDays(creationTime: number) {
