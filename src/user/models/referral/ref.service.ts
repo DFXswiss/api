@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
+import { LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
 
@@ -6,17 +8,23 @@ import { RefRepository } from './ref.repository';
 export class RefService {
   constructor(private refRepository: RefRepository) {}
 
+  @Interval(3600000)
+  async checkRefs(): Promise<void> {
+    // registered refs expire after 3 days
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() - 3);
+
+    const expiredRefs = await this.refRepository.find({ updated: LessThan(expirationDate) });
+    await this.refRepository.remove(expiredRefs);
+  }
+
   async addOrUpdate(ip: string, ref: string): Promise<Ref> {
     return this.refRepository.addOrUpdate(ip, ref);
   }
 
   async get(ip: string): Promise<string> {
-    // registered refs expire after 3 days
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() - 3);
-
     const ref = await this.refRepository.getAndRemove(ip);
-    if (!ref || ref.created < expirationDate) throw new NotFoundException('No matching ref for ip found');
+    if (!ref) throw new NotFoundException('No matching ref for ip found');
 
     return ref.ref;
   }
