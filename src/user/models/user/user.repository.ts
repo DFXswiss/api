@@ -3,7 +3,7 @@ import { EntityRepository, Not, Repository, getManager } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { User, UserStatus } from './user.entity';
+import { AccountType, User, UserStatus } from './user.entity';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -209,6 +209,15 @@ export class UserRepository extends Repository<User> {
       }
 
       newUser.id = currentUser.id;
+
+      if (newUser.accountType === AccountType.PERSONAL) {
+        newUser.organizationName = null;
+        newUser.organizationStreet = null;
+        newUser.organizationHouseNumber = null;
+        newUser.organizationLocation = null;
+        newUser.organizationZip = null;
+        newUser.organizationCountry = null;
+      }
 
       await this.save(newUser);
 

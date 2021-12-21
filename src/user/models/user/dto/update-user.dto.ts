@@ -1,12 +1,18 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, IsInt, IsNumber, Matches } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsInt, IsNumber, Matches, IsEnum } from 'class-validator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AccountType } from '../user.entity';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
   id: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(AccountType)
+  accountType: AccountType;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -76,4 +82,33 @@ export class UpdateUserDto {
   // TODO: user phonenumber decorator instead of string --> Figure it out
   // @IsPhoneNumber()
   phone: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  organizationName: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  organizationStreet: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  organizationHouseNumber: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  organizationLocation: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  organizationZip: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  organizationCountry: any;
 }

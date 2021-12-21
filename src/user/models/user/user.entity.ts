@@ -21,14 +21,22 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
-  ACTIVESELL = 'ActiveSell',
+  ACTIVE_SELL = 'ActiveSell',
   VERIFY = 'Verified',
+}
+
+export enum AccountType {
+  PERSONAL = 'Personal',
+  BUSINESS = 'Business',
 }
 
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column({ default: AccountType.PERSONAL, length: 256 })
+  accountType: AccountType;
 
   @Column({ length: 256 })
   ref: string;
@@ -74,6 +82,24 @@ export class User {
 
   @ManyToOne(() => Country, { eager: true })
   country: Country;
+
+  @Column({ length: 256, nullable: true })
+  organizationName: string;
+
+  @Column({ length: 256, nullable: true })
+  organizationStreet: string;
+
+  @Column({ length: 256, nullable: true })
+  organizationHouseNumber: string;
+
+  @Column({ length: 256, nullable: true })
+  organizationLocation: string;
+
+  @Column({ length: 256, nullable: true })
+  organizationZip: string;
+
+  @ManyToOne(() => Country, { eager: true })
+  organizationCountry: Country;
 
   @ManyToOne(() => Fiat, { eager: true })
   currency: Fiat;
