@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSellDto } from 'src/user/models/sell/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/user/models/sell/dto/update-sell.dto';
 import { SellRepository } from 'src/user/models/sell/sell.repository';
@@ -39,7 +39,7 @@ export class SellService {
   async createSell(userId: number, dto: CreateSellDto): Promise<Sell> {
     // check user data
     const verification = await this.userService.verifyUser(userId);
-    if (!verification.result) throw new ForbiddenException('User data missing');
+    if (!verification.result) throw new BadRequestException('User data missing');
 
     // check fiat
     const fiat = await this.fiatService.getFiat(dto.fiat.id);

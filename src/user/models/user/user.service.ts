@@ -150,6 +150,9 @@ export class UserService {
   }
 
   async requestKyc(userId: number, depositLimit: string): Promise<boolean> {
+    const verification = await this.verifyUser(userId);
+    if (!verification.result) throw new BadRequestException('User data missing');
+
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 
