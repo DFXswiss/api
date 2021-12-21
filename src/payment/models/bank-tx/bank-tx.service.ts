@@ -11,7 +11,7 @@ import { In } from 'typeorm';
 export class BankTxService {
   constructor(private readonly bankTxRepo: BankTxRepository, private readonly bankTxBatchRepo: BankTxBatchRepository) {}
 
-  @Interval(600000)
+  @Interval(60000)
   async importSepaFiles(): Promise<void> {
     try {
       await this.fetchAndStoreSepaFiles();
