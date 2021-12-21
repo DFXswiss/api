@@ -6,7 +6,6 @@ import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
   ChatBotResponse,
-  ChatbotStyle,
   CheckResponse,
   CheckResult,
   CheckVersion,
@@ -122,7 +121,7 @@ export class KycApiService {
     const data = {
       references: [this.reference(id)],
       sendingInvitation: false,
-      overridingStyleInfo :style,
+      overridingStyleInfo: style,
     };
 
     const result = await this.callApi<ChatBotResponse[]>(

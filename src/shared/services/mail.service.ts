@@ -117,13 +117,16 @@ export class MailService {
   }
 
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
+    const env = process.env.ENVIRONMENT.toUpperCase();
+
     const htmlBody = `
-    <p>there seem to be some API problems:</p>
+    <p>there seem to be some problems on ${env} API:</p>
     <ul>
       ${errors.reduce((prev, curr) => prev + '<li>' + curr + '</li>', '')}
     </ul>
     `;
-    await this.sendMail(this.techMail, 'Hi DFX Tech Support', subject, htmlBody);
+
+    await this.sendMail(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
   }
 
   async sendMail(recipient: string, salutation: string, subject: string, body: string) {
