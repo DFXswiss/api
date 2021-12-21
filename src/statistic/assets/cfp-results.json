@@ -1,4 +1,28 @@
-{ "2112":[],
+{ "2112":[
+  {
+  "title": "DFIP 2112-A Bringing DUSD closer to $1 by allowing DFI for loan repayment & collateral",
+        "number": 99,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/99",
+        "currentResult": "Approved",
+        "totalVotes": {
+            "total": 352,
+            "possible": 10251,
+            "turnout": 3.43,
+            "yes": 316,
+            "neutral": 7,
+            "no": 29
+        },
+        "cakeVotes": {
+            "total": 130,
+            "yes": 118,
+            "neutral": 5,
+            "no": 7
+        },
+        "startDate": "2021-12-17T23:59:59+00:00",
+        "endDate": "2021-12-20T23:59:59+00:00"
+      }
+],
   "2111":[
   {
       "title": "DFIP 2111-B: Vote of confidence: Ethereum Virtual Machine (EVM) Support",

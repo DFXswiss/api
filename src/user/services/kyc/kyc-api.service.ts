@@ -115,8 +115,8 @@ export class KycApiService {
       bubbleLeftBackgroundColor: '#0A355C',
       bubbleRightColor: '#FFFFFF',
       bubbleRightBackgroundColor: '#0A355C',
-      htmlHeaderInclude: '#072440',
-      htmlBodyInclude: '#072440',
+      htmlHeaderInclude: '',
+      htmlBodyInclude: '',
     };
 
     const data = {
