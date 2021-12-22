@@ -87,21 +87,8 @@ export class KycApiService {
     return results[0];
   }
 
-  async initiateOnboardingChatBot(id: number): Promise<ChatBotResponse> {
-    const data = {
-      references: [this.reference(id)],
-      sendingInvitation: true,
-    };
-
-    const result = await this.callApi<ChatBotResponse[]>(
-      'customers/initiate-onboarding-chatbot-sessions',
-      'POST',
-      data,
-    );
-    return result[0];
-  }
-
-  async getChatBot(id: number): Promise<ChatBotResponse> {
+  async initiateOnboardingChatBot(id: number,sendMail: boolean): Promise<ChatBotResponse> {
+  
     const style = {
       headerColor: '#FFFFFF',
       textColor: '#FFFFFF',
@@ -118,9 +105,10 @@ export class KycApiService {
       htmlBodyInclude: '',
     };
 
+  
     const data = {
       references: [this.reference(id)],
-      sendingInvitation: false,
+      sendingInvitation: sendMail,
       overridingStyleInfo: style,
     };
 

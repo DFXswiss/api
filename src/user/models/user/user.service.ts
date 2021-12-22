@@ -13,6 +13,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
 
 @Injectable()
 export class UserService {
@@ -149,7 +150,7 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number, depositLimit: string): Promise<boolean> {
+  async requestKyc(userId: number, depositLimit: string): Promise<boolean | ChatBotResponse> {
     const verification = await this.verifyUser(userId);
     if (!verification.result) throw new BadRequestException('User data missing');
 
