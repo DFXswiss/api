@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { User, UserStatus } from './user.entity';
+import { AccountType, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -123,8 +123,8 @@ export class UserService {
   }
 
   async verifyUser(id: number): Promise<{ result: boolean; errors: { [error: string]: string } }> {
-    const currentUser = await this.userRepo.findOne(id);
-    if (!currentUser) throw new NotFoundException('No matching user for id found');
+    const user = await this.userRepo.findOne(id);
+    if (!user) throw new NotFoundException('No matching user for id found');
 
     const requiredFields = [
       'mail',
@@ -136,8 +136,19 @@ export class UserService {
       'zip',
       'country',
       'phone',
-    ];
-    const errors = requiredFields.filter((f) => !currentUser[f]);
+    ].concat(
+      user.accountType === AccountType.PERSONAL
+        ? []
+        : [
+            'organizationName',
+            'organizationStreet',
+            'organizationHouseNumber',
+            'organizationLocation',
+            'organizationZip',
+            'organizationCountry',
+          ],
+    );
+    const errors = requiredFields.filter((f) => !user[f]);
 
     return {
       result: errors.length === 0,
