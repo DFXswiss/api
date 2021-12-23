@@ -1,4 +1,4 @@
-let CountrySeed = [
+export const CountrySeed = [
   {
     symbol: 'AD',
     name: 'Andorra',
@@ -1215,5 +1215,3 @@ let CountrySeed = [
     enable: true,
   },
 ];
-
-module.exports = { CountrySeed };

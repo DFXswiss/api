@@ -64,7 +64,7 @@ export class CryptoBuyService {
 
     // fiat
     if (dto.currency) {
-      cryptoBuy.fiat = await this.fiatService.getFiat(dto.currency);
+      cryptoBuy.fiat = await this.fiatService.getFiatByName(dto.currency);
       if (!cryptoBuy.fiat) throw new NotFoundException('No fiat for ID found');
     }
 

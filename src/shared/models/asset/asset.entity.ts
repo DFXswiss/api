@@ -38,7 +38,7 @@ export class Asset {
   buyable: boolean;
 
   @Column({ default: true })
-  sellable: boolean;
+  sellable: boolean; // TODO: remove?
 
   @OneToMany(() => Buy, (buy) => buy.asset)
   buys: Buy[];

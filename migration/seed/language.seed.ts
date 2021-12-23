@@ -1,4 +1,4 @@
-let LanguageSeed = [
+export const LanguageSeed = [
   {
     symbol: 'EN',
     name: 'English',
@@ -30,5 +30,3 @@ let LanguageSeed = [
     enable: true,
   },
 ];
-
-module.exports = { LanguageSeed }

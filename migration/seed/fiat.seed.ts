@@ -1,4 +1,4 @@
-let FiatSeed = [
+export const FiatSeed = [
   {
     name: 'CHF',
     enable: true,
@@ -96,5 +96,3 @@ let FiatSeed = [
     enable: true,
   },
 ];
-
-module.exports = { FiatSeed };
