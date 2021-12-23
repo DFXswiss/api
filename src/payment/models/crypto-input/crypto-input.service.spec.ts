@@ -14,11 +14,11 @@ import { BigNumber } from '@defichain/jellyfish-json';
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
 
-  let nodeClient = createMock<NodeClient>();
-  let nodeService = createMock<NodeService>();
-  let cryptoInputRepo = createMock<CryptoInputRepository>();
-  let assetService = createMock<AssetService>();
-  let sellService = createMock<SellService>();
+  let nodeClient: NodeClient;
+  let nodeService: NodeService;
+  let cryptoInputRepo: CryptoInputRepository;
+  let assetService: AssetService;
+  let sellService: SellService;
 
   function setup(blocks: number, lastBlocks: number, utxo: UTXO[]) {
     jest.spyOn(nodeClient, 'getInfo').mockResolvedValueOnce({ blocks: blocks } as BlockchainInfo);

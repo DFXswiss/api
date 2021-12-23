@@ -117,7 +117,7 @@ export class LogService {
     }
 
     if (createLogDto.fiat) {
-      fiatObject = await this.fiatService.getFiat(createLogDto.fiat);
+      fiatObject = await this.fiatService.getFiatOld(createLogDto.fiat);
     } else {
       delete createLogDto.fiat;
     }

@@ -60,11 +60,11 @@ export class UserRepository extends Repository<User> {
     }
 
     if (createUserDto.currency) {
-      currencyObject = await fiatService.getFiat(createUserDto.currency);
+      currencyObject = await fiatService.getFiat(createUserDto.currency.id);
 
       createUserDto.currency = currencyObject.id;
     } else {
-      currencyObject = await fiatService.getFiat('eur');
+      currencyObject = await fiatService.getFiatByName('eur');
 
       createUserDto.currency = currencyObject.id;
     }
@@ -189,11 +189,11 @@ export class UserRepository extends Repository<User> {
       }
 
       if (newUser.currency) {
-        currencyObject = await fiatService.getFiat(newUser.currency);
+        currencyObject = await fiatService.getFiat(newUser.currency.id);
 
         newUser.currency = currencyObject.id;
       } else {
-        currencyObject = await fiatService.getFiat('eur');
+        currencyObject = await fiatService.getFiatByName('eur');
 
         newUser.currency = currencyObject.id;
       }
