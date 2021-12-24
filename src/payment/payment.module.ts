@@ -14,16 +14,33 @@ import { BankTxService } from './models/bank-tx/bank-tx.service';
 import { KrakenService } from './models/exchange/kraken.service';
 import { ExchangeController } from './models/exchange/exchange.controller';
 import { BinanceService } from './models/exchange/binance.service';
+import { CryptoBuyRepository } from './models/crypto-buy/crypto-buy.repository';
+import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
+import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CryptoInputRepository, BankTxRepository, BankTxBatchRepository]),
+    TypeOrmModule.forFeature([
+      CryptoInputRepository,
+      CryptoBuyRepository,
+      BankTxRepository,
+      BankTxBatchRepository,
+      CryptoBuyRepository,
+    ]),
     SharedModule,
     AinModule,
     UserModule,
   ],
-  controllers: [BankTxController, BankController, ExchangeController],
-  providers: [CryptoInputService, BankTxService, BankService, KrakenService, BinanceService],
+  controllers: [BankTxController, BankController, ExchangeController, CryptoBuyController],
+  providers: [
+    CryptoInputService,
+    CryptoBuyService,
+    BankTxService,
+    BankService,
+    KrakenService,
+    BinanceService,
+    CryptoBuyService,
+  ],
   exports: [],
 })
 export class PaymentModule {}

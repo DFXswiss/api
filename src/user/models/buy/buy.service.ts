@@ -37,12 +37,8 @@ export class BuyService {
     return this.buyRepo.save(buy);
   }
 
-  async getBuy(id: number, userId: number): Promise<Buy> {
-    const buy = await this.buyRepo.findOne({ where: { id, user: { id: userId } } });
-
-    if (!buy) throw new NotFoundException('No matching buy route for id found');
-
-    return buy;
+  async getBuy(id: number): Promise<Buy> {
+    return this.buyRepo.findOne(id);
   }
 
   async getAllBuy(userId: number): Promise<Buy[]> {
