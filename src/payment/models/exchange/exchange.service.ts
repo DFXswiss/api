@@ -1,5 +1,5 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import { Exchange, Order, WithdrawalResponse } from 'ccxt';
+import { Exchange, Market, Order, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from './dto/trade-response.dto';
 import { Price } from './dto/price.dto';
 import { Util } from 'src/shared/util';
@@ -16,7 +16,7 @@ enum OrderStatus {
 }
 
 export class ExchangeService {
-  private currencyPairs: string[];
+  private markets: Market[];
 
   constructor(private readonly exchange: Exchange) {}
 
@@ -72,16 +72,16 @@ export class ExchangeService {
 
   // --- Helper Methods --- //
   // currency pairs
-  private async getCurrencyPairs(): Promise<string[]> {
-    if (!this.currencyPairs) {
-      this.currencyPairs = await this.callApi((e) => e.fetchMarkets().then((l) => l.map((m) => m.symbol)));
+  private async getMarkets(): Promise<Market[]> {
+    if (!this.markets) {
+      this.markets = await this.callApi((e) => e.fetchMarkets());
     }
 
-    return this.currencyPairs;
+    return this.markets;
   }
 
   async getCurrencyPair(fromCurrency: string, toCurrency: string): Promise<{ pair: string; direction: OrderSide }> {
-    const currencyPairs = await this.getCurrencyPairs();
+    const currencyPairs = await this.getMarkets().then((m) => m.map((m) => m.symbol));
     const selectedPair = currencyPairs.find(
       (p) => p === `${fromCurrency}/${toCurrency}` || p === `${toCurrency}/${fromCurrency}`,
     );
@@ -118,6 +118,7 @@ export class ExchangeService {
     do {
       // (re)create order
       order = await this.createOrder(currencyPair, orderType, orderSide, amount, order);
+      if (!order) break;
 
       // wait for completion
       order = await Util.poll<Order>(
@@ -167,10 +168,13 @@ export class ExchangeService {
     orderSide: OrderSide,
     amount: number,
     order?: Order,
-  ): Promise<Order> {
+  ): Promise<Order | undefined> {
     // determine price and amount
     const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
     const currencyAmount = orderSide == OrderSide.BUY ? amount / currentPrice : amount;
+
+    const minAmount = await this.getMarkets().then((m) => m.find((m) => m.symbol === currencyPair).limits.amount.min);
+    if (currencyAmount < minAmount) return undefined;
 
     // create a new order, if order undefined or price changed
     if (currentPrice != order?.price) {
@@ -179,7 +183,7 @@ export class ExchangeService {
         await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
       }
 
-      console.debug(`Creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
+      console.log(`Creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
       return this.callApi((e) =>
         e.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
           oflags: 'post',
