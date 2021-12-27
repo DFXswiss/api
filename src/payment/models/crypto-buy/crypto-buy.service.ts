@@ -1,11 +1,15 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Buy } from 'src/user/models/buy/buy.entity';
 import { BuyService } from 'src/user/models/buy/buy.service';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
+import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { CryptoBuyDto } from './dto/crypto-buy.dto';
+import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
 
 @Injectable()
 export class CryptoBuyService {
@@ -13,9 +17,10 @@ export class CryptoBuyService {
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly bankTxRepo: BankTxRepository,
     private readonly buyService: BuyService,
+    private readonly fiatService: FiatService,
   ) {}
 
-  async create(dto: CryptoBuyDto): Promise<CryptoBuy> {
+  async create(dto: CreateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne({ bankTx: { id: dto.bankTxId } });
     if (entity) throw new ConflictException('There is already a crypto buy for the specified bank TX');
 
@@ -23,7 +28,7 @@ export class CryptoBuyService {
     return this.cryptoBuyRepo.save(entity);
   }
 
-  async update(id: number, dto: CryptoBuyDto): Promise<CryptoBuy> {
+  async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     const entity = await this.cryptoBuyRepo.findOne(id);
     if (!entity) throw new NotFoundException('No matching entry found');
 
@@ -33,15 +38,16 @@ export class CryptoBuyService {
   }
 
   // --- HELPER METHODS --- //
-  private async createEntity(dto: CryptoBuyDto): Promise<CryptoBuy> {
+  private async createEntity(dto: CreateCryptoBuyDto | UpdateCryptoBuyDto): Promise<CryptoBuy> {
     const cryptoBuy = this.cryptoBuyRepo.create(dto);
     cryptoBuy.bankTx = await this.getBankTx(dto);
     cryptoBuy.buy = await this.getBuy(dto);
+    cryptoBuy.fiat = await this.getFiat(dto);
 
     return cryptoBuy;
   }
 
-  private async getBankTx(dto: CryptoBuyDto): Promise<BankTx | undefined> {
+  private async getBankTx(dto: CreateCryptoBuyDto | UpdateCryptoBuyDto): Promise<BankTx | undefined> {
     if (!dto.bankTxId) return undefined;
 
     const bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
@@ -55,5 +61,13 @@ export class CryptoBuyService {
     const buy = await this.buyService.getBuy(dto.buyId);
     if (!buy) throw new NotFoundException('No buy for ID found');
     return buy;
+  }
+
+  private async getFiat(dto: CryptoBuyDto): Promise<Fiat | undefined> {
+    if (!dto.currency) return undefined;
+
+    const fiat = await this.fiatService.getFiat(dto.currency);
+    if (!fiat) throw new NotFoundException('No fiat for ID found');
+    return fiat;
   }
 }

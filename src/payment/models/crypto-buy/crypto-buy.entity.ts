@@ -1,3 +1,4 @@
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Buy } from 'src/user/models/buy/buy.entity';
 import {
   Entity,
@@ -27,8 +28,8 @@ export class CryptoBuy {
   @Column({ type: 'float', nullable: true })
   amount: number;
 
-  @Column({ length: 256, nullable: true })
-  currency: string;
+  @ManyToOne(() => Fiat, { nullable: true })
+  fiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
   amountInChf: number;

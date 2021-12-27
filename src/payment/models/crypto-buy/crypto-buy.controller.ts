@@ -5,7 +5,8 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyService } from './crypto-buy.service';
-import { CryptoBuyDto } from './dto/crypto-buy.dto';
+import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
+import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
 
 @ApiTags('cryptoBuy')
 @Controller('cryptoBuy')
@@ -16,7 +17,7 @@ export class CryptoBuyController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async create(@Body() dto: CryptoBuyDto): Promise<CryptoBuy> {
+  async create(@Body() dto: CreateCryptoBuyDto): Promise<CryptoBuy> {
     return this.cryptoBuyService.create(dto);
   }
 
@@ -24,7 +25,7 @@ export class CryptoBuyController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async update(@Param('id') id: number, @Body() dto: CryptoBuyDto): Promise<CryptoBuy> {
+  async update(@Param('id') id: number, @Body() dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     return this.cryptoBuyService.update(id, dto);
   }
 }
