@@ -1,9 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
+import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
 import { AmlCheck } from '../crypto-buy.entity';
 
-export class CryptoBuyDto {
+export abstract class CryptoBuyDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -89,9 +89,4 @@ export class CryptoBuyDto {
   @IsOptional()
   @IsString()
   recipientMail: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsInt()
-  bankTxId: number;
 }
