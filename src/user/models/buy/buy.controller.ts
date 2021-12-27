@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Put,
+  UseGuards,
+  Post,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -25,7 +35,12 @@ export class BuyController {
   })
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: number): Promise<Buy> {
-    return this.buyService.getBuy(id, jwt.id);
+    const buy = await this.buyService.getBuy(id);
+
+    if (!buy) throw new NotFoundException('No matching buy route for ID found');
+    if (buy.id != jwt.id) throw new ForbiddenException('Not your buy route');
+
+    return buy;
   }
 
   @Get()

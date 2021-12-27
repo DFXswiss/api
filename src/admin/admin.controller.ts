@@ -34,9 +34,17 @@ export class AdminController {
         throw new BadRequestException(e);
       });
 
-    if (table === 'buy') {
-      //workaround for GS's TODO: Remove
+    // transform to array
+    const arrayData =
+      data.length > 0
+        ? {
+            keys: Object.keys(data[0]),
+            values: data.map((e) => Object.values(e)),
+          }
+        : undefined;
 
+    //workaround for GS's TODO: Remove
+    if (table === 'buy') {
       const userTable = await getConnection()
         .createQueryBuilder()
         .from('user', 'user')
@@ -45,17 +53,15 @@ export class AdminController {
           throw new BadRequestException(e);
         });
 
-      for (const buy of data) {
-        buy['address'] = userTable.find((u) => u.id === buy.userId).address;
+      const userIdIndex = arrayData.keys.findIndex((k) => k === 'userId');
+
+      // insert user address at position 2
+      arrayData.keys.splice(1, 0, 'address');
+      for (const buy of arrayData.values) {
+        buy.splice(1, 0, userTable.find((u) => u.id === buy[userIdIndex]).address);
       }
     }
 
-    // transform to array
-    return data.length > 0
-      ? {
-          keys: Object.keys(data[0]),
-          values: data.map((e) => Object.values(e)),
-        }
-      : undefined;
+    return arrayData;
   }
 }
