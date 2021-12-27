@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycState, KycStatus, UserData } from './userData.entity';
-import { CheckResult, Customer } from 'src/user/services/kyc/dto/kyc.dto';
+import { ChatBotResponse, CheckResult, Customer } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
@@ -135,7 +135,7 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userId: number, depositLimit?: string): Promise<boolean> {
+  async requestKyc(userId: number, depositLimit?: string): Promise<boolean | ChatBotResponse> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
 
@@ -146,18 +146,18 @@ export class UserDataService {
 
       if (!kycUser && kycUserNew) await this.kycApi.checkCustomer(userData.id);
       // start onboarding
-      const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id);
+      const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
       // set status to chatbot
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);
-      return true;
-    } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT && userData?.kycState === KycState.FAILED) {
+      return chatBotData;
+    } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
       // change state back to NA
       userData.kycState = KycState.NA;
       // start onboarding
-      await this.kycApi.initiateOnboardingChatBot(userData.id);
+      const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
       await this.userDataRepo.save(userData);
-      return true;
+      return chatBotData;
     } else if (userData?.kycStatus === KycStatus.WAIT_VIDEO_ID && userData?.kycState === KycState.FAILED) {
       // change state back to NA
       userData.kycState = KycState.NA;

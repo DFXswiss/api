@@ -9,6 +9,7 @@ import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -53,7 +54,10 @@ export class UserController {
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetJwt() jwt: JwtPayload, @Query('depositLimit') depositLimit?: string): Promise<boolean> {
+  async requestKyc(
+    @GetJwt() jwt: JwtPayload,
+    @Query('depositLimit') depositLimit?: string,
+  ): Promise<boolean | ChatBotResponse> {
     return this.userService.requestKyc(jwt.id, depositLimit);
   }
 
