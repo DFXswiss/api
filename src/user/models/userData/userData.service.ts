@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycState, KycStatus, UserData } from './userData.entity';
-import { ChatBotResponse, CheckResult, Customer, IdentificationResponse } from 'src/user/services/kyc/dto/kyc.dto';
+import { ChatBotResponse, CheckResult, Customer } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
@@ -151,7 +151,7 @@ export class UserDataService {
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);
       return chatBotData;
-    } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT && userData?.kycState === KycState.FAILED) {
+    } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
       // change state back to NA
       userData.kycState = KycState.NA;
       // start onboarding
