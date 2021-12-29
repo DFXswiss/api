@@ -70,4 +70,8 @@ export class SellService {
   async count(): Promise<number> {
     return this.sellRepo.count();
   }
+
+  async updateVolume(sellId: number, volume: number): Promise<void> {
+    await this.sellRepo.update(sellId, { volume });
+  }
 }

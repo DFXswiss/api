@@ -1,14 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { stringify } from 'querystring';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Buy } from 'src/user/models/buy/buy.entity';
 import { BuyService } from 'src/user/models/buy/buy.service';
-import { BankTx } from '../bank-tx/bank-tx.entity';
+import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
-import { CryptoBuyDto } from './dto/crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
 
 @Injectable()
@@ -18,6 +16,7 @@ export class CryptoBuyService {
     private readonly bankTxRepo: BankTxRepository,
     private readonly buyService: BuyService,
     private readonly fiatService: FiatService,
+    private readonly userService: UserService,
   ) {}
 
   async create(dto: CreateCryptoBuyDto): Promise<CryptoBuy> {
@@ -25,49 +24,79 @@ export class CryptoBuyService {
     if (entity) throw new ConflictException('There is already a crypto buy for the specified bank TX');
 
     entity = await this.createEntity(dto);
-    return this.cryptoBuyRepo.save(entity);
+    entity = await this.cryptoBuyRepo.save(entity);
+
+    await this.updateBuyVolume([entity.buy?.id]);
+    await this.updateRefVolume([entity.usedRef]);
+    return entity;
   }
 
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
-    const entity = await this.cryptoBuyRepo.findOne(id);
+    let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+
+    const buyIdBefore = entity.buy?.id;
+    const usedRefBefore = entity.usedRef;
 
     const update = await this.createEntity(dto);
 
-    return await this.cryptoBuyRepo.save({ ...entity, ...update });
+    entity = await this.cryptoBuyRepo.save({ ...entity, ...update });
+
+    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    return entity;
   }
 
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateCryptoBuyDto | UpdateCryptoBuyDto): Promise<CryptoBuy> {
     const cryptoBuy = this.cryptoBuyRepo.create(dto);
-    cryptoBuy.bankTx = await this.getBankTx(dto);
-    cryptoBuy.buy = await this.getBuy(dto);
-    cryptoBuy.fiat = await this.getFiat(dto);
+
+    // bank tx
+    if (dto.bankTxId) {
+      cryptoBuy.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
+      if (!cryptoBuy.bankTx) throw new NotFoundException('No bank TX for ID found');
+    }
+
+    // buy
+    if (dto.buyId) {
+      cryptoBuy.buy = await this.buyService.getBuy(dto.buyId);
+      if (!cryptoBuy.buy) throw new NotFoundException('No buy for ID found');
+    }
+
+    // fiat
+    if (dto.currency) {
+      cryptoBuy.fiat = await this.fiatService.getFiat(dto.currency);
+      if (!cryptoBuy.fiat) throw new NotFoundException('No fiat for ID found');
+    }
 
     return cryptoBuy;
   }
 
-  private async getBankTx(dto: CreateCryptoBuyDto | UpdateCryptoBuyDto): Promise<BankTx | undefined> {
-    if (!dto.bankTxId) return undefined;
+  private async updateBuyVolume(buyIds: number[]): Promise<void> {
+    buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
-    const bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-    if (!bankTx) throw new NotFoundException('No bank TX for ID found');
-    return bankTx;
+    for (const id of buyIds) {
+      const { volume } = await this.cryptoBuyRepo
+        .createQueryBuilder('cryptoBuy')
+        .select('SUM(amount)', 'volume')
+        .where('buyId = :id', { id: id })
+        .getRawOne<{ volume: number }>();
+
+      await this.buyService.updateVolume(id, volume ?? 0);
+    }
   }
 
-  private async getBuy(dto: CryptoBuyDto): Promise<Buy | undefined> {
-    if (!dto.buyId) return undefined;
+  private async updateRefVolume(refs: string[]): Promise<void> {
+    refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
-    const buy = await this.buyService.getBuy(dto.buyId);
-    if (!buy) throw new NotFoundException('No buy for ID found');
-    return buy;
-  }
+    for (const ref of refs) {
+      const { volume } = await this.cryptoBuyRepo
+        .createQueryBuilder('cryptoBuy')
+        .select('SUM(amount * refFactor)', 'volume')
+        .where('usedRef = :ref', { ref })
+        .getRawOne<{ volume: number }>();
 
-  private async getFiat(dto: CryptoBuyDto): Promise<Fiat | undefined> {
-    if (!dto.currency) return undefined;
-
-    const fiat = await this.fiatService.getFiat(dto.currency);
-    if (!fiat) throw new NotFoundException('No fiat for ID found');
-    return fiat;
+      await this.userService.updateRefVolume(ref, volume ?? 0);
+    }
   }
 }

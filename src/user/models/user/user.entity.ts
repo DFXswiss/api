@@ -47,6 +47,9 @@ export class User {
   @ManyToOne(() => Asset, { eager: true })
   refFeeAsset: Asset;
 
+  @Column({ type: 'float', default: 0 })
+  refVolume: number;
+
   @Column({ length: 256, unique: true })
   address: string;
 
