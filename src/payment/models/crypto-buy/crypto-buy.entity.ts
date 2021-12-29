@@ -67,6 +67,9 @@ export class CryptoBuy {
   @Column({ length: 256, nullable: true })
   usedRef: string;
 
+  @Column({ type: 'float', nullable: true })
+  refFactor: number;
+
   @Column({ type: 'datetime2', nullable: true })
   timeStamp: Date;
 

@@ -81,6 +81,11 @@ export abstract class CryptoBuyDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsNumber()
+  refFactor: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsDate()
   @Type(() => Date)
   timeStamp: Date;

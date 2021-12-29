@@ -40,7 +40,7 @@ export class UserData {
   @Column({ length: 256, default: KycState.NA })
   kycState: KycState;
 
-  @Column({ type: 'float', default: 45000 })
+  @Column({ type: 'float', default: 90000 })
   depositLimit: number;
 
   @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true, eager: true })
