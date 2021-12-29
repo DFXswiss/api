@@ -25,7 +25,7 @@ export class CryptoBuyController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async update(@Param('id') id: number, @Body() dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
-    return this.cryptoBuyService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
+    return this.cryptoBuyService.update(+id, dto);
   }
 }

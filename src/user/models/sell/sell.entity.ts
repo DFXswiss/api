@@ -25,12 +25,15 @@ export class Sell {
   @ManyToOne(() => Fiat, { eager: true, nullable: false })
   fiat: Fiat;
 
-  @OneToOne(() => Deposit, (deposit) => deposit.sell, { eager: true, nullable: false })
-  @JoinColumn()
-  deposit: Deposit;
+  @Column({ type: 'float', default: 0 })
+  volume: number;
 
   @Column({ default: true })
   active: boolean;
+
+  @OneToOne(() => Deposit, (deposit) => deposit.sell, { eager: true, nullable: false })
+  @JoinColumn()
+  deposit: Deposit;
 
   @ManyToOne(() => User, (user) => user.sells, { nullable: false })
   user: User;

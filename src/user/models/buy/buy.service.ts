@@ -55,4 +55,8 @@ export class BuyService {
   async count(): Promise<number> {
     return this.buyRepo.count();
   }
+
+  async updateVolume(buyId: number, volume: number): Promise<void> {
+    await this.buyRepo.update(buyId, { volume });
+  }
 }

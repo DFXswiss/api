@@ -24,6 +24,9 @@ export class Buy {
   @Column({ length: 256, unique: true })
   bankUsage: string;
 
+  @Column({ type: 'float', default: 0 })
+  volume: number;
+
   @Column({ default: true })
   active: boolean;
 
