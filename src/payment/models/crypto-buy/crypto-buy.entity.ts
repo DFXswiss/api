@@ -22,8 +22,8 @@ export class CryptoBuy {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 256, nullable: true })
-  date: string;
+  @Column({ type: 'datetime2', nullable: true })
+  inputDate: Date;
 
   @Column({ type: 'float', nullable: true })
   amount: number;
@@ -71,7 +71,7 @@ export class CryptoBuy {
   refFactor: number;
 
   @Column({ type: 'datetime2', nullable: true })
-  timeStamp: Date;
+  outputDate: Date;
 
   @Column({ length: 256, nullable: true })
   recipientMail: string;
