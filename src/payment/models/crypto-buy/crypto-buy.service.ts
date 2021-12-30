@@ -4,7 +4,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyService } from 'src/user/models/buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { CryptoBuy } from './crypto-buy.entity';
+import { AmlCheck, CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
@@ -80,6 +80,7 @@ export class CryptoBuyService {
         .createQueryBuilder('cryptoBuy')
         .select('SUM(amount)', 'volume')
         .where('buyId = :id', { id: id })
+        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();
 
       await this.buyService.updateVolume(id, volume ?? 0);
@@ -94,6 +95,7 @@ export class CryptoBuyService {
         .createQueryBuilder('cryptoBuy')
         .select('SUM(amount * refFactor)', 'volume')
         .where('usedRef = :ref', { ref })
+        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();
 
       await this.userService.updateRefVolume(ref, volume ?? 0);

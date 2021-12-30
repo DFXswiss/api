@@ -6,8 +6,9 @@ import { AmlCheck } from '../crypto-buy.entity';
 export abstract class CryptoBuyDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  date: string;
+  @IsDate()
+  @Type(() => Date)
+  inputDate: Date;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -88,7 +89,7 @@ export abstract class CryptoBuyDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  timeStamp: Date;
+  outputDate: Date;
 
   @ApiPropertyOptional()
   @IsOptional()
