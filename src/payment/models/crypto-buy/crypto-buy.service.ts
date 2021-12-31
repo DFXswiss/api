@@ -91,14 +91,15 @@ export class CryptoBuyService {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {
-      const { volume } = await this.cryptoBuyRepo
+      const { volume, credit } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
         .select('SUM(amount * refFactor)', 'volume')
+        .addSelect('SUM(amount * refFactor * refProvision)', 'credit')
         .where('usedRef = :ref', { ref })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
-        .getRawOne<{ volume: number }>();
+        .getRawOne<{ volume: number; credit: number }>();
 
-      await this.userService.updateRefVolume(ref, volume ?? 0);
+      await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
     }
   }
 }

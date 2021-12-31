@@ -210,7 +210,7 @@ export class UserService {
     };
   }
 
-  async updateRefVolume(ref: string, volume: number): Promise<void> {
-    await this.userRepo.update({ ref }, { refVolume: volume });
+  async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
+    await this.userRepo.update({ ref }, { refVolume: volume, refCredit: credit });
   }
 }
