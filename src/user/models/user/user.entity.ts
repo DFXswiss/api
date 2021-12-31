@@ -50,6 +50,9 @@ export class User {
   @Column({ type: 'float', default: 0 })
   refVolume: number;
 
+  @Column({ type: 'float', default: 0 })
+  refCredit: number;
+
   @Column({ length: 256, unique: true })
   address: string;
 

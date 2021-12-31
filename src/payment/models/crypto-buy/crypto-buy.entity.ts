@@ -70,6 +70,9 @@ export class CryptoBuy {
   @Column({ type: 'float', nullable: true })
   refFactor: number;
 
+  @Column({ type: 'float', nullable: true })
+  refProvision: number;
+
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 
