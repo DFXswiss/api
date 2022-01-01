@@ -203,9 +203,9 @@ export class UserService {
     const refUser = await this.userRepo.findOne({ ref: user.usedRef });
     const refBonus = 1 - (refUser?.refFeePercent ?? 1);
     return {
-      buy: 3 - refBonus,
+      buy: 2.9 - refBonus,
       refBonus,
-      sell: 3,
+      sell: 2.9,
     };
   }
 
