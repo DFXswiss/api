@@ -60,7 +60,7 @@ export class MailService {
 
     const htmlUserBody = `<p>your KYC process is complete and will be checked manually.</p>
     <p>You can now transfer 90 000 € per year.</p>
-    <p>This is a default setting, we can always offer more.</p> 
+    <p>This is a default setting, which can be increased at any time.</p> 
     <p>Just click the button "Increase limit" on the payment page or send a mail to support@dfx.swiss.</p>`;
 
     await this.sendMail(mail, `Hi ${firstName}`, 'KYC process is complete', htmlUserBody);
