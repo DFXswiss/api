@@ -50,7 +50,7 @@ export class KycApiService {
           houseNumber: user.houseNumber,
           zipCode: user.zip,
           city: user.location,
-          countryCode: user.country?.symbol?.toLowerCase() ?? 'de',
+          countryCode: user.country?.symbol?.toUpperCase() ?? 'DE',
         },
       ],
       preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
