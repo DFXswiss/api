@@ -58,11 +58,11 @@ export class LogService {
 
         createLogDto.user = userObject;
         createLogDto.usedRef = userObject.usedRef;
-        createLogDto.refFeePercent = userObject.refFeePercent;
+        //createLogDto.refFeePercent = userObject.refFeePercent;
         createLogDto.usedWallet = userObject.wallet.id;
       } else if (createLogDto.user) {
         createLogDto.usedRef = createLogDto.user.usedRef;
-        createLogDto.refFeePercent = createLogDto.user.refFeePercent;
+        //createLogDto.refFeePercent = createLogDto.user.refFeePercent;
         createLogDto.usedWallet = createLogDto.user.wallet.id;
       } else {
         delete createLogDto.usedRef;
