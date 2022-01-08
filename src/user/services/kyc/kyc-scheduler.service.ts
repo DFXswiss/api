@@ -35,9 +35,7 @@ export class KycSchedulerService {
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
       const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
-      if (['a', 'b'].includes(resultNameCheck?.risks?.[0].categoryKey)) {
-        await this.kycApi.checkCustomer(userData.id);
-      }
+      await this.kycApi.checkCustomer(userData.id);
       await this.kycApi.initiateOnlineIdentification(userData.id);
       //await this.kycApi.initiateDocumentUpload(userData.id, [KycDocument.INVOICE]);
       return userData;

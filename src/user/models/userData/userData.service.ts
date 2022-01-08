@@ -2,11 +2,19 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycState, KycStatus, UserData } from './userData.entity';
-import { ChatBotResponse, CheckResult, Customer } from 'src/user/services/kyc/dto/kyc.dto';
+import {
+  ChatBotResponse,
+  CheckResult,
+  Customer,
+  KycContentType,
+  KycDocument,
+  State,
+} from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
 import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
+import { AccountType } from '../user/user.entity';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -145,6 +153,60 @@ export class UserDataService {
       const kycUserNew = await this.kycApi.updateCustomer(userData.id, user);
 
       if (!kycUser && kycUserNew) await this.kycApi.checkCustomer(userData.id);
+
+      /*  const kycVersion = await this.kycApi.createDocumentVersion(
+        userData.id,
+        KycDocument.INITIAL_CUSTOMER_INFORMATION,
+        'v1',
+      );
+
+      const kycVersionPart = await this.kycApi.createDocumentVersionPart(
+        userData.id,
+        KycDocument.INITIAL_CUSTOMER_INFORMATION,
+        'v1',
+        'content',
+        'initial-customer-information.json',
+        KycContentType.JSON,
+      ); */
+
+      const employer = {
+        name: user.organizationName,
+        address: `${user.organizationStreet} ${user.organizationHouseNumber}, ${user.organizationZip} ${user.organizationLocation}, ${user.organizationCountry.symbol}`,
+      };
+
+      const initialCustomerInformation = {
+        type: 'AdditionalPersonInformation',
+        nickName: user.firstname,
+        onlyOwner: 'YES',
+        businessActivity: {
+          employer: employer,
+          purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        },
+      };
+
+      if (user.accountType === AccountType.PERSONAL) {
+        delete initialCustomerInformation.businessActivity.employer;
+      } else {
+        await this.kycApi.submitContractLinked(userData.id,user);
+      }
+
+     /*  const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
+        userData.id,
+        'v1',
+        KycDocument.INITIAL_CUSTOMER_INFORMATION,
+        'content',
+        KycContentType.JSON,
+        initialCustomerInformation,
+      );
+ */
+/*       if (uploadInitialCustomerInformation) {
+        const changeDocumentState = await this.kycApi.changeDocumentState(
+          userData.id,
+          'v1',
+          KycDocument.INITIAL_CUSTOMER_INFORMATION,
+          JSON.stringify(State.COMPLETED),
+        );
+      } */
       // start onboarding
       const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
       // set status to chatbot

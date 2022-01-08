@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { User } from 'src/user/models/user/user.entity';
+import { KycState } from 'src/user/models/userData/userData.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -13,7 +14,11 @@ import {
   Customer,
   CustomerInformationResponse,
   IdentificationResponse,
+  KycContentType,
   KycDocument,
+  KycRelationType,
+  State,
+  SubmitResponse,
 } from './dto/kyc.dto';
 
 @Injectable()
@@ -128,8 +133,38 @@ export class KycApiService {
       contractReference: this.reference(fileReference),
     };
 
-    const result = await this.callApi<any>('customers/contract-linked', 'POST', data);
+    const result = await this.callApi<ChatBotResponse>('customers/contract-linked', 'POST', data);
     return result[0];
+  }
+
+  async submitContractLinked(id: number, user: User): Promise<SubmitResponse> {
+    const data = {
+      customer: {
+        reference: this.reference(id),
+        type: 'PERSON',
+        names: [{ firstName: user.firstname, lastName: user.surname }],
+        countriesOfResidence: [user.country.symbol],
+        emails: [user.mail],
+        telephones: [user.phone?.replace('+', '').replace(' ', '')],
+        structuredAddresses: [
+          {
+            type: 'BASIC',
+            street: user.street,
+            houseNumber: user.houseNumber,
+            zipCode: user.zip,
+            city: user.location,
+            countryCode: user.country?.symbol?.toUpperCase() ?? 'DE',
+          },
+        ],
+        preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
+        activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
+      },
+      contractReference: null,
+      relationTypes: [KycRelationType.CONVERSION_PARTNER],
+    };
+
+    const result = await this.callApi<SubmitResponse>('customers/contract-linked', 'POST', data);
+    return result;
   }
 
   async initiateOnlineIdentification(id: number): Promise<IdentificationResponse> {
@@ -153,15 +188,40 @@ export class KycApiService {
     return result[0];
   }
 
-  async uploadDocument(id: number, kycDocumentVersion: string, kycDocument: KycDocument): Promise<boolean> {
+  async uploadDocument(
+    id: number,
+    kycDocumentVersion: string,
+    kycDocument: KycDocument,
+    kycDocumentPart: string,
+    kycContentType: KycContentType,
+    kycData: any,
+  ): Promise<boolean> {
     //TODO BODY with IMG rawData
 
     const result = await this.callApi<string>(
       `customers/${this.reference(
         id,
-      )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentVersion}`,
+      )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
       'PUT',
-      'image/jpeg',
+      kycData,
+      kycContentType,
+    );
+
+    return result === 'done';
+  }
+
+  async changeDocumentState(
+    id: number,
+    kycDocumentVersion: string,
+    kycDocument: KycDocument,
+    kycState: string,
+  ): Promise<boolean> {
+    //TODO BODY with IMG rawData
+
+    const result = await this.callApi<string>(
+      `customers/${this.reference(id)}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
+      'PUT',
+      kycState,
     );
 
     return result === 'done';
@@ -179,8 +239,7 @@ export class KycApiService {
 
   async createDocumentVersion(id: number, document: KycDocument, version: string): Promise<boolean> {
     const data = {
-      name: 'ident',
-      state: 'PENDING',
+      name: version,
     };
 
     const result = await this.callApi<string>(
@@ -191,12 +250,19 @@ export class KycApiService {
     return result === 'done';
   }
 
-  async createDocumentVersionPart(id: number, document: KycDocument, version: string, part: string): Promise<boolean> {
+  async createDocumentVersionPart(
+    id: number,
+    document: KycDocument,
+    version: string,
+    part: string,
+    fileName: string,
+    contentType: KycContentType,
+  ): Promise<boolean> {
     const data = {
       name: part,
       label: part,
-      fileName: part + '.png',
-      contentType: 'image/png',
+      fileName: fileName,
+      contentType: contentType,
     };
 
     const result = await this.callApi<string>(
