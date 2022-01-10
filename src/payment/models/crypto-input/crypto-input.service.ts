@@ -43,14 +43,14 @@ export class CryptoInputService {
         .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
         .then((i) => i.filter((h) => h.type === 'receive'))
+        // map to entities
+        .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
+        .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
+        .then((i) => i.filter((e) => e != null && e.amount > 0.1 )) // min. deposit limit
         .then((i) => {
           if (i.length > 0) console.log('New crypto inputs:', i);
           return i;
         })
-        // map to entities
-        .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
-        .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
-        .then((i) => i.filter((e) => e != null))
         // save and forward
         .then((i) => Promise.all(i.map((e) => this.saveAndForward(e))));
     } catch (e) {
@@ -97,8 +97,11 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // store BTC price
-      const btcAmount = await this.client.testPoolSwap(input.sell.deposit.address, 'DFI', 'USDT', input.amount);
-      await this.cryptoInputRepo.update({ id: input.id }, { btcAmount: +btcAmount.split('@')[0] });
+      const usdtAmount = await this.client.testPoolSwap(input.sell.deposit.address, 'DFI', 'USDT', input.amount);
+      await this.cryptoInputRepo.update(
+        { id: input.id },
+        { btcAmount: +usdtAmount.split('@')[0], usdtAmount: +usdtAmount.split('@')[0] },
+      );
 
       // forward
       // TODO: switch on type (for Token)

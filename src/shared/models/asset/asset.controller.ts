@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiParam, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from './asset.service';
@@ -21,15 +23,23 @@ export class AssetController {
     schema: { oneOf: [{ type: 'string' }, { type: 'integer' }] },
   })
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAsset(@Param() key: any): Promise<any> {
-    return this.assetService.getAsset(key);
+  async getAsset(@Param() key: any, @GetJwt() jwt: JwtPayload): Promise<any> {
+    const asset = await this.assetService.getAsset(key);
+    if (jwt.role !== UserRole.ADMIN) delete asset['sellCommand'];
+    return asset;
   }
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllAsset(): Promise<any> {
-    return this.assetService.getAllAsset();
+  async getAllAsset(@GetJwt() jwt: JwtPayload): Promise<any> {
+    const asset = await this.assetService.getAllAsset();
+    if (jwt.role !== UserRole.ADMIN) {
+      for (let a = 0; a < asset.length; a++) {
+        delete asset[a]['sellCommand'];
+      }
+    }
+    return asset;
   }
 
   @Post()
