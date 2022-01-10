@@ -5,16 +5,14 @@ import { UpdateAssetDto } from './dto/update-asset.dto';
 
 @Injectable()
 export class AssetService {
-  constructor(
-    private assetRepository: AssetRepository,
-  ) {}
+  constructor(private assetRepository: AssetRepository) {}
 
   async createAsset(createAssetDto: CreateAssetDto): Promise<any> {
     return this.assetRepository.createAsset(createAssetDto);
   }
 
   async getAllAsset(): Promise<any> {
-    return this.assetRepository.getAllAsset();
+    return this.assetRepository.find();
   }
 
   async updateAsset(asset: UpdateAssetDto): Promise<any> {
