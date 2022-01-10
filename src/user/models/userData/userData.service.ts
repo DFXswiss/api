@@ -154,7 +154,7 @@ export class UserDataService {
 
       if (!kycUser && kycUserNew) await this.kycApi.checkCustomer(userData.id);
 
-      /*  const kycVersion = await this.kycApi.createDocumentVersion(
+      const kycVersion = await this.kycApi.createDocumentVersion(
         userData.id,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'v1',
@@ -167,7 +167,7 @@ export class UserDataService {
         'content',
         'initial-customer-information.json',
         KycContentType.JSON,
-      ); */
+      );
 
       const employer = {
         name: user.organizationName,
@@ -187,10 +187,10 @@ export class UserDataService {
       if (user.accountType === AccountType.PERSONAL) {
         delete initialCustomerInformation.businessActivity.employer;
       } else {
-        await this.kycApi.submitContractLinked(userData.id,user);
+        await this.kycApi.submitContractLinked(userData.id, user);
       }
 
-     /*  const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
+      const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
         userData.id,
         'v1',
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
@@ -198,15 +198,15 @@ export class UserDataService {
         KycContentType.JSON,
         initialCustomerInformation,
       );
- */
-/*       if (uploadInitialCustomerInformation) {
+
+      if (uploadInitialCustomerInformation) {
         const changeDocumentState = await this.kycApi.changeDocumentState(
           userData.id,
           'v1',
           KycDocument.INITIAL_CUSTOMER_INFORMATION,
           JSON.stringify(State.COMPLETED),
         );
-      } */
+      }
       // start onboarding
       const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
       // set status to chatbot
