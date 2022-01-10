@@ -43,14 +43,14 @@ export class CryptoInputService {
         .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
         .then((i) => i.filter((h) => h.type === 'receive'))
+        // map to entities
+        .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
+        .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
+        .then((i) => i.filter((e) => e != null && e.amount > 0.1 )) // min. deposit limit
         .then((i) => {
           if (i.length > 0) console.log('New crypto inputs:', i);
           return i;
         })
-        // map to entities
-        .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
-        .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
-        .then((i) => i.filter((e) => e != null))
         // save and forward
         .then((i) => Promise.all(i.map((e) => this.saveAndForward(e))));
     } catch (e) {
