@@ -24,7 +24,7 @@ export class AssetController {
   })
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAsset(@Param() key: any, @GetJwt() jwt: JwtPayload): Promise<any> {
-    let asset = await this.assetService.getAsset(key);
+    const asset = await this.assetService.getAsset(key);
     if (jwt.role !== UserRole.ADMIN) delete asset['sellCommand'];
     return asset;
   }
@@ -33,7 +33,7 @@ export class AssetController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllAsset(@GetJwt() jwt: JwtPayload): Promise<any> {
-    let asset = await this.assetService.getAllAsset();
+    const asset = await this.assetService.getAllAsset();
     if (jwt.role !== UserRole.ADMIN) {
       for (let a = 0; a < asset.length; a++) {
         delete asset[a]['sellCommand'];
