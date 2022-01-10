@@ -97,8 +97,11 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // store BTC price
-      const btcAmount = await this.client.testPoolSwap(input.sell.deposit.address, 'DFI', 'USDT', input.amount);
-      await this.cryptoInputRepo.update({ id: input.id }, { btcAmount: +btcAmount.split('@')[0] });
+      const usdtAmount = await this.client.testPoolSwap(input.sell.deposit.address, 'DFI', 'USDT', input.amount);
+      await this.cryptoInputRepo.update(
+        { id: input.id },
+        { btcAmount: +usdtAmount.split('@')[0], usdtAmount: +usdtAmount.split('@')[0] },
+      );
 
       // forward
       // TODO: switch on type (for Token)

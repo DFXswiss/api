@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { AssetType } from '../asset.entity';
 
 export class UpdateAssetDto {
@@ -10,26 +10,46 @@ export class UpdateAssetDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsString()
+  @IsNumber()
   chainId: number;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
+  @IsNumber()
+  minDepositAmount: number;
+
+  @ApiProperty()
+  @IsOptional()
   @IsString()
   name: string;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
+  @IsString()
+  dexName: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  sellCommand: string;
+
+  @ApiProperty()
+  @IsOptional()
   @IsEnum(AssetType)
   type: AssetType;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
+  @IsBoolean()
+  isLP: boolean;
+
+  @ApiProperty()
+  @IsOptional()
   @IsBoolean()
   sellable: boolean;
 
   @ApiProperty()
-  @IsNotEmpty()
+  @IsOptional()
   @IsBoolean()
   buyable: boolean;
 }
