@@ -86,6 +86,12 @@ export interface ChatBotResponse {
   version: string;
 }
 
+export interface SubmitResponse {
+  customerReference: string;
+  customerId: number;
+  customerVersionId: number;
+}
+
 export interface IdentificationResponse {
   document: string;
   reference: string;
