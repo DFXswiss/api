@@ -1,7 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { LogRepository } from './log.repository';
 import { CreateLogDto } from './dto/create-log.dto';
-import { MailService } from 'src/shared/services/mail.service';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { HttpService } from 'src/shared/services/http.service';
 import { LogDirection, LogType } from './log.entity';
@@ -18,7 +17,6 @@ import { Util } from 'src/shared/util';
 export class LogService {
   constructor(
     private logRepository: LogRepository,
-    private mailService: MailService,
     private http: HttpService,
     private assetService: AssetService,
     private fiatService: FiatService,
@@ -75,7 +73,7 @@ export class LogService {
       delete createLogDto.refFeePercent;
     }
 
-    return this.logRepository.createLog(createLogDto, this.assetService, this.fiatService, this.mailService);
+    return this.logRepository.createLog(createLogDto, this.assetService, this.fiatService);
   }
 
   async createVolumeLog(createLogDto: CreateVolumeLogDto): Promise<any> {
