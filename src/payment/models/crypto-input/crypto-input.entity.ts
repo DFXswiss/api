@@ -23,6 +23,9 @@ export class CryptoInput {
   @Column({ type: 'float', nullable: true })
   btcAmount?: number;
 
+  @Column({ type: 'float', nullable: true })
+  usdtAmount?: number;
+
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   asset: Asset;
 
