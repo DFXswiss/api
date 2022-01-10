@@ -21,6 +21,7 @@ import { TradeResult, TradeStatus } from './dto/trade-result.dto';
 import { WithdrawalOrder } from './dto/withdrawal-order.dto';
 import { ExchangeService } from './exchange.service';
 import { KrakenService } from './kraken.service';
+import { Util } from 'src/shared/util';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -51,7 +52,7 @@ export class ExchangeController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async trade(@Param('exchange') exchange: string, @Body() orderDto: TradeOrder): Promise<number> {
     // register trade
-    const tradeId = Math.round(Math.random() * 1000000000);
+    const tradeId = Util.randomId();
     this.trades[tradeId] = { status: TradeStatus.OPEN };
 
     // run trade (without waiting)

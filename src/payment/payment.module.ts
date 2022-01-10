@@ -17,6 +17,8 @@ import { BinanceService } from './models/exchange/binance.service';
 import { CryptoBuyRepository } from './models/crypto-buy/crypto-buy.repository';
 import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
 import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
+import { TransactionController } from './models/transaction/transaction.controller';
+import { TransactionService } from './models/transaction/transaction.service';
 
 @Module({
   imports: [
@@ -31,7 +33,7 @@ import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
     AinModule,
     UserModule,
   ],
-  controllers: [BankTxController, BankController, ExchangeController, CryptoBuyController],
+  controllers: [BankTxController, BankController, ExchangeController, CryptoBuyController, TransactionController],
   providers: [
     CryptoInputService,
     CryptoBuyService,
@@ -39,7 +41,7 @@ import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
     BankService,
     KrakenService,
     BinanceService,
-    CryptoBuyService,
+    TransactionService,
   ],
   exports: [],
 })

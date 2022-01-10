@@ -28,7 +28,7 @@ export class CryptoBuy {
   @Column({ type: 'float', nullable: true })
   amount: number;
 
-  @ManyToOne(() => Fiat, { nullable: true })
+  @ManyToOne(() => Fiat, { nullable: true, eager: true })
   fiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
