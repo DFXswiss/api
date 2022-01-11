@@ -17,6 +17,12 @@
     "dbAdminPassword": {
       "value": "xxx"
     },
+    "dbTier": {
+      "value": "Basic"
+    },
+    "dbCapacity": {
+      "value": 5
+    },
     "mailClientSecret": {
       "value": "xxx"
     },
