@@ -35,8 +35,8 @@ export class AssetController {
   async getAllAsset(@GetJwt() jwt: JwtPayload): Promise<any> {
     const asset = await this.assetService.getAllAsset();
     if (jwt.role !== UserRole.ADMIN) {
-      for (let a = 0; a < asset.length; a++) {
-        delete asset[a]['sellCommand'];
+      for (const a of asset) {
+        delete a['sellCommand'];
       }
     }
     return asset;
