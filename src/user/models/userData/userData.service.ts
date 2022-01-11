@@ -158,12 +158,7 @@ export class UserDataService {
 
       await this.kycApi.checkCustomer(userData.id);
 
-      await this.kycApi.createDocumentVersion(
-        userData.id,
-        KycDocument.INITIAL_CUSTOMER_INFORMATION,
-        'v1',
-        false,
-      );
+      await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', false);
 
       await this.kycApi.createDocumentVersionPart(
         userData.id,
@@ -205,12 +200,7 @@ export class UserDataService {
       }
 
       if (user.accountType === AccountType.BUSINESS) {
-        await this.kycApi.createDocumentVersion(
-          userData.id,
-          KycDocument.INITIAL_CUSTOMER_INFORMATION,
-          'v1',
-          true,
-        );
+        await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', true);
 
         await this.kycApi.createDocumentVersionPart(
           userData.id,
@@ -250,18 +240,18 @@ export class UserDataService {
       }
 
       // get onboarding information
-      const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
+      const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, true);
       // set status to chatbot
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
       await this.userDataRepo.save(userData);
-      return chatBotData;
+      return true;
     } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
       // change state back to NA
       userData.kycState = KycState.NA;
       // start onboarding
-      const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
+      await this.kycApi.initiateOnboardingChatBot(userData.id, true);
       await this.userDataRepo.save(userData);
-      return chatBotData;
+      return true;
     } else if (userData?.kycStatus === KycStatus.WAIT_VIDEO_ID && userData?.kycState === KycState.FAILED) {
       // change state back to NA
       userData.kycState = KycState.NA;
