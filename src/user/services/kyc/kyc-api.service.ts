@@ -135,35 +135,6 @@ export class KycApiService {
     return result[0];
   }
 
-  async submitContractLinked(id: number, user: User): Promise<SubmitResponse> {
-    const person = {
-      contractReference: 'test_1235',
-      customer: {
-        reference: this.reference(id),
-        type: 'PERSON',
-        names: [{ firstName: user.firstname, lastName: user.surname }],
-        countriesOfResidence: [user.country.symbol],
-        emails: [user.mail],
-        telephones: [user.phone?.replace('+', '').replace(' ', '')],
-        structuredAddresses: [
-          {
-            type: 'BASIC',
-            street: user.street,
-            houseNumber: user.houseNumber,
-            zipCode: user.zip,
-            city: user.location,
-            countryCode: user.country?.symbol?.toUpperCase() ?? 'DE',
-          },
-        ],
-        preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
-        activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
-      },
-      relationTypes: [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
-    };
-    const result = await this.callApi<SubmitResponse>('customers/contract-linked', 'POST', person);
-    return result;
-  }
-
   async submitContractLinkedList(id: number, user: User): Promise<SubmitResponse[]> {
     let organisation = {};
     const person = {
