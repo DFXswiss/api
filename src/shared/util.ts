@@ -5,6 +5,10 @@ export class Util {
     return Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
   }
 
+  static randomId(): number {
+    return Math.round(Math.random() * 1000000000);
+  }
+
   static async readFileFromDisk(fileName: string): Promise<string> {
     return new Promise((resolve, reject) =>
       readFile(fileName, (err, data) => {

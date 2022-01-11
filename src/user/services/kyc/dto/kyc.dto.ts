@@ -4,6 +4,21 @@ export enum State {
   FAILED = 'FAILED',
 }
 
+export enum KycContentType {
+  IMAGE = 'image/png',
+  JSON = 'application/json',
+  TEXT = 'text/plain',
+}
+
+export enum KycRelationType {
+  ADMINISTRATOR = 'administrator',
+  BENEFICIAL_OWNER = 'beneficial-owner',
+  CONTRACTING_PARTNER = 'contracting-partner',
+  CONTROLLER = 'controller',
+  CONVERSION_PARTNER = 'conversation-partner',
+  INACTIVE = 'inactive',
+}
+
 export enum KycDocument {
   CHATBOT = 'chatbot-onboarding',
   ADDITIONAL_INFORMATION = 'additional-information',
@@ -24,6 +39,7 @@ export enum KycDocument {
   EDD = 'edd',
   FINANCIAL_STATEMENTS = 'financial-statements',
   INCORPORATION_CERTIFICATE = 'incorporation_certificate',
+  INITIAL_CUSTOMER_INFORMATION = 'initial-customer-information',
   INVOICE = 'invoice',
   MRZ = 'mrz',
   ONLINE_IDENTIFICATION = 'online-identification',
@@ -35,6 +51,12 @@ export enum KycDocument {
   USER_ADDED_DOCUMENT = 'user-added-document',
   VERIFICATION = 'verification',
   VIDEO_IDENTIFICATION = 'video_identification',
+}
+
+export interface SubmitResponse {
+  customerReference: string;
+  customerId: number;
+  customerVersionId: number;
 }
 
 export interface Challenge {
@@ -62,6 +84,12 @@ export interface ChatBotResponse {
   reference: string;
   sessionUrl: string;
   version: string;
+}
+
+export interface SubmitResponse {
+  customerReference: string;
+  customerId: number;
+  customerVersionId: number;
 }
 
 export interface IdentificationResponse {
