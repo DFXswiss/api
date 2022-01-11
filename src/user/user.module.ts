@@ -12,6 +12,7 @@ import { AllDataController } from './models/all/all.controller';
 import { AllDataService } from './models/all/all.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
+import { BankDataController } from './models/bankData/bankData.controller';
 import { BankDataRepository } from './models/bankData/bankData.repository';
 import { BankDataService } from './models/bankData/bankData.service';
 import { BuyController } from './models/buy/buy.controller';
@@ -61,6 +62,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     WalletController,
     DepositController,
     UserDataController,
+    BankDataController,
     RefController,
     AllDataController,
     AuthController,

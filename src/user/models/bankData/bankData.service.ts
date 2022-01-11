@@ -37,4 +37,32 @@ export class BankDataService {
 
     return userData;
   }
+
+  async updateBankData(bankDataId: number, newBankData: BankDataDto): Promise<any> {
+    try {
+      const bankData = await this.bankDataRepo.findOne({
+        id: bankDataId,
+      });
+
+      if (!bankData) throw new NotFoundException('No matching bankdata for id found');
+
+      return this.bankDataRepo.save({ ...bankData, ...newBankData });
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
+
+  async deleteBankData(bankDataId: number): Promise<any> {
+    try {
+      const bankData = await this.bankDataRepo.delete({
+        id: bankDataId,
+      });
+
+      if (!bankData) throw new NotFoundException('No matching bank data for id found');
+
+      return true;
+    } catch (error) {
+      throw new ConflictException(error.message);
+    }
+  }
 }
