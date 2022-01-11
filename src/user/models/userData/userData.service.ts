@@ -149,15 +149,20 @@ export class UserDataService {
 
     if (userData?.kycStatus === KycStatus.NA) {
       const kycUser = await this.kycApi.getCustomer(userData.id);
-      // update customer
-      const kycUserNew = await this.kycApi.updateCustomer(userData.id, user);
 
-      if (!kycUser && kycUserNew) await this.kycApi.checkCustomer(userData.id);
+      if (user.accountType === AccountType.BUSINESS) {
+        const submitContract = await this.kycApi.submitContractLinkedList(userData.id, user);
+      } else {
+        const updateUser = await this.kycApi.updateCustomer(userData.id, user);
+      }
+
+      await this.kycApi.checkCustomer(userData.id);
 
       const kycVersion = await this.kycApi.createDocumentVersion(
         userData.id,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'v1',
+        false,
       );
 
       const kycVersionPart = await this.kycApi.createDocumentVersionPart(
@@ -167,28 +172,17 @@ export class UserDataService {
         'content',
         'initial-customer-information.json',
         KycContentType.JSON,
+        false,
       );
 
-      const employer = {
-        name: user.organizationName,
-        address: `${user.organizationStreet} ${user.organizationHouseNumber}, ${user.organizationZip} ${user.organizationLocation}, ${user.organizationCountry.symbol}`,
-      };
-
-      const initialCustomerInformation = {
+      const additionalPersonInformation = {
         type: 'AdditionalPersonInformation',
         nickName: user.firstname,
         onlyOwner: 'YES',
         businessActivity: {
-          employer: employer,
           purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
         },
       };
-
-      if (user.accountType === AccountType.PERSONAL) {
-        delete initialCustomerInformation.businessActivity.employer;
-      } else {
-        await this.kycApi.submitContractLinked(userData.id, user);
-      }
 
       const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
         userData.id,
@@ -196,18 +190,66 @@ export class UserDataService {
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'content',
         KycContentType.JSON,
-        initialCustomerInformation,
+        additionalPersonInformation,
+        false,
       );
 
       if (uploadInitialCustomerInformation) {
-        const changeDocumentState = await this.kycApi.changeDocumentState(
+        await this.kycApi.changeDocumentState(
           userData.id,
           'v1',
           KycDocument.INITIAL_CUSTOMER_INFORMATION,
           JSON.stringify(State.COMPLETED),
+          false,
         );
       }
-      // start onboarding
+
+      if (user.accountType === AccountType.BUSINESS) {
+        const kycVersion = await this.kycApi.createDocumentVersion(
+          userData.id,
+          KycDocument.INITIAL_CUSTOMER_INFORMATION,
+          'v1',
+          true,
+        );
+
+        const kycVersionPart = await this.kycApi.createDocumentVersionPart(
+          userData.id,
+          KycDocument.INITIAL_CUSTOMER_INFORMATION,
+          'v1',
+          'content',
+          'initial-customer-information.json',
+          KycContentType.JSON,
+          true,
+        );
+
+        const additionalOrganisationInformation = {
+          type: 'AdditionalOrganisationInformation',
+          organisationType: 'SOLE_PROPRIETORSHIP',
+          purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        };
+
+        const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
+          userData.id,
+          'v1',
+          KycDocument.INITIAL_CUSTOMER_INFORMATION,
+          'content',
+          KycContentType.JSON,
+          additionalOrganisationInformation,
+          true,
+        );
+
+        if (uploadInitialCustomerInformation) {
+          await this.kycApi.changeDocumentState(
+            userData.id,
+            'v1',
+            KycDocument.INITIAL_CUSTOMER_INFORMATION,
+            JSON.stringify(State.COMPLETED),
+            true,
+          );
+        }
+      }
+
+      // get onboarding information
       const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
       // set status to chatbot
       if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;

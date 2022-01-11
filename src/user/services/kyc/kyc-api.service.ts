@@ -1,8 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
-import { User } from 'src/user/models/user/user.entity';
-import { KycState } from 'src/user/models/userData/userData.entity';
+import { AccountType, User } from 'src/user/models/user/user.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -17,7 +16,6 @@ import {
   KycContentType,
   KycDocument,
   KycRelationType,
-  State,
   SubmitResponse,
 } from './dto/kyc.dto';
 
@@ -138,7 +136,8 @@ export class KycApiService {
   }
 
   async submitContractLinked(id: number, user: User): Promise<SubmitResponse> {
-    const data = {
+    const person = {
+      contractReference: 'test_1235',
       customer: {
         reference: this.reference(id),
         type: 'PERSON',
@@ -159,11 +158,70 @@ export class KycApiService {
         preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
         activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
       },
-      contractReference: null,
-      relationTypes: [KycRelationType.CONVERSION_PARTNER],
+      relationTypes: [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
+    };
+    const result = await this.callApi<SubmitResponse>('customers/contract-linked', 'POST', person);
+    return result;
+  }
+
+  async submitContractLinkedList(id: number, user: User): Promise<SubmitResponse[]> {
+    let organisation = {};
+    const person = {
+      contractReference: user.accountType === AccountType.BUSINESS ? this.reference(id) + '_placeholder' : null,
+      customer: {
+        reference: this.reference(id),
+        type: 'PERSON',
+        names: [{ firstName: user.firstname, lastName: user.surname }],
+        countriesOfResidence: [user.country.symbol],
+        emails: [user.mail],
+        telephones: [user.phone?.replace('+', '').replace(' ', '')],
+        structuredAddresses: [
+          {
+            type: 'BASIC',
+            street: user.street,
+            houseNumber: user.houseNumber,
+            zipCode: user.zip,
+            city: user.location,
+            countryCode: user.country?.symbol?.toUpperCase() ?? 'DE',
+          },
+        ],
+        preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
+        activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
+      },
+      relationTypes:
+        user.accountType === AccountType.BUSINESS
+          ? [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER]
+          : [KycRelationType.CONTRACTING_PARTNER, KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
     };
 
-    const result = await this.callApi<SubmitResponse>('customers/contract-linked', 'POST', data);
+    if (user.accountType === AccountType.BUSINESS) {
+      organisation = {
+        customer: {
+          reference: this.reference(id) + '_organisation',
+          type: 'ORGANISATION',
+          names: [user.organizationName],
+          countriesOfResidence: [user.organizationCountry?.symbol?.toUpperCase() ?? 'DE'],
+          structuredAddresses: [
+            {
+              type: 'BASIC',
+              street: user.organizationStreet,
+              houseNumber: user.organizationHouseNumber,
+              zipCode: user.organizationZip,
+              city: user.organizationLocation,
+              countryCode: user.organizationCountry?.symbol?.toUpperCase() ?? 'DE',
+            },
+          ],
+        },
+        contractReference: this.reference(id) + '_placeholder',
+        relationTypes: [KycRelationType.CONTRACTING_PARTNER],
+      };
+    }
+
+    const result = await this.callApi<SubmitResponse[]>(
+      'customers/contract-linked-list',
+      'POST',
+      user.accountType === AccountType.BUSINESS ? [person, organisation] : [person],
+    );
     return result;
   }
 
@@ -195,13 +253,11 @@ export class KycApiService {
     kycDocumentPart: string,
     kycContentType: KycContentType,
     kycData: any,
+    isOrganisation: boolean,
   ): Promise<boolean> {
-    //TODO BODY with IMG rawData
-
+    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
     const result = await this.callApi<string>(
-      `customers/${this.reference(
-        id,
-      )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
+      `customers/${organisation}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
       'PUT',
       kycData,
       kycContentType,
@@ -215,11 +271,13 @@ export class KycApiService {
     kycDocumentVersion: string,
     kycDocument: KycDocument,
     kycState: string,
+    isOrganisation: boolean,
   ): Promise<boolean> {
     //TODO BODY with IMG rawData
+    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
 
     const result = await this.callApi<string>(
-      `customers/${this.reference(id)}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
+      `customers/${organisation}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
       'PUT',
       kycState,
     );
@@ -237,13 +295,19 @@ export class KycApiService {
     return this.callApi<CheckVersion[]>(`customers/${this.reference(id)}/documents/${document}/versions`, 'GET');
   }
 
-  async createDocumentVersion(id: number, document: KycDocument, version: string): Promise<boolean> {
+  async createDocumentVersion(
+    id: number,
+    document: KycDocument,
+    version: string,
+    isOrganisation: boolean,
+  ): Promise<boolean> {
     const data = {
       name: version,
     };
+    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
 
     const result = await this.callApi<string>(
-      `customers/${this.reference(id)}/documents/${document}/versions/${version}`,
+      `customers/${organisation}/documents/${document}/versions/${version}`,
       'PUT',
       data,
     );
@@ -257,6 +321,7 @@ export class KycApiService {
     part: string,
     fileName: string,
     contentType: KycContentType,
+    isOrganisation: boolean,
   ): Promise<boolean> {
     const data = {
       name: part,
@@ -264,9 +329,9 @@ export class KycApiService {
       fileName: fileName,
       contentType: contentType,
     };
-
+    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
     const result = await this.callApi<string>(
-      `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/${part}/metadata`,
+      `customers/${organisation}/documents/${document}/versions/${version}/parts/${part}/metadata`,
       'PUT',
       data,
     );
