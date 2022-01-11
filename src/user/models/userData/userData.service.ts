@@ -148,24 +148,24 @@ export class UserDataService {
     const userData = user.userData;
 
     if (userData?.kycStatus === KycStatus.NA) {
-      const kycUser = await this.kycApi.getCustomer(userData.id);
+      await this.kycApi.getCustomer(userData.id);
 
       if (user.accountType === AccountType.BUSINESS) {
-        const submitContract = await this.kycApi.submitContractLinkedList(userData.id, user);
+        await this.kycApi.submitContractLinkedList(userData.id, user);
       } else {
-        const updateUser = await this.kycApi.updateCustomer(userData.id, user);
+        await this.kycApi.updateCustomer(userData.id, user);
       }
 
       await this.kycApi.checkCustomer(userData.id);
 
-      const kycVersion = await this.kycApi.createDocumentVersion(
+      await this.kycApi.createDocumentVersion(
         userData.id,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'v1',
         false,
       );
 
-      const kycVersionPart = await this.kycApi.createDocumentVersionPart(
+      await this.kycApi.createDocumentVersionPart(
         userData.id,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'v1',
@@ -205,14 +205,14 @@ export class UserDataService {
       }
 
       if (user.accountType === AccountType.BUSINESS) {
-        const kycVersion = await this.kycApi.createDocumentVersion(
+        await this.kycApi.createDocumentVersion(
           userData.id,
           KycDocument.INITIAL_CUSTOMER_INFORMATION,
           'v1',
           true,
         );
 
-        const kycVersionPart = await this.kycApi.createDocumentVersionPart(
+        await this.kycApi.createDocumentVersionPart(
           userData.id,
           KycDocument.INITIAL_CUSTOMER_INFORMATION,
           'v1',

@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
@@ -11,7 +11,7 @@ import { BankDataService } from 'src/user/models/bankData/bankData.service';
 export class BankDataController {
   constructor(private readonly bankDataService: BankDataService) {}
 
-  @Post(':id/delete')
+  @Delete(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
@@ -19,7 +19,7 @@ export class BankDataController {
     return await this.bankDataService.deleteBankData(+id);
   }
 
-  @Post(':id/update')
+  @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
