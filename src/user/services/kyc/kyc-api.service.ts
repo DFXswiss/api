@@ -136,7 +136,7 @@ export class KycApiService {
   }
 
   async submitContractLinkedList(id: number, user: User): Promise<SubmitResponse[]> {
-    let organisation = {};
+    let organization = {};
     const person = {
       contractReference: user.accountType === AccountType.BUSINESS ? this.reference(id) + '_placeholder' : null,
       customer: {
@@ -166,9 +166,9 @@ export class KycApiService {
     };
 
     if (user.accountType === AccountType.BUSINESS) {
-      organisation = {
+      organization = {
         customer: {
-          reference: this.reference(id) + '_organisation',
+          reference: this.reference(id, true),
           type: 'ORGANISATION',
           names: [user.organizationName],
           countriesOfResidence: [user.organizationCountry?.symbol?.toUpperCase() ?? 'DE'],
@@ -191,7 +191,7 @@ export class KycApiService {
     const result = await this.callApi<SubmitResponse[]>(
       'customers/contract-linked-list',
       'POST',
-      user.accountType === AccountType.BUSINESS ? [person, organisation] : [person],
+      user.accountType === AccountType.BUSINESS ? [person, organization] : [person],
     );
     return result;
   }
@@ -224,11 +224,10 @@ export class KycApiService {
     kycDocumentPart: string,
     kycContentType: KycContentType,
     kycData: any,
-    isOrganisation: boolean,
+    isOrganization: boolean,
   ): Promise<boolean> {
-    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
     const result = await this.callApi<string>(
-      `customers/${organisation}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
+      `customers/${this.reference(id, isOrganization)}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
       'PUT',
       kycData,
       kycContentType,
@@ -242,13 +241,11 @@ export class KycApiService {
     kycDocumentVersion: string,
     kycDocument: KycDocument,
     kycState: string,
-    isOrganisation: boolean,
+    isOrganization: boolean,
   ): Promise<boolean> {
     //TODO BODY with IMG rawData
-    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
-
     const result = await this.callApi<string>(
-      `customers/${organisation}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
+      `customers/${this.reference(id, isOrganization)}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
       'PUT',
       kycState,
     );
@@ -270,15 +267,13 @@ export class KycApiService {
     id: number,
     document: KycDocument,
     version: string,
-    isOrganisation: boolean,
+    isOrganization: boolean,
   ): Promise<boolean> {
     const data = {
       name: version,
     };
-    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
-
     const result = await this.callApi<string>(
-      `customers/${organisation}/documents/${document}/versions/${version}`,
+      `customers/${this.reference(id, isOrganization)}/documents/${document}/versions/${version}`,
       'PUT',
       data,
     );
@@ -292,7 +287,7 @@ export class KycApiService {
     part: string,
     fileName: string,
     contentType: KycContentType,
-    isOrganisation: boolean,
+    isOrganization: boolean,
   ): Promise<boolean> {
     const data = {
       name: part,
@@ -300,9 +295,8 @@ export class KycApiService {
       fileName: fileName,
       contentType: contentType,
     };
-    const organisation = isOrganisation ? this.reference(id) + '_organisation' : this.reference(id);
     const result = await this.callApi<string>(
-      `customers/${organisation}/documents/${document}/versions/${version}/parts/${part}/metadata`,
+      `customers/${this.reference(id, isOrganization)}/documents/${document}/versions/${version}/parts/${part}/metadata`,
       'PUT',
       data,
     );
@@ -310,8 +304,9 @@ export class KycApiService {
   }
 
   // --- HELPER METHODS --- //
-  private reference(id: number): string {
-    return process.env.KYC_PREFIX ? `${process.env.KYC_PREFIX}${id}` : id.toString();
+  private reference(id: number, isOrganization = false): string {
+    const ref = process.env.KYC_PREFIX ? `${process.env.KYC_PREFIX}${id}` : id.toString();
+    return isOrganization ? `${ref}_organization` : ref;
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
