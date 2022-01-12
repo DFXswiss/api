@@ -189,7 +189,7 @@ export class UserDataService {
         false,
       );
 
-      if (false) {
+      if (false && uploadInitialCustomerInformation) {
         await this.kycApi.changeDocumentState(
           userData.id,
           'v1',
@@ -228,7 +228,7 @@ export class UserDataService {
           true,
         );
 
-        if (false) {
+        if (false && uploadInitialCustomerInformation) {
           await this.kycApi.changeDocumentState(
             userData.id,
             'v1',
