@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { AccountType, KycState, KycStatus, UserData } from './userData.entity';
+import { KycState, KycStatus, UserData } from './userData.entity';
 import {
   ChatBotResponse,
   CheckResult,
@@ -17,6 +17,7 @@ import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
 import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
+import { AccountType } from './account-type.enum';
 
 export interface UserDataChecks {
   userDataId: string;

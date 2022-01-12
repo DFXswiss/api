@@ -9,7 +9,7 @@ import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { AccountType } from '../userData/userData.entity';
+import { AccountType } from '../userData/account-type.enum';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {

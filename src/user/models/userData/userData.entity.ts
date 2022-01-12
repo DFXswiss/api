@@ -13,6 +13,7 @@ import {
   JoinColumn,
   ManyToOne,
 } from 'typeorm';
+import { AccountType } from './account-type.enum';
 import { KycFile as KycFile } from './kycFile.entity';
 
 export enum KycStatus {
@@ -30,11 +31,6 @@ export enum KycState {
   FAILED = 'Failed',
   REMINDED = 'Reminded',
   RETRIED = 'Retried',
-}
-
-export enum AccountType {
-  PERSONAL = 'Personal',
-  BUSINESS = 'Business',
 }
 
 @Entity()

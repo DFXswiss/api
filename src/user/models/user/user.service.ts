@@ -11,7 +11,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
-import { AccountType } from '../userData/userData.entity';
+import { AccountType } from '../userData/account-type.enum';
 
 @Injectable()
 export class UserService {
@@ -147,7 +147,7 @@ export class UserService {
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
       refVolumeBtc: await this.logService.getRefVolumeBtc(user.ref),
-      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase()),
+      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase() ?? "eur"),
     };
   }
 
