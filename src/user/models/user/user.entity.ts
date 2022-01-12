@@ -45,7 +45,7 @@ export class User {
   refFeePercent: number;
 
   @ManyToOne(() => Asset, { eager: true })
-  refFeeAsset: Asset;
+  refFeeAsset: Asset; // TODO: remove?
 
   @Column({ type: 'float', default: 0 })
   refVolume: number;

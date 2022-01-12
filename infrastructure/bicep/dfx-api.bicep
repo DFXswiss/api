@@ -6,6 +6,8 @@ param dbAllowAllIps bool
 param dbAdminLogin string
 @secure()
 param dbAdminPassword string
+param dbTier string
+param dbCapacity int
 
 @secure()
 param jwtSecret string = newGuid()
@@ -243,9 +245,9 @@ resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
   name: sqlDbName
   location: location
   sku: {
-    name: 'Basic'
-    tier: 'Basic'
-    capacity: 5
+    name: dbTier
+    tier: dbTier
+    capacity: dbCapacity
   }
 }
 
