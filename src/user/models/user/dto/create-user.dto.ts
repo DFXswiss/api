@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export class CreateUserDto {
   //TODO überflüssige löschen
@@ -25,10 +24,6 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   refFeePercent: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  refFeeAsset: Asset;
 
   @ApiPropertyOptional()
   @IsOptional()

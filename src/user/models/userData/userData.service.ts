@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { KycState, KycStatus, UserData } from './userData.entity';
+import { AccountType, KycState, KycStatus, UserData } from './userData.entity';
 import {
   ChatBotResponse,
   CheckResult,
@@ -14,7 +14,9 @@ import { BankDataRepository } from 'src/user/models/bankData/bankData.repository
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
 import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
-import { AccountType } from '../user/user.entity';
+import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { Not } from 'typeorm';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -36,6 +38,7 @@ export class UserDataService {
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
+    private readonly countryService: CountryService,
     private readonly mailService: MailService,
     private readonly kycApi: KycApiService,
   ) {}
@@ -47,13 +50,32 @@ export class UserDataService {
     return bankData.userData;
   }
 
+  async createUserData(user: User): Promise<UserData> {
+    const userData = await this.userDataRepo.save({ users: [user] });
+    return await this.updateUserInfo(userData, extractUserInfo(user));
+  }
+
   async updateUserData(updatedUser: UpdateUserDataDto): Promise<UserData> {
+    let userData = await this.userDataRepo.findOne(updatedUser.id);
+    if (!userData) throw new NotFoundException('No user for id found');
+
+    // update user info
+    const userInfo = extractUserInfo({ ...updatedUser, country: undefined, organizationCountry: undefined });
+    if (updatedUser.countryId) {
+      userInfo.country = await this.countryService.getCountry(updatedUser.countryId);
+      if (!userInfo.country) throw new NotFoundException('No country for ID found');
+    }
+    if (updatedUser.organizationCountryId) {
+      userInfo.organizationCountry = await this.countryService.getCountry(updatedUser.organizationCountryId);
+      if (!userInfo.organizationCountry) throw new NotFoundException('No country for ID found');
+    }
+    await this.updateUserInfo(userData, userInfo);
+
+    // update the rest
+    userData = await this.userDataRepo.findOne(updatedUser.id);
     if (updatedUser.kycStatus && !updatedUser.kycState) {
       updatedUser.kycState = KycState.NA;
     }
-
-    const userData = await this.userDataRepo.findOne(updatedUser.id);
-    if (!userData) throw new NotFoundException('No user for id found');
 
     if (updatedUser.mainBankDataId) {
       const bankData = await this.bankDataRepo.findOne(updatedUser.mainBankDataId);
@@ -64,8 +86,29 @@ export class UserDataService {
     if (updatedUser.depositLimit) userData.depositLimit = updatedUser.depositLimit;
     if (updatedUser.kycStatus) userData.kycStatus = updatedUser.kycStatus;
     if (updatedUser.kycState) userData.kycState = updatedUser.kycState;
+    if (updatedUser.isMigrated != null) userData.isMigrated = updatedUser.isMigrated;
 
     return await this.userDataRepo.save(userData);
+  }
+
+  async updateUserInfo(user: UserData, info: UserInfo): Promise<UserData> {
+    user = { ...user, ...info };
+
+    if (user.accountType === AccountType.PERSONAL) {
+      user.organizationName = null;
+      user.organizationStreet = null;
+      user.organizationHouseNumber = null;
+      user.organizationLocation = null;
+      user.organizationZip = null;
+      user.organizationCountry = null;
+    }
+
+    if (info.mail) {
+      const userWithSameMail = await this.userDataRepo.findOne({ where: { id: Not(user.id), mail: info.mail } });
+      if (userWithSameMail) throw new ConflictException('A user with this mail already exists');
+    }
+
+    return this.userDataRepo.save(user);
   }
 
   async getAllUserData(): Promise<UserData[]> {
@@ -146,14 +189,13 @@ export class UserDataService {
   async requestKyc(userId: number, depositLimit?: string): Promise<boolean | ChatBotResponse> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     const userData = user.userData;
+    const userInfo = getUserInfo(user);
 
     if (userData?.kycStatus === KycStatus.NA) {
-      await this.kycApi.getCustomer(userData.id);
-
-      if (user.accountType === AccountType.BUSINESS) {
-        await this.kycApi.submitContractLinkedList(userData.id, user);
+      if (userInfo.accountType === AccountType.BUSINESS) {
+        await this.kycApi.submitContractLinkedList(userData.id, userInfo);
       } else {
-        await this.kycApi.updateCustomer(userData.id, user);
+        await this.kycApi.updateCustomer(userData.id, userInfo);
       }
 
       await this.kycApi.checkCustomer(userData.id);
@@ -172,7 +214,7 @@ export class UserDataService {
 
       const additionalPersonInformation = {
         type: 'AdditionalPersonInformation',
-        nickName: user.firstname,
+        nickName: userInfo.firstname,
         onlyOwner: 'YES',
         businessActivity: {
           purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
@@ -199,7 +241,7 @@ export class UserDataService {
         );
       }
 
-      if (user.accountType === AccountType.BUSINESS) {
+      if (userInfo.accountType === AccountType.BUSINESS) {
         await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', true);
 
         await this.kycApi.createDocumentVersionPart(

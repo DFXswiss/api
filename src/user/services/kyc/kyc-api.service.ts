@@ -1,7 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
-import { AccountType, User } from 'src/user/models/user/user.entity';
+import { User, UserInfo } from 'src/user/models/user/user.entity';
+import { AccountType } from 'src/user/models/userData/userData.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -38,7 +39,7 @@ export class KycApiService {
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
 
-  async updateCustomer(id: number, user: User): Promise<CreateResponse> {
+  async updateCustomer(id: number, user: UserInfo): Promise<CreateResponse> {
     const data = {
       reference: this.reference(id),
       type: 'PERSON',
@@ -135,7 +136,7 @@ export class KycApiService {
     return result[0];
   }
 
-  async submitContractLinkedList(id: number, user: User): Promise<SubmitResponse[]> {
+  async submitContractLinkedList(id: number, user: UserInfo): Promise<SubmitResponse[]> {
     let organization = {};
     const person = {
       contractReference: user.accountType === AccountType.BUSINESS ? this.reference(id) + '_placeholder' : null,

@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
-import { AccountType, User, UserStatus } from './user.entity';
+import { extractUserInfo, getUserInfo, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -10,10 +9,9 @@ import { LogDirection } from 'src/user/models/log/log.entity';
 import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
+import { AccountType } from '../userData/userData.entity';
 
 @Injectable()
 export class UserService {
@@ -24,59 +22,16 @@ export class UserService {
     private countryService: CountryService,
     private languageService: LanguageService,
     private fiatService: FiatService,
-    private assetService: AssetService,
   ) {}
 
-  async createUser(createUserDto: CreateUserDto): Promise<User> {
-    const user = await this.userRepo.createUser(
-      createUserDto,
-      this.languageService,
-      this.countryService,
-      this.fiatService,
-      this.assetService,
-    );
-
-    delete user.signature;
-    delete user.ip;
-    delete user.ref;
-    delete user.role;
-    delete user.status;
-
-    return user;
-  }
-
   async getUser(userId: number, detailedUser = false): Promise<User> {
-    const currentUser = await this.userRepo.findOne({
+    const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser
-        ? ['userData', 'buys', 'sells', 'currency', 'refFeeAsset']
-        : ['userData', 'currency', 'refFeeAsset'],
+      relations: detailedUser ? ['userData', 'buys', 'sells', 'currency'] : ['userData', 'currency'],
     });
+    if (!user) throw new NotFoundException('No matching user for id found');
 
-    if (!currentUser) throw new NotFoundException('No matching user for id found');
-    if (!currentUser.currency) currentUser.currency = await this.fiatService.getFiat('eur'); // TODO: add as default values on create?
-    if (!currentUser.refFeeAsset) currentUser.refFeeAsset = await this.assetService.getAsset('dBTC');
-    currentUser['kycStatus'] = currentUser.userData.kycStatus;
-    currentUser['kycState'] = currentUser.userData.kycState;
-    currentUser['depositLimit'] = currentUser.userData.depositLimit;
-    currentUser['fees'] = await this.getFees(currentUser);
-
-    if (detailedUser) {
-      currentUser['refData'] = await this.getRefData(currentUser);
-      currentUser['userVolume'] = await this.getUserVolume(currentUser);
-    }
-
-    if (currentUser.usedRef === '000-000') delete currentUser.usedRef;
-
-    delete currentUser.userData;
-    delete currentUser.signature;
-    delete currentUser.ip;
-    if (currentUser.role != UserRole.VIP) delete currentUser.role;
-
-    // delete ref for inactive users
-    if (currentUser.status != UserStatus.ACTIVE) delete currentUser.ref;
-
-    return currentUser;
+    return await this.toDto(user, detailedUser);
   }
 
   async updateStatus(user: UpdateStatusDto): Promise<any> {
@@ -85,35 +40,40 @@ export class UserService {
   }
 
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
-    const oldUser = await this.userRepo.findOne(oldUserId);
+    const oldUser = await this.userRepo.findOne({ where: { id: oldUserId }, relations: ['userData'] });
     const user = await this.userRepo.updateUser(
       oldUser,
       newUser,
       this.languageService,
       this.countryService,
       this.fiatService,
-      this.assetService,
     );
+    user.userData = await this.userDataService.updateUserInfo(oldUser.userData, extractUserInfo(user));
 
-    user['refData'] = await this.getRefData(user);
-    user['userVolume'] = await this.getUserVolume(user);
+    return await this.toDto(user, true);
+  }
 
-    const userData = (await this.userRepo.findOne({ where: { id: user.id }, relations: ['userData'] })).userData;
-    user['kycStatus'] = userData.kycStatus;
-    user['kycState'] = userData.kycState;
-    user['depositLimit'] = userData.depositLimit;
+  private async toDto(user: User, detailed: boolean): Promise<User> {
+    // add additional data
+    user['kycStatus'] = user.userData?.kycStatus;
+    user['kycState'] = user.userData?.kycState;
+    user['depositLimit'] = user.userData?.depositLimit;
     user['fees'] = await this.getFees(user);
 
-    delete user.userData;
-    // delete ref for inactive users
-    if (user.status == UserStatus.NA) {
-      delete user.ref;
+    if (detailed) {
+      user['refData'] = await this.getRefData(user);
+      user['userVolume'] = await this.getUserVolume(user);
     }
 
+    // select user info
+    user = { ...user, ...getUserInfo(user) };
+
+    // remove data to hide
+    delete user.userData;
     delete user.signature;
     delete user.ip;
-    if (user.role != UserRole.VIP) delete user.role;
-
+    delete user.role;
+    if (user.status != UserStatus.ACTIVE) delete user.ref;
     if (user.usedRef === '000-000') delete user.usedRef;
 
     return user;
