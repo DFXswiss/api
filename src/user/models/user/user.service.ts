@@ -163,10 +163,14 @@ export class UserService {
   }
 
   async getFees(user: User): Promise<{ buy: number; refBonus: number; sell: number }> {
+    const { annualVolume } = await this.buyService.getUserVolume(user.id);
+    const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
+
     const refUser = await this.userRepo.findOne({ ref: user.usedRef });
-    const refBonus = 1 - (refUser?.refFeePercent ?? 1);
+    const refBonus = annualVolume < 100000 ? 1 - (refUser?.refFeePercent ?? 1) : 0;
+
     return {
-      buy: 2.9 - refBonus,
+      buy: baseFee - refBonus,
       refBonus,
       sell: 2.9,
     };
