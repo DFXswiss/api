@@ -86,6 +86,10 @@ export class KycApiService {
     return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
   }
 
+  async downloadCustomerDocumentVersionParts(id: number,document:string,version:string): Promise<CheckResult> {
+    return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/export`, 'GET');
+  }
+
   async getDocuments(id: number): Promise<CheckResult> {
     return this.callApi<any>(`customers/${this.reference(id)}/documents/`, 'GET');
   }
