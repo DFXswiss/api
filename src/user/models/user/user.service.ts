@@ -10,7 +10,6 @@ import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
 import { AccountType } from '../userData/account-type.enum';
 import { BuyService } from '../buy/buy.service';
 

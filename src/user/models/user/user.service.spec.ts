@@ -63,7 +63,7 @@ describe('UserService', () => {
     await expect(service.getFees(user)).resolves.toStrictEqual({ buy: 2.9, refBonus: 0, sell: 2.9 });
   });
 
-  it('should return 0.4% bonus from ref user', async () => {
+  it('should return 0.5% bonus from ref user', async () => {
     setup(0, { refFeePercent: 0.5 });
 
     const user = { id: 1, usedRef: '000-000' } as User;
