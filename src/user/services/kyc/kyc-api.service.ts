@@ -82,8 +82,12 @@ export class KycApiService {
       : null;
   }
 
+  async getCustomerDocumentVersionParts(id: number,document:string,version:string): Promise<CheckResult> {
+    return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
+  }
+
   async getDocuments(id: number): Promise<CheckResult> {
-    return this.callApi<any>(`customers/${this.reference(id)}/documents`, 'GET');
+    return this.callApi<any>(`customers/${this.reference(id)}/documents/`, 'GET');
   }
 
   async checkCustomer(id: number): Promise<CheckResponse> {
@@ -260,7 +264,7 @@ export class KycApiService {
     return resultString.slice(0, -1);
   }
 
-  async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion[]> {
+  async getDocumentVersion(id: number, document: string): Promise<CheckVersion[]> {
     return this.callApi<CheckVersion[]>(`customers/${this.reference(id)}/documents/${document}/versions`, 'GET');
   }
 
