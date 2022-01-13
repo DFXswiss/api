@@ -13,8 +13,8 @@ import {
   JoinColumn,
   ManyToOne,
 } from 'typeorm';
+import { Chatbot } from '../chatbot/chatbot.entity';
 import { AccountType } from './account-type.enum';
-import { KycFile as KycFile } from './kycFile.entity';
 
 export enum KycStatus {
   NA = 'NA',
@@ -31,6 +31,12 @@ export enum KycState {
   FAILED = 'Failed',
   REMINDED = 'Reminded',
   RETRIED = 'Retried',
+}
+
+export enum RiskState {
+  A = 'a',
+  B = 'b',
+  C = 'c',
 }
 
 @Entity()
@@ -98,12 +104,23 @@ export class UserData {
   @Column({ length: 256, default: KycState.NA })
   kycState: KycState;
 
+  @Column({ length: 256, nullable: true })
+  riskState: RiskState;
+
   @Column({ type: 'float', default: 90000 })
   depositLimit: number;
 
-  @OneToOne(() => KycFile, (kycData) => kycData.userData, { nullable: true, eager: true })
-  @JoinColumn()
-  kycFile: KycFile;
+  @Column({ type: 'integer', nullable: true })
+  contributionAmount: number;
+
+  @Column({ length: 256, nullable: true })
+  contributionCurrency: string;
+
+  @Column({ length: 256, nullable: true })
+  plannedContribution: string;
+
+  @Column({ type: 'integer', nullable: true })
+  kycFileId: number;
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
@@ -114,6 +131,9 @@ export class UserData {
 
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
+
+  @OneToOne(() => Chatbot, { nullable: true })
+  chatbot: Chatbot;
 
   @UpdateDateColumn()
   updated: Date;

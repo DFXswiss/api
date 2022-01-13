@@ -37,35 +37,6 @@ export class MailService {
     await this.sendMail(createLogDto.user.mail, `Hi ${firstName}`, subject, htmlBody);
   }
 
-  async sendKycMail(userData: UserData, firstName: string, mail: string, kycCustomerId: number): Promise<void> {
-    const htmlSupportBody = `
-      <p>a new customer has finished onboarding chatbot, address verification and online identification:</p>
-      <table>
-          <tr>
-              <td>Reference:</td>
-              <td>${userData.id}</td>
-          </tr>
-          <tr>
-              <td>Customer ID:</td>
-              <td>${kycCustomerId}</td>
-          </tr>
-          <tr>
-              <td>KYC File Reference:</td>
-              <td>${userData.kycFile.id}</td>
-          </tr>
-      </table>
-    `;
-
-    await this.sendMail(this.supportMail, 'Hi DFX Support', 'New KYC onboarding', htmlSupportBody);
-
-    const htmlUserBody = `<p>your KYC process is complete and will be checked manually.</p>
-    <p>You can now transfer 90 000 € per year.</p>
-    <p>This is a default setting, which can be increased at any time.</p> 
-    <p>Just click the button "Increase limit" on the payment page or send a mail to support@dfx.swiss.</p>`;
-
-    await this.sendMail(mail, `Hi ${firstName}`, 'KYC process is complete', htmlUserBody);
-  }
-
   async sendReminderMail(firstName: string, mail: string, kycStatus: KycStatus): Promise<void> {
     const htmlBody = `<p>friendly reminder of your ${this.getStatus(kycStatus)}.</p>
       <p>Please check your mails.</p>`;
@@ -105,7 +76,7 @@ export class MailService {
           </tr>
           <tr>
               <td>KYC File Reference:</td>
-              <td>${userData.kycFile.id}</td>
+              <td>${userData.kycFileId}</td>
           </tr>
           <tr>
               <td>Wanted deposit limit:</td>
