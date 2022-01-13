@@ -4,20 +4,35 @@ import { BuyRepository } from 'src/user/models/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { UserService } from '../user/user.service';
 import { createHash } from 'crypto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Not } from 'typeorm';
+import { User } from '../user/user.entity';
 
 @Injectable()
 export class BuyService {
-  constructor(private buyRepo: BuyRepository, private assetService: AssetService, private userService: UserService) {}
+  constructor(private readonly buyRepo: BuyRepository, private readonly assetService: AssetService) {}
 
+  // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
     this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
+  async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
+    await this.buyRepo.update(buyId, { volume, annualVolume });
+  }
+
+  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
+    return this.buyRepo
+      .createQueryBuilder('buy')
+      .select('SUM(volume)', 'volume')
+      .addSelect('SUM(annualVolume)', 'annualVolume')
+      .where('userId = :id', { id: userId })
+      .getRawOne<{ volume: number; annualVolume: number }>();
+  }
+
+  // --- BUYS --- //
   async createBuy(userId: number, dto: CreateBuyDto): Promise<Buy> {
     // check asset
     const asset = await this.assetService.getAsset(dto.asset.id);
@@ -32,7 +47,7 @@ export class BuyService {
 
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = await this.userService.getUser(userId);
+    buy.user = { id: userId } as User;
 
     // create hash
     const hash = createHash('sha256');
@@ -65,9 +80,5 @@ export class BuyService {
 
   async count(): Promise<number> {
     return this.buyRepo.count();
-  }
-
-  async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.buyRepo.update(buyId, { volume, annualVolume });
   }
 }
