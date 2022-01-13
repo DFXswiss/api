@@ -11,7 +11,7 @@ import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entit
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
-import { ChatbotRepository } from '../chatbot/chatbot.repository';
+import { SpiderDataRepository } from '../spider-data/spider-data.repository';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -32,7 +32,7 @@ export class UserDataService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
-    private readonly chatbotRepo: ChatbotRepository,
+    private readonly spiderDataRepo: SpiderDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly mailService: MailService,
@@ -177,7 +177,7 @@ export class UserDataService {
   }
 
   async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.chatbot'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.spiderData'] });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
 
@@ -194,7 +194,7 @@ export class UserDataService {
 
       return await this.initiateOnboarding(userData);
     } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
-      return userData.kycState === KycState.FAILED ? await this.initiateOnboarding(userData) : userData.chatbot.url;
+      return userData.kycState === KycState.FAILED ? await this.initiateOnboarding(userData) : userData.spiderData.url;
     } else if (userData?.kycStatus === KycStatus.WAIT_VIDEO_ID && userData?.kycState === KycState.FAILED) {
       // change state back to NA
       userData.kycState = KycState.NA;
@@ -213,20 +213,20 @@ export class UserDataService {
   }
 
   private async initiateOnboarding(userData: UserData): Promise<string> {
-    // create/update chatbot
+    // create/update spider data
     const chatbotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
-    const chatbot = userData.chatbot ?? this.chatbotRepo.create({ userData: userData });
-    chatbot.url = chatbotData.sessionUrl;
-    chatbot.version = chatbotData.version;
-    await this.chatbotRepo.save(chatbot);
+    const spiderData = userData.spiderData ?? this.spiderDataRepo.create({ userData: userData });
+    spiderData.url = chatbotData.sessionUrl;
+    spiderData.version = chatbotData.version;
+    await this.spiderDataRepo.save(spiderData);
 
     // update user data
     userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
     userData.kycState = KycState.NA;
-    userData.chatbot = chatbot;
+    userData.spiderData = spiderData;
     await this.userDataRepo.save(userData);
 
-    return chatbot.url;
+    return spiderData.url;
   }
 
   private async preFillChatbot(userData: UserData, userInfo: UserInfo): Promise<void> {

@@ -46,7 +46,7 @@ export class CryptoInputService {
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
-        .then((i) => i.filter((e) => e != null && e.amount > 0.1 )) // min. deposit limit
+        .then((i) => i.filter((e) => e != null && e.amount >= 0.1 )) // min. deposit limit
         .then((i) => {
           if (i.length > 0) console.log('New crypto inputs:', i);
           return i;

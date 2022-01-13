@@ -13,7 +13,7 @@ import {
   JoinColumn,
   ManyToOne,
 } from 'typeorm';
-import { Chatbot } from '../chatbot/chatbot.entity';
+import { SpiderData } from '../spider-data/spider-data.entity';
 import { AccountType } from './account-type.enum';
 
 export enum KycStatus {
@@ -132,8 +132,8 @@ export class UserData {
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
 
-  @OneToOne(() => Chatbot, (c) => c.userData, { nullable: true })
-  chatbot: Chatbot;
+  @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
+  spiderData: SpiderData;
 
   @UpdateDateColumn()
   updated: Date;

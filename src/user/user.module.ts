@@ -18,7 +18,7 @@ import { BankDataService } from './models/bankData/bankData.service';
 import { BuyController } from './models/buy/buy.controller';
 import { BuyRepository } from './models/buy/buy.repository';
 import { BuyService } from './models/buy/buy.service';
-import { ChatbotRepository } from './models/chatbot/chatbot.repository';
+import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
 import { DepositController } from './models/deposit/deposit.controller';
 import { DepositRepository } from './models/deposit/deposit.repository';
 import { DepositService } from './models/deposit/deposit.service';
@@ -42,7 +42,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     TypeOrmModule.forFeature([
       UserRepository,
       UserDataRepository,
-      ChatbotRepository,
+      SpiderDataRepository,
       BuyRepository,
       SellRepository,
       LogRepository,

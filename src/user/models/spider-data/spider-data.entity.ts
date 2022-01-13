@@ -2,7 +2,7 @@ import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'ty
 import { UserData } from '../userData/userData.entity';
 
 @Entity()
-export class Chatbot {
+export class SpiderData {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -15,7 +15,7 @@ export class Chatbot {
   @Column({ nullable: true, length: 'MAX' })
   result: string;
 
-  @OneToOne(() => UserData, (u) => u.chatbot, { nullable: false })
+  @OneToOne(() => UserData, (u) => u.spiderData, { nullable: false })
   @JoinColumn()
   userData: UserData;
 }

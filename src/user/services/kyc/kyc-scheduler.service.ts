@@ -5,7 +5,7 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
-import { ChatbotRepository } from 'src/user/models/chatbot/chatbot.repository';
+import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 
 @Injectable()
 export class KycSchedulerService {
@@ -13,7 +13,7 @@ export class KycSchedulerService {
     private mailService: MailService,
     private userDataRepo: UserDataRepository,
     private kycApi: KycApiService,
-    private chatBotRepo: ChatbotRepository,
+    private spiderDataRepo: SpiderDataRepository,
   ) {}
 
   @Interval(300000)
@@ -31,21 +31,21 @@ export class KycSchedulerService {
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
       userData.riskState = await this.kycApi.getCheckResult(userData.id);
-      const chatBotData = await this.chatBotRepo.findOne({ userData: { id: userData.id } });
+      const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
       const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
         userData.id,
         KycDocument.CHATBOT_ONBOARDING,
-        chatBotData.version,
+        spiderData.version,
       );
 
-      chatBotData.result = JSON.stringify(chatBotResult);
+      spiderData.result = JSON.stringify(chatBotResult);
       const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
 
       userData.contributionAmount = formItems['global.contribution']?.value?.split(' ')[1];
       userData.contributionCurrency = formItems['global.contribution']?.value?.split(' ')[0];
       userData.plannedContribution = formItems['global.plannedDevelopmentOfAssets']?.value?.en;
 
-      await this.chatBotRepo.save(chatBotData);
+      await this.spiderDataRepo.save(spiderData);
       await this.userDataRepo.save(userData);
 
       await this.kycApi.initiateOnlineIdentification(userData.id);
