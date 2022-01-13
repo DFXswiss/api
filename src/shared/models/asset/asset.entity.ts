@@ -19,9 +19,6 @@ export class Asset {
   @Column({ unique: true, length: 256 })
   name: string;
 
-  @Column({ type: 'float', nullable: false, default: 0 })
-  minDepositAmount: number;
-
   @Column({ length: 256 })
   type: AssetType;
 

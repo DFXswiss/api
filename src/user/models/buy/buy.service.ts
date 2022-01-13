@@ -6,10 +6,17 @@ import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { UserService } from '../user/user.service';
 import { createHash } from 'crypto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Not } from 'typeorm';
 
 @Injectable()
 export class BuyService {
   constructor(private buyRepo: BuyRepository, private assetService: AssetService, private userService: UserService) {}
+
+  @Cron(CronExpression.EVERY_YEAR)
+  async resetAnnualVolumes(): Promise<void> {
+    this.buyRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+  }
 
   async createBuy(userId: number, dto: CreateBuyDto): Promise<Buy> {
     // check asset
@@ -41,7 +48,11 @@ export class BuyService {
     return this.buyRepo.findOne(id);
   }
 
-  async getAllBuy(userId: number): Promise<Buy[]> {
+  async getAllBuys(): Promise<Buy[]> {
+    return this.buyRepo.find();
+  }
+
+  async getUserBuys(userId: number): Promise<Buy[]> {
     return this.buyRepo.find({ user: { id: userId } });
   }
 
@@ -56,7 +67,7 @@ export class BuyService {
     return this.buyRepo.count();
   }
 
-  async updateVolume(buyId: number, volume: number): Promise<void> {
-    await this.buyRepo.update(buyId, { volume });
+  async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
+    await this.buyRepo.update(buyId, { volume, annualVolume });
   }
 }
