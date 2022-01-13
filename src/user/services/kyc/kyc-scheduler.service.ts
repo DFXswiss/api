@@ -38,14 +38,15 @@ export class KycSchedulerService {
         spiderData.version,
       );
 
+      // store chatbot result
       spiderData.result = JSON.stringify(chatBotResult);
-      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
-
-      userData.contributionAmount = formItems['global.contribution']?.value?.split(' ')[1];
-      userData.contributionCurrency = formItems['global.contribution']?.value?.split(' ')[0];
-      userData.plannedContribution = formItems['global.plannedDevelopmentOfAssets']?.value?.en;
-
       await this.spiderDataRepo.save(spiderData);
+
+      // update user data
+      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+      userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
+      userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
+      userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
       await this.userDataRepo.save(userData);
 
       await this.kycApi.initiateOnlineIdentification(userData.id);

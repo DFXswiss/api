@@ -41,11 +41,9 @@ async function bootstrap() {
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerOptions);
   SwaggerModule.setup('/api', app, swaggerDocument);
 
-  const config = app.get(ConfigService);
-
   await app.listen(process.env.PORT || 3000);
 
-  console.log(chalk.blue.inverse(`Server listening on: ${await app.getUrl()} on ${config.get('mode')} mode`));
+  console.log(chalk.blue.inverse(`Server listening on: ${await app.getUrl()}`));
 }
 
 bootstrap();

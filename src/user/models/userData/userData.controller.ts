@@ -9,7 +9,6 @@ import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/user/models/bankData/dto/bankData.dto';
 import { BankDataService } from 'src/user/models/bankData/bankData.service';
-import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
 
 @ApiTags('userData')
 @Controller('userData')
