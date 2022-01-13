@@ -104,6 +104,11 @@ export class UpdateUserDataDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsInt()
+  kycFileId: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsEnum(KycStatus)
   kycStatus: KycStatus;
 

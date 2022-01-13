@@ -82,6 +82,13 @@ export class UserDataService {
     if (updatedUser.kycStatus) userData.kycStatus = updatedUser.kycStatus;
     if (updatedUser.kycState) userData.kycState = updatedUser.kycState;
     if (updatedUser.isMigrated != null) userData.isMigrated = updatedUser.isMigrated;
+    if (updatedUser.kycFileId) {
+      const userWithSameFileId = await this.userDataRepo.findOne({
+        where: { id: Not(updatedUser.id), kycFileId: updatedUser.kycFileId },
+      });
+      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+      userData.kycFileId = updatedUser.kycFileId;
+    }
 
     return await this.userDataRepo.save(userData);
   }
@@ -176,7 +183,7 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
+  async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.spiderData'] });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
@@ -208,7 +215,7 @@ export class UserDataService {
       await this.mailService.sendLimitSupportMail(userData, customer.id, depositLimit);
       return;
     }
-    
+
     throw new BadRequestException('Invalid KYC status');
   }
 
