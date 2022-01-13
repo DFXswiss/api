@@ -47,7 +47,7 @@ export class BuyController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllBuyRoute(@GetJwt() jwt: JwtPayload): Promise<Buy[]> {
-    return this.buyService.getAllBuy(jwt.id);
+    return this.buyService.getUserBuys(jwt.id);
   }
 
   @Post()

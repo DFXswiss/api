@@ -11,17 +11,19 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
-import { AccountType } from '../userData/userData.entity';
+import { AccountType } from '../userData/account-type.enum';
+import { BuyService } from '../buy/buy.service';
 
 @Injectable()
 export class UserService {
   constructor(
-    private userRepo: UserRepository,
-    private userDataService: UserDataService,
-    private logService: LogService,
-    private countryService: CountryService,
-    private languageService: LanguageService,
-    private fiatService: FiatService,
+    private readonly userRepo: UserRepository,
+    private readonly userDataService: UserDataService,
+    private readonly logService: LogService,
+    private readonly countryService: CountryService,
+    private readonly languageService: LanguageService,
+    private readonly fiatService: FiatService,
+    private readonly buyService: BuyService,
   ) {}
 
   async getUser(userId: number, detailedUser = false): Promise<User> {
@@ -130,7 +132,7 @@ export class UserService {
 
   async getUserVolume(user: User): Promise<any> {
     return {
-      buyVolume: await this.logService.getUserVolume(user, LogDirection.fiat2asset),
+      buyVolume: await this.buyService.getUserVolume(user.id).then((v) => v.volume),
       sellVolume: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
     };
   }
@@ -147,7 +149,7 @@ export class UserService {
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
       refVolumeBtc: await this.logService.getRefVolumeBtc(user.ref),
-      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase()),
+      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase() ?? 'eur'),
     };
   }
 
@@ -161,10 +163,14 @@ export class UserService {
   }
 
   async getFees(user: User): Promise<{ buy: number; refBonus: number; sell: number }> {
+    const { annualVolume } = await this.buyService.getUserVolume(user.id);
+    const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
+
     const refUser = await this.userRepo.findOne({ ref: user.usedRef });
-    const refBonus = 1 - (refUser?.refFeePercent ?? 1);
+    const refBonus = annualVolume < 100000 ? 1 - (refUser?.refFeePercent ?? 1) : 0;
+
     return {
-      buy: 2.9 - refBonus,
+      buy: baseFee - refBonus,
       refBonus,
       sell: 2.9,
     };

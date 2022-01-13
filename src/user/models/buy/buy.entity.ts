@@ -27,6 +27,9 @@ export class Buy {
   @Column({ type: 'float', default: 0 })
   volume: number;
 
+  @Column({ type: 'float', default: 0 })
+  annualVolume: number;
+
   @Column({ default: true })
   active: boolean;
 

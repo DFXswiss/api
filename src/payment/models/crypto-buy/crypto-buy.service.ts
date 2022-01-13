@@ -46,6 +46,11 @@ export class CryptoBuyService {
     return entity;
   }
 
+  async updateVolumes(): Promise<void> {
+    const buyIds = await this.buyService.getAllBuys().then((l) => l.map((b) => b.id));
+    await this.updateBuyVolume(buyIds);
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateCryptoBuyDto | UpdateCryptoBuyDto): Promise<CryptoBuy> {
     const cryptoBuy = this.cryptoBuyRepo.create(dto);
@@ -82,7 +87,16 @@ export class CryptoBuyService {
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();
 
-      await this.buyService.updateVolume(id, volume ?? 0);
+      const newYear = new Date(new Date().getFullYear(), 0, 1);
+      const { annualVolume } = await this.cryptoBuyRepo
+        .createQueryBuilder('cryptoBuy')
+        .select('SUM(amount)', 'annualVolume')
+        .where('buyId = :id', { id: id })
+        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('inputDate >= :year', { year: newYear })
+        .getRawOne<{ annualVolume: number }>();
+
+      await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
     }
   }
 

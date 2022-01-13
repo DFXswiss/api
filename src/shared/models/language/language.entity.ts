@@ -1,5 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
-import { User } from 'src/user/models/user/user.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity()
 export class Language {
@@ -17,9 +16,6 @@ export class Language {
 
   @Column({ default: true })
   enable: boolean;
-
-  @OneToMany(() => User, (user) => user.language)
-  users: User[];
 
   @UpdateDateColumn()
   updated: Date;

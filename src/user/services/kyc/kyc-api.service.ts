@@ -1,8 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
-import { User, UserInfo } from 'src/user/models/user/user.entity';
-import { AccountType } from 'src/user/models/userData/userData.entity';
+import { UserInfo } from 'src/user/models/user/user.entity';
+import { AccountType } from 'src/user/models/userData/account-type.enum';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,

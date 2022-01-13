@@ -3,7 +3,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Log } from 'src/user/models/log/log.entity';
 import { Sell } from 'src/user/models/sell/sell.entity';
-import { AccountType, UserData } from 'src/user/models/userData/userData.entity';
+import { UserData } from 'src/user/models/userData/userData.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
 import {
   Entity,
@@ -16,8 +16,8 @@ import {
 } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { InternalServerErrorException } from '@nestjs/common';
+import { AccountType } from '../userData/account-type.enum';
 
 export enum UserStatus {
   NA = 'NA',

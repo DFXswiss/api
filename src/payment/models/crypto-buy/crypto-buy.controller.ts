@@ -13,6 +13,14 @@ import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
 export class CryptoBuyController {
   constructor(private readonly cryptoBuyService: CryptoBuyService) {}
 
+  @Put('volumes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateVolumes(): Promise<void> {
+    return this.cryptoBuyService.updateVolumes();
+  }
+
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
