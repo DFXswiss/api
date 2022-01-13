@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycState, KycStatus, RiskState, UserData } from './userData.entity';
@@ -176,7 +176,7 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userId: number, depositLimit?: string): Promise<boolean | string> {
+  async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.chatbot'] });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
@@ -201,14 +201,15 @@ export class UserDataService {
       // initiate video identification
       await this.kycApi.initiateVideoIdentification(userData.id);
       await this.userDataRepo.save(userData);
-      return true;
+      return;
     } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.WAIT_MANUAL) {
       const customer = await this.kycApi.getCustomer(userData.id);
       // send mail to support
       await this.mailService.sendLimitSupportMail(userData, customer.id, depositLimit);
-      return true;
+      return;
     }
-    return false;
+    
+    throw new BadRequestException('Invalid KYC status');
   }
 
   private async initiateOnboarding(userData: UserData): Promise<string> {

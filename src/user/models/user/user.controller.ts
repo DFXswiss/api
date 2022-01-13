@@ -54,8 +54,11 @@ export class UserController {
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetJwt() jwt: JwtPayload, @Query('depositLimit') depositLimit?: string): Promise<boolean | string> {
-    return this.userService.requestKyc(jwt.id, depositLimit);
+  async requestKyc(
+    @GetJwt() jwt: JwtPayload,
+    @Query('depositLimit') depositLimit?: string,
+  ): Promise<boolean | { url: string }> {
+    return { url: await this.userService.requestKyc(jwt.id, depositLimit) };
   }
 
   @Get('all')

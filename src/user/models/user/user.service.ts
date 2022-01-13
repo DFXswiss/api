@@ -123,7 +123,7 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number, depositLimit: string): Promise<boolean | string> {
+  async requestKyc(userId: number, depositLimit: string): Promise<string | undefined> {
     const verification = await this.verifyUser(userId);
     if (!verification.result) throw new BadRequestException('User data missing');
 
