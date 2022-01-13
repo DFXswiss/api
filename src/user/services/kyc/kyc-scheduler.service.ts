@@ -37,9 +37,15 @@ export class KycSchedulerService {
         KycDocument.CHATBOT_ONBOARDING,
         chatBotData.version,
       );
-      chatBotData.result = chatBotResult;
 
-      // save userData
+      chatBotData.result = JSON.stringify(chatBotResult);
+      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+
+      userData.contributionAmount = formItems['global.contribution']?.value?.split(' ')[1];
+      userData.contributionCurrency = formItems['global.contribution']?.value?.split(' ')[0];
+      userData.plannedContribution = formItems['global.plannedDevelopmentOfAssets']?.value?.en;
+
+      await this.chatBotRepo.save(chatBotData);
       await this.userDataRepo.save(userData);
 
       await this.kycApi.initiateOnlineIdentification(userData.id);

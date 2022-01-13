@@ -79,7 +79,10 @@ export class KycApiService {
   async getCheckResult(userDataId: number): Promise<RiskState> {
     await this.checkCustomer(userDataId);
     const customerInfo = await this.getCustomerInformation(userDataId);
-    const customerCheckResult = await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET');
+    const customerCheckResult = await this.callApi<CheckResult>(
+      `customers/checks/${customerInfo.lastCheckId}/result`,
+      'GET',
+    );
     return customerCheckResult.risks[0].categoryKey;
   }
 
@@ -87,8 +90,8 @@ export class KycApiService {
     return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
   }
 
-  async downloadCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<string> {
-    return this.callApi<string>(
+  async downloadCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<any> {
+    return this.callApi<any>(
       `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/export`,
       'GET',
     );

@@ -12,7 +12,7 @@ export class Chatbot {
   @Column({ length: 256 })
   version: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, length: 'MAX' })
   result: string;
 
   @OneToOne(() => UserData, (u) => u.chatbot, { nullable: false })
