@@ -10,7 +10,7 @@ import { Customer, KycDocument, State } from './dto/kyc.dto';
 export class KycSchedulerService {
   constructor(
     private mailService: MailService,
-    private userDataRepository: UserDataRepository,
+    private userDataRepo: UserDataRepository,
     private kycApi: KycApiService,
   ) {}
 
@@ -18,7 +18,6 @@ export class KycSchedulerService {
   async doChecks() {
     try {
       await this.doChatBotCheck();
-      //await this.doAddressCheck();
       await this.doOnlineIdCheck();
       await this.doVideoIdCheck();
     } catch (e) {
@@ -30,14 +29,17 @@ export class KycSchedulerService {
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
       await this.kycApi.checkCustomer(userData.id);
-      await this.kycApi.initiateOnlineIdentification(userData.id);
-      return userData;
-    });
-  }
+      const nameCheckResult = await this.kycApi.getCheckResult(userData.id);
+      userData.riskState = nameCheckResult?.risks?.[0]?.categoryKey;
 
-  private async doAddressCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ADDRESS, KycStatus.WAIT_ONLINE_ID, [KycDocument.INVOICE], async (userData) => {
+      const 
+
+
+      // save userData
+      await this.userDataRepo.save(userData);
+
       await this.kycApi.initiateOnlineIdentification(userData.id);
+
       return userData;
     });
   }
@@ -62,7 +64,7 @@ export class KycSchedulerService {
     documentTypes: KycDocument[],
     updateAction: (userData: UserData, customer: Customer) => Promise<UserData> = (u) => Promise.resolve(u),
   ): Promise<void> {
-    const userDataList = await this.userDataRepository.find({
+    const userDataList = await this.userDataRepo.find({
       where: { kycStatus: currentStatus },
     });
     for (const key in userDataList) {
@@ -122,7 +124,7 @@ export class KycSchedulerService {
           );
           userDataList[key].kycState = KycState.REMINDED;
         }
-        await this.userDataRepository.save(userDataList);
+        await this.userDataRepo.save(userDataList);
       } catch (e) {
         console.error('Exception during KYC checks:', e);
         await this.mailService.sendErrorMail('KYC error', [e]);

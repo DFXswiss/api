@@ -47,7 +47,6 @@ export class UserDataService {
   async getUserData(name: string, location: string): Promise<UserData> {
     const bankData = await this.bankDataRepo.findOne({ where: { name, location }, relations: ['userData'] });
     if (!bankData) throw new NotFoundException(`No user data for name ${name} and location ${location}`);
-
     return bankData.userData;
   }
 
@@ -134,12 +133,13 @@ export class UserDataService {
     const kycData = await this.kycApi.getCustomer(userData.id);
     if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
     await this.kycApi.checkCustomer(userData.id);
-    const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
+    const nameCheckResult = await this.kycApi.getCheckResult(userData.id);
+    userData.riskState = nameCheckResult?.risks?.[0]?.categoryKey;
 
     // save
     await this.userDataRepo.save(userData);
 
-    return resultNameCheck?.risks?.[0]?.categoryKey;
+    return nameCheckResult?.risks?.[0]?.categoryKey;
   }
 
   async getCheckStatus(userDataId: number): Promise<string> {
@@ -200,6 +200,8 @@ export class UserDataService {
       }
 
       await this.kycApi.checkCustomer(userData.id);
+      const nameCheckResult = await this.kycApi.getCheckResult(userData.id);
+      userData.riskState = nameCheckResult?.risks?.[0]?.categoryKey;
 
       await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', false);
 
