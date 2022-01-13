@@ -192,13 +192,6 @@ export class UserDataService {
     const userData = user.userData;
     const userInfo = getUserInfo(user);
 
-    // get onboarding information
-    const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, true);
-    
-    //test = this.kycApi.getDocumentVersion(userData.id,"export");
-
-
-
     if (userData?.kycStatus === KycStatus.NA) {
       if (userInfo.accountType === AccountType.BUSINESS) {
         await this.kycApi.submitContractLinkedList(userData.id, userInfo);
