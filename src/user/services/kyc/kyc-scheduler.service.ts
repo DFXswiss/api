@@ -31,7 +31,7 @@ export class KycSchedulerService {
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
       userData.riskState = await this.kycApi.getCheckResult(userData.id);
-      const chatBotData = await this.chatBotRepo.findOne({ id: userData.id });
+      const chatBotData = await this.chatBotRepo.findOne({ userData: { id: userData.id } });
       const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
         userData.id,
         KycDocument.CHATBOT_ONBOARDING,

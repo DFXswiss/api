@@ -2,13 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycState, KycStatus, RiskState, UserData } from './userData.entity';
-import {
-  ChatBotResponse,
-  Customer,
-  KycContentType,
-  KycDocument,
-  State,
-} from 'src/user/services/kyc/dto/kyc.dto';
+import { Customer, KycContentType, KycDocument, State } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
@@ -17,6 +11,7 @@ import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entit
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
+import { ChatbotRepository } from '../chatbot/chatbot.repository';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -37,6 +32,7 @@ export class UserDataService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
+    private readonly chatbotRepo: ChatbotRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly mailService: MailService,
@@ -180,8 +176,8 @@ export class UserDataService {
     return userDataChecks;
   }
 
-  async requestKyc(userId: number, depositLimit?: string): Promise<boolean | ChatBotResponse> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+  async requestKyc(userId: number, depositLimit?: string): Promise<boolean | string> {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.chatbot'] });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
 
@@ -194,100 +190,11 @@ export class UserDataService {
 
       userData.riskState = await this.kycApi.getCheckResult(userData.id);
 
-      await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', false);
+      await this.preFillChatbot(userData, userInfo);
 
-      await this.kycApi.createDocumentVersionPart(
-        userData.id,
-        KycDocument.INITIAL_CUSTOMER_INFORMATION,
-        'v1',
-        'content',
-        'initial-customer-information.json',
-        KycContentType.JSON,
-        false,
-      );
-
-      const additionalPersonInformation = {
-        type: 'AdditionalPersonInformation',
-        nickName: userInfo.firstname,
-        onlyOwner: 'YES',
-        businessActivity: {
-          purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
-        },
-      };
-
-      const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
-        userData.id,
-        'v1',
-        KycDocument.INITIAL_CUSTOMER_INFORMATION,
-        'content',
-        KycContentType.JSON,
-        additionalPersonInformation,
-        false,
-      );
-
-      if (uploadInitialCustomerInformation) {
-        await this.kycApi.changeDocumentState(
-          userData.id,
-          'v1',
-          KycDocument.INITIAL_CUSTOMER_INFORMATION,
-          JSON.stringify(State.COMPLETED),
-          false,
-        );
-      }
-
-      if (userInfo.accountType === AccountType.BUSINESS) {
-        await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', true);
-
-        await this.kycApi.createDocumentVersionPart(
-          userData.id,
-          KycDocument.INITIAL_CUSTOMER_INFORMATION,
-          'v1',
-          'content',
-          'initial-customer-information.json',
-          KycContentType.JSON,
-          true,
-        );
-
-        const additionalOrganisationInformation = {
-          type: 'AdditionalOrganisationInformation',
-          organisationType: 'SOLE_PROPRIETORSHIP',
-          purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
-        };
-
-        const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
-          userData.id,
-          'v1',
-          KycDocument.INITIAL_CUSTOMER_INFORMATION,
-          'content',
-          KycContentType.JSON,
-          additionalOrganisationInformation,
-          true,
-        );
-
-        if (false && uploadInitialCustomerInformation) {
-          await this.kycApi.changeDocumentState(
-            userData.id,
-            'v1',
-            KycDocument.INITIAL_CUSTOMER_INFORMATION,
-            JSON.stringify(State.COMPLETED),
-            true,
-          );
-        }
-      }
-
-      // get onboarding information
-      const chatBotData = await this.kycApi.initiateOnboardingChatBot(userData.id, true);
-      // set status to chatbot
-      if (chatBotData) userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
-      await this.userDataRepo.save(userData);
-      return true;
+      return await this.initiateOnboarding(userData);
     } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
-      // change state back to NA
-      userData.kycState = KycState.NA;
-      // start onboarding
-      await this.kycApi.initiateOnboardingChatBot(userData.id, true);
-      await this.userDataRepo.save(userData);
-      return true;
+      return userData.kycState === KycState.FAILED ? await this.initiateOnboarding(userData) : userData.chatbot.url;
     } else if (userData?.kycStatus === KycStatus.WAIT_VIDEO_ID && userData?.kycState === KycState.FAILED) {
       // change state back to NA
       userData.kycState = KycState.NA;
@@ -302,6 +209,106 @@ export class UserDataService {
       return true;
     }
     return false;
+  }
+
+  private async initiateOnboarding(userData: UserData): Promise<string> {
+    // create/update chatbot
+    const chatbotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
+    const chatbot = userData.chatbot ?? this.chatbotRepo.create({ userData: userData });
+    chatbot.url = chatbotData.sessionUrl;
+    chatbot.version = chatbotData.version;
+    await this.chatbotRepo.save(chatbot);
+
+    // update user data
+    userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
+    userData.kycState = KycState.NA;
+    userData.chatbot = chatbot;
+    await this.userDataRepo.save(userData);
+
+    return chatbot.url;
+  }
+
+  private async preFillChatbot(userData: UserData, userInfo: UserInfo): Promise<void> {
+    await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', false);
+
+    await this.kycApi.createDocumentVersionPart(
+      userData.id,
+      KycDocument.INITIAL_CUSTOMER_INFORMATION,
+      'v1',
+      'content',
+      'initial-customer-information.json',
+      KycContentType.JSON,
+      false,
+    );
+
+    const additionalPersonInformation = {
+      type: 'AdditionalPersonInformation',
+      nickName: userInfo.firstname,
+      onlyOwner: 'YES',
+      businessActivity: {
+        purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+      },
+    };
+
+    const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
+      userData.id,
+      'v1',
+      KycDocument.INITIAL_CUSTOMER_INFORMATION,
+      'content',
+      KycContentType.JSON,
+      additionalPersonInformation,
+      false,
+    );
+
+    if (uploadInitialCustomerInformation) {
+      await this.kycApi.changeDocumentState(
+        userData.id,
+        'v1',
+        KycDocument.INITIAL_CUSTOMER_INFORMATION,
+        JSON.stringify(State.COMPLETED),
+        false,
+      );
+    }
+
+    if (userInfo.accountType === AccountType.BUSINESS) {
+      await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', true);
+
+      await this.kycApi.createDocumentVersionPart(
+        userData.id,
+        KycDocument.INITIAL_CUSTOMER_INFORMATION,
+        'v1',
+        'content',
+        'initial-customer-information.json',
+        KycContentType.JSON,
+        true,
+      );
+
+      const additionalOrganisationInformation = {
+        type: 'AdditionalOrganisationInformation',
+        organisationType: 'SOLE_PROPRIETORSHIP',
+        purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+      };
+
+      const uploadInitialCustomerInformation = await this.kycApi.uploadDocument(
+        userData.id,
+        'v1',
+        KycDocument.INITIAL_CUSTOMER_INFORMATION,
+        'content',
+        KycContentType.JSON,
+        additionalOrganisationInformation,
+        true,
+      );
+
+      if (false && uploadInitialCustomerInformation) {
+        await this.kycApi.changeDocumentState(
+          userData.id,
+          'v1',
+          KycDocument.INITIAL_CUSTOMER_INFORMATION,
+          JSON.stringify(State.COMPLETED),
+          true,
+        );
+      }
+    }
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {

@@ -132,7 +132,7 @@ export class UserData {
   @OneToMany(() => User, (user) => user.userData)
   users: User[];
 
-  @OneToOne(() => Chatbot, { nullable: true })
+  @OneToOne(() => Chatbot, (c) => c.userData, { nullable: true })
   chatbot: Chatbot;
 
   @UpdateDateColumn()

@@ -15,7 +15,7 @@ export class Chatbot {
   @Column({ nullable: true })
   result: string;
 
-  @OneToOne(() => UserData, { nullable: false })
+  @OneToOne(() => UserData, (u) => u.chatbot, { nullable: false })
   @JoinColumn()
   userData: UserData;
 }
