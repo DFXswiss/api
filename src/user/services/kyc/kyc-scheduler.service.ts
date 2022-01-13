@@ -5,6 +5,7 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
+import { ChatbotRepository } from 'src/user/models/chatbot/chatbot.repository';
 
 @Injectable()
 export class KycSchedulerService {
@@ -12,6 +13,7 @@ export class KycSchedulerService {
     private mailService: MailService,
     private userDataRepo: UserDataRepository,
     private kycApi: KycApiService,
+    private chatBotRepo: ChatbotRepository,
   ) {}
 
   @Interval(300000)
@@ -28,12 +30,14 @@ export class KycSchedulerService {
 
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
-      await this.kycApi.checkCustomer(userData.id);
-      const nameCheckResult = await this.kycApi.getCheckResult(userData.id);
-      userData.riskState = nameCheckResult?.risks?.[0]?.categoryKey;
-
-      const 
-
+      userData.riskState = await this.kycApi.getCheckResult(userData.id);
+      const chatBotData = await this.chatBotRepo.findOne({ id: userData.id });
+      const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
+        userData.id,
+        KycDocument.CHATBOT_ONBOARDING,
+        chatBotData.version,
+      );
+      chatBotData.result = chatBotResult;
 
       // save userData
       await this.userDataRepo.save(userData);

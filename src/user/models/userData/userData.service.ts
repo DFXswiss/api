@@ -1,10 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { KycState, KycStatus, UserData } from './userData.entity';
+import { KycState, KycStatus, RiskState, UserData } from './userData.entity';
 import {
   ChatBotResponse,
-  CheckResult,
   Customer,
   KycContentType,
   KycDocument,
@@ -30,7 +29,7 @@ export interface UserDataChecks {
 
 export interface CustomerDataDetailed {
   customer: Customer;
-  checkResult: CheckResult;
+  checkResult: RiskState;
 }
 
 @Injectable()
@@ -132,14 +131,10 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     const kycData = await this.kycApi.getCustomer(userData.id);
     if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
-    await this.kycApi.checkCustomer(userData.id);
-    const nameCheckResult = await this.kycApi.getCheckResult(userData.id);
-    userData.riskState = nameCheckResult?.risks?.[0]?.categoryKey;
-
-    // save
+    userData.riskState = await this.kycApi.getCheckResult(userData.id);
     await this.userDataRepo.save(userData);
 
-    return nameCheckResult?.risks?.[0]?.categoryKey;
+    return userData.riskState;
   }
 
   async getCheckStatus(userDataId: number): Promise<string> {
@@ -147,9 +142,7 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     const kycData = await this.kycApi.getCustomer(userData.id);
     if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
-
-    const resultNameCheck = await this.kycApi.getCheckResult(userData.id);
-    return resultNameCheck?.risks?.[0]?.categoryKey;
+    return this.kycApi.getCheckResult(userData.id);
   }
 
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
@@ -162,7 +155,7 @@ export class UserDataService {
           userDataId: userDataId.toString(),
           customerId: customer.customer.id.toString(),
           kycFileReference: userData?.kycFileId?.toString() ?? null,
-          nameCheckRisk: customer.checkResult?.risks[0].categoryKey,
+          nameCheckRisk: customer.checkResult,
           activationDate: customer.customer.activationDate
             ? new Date(
                 +customer.customer.activationDate.year,
@@ -199,9 +192,7 @@ export class UserDataService {
         await this.kycApi.updateCustomer(userData.id, userInfo);
       }
 
-      await this.kycApi.checkCustomer(userData.id);
-      const nameCheckResult = await this.kycApi.getCheckResult(userData.id);
-      userData.riskState = nameCheckResult?.risks?.[0]?.categoryKey;
+      userData.riskState = await this.kycApi.getCheckResult(userData.id);
 
       await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', false);
 

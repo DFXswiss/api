@@ -3,6 +3,7 @@ import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { UserInfo } from 'src/user/models/user/user.entity';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
+import { RiskState } from 'src/user/models/userData/userData.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -75,19 +76,25 @@ export class KycApiService {
     return this.callApi<CustomerInformationResponse>(`customers/${this.reference(userDataId)}/information`, 'GET');
   }
 
-  async getCheckResult(userDataId: number): Promise<CheckResult> {
+  async getCheckResult(userDataId: number): Promise<RiskState> {
+    await this.checkCustomer(userDataId);
     const customerInfo = await this.getCustomerInformation(userDataId);
-    return customerInfo?.lastCheckId >= 0
-      ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET')
-      : null;
+    const customerCheckResult =
+      customerInfo?.lastCheckId >= 0
+        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET')
+        : null;
+    return customerCheckResult.risks[0].categoryKey;
   }
 
-  async getCustomerDocumentVersionParts(id: number,document:string,version:string): Promise<CheckResult> {
+  async getCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<CheckResult> {
     return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
   }
 
-  async downloadCustomerDocumentVersionParts(id: number,document:string,version:string): Promise<CheckResult> {
-    return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/export`, 'GET');
+  async downloadCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<string> {
+    return this.callApi<string>(
+      `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/export`,
+      'GET',
+    );
   }
 
   async getDocuments(id: number): Promise<CheckResult> {
@@ -236,7 +243,10 @@ export class KycApiService {
     isOrganization: boolean,
   ): Promise<boolean> {
     const result = await this.callApi<string>(
-      `customers/${this.reference(id, isOrganization)}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
+      `customers/${this.reference(
+        id,
+        isOrganization,
+      )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
       'PUT',
       kycData,
       kycContentType,
@@ -305,7 +315,10 @@ export class KycApiService {
       contentType: contentType,
     };
     const result = await this.callApi<string>(
-      `customers/${this.reference(id, isOrganization)}/documents/${document}/versions/${version}/parts/${part}/metadata`,
+      `customers/${this.reference(
+        id,
+        isOrganization,
+      )}/documents/${document}/versions/${version}/parts/${part}/metadata`,
       'PUT',
       data,
     );
