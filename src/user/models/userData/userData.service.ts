@@ -161,7 +161,7 @@ export class UserDataService {
         userDataChecks.push({
           userDataId: userDataId.toString(),
           customerId: customer.customer.id.toString(),
-          kycFileReference: userData?.kycFile?.id.toString() ?? null,
+          kycFileReference: userData?.kycFileId?.toString() ?? null,
           nameCheckRisk: customer.checkResult?.risks[0].categoryKey,
           activationDate: customer.customer.activationDate
             ? new Date(
@@ -176,7 +176,7 @@ export class UserDataService {
         userDataChecks.push({
           userDataId: userDataId.toString(),
           customerId: null,
-          kycFileReference: userData?.kycFile?.id.toString() ?? null,
+          kycFileReference: userData?.kycFileId?.toString() ?? null,
           nameCheckRisk: null,
           activationDate: null,
           kycStatus: userData?.kycStatus,
