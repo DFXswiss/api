@@ -278,7 +278,7 @@ export class KycApiService {
     return resultString.slice(0, -1);
   }
 
-  async getDocumentVersion(id: number, document: string): Promise<CheckVersion[]> {
+  async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion[]> {
     return this.callApi<CheckVersion[]>(`customers/${this.reference(id)}/documents/${document}/versions`, 'GET');
   }
 

@@ -1,4 +1,3 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsInt, IsEnum, IsNotEmpty, IsEmail, IsString, IsBoolean } from 'class-validator';
 import { AccountType } from '../account-type.enum';
 import { KycState, KycStatus } from '../userData.entity';
