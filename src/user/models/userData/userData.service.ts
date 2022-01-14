@@ -145,7 +145,10 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     const kycData = await this.kycApi.getCustomer(userData.id);
     if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
-    return this.kycApi.getCheckResult(userData.id);
+    const checkResult = await this.kycApi.getCheckResult(userData.id);
+    userData.riskState = checkResult;
+    await this.userDataRepo.save(userData);
+    return checkResult;
   }
 
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {

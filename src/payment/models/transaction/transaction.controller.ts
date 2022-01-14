@@ -43,11 +43,12 @@ export class TransactionController {
 
     res.set({
       'Content-Type': 'text/csv',
-      'Content-Disposition':
-        'attachment; filename="history ' +
-        new Date().toISOString().split('-').join('').split(':').join('').split('T').join('').split('.')[0] +
-        '.csv"',
+      'Content-Disposition': `attachment; filename="history_${this.formatDate()}.csv"`,
     });
     return csvFile;
+  }
+
+  private formatDate(date: Date = new Date()): string {
+    return date.toISOString().split('-').join('').split(':').join('').split('T').join('_').split('.')[0];
   }
 }
