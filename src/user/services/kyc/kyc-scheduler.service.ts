@@ -32,21 +32,24 @@ export class KycSchedulerService {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
       userData.riskState = await this.kycApi.getCheckResult(userData.id);
       const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
-      const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
-        userData.id,
-        KycDocument.CHATBOT_ONBOARDING,
-        spiderData.version,
-      );
 
-      // store chatbot result
-      spiderData.result = JSON.stringify(chatBotResult);
-      await this.spiderDataRepo.save(spiderData);
+      if (spiderData) {
+        const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
+          userData.id,
+          KycDocument.CHATBOT_ONBOARDING,
+          spiderData.version,
+        );
 
-      // update user data
-      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
-      userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-      userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-      userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+        // store chatbot result
+        spiderData.result = JSON.stringify(chatBotResult);
+        await this.spiderDataRepo.save(spiderData);
+
+        // update user data
+        const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
+        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
+        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+      }
       await this.userDataRepo.save(userData);
 
       await this.kycApi.initiateOnlineIdentification(userData.id);
