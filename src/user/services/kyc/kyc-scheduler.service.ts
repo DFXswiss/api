@@ -63,7 +63,7 @@ export class KycSchedulerService {
 
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
-      userData.riskState = await this.kycApi.getCheckResult(userData.id);
+      userData.riskState = await this.kycApi.doCheckResult(userData.id);
       const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
 
       if (spiderData) {

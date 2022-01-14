@@ -128,7 +128,7 @@ export class UserDataService {
 
     const checkResult = await this.kycApi.getCheckResult(userDataId);
 
-    return { customer: customer, checkResult: checkResult,  };
+    return { customer: customer, checkResult: checkResult };
   }
 
   async doNameCheck(userDataId: number): Promise<string> {
@@ -136,7 +136,7 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
     const kycData = await this.kycApi.getCustomer(userData.id);
     if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
-    userData.riskState = await this.kycApi.getCheckResult(userData.id);
+    userData.riskState = await this.kycApi.doCheckResult(userData.id);
     await this.userDataRepo.save(userData);
 
     return userData.riskState;
@@ -154,7 +154,7 @@ export class UserDataService {
         await this.kycApi.updateCustomer(userData.id, userInfo);
       }
 
-      userData.riskState = await this.kycApi.getCheckResult(userData.id);
+      userData.riskState = await this.kycApi.doCheckResult(userData.id);
 
       await this.preFillChatbot(userData, userInfo);
 
