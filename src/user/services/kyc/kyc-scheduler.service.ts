@@ -8,6 +8,9 @@ import { Customer, KycDocument, State } from './dto/kyc.dto';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SettingsService } from 'src/shared/settings/settings.service';
+import { UserDataService } from 'src/user/models/userData/userData.service';
+import { In } from 'typeorm';
 
 @Injectable()
 export class KycSchedulerService {
@@ -15,8 +18,10 @@ export class KycSchedulerService {
     private mailService: MailService,
     private userRepo: UserRepository,
     private userDataRepo: UserDataRepository,
+    private userDataService: UserDataService,
     private kycApi: KycApiService,
     private spiderDataRepo: SpiderDataRepository,
+    private settingsService: SettingsService,
   ) {}
 
   @Interval(300000)
@@ -28,6 +33,31 @@ export class KycSchedulerService {
     } catch (e) {
       console.error('Exception during KYC checks:', e);
       await this.mailService.sendErrorMail('KYC error', [e]);
+    }
+  }
+
+  @Interval(10000)
+  async syncKycData() {
+    try {
+      const lastModificationTime = await this.settingsService.get('modificationDate');
+      const newModificationTime = Date.now().toString();
+      const changedCustomers = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
+      const changedEnvironmentCustomers = changedCustomers
+        .filter((c) => c.startsWith(process.env.KYC_PREFIX))
+        .map((c) => +c.replace(process.env.KYC_PREFIX, ''))
+        .filter((c) => !isNaN(c));
+
+      const userDataList = await this.userDataRepo.find({ id: In(changedEnvironmentCustomers) });
+      for (const userData of userDataList) {
+        const kycData = await this.userDataService.getKycData(userData.id);
+        userData.riskState = kycData.checkResult;
+        userData.kycCustomerId = kycData.customer.id;
+        await this.userDataRepo.save(userData);
+      }
+      await this.settingsService.set('modificationDate', newModificationTime);
+    } catch (e) {
+      console.error('Exception during KYC data sync:', e);
+      await this.mailService.sendErrorMail('Sync error', [e]);
     }
   }
 

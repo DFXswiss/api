@@ -64,8 +64,8 @@ export class KycApiService {
 
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
-  async getAllCustomer(): Promise<string[]> {
-    return this.callApi<string[]>(`customers`, 'GET');
+  async getCustomerReferences(modificationTime: number): Promise<string[]> {
+    return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
   }
 
   async getCustomer(id: number): Promise<Customer> {
@@ -262,7 +262,6 @@ export class KycApiService {
     kycState: string,
     isOrganization: boolean,
   ): Promise<boolean> {
-    //TODO BODY with IMG rawData
     const result = await this.callApi<string>(
       `customers/${this.reference(id, isOrganization)}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
       'PUT',

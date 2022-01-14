@@ -55,7 +55,12 @@ export class UserDataService {
     if (!userData) throw new NotFoundException('No user for id found');
 
     // update user info
-    const userInfo = extractUserInfo({ ...updatedUser, country: undefined, organizationCountry: undefined, language: undefined });
+    const userInfo = extractUserInfo({
+      ...updatedUser,
+      country: undefined,
+      organizationCountry: undefined,
+      language: undefined,
+    });
     if (updatedUser.countryId) {
       userInfo.country = await this.countryService.getCountry(updatedUser.countryId);
       if (!userInfo.country) throw new NotFoundException('No country for ID found');
@@ -117,23 +122,13 @@ export class UserDataService {
     return this.userDataRepo.getAllUserData();
   }
 
-  async getAllCustomer(): Promise<any> {
-    return this.kycApi.getAllCustomer();
-  }
-
-  async getCustomer(userDataId: number): Promise<CustomerDataDetailed> {
+  async getKycData(userDataId: number): Promise<CustomerDataDetailed> {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (!customer) return null;
 
     const checkResult = await this.kycApi.getCheckResult(userDataId);
 
-    // update DB
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
-    userData.riskState = checkResult;
-    userData.kycCustomerId = customer.id;
-    await this.userDataRepo.save(userData);
-
-    return { customer: customer, checkResult: checkResult };
+    return { customer: customer, checkResult: checkResult,  };
   }
 
   async doNameCheck(userDataId: number): Promise<string> {
@@ -145,53 +140,6 @@ export class UserDataService {
     await this.userDataRepo.save(userData);
 
     return userData.riskState;
-  }
-
-  async getCheckStatus(userDataId: number): Promise<string> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
-    if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
-    const kycData = await this.kycApi.getCustomer(userData.id);
-    if (!kycData) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
-    const checkResult = await this.kycApi.getCheckResult(userData.id);
-    userData.riskState = checkResult;
-    await this.userDataRepo.save(userData);
-    return checkResult;
-  }
-
-  // TODO: remove
-  async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
-    const userDataChecks: UserDataChecks[] = [];
-    for (let userDataId = startUserDataId; userDataId <= endUserDataId; userDataId++) {
-      const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
-      const customer = await this.getCustomer(userDataId);
-      if (customer) {
-        userDataChecks.push({
-          userDataId: userDataId.toString(),
-          customerId: customer.customer.id.toString(),
-          kycFileReference: userData?.kycFileId?.toString() ?? null,
-          nameCheckRisk: customer.checkResult,
-          activationDate: customer.customer.activationDate
-            ? new Date(
-                +customer.customer.activationDate.year,
-                +customer.customer.activationDate.month - 1,
-                +customer.customer.activationDate.day,
-              )
-            : null,
-          kycStatus: userData?.kycStatus,
-        });
-      } else {
-        userDataChecks.push({
-          userDataId: userDataId.toString(),
-          customerId: null,
-          kycFileReference: userData?.kycFileId?.toString() ?? null,
-          nameCheckRisk: null,
-          activationDate: null,
-          kycStatus: userData?.kycStatus,
-        });
-      }
-    }
-
-    return userDataChecks;
   }
 
   async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
@@ -209,7 +157,7 @@ export class UserDataService {
       userData.riskState = await this.kycApi.getCheckResult(userData.id);
 
       await this.preFillChatbot(userData, userInfo);
-   
+
       return this.initiateOnboarding(userData);
     } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
       return userData.kycState === KycState.FAILED ? this.initiateOnboarding(userData) : userData.spiderData.url;
@@ -234,7 +182,7 @@ export class UserDataService {
     // create/update spider data
     const chatbotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
     const spiderData = userData.spiderData ?? this.spiderDataRepo.create({ userData: userData });
-    spiderData.url = chatbotData.sessionUrl+'&nc=true';
+    spiderData.url = chatbotData.sessionUrl + '&nc=true';
     spiderData.version = chatbotData.version;
     await this.spiderDataRepo.save(spiderData);
 
@@ -302,7 +250,7 @@ export class UserDataService {
         true,
       );
 
-      const additionalOrganisationInformation = {
+      const additionalOrganizationInformation = {
         type: 'AdditionalOrganisationInformation',
         organisationType: 'SOLE_PROPRIETORSHIP',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
@@ -314,7 +262,7 @@ export class UserDataService {
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'content',
         KycContentType.JSON,
-        additionalOrganisationInformation,
+        additionalOrganizationInformation,
         true,
       );
 
