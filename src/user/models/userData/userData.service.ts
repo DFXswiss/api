@@ -55,7 +55,7 @@ export class UserDataService {
     if (!userData) throw new NotFoundException('No user for id found');
 
     // update user info
-    const userInfo = extractUserInfo({ ...updatedUser, country: undefined, organizationCountry: undefined });
+    const userInfo = extractUserInfo({ ...updatedUser, country: undefined, organizationCountry: undefined, language: undefined });
     if (updatedUser.countryId) {
       userInfo.country = await this.countryService.getCountry(updatedUser.countryId);
       if (!userInfo.country) throw new NotFoundException('No country for ID found');
@@ -126,8 +126,11 @@ export class UserDataService {
     if (!customer) return null;
 
     const checkResult = await this.kycApi.getCheckResult(userDataId);
+
+    // update DB
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     userData.riskState = checkResult;
+    userData.kycCustomerId = customer.id;
     await this.userDataRepo.save(userData);
 
     return { customer: customer, checkResult: checkResult };
@@ -155,6 +158,7 @@ export class UserDataService {
     return checkResult;
   }
 
+  // TODO: remove
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
     const userDataChecks: UserDataChecks[] = [];
     for (let userDataId = startUserDataId; userDataId <= endUserDataId; userDataId++) {
@@ -205,13 +209,10 @@ export class UserDataService {
       userData.riskState = await this.kycApi.getCheckResult(userData.id);
 
       await this.preFillChatbot(userData, userInfo);
-
-      await this.initiateOnboarding(userData);
-      return;
+   
+      return this.initiateOnboarding(userData);
     } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
-      // userData.kycState === KycState.FAILED ? await this.initiateOnboarding(userData) : userData.spiderData.url;
-      await this.initiateOnboarding(userData);
-      return;
+      return userData.kycState === KycState.FAILED ? this.initiateOnboarding(userData) : userData.spiderData.url;
     } else if (userData?.kycStatus === KycStatus.WAIT_VIDEO_ID && userData?.kycState === KycState.FAILED) {
       // change state back to NA
       userData.kycState = KycState.NA;
@@ -231,9 +232,9 @@ export class UserDataService {
 
   private async initiateOnboarding(userData: UserData): Promise<string> {
     // create/update spider data
-    const chatbotData = await this.kycApi.initiateOnboardingChatBot(userData.id, true);
+    const chatbotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
     const spiderData = userData.spiderData ?? this.spiderDataRepo.create({ userData: userData });
-    spiderData.url = chatbotData.sessionUrl;
+    spiderData.url = chatbotData.sessionUrl+'&nc=true';
     spiderData.version = chatbotData.version;
     await this.spiderDataRepo.save(spiderData);
 

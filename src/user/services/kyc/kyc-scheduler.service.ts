@@ -6,11 +6,14 @@ import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
+import { UserRepository } from 'src/user/models/user/user.repository';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 
 @Injectable()
 export class KycSchedulerService {
   constructor(
     private mailService: MailService,
+    private userRepo: UserRepository,
     private userDataRepo: UserDataRepository,
     private kycApi: KycApiService,
     private spiderDataRepo: SpiderDataRepository,
@@ -52,7 +55,11 @@ export class KycSchedulerService {
       }
       await this.userDataRepo.save(userData);
 
-      await this.kycApi.initiateOnlineIdentification(userData.id);
+      const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
+      vipUser
+        ? await this.kycApi.initiateVideoIdentification(userData.id)
+        : await this.kycApi.initiateOnlineIdentification(userData.id);
+      userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
 
       return userData;
     });

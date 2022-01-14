@@ -27,6 +27,7 @@ export class UserDataController {
     return this.userDataService.getAllUserData();
   }
 
+  // TODO: remove
   @Put()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

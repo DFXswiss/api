@@ -122,6 +122,9 @@ export class UserData {
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;
 
+  @Column({ type: 'integer', nullable: true })
+  kycCustomerId: number;
+
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
 
