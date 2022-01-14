@@ -27,12 +27,20 @@ export class UserDataController {
     return this.userDataService.getAllUserData();
   }
 
+  @Put()
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateUserDataOld(@Body() userData: UpdateUserDataDto): Promise<UserData> {
+    return this.userDataService.updateUserData(userData.id, userData);
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateUserData(@Param('id') id: number,@Body() userData: UpdateUserDataDto): Promise<UserData> {
-    return this.userDataService.updateUserData(id,userData);
+  async updateUserData(@Param('id') id: number, @Body() userData: UpdateUserDataDto): Promise<UserData> {
+    return this.userDataService.updateUserData(id, userData);
   }
 
   @Get('kycData')
