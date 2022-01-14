@@ -145,71 +145,67 @@ export class UserRepository extends Repository<User> {
     countryService: CountryService,
     fiatService: FiatService,
   ): Promise<any> {
-    try {
-      const currentUser = await this.findOne(oldUser.id);
-      if (!currentUser) throw new NotFoundException('No matching user for id found');
-      const currentUserData = (await this.findOne({ where: { id: currentUser.id }, relations: ['userData'] })).userData;
+    const currentUser = await this.findOne(oldUser.id);
+    if (!currentUser) throw new NotFoundException('No matching user for id found');
+    const currentUserData = (await this.findOne({ where: { id: currentUser.id }, relations: ['userData'] })).userData;
 
-      const refUser = await this.findOne({ ref: newUser.usedRef });
+    const refUser = await this.findOne({ ref: newUser.usedRef });
 
-      if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef) || newUser.usedRef === null) {
-        newUser.usedRef = '000-000';
-      } else {
-        if (refUser) {
-          const refUserData = (await this.findOne({ where: { id: refUser.id }, relations: ['userData'] })).userData;
-          if (refUserData && currentUserData) {
-            if (refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
-          }
+    if (currentUser.ref == newUser.usedRef || (!refUser && newUser.usedRef) || newUser.usedRef === null) {
+      newUser.usedRef = '000-000';
+    } else {
+      if (refUser) {
+        const refUserData = (await this.findOne({ where: { id: refUser.id }, relations: ['userData'] })).userData;
+        if (refUserData && currentUserData) {
+          if (refUserData.id == currentUserData.id) newUser.usedRef = '000-000';
         }
       }
-
-      let countryObject = null;
-      let languageObject = null;
-      let currencyObject = null;
-
-      if (newUser.country) {
-        countryObject = await countryService.getCountry(newUser.country);
-
-        newUser.country = countryObject;
-      }
-
-      if (newUser.language) {
-        languageObject = await languageService.getLanguage(newUser.language);
-
-        newUser.language = languageObject;
-      } else {
-        languageObject = await languageService.getLanguage('EN');
-
-        newUser.language = languageObject;
-      }
-
-      if (newUser.currency) {
-        currencyObject = await fiatService.getFiat(newUser.currency);
-
-        newUser.currency = currencyObject.id;
-      } else {
-        currencyObject = await fiatService.getFiat('eur');
-
-        newUser.currency = currencyObject.id;
-      }
-
-      newUser.id = currentUser.id;
-
-      if (newUser.accountType === AccountType.PERSONAL) {
-        newUser.organizationName = null;
-        newUser.organizationStreet = null;
-        newUser.organizationHouseNumber = null;
-        newUser.organizationLocation = null;
-        newUser.organizationZip = null;
-        newUser.organizationCountry = null;
-      }
-
-      await this.save(newUser);
-
-      return await this.findOne(currentUser.id);
-    } catch (error) {
-      throw new ConflictException(error.message);
     }
+
+    let countryObject = null;
+    let languageObject = null;
+    let currencyObject = null;
+
+    if (newUser.country) {
+      countryObject = await countryService.getCountry(newUser.country);
+
+      newUser.country = countryObject;
+    }
+
+    if (newUser.language) {
+      languageObject = await languageService.getLanguage(newUser.language);
+
+      newUser.language = languageObject;
+    } else {
+      languageObject = await languageService.getLanguage('EN');
+
+      newUser.language = languageObject;
+    }
+
+    if (newUser.currency) {
+      currencyObject = await fiatService.getFiat(newUser.currency);
+
+      newUser.currency = currencyObject.id;
+    } else {
+      currencyObject = await fiatService.getFiat('eur');
+
+      newUser.currency = currencyObject.id;
+    }
+
+    newUser.id = currentUser.id;
+
+    if (newUser.accountType === AccountType.PERSONAL) {
+      newUser.organizationName = null;
+      newUser.organizationStreet = null;
+      newUser.organizationHouseNumber = null;
+      newUser.organizationLocation = null;
+      newUser.organizationZip = null;
+      newUser.organizationCountry = null;
+    }
+
+    await this.save(newUser);
+
+    return await this.findOne(currentUser.id);
   }
 
   async updateRole(user: UpdateRoleDto): Promise<any> {

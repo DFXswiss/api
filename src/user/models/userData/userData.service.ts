@@ -55,7 +55,7 @@ export class UserDataService {
     if (!userData) throw new NotFoundException('No user for id found');
 
     // update user info
-    const userInfo = extractUserInfo({ ...updatedUser, country: undefined, organizationCountry: undefined });
+    const userInfo = extractUserInfo({ ...updatedUser, country: undefined, organizationCountry: undefined, language: undefined });
     if (updatedUser.countryId) {
       userInfo.country = await this.countryService.getCountry(updatedUser.countryId);
       if (!userInfo.country) throw new NotFoundException('No country for ID found');
@@ -88,6 +88,13 @@ export class UserDataService {
       });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
       userData.kycFileId = updatedUser.kycFileId;
+    }
+    if (updatedUser.kycCustomerId) {
+      const userWithSameCustomerId = await this.userDataRepo.findOne({
+        where: { id: Not(userDataId), kycCustomerId: updatedUser.kycCustomerId },
+      });
+      if (userWithSameCustomerId) throw new ConflictException('A user with this KYC customer ID already exists');
+      userData.kycCustomerId = updatedUser.kycCustomerId;
     }
 
     return await this.userDataRepo.save(userData);
@@ -126,8 +133,11 @@ export class UserDataService {
     if (!customer) return null;
 
     const checkResult = await this.kycApi.getCheckResult(userDataId);
+
+    // update DB
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     userData.riskState = checkResult;
+    userData.kycCustomerId = customer.id;
     await this.userDataRepo.save(userData);
 
     return { customer: customer, checkResult: checkResult };
@@ -155,6 +165,7 @@ export class UserDataService {
     return checkResult;
   }
 
+  // TODO: remove
   async getManyCheckStatus(startUserDataId: number, endUserDataId: number): Promise<UserDataChecks[]> {
     const userDataChecks: UserDataChecks[] = [];
     for (let userDataId = startUserDataId; userDataId <= endUserDataId; userDataId++) {
