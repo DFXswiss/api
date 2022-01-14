@@ -8,7 +8,7 @@ import { Customer, KycDocument, State } from './dto/kyc.dto';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { SettingsService } from 'src/shared/settings/settings.service';
+import { SettingService } from 'src/shared/setting/setting.service';
 import { UserDataService } from 'src/user/models/userData/userData.service';
 import { In } from 'typeorm';
 
@@ -21,7 +21,7 @@ export class KycSchedulerService {
     private userDataService: UserDataService,
     private kycApi: KycApiService,
     private spiderDataRepo: SpiderDataRepository,
-    private settingsService: SettingsService,
+    private settingService: SettingService,
   ) {}
 
   @Interval(300000)
@@ -38,8 +38,10 @@ export class KycSchedulerService {
 
   @Interval(300000)
   async syncKycData() {
+    const settingKey = 'spiderModificationDate';
+
     try {
-      const lastModificationTime = await this.settingsService.get('modificationDate');
+      const lastModificationTime = await this.settingService.get(settingKey);
       const newModificationTime = Date.now().toString();
       const changedCustomers = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
       const changedEnvironmentCustomers = changedCustomers
@@ -54,7 +56,7 @@ export class KycSchedulerService {
         userData.kycCustomerId = kycData.customer.id;
         await this.userDataRepo.save(userData);
       }
-      await this.settingsService.set('modificationDate', newModificationTime);
+      await this.settingService.set(settingKey, newModificationTime);
     } catch (e) {
       console.error('Exception during KYC data sync:', e);
       await this.mailService.sendErrorMail('Sync error', [e]);

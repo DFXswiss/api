@@ -1,10 +1,10 @@
 import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity()
-export class Settings {
+export class Setting {
   @PrimaryColumn({ length: 256, unique: true })
   key: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 'MAX' })
   value: string;
 }
