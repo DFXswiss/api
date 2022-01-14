@@ -4,7 +4,7 @@ import { Readable } from 'stream';
 import { In } from 'typeorm';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { CryptoBuyRepository } from '../crypto-buy/crypto-buy.repository';
-import { TransactionDto, TransactionType } from './dto/transaction.dto';
+import { TransactionDto } from './dto/transaction.dto';
 
 @Injectable()
 export class TransactionService {
@@ -17,24 +17,42 @@ export class TransactionService {
       relations: ['bankTx', 'buy', 'buy.user'],
     });
 
-    return cryptoBuys.map((c) => ({
-      type: TransactionType.FIAT_TO_CRYPTO,
-      inputId: c.bankTx.accountServiceRef,
-      inputDate: c.inputDate,
-      inputAmount: c.amount,
-      inputAsset: c.fiat?.name,
-      inputAddress: c.bankTx.iban,
-
-      outputAmount: c.outputAmount,
-      outputAsset: c.buy.asset.name,
-      outputId: c.txId,
-      outputDate: c.outputDate,
-      outputAddress: c.buy.user.address,
-
-      name: c.name,
-      fee: c.fee,
-      notificationMail: c.recipientMail,
-    }));
+    return cryptoBuys
+      .map((c) => [
+        {
+          type: 'Deposit',
+          buyAmount: c.amount,
+          buyAsset: c.fiat?.name,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: c.bankTx?.iban,
+          date: c.inputDate?.toISOString(),
+          txid: c.bankTx?.accountServiceRef,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+        {
+          type: 'Trade',
+          buyAmount: c.outputAmount,
+          buyAsset: c.buy.asset.name,
+          sellAmount: c.amount,
+          sellAsset: c.fiat?.name,
+          fee: c.fee ? c.fee * c.amount : null,
+          feeAsset: c.fee ? c.fiat?.name : null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: c.buy.user.address,
+          date: c.outputDate?.toISOString(),
+          txid: c.txId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
   }
 
   async getTransactionCsv(userId: number): Promise<Readable> {

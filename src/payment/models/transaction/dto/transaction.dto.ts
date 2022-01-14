@@ -1,22 +1,16 @@
-export enum TransactionType {
-  FIAT_TO_CRYPTO = 'FiatToCrypto',
-}
-
 export class TransactionDto {
-  type: TransactionType;
-  inputId: string;
-  inputDate: Date;
-  inputAmount: number;
-  inputAsset: string;
-  inputAddress: string;
-
-  outputId: string;
-  outputDate: Date;
-  outputAmount: number;
-  outputAsset: string;
-  outputAddress: string;
-
-  name: string;
+  type: string;
+  buyAmount: number;
+  buyAsset: string;
+  sellAmount: number;
+  sellAsset: string;
   fee: number;
-  notificationMail: string;
+  feeAsset: string;
+  exchange: string;
+  tradeGroup: string;
+  comment: string;
+  date: string;
+  txid: string;
+  buyValueInEur: number;
+  sellValueInEur: number;
 }
