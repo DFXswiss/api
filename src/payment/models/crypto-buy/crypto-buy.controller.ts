@@ -21,6 +21,14 @@ export class CryptoBuyController {
     return this.cryptoBuyService.updateVolumes();
   }
 
+  @Put('refVolumes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateRefVolumes(): Promise<void> {
+    return this.cryptoBuyService.updateRefVolumes();
+  }
+
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
