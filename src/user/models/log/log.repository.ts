@@ -27,7 +27,7 @@ export class LogRepository extends Repository<Log> {
     }
 
     if (createLogDto.fiat) {
-      fiatObject = await fiatService.getFiat(createLogDto.fiat);
+      fiatObject = await fiatService.getFiatOld(createLogDto.fiat);
     } else {
       delete createLogDto.fiat;
     }
