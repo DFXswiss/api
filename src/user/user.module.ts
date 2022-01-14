@@ -8,8 +8,6 @@ import { UserDataService } from 'src/user/models/userData/userData.service';
 import { WalletController } from 'src/user/models/wallet/wallet.controller';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/user/models/wallet/wallet.service';
-import { AllDataController } from './models/all/all.controller';
-import { AllDataService } from './models/all/all.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
 import { BankDataController } from './models/bankData/bankData.controller';
@@ -64,7 +62,6 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserDataController,
     BankDataController,
     RefController,
-    AllDataController,
     AuthController,
   ],
   providers: [
@@ -77,7 +74,6 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserDataService,
     BankDataService,
     RefService,
-    AllDataService,
     KycSchedulerService,
     KycApiService,
     AuthService,
