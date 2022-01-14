@@ -22,12 +22,20 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SettingRepository } from './setting/setting.repository';
+import { SettingService } from './setting/setting.service';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
     HttpModule,
-    TypeOrmModule.forFeature([AssetRepository, FiatRepository, CountryRepository, LanguageRepository]),
+    TypeOrmModule.forFeature([
+      AssetRepository,
+      FiatRepository,
+      CountryRepository,
+      LanguageRepository,
+      SettingRepository,
+    ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register({
       secret: process.env.JWT_SECRET,
@@ -65,6 +73,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     FiatService,
     CountryService,
     LanguageService,
+    SettingService,
     JwtStrategy,
   ],
   exports: [
@@ -78,6 +87,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     FiatService,
     CountryService,
     LanguageService,
+    SettingService,
   ],
 })
 export class SharedModule {}

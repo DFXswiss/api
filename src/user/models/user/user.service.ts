@@ -131,8 +131,10 @@ export class UserService {
   }
 
   async getUserVolume(user: User): Promise<any> {
+    const buyVolume = await this.buyService.getUserVolume(user.id);
     return {
-      buyVolume: await this.buyService.getUserVolume(user.id).then((v) => v.volume),
+      buyVolume: buyVolume.volume,
+      annualBuyVolume: buyVolume.annualVolume,
       sellVolume: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
     };
   }

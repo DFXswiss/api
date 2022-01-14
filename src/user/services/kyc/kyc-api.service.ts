@@ -64,8 +64,8 @@ export class KycApiService {
 
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
-  async getAllCustomer(): Promise<string[]> {
-    return this.callApi<string[]>(`customers`, 'GET');
+  async getCustomerReferences(modificationTime: number): Promise<string[]> {
+    return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
   }
 
   async getCustomer(id: number): Promise<Customer> {
@@ -76,8 +76,17 @@ export class KycApiService {
     return this.callApi<CustomerInformationResponse>(`customers/${this.reference(userDataId)}/information`, 'GET');
   }
 
-  async getCheckResult(userDataId: number): Promise<RiskState> {
+  async doCheckResult(userDataId: number): Promise<RiskState> {
     await this.checkCustomer(userDataId);
+    const customerInfo = await this.getCustomerInformation(userDataId);
+    const customerCheckResult = await this.callApi<CheckResult>(
+      `customers/checks/${customerInfo.lastCheckId}/result`,
+      'GET',
+    );
+    return customerCheckResult.risks[0].categoryKey;
+  }
+
+  async getCheckResult(userDataId: number): Promise<RiskState> {
     const customerInfo = await this.getCustomerInformation(userDataId);
     const customerCheckResult = await this.callApi<CheckResult>(
       `customers/checks/${customerInfo.lastCheckId}/result`,
@@ -262,7 +271,6 @@ export class KycApiService {
     kycState: string,
     isOrganization: boolean,
   ): Promise<boolean> {
-    //TODO BODY with IMG rawData
     const result = await this.callApi<string>(
       `customers/${this.reference(id, isOrganization)}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
       'PUT',

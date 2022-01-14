@@ -4,7 +4,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CustomerDataDetailed, UserDataChecks, UserDataService } from './userData.service';
+import { UserDataService } from './userData.service';
 import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/user/models/bankData/dto/bankData.dto';
@@ -27,32 +27,12 @@ export class UserDataController {
     return this.userDataService.getAllUserData();
   }
 
-  // TODO: remove
-  @Put()
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateUserDataOld(@Body() userData: UpdateUserDataDto): Promise<UserData> {
-    return this.userDataService.updateUserData(userData.id, userData);
-  }
-
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateUserData(@Param('id') id: number, @Body() userData: UpdateUserDataDto): Promise<UserData> {
     return this.userDataService.updateUserData(id, userData);
-  }
-
-  @Get('kycData')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  getNameChecks(
-    @Query('startUserId') startUserId: string,
-    @Query('endUserId') endUserId: string,
-  ): Promise<UserDataChecks[]> {
-    return this.userDataService.getManyCheckStatus(+startUserId, +endUserId);
   }
 
   @Get(':id')
@@ -72,23 +52,7 @@ export class UserDataController {
     const user = userData.users[0];
     if (!user) throw new BadRequestException('UserData has no user');
 
-    return this.userDataService.requestKyc(user.id, depositLimit);
-  }
-
-  @Get(':id/customer')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getCustomer(@Param('id') id: number): Promise<CustomerDataDetailed> {
-    return this.userDataService.getCustomer(id);
-  }
-
-  @Put(':id/nameCheck')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async doNameCheck(@Param('id') id: number): Promise<string> {
-    return this.userDataService.doNameCheck(id);
+    return this.userDataService.requestKyc(1, depositLimit);
   }
 
   @Get(':id/nameCheck')
@@ -96,7 +60,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getNameCheck(@Param('id') id: number): Promise<string> {
-    return this.userDataService.getCheckStatus(id);
+    return this.userDataService.doNameCheck(id);
   }
 
   @Put(':id/bankDatas')

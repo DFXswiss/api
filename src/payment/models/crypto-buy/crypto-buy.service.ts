@@ -51,6 +51,15 @@ export class CryptoBuyService {
     await this.updateBuyVolume(buyIds);
   }
 
+  async updateRefVolumes(): Promise<void> {
+    const refs = await this.cryptoBuyRepo
+      .createQueryBuilder('cryptoBuy')
+      .select('usedRef')
+      .groupBy('usedRef')
+      .getRawMany<{ usedRef: string }>();
+    await this.updateRefVolume(refs.map((r) => r.usedRef));
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateCryptoBuyDto | UpdateCryptoBuyDto): Promise<CryptoBuy> {
     const cryptoBuy = this.cryptoBuyRepo.create(dto);
