@@ -16,18 +16,14 @@ import {
 } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { InternalServerErrorException } from '@nestjs/common';
+import { AccountType } from '../userData/account-type.enum';
 
 export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
   ACTIVE_SELL = 'ActiveSell',
   VERIFY = 'Verified',
-}
-
-export enum AccountType {
-  PERSONAL = 'Personal',
-  BUSINESS = 'Business',
 }
 
 @Entity()
@@ -43,9 +39,6 @@ export class User {
 
   @Column({ type: 'float', default: 0.5 })
   refFeePercent: number;
-
-  @ManyToOne(() => Asset, { eager: true })
-  refFeeAsset: Asset; // TODO: remove?
 
   @Column({ type: 'float', default: 0 })
   refVolume: number;
@@ -142,4 +135,51 @@ export class User {
 
   @CreateDateColumn()
   created: Date;
+}
+
+export interface UserInfo {
+  accountType: AccountType;
+  mail: string;
+  firstname: string;
+  surname: string;
+  street: string;
+  houseNumber: string;
+  location: string;
+  zip: string;
+  country: Country;
+  organizationName: string;
+  organizationStreet: string;
+  organizationHouseNumber: string;
+  organizationLocation: string;
+  organizationZip: string;
+  organizationCountry: Country;
+  phone: string;
+  language: Language;
+}
+
+export function getUserInfo(user: User): UserInfo {
+  if (!user.userData) throw new InternalServerErrorException('User data is not defined');
+  return extractUserInfo(user.userData.isMigrated ? user.userData : user);
+}
+
+export function extractUserInfo(source: UserInfo): UserInfo {
+  return {
+    accountType: source.accountType,
+    mail: source.mail,
+    firstname: source.firstname,
+    surname: source.surname,
+    street: source.street,
+    houseNumber: source.houseNumber,
+    location: source.location,
+    zip: source.zip,
+    country: source.country,
+    organizationName: source.organizationName,
+    organizationStreet: source.organizationStreet,
+    organizationHouseNumber: source.organizationHouseNumber,
+    organizationLocation: source.organizationLocation,
+    organizationZip: source.organizationZip,
+    organizationCountry: source.organizationCountry,
+    phone: source.phone,
+    language: source.language,
+  };
 }

@@ -1,3 +1,5 @@
+import { RiskState } from "src/user/models/userData/userData.entity";
+
 export enum State {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',
@@ -70,7 +72,7 @@ export interface CheckResponse {
   customerVersionId: number;
   checkId: number;
   checkTime: number;
-  riskState: string;
+  riskState: RiskState;
 }
 
 export interface CreateResponse {
@@ -114,7 +116,7 @@ export interface CheckResult {
 
 export interface Risk {
   criterionPath: string;
-  categoryKey: string;
+  categoryKey: RiskState;
 }
 
 export interface Customer {

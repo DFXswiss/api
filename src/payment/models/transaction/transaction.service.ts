@@ -11,7 +11,7 @@ export class TransactionService {
   constructor(private readonly buyService: BuyService, private readonly cryptoBuyRepo: CryptoBuyRepository) {}
 
   async getTransactions(userId: number): Promise<TransactionDto[]> {
-    const buys = await this.buyService.getAllBuy(userId);
+    const buys = await this.buyService.getUserBuys(userId);
     const cryptoBuys = await this.cryptoBuyRepo.find({
       where: { buy: { id: In(buys.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
       relations: ['bankTx', 'buy', 'buy.user'],

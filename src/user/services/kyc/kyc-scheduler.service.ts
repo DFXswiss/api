@@ -1,29 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { KycFile } from 'src/user/models/userData/kycFile.entity';
 import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
-import { Repository } from 'typeorm';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
+import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 
 @Injectable()
 export class KycSchedulerService {
   constructor(
     private mailService: MailService,
-    @InjectRepository(KycFile)
-    private kycFileRepo: Repository<KycFile>,
-    private userDataRepository: UserDataRepository,
+    private userDataRepo: UserDataRepository,
     private kycApi: KycApiService,
+    private spiderDataRepo: SpiderDataRepository,
   ) {}
 
   @Interval(300000)
   async doChecks() {
     try {
       await this.doChatBotCheck();
-      //await this.doAddressCheck();
       await this.doOnlineIdCheck();
       await this.doVideoIdCheck();
     } catch (e) {
@@ -34,52 +30,52 @@ export class KycSchedulerService {
 
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
-      await this.kycApi.checkCustomer(userData.id);
-      await this.kycApi.initiateOnlineIdentification(userData.id);
-      return userData;
-    });
-  }
+      userData.riskState = await this.kycApi.getCheckResult(userData.id);
+      const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
+      const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
+        userData.id,
+        KycDocument.CHATBOT_ONBOARDING,
+        spiderData.version,
+      );
 
-  private async doAddressCheck(): Promise<void> {
-    await this.doCheck(KycStatus.WAIT_ADDRESS, KycStatus.WAIT_ONLINE_ID, [KycDocument.INVOICE], async (userData) => {
+      // store chatbot result
+      spiderData.result = JSON.stringify(chatBotResult);
+      await this.spiderDataRepo.save(spiderData);
+
+      // update user data
+      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+      userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
+      userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
+      userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+      await this.userDataRepo.save(userData);
+
       await this.kycApi.initiateOnlineIdentification(userData.id);
+
       return userData;
     });
   }
 
   private async doOnlineIdCheck(): Promise<void> {
-    await this.doCheck(
-      KycStatus.WAIT_ONLINE_ID,
-      KycStatus.WAIT_MANUAL,
-      [KycDocument.ONLINE_IDENTIFICATION, KycDocument.VIDEO_IDENTIFICATION],
-      (u, c) => this.createKycFile(u, c),
-    );
+    await this.doCheck(KycStatus.WAIT_ONLINE_ID, KycStatus.WAIT_MANUAL, [
+      KycDocument.ONLINE_IDENTIFICATION,
+      KycDocument.VIDEO_IDENTIFICATION,
+    ]);
   }
 
   private async doVideoIdCheck(): Promise<void> {
-    await this.doCheck(
-      KycStatus.WAIT_VIDEO_ID,
-      KycStatus.WAIT_MANUAL,
-      [KycDocument.VIDEO_IDENTIFICATION, KycDocument.ONLINE_IDENTIFICATION],
-      (u, c) => this.createKycFile(u, c),
-    );
-  }
-
-  private async createKycFile(userData: UserData, customer: Customer): Promise<UserData> {
-    // create KYC file reference
-    const kycFile = await this.kycFileRepo.save({ userData: userData });
-    userData.kycFile = kycFile;
-    await this.mailService.sendKycMail(userData, customer.names[0].firstName, customer.emails[0], customer.id);
-    return userData;
+    await this.doCheck(KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_MANUAL, [
+      KycDocument.VIDEO_IDENTIFICATION,
+      KycDocument.ONLINE_IDENTIFICATION,
+    ]);
   }
 
   private async doCheck(
     currentStatus: KycStatus,
     nextStatus: KycStatus,
     documentTypes: KycDocument[],
-    updateAction: (userData: UserData, customer: Customer) => Promise<UserData>,
+    updateAction: (userData: UserData, customer: Customer) => Promise<UserData> = (u) => Promise.resolve(u),
   ): Promise<void> {
-    const userDataList = await this.userDataRepository.find({
+    const userDataList = await this.userDataRepo.find({
       where: { kycStatus: currentStatus },
     });
     for (const key in userDataList) {
@@ -139,7 +135,7 @@ export class KycSchedulerService {
           );
           userDataList[key].kycState = KycState.REMINDED;
         }
-        await this.userDataRepository.save(userDataList);
+        await this.userDataRepo.save(userDataList);
       } catch (e) {
         console.error('Exception during KYC checks:', e);
         await this.mailService.sendErrorMail('KYC error', [e]);

@@ -6,6 +6,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { UserService } from '../user/user.service';
 import { Sell } from './sell.entity';
 import { DepositService } from '../deposit/deposit.service';
+import { User } from '../user/user.entity';
 
 @Injectable()
 export class SellService {
@@ -54,7 +55,7 @@ export class SellService {
 
     // create the entity
     const sell = this.sellRepo.create(dto);
-    sell.user = await this.userService.getUser(userId);
+    sell.user = { id: userId } as User;
     sell.deposit = await this.depositService.getNextDeposit();
 
     return this.sellRepo.save(sell);

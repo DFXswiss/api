@@ -18,6 +18,7 @@ import { BankDataService } from './models/bankData/bankData.service';
 import { BuyController } from './models/buy/buy.controller';
 import { BuyRepository } from './models/buy/buy.repository';
 import { BuyService } from './models/buy/buy.service';
+import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
 import { DepositController } from './models/deposit/deposit.controller';
 import { DepositRepository } from './models/deposit/deposit.repository';
 import { DepositService } from './models/deposit/deposit.service';
@@ -33,7 +34,6 @@ import { SellService } from './models/sell/sell.service';
 import { UserController } from './models/user/user.controller';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
-import { KycFile } from './models/userData/kycFile.entity';
 import { KycApiService } from './services/kyc/kyc-api.service';
 import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
 
@@ -42,6 +42,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     TypeOrmModule.forFeature([
       UserRepository,
       UserDataRepository,
+      SpiderDataRepository,
       BuyRepository,
       SellRepository,
       LogRepository,
@@ -49,7 +50,6 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
       DepositRepository,
       BankDataRepository,
       RefRepository,
-      KycFile,
     ]),
     SharedModule,
     AinModule,

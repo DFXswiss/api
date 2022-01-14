@@ -1,7 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsOptional, IsString, IsInt, IsNumber, Matches, IsEnum } from 'class-validator';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { AccountType } from '../user.entity';
+import { AccountType } from '../../userData/account-type.enum';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
@@ -24,10 +23,6 @@ export class UpdateUserDto {
   @IsOptional()
   @IsNumber()
   refFeePercent: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  refFeeAsset: Asset;
 
   @ApiPropertyOptional()
   @IsOptional()

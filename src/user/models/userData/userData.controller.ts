@@ -9,7 +9,6 @@ import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/user/models/bankData/dto/bankData.dto';
 import { BankDataService } from 'src/user/models/bankData/bankData.service';
-import { ChatBotResponse } from 'src/user/services/kyc/dto/kyc.dto';
 
 @ApiTags('userData')
 @Controller('userData')
@@ -32,8 +31,16 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateUserData(@Body() userData: UpdateUserDataDto): Promise<UserData> {
-    return this.userDataService.updateUserData(userData);
+  async updateUserDataOld(@Body() userData: UpdateUserDataDto): Promise<UserData> {
+    return this.userDataService.updateUserData(userData.id, userData);
+  }
+
+  @Put(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateUserData(@Param('id') id: number, @Body() userData: UpdateUserDataDto): Promise<UserData> {
+    return this.userDataService.updateUserData(id, userData);
   }
 
   @Get('kycData')
@@ -59,10 +66,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(
-    @Param('id') id: number,
-    @Param('depositLimit') depositLimit?: string,
-  ): Promise<boolean | ChatBotResponse> {
+  async requestKyc(@Param('id') id: number, @Param('depositLimit') depositLimit?: string): Promise<string | undefined> {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
     const user = userData.users[0];
     if (!user) throw new BadRequestException('UserData has no user');

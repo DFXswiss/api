@@ -1,7 +1,9 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
-import { AccountType, User } from 'src/user/models/user/user.entity';
+import { UserInfo } from 'src/user/models/user/user.entity';
+import { AccountType } from 'src/user/models/userData/account-type.enum';
+import { RiskState } from 'src/user/models/userData/userData.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -38,7 +40,7 @@ export class KycApiService {
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
 
-  async updateCustomer(id: number, user: User): Promise<CreateResponse> {
+  async updateCustomer(id: number, user: UserInfo): Promise<CreateResponse> {
     const data = {
       reference: this.reference(id),
       type: 'PERSON',
@@ -74,15 +76,29 @@ export class KycApiService {
     return this.callApi<CustomerInformationResponse>(`customers/${this.reference(userDataId)}/information`, 'GET');
   }
 
-  async getCheckResult(userDataId: number): Promise<CheckResult> {
+  async getCheckResult(userDataId: number): Promise<RiskState> {
+    await this.checkCustomer(userDataId);
     const customerInfo = await this.getCustomerInformation(userDataId);
-    return customerInfo?.lastCheckId >= 0
-      ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET')
-      : null;
+    const customerCheckResult = await this.callApi<CheckResult>(
+      `customers/checks/${customerInfo.lastCheckId}/result`,
+      'GET',
+    );
+    return customerCheckResult.risks[0].categoryKey;
+  }
+
+  async getCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<CheckResult> {
+    return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
+  }
+
+  async downloadCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<any> {
+    return this.callApi<any>(
+      `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/export`,
+      'GET',
+    );
   }
 
   async getDocuments(id: number): Promise<CheckResult> {
-    return this.callApi<any>(`customers/${this.reference(id)}/documents`, 'GET');
+    return this.callApi<any>(`customers/${this.reference(id)}/documents/`, 'GET');
   }
 
   async checkCustomer(id: number): Promise<CheckResponse> {
@@ -135,7 +151,7 @@ export class KycApiService {
     return result[0];
   }
 
-  async submitContractLinkedList(id: number, user: User): Promise<SubmitResponse[]> {
+  async submitContractLinkedList(id: number, user: UserInfo): Promise<SubmitResponse[]> {
     let organization = {};
     const person = {
       contractReference: user.accountType === AccountType.BUSINESS ? this.reference(id) + '_placeholder' : null,
@@ -227,7 +243,10 @@ export class KycApiService {
     isOrganization: boolean,
   ): Promise<boolean> {
     const result = await this.callApi<string>(
-      `customers/${this.reference(id, isOrganization)}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
+      `customers/${this.reference(
+        id,
+        isOrganization,
+      )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
       'PUT',
       kycData,
       kycContentType,
@@ -296,7 +315,10 @@ export class KycApiService {
       contentType: contentType,
     };
     const result = await this.callApi<string>(
-      `customers/${this.reference(id, isOrganization)}/documents/${document}/versions/${version}/parts/${part}/metadata`,
+      `customers/${this.reference(
+        id,
+        isOrganization,
+      )}/documents/${document}/versions/${version}/parts/${part}/metadata`,
       'PUT',
       data,
     );
