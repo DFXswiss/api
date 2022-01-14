@@ -78,16 +78,13 @@ export class KycApiService {
 
   async doCheckResult(userDataId: number): Promise<RiskState> {
     await this.checkCustomer(userDataId);
-    const customerInfo = await this.getCustomerInformation(userDataId);
-    const customerCheckResult = await this.callApi<CheckResult>(
-      `customers/checks/${customerInfo.lastCheckId}/result`,
-      'GET',
-    );
-    return customerCheckResult.risks[0].categoryKey;
+    return this.getCheckResult(userDataId);
   }
 
   async getCheckResult(userDataId: number): Promise<RiskState> {
     const customerInfo = await this.getCustomerInformation(userDataId);
+    if (customerInfo.lastCheckId < 0) return undefined;
+
     const customerCheckResult = await this.callApi<CheckResult>(
       `customers/checks/${customerInfo.lastCheckId}/result`,
       'GET',
