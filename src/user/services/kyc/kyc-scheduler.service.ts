@@ -36,7 +36,7 @@ export class KycSchedulerService {
     }
   }
 
-  @Interval(300000)
+  @Interval(1800000)
   async syncKycData() {
     const settingKey = 'spiderModificationDate';
 
