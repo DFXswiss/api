@@ -128,7 +128,7 @@ export class UserDataService {
     const checkResult = await this.kycApi.getCheckResult(userDataId);
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     userData.riskState = checkResult;
-    this.userRepo.save(userData);
+    await this.userRepo.save(userData);
 
     return { customer: customer, checkResult: checkResult };
   }
