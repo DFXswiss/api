@@ -36,7 +36,7 @@ export class KycSchedulerService {
     }
   }
 
-  @Interval(10000)
+  @Interval(300000)
   async syncKycData() {
     try {
       const lastModificationTime = await this.settingsService.get('modificationDate');
