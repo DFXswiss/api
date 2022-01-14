@@ -50,8 +50,8 @@ export class UserDataService {
     return await this.updateUserInfo(userData, extractUserInfo(user));
   }
 
-  async updateUserData(updatedUser: UpdateUserDataDto): Promise<UserData> {
-    let userData = await this.userDataRepo.findOne(updatedUser.id);
+  async updateUserData(userDataId: number, updatedUser: UpdateUserDataDto): Promise<UserData> {
+    let userData = await this.userDataRepo.findOne(userDataId);
     if (!userData) throw new NotFoundException('No user for id found');
 
     // update user info
@@ -67,7 +67,7 @@ export class UserDataService {
     await this.updateUserInfo(userData, userInfo);
 
     // update the rest
-    userData = await this.userDataRepo.findOne(updatedUser.id);
+    userData = await this.userDataRepo.findOne(userDataId);
     if (updatedUser.kycStatus && !updatedUser.kycState) {
       updatedUser.kycState = KycState.NA;
     }
@@ -84,7 +84,7 @@ export class UserDataService {
     if (updatedUser.isMigrated != null) userData.isMigrated = updatedUser.isMigrated;
     if (updatedUser.kycFileId) {
       const userWithSameFileId = await this.userDataRepo.findOne({
-        where: { id: Not(updatedUser.id), kycFileId: updatedUser.kycFileId },
+        where: { id: Not(userDataId), kycFileId: updatedUser.kycFileId },
       });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
       userData.kycFileId = updatedUser.kycFileId;

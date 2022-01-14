@@ -1,13 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsInt, IsEnum, IsNotEmpty, IsEmail, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsInt, IsEnum, IsEmail, IsString, IsBoolean } from 'class-validator';
 import { AccountType } from '../account-type.enum';
 import { KycState, KycStatus } from '../userData.entity';
 
 export class UpdateUserDataDto {
-  @IsInt()
-  @IsNotEmpty()
-  id: number;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
