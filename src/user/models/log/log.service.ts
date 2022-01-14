@@ -193,11 +193,6 @@ export class LogService {
     return Util.round(volumeWithoutEur + volumeEur, 0);
   }
 
-  async getRefVolumeBtc(ref: string): Promise<any> {
-    const logs = await this.logRepository.find({ where: { usedRef: ref } });
-    return await this.logRepository.sum(logs, 'btcValue', 8);
-  }
-
   async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
     return this.logRepository.getAssetVolume(logType, logDirection);
   }

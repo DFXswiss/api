@@ -78,6 +78,7 @@ export class UpdateUserDataDto {
   organizationZip: string;
 
   @IsOptional()
+  @IsInt()
   organizationCountryId: number;
 
   @IsOptional()

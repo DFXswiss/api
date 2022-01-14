@@ -147,8 +147,8 @@ export class UserService {
       refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolumeBtc: await this.logService.getRefVolumeBtc(user.ref),
-      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase() ?? 'eur'),
+      refVolume: user.refVolume,
+      refCredit: user.refCredit,
     };
   }
 
