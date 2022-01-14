@@ -8,6 +8,7 @@ import { createHash } from 'crypto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Not } from 'typeorm';
 import { User } from '../user/user.entity';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class BuyService {
@@ -20,7 +21,7 @@ export class BuyService {
   }
 
   async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.buyRepo.update(buyId, { volume, annualVolume });
+    await this.buyRepo.update(buyId, { volume: Util.round(volume, 0), annualVolume: Util.round(annualVolume, 0) });
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
