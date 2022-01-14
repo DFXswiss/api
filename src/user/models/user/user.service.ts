@@ -12,6 +12,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AccountType } from '../userData/account-type.enum';
 import { BuyService } from '../buy/buy.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class UserService {
@@ -147,8 +148,7 @@ export class UserService {
       refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: user.refVolume,
-      refCredit: user.refCredit,
+      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase() ?? 'eur'),
     };
   }
 
@@ -176,6 +176,6 @@ export class UserService {
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
-    await this.userRepo.update({ ref }, { refVolume: volume, refCredit: credit });
+    await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
   }
 }
