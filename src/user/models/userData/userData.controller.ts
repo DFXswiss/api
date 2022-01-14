@@ -4,7 +4,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CustomerDataDetailed, UserDataService } from './userData.service';
+import { UserDataService } from './userData.service';
 import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/user/models/bankData/dto/bankData.dto';

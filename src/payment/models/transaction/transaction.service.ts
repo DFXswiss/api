@@ -30,7 +30,7 @@ export class TransactionService {
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.bankTx?.iban,
-          date: c.inputDate
+          date: c.outputDate
             ? new Date(c.outputDate.getTime() - (1 + Math.random()) * 60 * 60 * 1000).toISOString()
             : null,
           txid: c.bankTx?.accountServiceRef,
