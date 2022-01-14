@@ -116,7 +116,7 @@ export class CryptoBuyService {
       const { volume, credit } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
         .select('SUM(amount * refFactor)', 'volume')
-        .addSelect('SUM(amount * refFactor * refProvision)', 'credit')
+        .addSelect('SUM(amount * refFactor * refProvision * 0.01)', 'credit')
         .where('usedRef = :ref', { ref })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number; credit: number }>();
