@@ -86,10 +86,6 @@ export class UpdateUserDataDto {
   kycFileId: number;
 
   @IsOptional()
-  @IsInt()
-  kycCustomerId: number;
-
-  @IsOptional()
   @IsEnum(KycStatus)
   kycStatus: KycStatus;
 

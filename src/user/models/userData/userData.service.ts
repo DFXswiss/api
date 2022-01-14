@@ -89,13 +89,6 @@ export class UserDataService {
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
       userData.kycFileId = updatedUser.kycFileId;
     }
-    if (updatedUser.kycCustomerId) {
-      const userWithSameCustomerId = await this.userDataRepo.findOne({
-        where: { id: Not(userDataId), kycCustomerId: updatedUser.kycCustomerId },
-      });
-      if (userWithSameCustomerId) throw new ConflictException('A user with this KYC customer ID already exists');
-      userData.kycCustomerId = updatedUser.kycCustomerId;
-    }
 
     return await this.userDataRepo.save(userData);
   }
