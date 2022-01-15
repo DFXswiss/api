@@ -177,7 +177,7 @@ export class KycSchedulerService {
           );
           userDataList[key].kycState = KycState.REMINDED;
         }
-        await this.userDataRepo.save(userDataList);
+        await this.userDataRepo.save(userDataList[key]);
       } catch (e) {
         console.error('Exception during KYC checks:', e);
         await this.mailService.sendErrorMail('KYC error', [e]);
