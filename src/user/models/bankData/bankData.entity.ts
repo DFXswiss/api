@@ -19,6 +19,12 @@ export class BankData {
   @Column({ length: 256 })
   iban: string;
 
+  @Column({ length: 256, nullable: true })
+  bankname: string;
+
+  @Column({ length: 256, nullable: true })
+  bic: string;
+
   @ManyToOne(() => UserData)
   userData: UserData;
 
