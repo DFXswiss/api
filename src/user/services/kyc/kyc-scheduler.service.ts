@@ -10,7 +10,6 @@ import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { UserDataService } from 'src/user/models/userData/userData.service';
-import { In } from 'typeorm';
 
 @Injectable()
 export class KycSchedulerService {
