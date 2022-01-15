@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { last } from 'rxjs';
 import { BuyService } from 'src/user/models/buy/buy.service';
 import { Readable } from 'stream';
 import { In } from 'typeorm';
@@ -31,7 +32,9 @@ export class TransactionService {
           tradeGroup: null,
           comment: c.bankTx?.iban,
           date: c.outputDate
-            ? new Date(c.outputDate.getTime() - (1 + Math.random()) * 60 * 60 * 1000).toISOString()
+            ? new Date(
+                c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000,
+              ).toISOString()
             : null,
           txid: c.bankTx?.accountServiceRef,
           buyValueInEur: null,
