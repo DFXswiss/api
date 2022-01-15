@@ -43,19 +43,29 @@ export class KycSchedulerService {
     try {
       const lastModificationTime = await this.settingService.get(settingKey);
       const newModificationTime = Date.now().toString();
-      const changedCustomers = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
-      const changedEnvironmentCustomers = changedCustomers
+
+      // get KYC changes
+      const changedRefs = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
+      const changedUserDataIds = changedRefs
         .filter((c) => c.startsWith(process.env.KYC_PREFIX))
         .map((c) => +c.replace(process.env.KYC_PREFIX, ''))
         .filter((c) => !isNaN(c));
 
-      const userDataList = await this.userDataRepo.find({ id: In(changedEnvironmentCustomers) });
-      for (const userData of userDataList) {
+      // update
+      for (const userDataId of changedUserDataIds) {
+        const userData = await this.userDataRepo.findOne(userDataId);
+        if (!userData) continue;
+
+        // update kyc data
         const kycData = await this.userDataService.getKycData(userData.id);
         userData.riskState = kycData.checkResult;
         userData.kycCustomerId = kycData.customer.id;
+
+        // TODO: chatbot checks
+
         await this.userDataRepo.save(userData);
       }
+
       await this.settingService.set(settingKey, newModificationTime);
     } catch (e) {
       console.error('Exception during KYC data sync:', e);

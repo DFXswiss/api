@@ -9,7 +9,7 @@ import { SharedModule } from './shared/shared.module';
 import { PaymentModule } from './payment/payment.module';
 import { UserModule } from './user/user.module';
 import { AdminController } from './admin/admin.controller';
-import { SeedService } from './seed/seed.service';
+import { SeedService } from './shared/seed/seed.service';
 
 @Module({
   imports: [
