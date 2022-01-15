@@ -7,8 +7,8 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserDataService } from './userData.service';
 import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
-import { BankDataDto } from 'src/user/models/bankData/dto/bankData.dto';
-import { BankDataService } from 'src/user/models/bankData/bankData.service';
+import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
+import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
 
 @ApiTags('userData')
 @Controller('userData')

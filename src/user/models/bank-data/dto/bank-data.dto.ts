@@ -25,7 +25,7 @@ export class BankDataDto {
   @ApiProperty()
   @IsOptional()
   @IsString()
-  bankname: string;
+  bankName: string;
 
   @ApiProperty()
   @IsOptional()

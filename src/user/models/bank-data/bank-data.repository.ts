@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { EntityRepository, Repository } from 'typeorm';
-import { BankData } from './bankData.entity';
+import { BankData } from './bank-data.entity';
 
 @EntityRepository(BankData)
 export class BankDataRepository extends Repository<BankData> {

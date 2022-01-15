@@ -20,7 +20,7 @@ export class BankData {
   iban: string;
 
   @Column({ length: 256, nullable: true })
-  bankname: string;
+  bankName: string;
 
   @Column({ length: 256, nullable: true })
   bic: string;
