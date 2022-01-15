@@ -1,6 +1,6 @@
 import { Country } from 'src/shared/models/country/country.entity';
 import { Language } from 'src/shared/models/language/language.entity';
-import { BankData } from 'src/user/models/bankData/bankData.entity';
+import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
 import {
   Entity,

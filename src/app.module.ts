@@ -9,6 +9,7 @@ import { SharedModule } from './shared/shared.module';
 import { PaymentModule } from './payment/payment.module';
 import { UserModule } from './user/user.module';
 import { AdminController } from './admin/admin.controller';
+import { SeedService } from './shared/seed/seed.service';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { AdminController } from './admin/admin.controller';
     UserModule,
   ],
   controllers: [AppController, StatisticController, AdminController],
-  providers: [StatisticService, CfpService],
+  providers: [StatisticService, CfpService, SeedService],
   exports: [],
 })
 export class AppModule {}

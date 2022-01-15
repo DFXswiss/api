@@ -1,4 +1,4 @@
-let AssetSeed = [
+export const AssetSeed = [
   { name: 'DFI', type: 'Coin', chainId: 0, buyable: true, sellable: false },
   { name: 'dBTC', type: 'DAT', chainId: 2, buyable: true, sellable: false },
   { name: 'dETH', type: 'DAT', chainId: 1, buyable: true, sellable: false },
@@ -15,5 +15,3 @@ let AssetSeed = [
   { name: 'USDC-DFI', type: 'DAT', chainId: 14, buyable: false, sellable: false },
   { name: 'USDT-DFI', type: 'DAT', chainId: 6, buyable: false, sellable: false },
 ];
-
-module.exports = { AssetSeed };

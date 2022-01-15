@@ -3,8 +3,8 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { BankDataDto } from 'src/user/models/bankData/dto/bankData.dto';
-import { BankDataService } from 'src/user/models/bankData/bankData.service';
+import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
+import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
 
 @ApiTags('bankData')
 @Controller('bankData')

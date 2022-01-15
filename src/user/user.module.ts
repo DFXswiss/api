@@ -8,13 +8,11 @@ import { UserDataService } from 'src/user/models/userData/userData.service';
 import { WalletController } from 'src/user/models/wallet/wallet.controller';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/user/models/wallet/wallet.service';
-import { AllDataController } from './models/all/all.controller';
-import { AllDataService } from './models/all/all.service';
 import { AuthController } from './models/auth/auth.controller';
 import { AuthService } from './models/auth/auth.service';
-import { BankDataController } from './models/bankData/bankData.controller';
-import { BankDataRepository } from './models/bankData/bankData.repository';
-import { BankDataService } from './models/bankData/bankData.service';
+import { BankDataController } from './models/bank-data/bank-data.controller';
+import { BankDataRepository } from './models/bank-data/bank-data.repository';
+import { BankDataService } from './models/bank-data/bank-data.service';
 import { BuyController } from './models/buy/buy.controller';
 import { BuyRepository } from './models/buy/buy.repository';
 import { BuyService } from './models/buy/buy.service';
@@ -64,7 +62,6 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserDataController,
     BankDataController,
     RefController,
-    AllDataController,
     AuthController,
   ],
   providers: [
@@ -77,7 +74,6 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserDataService,
     BankDataService,
     RefService,
-    AllDataService,
     KycSchedulerService,
     KycApiService,
     AuthService,

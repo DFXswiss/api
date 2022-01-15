@@ -21,4 +21,14 @@ export class BankDataDto {
   @IsOptional()
   @IsString()
   iban: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  bankName: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  bic: string;
 }

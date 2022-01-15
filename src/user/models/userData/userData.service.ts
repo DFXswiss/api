@@ -3,7 +3,7 @@ import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { KycState, KycStatus, RiskState, UserData } from './userData.entity';
 import { Customer, KycContentType, KycDocument, State } from 'src/user/services/kyc/dto/kyc.dto';
-import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
+import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
 import { KycApiService } from 'src/user/services/kyc/kyc-api.service';

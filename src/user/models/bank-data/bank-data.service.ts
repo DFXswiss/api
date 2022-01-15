@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BankDataRepository } from 'src/user/models/bankData/bankData.repository';
-import { BankDataDto } from 'src/user/models/bankData/dto/bankData.dto';
+import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
+import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { UserData } from 'src/user/models/userData/userData.entity';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { KycApiService } from 'src/user/services/kyc/kyc-api.service';

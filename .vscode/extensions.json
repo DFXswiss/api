@@ -1,3 +1,8 @@
 {
-  "recommendations": ["dbaeumer.vscode-eslint", "streetsidesoftware.code-spell-checker", "sonarsource.sonarlint-vscode"]
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "streetsidesoftware.code-spell-checker",
+    "sonarsource.sonarlint-vscode",
+    "rangav.vscode-thunder-client"
+  ]
 }
