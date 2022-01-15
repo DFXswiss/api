@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { last } from 'rxjs';
 import { BuyService } from 'src/user/models/buy/buy.service';
 import { Readable } from 'stream';
 import { In } from 'typeorm';
