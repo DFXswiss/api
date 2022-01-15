@@ -36,32 +36,32 @@ export class KycSchedulerService {
     }
   }
 
-  @Interval(1800000)
-  async syncKycData() {
-    const settingKey = 'spiderModificationDate';
+  // @Interval(1800000)
+  // async syncKycData() {
+  //   const settingKey = 'spiderModificationDate';
 
-    try {
-      const lastModificationTime = await this.settingService.get(settingKey);
-      const newModificationTime = Date.now().toString();
-      const changedCustomers = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
-      const changedEnvironmentCustomers = changedCustomers
-        .filter((c) => c.startsWith(process.env.KYC_PREFIX))
-        .map((c) => +c.replace(process.env.KYC_PREFIX, ''))
-        .filter((c) => !isNaN(c));
+  //   try {
+  //     const lastModificationTime = await this.settingService.get(settingKey);
+  //     const newModificationTime = Date.now().toString();
+  //     const changedCustomers = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
+  //     const changedEnvironmentCustomers = changedCustomers
+  //       .filter((c) => c.startsWith(process.env.KYC_PREFIX))
+  //       .map((c) => +c.replace(process.env.KYC_PREFIX, ''))
+  //       .filter((c) => !isNaN(c));
 
-      const userDataList = await this.userDataRepo.find({ id: In(changedEnvironmentCustomers) });
-      for (const userData of userDataList) {
-        const kycData = await this.userDataService.getKycData(userData.id);
-        userData.riskState = kycData.checkResult;
-        userData.kycCustomerId = kycData.customer.id;
-        await this.userDataRepo.save(userData);
-      }
-      await this.settingService.set(settingKey, newModificationTime);
-    } catch (e) {
-      console.error('Exception during KYC data sync:', e);
-      await this.mailService.sendErrorMail('Sync error', [e]);
-    }
-  }
+  //     const userDataList = await this.userDataRepo.find({ id: In(changedEnvironmentCustomers) });
+  //     for (const userData of userDataList) {
+  //       const kycData = await this.userDataService.getKycData(userData.id);
+  //       userData.riskState = kycData.checkResult;
+  //       userData.kycCustomerId = kycData.customer.id;
+  //       await this.userDataRepo.save(userData);
+  //     }
+  //     await this.settingService.set(settingKey, newModificationTime);
+  //   } catch (e) {
+  //     console.error('Exception during KYC data sync:', e);
+  //     await this.mailService.sendErrorMail('Sync error', [e]);
+  //   }
+  // }
 
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
