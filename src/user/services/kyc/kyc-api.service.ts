@@ -160,10 +160,7 @@ export class KycApiService {
   async submitContractLinkedList(id: number, user: UserInfo): Promise<SubmitResponse[]> {
     let organization = {};
     const person = {
-      contractReference:
-        user.accountType === AccountType.BUSINESS || user.accountType === AccountType.SELF
-          ? this.reference(id) + '_placeholder'
-          : null,
+      contractReference: user.accountType === AccountType.PERSONAL ? null : this.reference(id) + '_placeholder',
       customer: {
         reference: this.reference(id),
         type: 'PERSON',
@@ -185,12 +182,12 @@ export class KycApiService {
         activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
       },
       relationTypes:
-        user.accountType === AccountType.BUSINESS || user.accountType === AccountType.SELF
-          ? [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER]
-          : [KycRelationType.CONTRACTING_PARTNER, KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
+        user.accountType === AccountType.PERSONAL
+          ? [KycRelationType.CONTRACTING_PARTNER, KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER]
+          : [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
     };
 
-    if (user.accountType === AccountType.BUSINESS || user.accountType === AccountType.SELF) {
+    if (user.accountType !== AccountType.PERSONAL) {
       organization = {
         customer: {
           reference: this.reference(id, true),
@@ -216,9 +213,7 @@ export class KycApiService {
     const result = await this.callApi<SubmitResponse[]>(
       'customers/contract-linked-list',
       'POST',
-      user.accountType === AccountType.BUSINESS || user.accountType === AccountType.SELF
-        ? [person, organization]
-        : [person],
+      user.accountType === AccountType.PERSONAL ? [person] : [person, organization],
     );
     return result;
   }

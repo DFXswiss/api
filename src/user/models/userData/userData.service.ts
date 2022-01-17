@@ -148,10 +148,10 @@ export class UserDataService {
     const userInfo = getUserInfo(user);
 
     if (userData?.kycStatus === KycStatus.NA) {
-      if (userInfo.accountType === AccountType.BUSINESS || userInfo.accountType === AccountType.SELF) {
-        await this.kycApi.submitContractLinkedList(userData.id, userInfo);
-      } else {
+      if (userInfo.accountType === AccountType.PERSONAL) {
         await this.kycApi.updateCustomer(userData.id, userInfo);
+      } else {
+        await this.kycApi.submitContractLinkedList(userData.id, userInfo);
       }
 
       userData.riskState = await this.kycApi.doCheckResult(userData.id);
@@ -237,7 +237,7 @@ export class UserDataService {
       );
     }
 
-    if (userInfo.accountType === AccountType.BUSINESS || userInfo.accountType === AccountType.SELF) {
+    if (userInfo.accountType !== AccountType.PERSONAL) {
       await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', true);
 
       await this.kycApi.createDocumentVersionPart(
@@ -250,9 +250,10 @@ export class UserDataService {
         true,
       );
 
-      const organisationType = userInfo.accountType === AccountType.SELF ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY';
+      const organisationType =
+        userInfo.accountType === AccountType.SELF_EMPLOYED ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY';
       const type =
-        userInfo.accountType === AccountType.SELF
+        userInfo.accountType === AccountType.SELF_EMPLOYED
           ? 'AdditionalOrganisationInformation'
           : 'AdditionalLegalEntityInformation';
       const additionalOrganizationInformation = {
