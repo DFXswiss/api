@@ -74,7 +74,7 @@ export class NodeService {
 
     if (errors.length > 0) {
       console.error(`Node errors:`, errors);
-      await this.mailService.sendErrorMail('Node error', errors);
+      await this.mailService.sendErrorMail('Node Error', errors);
     }
   }
 

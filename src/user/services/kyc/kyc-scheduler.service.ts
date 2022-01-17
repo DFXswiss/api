@@ -32,7 +32,7 @@ export class KycSchedulerService {
       await this.doVideoIdCheck();
     } catch (e) {
       console.error('Exception during KYC checks:', e);
-      await this.mailService.sendErrorMail('KYC error', [e]);
+      await this.mailService.sendErrorMail('KYC Error', [e]);
     }
   }
 
@@ -69,7 +69,7 @@ export class KycSchedulerService {
       await this.settingService.set(settingKey, newModificationTime);
     } catch (e) {
       console.error('Exception during KYC data sync:', e);
-      await this.mailService.sendErrorMail('Sync error', [e]);
+      await this.mailService.sendErrorMail('Sync Error', [e]);
     }
   }
 
@@ -190,7 +190,7 @@ export class KycSchedulerService {
         await this.userDataRepo.save(userDataList[key]);
       } catch (e) {
         console.error('Exception during KYC checks:', e);
-        await this.mailService.sendErrorMail('KYC error', [e]);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }

@@ -7,12 +7,14 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { Config } from 'src/config/config';
+import { MailService } from 'src/shared/services/mail.service';
 
 @Injectable()
 export class BankTxService {
   constructor(
     private readonly bankTxRepo: BankTxRepository,
     private readonly bankTxBatchRepo: BankTxBatchRepository,
+    private readonly mailService: MailService,
   ) {}
 
   @Interval(60000)
@@ -65,7 +67,9 @@ export class BankTxService {
       .find({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
       .then((list) => list.map((i) => i.accountServiceRef));
     if (duplicates.length > 0) {
-      console.log(`Duplicate SEPA entries found:`, duplicates);
+      const message = `Duplicate SEPA entries found in batch ${batch.identification}:`;
+      console.log(message, duplicates);
+      this.mailService.sendErrorMail('SEPA Error', [message + ` ${duplicates.join(', ')}`]);
     }
 
     // store the entries
