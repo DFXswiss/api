@@ -148,10 +148,10 @@ export class UserDataService {
     const userInfo = getUserInfo(user);
 
     if (userData?.kycStatus === KycStatus.NA) {
-      if (userInfo.accountType === AccountType.BUSINESS) {
-        await this.kycApi.submitContractLinkedList(userData.id, userInfo);
-      } else {
+      if (userInfo.accountType === AccountType.PERSONAL) {
         await this.kycApi.updateCustomer(userData.id, userInfo);
+      } else {
+        await this.kycApi.submitContractLinkedList(userData.id, userInfo);
       }
 
       userData.riskState = await this.kycApi.doCheckResult(userData.id);
@@ -237,7 +237,7 @@ export class UserDataService {
       );
     }
 
-    if (userInfo.accountType === AccountType.BUSINESS) {
+    if (userInfo.accountType !== AccountType.PERSONAL) {
       await this.kycApi.createDocumentVersion(userData.id, KycDocument.INITIAL_CUSTOMER_INFORMATION, 'v1', true);
 
       await this.kycApi.createDocumentVersionPart(
@@ -250,9 +250,15 @@ export class UserDataService {
         true,
       );
 
+      const organisationType =
+        userInfo.accountType === AccountType.SELF_EMPLOYED ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY';
+      const type =
+        userInfo.accountType === AccountType.SELF_EMPLOYED
+          ? 'AdditionalOrganisationInformation'
+          : 'AdditionalLegalEntityInformation';
       const additionalOrganizationInformation = {
-        type: 'AdditionalOrganisationInformation',
-        organisationType: 'SOLE_PROPRIETORSHIP',
+        type: type,
+        organisationType: organisationType,
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
       };
 
@@ -266,7 +272,7 @@ export class UserDataService {
         true,
       );
 
-      if (false && uploadInitialCustomerInformation) {
+      if (uploadInitialCustomerInformation) {
         await this.kycApi.changeDocumentState(
           userData.id,
           'v1',
