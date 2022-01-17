@@ -3,6 +3,7 @@ import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { CreateWalletDto } from 'src/user/models/wallet/dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { CryptoService } from 'src/ain/services/crypto.service';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class WalletService {
@@ -29,7 +30,7 @@ export class WalletService {
   }
 
   private verifySignature(address: string, signature: string): boolean {
-    const signatureMessage = process.env.SIGN_MESSAGE_WALLET + address;
+    const signatureMessage = Config.auth.signMessageWallet + address;
     return this.cryptoService.verifySignature(signatureMessage, address, signature);
   }
 }

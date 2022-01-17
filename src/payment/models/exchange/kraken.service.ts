@@ -1,16 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeService } from './exchange.service';
-import { Exchange, kraken } from 'ccxt';
+import { kraken } from 'ccxt';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class KrakenService extends ExchangeService {
   constructor() {
-    const params: Partial<Exchange> = {
-      apiKey: process.env.KRAKEN_KEY,
-      secret: process.env.KRAKEN_SECRET,
-      enableRateLimit: true,
-      timeout: 30000,
-    };
-    super(new kraken(params));
+    super(new kraken(Config.kraken));
   }
 }

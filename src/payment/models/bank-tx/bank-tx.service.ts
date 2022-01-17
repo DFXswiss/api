@@ -6,10 +6,14 @@ import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class BankTxService {
-  constructor(private readonly bankTxRepo: BankTxRepository, private readonly bankTxBatchRepo: BankTxBatchRepository) {}
+  constructor(
+    private readonly bankTxRepo: BankTxRepository,
+    private readonly bankTxBatchRepo: BankTxBatchRepository,
+  ) {}
 
   @Interval(60000)
   async importSepaFiles(): Promise<void> {
@@ -26,16 +30,10 @@ export class BankTxService {
 
   // --- HELPER METHODS --- //
   private async fetchAndStoreSepaFiles(): Promise<void> {
-    const client = await FtpService.connect({
-      host: process.env.FTP_HOST,
-      user: process.env.FTP_USER,
-      password: process.env.FTP_PASSWORD,
-      directory: process.env.FTP_FOLDER,
-    });
+    const client = await FtpService.connect(Config.ftp);
 
     // read file list
-    const fileInfos = await client.listFiles()
-      .then((i) => i.filter((f) => f.name.endsWith('.xml')));
+    const fileInfos = await client.listFiles().then((i) => i.filter((f) => f.name.endsWith('.xml')));
     if (fileInfos.length > 0) console.log('New SEPA files to import:', fileInfos);
 
     // store and move files to archive folder

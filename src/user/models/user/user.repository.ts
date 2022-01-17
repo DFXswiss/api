@@ -10,6 +10,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AccountType } from '../userData/account-type.enum';
+import { Config } from 'src/config/config';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -52,7 +53,7 @@ export class UserRepository extends Repository<User> {
 
       createUserDto.language = languageObject.id;
     } else {
-      languageObject = await languageService.getLanguage('DE');
+      languageObject = await languageService.getLanguage(Config.defaultLanguage);
 
       createUserDto.language = languageObject.id;
     }
@@ -62,7 +63,7 @@ export class UserRepository extends Repository<User> {
 
       createUserDto.currency = currencyObject.id;
     } else {
-      currencyObject = await fiatService.getFiatByName('eur');
+      currencyObject = await fiatService.getFiatByName(Config.defaultCurrency);
 
       createUserDto.currency = currencyObject.id;
     }
@@ -177,7 +178,7 @@ export class UserRepository extends Repository<User> {
 
       newUser.language = languageObject;
     } else {
-      languageObject = await languageService.getLanguage('DE');
+      languageObject = await languageService.getLanguage(Config.defaultLanguage);
 
       newUser.language = languageObject;
     }
@@ -187,7 +188,7 @@ export class UserRepository extends Repository<User> {
 
       newUser.currency = currencyObject.id;
     } else {
-      currencyObject = await fiatService.getFiatByName('eur');
+      currencyObject = await fiatService.getFiatByName(Config.defaultCurrency);
 
       newUser.currency = currencyObject.id;
     }

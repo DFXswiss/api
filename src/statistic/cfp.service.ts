@@ -6,6 +6,8 @@ import * as CakeMasterNodes from './assets/cake-mn.json';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/util';
+import { Config } from 'src/config/config';
+
 interface CfpResponse {
   number: number;
   title: string;
@@ -257,6 +259,6 @@ export class CfpService {
   }
 
   private async callApi<T>(baseUrl: string, url: string): Promise<T> {
-    return this.http.get<T>(`${baseUrl}${url}`, { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` } });
+    return this.http.get<T>(`${baseUrl}${url}`, { headers: { Authorization: `Bearer ${Config.githubToken}` } });
   }
 }

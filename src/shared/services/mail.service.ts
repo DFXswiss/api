@@ -4,6 +4,7 @@ import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { LogDirection } from 'src/user/models/log/log.entity';
 import { Util } from '../util';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class MailService {
@@ -89,7 +90,7 @@ export class MailService {
   }
 
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
-    const env = process.env.ENVIRONMENT.toUpperCase();
+    const env = Config.environment.toUpperCase();
 
     const htmlBody = `
     <p>there seem to be some problems on ${env} API:</p>

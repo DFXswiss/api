@@ -49,7 +49,6 @@
     "class-transformer": "^0.3.1",
     "class-validator": "^0.13.2",
     "cors": "^2.8.5",
-    "dotenv": "^10.0.0",
     "express-useragent": "^1.0.15",
     "fast-xml-parser": "^3.21.0",
     "handlebars": "^4.7.7",
