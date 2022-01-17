@@ -11,6 +11,14 @@ export class TransactionService {
   constructor(private readonly buyService: BuyService, private readonly cryptoBuyRepo: CryptoBuyRepository) {}
 
   async getTransactions(userId: number): Promise<TransactionDto[]> {
+    const buyTransactions = await this.getBuyTransaction(userId);
+    //const sellTransactions = await this.getSellTransaction(userId);
+
+    return buyTransactions;
+    //return [buyTransactions, sellTransactions].reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  async getBuyTransaction(userId: number, timeInSeconds?: boolean): Promise<TransactionDto[]> {
     const buys = await this.buyService.getUserBuys(userId);
     const cryptoBuys = await this.cryptoBuyRepo.find({
       where: { buy: { id: In(buys.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
@@ -31,9 +39,14 @@ export class TransactionService {
           tradeGroup: null,
           comment: c.bankTx?.iban,
           date: c.outputDate
-            ? new Date(
-                c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000,
-              ).toISOString()
+            ? timeInSeconds
+              ? (
+                  (c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000) /
+                  1000
+                ).toString()
+              : new Date(
+                  c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000,
+                ).toISOString()
             : null,
           txid: c.bankTx?.accountServiceRef,
           buyValueInEur: null,
@@ -50,7 +63,11 @@ export class TransactionService {
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.buy.user.address,
-          date: c.outputDate?.toISOString(),
+          date: c.outputDate
+            ? timeInSeconds
+              ? (c.outputDate.getTime() / 1000).toString()
+              : c.outputDate.toISOString()
+            : null,
           txid: c.txId,
           buyValueInEur: null,
           sellValueInEur: null,
@@ -58,6 +75,84 @@ export class TransactionService {
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
   }
+
+  // async getSellTransaction(userId: number, timeInSeconds?: boolean): Promise<TransactionDto[]> {
+  //   const sells = await this.buyService.getUserBuys(userId);
+  //   const cryptoSells = await this.cryptoBuyRepo.find({
+  //     where: { buy: { id: In(sells.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
+  //     relations: ['bankTx', 'buy', 'buy.user'],
+  //   });
+
+  //   return cryptoSells
+  //     .map((c) => [
+  //       {
+  //         type: 'Deposit',
+  //         buyAmount: c.amount,
+  //         buyAsset: c.buy?.asset.name,
+  //         sellAmount: null,
+  //         sellAsset: null,
+  //         fee: null,
+  //         feeAsset: null,
+  //         exchange: 'DFX',
+  //         tradeGroup: null,
+  //         comment: c.bankTx?.iban,
+  //         date: c.outputDate
+  //           ? timeInSeconds
+  //             ? (
+  //                 (c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000) /
+  //                 1000
+  //               ).toString()
+  //             : new Date(
+  //                 c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000,
+  //               ).toISOString()
+  //           : null,
+  //         txid: c.bankTx?.accountServiceRef,
+  //         buyValueInEur: null,
+  //         sellValueInEur: null,
+  //       },
+  //       {
+  //         type: 'Trade',
+  //         buyAmount: c.outputAmount,
+  //         buyAsset: c.buy.asset.name,
+  //         sellAmount: c.amount,
+  //         sellAsset: c.fiat?.name,
+  //         fee: c.fee ? c.fee * c.amount : null,
+  //         feeAsset: c.fee ? c.fiat?.name : null,
+  //         exchange: 'DFX',
+  //         tradeGroup: null,
+  //         comment: c.buy.user.address,
+  //         date: c.outputDate
+  //           ? timeInSeconds
+  //             ? (c.outputDate.getTime() / 1000).toString()
+  //             : c.outputDate.toISOString()
+  //           : null,
+  //         txid: c.txId,
+  //         buyValueInEur: null,
+  //         sellValueInEur: null,
+  //       },
+  //       {
+  //         type: 'Withdrawal',
+  //         buyAmount: null,
+  //         buyAsset: null,
+  //         sellAmount: c.amount,
+  //         sellAsset: c.fiat?.name,
+  //         fee: c.fee ? c.fee * c.amount : null,
+  //         feeAsset: c.fee ? c.fiat?.name : null,
+  //         exchange: 'DFX',
+  //         tradeGroup: null,
+  //         comment: c.buy.user.address,
+  //         date: c.outputDate
+  //           ? timeInSeconds
+  //             ? (c.outputDate.getTime() / 1000).toString()
+  //             : c.outputDate.toISOString()
+  //           : null,
+  //         txid: c.txId,
+  //         buyValueInEur: null,
+  //         sellValueInEur: null,
+  //       },
+  //     ])
+  //     .reduce((prev, curr) => prev.concat(curr), []);
+  // }
 
   async getTransactionCsv(userId: number): Promise<Readable> {
     const tx = await this.getTransactions(userId);
