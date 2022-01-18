@@ -10,16 +10,16 @@ import { TransactionDto } from './dto/transaction.dto';
 export class TransactionService {
   constructor(private readonly buyService: BuyService, private readonly cryptoBuyRepo: CryptoBuyRepository) {}
 
-  async getTransactions(userId: number, dateInSeconds = false): Promise<TransactionDto[]> {
+  async getTransactions(userId: number): Promise<TransactionDto[]> {
     const tx = await Promise.all([
-      this.getBuyTransactions(userId, dateInSeconds),
-      // this.getSellTransactions(userId, dateInSeconds),
+      this.getBuyTransactions(userId),
+      // this.getSellTransactions(userId)
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
-    return tx.sort((tx1, tx2) => (new Date(tx1.date).getTime() - new Date(tx2.date).getTime() > 0 ? -1 : 1));
+    return tx.sort((tx1, tx2) => ((tx1.date?.getTime() ?? 0) - (tx2.date?.getTime() ?? 0) > 0 ? -1 : 1));
   }
 
-  async getBuyTransactions(userId: number, dateInSeconds?: boolean): Promise<TransactionDto[]> {
+  async getBuyTransactions(userId: number): Promise<TransactionDto[]> {
     const buys = await this.buyService.getUserBuys(userId);
     const cryptoBuys = await this.cryptoBuyRepo.find({
       where: { buy: { id: In(buys.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
@@ -39,7 +39,7 @@ export class TransactionService {
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.bankTx?.iban,
-          date: c.outputDate ? this.formatDate(this.getInputDate(c.outputDate, -20, c.amount), dateInSeconds) : null,
+          date: c.outputDate ? this.fakeRandomDate(c.outputDate, -20, c.amount) : null,
           txid: c.bankTx?.accountServiceRef,
           buyValueInEur: null,
           sellValueInEur: null,
@@ -55,7 +55,7 @@ export class TransactionService {
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.buy.user.address,
-          date: c.outputDate ? this.formatDate(c.outputDate, dateInSeconds) : null,
+          date: c.outputDate ? c.outputDate : null,
           txid: c.txId,
           buyValueInEur: null,
           sellValueInEur: null,
@@ -64,7 +64,7 @@ export class TransactionService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  // async getSellTransactions(userId: number, dateInSeconds?: boolean): Promise<TransactionDto[]> {
+  // async getSellTransactions(userId: number): Promise<TransactionDto[]> {
   //   const sells = await this.buyService.getUserBuys(userId);
   //   const cryptoSells = await this.cryptoBuyRepo.find({
   //     where: { buy: { id: In(sells.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
@@ -84,7 +84,7 @@ export class TransactionService {
   //         exchange: 'DFX',
   //         tradeGroup: null,
   //         comment: c.bankTx?.iban,
-  //         date: c.outputDate ? this.formatDate(this.getInputDate(c.outputDate, -20, c.amount), dateInSeconds) : null,
+  //         date: c.outputDate ? this.fakeRandomDate(c.outputDate, -20, c.amount) : null,
   //         txid: c.bankTx?.accountServiceRef,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
@@ -100,7 +100,7 @@ export class TransactionService {
   //         exchange: 'DFX',
   //         tradeGroup: null,
   //         comment: c.buy.user.address,
-  //         date: c.outputDate ? this.formatDate(c.outputDate, dateInSeconds) : null,
+  //         date: c.outputDate ? c.outputDate : null,
   //         txid: c.txId,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
@@ -116,7 +116,7 @@ export class TransactionService {
   //         exchange: 'DFX',
   //         tradeGroup: null,
   //         comment: c.buy.user.address,
-  //         date: c.outputDate ? this.formatDate(this.getInputDate(c.outputDate, 20, c.amount), dateInSeconds) : null,
+  //         date: c.outputDate ? this.fakeRandomDate(c.outputDate, 20, c.amount) : null,
   //         txid: c.txId,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
@@ -138,11 +138,7 @@ export class TransactionService {
     return [headers].concat(values).join('\n');
   }
 
-  private getInputDate(outputDate: Date, offset: number, amount: number): Date {
+  private fakeRandomDate(outputDate: Date, offset: number, amount: number): Date {
     return new Date(outputDate.getTime() + (offset - (amount % 10)) * 60 * 1000);
-  }
-
-  private formatDate(date: Date, dateInSeconds: boolean): string {
-    return dateInSeconds ? (date.getTime() / 1000).toString() : date.toISOString();
   }
 }

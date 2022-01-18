@@ -6,7 +6,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
-import { TransactionDto } from './dto/transaction.dto';
+import { CoinTrackingTransactionDto, TransactionDto } from './dto/transaction.dto';
 import { TransactionService } from './transaction.service';
 
 @ApiTags('transaction')
@@ -19,11 +19,10 @@ export class TransactionController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getTransactions(@GetJwt() jwt: JwtPayload): Promise<TransactionDto[]> {
-    // return jwt.role === UserRole.CT
-    //   ? this.transactionService.getTransactions(jwt.id, true)
-    //   : this.transactionService.getTransactions(jwt.id);
-    return this.transactionService.getTransactions(jwt.id);
+  async getTransactions(@GetJwt() jwt: JwtPayload): Promise<TransactionDto[] | CoinTrackingTransactionDto[]> {
+    const tx = await this.transactionService.getTransactions(jwt.id);
+    // return jwt.role === UserRole.CT ? tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } })) : tx;
+    return tx;
   }
 
   @Post('csv')
