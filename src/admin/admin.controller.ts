@@ -25,10 +25,11 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getRawData(@Query('table') table: string): Promise<any> {
+  async getRawData(@Query() { table, min }: { table: string; min?: string }): Promise<any> {
     const data = await getConnection()
       .createQueryBuilder()
       .from(table, table)
+      .where('id >= :id', { id: +(min ?? 0) })
       .getRawMany()
       .catch((e) => {
         throw new BadRequestException(e);
