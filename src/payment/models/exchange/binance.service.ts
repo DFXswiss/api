@@ -1,14 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeService } from './exchange.service';
-import { Exchange, binance } from 'ccxt';
+import { binance } from 'ccxt';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class BinanceService extends ExchangeService {
   constructor() {
-    const params: Partial<Exchange> = {
-      enableRateLimit: true,
-      timeout: 30000,
-    };
-    super(new binance(params));
+    super(new binance(Config.binance));
   }
 }

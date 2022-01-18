@@ -23,7 +23,6 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SettingRepository } from './setting/setting.repository';
 import { SettingService } from './setting/setting.service';
-import { ConfigService } from 'src/config//config.service';
 import { GetConfig } from 'src/config/config';
 import { ConfigModule } from 'src/config/config.module';
 
@@ -45,7 +44,6 @@ import { ConfigModule } from 'src/config/config.module';
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController],
   providers: [
-    ConfigService,
     ConversionService,
     MailService,
     HttpService,
@@ -57,7 +55,6 @@ import { ConfigModule } from 'src/config/config.module';
     JwtStrategy,
   ],
   exports: [
-    ConfigService,
     PassportModule,
     JwtModule,
     ScheduleModule,
