@@ -5,10 +5,17 @@ import { In } from 'typeorm';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { CryptoBuyRepository } from '../crypto-buy/crypto-buy.repository';
 import { TransactionDto } from './dto/transaction.dto';
+import { HttpService } from 'src/shared/services/http.service';
+import { UserRepository } from 'src/user/models/user/user.repository';
 
 @Injectable()
 export class TransactionService {
-  constructor(private readonly buyService: BuyService, private readonly cryptoBuyRepo: CryptoBuyRepository) {}
+  constructor(
+    private readonly buyService: BuyService,
+    private readonly cryptoBuyRepo: CryptoBuyRepository,
+    private readonly userRepo: UserRepository,
+    private http: HttpService,
+  ) {}
 
   async getTransactions(userId: number): Promise<TransactionDto[]> {
     const tx = await Promise.all([
@@ -39,7 +46,7 @@ export class TransactionService {
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.bankTx?.iban,
-          date: c.outputDate ? this.fakeRandomDate(c.outputDate, -20, c.amount) : null,
+          date: c.outputDate ? this.createRandomDate(c.outputDate, -20, c.amount) : null,
           txid: c.bankTx?.accountServiceRef,
           buyValueInEur: null,
           sellValueInEur: null,
@@ -84,7 +91,7 @@ export class TransactionService {
   //         exchange: 'DFX',
   //         tradeGroup: null,
   //         comment: c.bankTx?.iban,
-  //         date: c.outputDate ? this.fakeRandomDate(c.outputDate, -20, c.amount) : null,
+  //         date: c.outputDate ? this.createRandomDate(c.outputDate, -20, c.amount) : null,
   //         txid: c.bankTx?.accountServiceRef,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
@@ -116,7 +123,7 @@ export class TransactionService {
   //         exchange: 'DFX',
   //         tradeGroup: null,
   //         comment: c.buy.user.address,
-  //         date: c.outputDate ? this.fakeRandomDate(c.outputDate, 20, c.amount) : null,
+  //         date: c.outputDate ? this.createRandomDate(c.outputDate, 20, c.amount) : null,
   //         txid: c.txId,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
@@ -131,6 +138,17 @@ export class TransactionService {
     return Readable.from([this.toCsv(tx)]);
   }
 
+  async getDFITaxRewards(userId: number) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+
+    const baseUrl = 'https://api.dfi.tax/v01/rwd';
+    const url = `${baseUrl}/${user.address}/d/true/EUR`;
+
+    const result = await this.callApi<[{ value: string }]>(url);
+
+    return result;
+  }
+
   // --- HELPER METHODS --- //
   private toCsv(list: any[], separator = ','): string {
     const headers = Object.keys(list[0]).join(separator);
@@ -138,7 +156,11 @@ export class TransactionService {
     return [headers].concat(values).join('\n');
   }
 
-  private fakeRandomDate(outputDate: Date, offset: number, amount: number): Date {
+  private createRandomDate(outputDate: Date, offset: number, amount: number): Date {
     return new Date(outputDate.getTime() + (offset - (amount % 10)) * 60 * 1000);
+  }
+
+  private async callApi<T>(url: string): Promise<T> {
+    return this.http.get<T>(url);
   }
 }

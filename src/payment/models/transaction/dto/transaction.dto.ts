@@ -18,6 +18,6 @@ export class TransactionDto extends TransactionDtoBase {
   date: Date;
 }
 
-export class CoinTrackingTransactionDto {
+export class CoinTrackingTransactionDto extends TransactionDtoBase {
   date: number;
 }
