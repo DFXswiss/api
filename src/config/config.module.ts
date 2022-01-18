@@ -8,9 +8,3 @@ import { ConfigModule as ConfigurationModule } from '@nestjs/config';
   exports: [ConfigService],
 })
 export class ConfigModule {}
-
-export const getConfig = (selector: (config: ConfigService) => any) => ({
-  imports: [ConfigModule],
-  inject: [ConfigService],
-  useFactory: selector,
-});
