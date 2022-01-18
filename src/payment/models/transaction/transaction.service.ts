@@ -10,15 +10,19 @@ import { TransactionDto } from './dto/transaction.dto';
 export class TransactionService {
   constructor(private readonly buyService: BuyService, private readonly cryptoBuyRepo: CryptoBuyRepository) {}
 
-  async getTransactions(userId: number): Promise<TransactionDto[]> {
-    const buyTransactions = await this.getBuyTransaction(userId);
-    //const sellTransactions = await this.getSellTransaction(userId);
+  async getTransactions(userId: number, dateInSeconds?: boolean): Promise<TransactionDto[]> {
+    const buyTransactions = await this.getBuyTransaction(userId, dateInSeconds);
+    // const sellTransactions = await this.getSellTransaction(userId, dateInSeconds);
 
     return buyTransactions;
-    //return [buyTransactions, sellTransactions].reduce((prev, curr) => prev.concat(curr), []);
+    // return [buyTransactions, sellTransactions]
+    //   .reduce((prev, curr) => prev.concat(curr), [])
+    //   .sort(function (tx1, tx2) {
+    //     return new Date(tx1.date).getTime() - new Date(tx2.date).getTime() > 0 ? -1 : 1;
+    //   });
   }
 
-  async getBuyTransaction(userId: number, timeInSeconds?: boolean): Promise<TransactionDto[]> {
+  async getBuyTransaction(userId: number, dateInSeconds?: boolean): Promise<TransactionDto[]> {
     const buys = await this.buyService.getUserBuys(userId);
     const cryptoBuys = await this.cryptoBuyRepo.find({
       where: { buy: { id: In(buys.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
@@ -39,7 +43,7 @@ export class TransactionService {
           tradeGroup: null,
           comment: c.bankTx?.iban,
           date: c.outputDate
-            ? timeInSeconds
+            ? dateInSeconds
               ? (
                   (c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000) /
                   1000
@@ -64,7 +68,7 @@ export class TransactionService {
           tradeGroup: null,
           comment: c.buy.user.address,
           date: c.outputDate
-            ? timeInSeconds
+            ? dateInSeconds
               ? (c.outputDate.getTime() / 1000).toString()
               : c.outputDate.toISOString()
             : null,
@@ -76,7 +80,7 @@ export class TransactionService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  // async getSellTransaction(userId: number, timeInSeconds?: boolean): Promise<TransactionDto[]> {
+  // async getSellTransaction(userId: number, dateInSeconds?: boolean): Promise<TransactionDto[]> {
   //   const sells = await this.buyService.getUserBuys(userId);
   //   const cryptoSells = await this.cryptoBuyRepo.find({
   //     where: { buy: { id: In(sells.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
@@ -97,7 +101,7 @@ export class TransactionService {
   //         tradeGroup: null,
   //         comment: c.bankTx?.iban,
   //         date: c.outputDate
-  //           ? timeInSeconds
+  //           ? dateInSeconds
   //             ? (
   //                 (c.outputDate.getTime() - (30 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000) /
   //                 1000
@@ -122,7 +126,7 @@ export class TransactionService {
   //         tradeGroup: null,
   //         comment: c.buy.user.address,
   //         date: c.outputDate
-  //           ? timeInSeconds
+  //           ? dateInSeconds
   //             ? (c.outputDate.getTime() / 1000).toString()
   //             : c.outputDate.toISOString()
   //           : null,
@@ -142,9 +146,14 @@ export class TransactionService {
   //         tradeGroup: null,
   //         comment: c.buy.user.address,
   //         date: c.outputDate
-  //           ? timeInSeconds
-  //             ? (c.outputDate.getTime() / 1000).toString()
-  //             : c.outputDate.toISOString()
+  //           ? dateInSeconds
+  //             ? (
+  //                 (c.outputDate.getTime() + (10 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000) /
+  //                 1000
+  //               ).toString()
+  //             : new Date(
+  //                 c.outputDate.getTime() + (10 + Number.parseInt(c.amount.toString().split('').pop())) * 60 * 1000,
+  //               ).toISOString()
   //           : null,
   //         txid: c.txId,
   //         buyValueInEur: null,

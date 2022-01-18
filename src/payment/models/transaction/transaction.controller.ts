@@ -20,6 +20,9 @@ export class TransactionController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getTransactions(@GetJwt() jwt: JwtPayload): Promise<TransactionDto[]> {
+    // return jwt.role === UserRole.CT
+    //   ? this.transactionService.getTransactions(jwt.id, true)
+    //   : this.transactionService.getTransactions(jwt.id);
     return this.transactionService.getTransactions(jwt.id);
   }
 
