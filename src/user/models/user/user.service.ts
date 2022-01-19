@@ -68,7 +68,10 @@ export class UserService {
     if (detailed) {
       user['refData'] = await this.getRefData(user);
       user['userVolume'] = await this.getUserVolume(user);
-      user['stakingRoutes'] = await Promise.all(user.stakingRoutes.map((s) => this.stakingService.toDto(s))) as any;
+    }
+
+    if (user.stakingRoutes) {
+      user['stakingRoutes'] = (await Promise.all(user.stakingRoutes.map((s) => this.stakingService.toDto(s)))) as any;
     }
 
     // select user info
