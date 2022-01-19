@@ -143,15 +143,26 @@ export class TransactionService {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     const baseUrl = 'https://api.dfi.tax/v01/rwd';
     const url = `${baseUrl}/${user.address}/d/true/EUR`;
-    const result = await this.callApi<[{ value: string }]>(url);
+    const result = await this.callApi<[{ value: number; category: string }]>(url);
     const resultTx = [];
     let a = 0;
 
     for (const reward of result) {
       resultTx[a++] = {
         type: 'Mining',
-        buyAmount: reward['detail']['qty'],
-        buyAsset: reward['detail']['token'],
+        buyAmount: this.getSplitNumber(reward['detail']['qty'], 8),
+        buyAsset:
+          reward['detail']['token'] === 'DUSD' ||
+          reward['detail']['token'] === 'DFI' ||
+          reward['detail']['token'] === 'BTC' ||
+          reward['detail']['token'] === 'ETH' ||
+          reward['detail']['token'] === 'BCH' ||
+          reward['detail']['token'] === 'DOGE' ||
+          reward['detail']['token'] === 'LTC' ||
+          reward['detail']['token'] === 'USDC' ||
+          reward['detail']['token'] === 'USDT'
+            ? reward['detail']['token']
+            : 'd' + reward['detail']['token'],
         sellAmount: null,
         sellAsset: null,
         fee: null,
@@ -161,7 +172,7 @@ export class TransactionService {
         comment: 'Liquidity Mining ' + reward['category'] + ' ' + reward['detail']['pool'],
         date: new Date(reward['date']),
         txid: null,
-        buyValueInEur: reward['value'],
+        buyValueInEur: this.getSplitNumber(reward['value'], 8),
         sellValueInEur: null,
       };
     }
@@ -181,5 +192,9 @@ export class TransactionService {
 
   private async callApi<T>(url: string): Promise<T> {
     return this.http.get<T>(url);
+  }
+
+  private getSplitNumber(oldNumber: number, digits: number): number {
+    return Number.parseFloat(oldNumber.toFixed(digits));
   }
 }
