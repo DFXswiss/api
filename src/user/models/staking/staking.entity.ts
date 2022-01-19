@@ -13,4 +13,6 @@ export class Staking extends DepositRoute {
 
   @ManyToOne(() => User, (user) => user.stakingRoutes, { nullable: false })
   user: User;
+
+  // TODO: volume
 }
