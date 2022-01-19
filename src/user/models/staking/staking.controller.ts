@@ -11,7 +11,7 @@ import { CreateStakingDto } from './dto/create-staking.dto';
 
 @ApiTags('staking')
 @Controller('staking')
-export class stakingController {
+export class StakingController {
   constructor(private readonly stakingService: StakingService) {}
 
   @Get()

@@ -1,32 +1,10 @@
-import {
-  JoinColumn,
-  OneToOne,
-  ManyToOne,
-  Index,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  Entity,
-} from 'typeorm';
+import { JoinColumn, OneToOne, ManyToOne, ChildEntity } from 'typeorm';
+import { DepositRoute } from '../deposit/deposit-route.entity';
 import { Deposit } from '../deposit/deposit.entity';
 import { User } from '../user/user.entity';
 
-@Entity()
-@Index('rewardPaybackUser', (staking: Staking) => [staking.rewardDeposit, staking.paybackDeposit, staking.user], {
-  unique: true,
-})
-export class Staking {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ default: true })
-  active: boolean;
-
-  @OneToOne(() => Deposit, (deposit) => deposit.staking, { eager: true, nullable: false })
-  @JoinColumn()
-  deposit: Deposit;
-
+@ChildEntity()
+export class Staking extends DepositRoute {
   @OneToOne(() => Deposit, { eager: true, nullable: true })
   @JoinColumn()
   rewardDeposit: Deposit;
@@ -37,10 +15,4 @@ export class Staking {
 
   @ManyToOne(() => User, (user) => user.stakingRoutes, { nullable: false })
   user: User;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Raw } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { SellRepository } from '../sell/sell.repository';
@@ -45,18 +46,20 @@ export class StakingService {
 
     // check if exists
     const existing = await this.stakingRepo.findOne({
-      where: { rewardDeposit: { id: rewardDepositId }, paybackDeposit: { id: paybackDepositId }, user: { id: userId } },
+      where: {
+        rewardDeposit: { id: dto.rewardType === StakingType.REINVEST ? Raw('id') : rewardDepositId }, // TODO: test
+        paybackDeposit: { id: dto.rewardType === StakingType.REINVEST ? Raw('id') : paybackDepositId },
+        user: { id: userId },
+      },
     });
     if (existing) throw new ConflictException('Staking route already exists');
 
     // create the entity
     const staking = this.stakingRepo.create({});
     staking.user = { id: userId } as User;
-    staking.rewardDeposit = { id: rewardDepositId } as Deposit;
-    staking.paybackDeposit = { id: paybackDepositId } as Deposit;
     staking.deposit = await this.depositService.getNextDeposit();
-
-    // TODO assign new deposit, if reinvest => avoid reinvest duplicates?
+    staking.rewardDeposit = dto.rewardType === StakingType.REINVEST ? staking.deposit : { id: rewardDepositId } as Deposit;
+    staking.paybackDeposit = dto.rewardType === StakingType.REINVEST ? staking.deposit : { id: paybackDepositId } as Deposit;
 
     return this.stakingRepo.save(staking);
   }
