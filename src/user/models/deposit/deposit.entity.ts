@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToOne, UpdateDateColumn } from 'typeorm';
-import { Sell } from 'src/user/models/sell/sell.entity';
+import { Sell } from '../sell/sell.entity';
+import { Staking } from '../staking/staking.entity';
 
 @Entity()
 export class Deposit {
@@ -9,8 +10,11 @@ export class Deposit {
   @Column({ unique: true, length: 256 })
   address: string;
 
-  @OneToOne(() => Sell, (sell) => sell.deposit)
+  @OneToOne(() => Sell, (sell) => sell.deposit, { nullable: true })
   sell: Sell;
+
+  @OneToOne(() => Staking, (staking) => staking.deposit, { nullable: true })
+  staking: Staking;
 
   @UpdateDateColumn()
   updated: Date;

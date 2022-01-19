@@ -14,6 +14,7 @@ export class DepositService {
     return this.depositRepo.find();
   }
 
+  // TODO: and staking is null!
   async getNextDeposit(): Promise<Deposit> {
     // does not work with find options
     return this.depositRepo
