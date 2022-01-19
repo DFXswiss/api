@@ -121,7 +121,11 @@ export class Configuration {
   }
 
   get binance(): Partial<Exchange> {
-    return this.exchange;
+    return {
+      apiKey: process.env.BINANCE_KEY,
+      secret: process.env.BINANCE_SECRET,
+      ...this.exchange,
+    };
   }
 }
 
