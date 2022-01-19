@@ -152,6 +152,7 @@ export class TransactionService {
         type: 'Mining',
         buyAmount: this.getSplitNumber(reward['detail']['qty'], 8),
         buyAsset:
+          //TODO: new col in asset table to differenciate stocks and crypto token
           reward['detail']['token'] === 'DUSD' ||
           reward['detail']['token'] === 'DFI' ||
           reward['detail']['token'] === 'BTC' ||
