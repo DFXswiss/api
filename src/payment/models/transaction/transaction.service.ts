@@ -138,15 +138,33 @@ export class TransactionService {
     return Readable.from([this.toCsv(tx)]);
   }
 
-  async getDFITaxRewards(userId: number) {
+  async getDFITaxRewards(userId: number): Promise<TransactionDto[]> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-
     const baseUrl = 'https://api.dfi.tax/v01/rwd';
     const url = `${baseUrl}/${user.address}/d/true/EUR`;
-
     const result = await this.callApi<[{ value: string }]>(url);
+    const resultTx = [];
+    let a = 0;
 
-    return result;
+    for (const reward of result) {
+      resultTx[a++] = {
+        type: 'Minting',
+        buyAmount: reward['detail']['qty'],
+        buyAsset: reward['detail']['token'],
+        sellAmount: null,
+        sellAsset: null,
+        fee: null,
+        feeAsset: null,
+        exchange: 'DFX',
+        tradeGroup: null,
+        comment: reward['category'] + ' ' + reward['detail']['pool'],
+        date: new Date(reward['date']),
+        txid: null,
+        buyValueInEur: reward['value'],
+        sellValueInEur: null,
+      };
+    }
+    return resultTx;
   }
 
   // --- HELPER METHODS --- //
