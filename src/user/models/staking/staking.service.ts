@@ -4,7 +4,11 @@ import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { SellRepository } from '../sell/sell.repository';
 import { User } from '../user/user.entity';
-import { CreateStakingDto, StakingType } from './dto/create-staking.dto';
+import { KycStatus } from '../userData/userData.entity';
+import { UserDataRepository } from '../userData/userData.repository';
+import { CreateStakingDto } from './dto/create-staking.dto';
+import { StakingType } from './dto/staking-type.enum';
+import { UpdateStakingDto } from './dto/update-staking.dto';
 import { Staking } from './staking.entity';
 import { StakingRepository } from './staking.repository';
 
@@ -14,6 +18,7 @@ export class StakingService {
     private readonly stakingRepo: StakingRepository,
     private readonly depositService: DepositService,
     private readonly sellRepo: SellRepository,
+    private readonly userDataRepo: UserDataRepository,
   ) {}
 
   async getStakingForAddress(depositAddress: string): Promise<Staking> {
@@ -37,20 +42,27 @@ export class StakingService {
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
-    // TODO: check user data => KYC status >= Manual
-    // const verification = await this.userService.verifyUser(userId);
-    // if (!verification.result) throw new BadRequestException('User data missing');
+    // KYC check
+    const { kycStatus } = await this.userDataRepo
+      .createQueryBuilder('userData')
+      .innerJoinAndSelect('userData.users', 'user')
+      .where('user.id = :id', { id: userId })
+      .getOne();
+    if (![KycStatus.WAIT_MANUAL, KycStatus.COMPLETED].includes(kycStatus)) throw new BadRequestException('Missing KYC');
 
-    const rewardDepositId = dto.rewardType === StakingType.SELL ? await this.getDepositId(dto.rewardSell?.id) : null;
-    const paybackDepositId = dto.paybackType === StakingType.SELL ? await this.getDepositId(dto.paybackSell?.id) : null;
+    const rewardDepositId =
+      dto.rewardType === StakingType.PAYOUT ? await this.getDepositId(userId, dto.rewardSell?.id) : null;
+    const paybackDepositId =
+      dto.paybackType === StakingType.PAYOUT ? await this.getDepositId(userId, dto.paybackSell?.id) : null;
 
     // check if exists
     const existing = await this.stakingRepo.findOne({
       where: {
-        rewardDeposit: { id: dto.rewardType === StakingType.REINVEST ? Raw('id') : rewardDepositId }, // TODO: test
-        paybackDeposit: { id: dto.rewardType === StakingType.REINVEST ? Raw('id') : paybackDepositId },
+        rewardDeposit: { id: dto.rewardType === StakingType.REINVEST ? Raw('depositId') : rewardDepositId },
+        paybackDeposit: { id: dto.paybackType === StakingType.REINVEST ? Raw('depositId') : paybackDepositId },
         user: { id: userId },
       },
+      relations: ['rewardDeposit', 'paybackDeposit'],
     });
     if (existing) throw new ConflictException('Staking route already exists');
 
@@ -58,14 +70,23 @@ export class StakingService {
     const staking = this.stakingRepo.create({});
     staking.user = { id: userId } as User;
     staking.deposit = await this.depositService.getNextDeposit();
-    staking.rewardDeposit = dto.rewardType === StakingType.REINVEST ? staking.deposit : { id: rewardDepositId } as Deposit;
-    staking.paybackDeposit = dto.rewardType === StakingType.REINVEST ? staking.deposit : { id: paybackDepositId } as Deposit;
+    staking.rewardDeposit =
+      dto.rewardType === StakingType.REINVEST ? staking.deposit : ({ id: rewardDepositId } as Deposit);
+    staking.paybackDeposit =
+      dto.paybackType === StakingType.REINVEST ? staking.deposit : ({ id: paybackDepositId } as Deposit);
 
     return this.stakingRepo.save(staking);
   }
 
-  private async getDepositId(sellId?: number): Promise<number> {
-    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['deposit'] });
+  async updateStaking(userId: number, dto: UpdateStakingDto): Promise<Staking> {
+    const staking = await this.stakingRepo.findOne({ id: dto.id, user: { id: userId } });
+    if (!staking) throw new NotFoundException('No matching entry found');
+
+    return await this.stakingRepo.save({ ...staking, ...dto });
+  }
+
+  private async getDepositId(userId: number, sellId?: number): Promise<number> {
+    const sell = await this.sellRepo.findOne({ where: { id: sellId, user: { id: userId } }, relations: ['deposit'] });
     if (!sell) throw new BadRequestException('Missing sell route');
 
     return sell.deposit.id;

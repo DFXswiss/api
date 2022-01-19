@@ -8,7 +8,7 @@ export class Sell extends DepositRoute {
   @Column({ length: 256 })
   iban: string;
 
-  @ManyToOne(() => Fiat, { eager: true, nullable: false })
+  @ManyToOne(() => Fiat, { eager: true, nullable: true })
   fiat: Fiat;
 
   @Column({ type: 'float', default: 0 })

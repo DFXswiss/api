@@ -30,7 +30,7 @@ export class UserService {
   async getUser(userId: number, detailedUser = false): Promise<User> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser ? ['userData', 'buys', 'sells', 'currency'] : ['userData', 'currency'],
+      relations: detailedUser ? ['userData', 'buys', 'sells', 'stakingRoutes', 'currency'] : ['userData', 'currency'],
     });
     if (!user) throw new NotFoundException('No matching user for id found');
 

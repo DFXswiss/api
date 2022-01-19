@@ -1,12 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
 import { Sell } from '../../sell/sell.entity';
-
-export enum StakingType {
-  WALLET = 'Wallet',
-  SELL = 'Sell',
-  REINVEST = 'Reinvest',
-}
+import { StakingType } from './staking-type.enum';
 
 export class CreateStakingDto {
   @ApiProperty()

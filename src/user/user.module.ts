@@ -34,6 +34,9 @@ import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { KycApiService } from './services/kyc/kyc-api.service';
 import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
+import { StakingRepository } from './models/staking/staking.repository';
+import { StakingController } from './models/staking/staking.controller';
+import { StakingService } from './models/staking/staking.service';
 
 @Module({
   imports: [
@@ -43,6 +46,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
       SpiderDataRepository,
       BuyRepository,
       SellRepository,
+      StakingRepository,
       LogRepository,
       WalletRepository,
       DepositRepository,
@@ -56,6 +60,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserController,
     BuyController,
     SellController,
+    StakingController,
     LogController,
     WalletController,
     DepositController,
@@ -68,6 +73,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserService,
     BuyService,
     SellService,
+    StakingService,
     LogService,
     WalletService,
     DepositService,
