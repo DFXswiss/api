@@ -2,12 +2,14 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Raw } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
+import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
 import { User } from '../user/user.entity';
 import { KycStatus } from '../userData/userData.entity';
 import { UserDataRepository } from '../userData/userData.repository';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { StakingType } from './dto/staking-type.enum';
+import { StakingDto } from './dto/staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { Staking } from './staking.entity';
 import { StakingRepository } from './staking.repository';
@@ -83,6 +85,36 @@ export class StakingService {
     if (!staking) throw new NotFoundException('No matching entry found');
 
     return await this.stakingRepo.save({ ...staking, ...dto });
+  }
+
+  // --- DTO --- //
+  async toDto(staking: Staking): Promise<StakingDto> {
+    const rewardType = this.getStakingType(staking.rewardDeposit?.id, staking.deposit.id);
+    const paybackType = this.getStakingType(staking.paybackDeposit?.id, staking.deposit.id);
+
+    return {
+      id: staking.id,
+      active: staking.active,
+      deposit: staking.deposit,
+      rewardType,
+      rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id),
+      paybackType,
+      paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id),
+    };
+  }
+
+  private getStakingType(typeDepositId: number | undefined, depositId: number): StakingType {
+    return typeDepositId
+      ? typeDepositId === depositId
+        ? StakingType.REINVEST
+        : StakingType.PAYOUT
+      : StakingType.WALLET;
+  }
+
+  private async getSell(stakingType: StakingType, depositId: number): Promise<Sell | undefined> { // TODO: improve performance?
+    return stakingType === StakingType.PAYOUT
+      ? await this.sellRepo.findOne({ where: { deposit: { id: depositId } } })
+      : undefined;
   }
 
   private async getDepositId(userId: number, sellId?: number): Promise<number> {

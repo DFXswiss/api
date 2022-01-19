@@ -14,6 +14,7 @@ import { AccountType } from '../userData/account-type.enum';
 import { BuyService } from '../buy/buy.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
+import { StakingService } from '../staking/staking.service';
 
 @Injectable()
 export class UserService {
@@ -25,6 +26,7 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly buyService: BuyService,
+    private readonly stakingService: StakingService,
   ) {}
 
   async getUser(userId: number, detailedUser = false): Promise<User> {
@@ -66,6 +68,7 @@ export class UserService {
     if (detailed) {
       user['refData'] = await this.getRefData(user);
       user['userVolume'] = await this.getUserVolume(user);
+      user['stakingRoutes'] = await Promise.all(user.stakingRoutes.map((s) => this.stakingService.toDto(s))) as any;
     }
 
     // select user info

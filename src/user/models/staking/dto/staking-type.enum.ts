@@ -1,5 +1,5 @@
 export enum StakingType {
   REINVEST = 'Reinvest',
-  CREDIT = 'Credit',
+  WALLET = 'Wallet',
   PAYOUT = 'Payout'
 }
