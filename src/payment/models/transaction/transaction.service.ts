@@ -19,8 +19,9 @@ export class TransactionService {
 
   async getTransactions(userId: number): Promise<TransactionDto[]> {
     const tx = await Promise.all([
-      this.getBuyTransactions(userId),
-      // this.getSellTransactions(userId)
+      await this.getBuyTransactions(userId),
+      // this.getSellTransactions(userId),
+      await this.getDFITaxRewards(userId),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => ((tx1.date?.getTime() ?? 0) - (tx2.date?.getTime() ?? 0) > 0 ? -1 : 1));
@@ -148,7 +149,7 @@ export class TransactionService {
 
     for (const reward of result) {
       resultTx[a++] = {
-        type: 'Minting',
+        type: 'Mining',
         buyAmount: reward['detail']['qty'],
         buyAsset: reward['detail']['token'],
         sellAmount: null,
@@ -157,7 +158,7 @@ export class TransactionService {
         feeAsset: null,
         exchange: 'DFX',
         tradeGroup: null,
-        comment: reward['category'] + ' ' + reward['detail']['pool'],
+        comment: 'Liquidity Mining ' + reward['category'] + ' ' + reward['detail']['pool'],
         date: new Date(reward['date']),
         txid: null,
         buyValueInEur: reward['value'],
