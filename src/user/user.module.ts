@@ -84,6 +84,15 @@ import { StakingService } from './models/staking/staking.service';
     KycApiService,
     AuthService,
   ],
-  exports: [UserService, BuyService, SellService, LogService, KycSchedulerService, KycApiService, RefService],
+  exports: [
+    UserService,
+    BuyService,
+    SellService,
+    StakingService,
+    LogService,
+    KycSchedulerService,
+    KycApiService,
+    RefService,
+  ],
 })
 export class UserModule {}

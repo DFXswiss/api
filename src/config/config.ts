@@ -97,6 +97,7 @@ export class Configuration {
     },
     walletPassword: process.env.NODE_WALLET_PASSWORD,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
+    stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
   };
 
   ftp = {
