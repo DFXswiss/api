@@ -1,10 +1,10 @@
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { filter } from 'rxjs';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SellService } from 'src/user/models/sell/sell.service';
 import { CryptoInput } from './crypto-input.entity';
@@ -21,9 +21,10 @@ export class CryptoInputService {
     private readonly sellService: SellService,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
-    this.checkInputs();
+    this.checkInputs(); // TODO: remove
   }
 
+  // TODO: avoid overlapping calls!
   @Interval(300000)
   async checkInputs(): Promise<void> {
     try {
@@ -33,13 +34,10 @@ export class CryptoInputService {
         .findOne({ order: { blockHeight: 'DESC' } })
         .then((input) => input?.blockHeight ?? 0);
 
-      // TODO: ignore own wallet address (UTXO holdings)
-
       await this.client
-        // get UTXOs >= 0.1 DFI
-        .getAddresses()
+        .getAddressesWithFunds()
         // Filter out unwanted addresses (aka wallet address)
-        .then((i) => i.filter((e) => e != 'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F'))
+        .then((i) => i.filter((e) => e != 'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F')) // TODO: get from config
         // get receive history
         .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
@@ -47,7 +45,7 @@ export class CryptoInputService {
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
-        .then((i) => i.filter((h) => h != null))
+        .then((i) => i.filter((h) => h != null)) // TODO: filter for sellable assets
         .then((i) => {
           if (i.length > 0) console.log('New crypto inputs:', i);
           return i;
@@ -66,12 +64,11 @@ export class CryptoInputService {
         const amount = +a.split('@')[0];
         const assetName = a.split('@')[1];
 
-        if (assetName == 'DFI' && amount < 0.1)
-          return null;
+        // min. deposit 0.1 DFI
+        if (assetName == 'DFI' && amount < 0.1) return null;
 
-        // We only know if it was a receive on AnyAccountsToAccounts if the amount is positive
-        if (history.type == 'AccountToAccount' && amount < 0)
-          return null;
+        // we only know if it was a receive on AnyAccountsToAccounts if the amount is positive
+        if (history.type == 'AccountToAccount' && amount < 0) return null;
 
         // get asset
         const asset = await this.assetService.getAssetByDexName(assetName);
@@ -87,16 +84,11 @@ export class CryptoInputService {
           return null;
         }
 
-        const btcAmount = +(await this.client.testCompositePoolSwap(sell.deposit.address, assetName, 'BTC', amount)).split('@')[0];
+        const btcAmount = await this.client.testCompositeSwap(sell.deposit.address, assetName, 'BTC', amount);
+        const usdtAmount = await this.client.testCompositeSwap(sell.deposit.address, assetName, 'USDT', amount);
 
-        let usdtAmount = 0;
-        if (assetName != 'USDT')
-          usdtAmount = +(await this.client.testCompositePoolSwap(sell.deposit.address, assetName, 'USDT', amount)).split('@')[0];
-        else
-          usdtAmount = amount;
-
-        if (usdtAmount < 1)
-          return null;
+        // min. deposit 1 USD
+        if (usdtAmount < 1) return null;
 
         return this.cryptoInputRepo.create({
           inTxId: history.txid,
@@ -105,8 +97,8 @@ export class CryptoInputService {
           amount: amount,
           asset: asset,
           sell: sell,
-          btcAmount: btcAmount, 
-          usdtAmount: usdtAmount
+          btcAmount: btcAmount,
+          usdtAmount: usdtAmount,
         });
       }),
     );
@@ -117,38 +109,40 @@ export class CryptoInputService {
       // save
       await this.cryptoInputRepo.save(input);
 
-      let outTxId = '';
-      if (input.asset.dexName == 'DFI') {
-         outTxId = await this.client.sendUtxo(
-          input.sell.deposit.address,
-          Config.node.dexWalletAddress,
-          input.amount,
-        );
-      } else {
-        // It is a token
-        // 1. Get UTXO
-        // 2. Send accountToAccount
-        // 3. Get rid of remaining UTXO
-        const utxotx = await this.client.sendUtxo(
-          'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F',
-          input.sell.deposit.address,
-          0.01
-        )
-
-        await this.client.waitForTx(utxotx);
-
-        outTxId = await this.client.sendToken(
-          input.sell.deposit.address,
-          Config.node.dexWalletAddress,
-          input.asset.dexName,
-          input.amount
-        );
-      }
+      const outTxId =
+        input.asset.type === AssetType.COIN ? await this.forwardUtxo(input) : await this.forwardToken(input);
 
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
+  }
+
+  private forwardUtxo(input: CryptoInput): Promise<string> {
+    return this.client.sendUtxo(input.sell.deposit.address, Config.node.dexWalletAddress, input.amount);
+  }
+
+  private async forwardToken(input: CryptoInput): Promise<string> {
+    // 1. get UTXO
+    const utxoTx = await this.client.sendUtxo(
+      'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F', // TODO: get from config
+      input.sell.deposit.address,
+      0.01,
+    );
+
+    await this.client.waitForTx(utxoTx);
+
+    // 2. send accountToAccount
+    const outTxId = await this.client.sendToken(
+      input.sell.deposit.address,
+      Config.node.dexWalletAddress,
+      input.asset.dexName,
+      input.amount,
+    );
+
+    // 3. TODO: get rid of remaining UTXO
+
+    return outTxId;
   }
 }

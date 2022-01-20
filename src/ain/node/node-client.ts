@@ -11,7 +11,6 @@ import { Util } from 'src/shared/util';
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
-  SEND_TOKEN = 'accounttoaccount'
 }
 
 enum Chain {
@@ -42,7 +41,7 @@ export class NodeClient {
     );
   }
 
-  async waitForTx(txId: string, timeout = 300000): Promise<InWalletTransaction> {
+  async waitForTx(txId: string, timeout = 600000): Promise<InWalletTransaction> {
     const tx = await Util.poll(
       () => this.callNode((c) => c.wallet.getTransaction(txId)),
       (t) => t?.confirmations > 0,
@@ -52,6 +51,14 @@ export class NodeClient {
 
     if (!(tx?.confirmations > 0)) throw new ServiceUnavailableException('Wait for TX timed out');
     return tx;
+  }
+
+  async getAddressesWithFunds(): Promise<string[]> {
+    const [utxo, token] = await Promise.all([
+      this.getUtxo().then((i) => i.map((u) => u.address)),
+      this.getToken().then((i) => i.map((u) => u.owner)),
+    ]);
+    return [...new Set(utxo.concat(token))];
   }
 
   // UTXO
@@ -66,57 +73,34 @@ export class NodeClient {
     );
   }
 
+  // token
+  async getToken(): Promise<AccountResult<string, string>[]> {
+    return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
+  }
+
+  async testCompositeSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
+    if (tokenFrom === tokenTo) return amount;
+
+    return this.callNode((c) =>
+      c.call(
+        'testpoolswap',
+        [
+          {
+            from: address,
+            tokenFrom: tokenFrom,
+            amountFrom: this.roundAmount(amount),
+            to: address,
+            tokenTo: tokenTo,
+          },
+          'auto',
+        ],
+        'number',
+      ),
+    ).then((r: string) => +r.split('@')[0]);
+  }
+
   async sendToken(addressFrom: string, addressTo: string, token: string, amount: number): Promise<string> {
-    const input = {}
-    input[addressTo] = amount + '@' + token;
-    return this.callNode(
-      (c) => c.call(NodeCommand.SEND_TOKEN, [addressFrom, input], 'number'),
-      true,
-    );
-  }
-
-  // Get token
-  async getTokens(): Promise<AccountResult<string, string>[]> {
-    return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }))
-  }
-
-  // Get Addresses
-  async getAddresses(): Promise<string[]> {
-    // Returns addresses that have some amount
-    
-    // Get utxo
-    const utxos = await this.getUtxo().then((i) => i.map((u) => u.address))
-    const tokens = await this.getTokens().then((i) => i.map((u) => u.owner))
-
-    return [...new Set(utxos.concat(tokens))]
-  }
-
-  // token
-  async testCompositePoolSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<string> {
-    // TODO: use custom address
-    return this.callNode((c) =>
-      c.call("testpoolswap", [{
-        from: address,
-        tokenFrom: tokenFrom,
-        amountFrom: this.roundAmount(amount),
-        to: address,
-        tokenTo: tokenTo,
-      }, "auto"], "number"),
-    );
-  }
-
-  // token
-  async testPoolSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<string> {
-    // TODO: use custom address
-    return this.callNode((c) =>
-      c.poolpair.testPoolSwap({
-        from: address,
-        tokenFrom: tokenFrom,
-        amountFrom: this.roundAmount(amount),
-        to: address,
-        tokenTo: tokenTo,
-      }),
-    );
+    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }));
   }
 
   // forwarding
