@@ -4,6 +4,7 @@ import { LogDirection, LogType } from 'src/user/models/log/log.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { BuyService } from 'src/user/models/buy/buy.service';
 import { SellService } from 'src/user/models/sell/sell.service';
+import { SettingService } from 'src/shared/setting/setting.service';
 
 @Injectable()
 export class StatisticService {
@@ -12,7 +13,15 @@ export class StatisticService {
     private sellService: SellService,
     private logService: LogService,
     private conversionService: ConversionService,
+    private settingService: SettingService,
   ) {}
+
+  async getStatus(): Promise<any> {
+    return {
+      deposit: await this.settingService.get('deposit'),
+      withdraw: await this.settingService.get('withdraw'),
+    };
+  }
 
   async getBuyRouteCount(): Promise<number> {
     return this.buyService.count();
@@ -55,6 +64,7 @@ export class StatisticService {
             sell: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
           },
         },
+        status: await this.getStatus(),
       },
     };
   }
