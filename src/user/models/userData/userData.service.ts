@@ -110,11 +110,6 @@ export class UserDataService {
       user.organizationCountry = null;
     }
 
-    if (info.mail) {
-      const userWithSameMail = await this.userDataRepo.findOne({ where: { id: Not(user.id), mail: info.mail } });
-      if (userWithSameMail) throw new ConflictException('A user with this mail already exists');
-    }
-
     return this.userDataRepo.save(user);
   }
 
