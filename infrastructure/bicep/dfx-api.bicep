@@ -44,6 +44,11 @@ param krakenKey string
 @secure()
 param krakenSecret string
 
+@secure()
+param binanceKey string
+@secure()
+param binanceSecret string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -441,6 +446,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KRAKEN_SECRET'
           value: krakenSecret
+        }
+        {
+          name: 'BINANCE_KEY'
+          value: binanceKey
+        }
+        {
+          name: 'BINANCE_SECRET'
+          value: binanceSecret
         }
       ]
     }

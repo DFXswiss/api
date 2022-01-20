@@ -70,6 +70,12 @@
     },
     "krakenSecret": {
       "value": "xxx"
+    },
+    "binanceKey": {
+      "value": "xxx"
+    },
+    "binanceSecret": {
+      "value": "xxx"
     }
   }
 }
