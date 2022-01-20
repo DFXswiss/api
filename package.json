@@ -24,9 +24,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@defichain/jellyfish-api-core": "^0.45.1",
-    "@defichain/jellyfish-api-jsonrpc": "^0.45.1",
-    "@defichain/jellyfish-network": "^0.40.0",
+    "@defichain/jellyfish-api-core": "^2.14.2",
+    "@defichain/jellyfish-api-jsonrpc": "^2.14.2",
+    "@defichain/jellyfish-network": "^2.14.2",
     "@nestjs-modules/mailer": "^1.6.0",
     "@nestjs/axios": "^0.0.3",
     "@nestjs/common": "^8.0.4",
