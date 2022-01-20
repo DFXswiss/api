@@ -54,7 +54,7 @@ export class BuyController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   createBuy(@GetJwt() jwt: JwtPayload, @Body() createBuyDto: CreateBuyDto): Promise<Buy> {
-    return this.buyService.createBuy(jwt.id, createBuyDto);
+    return this.buyService.createBuy(jwt.id, jwt.address, createBuyDto);
   }
 
   @Put()
