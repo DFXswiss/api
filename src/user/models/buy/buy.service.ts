@@ -34,7 +34,7 @@ export class BuyService {
   }
 
   // --- BUYS --- //
-  async createBuy(userId: number, dto: CreateBuyDto): Promise<Buy> {
+  async createBuy(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
     // check asset
     const asset = await this.assetService.getAsset(dto.asset.id);
     if (!asset) throw new NotFoundException('No asset for id found');
@@ -52,7 +52,7 @@ export class BuyService {
 
     // create hash
     const hash = createHash('sha256');
-    hash.update(buy.user.address + asset.name + buy.iban);
+    hash.update(userAddress + asset.name + buy.iban);
     const hexHash = hash.digest('hex').toUpperCase();
     buy.bankUsage = `${hexHash.slice(0, 4)}-${hexHash.slice(4, 8)}-${hexHash.slice(8, 12)}`;
 
