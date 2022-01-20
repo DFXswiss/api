@@ -1,5 +1,5 @@
 import { ApiClient } from '@defichain/jellyfish-api-core';
-import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
@@ -11,6 +11,7 @@ import { Util } from 'src/shared/util';
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
+  SEND_TOKEN = 'accounttoaccount'
 }
 
 enum Chain {
@@ -62,6 +63,45 @@ export class NodeClient {
     return this.callNode(
       (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee)], 'number'),
       true,
+    );
+  }
+
+  async sendToken(addressFrom: string, addressTo: string, token: string, amount: number): Promise<string> {
+    const input = {}
+    input[addressTo] = amount + '@' + token;
+    return this.callNode(
+      (c) => c.call(NodeCommand.SEND_TOKEN, [addressFrom, input], 'number'),
+      true,
+    );
+  }
+
+  // Get token
+  async getTokens(): Promise<AccountResult<string, string>[]> {
+    return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }))
+  }
+
+  // Get Addresses
+  async getAddresses(): Promise<string[]> {
+    // Returns addresses that have some amount
+    
+    // Get utxo
+    const utxos = await this.getUtxo().then((i) => i.map((u) => u.address))
+    const tokens = await this.getTokens().then((i) => i.map((u) => u.owner))
+
+    return [...new Set(utxos.concat(tokens))]
+  }
+
+  // token
+  async testCompositePoolSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<string> {
+    // TODO: use custom address
+    return this.callNode((c) =>
+      c.call("testpoolswap", [{
+        from: address,
+        tokenFrom: tokenFrom,
+        amountFrom: this.roundAmount(amount),
+        to: address,
+        tokenTo: tokenTo,
+      }, "auto"], "number"),
     );
   }
 
