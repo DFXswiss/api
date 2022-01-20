@@ -10,7 +10,6 @@ import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { AccountType } from '../userData/account-type.enum';
 import { BuyService } from '../buy/buy.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
@@ -86,38 +85,13 @@ export class UserService {
     return this.userRepo.getAllUser();
   }
 
-  async verifyUser(id: number): Promise<{ result: boolean; errors: { [error: string]: string } }> {
-    const user = await this.userRepo.findOne(id);
-    if (!user) throw new NotFoundException('No matching user for id found');
+  async verifyUser(userId: number) {
+    const { userData } = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
+    });
 
-    const requiredFields = [
-      'mail',
-      'firstname',
-      'surname',
-      'street',
-      'houseNumber',
-      'location',
-      'zip',
-      'country',
-      'phone',
-    ].concat(
-      user.accountType === AccountType.PERSONAL
-        ? []
-        : [
-            'organizationName',
-            'organizationStreet',
-            'organizationHouseNumber',
-            'organizationLocation',
-            'organizationZip',
-            'organizationCountry',
-          ],
-    );
-    const errors = requiredFields.filter((f) => !user[f]);
-
-    return {
-      result: errors.length === 0,
-      errors: errors.reduce((prev, curr) => ({ ...prev, [curr]: 'missing' }), {}),
-    };
+    return this.userDataService.verifyUser(userData);
   }
 
   async updateRole(user: UpdateRoleDto): Promise<any> {
@@ -125,9 +99,6 @@ export class UserService {
   }
 
   async requestKyc(userId: number, depositLimit: string): Promise<string | undefined> {
-    const verification = await this.verifyUser(userId);
-    if (!verification.result) throw new BadRequestException('User data missing');
-
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 

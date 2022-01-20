@@ -113,6 +113,37 @@ export class UserDataService {
     return this.userDataRepo.save(user);
   }
 
+  async verifyUser(user: UserData): Promise<{ result: boolean; errors: { [error: string]: string } }> {
+    const requiredFields = [
+      'mail',
+      'firstname',
+      'surname',
+      'street',
+      'houseNumber',
+      'location',
+      'zip',
+      'country',
+      'phone',
+    ].concat(
+      user.accountType === AccountType.PERSONAL
+        ? []
+        : [
+            'organizationName',
+            'organizationStreet',
+            'organizationHouseNumber',
+            'organizationLocation',
+            'organizationZip',
+            'organizationCountry',
+          ],
+    );
+    const errors = requiredFields.filter((f) => !user[f]);
+
+    return {
+      result: errors.length === 0,
+      errors: errors.reduce((prev, curr) => ({ ...prev, [curr]: 'missing' }), {}),
+    };
+  }
+
   async getAllUserData(): Promise<UserData[]> {
     return this.userDataRepo.getAllUserData();
   }
@@ -138,9 +169,12 @@ export class UserDataService {
   }
 
   async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.spiderData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'] });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
+
+    const verification = await this.verifyUser(userData);
+    if (!verification.result) throw new BadRequestException('User data incomplete');
 
     if (userData?.kycStatus === KycStatus.NA) {
       if (userInfo.accountType === AccountType.PERSONAL) {
