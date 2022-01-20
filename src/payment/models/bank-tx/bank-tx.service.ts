@@ -26,8 +26,8 @@ export class BankTxService {
     }
   }
 
-  async storeSepaFiles(files: string[]): Promise<BankTxBatch[]> {
-    return Promise.all(files.map((f) => this.storeSepaFile(f)));
+  async storeSepaFiles(files: string[]): Promise<(BankTxBatch | Error)[]> {
+    return Promise.all(files.map((f) => this.storeSepaFile(f).catch((e: Error) => e)));
   }
 
   // --- HELPER METHODS --- //

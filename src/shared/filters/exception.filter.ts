@@ -11,9 +11,13 @@ export class AllExceptionFilter implements ExceptionFilter {
 
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    response.status(status).json({
-      message: exception.message,
-      statusCode: status,
-    });
+    response.status(status).json(
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : {
+            statusCode: status,
+            message: exception.message,
+          },
+    );
   }
 }
