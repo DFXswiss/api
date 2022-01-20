@@ -13,6 +13,11 @@ export class StatisticController {
     return this.statisticService.getAll();
   }
 
+  @Get('status')
+  async getStatus(): Promise<any> {
+    return this.statisticService.getStatus();
+  }
+
   @Get('cfp/masterNodes')
   async getMasterNodes(): Promise<MasterNode[]> {
     return this.cfpService.getMasterNodes();

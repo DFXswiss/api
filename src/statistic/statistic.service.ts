@@ -17,10 +17,10 @@ export class StatisticService {
   ) {}
 
   async getStatus(): Promise<any> {
-    return {
-      deposit: await this.settingService.get('deposit'),
-      withdraw: await this.settingService.get('withdraw'),
-    };
+    const settings = await this.settingService.getAll();
+    return settings
+      .filter((s) => s.key.endsWith('Status'))
+      .reduce((prev, curr) => ({ ...prev, [curr.key.replace('Status', '')]: curr.value }), {});
   }
 
   async getBuyRouteCount(): Promise<number> {
