@@ -13,14 +13,12 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyService } from '../buy/buy.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { UserDataRepository } from '../userData/userData.repository';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly userDataRepo: UserDataRepository,
     private readonly logService: LogService,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
