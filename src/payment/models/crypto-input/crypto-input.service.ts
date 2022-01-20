@@ -67,7 +67,7 @@ export class CryptoInputService {
         const assetName = a.split('@')[1];
 
         // get asset
-        const asset = await this.assetService.getAsset(assetName);
+        const asset = await this.assetService.getAssetByDexName(assetName);
         if (!asset) {
           console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
           return null;
