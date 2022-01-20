@@ -88,11 +88,10 @@ export class UserService {
   }
 
   async verifyUser(userId: number) {
-    const userData = await this.userDataRepo
-      .createQueryBuilder('userData')
-      .innerJoinAndSelect('userData.users', 'user')
-      .where('user.id = :id', { id: userId })
-      .getOne();
+    const { userData } = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
+    });
 
     return this.userDataService.verifyUser(userData);
   }

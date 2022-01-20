@@ -169,7 +169,7 @@ export class UserDataService {
   }
 
   async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.spiderData'] });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'] });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
 
