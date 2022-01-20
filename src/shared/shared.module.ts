@@ -18,17 +18,18 @@ import { LanguageService } from './models/language/language.service';
 import { PassportModule } from '@nestjs/passport';
 import { MailService } from './services/mail.service';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule } from '@nestjs/config';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SettingRepository } from './setting/setting.repository';
 import { SettingService } from './setting/setting.service';
+import { GetConfig } from 'src/config/config';
+import { ConfigModule } from 'src/config/config.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
     HttpModule,
+    ConfigModule,
     TypeOrmModule.forFeature([
       AssetRepository,
       FiatRepository,
@@ -37,31 +38,8 @@ import { SettingService } from './setting/setting.service';
       SettingRepository,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: {
-        expiresIn: 172800,
-      },
-    }),
-    MailerModule.forRoot({
-      transport: {
-        host: 'smtp.gmail.com',
-        secure: false,
-        auth: {
-          type: 'OAuth2',
-          user: process.env.MAIL_USER,
-          clientId: process.env.MAIL_CLIENT_ID,
-          clientSecret: process.env.MAIL_CLIENT_SECRET,
-          refreshToken: process.env.MAIL_REFRESH_TOKEN,
-        },
-        tls: {
-          rejectUnauthorized: false,
-        },
-      },
-      defaults: {
-        from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
-      },
-    }),
+    JwtModule.register(GetConfig().auth.jwt),
+    MailerModule.forRoot(GetConfig().mail),
     ScheduleModule.forRoot(),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController],

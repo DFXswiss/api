@@ -4,11 +4,18 @@ import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { LogDirection } from 'src/user/models/log/log.entity';
 import { Util } from '../util';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
-  private readonly techMail = ' cto@dfx.swiss';
+  private readonly techMail = 'cto@dfx.swiss';
+  private readonly kycStatus = {
+    [KycStatus.WAIT_CHAT_BOT]: 'chatbot onboarding',
+    [KycStatus.WAIT_ADDRESS]: 'invoice upload',
+    [KycStatus.WAIT_ONLINE_ID]: 'online identification',
+    [KycStatus.WAIT_VIDEO_ID]: 'video identification',
+  };
 
   constructor(private mailerService: MailerService) {}
 
@@ -38,7 +45,7 @@ export class MailService {
   }
 
   async sendReminderMail(firstName: string, mail: string, kycStatus: KycStatus): Promise<void> {
-    const htmlBody = `<p>friendly reminder of your ${this.getStatus(kycStatus)}.</p>
+    const htmlBody = `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
       <p>Please check your mails.</p>`;
 
     await this.sendMail(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
@@ -46,7 +53,7 @@ export class MailService {
 
   async sendSupportFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
     const htmlSupportBody = `
-    <p>a customer has failed or expired during progress ${this.getStatus(userData.kycStatus)}.</p>
+    <p>a customer has failed or expired during progress ${this.kycStatus[userData.kycStatus]}.</p>
       <table>
           <tr>
               <td>Reference:</td>
@@ -89,7 +96,7 @@ export class MailService {
   }
 
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
-    const env = process.env.ENVIRONMENT.toUpperCase();
+    const env = Config.environment.toUpperCase();
 
     const htmlBody = `
     <p>there seem to be some problems on ${env} API:</p>
@@ -116,28 +123,5 @@ export class MailService {
       subject: subject,
       html: htmlBody,
     });
-  }
-
-  private getStatus(kycStatus: KycStatus): string {
-    let status = '';
-    switch (kycStatus) {
-      case KycStatus.WAIT_CHAT_BOT: {
-        status = 'chatbot onboarding';
-        break;
-      }
-      case KycStatus.WAIT_ADDRESS: {
-        status = 'invoice upload';
-        break;
-      }
-      case KycStatus.WAIT_ONLINE_ID: {
-        status = 'online identification';
-        break;
-      }
-      case KycStatus.WAIT_VIDEO_ID: {
-        status = 'video identification';
-        break;
-      }
-    }
-    return status;
   }
 }

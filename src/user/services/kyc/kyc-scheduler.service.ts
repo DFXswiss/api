@@ -10,6 +10,7 @@ import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { UserDataService } from 'src/user/models/userData/userData.service';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class KycSchedulerService {
@@ -31,7 +32,7 @@ export class KycSchedulerService {
       await this.doVideoIdCheck();
     } catch (e) {
       console.error('Exception during KYC checks:', e);
-      await this.mailService.sendErrorMail('KYC error', [e]);
+      await this.mailService.sendErrorMail('KYC Error', [e]);
     }
   }
 
@@ -46,8 +47,8 @@ export class KycSchedulerService {
       // get KYC changes
       const changedRefs = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
       const changedUserDataIds = changedRefs
-        .filter((c) => c.startsWith(process.env.KYC_PREFIX))
-        .map((c) => +c.replace(process.env.KYC_PREFIX, ''))
+        .filter((c) => c.startsWith(Config.kyc.prefix))
+        .map((c) => +c.replace(Config.kyc.prefix, ''))
         .filter((c) => !isNaN(c));
 
       // update
@@ -68,7 +69,7 @@ export class KycSchedulerService {
       await this.settingService.set(settingKey, newModificationTime);
     } catch (e) {
       console.error('Exception during KYC data sync:', e);
-      await this.mailService.sendErrorMail('Sync error', [e]);
+      await this.mailService.sendErrorMail('Sync Error', [e]);
     }
   }
 
@@ -189,7 +190,7 @@ export class KycSchedulerService {
         await this.userDataRepo.save(userDataList[key]);
       } catch (e) {
         console.error('Exception during KYC checks:', e);
-        await this.mailService.sendErrorMail('KYC error', [e]);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }

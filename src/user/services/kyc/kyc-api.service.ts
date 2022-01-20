@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
+import { Config } from 'src/config/config';
 import { UserInfo } from 'src/user/models/user/user.entity';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
 import { RiskState } from 'src/user/models/userData/userData.entity';
@@ -34,7 +35,7 @@ export class KycApiService {
       reference: this.reference(id),
       type: 'PERSON',
       names: [{ lastName: name }],
-      preferredLanguage: 'de',
+      preferredLanguage: Config.defaultLanguage,
     };
 
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
@@ -55,10 +56,10 @@ export class KycApiService {
           houseNumber: user.houseNumber,
           zipCode: user.zip,
           city: user.location,
-          countryCode: user.country?.symbol?.toUpperCase() ?? 'DE',
+          countryCode: user.country?.symbol?.toUpperCase() ?? Config.defaultCountry,
         },
       ],
-      preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
+      preferredLanguage: user.language?.symbol?.toLowerCase() ?? Config.defaultLanguage,
       activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
     };
 
@@ -175,10 +176,10 @@ export class KycApiService {
             houseNumber: user.houseNumber,
             zipCode: user.zip,
             city: user.location,
-            countryCode: user.country?.symbol?.toUpperCase() ?? 'DE',
+            countryCode: user.country?.symbol?.toUpperCase() ?? Config.defaultCountry,
           },
         ],
-        preferredLanguage: user.language?.symbol?.toLowerCase() ?? 'de',
+        preferredLanguage: user.language?.symbol?.toLowerCase() ?? Config.defaultLanguage,
         activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
       },
       relationTypes:
@@ -193,7 +194,7 @@ export class KycApiService {
           reference: this.reference(id, true),
           type: 'ORGANISATION',
           names: [user.organizationName],
-          countriesOfResidence: [user.organizationCountry?.symbol?.toUpperCase() ?? 'DE'],
+          countriesOfResidence: [user.organizationCountry?.symbol?.toUpperCase() ?? Config.defaultCountry],
           structuredAddresses: [
             {
               type: 'BASIC',
@@ -201,7 +202,7 @@ export class KycApiService {
               houseNumber: user.organizationHouseNumber,
               zipCode: user.organizationZip,
               city: user.organizationLocation,
-              countryCode: user.organizationCountry?.symbol?.toUpperCase() ?? 'DE',
+              countryCode: user.organizationCountry?.symbol?.toUpperCase() ?? Config.defaultCountry,
             },
           ],
         },
@@ -332,7 +333,7 @@ export class KycApiService {
 
   // --- HELPER METHODS --- //
   private reference(id: number, isOrganization = false): string {
-    const ref = process.env.KYC_PREFIX ? `${process.env.KYC_PREFIX}${id}` : id.toString();
+    const ref = Config.kyc.prefix ? `${Config.kyc.prefix}${id}` : id.toString();
     return isOrganization ? `${ref}_organization` : ref;
   }
 
@@ -380,14 +381,14 @@ export class KycApiService {
     const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
 
     // determine response
-    const response = key + process.env.KYC_MANDATOR + process.env.KYC_USER + process.env.KYC_PASSWORD + challenge;
+    const response = key + Config.kyc.mandator + Config.kyc.user + Config.kyc.password + challenge;
     const hash = createHash('sha1');
     hash.update(response);
 
     const data = {
       key: key,
-      mandator: process.env.KYC_MANDATOR,
-      user: process.env.KYC_USER,
+      mandator: Config.kyc.mandator,
+      user: Config.kyc.user,
       response: hash.digest('hex'),
     };
 

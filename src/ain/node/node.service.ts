@@ -1,6 +1,7 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { NodeClient } from './node-client';
@@ -25,20 +26,20 @@ export class NodeService {
   constructor(private readonly http: HttpService, private readonly mailService: MailService) {
     this.urls = {
       [NodeType.INPUT]: {
-        [NodeMode.ACTIVE]: process.env.NODE_INP_URL_ACTIVE,
-        [NodeMode.PASSIVE]: process.env.NODE_INP_URL_PASSIVE,
+        [NodeMode.ACTIVE]: Config.node.inp.active,
+        [NodeMode.PASSIVE]: Config.node.inp.passive,
       },
       [NodeType.DEX]: {
-        [NodeMode.ACTIVE]: process.env.NODE_DEX_URL_ACTIVE,
-        [NodeMode.PASSIVE]: process.env.NODE_DEX_URL_PASSIVE,
+        [NodeMode.ACTIVE]: Config.node.dex.active,
+        [NodeMode.PASSIVE]: Config.node.dex.passive,
       },
       [NodeType.OUTPUT]: {
-        [NodeMode.ACTIVE]: process.env.NODE_OUT_URL_ACTIVE,
-        [NodeMode.PASSIVE]: process.env.NODE_OUT_URL_PASSIVE,
+        [NodeMode.ACTIVE]: Config.node.out.active,
+        [NodeMode.PASSIVE]: Config.node.out.passive,
       },
       [NodeType.INT]: {
-        [NodeMode.ACTIVE]: process.env.NODE_INT_URL_ACTIVE,
-        [NodeMode.PASSIVE]: process.env.NODE_INT_URL_PASSIVE,
+        [NodeMode.ACTIVE]: Config.node.int.active,
+        [NodeMode.PASSIVE]: Config.node.int.passive,
       },
     };
 
@@ -73,7 +74,7 @@ export class NodeService {
 
     if (errors.length > 0) {
       console.error(`Node errors:`, errors);
-      await this.mailService.sendErrorMail('Node error', errors);
+      await this.mailService.sendErrorMail('Node Error', errors);
     }
   }
 

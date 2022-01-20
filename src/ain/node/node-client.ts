@@ -4,6 +4,7 @@ import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/bloc
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
 
@@ -112,7 +113,7 @@ export class NodeClient {
   }
 
   private async unlock(timeout = 10): Promise<any> {
-    return this.client.call(NodeCommand.UNLOCK, [process.env.NODE_WALLET_PASSWORD, timeout], 'number');
+    return this.client.call(NodeCommand.UNLOCK, [Config.node.walletPassword, timeout], 'number');
   }
 
   private createJellyfishClient(): ApiClient {
@@ -120,7 +121,7 @@ export class NodeClient {
   }
 
   private createHeaders(): { [key: string]: string } {
-    const passwordHash = Buffer.from(`${process.env.NODE_USER}:${process.env.NODE_PASSWORD}`).toString('base64');
+    const passwordHash = Buffer.from(`${Config.node.user}:${Config.node.password}`).toString('base64');
     return { Authorization: 'Basic ' + passwordHash };
   }
 

@@ -21,7 +21,7 @@ export class ConversionService {
     const dateString = this.isToday(date) ? 'latest' : date.toISOString().split('T')[0];
     const url = `${baseUrl}/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;
 
-    const result = await this.callApi<{[currency: string]: number}>(url);
+    const result = await this.callApi<{ [currency: string]: number }>(url);
     return result[toCurrency.toLowerCase()];
   }
 

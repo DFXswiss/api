@@ -6,10 +6,16 @@ import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
+import { Config } from 'src/config/config';
+import { MailService } from 'src/shared/services/mail.service';
 
 @Injectable()
 export class BankTxService {
-  constructor(private readonly bankTxRepo: BankTxRepository, private readonly bankTxBatchRepo: BankTxBatchRepository) {}
+  constructor(
+    private readonly bankTxRepo: BankTxRepository,
+    private readonly bankTxBatchRepo: BankTxBatchRepository,
+    private readonly mailService: MailService,
+  ) {}
 
   @Interval(60000)
   async importSepaFiles(): Promise<void> {
@@ -20,22 +26,16 @@ export class BankTxService {
     }
   }
 
-  async storeSepaFiles(files: string[]): Promise<BankTxBatch[]> {
-    return Promise.all(files.map((f) => this.storeSepaFile(f)));
+  async storeSepaFiles(files: string[]): Promise<(BankTxBatch | Error)[]> {
+    return Promise.all(files.map((f) => this.storeSepaFile(f).catch((e: Error) => e)));
   }
 
   // --- HELPER METHODS --- //
   private async fetchAndStoreSepaFiles(): Promise<void> {
-    const client = await FtpService.connect({
-      host: process.env.FTP_HOST,
-      user: process.env.FTP_USER,
-      password: process.env.FTP_PASSWORD,
-      directory: process.env.FTP_FOLDER,
-    });
+    const client = await FtpService.connect(Config.ftp);
 
     // read file list
-    const fileInfos = await client.listFiles()
-      .then((i) => i.filter((f) => f.name.endsWith('.xml')));
+    const fileInfos = await client.listFiles().then((i) => i.filter((f) => f.name.endsWith('.xml')));
     if (fileInfos.length > 0) console.log('New SEPA files to import:', fileInfos);
 
     // store and move files to archive folder
@@ -67,7 +67,9 @@ export class BankTxService {
       .find({ accountServiceRef: In(txList.map((i) => i.accountServiceRef)) })
       .then((list) => list.map((i) => i.accountServiceRef));
     if (duplicates.length > 0) {
-      console.log(`Duplicate SEPA entries found:`, duplicates);
+      const message = `Duplicate SEPA entries found in batch ${batch.identification}:`;
+      console.log(message, duplicates);
+      this.mailService.sendErrorMail('SEPA Error', [message + ` ${duplicates.join(', ')}`]);
     }
 
     // store the entries

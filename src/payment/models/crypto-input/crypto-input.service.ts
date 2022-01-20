@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SellService } from 'src/user/models/sell/sell.service';
 import { CryptoInput } from './crypto-input.entity';
@@ -46,7 +47,7 @@ export class CryptoInputService {
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
-        .then((i) => i.filter((e) => e != null && e.amount >= 0.1 )) // min. deposit limit
+        .then((i) => i.filter((e) => e != null && e.amount >= 0.1)) // min. deposit limit
         .then((i) => {
           if (i.length > 0) console.log('New crypto inputs:', i);
           return i;
@@ -66,7 +67,7 @@ export class CryptoInputService {
         const assetName = a.split('@')[1];
 
         // get asset
-        const asset = await this.assetService.getAsset(assetName);
+        const asset = await this.assetService.getAssetByDexName(assetName);
         if (!asset) {
           console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
           return null;
@@ -108,7 +109,7 @@ export class CryptoInputService {
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
         input.sell.deposit.address,
-        process.env.DEX_WALLET_ADDRESS,
+        Config.node.dexWalletAddress,
         input.amount,
       );
 

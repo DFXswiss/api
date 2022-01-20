@@ -10,25 +10,11 @@ import { PaymentModule } from './payment/payment.module';
 import { UserModule } from './user/user.module';
 import { AdminController } from './admin/admin.controller';
 import { SeedService } from './shared/seed/seed.service';
+import { GetConfig } from './config/config';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'mssql',
-      host: process.env.SQL_HOST,
-      port: Number.parseInt(process.env.SQL_PORT),
-      username: process.env.SQL_USERNAME,
-      password: process.env.SQL_PASSWORD,
-      database: process.env.SQL_DB,
-      entities: ['dist/**/*.entity{.ts,.js}'],
-      synchronize: process.env.SQL_SYNCHRONIZE === 'true',
-      migrationsRun: process.env.SQL_MIGRATE === 'true',
-      migrations: ['migration/*.js'],
-      cli: {
-        migrationsDir: 'migration',
-      },
-      connectionTimeout: 30000,
-    }),
+    TypeOrmModule.forRoot(GetConfig().database),
     SharedModule,
     AinModule,
     PaymentModule,

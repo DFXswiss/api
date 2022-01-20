@@ -9,6 +9,7 @@ import { UserDataService } from '../userData/userData.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class AuthService {
@@ -66,7 +67,7 @@ export class AuthService {
   }
 
   getSignMessage(address: string): string {
-    return process.env.SIGN_MESSAGE + address;
+    return Config.auth.signMessage + address;
   }
 
   private verifySignature(address: string, signature: string): boolean {

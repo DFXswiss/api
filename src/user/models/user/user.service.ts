@@ -13,6 +13,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AccountType } from '../userData/account-type.enum';
 import { BuyService } from '../buy/buy.service';
 import { Util } from 'src/shared/util';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class UserService {
@@ -150,7 +151,10 @@ export class UserService {
       refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logService.getRefVolume(user.ref, user.currency?.name.toLowerCase() ?? 'eur'),
+      refVolume: await this.logService.getRefVolume(
+        user.ref,
+        (user.currency?.name ?? Config.defaultCurrency).toLowerCase(),
+      ),
     };
   }
 
