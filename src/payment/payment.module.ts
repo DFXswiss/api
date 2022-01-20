@@ -19,7 +19,6 @@ import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
 import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 import { TransactionController } from './models/transaction/transaction.controller';
 import { TransactionService } from './models/transaction/transaction.service';
-import { UserRepository } from 'src/user/models/user/user.repository';
 
 @Module({
   imports: [
@@ -29,7 +28,6 @@ import { UserRepository } from 'src/user/models/user/user.repository';
       BankTxRepository,
       BankTxBatchRepository,
       CryptoBuyRepository,
-      UserRepository,
     ]),
     SharedModule,
     AinModule,

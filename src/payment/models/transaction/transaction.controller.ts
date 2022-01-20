@@ -20,7 +20,7 @@ export class TransactionController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getTransactions(@GetJwt() jwt: JwtPayload): Promise<TransactionDto[] | CoinTrackingTransactionDto[]> {
-    const tx = await this.transactionService.getTransactions(jwt.id);
+    const tx = await this.transactionService.getTransactions(jwt.id, jwt.address);
     // return jwt.role === UserRole.CT ? tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } })) : tx;
     return tx;
   }
@@ -29,7 +29,7 @@ export class TransactionController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async createCsv(@GetJwt() jwt: JwtPayload): Promise<number> {
-    const csvFile = await this.transactionService.getTransactionCsv(jwt.id);
+    const csvFile = await this.transactionService.getTransactionCsv(jwt.id, jwt.address);
     const fileKey = Util.randomId();
     this.files[fileKey] = new StreamableFile(csvFile);
 
