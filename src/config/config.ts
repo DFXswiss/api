@@ -41,7 +41,7 @@ export class Configuration {
   };
 
   i18n: I18nOptions = {
-    fallbackLanguage: 'de',
+    fallbackLanguage: this.defaultLanguage,
     parser: I18nJsonParser,
     parserOptions: {
       path: path.join(__dirname, '../shared/i18n/'),
