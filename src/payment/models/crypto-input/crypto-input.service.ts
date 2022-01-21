@@ -118,8 +118,8 @@ export class CryptoInputService {
       );
 
       // forward
-      const targetAddress = input.route instanceof Sell ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
-      
+      const targetAddress = 'iban' in input.route ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
         input.route.deposit.address,
