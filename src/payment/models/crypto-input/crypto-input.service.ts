@@ -49,7 +49,7 @@ export class CryptoInputService {
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
-        .then((i) => i.filter((h) => h != null)) // TODO: filter for sellable assets
+        .then((i) => i.filter((h) => h != null && h.asset.sellable))
         .then((i) => {
           if (i.length > 0) console.log('New crypto inputs:', i);
           return i;
@@ -118,15 +118,29 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // forward
-      const targetAddress =
-        input.route instanceof Sell ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+      //const targetAddress =
+      //  input.route instanceof Sell ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+      const targetAddress = Config.node.dexWalletAddress;
       const outTxId =
         input.asset.type === AssetType.COIN
           ? await this.forwardUtxo(input, targetAddress)
           : await this.forwardToken(input, targetAddress);
-
+      
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+
+      // Cleanup
+      const unspent = (await this.client.getUtxo()).filter((i) => i.address == input.route.deposit.address && i.spendable)
+
+      const utxosum = unspent.reduce((a, b) => a + +b.amount, 0);
+      if (utxosum > 0) {
+        const utxoTx = await this.client.sendUtxo(
+          input.route.deposit.address,
+          'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F', // TODO: get from config
+          utxosum,
+        );
+      }
+
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
