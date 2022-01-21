@@ -9,6 +9,7 @@ import { UserDataService } from '../userData/userData.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
 import { User } from './user.entity';
+import { StakingService } from '../staking/staking.service';
 
 describe('UserService', () => {
   let service: UserService;
@@ -20,6 +21,7 @@ describe('UserService', () => {
   let languageService: LanguageService;
   let fiatService: FiatService;
   let buyService: BuyService;
+  let stakingService: StakingService;
 
   function setup(volume: number, refUser?: Partial<User>) {
     jest.spyOn(buyService, 'getUserVolume').mockResolvedValueOnce({ volume: 0, annualVolume: volume });
@@ -34,6 +36,7 @@ describe('UserService', () => {
     languageService = createMock<LanguageService>();
     fiatService = createMock<FiatService>();
     buyService = createMock<BuyService>();
+    stakingService = createMock<StakingService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,6 +48,7 @@ describe('UserService', () => {
         { provide: LanguageService, useValue: languageService },
         { provide: FiatService, useValue: fiatService },
         { provide: BuyService, useValue: buyService },
+        { provide: StakingService, useValue: stakingService },
       ],
     }).compile();
 
