@@ -1,5 +1,5 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import { Exchange, Market, Order, WithdrawalResponse } from 'ccxt';
+import { Exchange, ExchangeError, Market, Order, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from './dto/trade-response.dto';
 import { Price } from './dto/price.dto';
 import { Util } from 'src/shared/util';
@@ -196,8 +196,8 @@ export class ExchangeService {
 
   // other
   private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
-    return action(this.exchange).catch((e) => {
-      throw new ServiceUnavailableException(e);
+    return action(this.exchange).catch((e: ExchangeError) => {
+      throw new ServiceUnavailableException(e.message);
     });
   }
 
