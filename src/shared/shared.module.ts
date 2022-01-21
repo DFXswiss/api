@@ -1,4 +1,4 @@
-import { Get, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { HttpService } from './services/http.service';
 import { ConversionService } from './services/conversion.service';
