@@ -62,8 +62,8 @@ export class ExchangeService {
     return this.tryToOrder(pair, 'limit', direction, amount);
   }
 
-  async withdrawFunds(token: string, amount: number, address: string, key: string): Promise<WithdrawalResponse> {
-    return await this.callApi((e) => e.withdraw(token, amount, address, undefined, { key }));
+  async withdrawFunds(token: string, amount: number, address: string, key: string, network?: string): Promise<WithdrawalResponse> {
+    return await this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
   }
 
   async getWithdraw(id: string, token: string): Promise<Transaction> {

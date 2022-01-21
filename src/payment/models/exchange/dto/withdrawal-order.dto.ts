@@ -11,6 +11,11 @@ export abstract class WithdrawalOrderBase {
   @IsNotEmpty()
   @IsString()
   key: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  network: string;
 }
 
 export class WithdrawalOrder extends WithdrawalOrderBase {

@@ -103,14 +103,24 @@ export class ExchangeController {
     const token = withdrawalDto.token.toUpperCase();
     const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.getExchange(exchange).getBalance(token);
 
-    return this.getExchange(exchange).withdrawFunds(token, amount, withdrawalDto.address, withdrawalDto.key);
+    return this.getExchange(exchange).withdrawFunds(
+      token,
+      amount,
+      withdrawalDto.address,
+      withdrawalDto.key,
+      withdrawalDto.network,
+    );
   }
 
   @Get(':exchange/withdraw/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getWithdraw(@Param('exchange') exchange: string, @Param('id') id: string, @Query('token') token: string): Promise<Transaction> {
+  async getWithdraw(
+    @Param('exchange') exchange: string,
+    @Param('id') id: string,
+    @Query('token') token: string,
+  ): Promise<Transaction> {
     return this.getExchange(exchange).getWithdraw(id, token);
   }
 
