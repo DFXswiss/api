@@ -13,6 +13,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyService } from '../buy/buy.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
+import { StakingService } from '../staking/staking.service';
 
 @Injectable()
 export class UserService {
@@ -24,12 +25,13 @@ export class UserService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly buyService: BuyService,
+    private readonly stakingService: StakingService,
   ) {}
 
   async getUser(userId: number, detailedUser = false): Promise<User> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser ? ['userData', 'buys', 'sells', 'currency'] : ['userData', 'currency'],
+      relations: detailedUser ? ['userData', 'buys', 'sells', 'stakingRoutes', 'currency'] : ['userData', 'currency'],
     });
     if (!user) throw new NotFoundException('No matching user for id found');
 
@@ -65,6 +67,10 @@ export class UserService {
     if (detailed) {
       user['refData'] = await this.getRefData(user);
       user['userVolume'] = await this.getUserVolume(user);
+    }
+
+    if (user.stakingRoutes) {
+      user['stakingRoutes'] = (await Promise.all(user.stakingRoutes.map((s) => this.stakingService.toDto(s)))) as any;
     }
 
     // select user info

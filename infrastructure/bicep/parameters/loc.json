@@ -50,6 +50,9 @@
     "dexWalletAddress": {
       "value": "xxx"
     },
+    "stakingWalletAddress": {
+      "value": "xxx"
+    },
     "nodeServicePlanSkuName": {
       "value": "B1"
     },

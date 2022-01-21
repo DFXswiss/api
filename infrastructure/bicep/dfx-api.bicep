@@ -30,6 +30,7 @@ param nodePassword string
 @secure()
 param nodeWalletPassword string
 param dexWalletAddress string
+param stakingWalletAddress string
 
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
@@ -422,6 +423,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'DEX_WALLET_ADDRESS'
           value: dexWalletAddress
+        }
+        {
+          name: 'STAKING_WALLET_ADDRESS'
+          value: stakingWalletAddress
         }
         {
           name: 'FTP_HOST'

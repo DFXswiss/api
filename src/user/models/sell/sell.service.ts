@@ -61,6 +61,7 @@ export class SellService {
     return this.sellRepo.save(sell);
   }
 
+  // TODO: disable linked staking routes?
   async updateSell(userId: number, dto: UpdateSellDto): Promise<Sell> {
     const sell = await this.sellRepo.findOne({ id: dto.id, user: { id: userId } });
     if (!sell) throw new NotFoundException('No matching entry found');
