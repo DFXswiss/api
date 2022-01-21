@@ -18,6 +18,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { InternalServerErrorException } from '@nestjs/common';
 import { AccountType } from '../userData/account-type.enum';
+import { Staking } from '../staking/staking.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -123,6 +124,9 @@ export class User {
 
   @OneToMany(() => Sell, (sell) => sell.user)
   sells: Sell[];
+
+  @OneToMany(() => Staking, (staking) => staking.user)
+  stakingRoutes: Staking[];
 
   @ManyToOne(() => UserData)
   userData: UserData;

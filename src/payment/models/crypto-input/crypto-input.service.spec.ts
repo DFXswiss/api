@@ -10,6 +10,7 @@ import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/bloc
 import { CryptoInput } from './crypto-input.entity';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BigNumber } from '@defichain/jellyfish-json';
+import { StakingService } from 'src/user/models/staking/staking.service';
 
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
@@ -19,6 +20,7 @@ describe('CryptoInputService', () => {
   let cryptoInputRepo: CryptoInputRepository;
   let assetService: AssetService;
   let sellService: SellService;
+  let stakingService: StakingService;
 
   function setup(blocks: number, lastBlocks: number, utxo: UTXO[]) {
     jest.spyOn(nodeClient, 'getInfo').mockResolvedValueOnce({ blocks: blocks } as BlockchainInfo);
@@ -32,6 +34,7 @@ describe('CryptoInputService', () => {
     cryptoInputRepo = createMock<CryptoInputRepository>();
     assetService = createMock<AssetService>();
     sellService = createMock<SellService>();
+    stakingService = createMock<StakingService>();
 
     jest.spyOn(nodeService, 'getClient').mockImplementation(() => nodeClient);
 
@@ -42,6 +45,7 @@ describe('CryptoInputService', () => {
         { provide: CryptoInputRepository, useValue: cryptoInputRepo },
         { provide: AssetService, useValue: assetService },
         { provide: SellService, useValue: sellService },
+        { provide: StakingService, useValue: stakingService },
       ],
     }).compile();
 

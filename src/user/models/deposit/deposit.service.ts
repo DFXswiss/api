@@ -18,8 +18,8 @@ export class DepositService {
     // does not work with find options
     return this.depositRepo
       .createQueryBuilder('deposit')
-      .leftJoin('deposit.sell', 'sell')
-      .where('sell.id IS NULL')
+      .leftJoin('deposit.route', 'route')
+      .where('route.id IS NULL')
       .getOne();
   }
 }

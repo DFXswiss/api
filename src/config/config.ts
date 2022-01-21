@@ -2,6 +2,8 @@ import { MailerOptions } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
+import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
+import * as path from 'path';
 
 @Injectable()
 export class ConfigService {
@@ -36,6 +38,15 @@ export class Configuration {
       migrationsDir: 'migration',
     },
     connectionTimeout: 30000,
+  };
+
+  i18n: I18nOptions = {
+    fallbackLanguage: this.defaultLanguage,
+    parser: I18nJsonParser,
+    parserOptions: {
+      path: path.join(__dirname, '../shared/i18n/'),
+      watch: true,
+    },
   };
 
   auth = {
@@ -97,6 +108,7 @@ export class Configuration {
     },
     walletPassword: process.env.NODE_WALLET_PASSWORD,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
+    stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
   };
 
   ftp = {

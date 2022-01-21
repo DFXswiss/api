@@ -5,7 +5,10 @@ import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Sell } from 'src/user/models/sell/sell.entity';
 import { SellService } from 'src/user/models/sell/sell.service';
+import { Staking } from 'src/user/models/staking/staking.entity';
+import { StakingService } from 'src/user/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 
@@ -18,6 +21,7 @@ export class CryptoInputService {
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly assetService: AssetService,
     private readonly sellService: SellService,
+    private readonly stakingService: StakingService,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
@@ -73,10 +77,18 @@ export class CryptoInputService {
           return null;
         }
 
-        // get sell route
-        const sell = await this.sellService.getSellForAddress(history.owner);
-        if (!sell) {
-          console.error(`Failed to process crypto input. No matching sell found. History entry:`, history);
+        // get deposit route
+        const route =
+          (await this.sellService.getSellForAddress(history.owner)) ??
+          (await this.stakingService.getStakingForAddress(history.owner));
+        if (!route) {
+          console.error(`Failed to process crypto input. No matching route found. History entry:`, history);
+          return null;
+        }
+
+        // only DFI for staking
+        if (route instanceof Staking && asset.name != 'DFI') {
+          console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
           return null;
         }
 
@@ -86,7 +98,7 @@ export class CryptoInputService {
           blockHeight: history.blockHeight,
           amount: amount,
           asset: asset,
-          sell: sell,
+          route: route,
         });
       }),
     );
@@ -98,18 +110,20 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // store BTC/USDT price
-      const btcAmount = await this.client.testPoolSwap(input.sell.deposit.address, 'DFI', 'BTC', input.amount);
-      const usdtAmount = await this.client.testPoolSwap(input.sell.deposit.address, 'DFI', 'USDT', input.amount);
+      const btcAmount = await this.client.testPoolSwap(input.route.deposit.address, 'DFI', 'BTC', input.amount);
+      const usdtAmount = await this.client.testPoolSwap(input.route.deposit.address, 'DFI', 'USDT', input.amount);
       await this.cryptoInputRepo.update(
         { id: input.id },
         { btcAmount: +btcAmount.split('@')[0], usdtAmount: +usdtAmount.split('@')[0] },
       );
 
       // forward
+      const targetAddress = input.route instanceof Sell ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+      
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
-        input.sell.deposit.address,
-        Config.node.dexWalletAddress,
+        input.route.deposit.address,
+        targetAddress,
         input.amount,
       );
 

@@ -1,5 +1,5 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import { Exchange, Market, Order, WithdrawalResponse } from 'ccxt';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Exchange, ExchangeError, Market, Order, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from './dto/trade-response.dto';
 import { Price } from './dto/price.dto';
 import { Util } from 'src/shared/util';
@@ -62,12 +62,16 @@ export class ExchangeService {
     return this.tryToOrder(pair, 'limit', direction, amount);
   }
 
-  async withdrawFunds(token: string, amount: number, address: string, key: string): Promise<WithdrawalResponse> {
-    /*
-        Kraken requires you so store the address and give it a label (key). This needs to be added to the parameters
-        await exchange.withdrawFunds('LTC', order.amount, 'xxx', {'key': 'cake-ltc'})
-    */
-    return this.callApi((e) => e.withdraw(token, amount, address, undefined, { key }));
+  async withdrawFunds(token: string, amount: number, address: string, key: string, network?: string): Promise<WithdrawalResponse> {
+    return await this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
+  }
+
+  async getWithdraw(id: string, token: string): Promise<Transaction> {
+    const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50));
+    const withdrawal = withdrawals.find((w) => w.id === id);
+    if (!withdrawal) throw new NotFoundException('No withdrawal for ID found');
+
+    return withdrawal;
   }
 
   // --- Helper Methods --- //
@@ -196,8 +200,8 @@ export class ExchangeService {
 
   // other
   private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
-    return action(this.exchange).catch((e) => {
-      throw new ServiceUnavailableException(e);
+    return action(this.exchange).catch((e: ExchangeError) => {
+      throw new ServiceUnavailableException(e.message);
     });
   }
 
