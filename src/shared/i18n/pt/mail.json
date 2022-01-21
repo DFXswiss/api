@@ -1,0 +1,67 @@
+{  
+    "on_ramp":{
+        "header": "Your deposit has been successfully processed",
+        "closing_words":["Happy trading"]
+    },
+    "off_ramp":{
+        "1":{
+            "header": "We have received your funds",
+            "closing_words": ["Next Step: We sold your funds and are now preparing the bank transfer.",
+            "Once your money has left our bank account you will receive the final wire-transfer email."]
+        },
+        "2":{
+            "header": "We sold your funds",
+            "closing_words": ["Next Step: We sold your funds and are now preparing the bank transfer.",
+            "Once the money is sent out of our bank account you will receive the final wire-transfer email."]
+        },
+        "3":{
+            "header": "We have arranged the bank transfer",
+            "closing_words": ["The payment has just left our bank account and will be visible on your bank account",
+            "The payment has just left our bank account and will be visible on your bank account shortly.",
+            "In the meantime the bank performances are responsible for the wire transfer duration.",
+            "",
+            "Thank you for using the DFX withdrawal service."]
+        }
+    },
+    "kyc_return":{
+        "header":"We need your feedback to be able to complete your deposit (limit exceeded)",
+        "closing_words":
+            ["In order to process your deposit we need your feedback",
+            "With your deposit you have exceeded the maximum amount of 900 € per day without verification (KYC)",
+            "We can offer you the following options:",
+            "",
+            "1) Verification (KYC) - please follow this instruction => <a href=\"https://defichain-wiki.com/wiki/DFX_FAQ#Schritt-f.C3.BCr-Schritt_Anleitung_KYC-Prozess\">KYC Manual</a>",
+            "After verification we will execute your order and credit your funds accordingly",
+            "",
+            "2) Return - If you do not wish to make a verification, we will return your entire deposit amount.",
+            "In this case, please send an email to support@dfx.swiss with your IBAN and the reason for the return",
+            "",
+            "If we do not hear from you within five business days, we will return your deposit to your bank account."]
+    },
+    "hash_return":{
+        "header":"We need your feedback to be able to complete your deposit (missing information)",
+        "closing_words":
+            ["Unfortunately, we are not able to allocate your deposit exactly, due to an incorrect payment purpose ( wrong or missing hash code).",
+            "The hash code (format xxxx-xxxx-xxxx) was created in combination with your Fiat2Crypto Payment Route."]
+    },
+    "kyc_reminder":{
+        "header":"Friendly reminder of your KYC Verification at DFX.swiss.",
+        "closing_words":["Friendly reminder of your KYC Verification at DFX.swiss.","Please check payment page (Buy/Sell button in the DFX App) or your mails"]
+    },
+    "table":{
+        "deposit": "Deposited",
+        "crypto_payment": "Crypto payment",
+        "fee": "Fee",
+        "foreign_currency_fee": "Foreign currency fee",
+        "exchange_rate": "Exchange rate",
+        "wallet_address": "Wallet address",
+        "transaction_id": "Transaction ID",
+        "output": "Output",
+        "bank_account": "Bank Account",
+        "bank_tx_id": "Bank Tx ID",
+        "payout": "Payout",
+        "tx_id": "Transaction ID"
+    },  
+    "tie_off":"Your DFX Team",
+    "bitcoiners": "Bitcoiners by heart ♥"
+}
