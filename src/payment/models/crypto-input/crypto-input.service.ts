@@ -65,14 +65,16 @@ export class CryptoInputService {
   private async createEntities(history: AccountHistory): Promise<CryptoInput[]> {
     return Promise.all(
       history.amounts.map(async (a) => {
-        const amount = +a.split('@')[0];
-        const assetName = a.split('@')[1];
+        const { amount, asset: assetName } = this.client.parseAmount(a);
 
-        // min. deposit 0.1 DFI
-        if (assetName == 'DFI' && amount < 0.1) return null;
-
-        // we only know if it was a receive on AnyAccountsToAccounts if the amount is positive
+        // only received token
         if (history.type == 'AccountToAccount' && amount < 0) return null;
+
+        const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
+        const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
+
+        // min deposit 0.1 DFI / 1 USD
+        if ((assetName === 'DFI' && amount < 0.1) || (assetName !== 'DFI' && usdtAmount < 1)) return null;
 
         // get asset
         const asset = await this.assetService.getAssetByDexName(assetName);
@@ -95,12 +97,6 @@ export class CryptoInputService {
           console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
           return null;
         }
-
-        const btcAmount = await this.client.testCompositeSwap(route.deposit.address, assetName, 'BTC', amount);
-        const usdtAmount = await this.client.testCompositeSwap(route.deposit.address, assetName, 'USDT', amount);
-
-        // min. deposit 1 USD
-        if (usdtAmount < 1) return null;
 
         return this.cryptoInputRepo.create({
           inTxId: history.txid,
