@@ -50,6 +50,9 @@
     "dexWalletAddress": {
       "value": "xxx"
     },
+    "stakingWalletAddress": {
+      "value": "xxx"
+    },
     "nodeServicePlanSkuName": {
       "value": "B1"
     },
@@ -69,6 +72,12 @@
       "value": "xxx"
     },
     "krakenSecret": {
+      "value": "xxx"
+    },
+    "binanceKey": {
+      "value": "xxx"
+    },
+    "binanceSecret": {
       "value": "xxx"
     }
   }

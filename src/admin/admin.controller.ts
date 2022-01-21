@@ -31,8 +31,8 @@ export class AdminController {
       .from(table, table)
       .where('id >= :id', { id: +(min ?? 0) })
       .getRawMany()
-      .catch((e) => {
-        throw new BadRequestException(e);
+      .catch((e: Error) => {
+        throw new BadRequestException(e.message);
       });
 
     // transform to array
@@ -50,8 +50,8 @@ export class AdminController {
         .createQueryBuilder()
         .from('user', 'user')
         .getRawMany()
-        .catch((e) => {
-          throw new BadRequestException(e);
+        .catch((e: Error) => {
+          throw new BadRequestException(e.message);
         });
 
       const userIdIndex = arrayData.keys.findIndex((k) => k === 'userId');

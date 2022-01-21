@@ -30,6 +30,7 @@ param nodePassword string
 @secure()
 param nodeWalletPassword string
 param dexWalletAddress string
+param stakingWalletAddress string
 
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
@@ -43,6 +44,11 @@ param ftpFolder string
 param krakenKey string
 @secure()
 param krakenSecret string
+
+@secure()
+param binanceKey string
+@secure()
+param binanceSecret string
 
 
 // --- VARIABLES --- //
@@ -419,6 +425,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: dexWalletAddress
         }
         {
+          name: 'STAKING_WALLET_ADDRESS'
+          value: stakingWalletAddress
+        }
+        {
           name: 'FTP_HOST'
           value: '138.201.74.234'
         }
@@ -441,6 +451,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KRAKEN_SECRET'
           value: krakenSecret
+        }
+        {
+          name: 'BINANCE_KEY'
+          value: binanceKey
+        }
+        {
+          name: 'BINANCE_SECRET'
+          value: binanceSecret
         }
       ]
     }

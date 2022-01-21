@@ -6,7 +6,10 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Sell } from 'src/user/models/sell/sell.entity';
 import { SellService } from 'src/user/models/sell/sell.service';
+import { Staking } from 'src/user/models/staking/staking.entity';
+import { StakingService } from 'src/user/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 
@@ -19,6 +22,7 @@ export class CryptoInputService {
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly assetService: AssetService,
     private readonly sellService: SellService,
+    private readonly stakingService: StakingService,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
     this.checkInputs(); // TODO: remove
@@ -77,15 +81,23 @@ export class CryptoInputService {
           return null;
         }
 
-        // get sell route
-        const sell = await this.sellService.getSellForAddress(history.owner);
-        if (!sell) {
-          console.error(`Failed to process crypto input. No matching sell found. History entry:`, history);
+        // get deposit route
+        const route =
+          (await this.sellService.getSellForAddress(history.owner)) ??
+          (await this.stakingService.getStakingForAddress(history.owner));
+        if (!route) {
+          console.error(`Failed to process crypto input. No matching route found. History entry:`, history);
           return null;
         }
 
-        const btcAmount = await this.client.testCompositeSwap(sell.deposit.address, assetName, 'BTC', amount);
-        const usdtAmount = await this.client.testCompositeSwap(sell.deposit.address, assetName, 'USDT', amount);
+        // only DFI for staking
+        if (route instanceof Staking && asset.name != 'DFI') {
+          console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
+          return null;
+        }
+
+        const btcAmount = await this.client.testCompositeSwap(route.deposit.address, assetName, 'BTC', amount);
+        const usdtAmount = await this.client.testCompositeSwap(route.deposit.address, assetName, 'USDT', amount);
 
         // min. deposit 1 USD
         if (usdtAmount < 1) return null;
@@ -96,7 +108,7 @@ export class CryptoInputService {
           blockHeight: history.blockHeight,
           amount: amount,
           asset: asset,
-          sell: sell,
+          route: route,
           btcAmount: btcAmount,
           usdtAmount: usdtAmount,
         });
@@ -109,8 +121,13 @@ export class CryptoInputService {
       // save
       await this.cryptoInputRepo.save(input);
 
+      // forward
+      const targetAddress =
+        input.route instanceof Sell ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
       const outTxId =
-        input.asset.type === AssetType.COIN ? await this.forwardUtxo(input) : await this.forwardToken(input);
+        input.asset.type === AssetType.COIN
+          ? await this.forwardUtxo(input, targetAddress)
+          : await this.forwardToken(input, targetAddress);
 
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
@@ -119,15 +136,15 @@ export class CryptoInputService {
     }
   }
 
-  private forwardUtxo(input: CryptoInput): Promise<string> {
-    return this.client.sendUtxo(input.sell.deposit.address, Config.node.dexWalletAddress, input.amount);
+  private forwardUtxo(input: CryptoInput, address: string): Promise<string> {
+    return this.client.sendUtxo(input.route.deposit.address, address, input.amount);
   }
 
-  private async forwardToken(input: CryptoInput): Promise<string> {
+  private async forwardToken(input: CryptoInput, address: string): Promise<string> {
     // 1. get UTXO
     const utxoTx = await this.client.sendUtxo(
       'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F', // TODO: get from config
-      input.sell.deposit.address,
+      input.route.deposit.address,
       0.01,
     );
 
@@ -135,8 +152,8 @@ export class CryptoInputService {
 
     // 2. send accountToAccount
     const outTxId = await this.client.sendToken(
-      input.sell.deposit.address,
-      Config.node.dexWalletAddress,
+      input.route.deposit.address,
+      address,
       input.asset.dexName,
       input.amount,
     );

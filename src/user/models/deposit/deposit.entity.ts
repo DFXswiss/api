@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToOne, UpdateDateColumn } from 'typeorm';
-import { Sell } from 'src/user/models/sell/sell.entity';
+import { DepositRoute } from './deposit-route.entity';
 
 @Entity()
 export class Deposit {
@@ -9,8 +9,8 @@ export class Deposit {
   @Column({ unique: true, length: 256 })
   address: string;
 
-  @OneToOne(() => Sell, (sell) => sell.deposit)
-  sell: Sell;
+  @OneToOne(() => DepositRoute, (route) => route.deposit, { nullable: true })
+  route: DepositRoute;
 
   @UpdateDateColumn()
   updated: Date;
