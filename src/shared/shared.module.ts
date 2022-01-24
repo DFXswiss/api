@@ -25,6 +25,7 @@ import { SettingRepository } from './setting/setting.repository';
 import { SettingService } from './setting/setting.service';
 import { GetConfig } from 'src/config/config';
 import { ConfigModule } from 'src/config/config.module';
+import { I18nModule } from 'nestjs-i18n';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ConfigModule } from 'src/config/config.module';
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
     MailerModule.forRoot(GetConfig().mail),
+    I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController],

@@ -118,19 +118,19 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // forward
-      //const targetAddress =
-      //  input.route instanceof Sell ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
-      const targetAddress = Config.node.dexWalletAddress;
+      const targetAddress = 'iban' in input.route ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
       const outTxId =
         input.asset.type === AssetType.COIN
           ? await this.forwardUtxo(input, targetAddress)
           : await this.forwardToken(input, targetAddress);
-      
+
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
 
       // Cleanup
-      const unspent = (await this.client.getUtxo()).filter((i) => i.address == input.route.deposit.address && i.spendable)
+      const unspent = (await this.client.getUtxo()).filter(
+        (i) => i.address == input.route.deposit.address && i.spendable,
+      );
 
       const utxosum = unspent.reduce((a, b) => a + +b.amount, 0);
       if (utxosum > 0) {
@@ -140,7 +140,6 @@ export class CryptoInputService {
           utxosum,
         );
       }
-
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }

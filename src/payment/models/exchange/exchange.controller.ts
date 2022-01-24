@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
-import { Balances, WithdrawalResponse } from 'ccxt';
+import { Balances, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BinanceService } from './binance.service';
@@ -103,7 +103,25 @@ export class ExchangeController {
     const token = withdrawalDto.token.toUpperCase();
     const amount = withdrawalDto.amount ? withdrawalDto.amount : await this.getExchange(exchange).getBalance(token);
 
-    return this.getExchange(exchange).withdrawFunds(token, amount, withdrawalDto.address, withdrawalDto.key);
+    return this.getExchange(exchange).withdrawFunds(
+      token,
+      amount,
+      withdrawalDto.address,
+      withdrawalDto.key,
+      withdrawalDto.network,
+    );
+  }
+
+  @Get(':exchange/withdraw/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getWithdraw(
+    @Param('exchange') exchange: string,
+    @Param('id') id: string,
+    @Query('token') token: string,
+  ): Promise<Transaction> {
+    return this.getExchange(exchange).getWithdraw(id, token);
   }
 
   private getExchange(exchange: string): ExchangeService {

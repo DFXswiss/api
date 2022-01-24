@@ -58,6 +58,12 @@ export class BankTx {
   @Column({ type: 'float', nullable: true })
   exchangeRate?: number;
 
+  @Column({ type: 'float', nullable: true })
+  chargeAmount: number;
+
+  @Column({ length: 256, nullable: true })
+  chargeCurrency: string;
+
   // related party info
   @Column({ length: 256, nullable: true })
   name?: string;
