@@ -5,9 +5,8 @@ import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Sell } from 'src/user/models/sell/sell.entity';
+import { RouteType } from 'src/user/models/deposit/deposit-route.entity';
 import { SellService } from 'src/user/models/sell/sell.service';
-import { Staking } from 'src/user/models/staking/staking.entity';
 import { StakingService } from 'src/user/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
@@ -87,7 +86,7 @@ export class CryptoInputService {
         }
 
         // only DFI for staking
-        if (route instanceof Staking && asset.name != 'DFI') {
+        if (route.type === RouteType.STAKING && asset.name != 'DFI') {
           console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
           return null;
         }
@@ -118,7 +117,8 @@ export class CryptoInputService {
       );
 
       // forward
-      const targetAddress = 'iban' in input.route ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+      const targetAddress =
+        input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
 
       // TODO: switch on type (for Token)
       const outTxId = await this.client.sendUtxo(
