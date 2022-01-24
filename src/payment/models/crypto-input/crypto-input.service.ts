@@ -8,6 +8,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/user/models/deposit/deposit-route.entity';
 import { SellService } from 'src/user/models/sell/sell.service';
 import { StakingService } from 'src/user/models/staking/staking.service';
+import { SelectQueryBuilder } from 'typeorm';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 
@@ -132,5 +133,34 @@ export class CryptoInputService {
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
+  }
+
+  async getStakingBalance(stakingId: number, date: Date): Promise<number> {
+    const { balance } = await this.getInputsForStakingPeriod(date)
+      .select('SUM(amount)', 'balance')
+      .andWhere('route.id = :stakingId', { stakingId })
+      .getRawOne<{ balance: number }>();
+
+    return balance;
+  }
+
+  async getAllStakingBalance(date: Date): Promise<{ id: number; balance: number }[]> {
+    const inputs = await this.getInputsForStakingPeriod(date).getMany();
+    const stakingIds = [...new Set(inputs.map((i) => i.route.id))];
+    return stakingIds.map((id) => ({
+      id,
+      balance: inputs.filter((i) => i.route.id === id).reduce((prev, curr) => prev + curr.amount, 0),
+    }));
+  }
+
+  private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
+    const dateFrom = new Date(dateTo);
+    dateFrom.setDate(dateTo.getDate() - Config.stakingPeriod);
+
+    return this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .innerJoinAndSelect('cryptoInput.route', 'route')
+      .where('route.type = :type', { type: RouteType.STAKING })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
   }
 }

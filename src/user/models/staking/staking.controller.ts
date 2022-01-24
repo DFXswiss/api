@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Put, UseGuards, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Put, UseGuards, Post, Param, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -9,11 +9,15 @@ import { StakingService } from './staking.service';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { StakingDto } from './dto/staking.dto';
+import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 
 @ApiTags('staking')
 @Controller('staking')
 export class StakingController {
-  constructor(private readonly stakingService: StakingService) {}
+  constructor(
+    private readonly stakingService: StakingService,
+    private readonly cryptoInputService: CryptoInputService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -22,6 +26,14 @@ export class StakingController {
     return this.stakingService
       .getAllStaking(jwt.id)
       .then((l) => Promise.all(l.map((s) => this.stakingService.toDto(s))));
+  }
+
+  @Get('balance')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getAllStakingBalance(@Query('date') date: Date = new Date()): Promise<{ id: number; balance: number }[]> {
+    return this.cryptoInputService.getAllStakingBalance(date);
   }
 
   @Post()

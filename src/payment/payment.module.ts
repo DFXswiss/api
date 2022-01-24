@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -31,7 +31,7 @@ import { TransactionService } from './models/transaction/transaction.service';
     ]),
     SharedModule,
     AinModule,
-    UserModule,
+    forwardRef(() => UserModule),
   ],
   controllers: [BankTxController, BankController, ExchangeController, CryptoBuyController, TransactionController],
   providers: [
@@ -43,6 +43,6 @@ import { TransactionService } from './models/transaction/transaction.service';
     BinanceService,
     TransactionService,
   ],
-  exports: [],
+  exports: [CryptoInputService],
 })
 export class PaymentModule {}

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -37,6 +37,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
 import { StakingRepository } from './models/staking/staking.repository';
 import { StakingController } from './models/staking/staking.controller';
 import { StakingService } from './models/staking/staking.service';
+import { PaymentModule } from 'src/payment/payment.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { StakingService } from './models/staking/staking.service';
     ]),
     SharedModule,
     AinModule,
+    forwardRef(() => PaymentModule),
   ],
   controllers: [
     UserController,
