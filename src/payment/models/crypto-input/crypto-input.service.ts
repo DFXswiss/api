@@ -6,7 +6,6 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Sell } from 'src/user/models/sell/sell.entity';
 import { SellService } from 'src/user/models/sell/sell.service';
 import { Staking } from 'src/user/models/staking/staking.entity';
 import { StakingService } from 'src/user/models/staking/staking.service';
@@ -41,7 +40,7 @@ export class CryptoInputService {
       await this.client
         .getAddressesWithFunds()
         // Filter out unwanted addresses (aka wallet address)
-        .then((i) => i.filter((e) => e != 'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F')) // TODO: get from config
+        .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
         // get receive history
         .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
@@ -73,8 +72,12 @@ export class CryptoInputService {
         const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
         const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
 
-        // min deposit 0.1 DFI / 1 USD
-        if ((assetName === 'DFI' && amount < 0.1) || (assetName !== 'DFI' && usdtAmount < 1)) return null;
+        // min deposit
+        if (
+          (assetName === 'DFI' && amount < Config.node.minDfiDeposit) ||
+          (assetName !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
+        )
+          return null;
 
         // get asset
         const asset = await this.assetService.getAssetByDexName(assetName);
@@ -126,20 +129,6 @@ export class CryptoInputService {
 
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
-
-      // Cleanup
-      const unspent = (await this.client.getUtxo()).filter(
-        (i) => i.address == input.route.deposit.address && i.spendable,
-      );
-
-      const utxosum = unspent.reduce((a, b) => a + +b.amount, 0);
-      if (utxosum > 0) {
-        const utxoTx = await this.client.sendUtxo(
-          input.route.deposit.address,
-          'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F', // TODO: get from config
-          utxosum,
-        );
-      }
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
@@ -150,25 +139,31 @@ export class CryptoInputService {
   }
 
   private async forwardToken(input: CryptoInput, address: string): Promise<string> {
-    // 1. get UTXO
-    const utxoTx = await this.client.sendUtxo(
-      'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F', // TODO: get from config
-      input.route.deposit.address,
-      0.01,
-    );
+    // get UTXO
+    const utxoTx = await this.client.sendUtxo(Config.node.utxoSpenderAddress, input.route.deposit.address, 0.01);
 
     await this.client.waitForTx(utxoTx);
 
-    // 2. send accountToAccount
-    const outTxId = await this.client.sendToken(
+    // send accountToAccount
+    const outTxId = await this.client.sendToken( // TODO: specify UTXO to use
       input.route.deposit.address,
       address,
       input.asset.dexName,
       input.amount,
     );
 
-    // 3. TODO: get rid of remaining UTXO
+    // retrieve remaining UTXO (without waiting)
+    this.retrieveUtxo(outTxId);
 
     return outTxId;
+  }
+
+  private async retrieveUtxo(txId: string): Promise<void> {
+    await this.client.waitForTx(txId);
+
+    const utxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === txId));
+    if (utxo) {
+      await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
+    }
   }
 }

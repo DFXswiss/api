@@ -55,7 +55,9 @@ export class NodeClient {
 
   async getAddressesWithFunds(): Promise<string[]> {
     const [utxo, token] = await Promise.all([
-      this.getUtxo().then((i) => i.map((u) => u.address)),
+      this.getUtxo().then((i) =>
+        i.filter((u) => u.amount.toNumber() >= Config.node.minDfiDeposit).map((u) => u.address),
+      ),
       this.getToken().then((i) => i.map((u) => u.owner)),
     ]);
     return [...new Set(utxo.concat(token))];
@@ -100,7 +102,7 @@ export class NodeClient {
   }
 
   async sendToken(addressFrom: string, addressTo: string, token: string, amount: number): Promise<string> {
-    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }));
+    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }), true);
   }
 
   // forwarding
