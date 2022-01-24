@@ -1,4 +1,4 @@
-import { SepaAddress, SepaAgent, SepaAmount, SepaCdi } from './sepa.dto';
+import { ChargeRecord, SepaAddress, SepaAgent, SepaAmount, SepaCdi } from './sepa.dto';
 
 export interface SepaEntry {
   BookgDt: {
@@ -32,6 +32,9 @@ export interface SepaEntry {
             XchgRate: string;
           };
         };
+      };
+      Chrgs: {
+        Rcrd: ChargeRecord | ChargeRecord[];
       };
       RltdPties: {
         Dbtr: {
