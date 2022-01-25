@@ -280,9 +280,9 @@ export class UserDataService {
       );
 
       const organisationType =
-        userInfo.accountType === AccountType.SELF_EMPLOYED ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY';
+        userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY';
       const type =
-        userInfo.accountType === AccountType.SELF_EMPLOYED
+        userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP
           ? 'AdditionalOrganisationInformation'
           : 'AdditionalLegalEntityInformation';
       const additionalOrganizationInformation = {
