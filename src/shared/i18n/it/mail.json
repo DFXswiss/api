@@ -41,7 +41,7 @@
     "hash_return":{
         "header":"Abbiamo bisogno del tuo feedback per completare il tuo deposito (informazioni mancanti)",
         "closing_words":
-            ["Sfortunatamente, non siamo in grado di allocare il tuo deposito correttamente, a causa di un incorretta causale ( hash code errato o mancante).",
+            ["Sfortunatamente, non siamo in grado di allocare il tuo deposito correttamente, a causa di un incorretta causale. (hash code errato o mancante)",
             "L'hash code (formato xxxx-xxxx-xxxx) e' stato creato in combinazione con il tuo Fiat2Crypto Percorso di Pagamento."]
     },
     "kyc_reminder":{
