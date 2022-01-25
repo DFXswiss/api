@@ -144,9 +144,11 @@ export class CryptoInputService {
     return balance;
   }
 
-  async getAllStakingBalance(date: Date): Promise<{ id: number; balance: number }[]> {
-    const inputs = await this.getInputsForStakingPeriod(date).getMany();
-    const stakingIds = [...new Set(inputs.map((i) => i.route.id))];
+  async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
+    const inputs = await this.getInputsForStakingPeriod(date)
+      .andWhere('route.id IN (:...stakingIds)', { stakingIds })
+      .getMany();
+
     return stakingIds.map((id) => ({
       id,
       balance: inputs.filter((i) => i.route.id === id).reduce((prev, curr) => prev + curr.amount, 0),

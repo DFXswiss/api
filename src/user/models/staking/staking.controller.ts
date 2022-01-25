@@ -33,7 +33,8 @@ export class StakingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllStakingBalance(@Query('date') date: Date = new Date()): Promise<{ id: number; balance: number }[]> {
-    return this.cryptoInputService.getAllStakingBalance(date);
+    const stakingIds = await this.stakingService.getAllIds();
+    return this.cryptoInputService.getAllStakingBalance(stakingIds, date);
   }
 
   @Post()
