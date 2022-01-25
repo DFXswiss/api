@@ -1,9 +1,11 @@
 import { SepaEntry } from './dto/sepa-entry.dto';
 import { SepaFile } from './dto/sepa-file.dto';
-import { SepaCdi, SepaAddress } from './dto/sepa.dto';
+import { SepaCdi, SepaAddress, ChargeRecord } from './dto/sepa.dto';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx } from './bank-tx.entity';
 import * as XmlParser from 'fast-xml-parser';
+import { Config } from 'src/config/config';
+import { Util } from 'src/shared/util';
 
 export class SepaParser {
   static parseSepaFile(xmlFile: string): SepaFile {
@@ -81,6 +83,7 @@ export class SepaParser {
           exchangeSourceCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.SrcCcy,
           exchangeTargetCurrency: entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.TrgtCcy,
           exchangeRate: +entry?.NtryDtls?.TxDtls?.AmtDtls?.TxAmt?.CcyXchg?.XchgRate,
+          ...this.getTotalCharge(entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
           remittanceInfo: entry?.NtryDtls?.TxDtls?.RmtInf?.Ustrd,
@@ -92,9 +95,26 @@ export class SepaParser {
 
       return {
         accountServiceRef,
-        ...data
+        ...data,
       };
     });
+  }
+
+  private static getTotalCharge(charges: ChargeRecord | ChargeRecord[] | undefined): {
+    chargeAmount: number;
+    chargeCurrency: string;
+  } {
+    if (!charges) return { chargeAmount: 0, chargeCurrency: Config.defaultCurrency };
+
+    charges = Array.isArray(charges) ? charges : [charges];
+
+    const amount = charges.reduce(
+      (prev, curr) => prev + (curr.CdtDbtInd === SepaCdi.DEBIT ? +curr.Amt['#text'] : -+curr.Amt['#text']),
+      0,
+    );
+    const currency = [...new Set(charges.map((c) => c.Amt['@_Ccy']))].join(', ');
+
+    return { chargeAmount: Util.round(amount, 2), chargeCurrency: currency };
   }
 
   private static getRelatedPartyInfo(entry: SepaEntry): Partial<BankTx> {

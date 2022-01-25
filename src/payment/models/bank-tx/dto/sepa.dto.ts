@@ -21,6 +21,11 @@ export interface SepaAgent {
   };
 }
 
+export interface ChargeRecord {
+  Amt: SepaAmount;
+  CdtDbtInd: SepaCdi;
+}
+
 export interface SepaAmount {
   '@_Ccy': string;
   '#text': string;

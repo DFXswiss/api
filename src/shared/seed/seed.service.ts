@@ -35,8 +35,7 @@ export class SeedService {
 
       if (entitiesToAdd.length > 0) {
         console.log('New entities seeded:', entitiesToAdd);
-        // TODO: enable
-        // await this.entityManager.save(entitiesToAdd);
+         await this.entityManager.save(entitiesToAdd);
       }
     }
   }

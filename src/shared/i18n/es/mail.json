@@ -1,67 +1,67 @@
 {  
     "on_ramp":{
-        "header": "Your deposit has been successfully processed",
-        "closing_words":["Happy trading"]
+        "header": "Tu depósito ha sido procesado exitosamente.",
+        "closing_words":["¡Que disfrutes de las transacciones"]
     },
     "off_ramp":{
         "1":{
-            "header": "We have received your funds",
-            "closing_words": ["Next Step: We sold your funds and are now preparing the bank transfer.",
-            "Once your money has left our bank account you will receive the final wire-transfer email."]
+            "header": "Hemos recibido tus fondos",
+            "closing_words": ["Siguiente paso: Hemos enviado tus fondos, y estamos preparando la transferencia bancaria.",
+            "Una vez tu dinero haya salido de nuestra cuenta bancaria tu recibirás un email de confirmación de la transferencia."]
         },
         "2":{
-            "header": "We sold your funds",
-            "closing_words": ["Next Step: We sold your funds and are now preparing the bank transfer.",
-            "Once the money is sent out of our bank account you will receive the final wire-transfer email."]
+            "header": "Hemos enviado tus fondos",
+            "closing_words": ["Siguiente paso: Hemos enviado los fondos y estamos preparando la transferencia bancaria.",
+            "Una vez tu dinero haya salido de nuestra cuenta bancaria tu recibirás un email de confirmación de la transferencia."]
         },
         "3":{
-            "header": "We have arranged the bank transfer",
-            "closing_words": ["The payment has just left our bank account and will be visible on your bank account",
-            "The payment has just left our bank account and will be visible on your bank account shortly.",
-            "In the meantime the bank performances are responsible for the wire transfer duration.",
+            "header": "Hemos confirmado la transferencia bancaria",
+            "closing_words": ["El pago acaba de salir de nuestra cuenta bancaria y pronto se hará visible en tu cuenta bancaria.",
+            "El pago acaba de salir de nuestra cuenta bancaria y pronto se hará visible en tu cuenta bancaria.",
+            "Mientras tanto la gestión de los bancos hará que la transferencia dure más o menos.",
             "",
-            "Thank you for using the DFX withdrawal service."]
+            "Gracias por usar el servicio de retirada de dinero de DFX."]
         }
     },
     "kyc_return":{
-        "header":"We need your feedback to be able to complete your deposit (limit exceeded)",
+        "header":"Necesitamos tu opinión para poder completar el depósito (Se ha excedido el límite)",
         "closing_words":
-            ["In order to process your deposit we need your feedback",
-            "With your deposit you have exceeded the maximum amount of 900 € per day without verification (KYC)",
-            "We can offer you the following options:",
+            ["Necesitamos tu opinión para poder completar el depósito",
+            "Con éste depósito has excedido la cantidad diaria máxima de 900 euros al día sin verificación de identidad (KYC)",
+            "Te podemos ofrecer las siguientes opciones:",
             "",
-            "1) Verification (KYC) - please follow this instruction => <a href=\"https://defichain-wiki.com/wiki/DFX_FAQ#Schritt-f.C3.BCr-Schritt_Anleitung_KYC-Prozess\">KYC Manual</a>",
-            "After verification we will execute your order and credit your funds accordingly",
+            "1) Verificación (KYC) - por favor sigue las instrucciones => <a href=\"https://defichain-wiki.com/wiki/DFX_FAQ#Schritt-f.C3.BCr-Schritt_Anleitung_KYC-Prozess\">KYC Manual</a>",
+            "Despúes de la verificación ejecutaremos tu orden y te enviaremos los fondos concretados",
             "",
-            "2) Return - If you do not wish to make a verification, we will return your entire deposit amount.",
-            "In this case, please send an email to support@dfx.swiss with your IBAN and the reason for the return",
+            "2) Retorno - Si no quieres hacer una verificación, te devolveremos tu cantidad total.",
+            "En éste caso, por favor envía un email a support@dfx.swiss con tu IBAN y el motivo del retorno",
             "",
-            "If we do not hear from you within five business days, we will return your deposit to your bank account."]
+            "Si no escuchamos de ti en los siguientes 5 días laborales, devolveremos tu depósito a tu cuenta bancaria."]
     },
     "hash_return":{
-        "header":"We need your feedback to be able to complete your deposit (missing information)",
+        "header":"Necesitamos tu opinión para poder completar el depósito (falta de información)",
         "closing_words":
-            ["Unfortunately, we are not able to allocate your deposit exactly, due to an incorrect payment purpose ( wrong or missing hash code).",
-            "The hash code (format xxxx-xxxx-xxxx) was created in combination with your Fiat2Crypto Payment Route."]
+            ["Desafortunadamente, no somos capaces de encontrar tus fondos exactamente, debido a próposito de pago incorrecto o a un erróneo código hash.",
+            "El código hash (con el formato xxxx-xxxx-xxxx) fue creado en combinación con tu ruta de pago Fiat a cripto."]
     },
     "kyc_reminder":{
-        "header":"Friendly reminder of your KYC Verification at DFX.swiss.",
-        "closing_words":["Friendly reminder of your KYC Verification at DFX.swiss.","Please check payment page (Buy/Sell button in the DFX App) or your mails"]
+        "header":"Esto es un recordatorio de tu proceso de verificación de identidad con DFX.Swiss.",
+        "closing_words":["Esto es un recordatorio de tu proceso de verificación de identidad con DFX.Swiss.","Por favor, comprueba la página de pago (Botón de Compra/Venta en la aplicación DFX) o en tus emails"]
     },
     "table":{
-        "deposit": "Deposited",
-        "crypto_payment": "Crypto payment",
-        "fee": "Fee",
-        "foreign_currency_fee": "Foreign currency fee",
-        "exchange_rate": "Exchange rate",
-        "wallet_address": "Wallet address",
-        "transaction_id": "Transaction ID",
-        "output": "Output",
-        "bank_account": "Bank Account",
-        "bank_tx_id": "Bank Tx ID",
-        "payout": "Payout",
-        "tx_id": "Transaction ID"
+        "deposit": "Depositado",
+        "crypto_payment": "Pago de criptomonedas",
+        "fee": "Comisión",
+        "foreign_currency_fee": "Comisión de moneda extranjera",
+        "exchange_rate": "Tasa de cambio",
+        "wallet_address": "Dirección de la billetera",
+        "transaction_id": "Identificador de la transacción",
+        "output": "Resultado",
+        "bank_account": "Cuenta bancaria",
+        "bank_tx_id": "Identificador bancario TX",
+        "payout": "Desembolso",
+        "tx_id": "Identificador de la transacción"
     },  
-    "tie_off":"Your DFX Team",
-    "bitcoiners": "Bitcoiners by heart ♥"
+    "tie_off":"Tu equipo de DFX",
+    "bitcoiners": "Amantes del bitcoin ♥"
 }
