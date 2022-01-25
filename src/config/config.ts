@@ -22,7 +22,7 @@ export class Configuration {
   defaultLanguage = 'de';
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';
-  stakingPeriod = 28; // days
+  stakingPeriod = 365; // TODO: 28; // days
 
   database: TypeOrmModuleOptions = {
     type: 'mssql',
