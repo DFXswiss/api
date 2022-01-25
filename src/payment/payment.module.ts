@@ -19,6 +19,7 @@ import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
 import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 import { TransactionController } from './models/transaction/transaction.controller';
 import { TransactionService } from './models/transaction/transaction.service';
+import { BitstampService } from './models/exchange/bitstamp.service';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { TransactionService } from './models/transaction/transaction.service';
     BankService,
     KrakenService,
     BinanceService,
+    BitstampService,
     TransactionService,
   ],
   exports: [CryptoInputService],
