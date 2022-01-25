@@ -18,7 +18,7 @@
             "header": "Nous avons effectué le virement bancaire",
             "closing_words": ["Le virement vient de partir et sera bientôt visible sur votre compte bancaire.",
             "Le virement vient de partir et sera bientôt visible sur votre compte bancaire.",
-            "Pendant cet intervalle de temps, la banque est seule responsable du temps de traitement."
+            "Pendant cet intervalle de temps, la banque est seule responsable du temps de traitement.",
             "",
             "Merci d'avoir utilisé le service de retrait de DFX."]
         }
@@ -62,6 +62,6 @@
         "payout": "Paiement",
         "tx_id": "ID de la transaction"
     },  
-    "tie_off":"Votre équipe DFX"
+    "tie_off":"Votre équipe DFX",
     "bitcoiners": "Bitcoiners de coeur ♥"
 }
