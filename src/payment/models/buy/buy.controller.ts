@@ -52,7 +52,7 @@ export class BuyController {
     };
   }
 
-  private async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
+  async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
     const { annualVolume } = await this.buyService.getUserVolume(userId);
     const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
 

@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -41,7 +41,6 @@ import { RouteController } from './models/route/route.controller';
       CryptoBuyRepository,
       BankTxRepository,
       BankTxBatchRepository,
-      CryptoBuyRepository,
       BuyRepository,
       SellRepository,
       StakingRepository,
@@ -49,7 +48,7 @@ import { RouteController } from './models/route/route.controller';
     ]),
     SharedModule,
     AinModule,
-    forwardRef(() => UserModule),
+    UserModule,
   ],
   controllers: [
     BankTxController,
@@ -80,6 +79,6 @@ import { RouteController } from './models/route/route.controller';
     SellController,
     StakingController,
   ],
-  exports: [CryptoInputService, BuyService, SellService],
+  exports: [BuyService, SellService],
 })
 export class PaymentModule {}
