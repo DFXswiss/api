@@ -9,4 +9,5 @@ export class SellDto {
     fiat: Fiat;
     volume: number;
     fee: number;
+    isInUse: boolean;
 }

@@ -7,6 +7,7 @@ import { UserService } from '../../../user/models/user/user.service';
 import { Sell } from './sell.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { User } from '../../../user/models/user/user.entity';
+import { StakingService } from '../staking/staking.service';
 
 @Injectable()
 export class SellService {
@@ -15,6 +16,7 @@ export class SellService {
     private readonly fiatService: FiatService,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
+    private readonly stakingService: StakingService,
   ) {}
 
   async getSellForAddress(depositAddress: string): Promise<Sell> {
@@ -68,5 +70,16 @@ export class SellService {
 
   async updateVolume(sellId: number, volume: number): Promise<void> {
     await this.sellRepo.update(sellId, { volume });
+  }
+
+  async getUserSellsInUse(userId: number): Promise<number[]> {
+    const stakingRoutes = await this.stakingService.getUserStaking(userId);
+    return stakingRoutes
+      .map((s) => [
+        s.deposit?.id === s.paybackDeposit?.id ? undefined : s.paybackDeposit?.id,
+        s.deposit?.id === s.rewardDeposit?.id ? undefined : s.rewardDeposit?.id,
+      ])
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((id) => id);
   }
 }

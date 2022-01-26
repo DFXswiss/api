@@ -20,27 +20,34 @@ export class SellController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
-    return this.sellService.getUserSells(jwt.id).then((l) => l.map((s) => this.toDto(s)));
+    return this.sellService.getUserSells(jwt.id).then((l) => this.toDtoList(jwt.id, l));
   }
 
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<SellDto> {
-    return this.sellService.createSell(jwt.id, createSellDto).then((s) => this.toDto(s));
+    return this.sellService.createSell(jwt.id, createSellDto).then((s) => this.toDto(jwt.id, s));
   }
 
   @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async updateSell(@GetJwt() jwt: JwtPayload, @Body() updateSellDto: UpdateSellDto): Promise<SellDto> {
-    return this.sellService.updateSell(jwt.id, updateSellDto).then((s) => this.toDto(s));
+    return this.sellService.updateSell(jwt.id, updateSellDto).then((s) => this.toDto(jwt.id, s));
   }
 
-  private toDto(sell: Sell): SellDto {
+  private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
+    const sellRoutesInUse = await this.sellService.getUserSellsInUse(userId);
+    return Promise.all(sell.map((s) => this.toDto(userId, s, sellRoutesInUse)));
+  }
+
+  private async toDto(userId: number, sell: Sell, sellRoutesInUse?: number[]): Promise<SellDto> {
+    sellRoutesInUse ??= await this.sellService.getUserSellsInUse(userId);
     return {
       ...sell,
       fee: 2.9,
+      isInUse: sellRoutesInUse.includes(sell.deposit.id),
     };
   }
 }

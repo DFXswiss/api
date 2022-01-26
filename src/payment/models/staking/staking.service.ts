@@ -101,6 +101,7 @@ export class StakingService {
   async toDto(staking: Staking, sellRoutes?: Sell[]): Promise<StakingDto> {
     const rewardType = this.getStakingType(staking.rewardDeposit?.id, staking.deposit.id);
     const paybackType = this.getStakingType(staking.paybackDeposit?.id, staking.deposit.id);
+    const balance = await this.cryptoInputRepo.getStakingBalance(staking.id, new Date());
 
     return {
       id: staking.id,
@@ -110,7 +111,8 @@ export class StakingService {
       rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id, sellRoutes),
       paybackType,
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
-      balance: await this.cryptoInputRepo.getStakingBalance(staking.id, new Date()),
+      balance,
+      isInUse: balance > 0,
     };
   }
 
