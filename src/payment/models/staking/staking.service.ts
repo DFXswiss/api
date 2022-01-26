@@ -50,21 +50,14 @@ export class StakingService {
     const kycStatus = await this.userDataService.getKycStatus(userId);
     if (![KycStatus.WAIT_MANUAL, KycStatus.COMPLETED].includes(kycStatus)) throw new BadRequestException('Missing KYC');
 
+    // max. 10 routes
+    const routeCount = await this.stakingRepo.count({ user: { id: userId } });
+    if (routeCount >= 10) throw new BadRequestException('Max. 10 staking routes allowed');
+
     const rewardDepositId =
       dto.rewardType === StakingType.PAYOUT ? await this.getDepositId(userId, dto.rewardSell?.id) : null;
     const paybackDepositId =
       dto.paybackType === StakingType.PAYOUT ? await this.getDepositId(userId, dto.paybackSell?.id) : null;
-
-    // check if exists
-    const existing = await this.stakingRepo.findOne({
-      where: {
-        rewardDeposit: { id: dto.rewardType === StakingType.REINVEST ? Raw('depositId') : rewardDepositId },
-        paybackDeposit: { id: dto.paybackType === StakingType.REINVEST ? Raw('depositId') : paybackDepositId },
-        user: { id: userId },
-      },
-      relations: ['rewardDeposit', 'paybackDeposit'],
-    });
-    if (existing) throw new ConflictException('Staking route already exists');
 
     // create the entity
     const staking = this.stakingRepo.create({});
