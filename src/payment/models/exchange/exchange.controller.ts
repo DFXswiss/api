@@ -22,13 +22,18 @@ import { WithdrawalOrder } from './dto/withdrawal-order.dto';
 import { ExchangeService } from './exchange.service';
 import { KrakenService } from './kraken.service';
 import { Util } from 'src/shared/util';
+import { BitstampService } from './bitstamp.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
 export class ExchangeController {
   private trades: { [key: number]: TradeResult } = {};
 
-  constructor(private readonly krakenService: KrakenService, private readonly binanceService: BinanceService) {}
+  constructor(
+    private readonly krakenService: KrakenService,
+    private readonly binanceService: BinanceService,
+    private readonly bitstampService: BitstampService,
+  ) {}
 
   @Get(':exchange/balances')
   @ApiBearerAuth()
@@ -130,6 +135,8 @@ export class ExchangeController {
         return this.krakenService;
       case 'binance':
         return this.binanceService;
+      case 'bitstamp':
+        return this.bitstampService;
       default:
         throw new BadRequestException(`No service for exchange '${exchange}'`);
     }

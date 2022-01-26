@@ -29,4 +29,10 @@ export const LanguageSeed = [
     foreignName: 'Português',
     enable: true,
   },
+  {
+    symbol: 'ES',
+    name: 'Spanish',
+    foreignName: 'Español',
+    enable: true,
+  },
 ];

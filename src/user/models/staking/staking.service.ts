@@ -87,6 +87,14 @@ export class StakingService {
     return await this.stakingRepo.save({ ...staking, ...dto });
   }
 
+  async getAllIds(): Promise<number[]> {
+    return this.stakingRepo
+      .createQueryBuilder('staking')
+      .select('staking.id', 'id')
+      .getRawMany<{ id: number }>()
+      .then((results) => results.map((r) => r.id));
+  }
+
   // --- DTO --- //
   async toDto(staking: Staking): Promise<StakingDto> {
     const rewardType = this.getStakingType(staking.rewardDeposit?.id, staking.deposit.id);

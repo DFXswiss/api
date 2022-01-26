@@ -95,4 +95,9 @@ export abstract class CryptoBuyDto {
   @IsOptional()
   @IsString()
   recipientMail: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  refProvision: number;
 }

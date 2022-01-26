@@ -6,9 +6,10 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { RouteType } from 'src/user/models/deposit/deposit-route.entity';
 import { SellService } from 'src/user/models/sell/sell.service';
-import { Staking } from 'src/user/models/staking/staking.entity';
 import { StakingService } from 'src/user/models/staking/staking.service';
+import { SelectQueryBuilder } from 'typeorm';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 
@@ -96,7 +97,7 @@ export class CryptoInputService {
         }
 
         // only DFI for staking
-        if (route instanceof Staking && asset.name != 'DFI') {
+        if (route.type === RouteType.STAKING && asset.name != 'DFI') {
           console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
           return null;
         }
@@ -121,7 +122,8 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
 
       // forward
-      const targetAddress = 'iban' in input.route ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+      const targetAddress =
+        input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
       const outTxId =
         input.asset.type === AssetType.COIN
           ? await this.forwardUtxo(input, targetAddress)
@@ -165,5 +167,36 @@ export class CryptoInputService {
     if (utxo) {
       await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
     }
+  }
+
+  async getStakingBalance(stakingId: number, date: Date): Promise<number> {
+    const { balance } = await this.getInputsForStakingPeriod(date)
+      .select('SUM(amount)', 'balance')
+      .andWhere('route.id = :stakingId', { stakingId })
+      .getRawOne<{ balance: number }>();
+
+    return balance;
+  }
+
+  async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
+    const inputs = await this.getInputsForStakingPeriod(date)
+      .andWhere('route.id IN (:...stakingIds)', { stakingIds })
+      .getMany();
+
+    return stakingIds.map((id) => ({
+      id,
+      balance: inputs.filter((i) => i.route.id === id).reduce((prev, curr) => prev + curr.amount, 0),
+    }));
+  }
+
+  private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
+    const dateFrom = new Date(dateTo);
+    dateFrom.setDate(dateTo.getDate() - Config.stakingPeriod);
+
+    return this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .innerJoinAndSelect('cryptoInput.route', 'route')
+      .where('route.type = :type', { type: RouteType.STAKING })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
   }
 }
