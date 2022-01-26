@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToOne, UpdateDateColumn } from 'typeorm';
-import { DepositRoute } from './deposit-route.entity';
+import { DepositRoute } from '../route/deposit-route.entity';
 
 @Entity()
 export class Deposit {

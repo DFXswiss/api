@@ -1,18 +1,18 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Raw } from 'typeorm';
+import { In, Raw } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
-import { User } from '../user/user.entity';
-import { KycStatus } from '../userData/userData.entity';
-import { UserDataRepository } from '../userData/userData.repository';
+import { User } from '../../../user/models/user/user.entity';
+import { KycStatus } from '../../../user/models/userData/userData.entity';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { StakingType } from './dto/staking-type.enum';
 import { StakingDto } from './dto/staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { Staking } from './staking.entity';
 import { StakingRepository } from './staking.repository';
+import { UserDataService } from 'src/user/models/userData/userData.service';
 
 @Injectable()
 export class StakingService {
@@ -20,7 +20,7 @@ export class StakingService {
     private readonly stakingRepo: StakingRepository,
     private readonly depositService: DepositService,
     private readonly sellRepo: SellRepository,
-    private readonly userDataRepo: UserDataRepository,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async getStakingForAddress(depositAddress: string): Promise<Staking> {
@@ -39,17 +39,13 @@ export class StakingService {
     return staking;
   }
 
-  async getAllStaking(userId: number): Promise<Staking[]> {
+  async getUserStaking(userId: number): Promise<Staking[]> {
     return this.stakingRepo.find({ user: { id: userId } });
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
     // KYC check
-    const { kycStatus } = await this.userDataRepo
-      .createQueryBuilder('userData')
-      .innerJoinAndSelect('userData.users', 'user')
-      .where('user.id = :id', { id: userId })
-      .getOne();
+    const kycStatus = await this.userDataService.getKycStatus(userId);
     if (![KycStatus.WAIT_MANUAL, KycStatus.COMPLETED].includes(kycStatus)) throw new BadRequestException('Missing KYC');
 
     const rewardDepositId =
@@ -96,7 +92,18 @@ export class StakingService {
   }
 
   // --- DTO --- //
-  async toDto(staking: Staking): Promise<StakingDto> {
+  async toDtoList(staking: Staking[]): Promise<StakingDto[]> {
+    const depositIds = staking
+      .map((s) => [s.rewardDeposit?.id, s.paybackDeposit?.id])
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((id) => id);
+
+    const sellRoutes = await this.sellRepo.find({ where: { deposit: { id: In(depositIds) } }, relations: ['deposit'] });
+
+    return Promise.all(staking.map((s) => this.toDto(s, sellRoutes)));
+  }
+
+  async toDto(staking: Staking, sellRoutes?: Sell[]): Promise<StakingDto> {
     const rewardType = this.getStakingType(staking.rewardDeposit?.id, staking.deposit.id);
     const paybackType = this.getStakingType(staking.paybackDeposit?.id, staking.deposit.id);
 
@@ -105,9 +112,9 @@ export class StakingService {
       active: staking.active,
       deposit: staking.deposit,
       rewardType,
-      rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id),
+      rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id, sellRoutes),
       paybackType,
-      paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id),
+      paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
     };
   }
 
@@ -119,10 +126,12 @@ export class StakingService {
       : StakingType.WALLET;
   }
 
-  private async getSell(stakingType: StakingType, depositId: number): Promise<Sell | undefined> { // TODO: improve performance?
-    return stakingType === StakingType.PAYOUT
-      ? await this.sellRepo.findOne({ where: { deposit: { id: depositId } } })
-      : undefined;
+  private async getSell(stakingType: StakingType, depositId: number, sellRoutes?: Sell[]): Promise<Sell | undefined> {
+    if (stakingType !== StakingType.PAYOUT) return undefined;
+
+    return sellRoutes
+      ? sellRoutes.find((r) => r.deposit.id === depositId)
+      : await this.sellRepo.findOne({ where: { deposit: { id: depositId } } });
   }
 
   private async getDepositId(userId: number, sellId?: number): Promise<number> {

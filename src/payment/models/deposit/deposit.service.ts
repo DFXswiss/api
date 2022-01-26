@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DepositRepository } from 'src/user/models/deposit/deposit.repository';
+import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
 import { Deposit } from './deposit.entity';
 
 @Injectable()

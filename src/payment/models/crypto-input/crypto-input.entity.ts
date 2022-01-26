@@ -1,7 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { DepositRoute } from 'src/user/models/deposit/deposit-route.entity';
-import { Sell } from 'src/user/models/sell/sell.entity';
-import { Staking } from 'src/user/models/staking/staking.entity';
+import { DepositRoute } from 'src/payment/models/route/deposit-route.entity';
+import { Sell } from 'src/payment/models/sell/sell.entity';
+import { Staking } from 'src/payment/models/staking/staking.entity';
 import { Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Column, ManyToOne, Index } from 'typeorm';
 
 @Entity()

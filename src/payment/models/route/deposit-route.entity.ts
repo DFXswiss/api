@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Deposit } from './deposit.entity';
+import { Deposit } from '../deposit/deposit.entity';
 
 export enum RouteType {
   SELL = 'Sell',

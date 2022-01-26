@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BuyService } from 'src/user/models/buy/buy.service';
+import { BuyService } from 'src/payment/models/buy/buy.service';
 import { Readable } from 'stream';
 import { In } from 'typeorm';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';

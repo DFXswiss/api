@@ -1,7 +1,7 @@
 import { Column, ManyToOne, ChildEntity } from 'typeorm';
 import { User } from 'src/user/models/user/user.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { DepositRoute } from '../deposit/deposit-route.entity';
+import { DepositRoute } from '../route/deposit-route.entity';
 
 @ChildEntity()
 export class Sell extends DepositRoute {

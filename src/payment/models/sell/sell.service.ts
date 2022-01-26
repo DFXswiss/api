@@ -1,12 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateSellDto } from 'src/user/models/sell/dto/create-sell.dto';
-import { UpdateSellDto } from 'src/user/models/sell/dto/update-sell.dto';
-import { SellRepository } from 'src/user/models/sell/sell.repository';
+import { CreateSellDto } from 'src/payment/models/sell/dto/create-sell.dto';
+import { UpdateSellDto } from 'src/payment/models/sell/dto/update-sell.dto';
+import { SellRepository } from 'src/payment/models/sell/sell.repository';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { UserService } from '../user/user.service';
+import { UserService } from '../../../user/models/user/user.service';
 import { Sell } from './sell.entity';
 import { DepositService } from '../deposit/deposit.service';
-import { User } from '../user/user.entity';
+import { User } from '../../../user/models/user/user.entity';
 
 @Injectable()
 export class SellService {
@@ -26,14 +26,7 @@ export class SellService {
       .getOne();
   }
 
-  async getSell(id: number, userId: number): Promise<Sell> {
-    const sell = await this.sellRepo.findOne({ where: { id, user: { id: userId } } });
-    if (!sell) throw new NotFoundException('No matching sell route for id found');
-
-    return sell;
-  }
-
-  async getAllSell(userId: number): Promise<Sell[]> {
+  async getUserSells(userId: number): Promise<Sell[]> {
     return this.sellRepo.find({ user: { id: userId } });
   }
 

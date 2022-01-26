@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { BuyService } from 'src/user/models/buy/buy.service';
+import { BuyService } from 'src/payment/models/buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { AmlCheck, CryptoBuy } from './crypto-buy.entity';

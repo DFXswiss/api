@@ -20,6 +20,19 @@ import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 import { TransactionController } from './models/transaction/transaction.controller';
 import { TransactionService } from './models/transaction/transaction.service';
 import { BitstampService } from './models/exchange/bitstamp.service';
+import { BuyController } from './models/buy/buy.controller';
+import { BuyRepository } from './models/buy/buy.repository';
+import { BuyService } from './models/buy/buy.service';
+import { DepositController } from './models/deposit/deposit.controller';
+import { DepositRepository } from './models/deposit/deposit.repository';
+import { DepositService } from './models/deposit/deposit.service';
+import { SellController } from './models/sell/sell.controller';
+import { SellRepository } from './models/sell/sell.repository';
+import { SellService } from './models/sell/sell.service';
+import { StakingController } from './models/staking/staking.controller';
+import { StakingRepository } from './models/staking/staking.repository';
+import { StakingService } from './models/staking/staking.service';
+import { RouteController } from './models/route/route.controller';
 
 @Module({
   imports: [
@@ -29,12 +42,27 @@ import { BitstampService } from './models/exchange/bitstamp.service';
       BankTxRepository,
       BankTxBatchRepository,
       CryptoBuyRepository,
+      BuyRepository,
+      SellRepository,
+      StakingRepository,
+      DepositRepository,
     ]),
     SharedModule,
     AinModule,
     forwardRef(() => UserModule),
   ],
-  controllers: [BankTxController, BankController, ExchangeController, CryptoBuyController, TransactionController],
+  controllers: [
+    BankTxController,
+    BankController,
+    ExchangeController,
+    CryptoBuyController,
+    TransactionController,
+    RouteController,
+    BuyController,
+    SellController,
+    StakingController,
+    DepositController,
+  ],
   providers: [
     CryptoInputService,
     CryptoBuyService,
@@ -44,7 +72,14 @@ import { BitstampService } from './models/exchange/bitstamp.service';
     BinanceService,
     BitstampService,
     TransactionService,
+    BuyService,
+    SellService,
+    StakingService,
+    DepositService,
+    BuyController,
+    SellController,
+    StakingController,
   ],
-  exports: [CryptoInputService],
+  exports: [CryptoInputService, BuyService, SellService],
 })
 export class PaymentModule {}

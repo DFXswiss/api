@@ -3,13 +3,13 @@ import { createMock } from '@golevelup/ts-jest';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
-import { BuyService } from '../buy/buy.service';
+import { BuyService } from '../../../payment/models/buy/buy.service';
 import { LogService } from '../log/log.service';
 import { UserDataService } from '../userData/userData.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
 import { User } from './user.entity';
-import { StakingService } from '../staking/staking.service';
+import { StakingService } from '../../../payment/models/staking/staking.service';
 
 describe('UserService', () => {
   let service: UserService;

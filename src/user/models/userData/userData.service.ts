@@ -157,6 +157,14 @@ export class UserDataService {
     return { customer: customer, checkResult: checkResult };
   }
 
+  async getKycStatus(userId: number): Promise<KycStatus> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .innerJoinAndSelect('userData.users', 'user')
+      .where('user.id = :id', { id: userId })
+      .getOne().then((user) => user.kycStatus);
+  }
+
   async doNameCheck(userDataId: number): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);

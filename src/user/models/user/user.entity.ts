@@ -1,8 +1,8 @@
-import { Buy } from 'src/user/models/buy/buy.entity';
+import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Log } from 'src/user/models/log/log.entity';
-import { Sell } from 'src/user/models/sell/sell.entity';
+import { Sell } from 'src/payment/models/sell/sell.entity';
 import { UserData } from 'src/user/models/userData/userData.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
 import {
@@ -18,7 +18,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { InternalServerErrorException } from '@nestjs/common';
 import { AccountType } from '../userData/account-type.enum';
-import { Staking } from '../staking/staking.entity';
+import { Staking } from '../../../payment/models/staking/staking.entity';
 
 export enum UserStatus {
   NA = 'NA',

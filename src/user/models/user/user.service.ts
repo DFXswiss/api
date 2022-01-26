@@ -5,15 +5,12 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserDataService } from 'src/user/models/userData/userData.service';
-import { LogDirection } from 'src/user/models/log/log.entity';
 import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { BuyService } from '../buy/buy.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { StakingService } from '../staking/staking.service';
 
 @Injectable()
 export class UserService {
@@ -24,14 +21,12 @@ export class UserService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
-    private readonly buyService: BuyService,
-    private readonly stakingService: StakingService,
   ) {}
 
   async getUser(userId: number, detailedUser = false): Promise<User> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser ? ['userData', 'buys', 'sells', 'stakingRoutes', 'currency'] : ['userData', 'currency'],
+      relations: ['userData', 'currency'],
     });
     if (!user) throw new NotFoundException('No matching user for id found');
 
@@ -62,15 +57,9 @@ export class UserService {
     user['kycStatus'] = user.userData?.kycStatus;
     user['kycState'] = user.userData?.kycState;
     user['depositLimit'] = user.userData?.depositLimit;
-    user['fees'] = await this.getFees(user);
 
     if (detailed) {
       user['refData'] = await this.getRefData(user);
-      user['userVolume'] = await this.getUserVolume(user);
-    }
-
-    if (user.stakingRoutes) {
-      user['stakingRoutes'] = (await Promise.all(user.stakingRoutes.map((s) => this.stakingService.toDto(s)))) as any;
     }
 
     // select user info
@@ -108,15 +97,6 @@ export class UserService {
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 
-  async getUserVolume(user: User): Promise<any> {
-    const buyVolume = await this.buyService.getUserVolume(user.id);
-    return {
-      buyVolume: buyVolume.volume,
-      annualBuyVolume: buyVolume.annualVolume,
-      sellVolume: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
-    };
-  }
-
   async getRefDataForId(userId: number): Promise<any> {
     const user = await this.userRepo.findOne(userId);
     return this.getRefData(user);
@@ -144,21 +124,16 @@ export class UserService {
     return fee;
   }
 
-  async getFees(user: User): Promise<{ buy: number; refBonus: number; sell: number }> {
-    const { annualVolume } = await this.buyService.getUserVolume(user.id);
-    const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
-
-    const refUser = await this.userRepo.findOne({ ref: user.usedRef });
-    const refBonus = annualVolume < 100000 ? 1 - (refUser?.refFeePercent ?? 1) : 0;
-
-    return {
-      buy: baseFee - refBonus,
-      refBonus,
-      sell: 2.9,
-    };
-  }
-
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
     await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
+  }
+
+  async getRefUser(userId: number): Promise<User | undefined> {
+    const { usedRef } = await this.userRepo
+      .createQueryBuilder('user')
+      .select('user.usedRef', 'usedRef')
+      .where('user.id = :userId', { userId })
+      .getRawOne<{ usedRef: string }>();
+    return this.userRepo.findOne({ ref: usedRef });
   }
 }

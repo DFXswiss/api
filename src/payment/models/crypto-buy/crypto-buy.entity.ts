@@ -1,5 +1,5 @@
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Buy } from 'src/user/models/buy/buy.entity';
+import { Buy } from 'src/payment/models/buy/buy.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,

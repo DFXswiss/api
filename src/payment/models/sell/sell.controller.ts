@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards, Post } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { SellService } from './sell.service';
@@ -8,6 +8,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { SellDto } from './dto/sell.dto';
 import { Sell } from './sell.entity';
 
 @ApiTags('sell')
@@ -15,31 +16,31 @@ import { Sell } from './sell.entity';
 export class SellController {
   constructor(private readonly sellService: SellService) {}
 
-  @Get(':id')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<Sell> {
-    return this.sellService.getSell(+id, jwt.id);
-  }
-
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllSell(@GetJwt() jwt: JwtPayload): Promise<Sell[]> {
-    return this.sellService.getAllSell(jwt.id);
+  async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
+    return this.sellService.getUserSells(jwt.id).then((l) => l.map((s) => this.toDto(s)));
   }
 
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<Sell> {
-    return this.sellService.createSell(jwt.id, createSellDto);
+  createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<SellDto> {
+    return this.sellService.createSell(jwt.id, createSellDto).then((s) => this.toDto(s));
   }
 
   @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateSell(@GetJwt() jwt: JwtPayload, @Body() updateSellDto: UpdateSellDto): Promise<Sell> {
-    return this.sellService.updateSell(jwt.id, updateSellDto);
+  async updateSell(@GetJwt() jwt: JwtPayload, @Body() updateSellDto: UpdateSellDto): Promise<SellDto> {
+    return this.sellService.updateSell(jwt.id, updateSellDto).then((s) => this.toDto(s));
+  }
+
+  private toDto(sell: Sell): SellDto {
+    return {
+      ...sell,
+      fee: 2.9,
+    };
   }
 }

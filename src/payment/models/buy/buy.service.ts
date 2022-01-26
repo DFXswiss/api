@@ -1,13 +1,13 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateBuyDto } from 'src/user/models/buy/dto/create-buy.dto';
-import { BuyRepository } from 'src/user/models/buy/buy.repository';
+import { CreateBuyDto } from 'src/payment/models/buy/dto/create-buy.dto';
+import { BuyRepository } from 'src/payment/models/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createHash } from 'crypto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Not } from 'typeorm';
-import { User } from '../user/user.entity';
+import { User } from '../../../user/models/user/user.entity';
 import { Util } from 'src/shared/util';
 
 @Injectable()
