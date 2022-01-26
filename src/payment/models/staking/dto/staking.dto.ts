@@ -10,4 +10,5 @@ export class StakingDto {
   rewardSell?: Sell;
   paybackType: StakingType;
   paybackSell?: Sell;
+  balance: number;
 }

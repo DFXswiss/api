@@ -8,7 +8,6 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
-import { SelectQueryBuilder } from 'typeorm';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 
@@ -135,34 +134,7 @@ export class CryptoInputService {
     }
   }
 
-  async getStakingBalance(stakingId: number, date: Date): Promise<number> {
-    const { balance } = await this.getInputsForStakingPeriod(date)
-      .select('SUM(amount)', 'balance')
-      .andWhere('route.id = :stakingId', { stakingId })
-      .getRawOne<{ balance: number }>();
-
-    return balance;
-  }
-
   async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
-    const inputs = await this.getInputsForStakingPeriod(date)
-      .andWhere('route.id IN (:...stakingIds)', { stakingIds })
-      .getMany();
-
-    return stakingIds.map((id) => ({
-      id,
-      balance: inputs.filter((i) => i.route.id === id).reduce((prev, curr) => prev + curr.amount, 0),
-    }));
-  }
-
-  private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
-    const dateFrom = new Date(dateTo);
-    dateFrom.setDate(dateTo.getDate() - Config.stakingPeriod);
-
-    return this.cryptoInputRepo
-      .createQueryBuilder('cryptoInput')
-      .innerJoinAndSelect('cryptoInput.route', 'route')
-      .where('route.type = :type', { type: RouteType.STAKING })
-      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+    return this.cryptoInputRepo.getAllStakingBalance(stakingIds, date);
   }
 }

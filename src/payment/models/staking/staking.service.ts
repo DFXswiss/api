@@ -13,6 +13,7 @@ import { UpdateStakingDto } from './dto/update-staking.dto';
 import { Staking } from './staking.entity';
 import { StakingRepository } from './staking.repository';
 import { UserDataService } from 'src/user/models/userData/userData.service';
+import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 
 @Injectable()
 export class StakingService {
@@ -21,6 +22,7 @@ export class StakingService {
     private readonly depositService: DepositService,
     private readonly sellRepo: SellRepository,
     private readonly userDataService: UserDataService,
+    private readonly cryptoInputRepo: CryptoInputRepository,
   ) {}
 
   async getStakingForAddress(depositAddress: string): Promise<Staking> {
@@ -115,6 +117,7 @@ export class StakingService {
       rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id, sellRoutes),
       paybackType,
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
+      balance: await this.cryptoInputRepo.getStakingBalance(staking.id, new Date()),
     };
   }
 
