@@ -21,7 +21,7 @@ export class TransactionService {
     const tx = await Promise.all([
       await this.getBuyTransactions(userId),
       // this.getSellTransactions(userId),
-      await this.getDFITaxRewards(userAddress),
+      // await this.getDFITaxRewards(userAddress),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => ((tx1.date?.getTime() ?? 0) - (tx2.date?.getTime() ?? 0) > 0 ? -1 : 1));
@@ -88,22 +88,6 @@ export class TransactionService {
 
   //   return cryptoSells
   //     .map((c) => [
-  //       {
-  //         type: 'Deposit',
-  //         buyAmount: c.amount,
-  //         buyAsset: c.buy?.asset.name,
-  //         sellAmount: null,
-  //         sellAsset: null,
-  //         fee: null,
-  //         feeAsset: null,
-  //         exchange: 'DFX',
-  //         tradeGroup: null,
-  //         comment: c.bankTx?.iban,
-  //         date: c.outputDate ? this.createRandomDate(c.outputDate, -20, c.amount) : null,
-  //         txid: c.bankTx?.accountServiceRef,
-  //         buyValueInEur: null,
-  //         sellValueInEur: null,
-  //       },
   //       {
   //         type: 'Trade',
   //         buyAmount: c.outputAmount,

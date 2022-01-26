@@ -45,7 +45,7 @@ export class TransactionController {
 
     res.set({
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="history_${this.formatDate()}.csv"`,
+      'Content-Disposition': `attachment; filename="DFX_history_${this.formatDate()}.csv"`,
     });
     return csvFile;
   }
