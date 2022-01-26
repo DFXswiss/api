@@ -129,11 +129,7 @@ export class UserService {
   }
 
   async getRefUser(userId: number): Promise<User | undefined> {
-    const { usedRef } = await this.userRepo
-      .createQueryBuilder('user')
-      .select('user.usedRef', 'usedRef')
-      .where('user.id = :userId', { userId })
-      .getRawOne<{ usedRef: string }>();
+    const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
     return this.userRepo.findOne({ ref: usedRef });
   }
 }

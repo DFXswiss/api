@@ -79,11 +79,11 @@ export class StakingService {
   }
 
   async getAllIds(): Promise<number[]> {
-    return this.stakingRepo
-      .createQueryBuilder('staking')
-      .select('staking.id', 'id')
-      .getRawMany<{ id: number }>()
-      .then((results) => results.map((r) => r.id));
+    return (
+      this.stakingRepo
+        .find({ select: ['id'] })
+        .then((results) => results.map((r) => r.id))
+    );
   }
 
   // --- DTO --- //
