@@ -1,10 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { In, Raw } from 'typeorm';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { In } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
-import { User } from '../../../user/models/user/user.entity';
 import { KycStatus } from '../../../user/models/userData/userData.entity';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { StakingType } from './dto/staking-type.enum';
@@ -54,20 +53,7 @@ export class StakingService {
     const routeCount = await this.stakingRepo.count({ user: { id: userId } });
     if (routeCount >= 10) throw new BadRequestException('Max. 10 staking routes allowed');
 
-    const rewardDepositId =
-      dto.rewardType === StakingType.PAYOUT ? await this.getDepositId(userId, dto.rewardSell?.id) : null;
-    const paybackDepositId =
-      dto.paybackType === StakingType.PAYOUT ? await this.getDepositId(userId, dto.paybackSell?.id) : null;
-
-    // create the entity
-    const staking = this.stakingRepo.create({});
-    staking.user = { id: userId } as User;
-    staking.deposit = await this.depositService.getNextDeposit();
-    staking.rewardDeposit =
-      dto.rewardType === StakingType.REINVEST ? staking.deposit : ({ id: rewardDepositId } as Deposit);
-    staking.paybackDeposit =
-      dto.paybackType === StakingType.REINVEST ? staking.deposit : ({ id: paybackDepositId } as Deposit);
-
+    const staking = await this.createEntity(userId, dto);
     return this.stakingRepo.save(staking);
   }
 
@@ -75,15 +61,39 @@ export class StakingService {
     const staking = await this.stakingRepo.findOne({ id: dto.id, user: { id: userId } });
     if (!staking) throw new NotFoundException('No matching entry found');
 
-    return await this.stakingRepo.save({ ...staking, ...dto });
+    const update = await this.createEntity(userId, dto, staking);
+    return await this.stakingRepo.save(update);
+  }
+
+  private async createEntity(
+    userId: number,
+    dto: CreateStakingDto | UpdateStakingDto,
+    staking?: Staking,
+  ): Promise<Staking> {
+    staking ??= this.stakingRepo.create({
+      user: { id: userId },
+      deposit: await this.depositService.getNextDeposit(),
+    });
+
+    staking.rewardDeposit =
+      dto.rewardType === StakingType.REINVEST
+        ? staking.deposit
+        : dto.rewardType === StakingType.PAYOUT
+        ? ({ id: await this.getDepositId(userId, dto.rewardSell?.id) } as Deposit)
+        : null;
+
+    staking.paybackDeposit =
+      dto.paybackType === StakingType.REINVEST
+        ? staking.deposit
+        : dto.paybackType === StakingType.PAYOUT
+        ? ({ id: await this.getDepositId(userId, dto.paybackSell?.id) } as Deposit)
+        : null;
+
+    return { ...staking, ...dto };
   }
 
   async getAllIds(): Promise<number[]> {
-    return (
-      this.stakingRepo
-        .find({ select: ['id'] })
-        .then((results) => results.map((r) => r.id))
-    );
+    return this.stakingRepo.find({ select: ['id'] }).then((results) => results.map((r) => r.id));
   }
 
   // --- DTO --- //
