@@ -27,6 +27,11 @@ export abstract class CryptoBuyDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsNumber()
+  amountInEur: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   name: string;
 

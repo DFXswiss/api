@@ -34,6 +34,9 @@ export class CryptoBuy {
   @Column({ type: 'float', nullable: true })
   amountInChf: number;
 
+  @Column({ type: 'float', nullable: true })
+  amountInEur: number;
+
   @Column({ length: 256, nullable: true })
   name: string;
 
