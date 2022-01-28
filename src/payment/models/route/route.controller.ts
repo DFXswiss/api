@@ -24,7 +24,7 @@ export class RouteController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllStaking(@GetJwt() jwt: JwtPayload): Promise<{ buy: BuyDto[]; sell: SellDto[]; staking: StakingDto[] }> {
+  async getAllRoutes(@GetJwt() jwt: JwtPayload): Promise<{ buy: BuyDto[]; sell: SellDto[]; staking: StakingDto[] }> {
     return Promise.all([
       this.buyController.getAllBuy(jwt),
       this.sellController.getAllSell(jwt),
