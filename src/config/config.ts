@@ -65,7 +65,6 @@ export class Configuration {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
-    prefix: process.env.KYC_PREFIX,
   };
 
   mail: MailerOptions = {

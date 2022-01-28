@@ -56,10 +56,10 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserDataService,
     BankDataService,
     RefService,
-    KycSchedulerService,
     KycApiService,
     AuthService,
+    KycSchedulerService,
   ],
-  exports: [UserService, UserDataService, LogService, KycSchedulerService, KycApiService, RefService],
+  exports: [UserService, UserDataService, LogService,  KycApiService, RefService,KycSchedulerService],
 })
 export class UserModule {}

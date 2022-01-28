@@ -12,6 +12,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -162,7 +163,8 @@ export class UserDataService {
       .createQueryBuilder('userData')
       .innerJoinAndSelect('userData.users', 'user')
       .where('user.id = :id', { id: userId })
-      .getOne().then((user) => user.kycStatus);
+      .getOne()
+      .then((user) => user.kycStatus);
   }
 
   async doNameCheck(userDataId: number): Promise<string> {
@@ -177,10 +179,12 @@ export class UserDataService {
   }
 
   async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'] });
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'],
+    });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
-
     const verification = await this.verifyUser(userData);
     if (!verification.result) throw new BadRequestException('User data incomplete');
 
@@ -195,16 +199,33 @@ export class UserDataService {
 
       await this.preFillChatbot(userData, userInfo);
 
-      return this.initiateOnboarding(userData);
-    } else if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
-      return userData.kycState === KycState.FAILED ? this.initiateOnboarding(userData) : userData.spiderData.url;
-    } else if (userData?.kycStatus === KycStatus.WAIT_VIDEO_ID && userData?.kycState === KycState.FAILED) {
-      // change state back to NA
-      userData.kycState = KycState.NA;
-      // initiate video identification
-      await this.kycApi.initiateVideoIdentification(userData.id);
-      await this.userDataRepo.save(userData);
-      return;
+      return this.initiateIdentification(userData, false, KycDocument.INITIATE_CHATBOT_IDENTIFICATION);
+    } else if (
+      [KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_ONLINE_ID].includes(userData?.kycStatus)
+    ) {
+      const kycDocumentTye =
+        userData?.kycStatus === KycStatus.WAIT_CHAT_BOT
+          ? KycDocument.CHATBOT
+          : userData?.kycStatus === KycStatus.WAIT_ONLINE_ID
+          ? KycDocument.ONLINE_IDENTIFICATION
+          : KycDocument.VIDEO_IDENTIFICATION;
+
+      // get all versions of all document types
+      const documentVersions = await this.kycApi.getDocumentVersion(userData.id, kycDocumentTye);
+      const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
+
+      if (isCompleted) await this.finishChatBot(userData);
+
+      const documentType =
+        userData?.kycStatus === KycStatus.WAIT_CHAT_BOT
+          ? KycDocument.INITIATE_CHATBOT_IDENTIFICATION
+          : userData?.kycStatus === KycStatus.WAIT_ONLINE_ID
+          ? KycDocument.INITIATE_ONLINE_IDENTIFICATION
+          : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
+
+      return userData.kycState === KycState.FAILED
+        ? this.initiateIdentification(userData, false, documentType)
+        : userData.spiderData.url;
     } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.WAIT_MANUAL) {
       const customer = await this.kycApi.getCustomer(userData.id);
       // send mail to support
@@ -215,16 +236,25 @@ export class UserDataService {
     throw new BadRequestException('Invalid KYC status');
   }
 
-  private async initiateOnboarding(userData: UserData): Promise<string> {
+  public async initiateIdentification(userData: UserData, sendMail: boolean, identType: KycDocument): Promise<string> {
     // create/update spider data
-    const chatbotData = await this.kycApi.initiateOnboardingChatBot(userData.id, false);
+    const initiateData = await this.kycApi.initiateIdentification(userData.id, sendMail, identType);
     const spiderData = userData.spiderData ?? this.spiderDataRepo.create({ userData: userData });
-    spiderData.url = chatbotData.sessionUrl + '&nc=true';
-    spiderData.version = chatbotData.version;
+    spiderData.url =
+      identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION
+        ? initiateData.sessionUrl + '&nc=true'
+        : initiateData.sessionUrl;
+    if (identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION)
+      spiderData.version = initiateData.locators[0].version;
     await this.spiderDataRepo.save(spiderData);
 
     // update user data
-    userData.kycStatus = KycStatus.WAIT_CHAT_BOT;
+    userData.kycStatus =
+      identType === KycDocument.INITIATE_VIDEO_IDENTIFICATION
+        ? KycStatus.WAIT_VIDEO_ID
+        : identType === KycDocument.INITIATE_ONLINE_IDENTIFICATION
+        ? KycStatus.WAIT_ONLINE_ID
+        : KycStatus.WAIT_CHAT_BOT;
     userData.kycState = KycState.NA;
     userData.spiderData = spiderData;
     await this.userDataRepo.save(userData);
@@ -319,6 +349,39 @@ export class UserDataService {
         );
       }
     }
+  }
+
+  public async finishChatBot(userData: UserData): Promise<UserData> {
+    userData.riskState = await this.kycApi.doCheckResult(userData.id);
+    const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
+
+    if (spiderData) {
+      const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
+        userData.id,
+        KycDocument.CHATBOT_ONBOARDING,
+        spiderData.version,
+      );
+
+      // store chatbot result
+      spiderData.result = JSON.stringify(chatBotResult);
+      await this.spiderDataRepo.save(spiderData);
+
+      // update user data
+      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+      userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
+      userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
+      userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+    }
+    await this.userDataRepo.save(userData);
+
+    const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
+    vipUser
+      ? await this.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION)
+      : await this.initiateIdentification(userData, false, KycDocument.INITIATE_ONLINE_IDENTIFICATION);
+    userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
+
+
+    return userData;
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
