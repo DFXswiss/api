@@ -46,10 +46,9 @@ export class CryptoInputService {
         // get receive history
         .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
         .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
-        .then((i) => i.filter((h) => h.type === 'receive'))
+        .then((i) => i.filter((h) => h.type === 'receive' || h.type === 'AccountToUtxos'))
         // map to entities
-        .then((i) => Promise.all(i.map((h) => this.createEntities(h))))
-        .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
+        .then((i) => Promise.all(i.map((h) => this.createEntity(h))))
         .then((i) => i.filter((e) => e != null && e.amount >= 0.1)) // min. deposit limit
         .then((i) => {
           if (i.length > 0) console.log('New crypto inputs:', i);
@@ -63,44 +62,41 @@ export class CryptoInputService {
   }
 
   // --- HELPER METHODS --- //
-  private async createEntities(history: AccountHistory): Promise<CryptoInput[]> {
-    return Promise.all(
-      history.amounts.map(async (a) => {
-        const amount = +a.split('@')[0];
-        const assetName = a.split('@')[1];
+  private async createEntity(history: AccountHistory): Promise<CryptoInput> {
+    const amountEntry = history.amounts[0];
+    const amount = Math.abs(+amountEntry.split('@')[0]);
+    const assetName = amountEntry.split('@')[1];
 
-        // get asset
-        const asset = await this.assetService.getAssetByDexName(assetName);
-        if (!asset) {
-          console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
-          return null;
-        }
+    // get asset
+    const asset = await this.assetService.getAssetByDexName(assetName);
+    if (!asset) {
+      console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
+      return null;
+    }
 
-        // get deposit route
-        const route =
-          (await this.sellService.getSellForAddress(history.owner)) ??
-          (await this.stakingService.getStakingForAddress(history.owner));
-        if (!route) {
-          console.error(`Failed to process crypto input. No matching route found. History entry:`, history);
-          return null;
-        }
+    // get deposit route
+    const route =
+      (await this.sellService.getSellForAddress(history.owner)) ??
+      (await this.stakingService.getStakingForAddress(history.owner));
+    if (!route) {
+      console.error(`Failed to process crypto input. No matching route found. History entry:`, history);
+      return null;
+    }
 
-        // only DFI for staking
-        if (route.type === RouteType.STAKING && asset.name != 'DFI') {
-          console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
-          return null;
-        }
+    // only DFI for staking
+    if (route.type === RouteType.STAKING && asset.name != 'DFI') {
+      console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
+      return null;
+    }
 
-        return this.cryptoInputRepo.create({
-          inTxId: history.txid,
-          outTxId: '', // will be set after crypto forward
-          blockHeight: history.blockHeight,
-          amount: amount,
-          asset: asset,
-          route: route,
-        });
-      }),
-    );
+    return this.cryptoInputRepo.create({
+      inTxId: history.txid,
+      outTxId: '', // will be set after crypto forward
+      blockHeight: history.blockHeight,
+      amount: amount,
+      asset: asset,
+      route: route,
+    });
   }
 
   private async saveAndForward(input: CryptoInput): Promise<void> {
