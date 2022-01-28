@@ -39,7 +39,8 @@ export class KycSchedulerService {
       const newModificationTime = Date.now().toString();
 
       // get KYC changes
-      const changedUserDataIds = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
+      const changedRefs = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
+      const changedUserDataIds = changedRefs.map((c) => +c).filter((c) => !isNaN(c));
 
       // update
       for (const userDataId of changedUserDataIds) {
