@@ -203,19 +203,15 @@ export class UserDataService {
     } else if (
       [KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_ONLINE_ID].includes(userData?.kycStatus)
     ) {
-      const kycDocumentTye =
-        userData?.kycStatus === KycStatus.WAIT_CHAT_BOT
-          ? KycDocument.CHATBOT
-          : userData?.kycStatus === KycStatus.WAIT_ONLINE_ID
-          ? KycDocument.ONLINE_IDENTIFICATION
-          : KycDocument.VIDEO_IDENTIFICATION;
+      if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
+        const documentVersions = await this.kycApi.getDocumentVersion(userData.id, KycDocument.CHATBOT);
+        const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
 
-      // get all versions of all document types
-      const documentVersions = await this.kycApi.getDocumentVersion(userData.id, kycDocumentTye);
-      const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
-
-      if (isCompleted) await this.finishChatBot(userData);
-
+        if (isCompleted) {
+          const userDataChatBot = await this.finishChatBot(userData);
+          return userDataChatBot?.spiderData?.url;
+        }
+      }
       const documentType =
         userData?.kycStatus === KycStatus.WAIT_CHAT_BOT
           ? KycDocument.INITIATE_CHATBOT_IDENTIFICATION
@@ -244,8 +240,7 @@ export class UserDataService {
       identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION
         ? initiateData.sessionUrl + '&nc=true'
         : initiateData.sessionUrl;
-    if (identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION)
-      spiderData.version = initiateData.locators[0].version;
+    spiderData.version = initiateData.locators[0].version;
     await this.spiderDataRepo.save(spiderData);
 
     // update user data
@@ -379,7 +374,6 @@ export class UserDataService {
       ? await this.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION)
       : await this.initiateIdentification(userData, false, KycDocument.INITIATE_ONLINE_IDENTIFICATION);
     userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
-
 
     return userData;
   }
