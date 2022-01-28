@@ -51,8 +51,7 @@ export class UserDataController {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
     const user = userData.users[0];
     if (!user) throw new BadRequestException('UserData has no user');
-
-    return this.userDataService.requestKyc(1, depositLimit);
+    return this.userDataService.requestKyc(user.id, depositLimit);
   }
 
   @Get(':id/nameCheck')

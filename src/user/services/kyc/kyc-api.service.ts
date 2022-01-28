@@ -8,14 +8,13 @@ import { RiskState } from 'src/user/models/userData/userData.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
-  ChatBotResponse,
   CheckResponse,
   CheckResult,
   CheckVersion,
   CreateResponse,
   Customer,
   CustomerInformationResponse,
-  IdentificationResponse,
+  InitiateResponse,
   KycContentType,
   KycDocument,
   KycRelationType,
@@ -24,7 +23,8 @@ import {
 
 @Injectable()
 export class KycApiService {
-  private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/2.0.0';
+  private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/';
+  private versionUrl = '2.0.0';
 
   private sessionKey = 'session-key-will-be-updated';
 
@@ -113,38 +113,7 @@ export class KycApiService {
     return results[0];
   }
 
-  async initiateOnboardingChatBot(id: number, sendMail: boolean): Promise<ChatBotResponse> {
-    const style = {
-      headerColor: '#FFFFFF',
-      textColor: '#FFFFFF',
-      warningColor: '#F5516C',
-      backgroundColor: '#072440',
-      overlayBackgroundColor: '#072440',
-      buttonColor: '#FFFFFF',
-      buttonBackgroundColor: '#F5516C',
-      bubbleLeftColor: '#FFFFFF',
-      bubbleLeftBackgroundColor: '#0A355C',
-      bubbleRightColor: '#FFFFFF',
-      bubbleRightBackgroundColor: '#0A355C',
-      htmlHeaderInclude: '',
-      htmlBodyInclude: '',
-    };
-
-    const data = {
-      references: [this.reference(id)],
-      sendingInvitation: sendMail,
-      overridingStyleInfo: style,
-    };
-
-    const result = await this.callApi<ChatBotResponse[]>(
-      'customers/initiate-onboarding-chatbot-sessions',
-      'POST',
-      data,
-    );
-    return result[0];
-  }
-
-  async createFileReference(id: number, fileReference: number, lastName: string): Promise<ChatBotResponse> {
+  async createFileReference(id: number, fileReference: number, lastName: string): Promise<InitiateResponse> {
     const data = {
       customer: {
         reference: this.reference(id),
@@ -154,7 +123,7 @@ export class KycApiService {
       contractReference: this.reference(fileReference),
     };
 
-    const result = await this.callApi<ChatBotResponse>('customers/contract-linked', 'POST', data);
+    const result = await this.callApi<InitiateResponse>('customers/contract-linked', 'POST', data);
     return result[0];
   }
 
@@ -219,24 +188,46 @@ export class KycApiService {
     return result;
   }
 
-  async initiateOnlineIdentification(id: number): Promise<IdentificationResponse> {
-    const result = await this.callApi<any>('customers/initiate-online-identifications', 'POST', [this.reference(id)]);
+  async initiateIdentification(id: number, sendMail: boolean, identType: KycDocument): Promise<InitiateResponse> {
+    let data = {};
+    if (identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION) {
+      const style = {
+        headerColor: '#FFFFFF',
+        textColor: '#FFFFFF',
+        warningColor: '#F5516C',
+        backgroundColor: '#072440',
+        overlayBackgroundColor: '#072440',
+        buttonColor: '#FFFFFF',
+        buttonBackgroundColor: '#F5516C',
+        bubbleLeftColor: '#FFFFFF',
+        bubbleLeftBackgroundColor: '#0A355C',
+        bubbleRightColor: '#FFFFFF',
+        bubbleRightBackgroundColor: '#0A355C',
+        htmlHeaderInclude: '',
+        htmlBodyInclude: '',
+      };
+
+      data = {
+        references: [this.reference(id)],
+        sendInvitation: sendMail,
+        overridingStyleInfo: style,
+      };
+    } else {
+      data = {
+        references: [this.reference(id)],
+        sendInvitation: sendMail,
+      };
+    }
+    const result = await this.callApi<any>(`customers/initiate-${identType}-sessions`, 'POST', data);
     return result[0];
   }
 
-  async initiateVideoIdentification(id: number): Promise<IdentificationResponse> {
-    const result = await this.callApi<any>('customers/initiate-video-identifications', 'POST', [this.reference(id)]);
-    return result[0];
-  }
-
-  async initiateDocumentUpload(id: number, kycDocuments: KycDocument[]): Promise<IdentificationResponse> {
+  async initiateDocumentUpload(id: number, kycDocuments: KycDocument[]): Promise<InitiateResponse> {
     const query: string = this.getUploadDocumentQuery(kycDocuments);
 
-    const result = await this.callApi<IdentificationResponse[]>(
-      `customers/initiate-document-uploads?${query}`,
-      'POST',
-      [this.reference(id)],
-    );
+    const result = await this.callApi<InitiateResponse[]>(`customers/initiate-document-uploads?${query}`, 'POST', [
+      this.reference(id),
+    ]);
     return result[0];
   }
 
@@ -333,8 +324,7 @@ export class KycApiService {
 
   // --- HELPER METHODS --- //
   private reference(id: number, isOrganization = false): string {
-    const ref = Config.kyc.prefix ? `${Config.kyc.prefix}${id}` : id.toString();
-    return isOrganization ? `${ref}_organization` : ref;
+    return isOrganization ? `${id}_organization` : `${id}`;
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
@@ -356,10 +346,15 @@ export class KycApiService {
     getNewKey = false,
   ): Promise<T> {
     try {
+      if (url.includes('initiate')) {
+        this.versionUrl = '3.0.0';
+        getNewKey = true;
+      } else {
+        this.versionUrl = '2.0.0';
+      }
       if (getNewKey) this.sessionKey = await this.getNewSessionKey();
-
       return await this.http.request<T>({
-        url: `${this.baseUrl}/${url}`,
+        url: `${this.baseUrl}${this.versionUrl}/${url}`,
         method: method,
         data: data,
         headers: {
@@ -371,14 +366,13 @@ export class KycApiService {
       if (nthTry > 1 && e.response?.status === 403) {
         return this.request(url, method, data, contentType, nthTry - 1, true);
       }
-
       throw e;
     }
   }
 
   private async getNewSessionKey(): Promise<string> {
     // get the challenge
-    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/challenge`);
+    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}${this.versionUrl}/challenge`);
 
     // determine response
     const response = key + Config.kyc.mandator + Config.kyc.user + Config.kyc.password + challenge;
@@ -393,7 +387,7 @@ export class KycApiService {
     };
 
     // enable the session key
-    await this.http.post(`${this.baseUrl}/authenticate`, data);
+    await this.http.post(`${this.baseUrl}${this.versionUrl}/authenticate`, data);
 
     return key;
   }
