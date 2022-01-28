@@ -12,6 +12,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 
 export interface UserDataChecks {
   userDataId: string;
@@ -202,10 +203,26 @@ export class UserDataService {
     } else if (
       [KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_ONLINE_ID].includes(userData?.kycStatus)
     ) {
+      const kycDocumentTye =
+        userData?.kycStatus === KycStatus.WAIT_CHAT_BOT
+          ? KycDocument.CHATBOT
+          : userData?.kycStatus === KycStatus.WAIT_ONLINE_ID
+          ? KycDocument.ONLINE_IDENTIFICATION
+          : KycDocument.VIDEO_IDENTIFICATION;
+
+      // get all versions of all document types
+      const documentVersions = await this.kycApi.getDocumentVersion(userData.id, kycDocumentTye);
+      const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
+
+      if (isCompleted) await this.finishChatBot(userData);
+
       const documentType =
         userData?.kycStatus === KycStatus.WAIT_CHAT_BOT
           ? KycDocument.INITIATE_CHATBOT_IDENTIFICATION
+          : userData?.kycStatus === KycStatus.WAIT_ONLINE_ID
+          ? KycDocument.INITIATE_ONLINE_IDENTIFICATION
           : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
+
       return userData.kycState === KycState.FAILED
         ? this.initiateIdentification(userData, false, documentType)
         : userData.spiderData.url;
@@ -227,7 +244,8 @@ export class UserDataService {
       identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION
         ? initiateData.sessionUrl + '&nc=true'
         : initiateData.sessionUrl;
-    spiderData.version = initiateData.locators[0].version;
+    if (identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION)
+      spiderData.version = initiateData.locators[0].version;
     await this.spiderDataRepo.save(spiderData);
 
     // update user data
@@ -331,6 +349,39 @@ export class UserDataService {
         );
       }
     }
+  }
+
+  public async finishChatBot(userData: UserData): Promise<UserData> {
+    userData.riskState = await this.kycApi.doCheckResult(userData.id);
+    const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
+
+    if (spiderData) {
+      const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
+        userData.id,
+        KycDocument.CHATBOT_ONBOARDING,
+        spiderData.version,
+      );
+
+      // store chatbot result
+      spiderData.result = JSON.stringify(chatBotResult);
+      await this.spiderDataRepo.save(spiderData);
+
+      // update user data
+      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+      userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
+      userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
+      userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+    }
+    await this.userDataRepo.save(userData);
+
+    const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
+    vipUser
+      ? await this.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION)
+      : await this.initiateIdentification(userData, false, KycDocument.INITIATE_ONLINE_IDENTIFICATION);
+    userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
+
+
+    return userData;
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {

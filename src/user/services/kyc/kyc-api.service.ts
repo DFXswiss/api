@@ -391,4 +391,5 @@ export class KycApiService {
 
     return key;
   }
+  
 }

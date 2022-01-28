@@ -5,9 +5,6 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
-import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
-import { UserRepository } from 'src/user/models/user/user.repository';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { UserDataService } from 'src/user/models/userData/userData.service';
 
@@ -15,11 +12,9 @@ import { UserDataService } from 'src/user/models/userData/userData.service';
 export class KycSchedulerService {
   constructor(
     private mailService: MailService,
-    private userRepo: UserRepository,
     private userDataRepo: UserDataRepository,
     private userDataService: UserDataService,
     private kycApi: KycApiService,
-    private spiderDataRepo: SpiderDataRepository,
     private settingService: SettingService,
   ) {}
 
@@ -70,39 +65,13 @@ export class KycSchedulerService {
 
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
-      userData.riskState = await this.kycApi.doCheckResult(userData.id);
-      const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
-
-      if (spiderData) {
-        const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
-          userData.id,
-          KycDocument.CHATBOT_ONBOARDING,
-          spiderData.version,
-        );
-
-        // store chatbot result
-        spiderData.result = JSON.stringify(chatBotResult);
-        await this.spiderDataRepo.save(spiderData);
-
-        // update user data
-        const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
-        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
-      }
-      await this.userDataRepo.save(userData);
-
-      const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
-      vipUser
-        ? await this.userDataService.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION)
-        : await this.userDataService.initiateIdentification(
-            userData,
-            false,
-            KycDocument.INITIATE_ONLINE_IDENTIFICATION,
-          );
-      userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
-
-      return userData;
+      const updateUserData = await this.userDataService.finishChatBot(userData);
+      await this.mailService.sendChatBotMail(
+        updateUserData.firstname,
+        updateUserData.mail,
+        updateUserData.language?.symbol?.toLowerCase(),
+      );
+      return updateUserData;
     });
   }
 
