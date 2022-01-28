@@ -1,12 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateSellDto } from 'src/user/models/sell/dto/create-sell.dto';
-import { UpdateSellDto } from 'src/user/models/sell/dto/update-sell.dto';
-import { SellRepository } from 'src/user/models/sell/sell.repository';
+import { CreateSellDto } from 'src/payment/models/sell/dto/create-sell.dto';
+import { UpdateSellDto } from 'src/payment/models/sell/dto/update-sell.dto';
+import { SellRepository } from 'src/payment/models/sell/sell.repository';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { UserService } from '../user/user.service';
+import { UserService } from '../../../user/models/user/user.service';
 import { Sell } from './sell.entity';
 import { DepositService } from '../deposit/deposit.service';
-import { User } from '../user/user.entity';
+import { User } from '../../../user/models/user/user.entity';
+import { StakingService } from '../staking/staking.service';
 
 @Injectable()
 export class SellService {
@@ -15,6 +16,7 @@ export class SellService {
     private readonly fiatService: FiatService,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
+    private readonly stakingService: StakingService,
   ) {}
 
   async getSellForAddress(depositAddress: string): Promise<Sell> {
@@ -26,14 +28,7 @@ export class SellService {
       .getOne();
   }
 
-  async getSell(id: number, userId: number): Promise<Sell> {
-    const sell = await this.sellRepo.findOne({ where: { id, user: { id: userId } } });
-    if (!sell) throw new NotFoundException('No matching sell route for id found');
-
-    return sell;
-  }
-
-  async getAllSell(userId: number): Promise<Sell[]> {
+  async getUserSells(userId: number): Promise<Sell[]> {
     return this.sellRepo.find({ user: { id: userId } });
   }
 
@@ -75,5 +70,16 @@ export class SellService {
 
   async updateVolume(sellId: number, volume: number): Promise<void> {
     await this.sellRepo.update(sellId, { volume });
+  }
+
+  async getUserSellsInUse(userId: number): Promise<number[]> {
+    const stakingRoutes = await this.stakingService.getUserStaking(userId);
+    return stakingRoutes
+      .map((s) => [
+        s.deposit?.id === s.paybackDeposit?.id ? undefined : s.paybackDeposit?.id,
+        s.deposit?.id === s.rewardDeposit?.id ? undefined : s.rewardDeposit?.id,
+      ])
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((id) => id);
   }
 }

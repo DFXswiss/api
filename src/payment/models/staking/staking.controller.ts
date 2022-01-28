@@ -24,8 +24,8 @@ export class StakingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllStaking(@GetJwt() jwt: JwtPayload): Promise<StakingDto[]> {
     return this.stakingService
-      .getAllStaking(jwt.id)
-      .then((l) => Promise.all(l.map((s) => this.stakingService.toDto(s))));
+      .getUserStaking(jwt.id)
+      .then((l) => this.stakingService.toDtoList(l));
   }
 
   @Get('balance')

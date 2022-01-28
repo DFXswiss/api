@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
-import { Sell } from 'src/user/models/sell/sell.entity';
+import { Sell } from 'src/payment/models/sell/sell.entity';
 import { Log } from 'src/user/models/log/log.entity';
 import { User } from 'src/user/models/user/user.entity';
 

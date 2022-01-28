@@ -1,7 +1,7 @@
 import { ManyToOne, ChildEntity } from 'typeorm';
-import { DepositRoute } from '../deposit/deposit-route.entity';
+import { DepositRoute } from '../route/deposit-route.entity';
 import { Deposit } from '../deposit/deposit.entity';
-import { User } from '../user/user.entity';
+import { User } from '../../../user/models/user/user.entity';
 
 @ChildEntity()
 export class Staking extends DepositRoute {

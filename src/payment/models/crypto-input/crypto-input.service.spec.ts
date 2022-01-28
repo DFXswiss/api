@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService } from 'src/ain/node/node.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { SellService } from 'src/user/models/sell/sell.service';
+import { SellService } from 'src/payment/models/sell/sell.service';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { CryptoInputService } from './crypto-input.service';
 import { createMock } from '@golevelup/ts-jest';
@@ -10,7 +10,7 @@ import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/bloc
 import { CryptoInput } from './crypto-input.entity';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BigNumber } from '@defichain/jellyfish-json';
-import { StakingService } from 'src/user/models/staking/staking.service';
+import { StakingService } from 'src/payment/models/staking/staking.service';
 
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
