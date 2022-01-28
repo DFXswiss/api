@@ -97,7 +97,7 @@ export class KycSchedulerService {
   ): Promise<void> {
     const userDataList = await this.userDataRepo.find({
       where: { kycStatus: currentStatus },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'],
+      relations: ['country', 'organizationCountry', 'spiderData'],
     });
     for (const key in userDataList) {
       try {
