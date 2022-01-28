@@ -29,11 +29,11 @@
     "mailRefreshToken": {
       "value": "xxx"
     },
+    "kycMandator": {
+      "value": "dfx_test"
+    },
     "kycPassword": {
       "value": "xxx"
-    },
-    "kycPrefix": {
-      "value": "test_"
     },
     "githubToken": {
       "value": "xxx"
