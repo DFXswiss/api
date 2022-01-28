@@ -18,7 +18,7 @@ export class KycSchedulerService {
     private settingService: SettingService,
   ) {}
 
-  @Interval(10000)
+  @Interval(300000)
   async doChecks() {
     try {
       await this.doChatBotCheck();
