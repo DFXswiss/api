@@ -131,24 +131,17 @@ export class KycSchedulerService {
               false,
               KycDocument.INITIATE_VIDEO_IDENTIFICATION,
             );
+            await this.mailService.sendOnlineFailedMail(
+              customer.names[0].firstName,
+              customer.emails[0],
+              userDataList[key]?.language?.symbol?.toLocaleLowerCase(),
+            );
+
             console.log(
               `KYC change: Changed status of user ${userDataList[key].id} from status ${userDataList[key].kycStatus} to ${KycStatus.WAIT_VIDEO_ID}`,
             );
             userDataList[key].kycStatus = KycStatus.WAIT_VIDEO_ID;
             userDataList[key].kycState = KycState.NA;
-          } else if (
-            userDataList[key].kycStatus === KycStatus.WAIT_VIDEO_ID &&
-            userDataList[key].kycState != KycState.RETRIED
-          ) {
-            await this.userDataService.initiateIdentification(
-              userDataList[key],
-              false,
-              KycDocument.INITIATE_VIDEO_IDENTIFICATION,
-            );
-            console.log(
-              `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.RETRIED}`,
-            );
-            userDataList[key].kycState = KycState.RETRIED;
           } else {
             await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
             console.log(

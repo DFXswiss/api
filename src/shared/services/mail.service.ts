@@ -58,8 +58,19 @@ export class MailService {
     <p>Um die Online Identifikation zu starten, klicke KYC fortsetzen auf der Payment Seite. (Kaufen & Verkaufen)</p>`
         : `<p>you have finished the first step of your verification.</p>
       <p>To continue with online identification you have to click continue KYC on payment page. (Buy & Sell)</p>`;
+    const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Finished chatbot';
+    await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
+  }
 
-    await this.sendMail(mail, `Hi ${firstName}`, 'Finished Chatbot', htmlBody);
+  async sendOnlineFailedMail(firstName: string, mail: string, language: string): Promise<void> {
+    const htmlBody =
+      language === 'de'
+        ? `<p>deine Online Identifikation ist fehlgeschlagen.</p>
+    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment Seite. (Kaufen & Verkaufen)</p>`
+        : `<p>your online identification failed.</p>
+      <p>We activated video identification. To start you have to click continue KYC on payment page. (Buy & Sell)</p>`;
+    const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
+    await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
   async sendSupportFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
