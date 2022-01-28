@@ -129,6 +129,9 @@ export class KycApiService {
 
   async submitContractLinkedList(id: number, user: UserInfo): Promise<SubmitResponse[]> {
     let organization = {};
+    const preferredLanguage = ['es', 'pt'].includes(user.language?.symbol?.toLowerCase())
+      ? 'en'
+      : user.language?.symbol?.toLowerCase();
     const person = {
       contractReference: user.accountType === AccountType.PERSONAL ? null : this.reference(id) + '_placeholder',
       customer: {
@@ -148,7 +151,7 @@ export class KycApiService {
             countryCode: user.country?.symbol?.toUpperCase() ?? Config.defaultCountry,
           },
         ],
-        preferredLanguage: user.language?.symbol?.toLowerCase() ?? Config.defaultLanguage,
+        preferredLanguage: preferredLanguage ?? Config.defaultLanguage,
         activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
       },
       relationTypes:
