@@ -3,11 +3,22 @@ import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Details, UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
+import { HttpService } from './shared/services/http.service';
+import { SettingService } from './shared/setting/setting.service';
 import { RefService } from './user/models/referral/ref.service';
+import { AnnouncementDto } from './dto/announcement.dto';
+import { FlagDto } from './dto/flag.dto';
 
 @Controller('')
 export class AppController {
-  constructor(private readonly refService: RefService) {}
+  private readonly baseUrl = 'https://wallet.defichain.com/api/v0';
+
+  constructor(
+    private readonly refService: RefService,
+    private readonly httpService: HttpService,
+    private readonly settingService: SettingService,
+  ) {}
+
   @Get()
   @Redirect('api')
   @ApiExcludeEndpoint()
@@ -37,5 +48,20 @@ export class AppController {
 
   private getAgentDetails(req: Request): Details {
     return new UserAgent().parse(req.headers['user-agent'] ?? '');
+  }
+
+  @Get('app/announcements')
+  @ApiExcludeEndpoint()
+  async getAnnouncements(): Promise<AnnouncementDto[]> {
+    return Promise.all([
+      this.settingService.get('announcements').then((a) => (a ? JSON.parse(a) : [])),
+      // this.httpService.get<AnnouncementDto[]>(`${this.baseUrl}/announcements`),
+    ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
+  }
+
+  @Get('app/settings/flags')
+  @ApiExcludeEndpoint()
+  async getFlags(): Promise<FlagDto[]> {
+    return this.httpService.get(`${this.baseUrl}/settings/flags`);
   }
 }
