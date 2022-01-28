@@ -179,7 +179,9 @@ export class KycApiService {
             countryCode: user.country?.symbol?.toUpperCase() ?? Config.defaultCountry,
           },
         ],
-        preferredLanguage: user.language?.symbol?.toLowerCase() ?? Config.defaultLanguage,
+        preferredLanguage: ['es', 'pt'].includes(user.language?.symbol?.toLowerCase())
+          ? 'en'
+          : user.language?.symbol?.toLowerCase() ?? Config.defaultLanguage,
         activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
       },
       relationTypes:
