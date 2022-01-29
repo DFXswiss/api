@@ -11,7 +11,6 @@ import { Util } from 'src/shared/util';
 import { CryptoSellRepository } from '../crypto-sell/crypto-sell.repository';
 import { SellService } from '../sell/sell.service';
 import { RouteType } from '../route/deposit-route.entity';
-import { SellRepository } from '../sell/sell.repository';
 
 @Injectable()
 export class TransactionService {
@@ -40,6 +39,8 @@ export class TransactionService {
   }
 
   // --- HELPER METHODS --- //
+
+  // DFX
   private async getBuyTransactions(userId: number): Promise<TransactionDto[]> {
     const buys = await this.buyService.getUserBuys(userId);
     const cryptoBuys = await this.cryptoBuyRepo.find({
@@ -133,6 +134,7 @@ export class TransactionService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  // DFI Tax
   private async getDFITaxRewards(userAddress: string): Promise<TransactionDto[]> {
     const rewards = await this.getRewards(userAddress);
     return rewards.map((reward) => ({
@@ -156,6 +158,7 @@ export class TransactionService {
     }));
   }
 
+  // Export
   private toCsv(list: any[], separator = ','): string {
     const headers = Object.keys(list[0]).join(separator);
     const values = list.map((t) => Object.values(t).join(separator));
