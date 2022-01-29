@@ -10,9 +10,8 @@ export class StatisticService {
   constructor(
     private buyService: BuyService,
     private sellService: SellService,
-    private settingService: SettingService,
-  ) //private stakingService: StakingService,
-  {}
+    private settingService: SettingService, //private stakingService: StakingService,
+  ) {}
 
   async getStatus(): Promise<any> {
     const settings = await this.settingService.getAll();
@@ -28,7 +27,7 @@ export class StatisticService {
         sell: await this.sellService.getTotalVolume(),
       },
       status: await this.getStatus(),
-      //staking: await this.stakingService.getStakingYield(),
+      //TODO staking: await this.stakingService.getStakingYield(),
     };
   }
 }
