@@ -6,8 +6,15 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserService } from 'src/user/models/user/user.service';
+import { In } from 'typeorm';
+import { Deposit } from '../deposit/deposit.entity';
+import { StakingDto } from '../staking/dto/staking.dto';
+import { Staking } from '../staking/staking.entity';
+import { StakingRepository } from '../staking/staking.repository';
+import { StakingService } from '../staking/staking.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
+import { BuyType } from './dto/buy-type.enum';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
@@ -15,7 +22,12 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 @ApiTags('buy')
 @Controller('buy')
 export class BuyController {
-  constructor(private readonly buyService: BuyService, private readonly userService: UserService) {}
+  constructor(
+    private readonly buyService: BuyService,
+    private readonly userService: UserService,
+    private readonly stakingRepo: StakingRepository,
+    private readonly stakingService: StakingService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -41,15 +53,33 @@ export class BuyController {
   // --- DTO --- //
   private async toDtoList(userId: number, buys: Buy[]): Promise<BuyDto[]> {
     const fees = await this.getFees(userId);
-    return buys.map((b) => ({ ...b, ...fees }));
+    const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
+    return Promise.all(buys.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
   }
 
-  private async toDto(userId: number, buy: Buy): Promise<BuyDto> {
-    const fees = await this.getFees(userId);
+  private async toDto(
+    userId: number,
+    buy: Buy,
+    fees?: { fee: number; refBonus: number },
+    stakingRoutes?: Staking[],
+  ): Promise<BuyDto> {
+    fees ??= await this.getFees(userId);
     return {
+      type: buy.asset != null ? BuyType.WALLET : BuyType.STAKING,
       ...buy,
+      staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fees,
     };
+  }
+
+  private async getStaking(userId: number, deposit?: Deposit, stakingRoutes?: Staking[]): Promise<StakingDto | undefined> {
+    if (deposit == null) return undefined;
+
+    return this.stakingService.toDto(userId, 
+      stakingRoutes
+        ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
+        : await this.stakingRepo.findOne({ where: { deposit: deposit.id } }),
+    );
   }
 
   async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {

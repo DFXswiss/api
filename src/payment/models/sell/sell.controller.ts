@@ -38,16 +38,16 @@ export class SellController {
   }
 
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
-    const sellRoutesInUse = await this.sellService.getUserSellsInUse(userId);
-    return Promise.all(sell.map((s) => this.toDto(userId, s, sellRoutesInUse)));
+    const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
+    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse)));
   }
 
-  private async toDto(userId: number, sell: Sell, sellRoutesInUse?: number[]): Promise<SellDto> {
-    sellRoutesInUse ??= await this.sellService.getUserSellsInUse(userId);
+  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[]): Promise<SellDto> {
+    sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
     return {
       ...sell,
       fee: 2.9,
-      isInUse: sellRoutesInUse.includes(sell.deposit.id),
+      isInUse: sellDepositsInUse.includes(sell.deposit.id),
     };
   }
 }

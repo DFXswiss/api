@@ -7,6 +7,7 @@ import { AmlCheck, CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
+import { Between, Not } from 'typeorm';
 
 @Injectable()
 export class CryptoBuyService {
@@ -33,6 +34,12 @@ export class CryptoBuyService {
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+    const bankTxWithOtherBuy = dto.bankTxId
+      ? await this.cryptoBuyRepo.findOne({
+          where: { id: Not(id), bankTx: { id: dto.bankTxId } },
+        })
+      : null;
+    if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
 
     const buyIdBefore = entity.buy?.id;
     const usedRefBefore = entity.usedRef;
@@ -91,7 +98,7 @@ export class CryptoBuyService {
     for (const id of buyIds) {
       const { volume } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
-        .select('SUM(amount)', 'volume')
+        .select('SUM(amountInEur)', 'volume')
         .where('buyId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();
@@ -99,7 +106,7 @@ export class CryptoBuyService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
-        .select('SUM(amount)', 'annualVolume')
+        .select('SUM(amountInEur)', 'annualVolume')
         .where('buyId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .andWhere('inputDate >= :year', { year: newYear })
@@ -115,13 +122,34 @@ export class CryptoBuyService {
     for (const ref of refs) {
       const { volume, credit } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
-        .select('SUM(amount * refFactor)', 'volume')
-        .addSelect('SUM(amount * refFactor * refProvision * 0.01)', 'credit')
+        .select('SUM(amountInEur * refFactor)', 'volume')
+        .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
         .where('usedRef = :ref', { ref })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number; credit: number }>();
 
       await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
     }
+  }
+
+  async getTransactions(
+    dateFrom?: Date,
+    dateTo?: Date,
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
+    if (!dateTo) dateTo = new Date();
+
+    const cryptoBuy = await this.cryptoBuyRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+      relations: ['buy'],
+    });
+
+    return cryptoBuy.map((v) => ({
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.buy?.asset?.name,
+    }));
   }
 }

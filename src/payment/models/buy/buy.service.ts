@@ -9,10 +9,16 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Not } from 'typeorm';
 import { User } from '../../../user/models/user/user.entity';
 import { Util } from 'src/shared/util';
+import { StakingService } from '../staking/staking.service';
+import { BuyType } from './dto/buy-type.enum';
 
 @Injectable()
 export class BuyService {
-  constructor(private readonly buyRepo: BuyRepository, private readonly assetService: AssetService) {}
+  constructor(
+    private readonly buyRepo: BuyRepository,
+    private readonly assetService: AssetService,
+    private readonly stakingService: StakingService,
+  ) {}
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
@@ -33,26 +39,42 @@ export class BuyService {
       .getRawOne<{ volume: number; annualVolume: number }>();
   }
 
+  async getTotalVolume(): Promise<number> {
+    return this.buyRepo
+      .createQueryBuilder('buy')
+      .select('SUM(volume)', 'volume')
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume);
+  }
+
   // --- BUYS --- //
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
     // check asset
-    const asset = await this.assetService.getAsset(dto.asset.id);
-    if (!asset) throw new NotFoundException('No asset for id found');
+    const asset = dto.type === BuyType.WALLET ? await this.assetService.getAsset(dto.asset.id) : null;
+    if (dto.type === BuyType.WALLET && !asset) throw new NotFoundException('No asset for id found');
+
+    // check staking
+    const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
+    if (dto.type === BuyType.STAKING && !staking) throw new NotFoundException('No staking for id found');
 
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
 
     // check if exists
-    const existing = await this.buyRepo.findOne({ where: { iban: dto.iban, asset: asset, user: { id: userId } } });
-    if (existing) throw new ConflictException('Sell route already exists');
+    const existing = await this.buyRepo.findOne({
+      where: { iban: dto.iban, asset: asset, deposit: staking?.deposit, user: { id: userId } },
+    });
+    if (existing) throw new ConflictException('Buy route already exists');
 
     // create the entity
     const buy = this.buyRepo.create(dto);
     buy.user = { id: userId } as User;
+    buy.asset = asset;
+    buy.deposit = staking?.deposit ?? null;
 
     // create hash
     const hash = createHash('sha256');
-    hash.update(userAddress + asset.name + buy.iban);
+    hash.update(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban);
     const hexHash = hash.digest('hex').toUpperCase();
     buy.bankUsage = `${hexHash.slice(0, 4)}-${hexHash.slice(4, 8)}-${hexHash.slice(8, 12)}`;
 

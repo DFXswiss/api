@@ -33,12 +33,16 @@ import { StakingController } from './models/staking/staking.controller';
 import { StakingRepository } from './models/staking/staking.repository';
 import { StakingService } from './models/staking/staking.service';
 import { RouteController } from './models/route/route.controller';
+import { CryptoSellRepository } from './models/crypto-sell/crypto-sell.repository';
+import { CryptoSellController } from './models/crypto-sell/crypto-sell.controller';
+import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       CryptoInputRepository,
       CryptoBuyRepository,
+      CryptoSellRepository,
       BankTxRepository,
       BankTxBatchRepository,
       BuyRepository,
@@ -55,6 +59,7 @@ import { RouteController } from './models/route/route.controller';
     BankController,
     ExchangeController,
     CryptoBuyController,
+    CryptoSellController,
     TransactionController,
     RouteController,
     BuyController,
@@ -65,6 +70,7 @@ import { RouteController } from './models/route/route.controller';
   providers: [
     CryptoInputService,
     CryptoBuyService,
+    CryptoSellService,
     BankTxService,
     BankService,
     KrakenService,
@@ -79,6 +85,6 @@ import { RouteController } from './models/route/route.controller';
     SellController,
     StakingController,
   ],
-  exports: [BuyService, SellService],
+  exports: [BuyService, SellService, StakingService, CryptoBuyService, CryptoSellService],
 })
 export class PaymentModule {}

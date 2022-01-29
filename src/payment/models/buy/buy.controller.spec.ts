@@ -5,12 +5,16 @@ import { BuyController } from './buy.controller';
 import { UserService } from 'src/user/models/user/user.service';
 import { User } from 'src/user/models/user/user.entity';
 import { TestSharedModule } from 'src/shared/test.shared.module';
+import { StakingRepository } from '../staking/staking.repository';
+import { StakingService } from '../staking/staking.service';
 
 describe('BuyController', () => {
   let controller: BuyController;
-  
+
   let buyService: BuyService;
   let userService: UserService;
+  let stakingRepo: StakingRepository;
+  let stakingService: StakingService;
 
   function setup(volume: number, refUser?: Partial<User>) {
     jest.spyOn(buyService, 'getUserVolume').mockResolvedValueOnce({ volume: 0, annualVolume: volume });
@@ -20,6 +24,8 @@ describe('BuyController', () => {
   beforeEach(async () => {
     buyService = createMock<BuyService>();
     userService = createMock<UserService>();
+    stakingRepo = createMock<StakingRepository>();
+    stakingService = createMock<StakingService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -27,6 +33,8 @@ describe('BuyController', () => {
         BuyController,
         { provide: BuyService, useValue: buyService },
         { provide: UserService, useValue: userService },
+        { provide: StakingRepository, useValue: stakingRepo },
+        { provide: StakingService, useValue: stakingService },
       ],
     }).compile();
 

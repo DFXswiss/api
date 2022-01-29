@@ -6,7 +6,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
-import { TransactionDto } from './dto/transaction.dto';
+import { CoinTrackingTransactionDto, TransactionDto } from './dto/transaction.dto';
 import { TransactionService } from './transaction.service';
 
 @ApiTags('transaction')
@@ -19,15 +19,17 @@ export class TransactionController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getTransactions(@GetJwt() jwt: JwtPayload): Promise<TransactionDto[]> {
-    return this.transactionService.getTransactions(jwt.id);
+  async getTransactions(@GetJwt() jwt: JwtPayload): Promise<TransactionDto[] | CoinTrackingTransactionDto[]> {
+    const tx = await this.transactionService.getTransactions(jwt.id, jwt.address);
+    // return jwt.role === UserRole.CT ? tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } })) : tx;
+    return tx;
   }
 
   @Post('csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async createCsv(@GetJwt() jwt: JwtPayload): Promise<number> {
-    const csvFile = await this.transactionService.getTransactionCsv(jwt.id);
+    const csvFile = await this.transactionService.getTransactionCsv(jwt.id, jwt.address);
     const fileKey = Util.randomId();
     this.files[fileKey] = new StreamableFile(csvFile);
 
@@ -43,7 +45,7 @@ export class TransactionController {
 
     res.set({
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename="history_${this.formatDate()}.csv"`,
+      'Content-Disposition': `attachment; filename="DFX_history_${this.formatDate()}.csv"`,
     });
     return csvFile;
   }

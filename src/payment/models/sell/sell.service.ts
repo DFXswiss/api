@@ -71,7 +71,15 @@ export class SellService {
     await this.sellRepo.update(sellId, { volume });
   }
 
-  async getUserSellsInUse(userId: number): Promise<number[]> {
+  async getTotalVolume(): Promise<number> {
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .select('SUM(volume)', 'volume')
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume);
+  }
+
+  async getUserSellDepositsInUse(userId: number): Promise<number[]> {
     const stakingRoutes = await this.stakingService.getUserStaking(userId);
     return stakingRoutes
       .filter((s) => s.active)
