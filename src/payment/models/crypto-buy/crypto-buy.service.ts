@@ -91,7 +91,7 @@ export class CryptoBuyService {
     for (const id of buyIds) {
       const { volume } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
-        .select('SUM(amount)', 'volume')
+        .select('SUM(amountInEur)', 'volume')
         .where('buyId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();
@@ -99,7 +99,7 @@ export class CryptoBuyService {
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
-        .select('SUM(amount)', 'annualVolume')
+        .select('SUM(amountInEur)', 'annualVolume')
         .where('buyId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .andWhere('inputDate >= :year', { year: newYear })
@@ -115,8 +115,8 @@ export class CryptoBuyService {
     for (const ref of refs) {
       const { volume, credit } = await this.cryptoBuyRepo
         .createQueryBuilder('cryptoBuy')
-        .select('SUM(amount * refFactor)', 'volume')
-        .addSelect('SUM(amount * refFactor * refProvision * 0.01)', 'credit')
+        .select('SUM(amountInEur * refFactor)', 'volume')
+        .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
         .where('usedRef = :ref', { ref })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number; credit: number }>();
