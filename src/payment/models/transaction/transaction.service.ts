@@ -8,19 +8,25 @@ import { TransactionDto } from './dto/transaction.dto';
 import { HttpService } from 'src/shared/services/http.service';
 import { Reward } from './dto/reward';
 import { Util } from 'src/shared/util';
+import { CryptoSellRepository } from '../crypto-sell/crypto-sell.repository';
+import { SellService } from '../sell/sell.service';
+import { RouteType } from '../route/deposit-route.entity';
+import { SellRepository } from '../sell/sell.repository';
 
 @Injectable()
 export class TransactionService {
   constructor(
     private readonly buyService: BuyService,
+    private readonly sellService: SellService,
     private readonly cryptoBuyRepo: CryptoBuyRepository,
+    private readonly cryptoSellRepo: CryptoSellRepository,
     private readonly http: HttpService,
   ) {}
 
   async getTransactions(userId: number, userAddress: string): Promise<TransactionDto[]> {
     const tx = await Promise.all([
       await this.getBuyTransactions(userId),
-      // this.getSellTransactions(userId),
+      await this.getSellTransactions(userId),
       // await this.getDFITaxRewards(userAddress),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
@@ -79,50 +85,53 @@ export class TransactionService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  // private async getSellTransactions(userId: number): Promise<TransactionDto[]> {
-  //   const sells = await this.sellService.getUserSells(userId);
-  //   const cryptoSells = await this.cryptoSellRepo.find({
-  //     where: { cryptoInput: { route: { id: In(sells.map((b) => b.id)) }}, amlCheck: AmlCheck.PASS },
-  //     relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],
-  //   });
+  private async getSellTransactions(userId: number): Promise<TransactionDto[]> {
+    const sells = await this.sellService.getUserSells(userId);
+    const cryptoSells = await this.cryptoSellRepo.find({
+      where: {
+        cryptoInput: { route: { id: In(sells.map((b) => b.id)), type: RouteType.SELL } },
+        amlCheck: AmlCheck.PASS,
+      },
+      relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],
+    });
 
-  //   return cryptoSells
-  //     .map((c) => [
-  //       {
-  //         type: 'Trade',
-  //         buyAmount: c.outputAmount,
-  //         buyAsset: c.cryptoInput.route.fiat?.name,
-  //         sellAmount: c.cryptoInput.amount,
-  //         sellAsset: c.cryptoInput.asset?.name,
-  //         fee: c.fee ? c.fee * c.cryptoInput.amount : null,
-  //         feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
-  //         exchange: 'DFX',
-  //         tradeGroup: null,
-  //         comment: c.cryptoInput.route.user.address,
-  //         date: c.cryptoInput.created
-  //         txid: c.cryptoInput.inTxId,
-  //         buyValueInEur: null,
-  //         sellValueInEur: null,
-  //       },
-  //       {
-  //         type: 'Withdrawal',
-  //         buyAmount: null,
-  //         buyAsset: null,
-  //         sellAmount: c.outputAmount,
-  //         sellAsset: c.cryptoInput.route.fiat?.name,
-  //         fee: c.fee ? c.fee * c.cryptoInput.amount : null,
-  //         feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
-  //         exchange: 'DFX',
-  //         tradeGroup: null,
-  //         comment: c.bankTx.iban,
-  //         date: c.outputDate ? c.outputDate : null,
-  //         txid: c.bankTx.txid,
-  //         buyValueInEur: null,
-  //         sellValueInEur: null,
-  //       },
-  //     ])
-  //     .reduce((prev, curr) => prev.concat(curr), []);
-  // }
+    return cryptoSells
+      .map((c) => [
+        {
+          type: 'Trade',
+          buyAmount: c.outputAmount,
+          buyAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
+          sellAmount: c.cryptoInput.amount,
+          sellAsset: c.cryptoInput.asset?.name,
+          fee: c.fee ? c.fee * c.cryptoInput.amount : null,
+          feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: c.cryptoInput.route.user.address,
+          date: c.cryptoInput.created,
+          txid: c.cryptoInput.inTxId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+        {
+          type: 'Withdrawal',
+          buyAmount: null,
+          buyAsset: null,
+          sellAmount: c.outputAmount,
+          sellAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
+          fee: c.fee ? c.fee * c.cryptoInput.amount : null,
+          feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: c.bankTx?.iban,
+          date: c.outputDate ? c.outputDate : null,
+          txid: c.bankTx?.txId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
 
   private async getDFITaxRewards(userAddress: string): Promise<TransactionDto[]> {
     const rewards = await this.getRewards(userAddress);
@@ -156,7 +165,6 @@ export class TransactionService {
   private createRandomDate(outputDate: Date, offset: number, amount: number): Date {
     return new Date(outputDate.getTime() + (offset - (amount % 10)) * 60 * 1000);
   }
-
   private async getRewards(userAddress: string): Promise<Reward[]> {
     const baseUrl = 'https://api.dfi.tax/v01/rwd';
     const url = `${baseUrl}/${userAddress}/d/true/EUR`;
