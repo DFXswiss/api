@@ -15,6 +15,7 @@ import { UserDataService } from 'src/user/models/userData/userData.service';
 import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { BuyRepository } from '../buy/buy.repository';
 
 @Injectable()
 export class StakingService {
@@ -25,6 +26,7 @@ export class StakingService {
     private readonly userDataService: UserDataService,
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly assetService: AssetService,
+    private readonly buyRepo: BuyRepository,
   ) {}
 
   async getStakingForAddress(depositAddress: string): Promise<Staking> {
@@ -103,22 +105,38 @@ export class StakingService {
     return this.stakingRepo.find({ select: ['id'] }).then((results) => results.map((r) => r.id));
   }
 
+  async getUserStakingDepositsInUse(userId: number): Promise<number[]> {
+    const buyRoutes = await this.buyRepo.find({ user: { id: userId } });
+    return buyRoutes
+      .filter((s) => s.active)
+      .map((s) => s.deposit?.id)
+      .filter((id) => id);
+  }
+
   // --- DTO --- //
-  async toDtoList(staking: Staking[]): Promise<StakingDto[]> {
+  async toDtoList(userId: number, staking: Staking[]): Promise<StakingDto[]> {
     const depositIds = staking
       .map((s) => [s.rewardDeposit?.id, s.paybackDeposit?.id])
       .reduce((prev, curr) => prev.concat(curr), [])
       .filter((id) => id);
-
     const sellRoutes = await this.sellRepo.find({ where: { deposit: { id: In(depositIds) } }, relations: ['deposit'] });
 
-    return Promise.all(staking.map((s) => this.toDto(s, sellRoutes)));
+    const stakingDepositsInUse = await this.getUserStakingDepositsInUse(userId);
+
+    return Promise.all(staking.map((s) => this.toDto(userId, s, sellRoutes, stakingDepositsInUse)));
   }
 
-  async toDto(staking: Staking, sellRoutes?: Sell[]): Promise<StakingDto> {
+  async toDto(
+    userId: number,
+    staking: Staking,
+    sellRoutes?: Sell[],
+    stakingDepositsInUse?: number[],
+  ): Promise<StakingDto> {
     const rewardType = this.getStakingType(staking.rewardDeposit?.id, staking.deposit.id);
     const paybackType = this.getStakingType(staking.paybackDeposit?.id, staking.deposit.id);
     const balance = await this.cryptoInputRepo.getStakingBalance(staking.id, new Date());
+
+    stakingDepositsInUse ??= await this.getUserStakingDepositsInUse(userId);
 
     return {
       id: staking.id,
@@ -131,7 +149,7 @@ export class StakingService {
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
       paybackAsset: staking.paybackAsset ?? undefined,
       balance,
-      isInUse: balance > 0,
+      isInUse: balance > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
     };
   }
 
