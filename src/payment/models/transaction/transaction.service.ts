@@ -80,10 +80,10 @@ export class TransactionService {
   }
 
   // private async getSellTransactions(userId: number): Promise<TransactionDto[]> {
-  //   const sells = await this.buyService.getUserBuys(userId);
-  //   const cryptoSells = await this.cryptoBuyRepo.find({
-  //     where: { buy: { id: In(sells.map((b) => b.id)) }, amlCheck: AmlCheck.PASS },
-  //     relations: ['bankTx', 'buy', 'buy.user'],
+  //   const sells = await this.sellService.getUserSells(userId);
+  //   const cryptoSells = await this.cryptoSellRepo.find({
+  //     where: { cryptoInput: { route: { id: In(sells.map((b) => b.id)) }}, amlCheck: AmlCheck.PASS },
+  //     relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],
   //   });
 
   //   return cryptoSells
@@ -91,16 +91,16 @@ export class TransactionService {
   //       {
   //         type: 'Trade',
   //         buyAmount: c.outputAmount,
-  //         buyAsset: c.buy.asset.name,
-  //         sellAmount: c.amount,
-  //         sellAsset: c.fiat?.name,
-  //         fee: c.fee ? c.fee * c.amount : null,
-  //         feeAsset: c.fee ? c.fiat?.name : null,
+  //         buyAsset: c.cryptoInput.route.fiat?.name,
+  //         sellAmount: c.cryptoInput.amount,
+  //         sellAsset: c.cryptoInput.asset?.name,
+  //         fee: c.fee ? c.fee * c.cryptoInput.amount : null,
+  //         feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
   //         exchange: 'DFX',
   //         tradeGroup: null,
-  //         comment: c.buy.user.address,
-  //         date: c.outputDate ? c.outputDate : null,
-  //         txid: c.txId,
+  //         comment: c.cryptoInput.route.user.address,
+  //         date: c.cryptoInput.created
+  //         txid: c.cryptoInput.inTxId,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
   //       },
@@ -108,15 +108,15 @@ export class TransactionService {
   //         type: 'Withdrawal',
   //         buyAmount: null,
   //         buyAsset: null,
-  //         sellAmount: c.amount,
-  //         sellAsset: c.fiat?.name,
-  //         fee: c.fee ? c.fee * c.amount : null,
-  //         feeAsset: c.fee ? c.fiat?.name : null,
+  //         sellAmount: c.outputAmount,
+  //         sellAsset: c.cryptoInput.route.fiat?.name,
+  //         fee: c.fee ? c.fee * c.cryptoInput.amount : null,
+  //         feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
   //         exchange: 'DFX',
   //         tradeGroup: null,
-  //         comment: c.buy.user.address,
-  //         date: c.outputDate ? this.createRandomDate(c.outputDate, 20, c.amount) : null,
-  //         txid: c.txId,
+  //         comment: c.bankTx.iban,
+  //         date: c.outputDate ? c.outputDate : null,
+  //         txid: c.bankTx.txid,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
   //       },
