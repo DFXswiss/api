@@ -79,6 +79,6 @@ import { RouteController } from './models/route/route.controller';
     SellController,
     StakingController,
   ],
-  exports: [BuyService, SellService],
+  exports: [BuyService, SellService, StakingService, CryptoBuyService],
 })
 export class PaymentModule {}

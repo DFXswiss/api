@@ -117,11 +117,7 @@ export class CryptoInputService {
         input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
 
       // TODO: switch on type (for Token)
-      const outTxId = await this.client.sendUtxo(
-        input.route.deposit.address,
-        targetAddress,
-        input.amount,
-      );
+      const outTxId = await this.client.sendUtxo(input.route.deposit.address, targetAddress, input.amount);
 
       // update out TX ID
       await this.cryptoInputRepo.update({ id: input.id }, { outTxId });

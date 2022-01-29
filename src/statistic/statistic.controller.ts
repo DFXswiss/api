@@ -1,12 +1,18 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { CryptoBuyService } from 'src/payment/models/crypto-buy/crypto-buy.service';
+import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { CfpResult, CfpService, MasterNode } from 'src/statistic/cfp.service';
 import { StatisticService } from './statistic.service';
 
 @ApiTags('statistic')
 @Controller('statistic')
 export class StatisticController {
-  constructor(private readonly statisticService: StatisticService, private readonly cfpService: CfpService) {}
+  constructor(
+    private readonly statisticService: StatisticService,
+    private readonly cfpService: CfpService,
+    private readonly cryptoBuyService: CryptoBuyService,
+  ) {}
 
   @Get()
   async getAll(): Promise<any> {
@@ -18,9 +24,9 @@ export class StatisticController {
     return this.statisticService.getStatus();
   }
 
-  @Get('cfp/masterNodes')
-  async getMasterNodes(): Promise<MasterNode[]> {
-    return this.cfpService.getMasterNodes();
+  @Get('individualVolume')
+  async getVolume(@Query('dateFrom') dateFrom: Date, @Query('dateTo') dateTo: Date): Promise<any> {
+    return this.cryptoBuyService.getIndividualVolume(dateFrom, dateTo);
   }
 
   @Get('cfp')

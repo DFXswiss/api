@@ -1,19 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { LogService } from 'src/user/models/log/log.service';
-import { LogDirection, LogType } from 'src/user/models/log/log.entity';
-import { ConversionService } from 'src/shared/services/conversion.service';
 import { BuyService } from 'src/payment/models/buy/buy.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { SettingService } from 'src/shared/setting/setting.service';
+import { StakingService } from 'src/payment/models/staking/staking.service';
+import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 
 @Injectable()
 export class StatisticService {
   constructor(
     private buyService: BuyService,
     private sellService: SellService,
-    private logService: LogService,
-    private conversionService: ConversionService,
     private settingService: SettingService,
+    private stakingService: StakingService,
   ) {}
 
   async getStatus(): Promise<any> {
@@ -23,49 +21,20 @@ export class StatisticService {
       .reduce((prev, curr) => ({ ...prev, [curr.key.replace('Status', '')]: curr.value }), {});
   }
 
-  async getBuyRouteCount(): Promise<number> {
-    return this.buyService.count();
-  }
-
-  async getSellRouteCount(): Promise<number> {
-    return this.sellService.count();
-  }
-
-  async getRouteCount(): Promise<any> {
-    return {
-      buy: await this.getBuyRouteCount(),
-      sell: await this.getSellRouteCount(),
-    };
-  }
-
   async getAll(): Promise<any> {
     return {
-      dfxStatistic: {
-        routes: await this.getRouteCount(),
-        volume: {
-          DFI: {
-            buy: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.fiat2asset),
-            sell: await this.logService.getAssetVolume(LogType.VOLUME, LogDirection.asset2fiat),
-          },
-          EUR: {
-            buy: await this.conversionService.convertFiatCurrency(
-              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
-              'chf',
-              'eur',
-            ),
-            sell: await this.conversionService.convertFiatCurrency(
-              await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
-              'chf',
-              'eur',
-            ),
-          },
-          CHF: {
-            buy: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.fiat2asset),
-            sell: await this.logService.getChfVolume(LogType.VOLUME, LogDirection.asset2fiat),
-          },
+      volume: {
+        individual: {
+          buy: '',
+          sell: '',
         },
-        status: await this.getStatus(),
+        total: {
+          buy: await this.buyService.getTotalVolume(),
+          sell: await this.sellService.getTotalVolume(),
+        },
       },
+      status: await this.getStatus(),
+      staking: await this.stakingService.getStakingYield(),
     };
   }
 }

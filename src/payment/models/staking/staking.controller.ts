@@ -23,9 +23,7 @@ export class StakingController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllStaking(@GetJwt() jwt: JwtPayload): Promise<StakingDto[]> {
-    return this.stakingService
-      .getUserStaking(jwt.id)
-      .then((l) => this.stakingService.toDtoList(l));
+    return this.stakingService.getUserStaking(jwt.id).then((l) => this.stakingService.toDtoList(l));
   }
 
   @Get('balance')
@@ -36,7 +34,7 @@ export class StakingController {
     const stakingIds = await this.stakingService.getAllIds();
     return this.cryptoInputService.getAllStakingBalance(stakingIds, date);
   }
-
+  
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))

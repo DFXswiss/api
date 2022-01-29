@@ -7,6 +7,7 @@ import { AmlCheck, CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
+import { Between } from 'typeorm';
 
 @Injectable()
 export class CryptoBuyService {
@@ -123,5 +124,25 @@ export class CryptoBuyService {
 
       await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
     }
+  }
+
+  async getIndividualVolume(
+    dateFrom?: Date,
+    dateTo?: Date,
+  ): Promise<{ value: number; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
+    if (!dateTo) dateTo = new Date();
+
+    const cryptoBuy = await this.cryptoBuyRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+      relations: ['buy'],
+    });
+
+    return cryptoBuy.map((v) => ({
+      value: v.amount,
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.buy?.asset?.name,
+    }));
   }
 }

@@ -119,15 +119,6 @@ export class CfpService {
     }
   }
 
-  async getMasterNodes(): Promise<MasterNode[]> {
-    const response = await this.callApi<{ [key: string]: MasterNode }>(this.masterNodeUrl, ``);
-    return Object.values(response).map((n) => ({
-      ownerAuthAddress: n.ownerAuthAddress,
-      mintedBlocks: n.mintedBlocks,
-      state: n.state,
-    }));
-  }
-
   getCfpList(): string[] {
     return Object.keys(CfpResults).reverse();
   }
