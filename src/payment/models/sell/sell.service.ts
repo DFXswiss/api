@@ -72,9 +72,11 @@ export class SellService {
   }
 
   async getTotalVolume(): Promise<number> {
-    return (
-      await this.sellRepo.createQueryBuilder('sell').select('SUM(volume)', 'sell').getRawOne<{ volume: number }>()
-    )['sell'];
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .select('SUM(volume)', 'volume')
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume);
   }
 
   async getUserSellDepositsInUse(userId: number): Promise<number[]> {

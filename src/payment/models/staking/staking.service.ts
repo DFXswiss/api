@@ -17,6 +17,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { SettingService } from 'src/shared/setting/setting.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class StakingService {
@@ -182,16 +183,18 @@ export class StakingService {
     return (dfiRewards / dfiCollateral) * 365;
   }
 
-  private async getApy(dfiApr: number): Promise<number> {
+  private getApy(dfiApr: number): number {
     return Math.pow(1 + dfiApr / 365, 365) - 1;
   }
 
-  public async getStakingYield(): Promise<any> {
+  public async getStakingYield(): Promise<{ apr: number; apy: number }> {
     const lastDfiRewards = await this.settingService.get('stakingRewards');
     const lastDfiCollateral = await this.settingService.get('stakingCollateral');
+
+    const apr = await this.getApr(+lastDfiRewards, +lastDfiCollateral);
     return {
-      apr: (await this.getApr(+lastDfiRewards, +lastDfiCollateral)).toFixed(2),
-      apy: (await this.getApy(await this.getApr(+lastDfiRewards, +lastDfiCollateral))).toFixed(2),
+      apr: Util.round(apr, 2),
+      apy: Util.round(this.getApy(apr), 2),
     };
   }
 

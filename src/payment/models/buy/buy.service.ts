@@ -40,9 +40,11 @@ export class BuyService {
   }
 
   async getTotalVolume(): Promise<number> {
-    return (await this.buyRepo.createQueryBuilder('buy').select('SUM(volume)', 'buy').getRawOne<{ volume: number }>())[
-      'buy'
-    ];
+    return this.buyRepo
+      .createQueryBuilder('buy')
+      .select('SUM(volume)', 'volume')
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume);
   }
 
   // --- BUYS --- //
