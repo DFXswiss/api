@@ -195,17 +195,17 @@ export class KycApiService {
     let data = {};
     if (identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION) {
       const style = {
-        headerColor: '#FFFFFF',
-        textColor: '#FFFFFF',
-        warningColor: '#F5516C',
-        backgroundColor: '#072440',
-        overlayBackgroundColor: '#072440',
-        buttonColor: '#FFFFFF',
-        buttonBackgroundColor: '#F5516C',
-        bubbleLeftColor: '#FFFFFF',
-        bubbleLeftBackgroundColor: '#0A355C',
-        bubbleRightColor: '#FFFFFF',
-        bubbleRightBackgroundColor: '#0A355C',
+        headerColor: Config.colors.white,
+        textColor: Config.colors.white,
+        warningColor: Config.colors.red,
+        backgroundColor: Config.colors.darkBlue,
+        overlayBackgroundColor: Config.colors.darkBlue,
+        buttonColor: Config.colors.white,
+        buttonBackgroundColor: Config.colors.red,
+        bubbleLeftColor: Config.colors.white,
+        bubbleLeftBackgroundColor: Config.colors.lightBlue,
+        bubbleRightColor: Config.colors.white,
+        bubbleRightBackgroundColor: Config.colors.lightBlue,
         htmlHeaderInclude: '',
         htmlBodyInclude: '',
       };

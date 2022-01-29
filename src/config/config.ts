@@ -123,6 +123,13 @@ export class Configuration {
     timeout: 30000,
   };
 
+  colors = {
+    white: '#FFFFFF',
+    red: '#F5516C',
+    lightBlue: '#0A355C',
+    darkBlue: '#072440',
+  }
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {
