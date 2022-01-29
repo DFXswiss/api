@@ -8,6 +8,7 @@ import { Sell } from './sell.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { User } from '../../../user/models/user/user.entity';
 import { StakingService } from '../staking/staking.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class SellService {
@@ -68,7 +69,7 @@ export class SellService {
   }
 
   async updateVolume(sellId: number, volume: number): Promise<void> {
-    await this.sellRepo.update(sellId, { volume });
+    await this.sellRepo.update(sellId, { volume: Util.round(volume, 0) });
   }
 
   async getTotalVolume(): Promise<number> {
