@@ -12,17 +12,17 @@ export abstract class CryptoSellDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  mail1Send: number;
+  mail1SendDate: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  mail2Send: number;
+  mail2SendDate: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  mail3Send: number;
+  mail3SendDate: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -37,7 +37,7 @@ export abstract class CryptoSellDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  fiatReferenceAsset: string;
+  fiatReferenceCurrency: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -67,7 +67,7 @@ export abstract class CryptoSellDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  outputFiat: string;
+  outputCurrency: string;
 
   @ApiPropertyOptional()
   @IsOptional()

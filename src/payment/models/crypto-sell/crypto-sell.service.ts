@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { CryptoSellRepository } from './crypto-sell.repository';
 import { CryptoSell } from './crypto-sell.entity';
@@ -22,7 +22,7 @@ export class CryptoSellService {
 
   async create(dto: CreateCryptoSellDto): Promise<CryptoSell> {
     let entity = await this.cryptoSellRepo.findOne({ cryptoInput: { id: dto.cryptoInputId } });
-    if (entity) throw new ConflictException('There is already a crypto sell for the specified crypto Input');
+    if (entity) throw new ConflictException('There is already a crypto sell for the specified crypto input');
 
     entity = await this.createEntity(dto);
     entity = await this.cryptoSellRepo.save(entity);
@@ -60,12 +60,12 @@ export class CryptoSellService {
       if (!cryptoSell.bankTx) throw new NotFoundException('No bank TX for ID found');
     }
 
-    // cryptoInput
+    // crypto input
     if (dto.cryptoInputId) {
       cryptoSell.cryptoInput = await this.cryptoInputRepo.findOne({ id: dto.cryptoInputId }, { relations: ['route'] });
-      if (!cryptoSell.cryptoInput) throw new NotFoundException('No crypto Input for ID found');
+      if (!cryptoSell.cryptoInput) throw new NotFoundException('No crypto input for ID found');
       if (cryptoSell.cryptoInput.route.type !== RouteType.SELL)
-        throw new ConflictException('Crypto Input is not a Sell-Input');
+        throw new BadRequestException('Crypto input is not a sell input');
     }
 
     return cryptoSell;

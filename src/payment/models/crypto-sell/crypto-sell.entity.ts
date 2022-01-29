@@ -20,13 +20,13 @@ export class CryptoSell {
   recipientMail: string;
 
   @Column({ type: 'float', nullable: true })
-  mail1Send: number;
+  mail1SendDate: number;
 
   @Column({ type: 'float', nullable: true })
-  mail2Send: number;
+  mail2SendDate: number;
 
   @Column({ type: 'float', nullable: true })
-  mail3Send: number;
+  mail3SendDate: number;
 
   @Column({ type: 'float', nullable: true })
   fee: number;
@@ -35,7 +35,7 @@ export class CryptoSell {
   fiatReferenceAmount: number;
 
   @Column({ length: 256, nullable: true })
-  fiatReferenceAsset: string;
+  fiatReferenceCurrency: string;
 
   @Column({ type: 'float', nullable: true })
   amountInChf: number;
@@ -53,7 +53,7 @@ export class CryptoSell {
   outputAmount: number;
 
   @Column({ length: 256, nullable: true })
-  outputFiat: string;
+  outputCurrency: string;
 
   @Column({ length: 256, nullable: true })
   bankUsage: string;
