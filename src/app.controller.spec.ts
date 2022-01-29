@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
+import { HttpService } from './shared/services/http.service';
+import { SettingService } from './shared/setting/setting.service';
 import { RefService } from './user/models/referral/ref.service';
 
 describe('AppController', () => {
@@ -8,7 +10,11 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [{ provide: RefService, useValue: {} }],
+      providers: [
+        { provide: RefService, useValue: {} },
+        { provide: HttpService, useValue: {} },
+        { provide: SettingService, useValue: {} },
+      ],
     }).compile();
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

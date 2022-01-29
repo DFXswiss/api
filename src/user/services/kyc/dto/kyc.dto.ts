@@ -1,4 +1,4 @@
-import { RiskState } from "src/user/models/userData/userData.entity";
+import { RiskState } from 'src/user/models/userData/userData.entity';
 
 export enum State {
   PENDING = 'PENDING',
@@ -42,6 +42,9 @@ export enum KycDocument {
   FINANCIAL_STATEMENTS = 'financial-statements',
   INCORPORATION_CERTIFICATE = 'incorporation_certificate',
   INITIAL_CUSTOMER_INFORMATION = 'initial-customer-information',
+  INITIATE_VIDEO_IDENTIFICATION = 'video-identification',
+  INITIATE_ONLINE_IDENTIFICATION = 'online-identification',
+  INITIATE_CHATBOT_IDENTIFICATION = 'onboarding-chatbot',
   INVOICE = 'invoice',
   MRZ = 'mrz',
   ONLINE_IDENTIFICATION = 'online-identification',
@@ -81,23 +84,20 @@ export interface CreateResponse {
   customerVersionId: number;
 }
 
-export interface ChatBotResponse {
+export interface InitiateResponse {
   document: string;
   reference: string;
   sessionUrl: string;
-  version: string;
+ 
+  locators: [{
+    version: string;
+  }];
 }
 
 export interface SubmitResponse {
   customerReference: string;
   customerId: number;
   customerVersionId: number;
-}
-
-export interface IdentificationResponse {
-  document: string;
-  reference: string;
-  version: string;
 }
 
 export interface CheckVersion {

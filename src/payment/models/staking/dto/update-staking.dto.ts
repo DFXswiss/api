@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsInt, IsNotEmpty } from 'class-validator';
+import { CreateStakingDto } from './create-staking.dto';
 
-export class UpdateStakingDto {
+export class UpdateStakingDto extends CreateStakingDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsInt()
