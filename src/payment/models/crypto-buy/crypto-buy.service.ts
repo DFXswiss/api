@@ -7,6 +7,7 @@ import { AmlCheck, CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
+import { Not } from 'typeorm';
 
 @Injectable()
 export class CryptoBuyService {
@@ -33,6 +34,12 @@ export class CryptoBuyService {
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+    const bankTxWithOtherBuy = dto.bankTxId
+      ? await this.cryptoBuyRepo.findOne({
+          where: { id: Not(id), bankTx: { id: dto.bankTxId } },
+        })
+      : null;
+    if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
 
     const buyIdBefore = entity.buy?.id;
     const usedRefBefore = entity.usedRef;
