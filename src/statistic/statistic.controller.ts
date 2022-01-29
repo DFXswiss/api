@@ -1,9 +1,8 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CryptoBuyService } from 'src/payment/models/crypto-buy/crypto-buy.service';
-import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
-import { CfpResult, CfpService, MasterNode } from 'src/statistic/cfp.service';
+import { CfpResult, CfpService } from 'src/statistic/cfp.service';
 import { StatisticService } from './statistic.service';
 
 @ApiTags('statistic')

@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { BuyService } from 'src/payment/models/buy/buy.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { SettingService } from 'src/shared/setting/setting.service';
-import { StakingService } from 'src/payment/models/staking/staking.service';
-import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 
 @Injectable()
 export class StatisticService {
