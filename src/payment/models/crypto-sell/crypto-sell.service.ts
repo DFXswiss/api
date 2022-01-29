@@ -9,7 +9,7 @@ import { SellService } from '../sell/sell.service';
 import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
-import { Between } from 'typeorm';
+import { Between, Not } from 'typeorm';
 
 @Injectable()
 export class CryptoSellService {
@@ -35,6 +35,13 @@ export class CryptoSellService {
   async update(id: number, dto: UpdateCryptoSellDto): Promise<CryptoSell> {
     let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput', 'cryptoInput.route'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+    const cryptoInputWithOtherSell = dto.cryptoInputId
+      ? await this.cryptoSellRepo.findOne({
+          where: { id: Not(id), cryptoInput: { id: dto.cryptoInputId } },
+        })
+      : null;
+    if (cryptoInputWithOtherSell)
+      throw new ConflictException('There is already a crypto sell for the specified crypto input');
 
     const sellIdBefore = entity.cryptoInput.route.id;
 
