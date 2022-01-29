@@ -161,7 +161,11 @@ export class TransactionService {
   // Export
   private toCsv(list: any[], separator = ','): string {
     const headers = Object.keys(list[0]).join(separator);
-    const values = list.map((t) => Object.values(t).join(separator));
+    const values = list.map((t) =>
+      Object.values(t)
+        .map((v) => (v instanceof Date ? v.toISOString() : v))
+        .join(separator),
+    );
     return [headers].concat(values).join('\n');
   }
 
