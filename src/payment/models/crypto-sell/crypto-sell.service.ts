@@ -88,7 +88,7 @@ export class CryptoSellService {
     }
   }
 
-  async getIndividualVolume(
+  async getTransactions(
     dateFrom?: Date,
     dateTo?: Date,
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {

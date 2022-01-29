@@ -26,11 +26,11 @@ export class StatisticController {
     return this.statisticService.getStatus();
   }
 
-  @Get('individualVolume')
+  @Get('transactions')
   async getVolume(@Query('dateFrom') dateFrom: Date, @Query('dateTo') dateTo: Date): Promise<any> {
     return {
-      buy: await this.cryptoBuyService.getIndividualVolume(dateFrom, dateTo),
-      sell: await this.cryptoSellService.getIndividualVolume(dateFrom, dateTo),
+      buy: await this.cryptoBuyService.getTransactions(dateFrom, dateTo),
+      sell: await this.cryptoSellService.getTransactions(dateFrom, dateTo),
     };
   }
 
