@@ -9,6 +9,7 @@ import { SellService } from '../sell/sell.service';
 import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
+import { Between, Not } from 'typeorm';
 
 @Injectable()
 export class CryptoSellService {
@@ -34,6 +35,13 @@ export class CryptoSellService {
   async update(id: number, dto: UpdateCryptoSellDto): Promise<CryptoSell> {
     let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput', 'cryptoInput.route'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+    const cryptoInputWithOtherSell = dto.cryptoInputId
+      ? await this.cryptoSellRepo.findOne({
+          where: { id: Not(id), cryptoInput: { id: dto.cryptoInputId } },
+        })
+      : null;
+    if (cryptoInputWithOtherSell)
+      throw new ConflictException('There is already a crypto sell for the specified crypto input');
 
     const sellIdBefore = entity.cryptoInput.route.id;
 
@@ -85,5 +93,26 @@ export class CryptoSellService {
 
       await this.sellService.updateVolume(id, volume ?? 0);
     }
+  }
+
+  async getTransactions(
+    dateFrom?: Date,
+    dateTo?: Date,
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
+    if (!dateTo) dateTo = new Date();
+
+    const cryptoSell = await this.cryptoSellRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+      relations: ['cryptoInput'],
+    });
+
+    return cryptoSell.map((v) => ({
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.cryptoInput?.asset?.name,
+    }));
   }
 }

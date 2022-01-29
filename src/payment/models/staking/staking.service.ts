@@ -16,6 +16,7 @@ import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyRepository } from '../buy/buy.repository';
+import { SettingService } from 'src/shared/setting/setting.service';
 
 @Injectable()
 export class StakingService {
@@ -27,6 +28,7 @@ export class StakingService {
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly assetService: AssetService,
     private readonly buyRepo: BuyRepository,
+    private readonly settingService: SettingService,
   ) {}
 
   async getStakingForAddress(depositAddress: string): Promise<Staking> {
@@ -174,6 +176,23 @@ export class StakingService {
     if (!sell) throw new BadRequestException('Missing sell route');
 
     return sell.deposit.id;
+  }
+
+  private async getApr(dfiRewards: number, dfiCollateral: number): Promise<number> {
+    return (dfiRewards / dfiCollateral) * 365;
+  }
+
+  private async getApy(dfiApr: number): Promise<number> {
+    return Math.pow(1 + dfiApr / 365, 365) - 1;
+  }
+
+  public async getStakingYield(): Promise<any> {
+    const lastDfiRewards = await this.settingService.get('stakingRewards');
+    const lastDfiCollateral = await this.settingService.get('stakingCollateral');
+    return {
+      apr: (await this.getApr(+lastDfiRewards, +lastDfiCollateral)).toFixed(2),
+      apy: (await this.getApy(await this.getApr(+lastDfiRewards, +lastDfiCollateral))).toFixed(2),
+    };
   }
 
   private async getAsset(assetId?: number): Promise<Asset | null> {

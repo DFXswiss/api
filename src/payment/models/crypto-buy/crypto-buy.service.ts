@@ -7,6 +7,7 @@ import { AmlCheck, CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
+import { Between, Not } from 'typeorm';
 
 @Injectable()
 export class CryptoBuyService {
@@ -33,6 +34,12 @@ export class CryptoBuyService {
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+    const bankTxWithOtherBuy = dto.bankTxId
+      ? await this.cryptoBuyRepo.findOne({
+          where: { id: Not(id), bankTx: { id: dto.bankTxId } },
+        })
+      : null;
+    if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
 
     const buyIdBefore = entity.buy?.id;
     const usedRefBefore = entity.usedRef;
@@ -123,5 +130,26 @@ export class CryptoBuyService {
 
       await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
     }
+  }
+
+  async getTransactions(
+    dateFrom?: Date,
+    dateTo?: Date,
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
+    if (!dateTo) dateTo = new Date();
+
+    const cryptoBuy = await this.cryptoBuyRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+      relations: ['buy'],
+    });
+
+    return cryptoBuy.map((v) => ({
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.buy?.asset?.name,
+    }));
   }
 }

@@ -39,6 +39,12 @@ export class BuyService {
       .getRawOne<{ volume: number; annualVolume: number }>();
   }
 
+  async getTotalVolume(): Promise<number> {
+    return (await this.buyRepo.createQueryBuilder('buy').select('SUM(volume)', 'buy').getRawOne<{ volume: number }>())[
+      'buy'
+    ];
+  }
+
   // --- BUYS --- //
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
     // check asset
