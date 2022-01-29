@@ -23,15 +23,9 @@ export class StatisticService {
 
   async getAll(): Promise<any> {
     return {
-      volume: {
-        individual: {
-          buy: '',
-          sell: '',
-        },
-        total: {
-          buy: await this.buyService.getTotalVolume(),
-          sell: await this.sellService.getTotalVolume(),
-        },
+      totalVolume: {
+        buy: await this.buyService.getTotalVolume(),
+        sell: await this.sellService.getTotalVolume(),
       },
       status: await this.getStatus(),
       staking: await this.stakingService.getStakingYield(),

@@ -9,6 +9,7 @@ import { SellService } from '../sell/sell.service';
 import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
+import { Between } from 'typeorm';
 
 @Injectable()
 export class CryptoSellService {
@@ -85,5 +86,26 @@ export class CryptoSellService {
 
       await this.sellService.updateVolume(id, volume ?? 0);
     }
+  }
+
+  async getIndividualVolume(
+    dateFrom?: Date,
+    dateTo?: Date,
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
+    if (!dateTo) dateTo = new Date();
+
+    const cryptoSell = await this.cryptoSellRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+      relations: ['cryptoInput'],
+    });
+
+    return cryptoSell.map((v) => ({
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.cryptoInput?.asset?.name,
+    }));
   }
 }

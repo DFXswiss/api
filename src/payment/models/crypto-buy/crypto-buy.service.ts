@@ -129,7 +129,7 @@ export class CryptoBuyService {
   async getIndividualVolume(
     dateFrom?: Date,
     dateTo?: Date,
-  ): Promise<{ value: number; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
     if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
     if (!dateTo) dateTo = new Date();
 
@@ -139,7 +139,8 @@ export class CryptoBuyService {
     });
 
     return cryptoBuy.map((v) => ({
-      value: v.amount,
+      fiatAmount: v.amount,
+      fiatCurrency: 'EUR',
       date: v.outputDate,
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.buy?.asset?.name,

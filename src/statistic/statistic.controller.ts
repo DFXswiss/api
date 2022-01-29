@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CryptoBuyService } from 'src/payment/models/crypto-buy/crypto-buy.service';
 import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
+import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
 import { CfpResult, CfpService, MasterNode } from 'src/statistic/cfp.service';
 import { StatisticService } from './statistic.service';
 
@@ -12,6 +13,7 @@ export class StatisticController {
     private readonly statisticService: StatisticService,
     private readonly cfpService: CfpService,
     private readonly cryptoBuyService: CryptoBuyService,
+    private readonly cryptoSellService: CryptoSellService,
   ) {}
 
   @Get()
@@ -26,7 +28,10 @@ export class StatisticController {
 
   @Get('individualVolume')
   async getVolume(@Query('dateFrom') dateFrom: Date, @Query('dateTo') dateTo: Date): Promise<any> {
-    return this.cryptoBuyService.getIndividualVolume(dateFrom, dateTo);
+    return {
+      buy: await this.cryptoBuyService.getIndividualVolume(dateFrom, dateTo),
+      sell: await this.cryptoSellService.getIndividualVolume(dateFrom, dateTo),
+    };
   }
 
   @Get('cfp')

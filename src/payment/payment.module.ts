@@ -85,6 +85,6 @@ import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
     SellController,
     StakingController,
   ],
-  exports: [BuyService, SellService, StakingService, CryptoBuyService],
+  exports: [BuyService, SellService, StakingService, CryptoBuyService, CryptoSellService],
 })
 export class PaymentModule {}
