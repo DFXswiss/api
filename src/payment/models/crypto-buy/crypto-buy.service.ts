@@ -145,7 +145,7 @@ export class CryptoBuyService {
     });
 
     return cryptoBuy.map((v) => ({
-      fiatAmount: v.amount,
+      fiatAmount: v.amountInEur,
       fiatCurrency: 'EUR',
       date: v.outputDate,
       cryptoAmount: v.outputAmount,
