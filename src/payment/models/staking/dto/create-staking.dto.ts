@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsObject, ValidateIf } from 'class-validator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Sell } from '../../sell/sell.entity';
 import { StakingType } from './staking-type.enum';
@@ -11,12 +11,14 @@ export class CreateStakingDto {
   rewardType: StakingType;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((b: CreateStakingDto) => b.rewardType === StakingType.BANK_ACCOUNT)
+  @IsNotEmpty()
   @IsObject()
   rewardSell?: Sell;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((b: CreateStakingDto) => b.rewardType === StakingType.WALLET)
+  @IsNotEmpty()
   @IsObject()
   rewardAsset: Asset;
 
@@ -26,12 +28,14 @@ export class CreateStakingDto {
   paybackType: StakingType;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((b: CreateStakingDto) => b.paybackType === StakingType.BANK_ACCOUNT)
+  @IsNotEmpty()
   @IsObject()
   paybackSell?: Sell;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((b: CreateStakingDto) => b.paybackType === StakingType.WALLET)
+  @IsNotEmpty()
   @IsObject()
   paybackAsset: Asset;
 }
