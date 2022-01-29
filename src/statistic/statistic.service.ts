@@ -11,8 +11,8 @@ export class StatisticService {
     private buyService: BuyService,
     private sellService: SellService,
     private settingService: SettingService,
-    private stakingService: StakingService,
-  ) {}
+  ) //private stakingService: StakingService,
+  {}
 
   async getStatus(): Promise<any> {
     const settings = await this.settingService.getAll();
@@ -28,7 +28,7 @@ export class StatisticService {
         sell: await this.sellService.getTotalVolume(),
       },
       status: await this.getStatus(),
-      staking: await this.stakingService.getStakingYield(),
+      //staking: await this.stakingService.getStakingYield(),
     };
   }
 }
