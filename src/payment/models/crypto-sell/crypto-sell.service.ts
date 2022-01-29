@@ -32,7 +32,7 @@ export class CryptoSellService {
   }
 
   async update(id: number, dto: UpdateCryptoSellDto): Promise<CryptoSell> {
-    let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput']['route'] });
+    let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput', 'cryptoInput.route'] });
     if (!entity) throw new NotFoundException('No matching entry found');
 
     const sellIdBefore = entity.cryptoInput.route.id;
@@ -62,7 +62,7 @@ export class CryptoSellService {
 
     // cryptoInput
     if (dto.cryptoInputId) {
-      cryptoSell.cryptoInput = await this.cryptoInputRepo.findOne(dto.cryptoInputId);
+      cryptoSell.cryptoInput = await this.cryptoInputRepo.findOne({ id: dto.cryptoInputId }, { relations: ['route'] });
       if (!cryptoSell.cryptoInput) throw new NotFoundException('No crypto Input for ID found');
       if (cryptoSell.cryptoInput.route.type !== RouteType.SELL)
         throw new ConflictException('Crypto Input is not a Sell-Input');
@@ -78,6 +78,7 @@ export class CryptoSellService {
       const { volume } = await this.cryptoSellRepo
         .createQueryBuilder('cryptoSell')
         .select('SUM(amountInEur)', 'volume')
+        .innerJoin('cryptoSell.cryptoInput', 'cryptoInput')
         .where('cryptoInput.routeId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();

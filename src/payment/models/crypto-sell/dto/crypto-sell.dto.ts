@@ -84,9 +84,4 @@ export abstract class CryptoSellDto {
   @IsOptional()
   @IsInt()
   bankTxId: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  sellId: number;
 }
