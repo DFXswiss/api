@@ -13,6 +13,8 @@ import { Staking } from './staking.entity';
 import { StakingRepository } from './staking.repository';
 import { UserDataService } from 'src/user/models/userData/userData.service';
 import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class StakingService {
@@ -22,6 +24,7 @@ export class StakingService {
     private readonly sellRepo: SellRepository,
     private readonly userDataService: UserDataService,
     private readonly cryptoInputRepo: CryptoInputRepository,
+    private readonly assetService: AssetService,
   ) {}
 
   async getStakingForAddress(depositAddress: string): Promise<Staking> {
@@ -78,18 +81,22 @@ export class StakingService {
     staking.rewardDeposit =
       dto.rewardType === StakingType.REINVEST
         ? staking.deposit
-        : dto.rewardType === StakingType.PAYOUT
+        : dto.rewardType === StakingType.BANK_ACCOUNT
         ? ({ id: await this.getDepositId(userId, dto.rewardSell?.id) } as Deposit)
         : null;
-
     staking.paybackDeposit =
       dto.paybackType === StakingType.REINVEST
         ? staking.deposit
-        : dto.paybackType === StakingType.PAYOUT
+        : dto.paybackType === StakingType.BANK_ACCOUNT
         ? ({ id: await this.getDepositId(userId, dto.paybackSell?.id) } as Deposit)
         : null;
 
-    return { ...staking, ...dto };
+    staking.rewardAsset = dto.rewardType === StakingType.WALLET ? await this.getAsset(dto.rewardAsset?.id) : null;
+    staking.paybackAsset = dto.paybackType === StakingType.WALLET ? await this.getAsset(dto.paybackAsset?.id) : null;
+
+    if ('active' in dto && dto.active != null) staking.active = dto.active;
+
+    return staking;
   }
 
   async getAllIds(): Promise<number[]> {
@@ -119,8 +126,10 @@ export class StakingService {
       deposit: staking.deposit,
       rewardType,
       rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id, sellRoutes),
+      rewardAsset: staking.rewardAsset ?? undefined,
       paybackType,
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
+      paybackAsset: staking.paybackAsset ?? undefined,
       balance,
       isInUse: balance > 0,
     };
@@ -130,12 +139,12 @@ export class StakingService {
     return typeDepositId
       ? typeDepositId === depositId
         ? StakingType.REINVEST
-        : StakingType.PAYOUT
+        : StakingType.BANK_ACCOUNT
       : StakingType.WALLET;
   }
 
   private async getSell(stakingType: StakingType, depositId: number, sellRoutes?: Sell[]): Promise<Sell | undefined> {
-    if (stakingType !== StakingType.PAYOUT) return undefined;
+    if (stakingType !== StakingType.BANK_ACCOUNT) return undefined;
 
     return sellRoutes
       ? sellRoutes.find((r) => r.deposit.id === depositId)
@@ -147,5 +156,10 @@ export class StakingService {
     if (!sell) throw new BadRequestException('Missing sell route');
 
     return sell.deposit.id;
+  }
+
+  private async getAsset(assetId?: number): Promise<Asset | null> {
+    const asset: Asset = await this.assetService.getAsset(assetId);
+    return asset && asset.buyable ? asset : await this.assetService.getAsset('DFI');
   }
 }

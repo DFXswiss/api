@@ -65,7 +65,6 @@ export class Configuration {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
-    prefix: process.env.KYC_PREFIX,
   };
 
   mail: MailerOptions = {
@@ -123,6 +122,13 @@ export class Configuration {
     enableRateLimit: true,
     timeout: 30000,
   };
+
+  colors = {
+    white: '#FFFFFF',
+    red: '#F5516C',
+    lightBlue: '#0A355C',
+    darkBlue: '#072440',
+  }
 
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {

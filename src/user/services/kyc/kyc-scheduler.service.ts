@@ -5,22 +5,16 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
-import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
-import { UserRepository } from 'src/user/models/user/user.repository';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { UserDataService } from 'src/user/models/userData/userData.service';
-import { Config } from 'src/config/config';
 
 @Injectable()
 export class KycSchedulerService {
   constructor(
     private mailService: MailService,
-    private userRepo: UserRepository,
     private userDataRepo: UserDataRepository,
     private userDataService: UserDataService,
     private kycApi: KycApiService,
-    private spiderDataRepo: SpiderDataRepository,
     private settingService: SettingService,
   ) {}
 
@@ -46,10 +40,7 @@ export class KycSchedulerService {
 
       // get KYC changes
       const changedRefs = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
-      const changedUserDataIds = changedRefs
-        .filter((c) => c.startsWith(Config.kyc.prefix))
-        .map((c) => +c.replace(Config.kyc.prefix, ''))
-        .filter((c) => !isNaN(c));
+      const changedUserDataIds = changedRefs.map((c) => +c).filter((c) => !isNaN(c));
 
       // update
       for (const userDataId of changedUserDataIds) {
@@ -75,35 +66,13 @@ export class KycSchedulerService {
 
   private async doChatBotCheck(): Promise<void> {
     await this.doCheck(KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_ONLINE_ID, [KycDocument.CHATBOT], async (userData) => {
-      userData.riskState = await this.kycApi.doCheckResult(userData.id);
-      const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
-
-      if (spiderData) {
-        const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
-          userData.id,
-          KycDocument.CHATBOT_ONBOARDING,
-          spiderData.version,
-        );
-
-        // store chatbot result
-        spiderData.result = JSON.stringify(chatBotResult);
-        await this.spiderDataRepo.save(spiderData);
-
-        // update user data
-        const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
-        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
-      }
-      await this.userDataRepo.save(userData);
-
-      const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
-      vipUser
-        ? await this.kycApi.initiateVideoIdentification(userData.id)
-        : await this.kycApi.initiateOnlineIdentification(userData.id);
-      userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
-
-      return userData;
+      const updateUserData = await this.userDataService.finishChatBot(userData);
+      await this.mailService.sendChatBotMail(
+        updateUserData.firstname,
+        updateUserData.mail,
+        updateUserData.language?.symbol?.toLowerCase(),
+      );
+      return updateUserData;
     });
   }
 
@@ -129,6 +98,7 @@ export class KycSchedulerService {
   ): Promise<void> {
     const userDataList = await this.userDataRepo.find({
       where: { kycStatus: currentStatus },
+      relations: ['country', 'organizationCountry', 'spiderData'],
     });
     for (const key in userDataList) {
       try {
@@ -158,21 +128,22 @@ export class KycSchedulerService {
           userDataList[key] = await updateAction(userDataList[key], customer);
         } else if (isFailed && userDataList[key].kycState != KycState.FAILED) {
           if (userDataList[key].kycStatus === KycStatus.WAIT_ONLINE_ID) {
-            await this.kycApi.initiateVideoIdentification(userDataList[key].id);
+            await this.userDataService.initiateIdentification(
+              userDataList[key],
+              false,
+              KycDocument.INITIATE_VIDEO_IDENTIFICATION,
+            );
+            await this.mailService.sendOnlineFailedMail(
+              customer.names[0].firstName,
+              customer.emails[0],
+              userDataList[key]?.language?.symbol?.toLocaleLowerCase(),
+            );
+
             console.log(
               `KYC change: Changed status of user ${userDataList[key].id} from status ${userDataList[key].kycStatus} to ${KycStatus.WAIT_VIDEO_ID}`,
             );
             userDataList[key].kycStatus = KycStatus.WAIT_VIDEO_ID;
             userDataList[key].kycState = KycState.NA;
-          } else if (
-            userDataList[key].kycStatus === KycStatus.WAIT_VIDEO_ID &&
-            userDataList[key].kycState != KycState.RETRIED
-          ) {
-            await this.kycApi.initiateVideoIdentification(userDataList[key].id);
-            console.log(
-              `KYC change: Changed state of user ${userDataList[key].id} with status ${userDataList[key].kycStatus} from ${userDataList[key].kycState} to ${KycState.RETRIED}`,
-            );
-            userDataList[key].kycState = KycState.RETRIED;
           } else {
             await this.mailService.sendSupportFailedMail(userDataList[key], customer.id);
             console.log(
