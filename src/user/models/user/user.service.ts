@@ -33,6 +33,14 @@ export class UserService {
     return await this.toDto(user, detailedUser);
   }
 
+  async getUserIdByAddress(address: string): Promise<number> {
+    const user = await this.userRepo.findOne({
+      where: { address: address },
+    });
+    if (!user) throw new NotFoundException('No matching user for id found');
+    return user.id;
+  }
+
   async updateStatus(user: UpdateStatusDto): Promise<any> {
     //TODO status ändern wenn transaction oder KYC
     return this.userRepo.updateStatus(user);
@@ -95,6 +103,10 @@ export class UserService {
 
   async requestKyc(userId: number, depositLimit: string): Promise<string | undefined> {
     return this.userDataService.requestKyc(userId, depositLimit);
+  }
+
+  async uploadDocument(userId: number, document: Express.Multer.File): Promise<boolean | Error> {
+    return this.userDataService.uploadDocument(userId, document);
   }
 
   async getRefDataForId(userId: number): Promise<any> {

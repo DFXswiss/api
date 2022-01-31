@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Query, Param, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
@@ -24,6 +24,19 @@ export class StakingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllStaking(@GetJwt() jwt: JwtPayload): Promise<StakingDto[]> {
     return this.stakingService.getUserStaking(jwt.id).then((l) => this.stakingService.toDtoList(jwt.id, l));
+  }
+
+  @Get(':address')
+  async getStakingVolume(@Param('address') address: string): Promise<number> {
+    const stakingIds = await this.stakingService.getStakingByAddress(address);
+    if (stakingIds.length === 0) throw new NotFoundException('No DFX staking');
+    const stakingBalances = (
+      await this.cryptoInputService.getAllStakingBalance(
+        stakingIds.map((u) => u.id),
+        new Date(),
+      )
+    ).reduce((sum, current) => sum + current.balance, 0);
+    return stakingBalances;
   }
 
   @Get('balance')
