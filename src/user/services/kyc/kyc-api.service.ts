@@ -97,9 +97,9 @@ export class KycApiService {
     return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
   }
 
-  async downloadCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<any> {
+  async downloadCustomerDocumentVersionParts(id: number, document: string, version: string,part:string): Promise<any> {
     return this.callApi<any>(
-      `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/export`,
+      `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/${part}`,
       'GET',
     );
   }
@@ -331,7 +331,13 @@ export class KycApiService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    return this.request<T>(url, method, data, contentType).catch((e: HttpError) => {
+    let getNewKey = false;
+    let versionUrl = '2.0.0';
+    if (url.includes('initiate')) {
+      versionUrl = '3.0.0';
+      getNewKey = true;
+    }
+    return this.request<T>(url, method, data, contentType, 3, getNewKey, versionUrl).catch((e: HttpError) => {
       if (e.response?.status === 404) {
         return null;
       }
@@ -347,17 +353,12 @@ export class KycApiService {
     contentType?: any,
     nthTry = 3,
     getNewKey = false,
+    versionUrl = '2.0.0',
   ): Promise<T> {
     try {
-      if (url.includes('initiate')) {
-        this.versionUrl = '3.0.0';
-        getNewKey = true;
-      } else {
-        this.versionUrl = '2.0.0';
-      }
-      if (getNewKey) this.sessionKey = await this.getNewSessionKey();
+      if (getNewKey) this.sessionKey = await this.getNewSessionKey(versionUrl);
       return await this.http.request<T>({
-        url: `${this.baseUrl}${this.versionUrl}/${url}`,
+        url: `${this.baseUrl}${versionUrl}/${url}`,
         method: method,
         data: data,
         headers: {
@@ -373,9 +374,9 @@ export class KycApiService {
     }
   }
 
-  private async getNewSessionKey(): Promise<string> {
+  private async getNewSessionKey(versionUrl: string): Promise<string> {
     // get the challenge
-    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}${this.versionUrl}/challenge`);
+    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}${versionUrl}/challenge`);
 
     // determine response
     const response = key + Config.kyc.mandator + Config.kyc.user + Config.kyc.password + challenge;
@@ -390,9 +391,8 @@ export class KycApiService {
     };
 
     // enable the session key
-    await this.http.post(`${this.baseUrl}${this.versionUrl}/authenticate`, data);
+    await this.http.post(`${this.baseUrl}${versionUrl}/authenticate`, data);
 
     return key;
   }
-  
 }
