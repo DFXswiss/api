@@ -24,7 +24,7 @@ import {
 @Injectable()
 export class KycApiService {
   private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest';
-  private baseVersion = '2.0.0';
+  private readonly baseVersion = '2.0.0';
 
   private sessionKey = 'session-key-will-be-updated';
 
@@ -336,7 +336,7 @@ export class KycApiService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    return this.request<T>(url, method, data, contentType, 3, false).catch((e: HttpError) => {
+    return this.request<T>(url, method, data, contentType).catch((e: HttpError) => {
       if (e.response?.status === 404) {
         return null;
       }
