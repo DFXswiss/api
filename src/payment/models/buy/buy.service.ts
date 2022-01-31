@@ -62,7 +62,12 @@ export class BuyService {
 
     // check if exists
     const existing = await this.buyRepo.findOne({
-      where: { iban: dto.iban, asset: asset, deposit: staking?.deposit, user: { id: userId } },
+      where: {
+        iban: dto.iban,
+        ...(dto.type === BuyType.WALLET ? { asset: asset } : { deposit: staking?.deposit }),
+        user: { id: userId },
+      },
+      relations: ['deposit'],
     });
     if (existing) throw new ConflictException('Buy route already exists');
 
