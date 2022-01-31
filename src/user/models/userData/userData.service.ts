@@ -197,7 +197,13 @@ export class UserDataService {
 
       userData.riskState = await this.kycApi.doCheckResult(userData.id);
 
-      await this.preFillChatbot(userData, userInfo);
+      const chatBotResult = await this.kycApi.downloadCustomerDocumentVersionParts(
+        userData.id,
+        KycDocument.INITIAL_CUSTOMER_INFORMATION,
+        'v1',
+        'content',
+      );
+      if (!chatBotResult) await this.preFillChatbot(userData, userInfo);
 
       return this.initiateIdentification(userData, false, KycDocument.INITIATE_CHATBOT_IDENTIFICATION);
     } else if (
@@ -355,6 +361,7 @@ export class UserDataService {
         userData.id,
         KycDocument.CHATBOT_ONBOARDING,
         spiderData.version,
+        'export',
       );
 
       // store chatbot result
