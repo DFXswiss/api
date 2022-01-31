@@ -23,8 +23,8 @@ import {
 
 @Injectable()
 export class KycApiService {
-  private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest/';
-  private versionUrl = '2.0.0';
+  private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest';
+  private baseVersion = '2.0.0';
 
   private sessionKey = 'session-key-will-be-updated';
 
@@ -97,7 +97,12 @@ export class KycApiService {
     return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
   }
 
-  async downloadCustomerDocumentVersionParts(id: number, document: string, version: string,part:string): Promise<any> {
+  async downloadCustomerDocumentVersionParts(
+    id: number,
+    document: string,
+    version: string,
+    part: string,
+  ): Promise<any> {
     return this.callApi<any>(
       `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/${part}`,
       'GET',
@@ -331,13 +336,7 @@ export class KycApiService {
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
-    let getNewKey = false;
-    let versionUrl = '2.0.0';
-    if (url.includes('initiate')) {
-      versionUrl = '3.0.0';
-      getNewKey = true;
-    }
-    return this.request<T>(url, method, data, contentType, 3, getNewKey, versionUrl).catch((e: HttpError) => {
+    return this.request<T>(url, method, data, contentType, 3, false).catch((e: HttpError) => {
       if (e.response?.status === 404) {
         return null;
       }
@@ -353,12 +352,12 @@ export class KycApiService {
     contentType?: any,
     nthTry = 3,
     getNewKey = false,
-    versionUrl = '2.0.0',
   ): Promise<T> {
     try {
-      if (getNewKey) this.sessionKey = await this.getNewSessionKey(versionUrl);
+      if (getNewKey) this.sessionKey = await this.getNewSessionKey();
+      const version = url.includes('initiate') ? '3.0.0' : this.baseVersion;
       return await this.http.request<T>({
-        url: `${this.baseUrl}${versionUrl}/${url}`,
+        url: `${this.baseUrl}/${version}/${url}`,
         method: method,
         data: data,
         headers: {
@@ -374,9 +373,9 @@ export class KycApiService {
     }
   }
 
-  private async getNewSessionKey(versionUrl: string): Promise<string> {
+  private async getNewSessionKey(): Promise<string> {
     // get the challenge
-    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}${versionUrl}/challenge`);
+    const { key, challenge } = await this.http.get<Challenge>(`${this.baseUrl}/${this.baseVersion}/challenge`);
 
     // determine response
     const response = key + Config.kyc.mandator + Config.kyc.user + Config.kyc.password + challenge;
@@ -391,7 +390,7 @@ export class KycApiService {
     };
 
     // enable the session key
-    await this.http.post(`${this.baseUrl}${versionUrl}/authenticate`, data);
+    await this.http.post(`${this.baseUrl}/${this.baseVersion}/authenticate`, data);
 
     return key;
   }
