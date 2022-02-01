@@ -188,24 +188,24 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for id ${userData.id}`);
     const kycData = await this.kycApi.getCustomer(userData.id);
     if (!kycData) throw new NotFoundException(`User with id ${userData.id} is not in spider`);
-
-    await this.kycApi.createDocumentVersion(userData.id, KycDocument.INCORPORATION_CERTIFICATE, 'v2', false);
+    const version = new Date().getTime().toString();
+    await this.kycApi.createDocumentVersion(userData.id, KycDocument.INCORPORATION_CERTIFICATE, version, false);
 
     await this.kycApi.createDocumentVersionPart(
       userData.id,
       KycDocument.INCORPORATION_CERTIFICATE,
-      'v2',
+      version,
       'content',
-      'urkunde.pdf',
-      KycContentType.PDF,
+      document.originalname,
+      document.mimetype as KycContentType,
       false,
     );
     const uploadIncorporationCetificate = await this.kycApi.uploadDocument(
       userData.id,
-      'v2',
+      version,
       KycDocument.INCORPORATION_CERTIFICATE,
       'content',
-      KycContentType.PDF,
+      document.mimetype as KycContentType,
       document.buffer,
       false,
     );
@@ -213,7 +213,7 @@ export class UserDataService {
     if (uploadIncorporationCetificate) {
       await this.kycApi.changeDocumentState(
         userData.id,
-        'v2',
+        version,
         KycDocument.INCORPORATION_CERTIFICATE,
         JSON.stringify(State.COMPLETED),
         false,
