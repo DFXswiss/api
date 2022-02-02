@@ -86,10 +86,10 @@ export class CfpService {
   private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
 
   // current voting round
-  private readonly isCfpInProgress = false;
-  private readonly currentRound = '2201';
-  private readonly startDate = '2021-01-08T23:59:59+00:00';
-  private readonly endDate = '2021-01-11T23:59:59+00:00';
+  private readonly isCfpInProgress = true;
+  private readonly currentRound = '2202';
+  private readonly startDate = '2021-02-07T23:59:59+00:00';
+  private readonly endDate = '2021-02-14T23:59:59+00:00';
 
   private masterNodeCount: number;
   private masterNodes: { [address: string]: MasterNode };
