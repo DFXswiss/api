@@ -1,13 +1,5 @@
-import {
-  Entity,
-  TableInheritance,
-  OneToOne,
-  JoinColumn,
-  Column,
-  CreateDateColumn,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { IEntity } from 'src/shared/models/entity';
+import { Entity, TableInheritance, OneToOne, JoinColumn, Column } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 
 export enum RouteType {
@@ -17,10 +9,7 @@ export enum RouteType {
 
 @Entity()
 @TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
-export class DepositRoute {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class DepositRoute extends IEntity {
   @Column()
   type: RouteType;
 
@@ -30,10 +19,4 @@ export class DepositRoute {
   @OneToOne(() => Deposit, (deposit) => deposit.route, { eager: true, nullable: false })
   @JoinColumn()
   deposit: Deposit;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

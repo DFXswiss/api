@@ -55,15 +55,18 @@ export class AppController {
   @Get('app/announcements')
   @ApiExcludeEndpoint()
   async getAnnouncements(): Promise<AnnouncementDto[]> {
+    const ignoredAnnouncements = await this.settingService.getObj<string[]>('ignoredAnnouncements', []);
     return Promise.all([
-      this.settingService.get('announcements').then((a) => (a ? JSON.parse(a) : [])),
+      this.settingService.getObj<AnnouncementDto[]>('announcements', []),
       this.httpService.get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcements`),
-    ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
+    ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []).filter((a) => !ignoredAnnouncements.includes(a.id)));
   }
 
   @Get('app/settings/flags')
   @ApiExcludeEndpoint()
   async getFlags(): Promise<FlagDto[]> {
-    return this.httpService.get(`${this.lightWalletUrl}/settings/flags`);
+    const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
+    const flags = await this.httpService.get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`);
+    return flags.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null);
   }
 }

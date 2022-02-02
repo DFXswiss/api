@@ -1,24 +1,13 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  Index,
-  CreateDateColumn,
-  ManyToOne,
-  UpdateDateColumn,
-  OneToMany,
-} from 'typeorm';
+import { Entity, Column, Index, ManyToOne, OneToMany } from 'typeorm';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
 import { CryptoBuy } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { Deposit } from '../deposit/deposit.entity';
+import { IEntity } from 'src/shared/models/entity';
 
 @Entity()
 @Index('ibanAssetDepositUser', (buy: Buy) => [buy.iban, buy.asset, buy.deposit, buy.user], { unique: true })
-export class Buy {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Buy extends IEntity {
   @Column({ length: 256 })
   iban: string;
 
@@ -45,10 +34,4 @@ export class Buy {
 
   @OneToMany(() => CryptoBuy, (cryptoBuy) => cryptoBuy.buy)
   cryptoBuys: CryptoBuy[];
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

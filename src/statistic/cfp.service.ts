@@ -84,7 +84,6 @@ export interface CfpResult {
 @Injectable()
 export class CfpService {
   private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
-  private readonly masterNodeUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
 
   // current voting round
   private readonly isCfpInProgress = false;
