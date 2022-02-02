@@ -178,6 +178,51 @@ export class UserDataService {
     return userData.riskState;
   }
 
+  async uploadDocument(userId: number, document: Express.Multer.File): Promise<boolean> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      select: ['id'],
+      relations: ['userData'],
+    });
+    const userData = user.userData;
+    if (!userData) throw new NotFoundException(`No user data for id ${userData.id}`);
+    const kycData = await this.kycApi.getCustomer(userData.id);
+    if (!kycData) throw new NotFoundException(`User with id ${userData.id} is not in spider`);
+    const version = new Date().getTime().toString();
+    await this.kycApi.createDocumentVersion(userData.id, KycDocument.INCORPORATION_CERTIFICATE, version, false);
+
+    await this.kycApi.createDocumentVersionPart(
+      userData.id,
+      KycDocument.INCORPORATION_CERTIFICATE,
+      version,
+      'content',
+      document.originalname,
+      document.mimetype as KycContentType,
+      false,
+    );
+    const uploadIncorporationCetificate = await this.kycApi.uploadDocument(
+      userData.id,
+      version,
+      KycDocument.INCORPORATION_CERTIFICATE,
+      'content',
+      document.mimetype as KycContentType,
+      document.buffer,
+      false,
+    );
+
+    if (uploadIncorporationCetificate) {
+      await this.kycApi.changeDocumentState(
+        userData.id,
+        version,
+        KycDocument.INCORPORATION_CERTIFICATE,
+        JSON.stringify(State.COMPLETED),
+        false,
+      );
+    }
+
+    return true;
+  }
+
   async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
     const user = await this.userRepo.findOne({
       where: { id: userId },

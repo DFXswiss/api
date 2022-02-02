@@ -52,6 +52,10 @@ export class StakingService {
     return this.stakingRepo.find({ user: { id: userId } });
   }
 
+  async getStakingByAddress(address: string): Promise<Staking[]> {
+    return await this.stakingRepo.find({ where: { user: { address: address } }, relations: ['user'] });
+  }
+
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
     // KYC check
     const kycStatus = await this.userDataService.getKycStatus(userId);

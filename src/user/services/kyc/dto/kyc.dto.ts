@@ -10,6 +10,7 @@ export enum KycContentType {
   IMAGE = 'image/png',
   JSON = 'application/json',
   TEXT = 'text/plain',
+  PDF = 'application/pdf',
 }
 
 export enum KycRelationType {
@@ -88,10 +89,12 @@ export interface InitiateResponse {
   document: string;
   reference: string;
   sessionUrl: string;
- 
-  locators: [{
-    version: string;
-  }];
+
+  locators: [
+    {
+      version: string;
+    },
+  ];
 }
 
 export interface SubmitResponse {

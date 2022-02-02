@@ -9,6 +9,7 @@
         "masternode",
         "nestjs",
         "Organisation",
+        "originalname",
         "phonenumber",
         "timelock",
         "typeorm",
