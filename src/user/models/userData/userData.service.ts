@@ -369,10 +369,16 @@ export class UserDataService {
       await this.spiderDataRepo.save(spiderData);
 
       // update user data
-      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
-      userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-      userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-      userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+      try {
+        const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
+        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
+        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+      } catch (e) {
+        const message = `Exception during KYC checks, failed to parse chatbot result for user ${userData.id} and version ${spiderData.version}:`;
+        console.error(message, e);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
+      }
     }
     await this.userDataRepo.save(userData);
 
