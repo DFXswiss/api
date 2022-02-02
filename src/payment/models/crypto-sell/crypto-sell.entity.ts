@@ -1,21 +1,11 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  Column,
-  OneToOne,
-  JoinColumn,
-} from 'typeorm';
+import { IEntity } from 'src/shared/models/entity';
+import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 
 @Entity()
-export class CryptoSell {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class CryptoSell extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail: string;
 
@@ -68,10 +58,4 @@ export class CryptoSell {
   @OneToOne(() => CryptoInput, { nullable: false })
   @JoinColumn()
   cryptoInput: CryptoInput;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

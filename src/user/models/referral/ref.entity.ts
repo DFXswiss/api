@@ -1,19 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { IEntity } from 'src/shared/models/entity';
+import { Entity, Column } from 'typeorm';
 
 @Entity()
-export class Ref {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Ref extends IEntity {
   @Column({ length: 256 })
   ref: string;
 
   @Column({ length: 256, unique: true })
   ip: string;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

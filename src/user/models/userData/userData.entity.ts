@@ -1,18 +1,9 @@
 import { Country } from 'src/shared/models/country/country.entity';
+import { IEntity } from 'src/shared/models/entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToMany,
-  CreateDateColumn,
-  UpdateDateColumn,
-  OneToOne,
-  JoinColumn,
-  ManyToOne,
-} from 'typeorm';
+import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { AccountType } from './account-type.enum';
 
@@ -40,10 +31,7 @@ export enum RiskState {
 }
 
 @Entity()
-export class UserData {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class UserData extends IEntity {
   @Column({ default: true })
   isMigrated: boolean;
 
@@ -137,10 +125,4 @@ export class UserData {
 
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }
