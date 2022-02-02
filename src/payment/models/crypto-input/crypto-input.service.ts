@@ -36,7 +36,7 @@ export class CryptoInputService {
 
       // TODO: ignore own wallet address (UTXO holdings)
 
-      await this.client
+      const newInputs = await this.client
         // get UTXOs >= 0.1 DFI
         .getUtxo()
         .then((i) => i.filter((u) => u.amount.toNumber() >= 0.1))
@@ -49,13 +49,16 @@ export class CryptoInputService {
         .then((i) => i.filter((h) => h.type === 'receive' || h.type === 'AccountToUtxos'))
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntity(h))))
-        .then((i) => i.filter((e) => e != null && e.amount >= 0.1)) // min. deposit limit
-        .then((i) => {
-          if (i.length > 0) console.log('New crypto inputs:', i);
-          return i;
-        })
-        // save and forward
-        .then((i) => Promise.all(i.map((e) => this.saveAndForward(e))));
+        .then((i) => i.filter((e) => e != null && e.amount >= 0.1)); // min. deposit limit
+
+      // save and forward
+      if (newInputs.length > 0) {
+        console.log('New crypto inputs:', newInputs);
+
+        for (const input of newInputs) {
+          await this.saveAndForward(input);
+        }
+      }
     } catch (e) {
       console.error('Exception during crypto input checks:', e);
     }
