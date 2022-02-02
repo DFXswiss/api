@@ -35,6 +35,7 @@ export class CryptoSellService {
   async update(id: number, dto: UpdateCryptoSellDto): Promise<CryptoSell> {
     let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput', 'cryptoInput.route'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+    
     const cryptoInputWithOtherSell = dto.cryptoInputId
       ? await this.cryptoSellRepo.findOne({
           where: { id: Not(id), cryptoInput: { id: dto.cryptoInputId } },

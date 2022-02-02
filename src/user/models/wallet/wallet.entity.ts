@@ -1,11 +1,9 @@
+import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/user/models/user/user.entity';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany } from 'typeorm';
 
 @Entity()
-export class Wallet {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Wallet extends IEntity {
   @Column({ unique: true, length: 256 })
   address: string;
 
@@ -20,10 +18,4 @@ export class Wallet {
 
   @OneToMany(() => User, (user) => user.wallet)
   logs: User[];
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

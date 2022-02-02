@@ -1,12 +1,10 @@
+import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/user/models/userData/userData.entity';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, UpdateDateColumn, ManyToOne } from 'typeorm';
+import { Entity, Column, Index, ManyToOne } from 'typeorm';
 
 @Entity()
 @Index('nameLocationIban', (bankData: BankData) => [bankData.name, bankData.location, bankData.iban], { unique: true })
-export class BankData {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class BankData extends IEntity {
   @Column({ length: 256 })
   name: string;
 
@@ -27,10 +25,4 @@ export class BankData {
 
   @ManyToOne(() => UserData)
   userData: UserData;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

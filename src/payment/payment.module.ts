@@ -36,6 +36,9 @@ import { RouteController } from './models/route/route.controller';
 import { CryptoSellRepository } from './models/crypto-sell/crypto-sell.repository';
 import { CryptoSellController } from './models/crypto-sell/crypto-sell.controller';
 import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
+import { MasternodeController } from './models/masternode/masternode.controller';
+import { MasternodeService } from './models/masternode/masternode.service';
+import { MasternodeRepository } from './models/masternode/masternode.repository';
 
 @Module({
   imports: [
@@ -49,6 +52,7 @@ import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
       SellRepository,
       StakingRepository,
       DepositRepository,
+      MasternodeRepository,
     ]),
     SharedModule,
     AinModule,
@@ -66,6 +70,7 @@ import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
     SellController,
     StakingController,
     DepositController,
+    MasternodeController,
   ],
   providers: [
     CryptoInputService,
@@ -81,6 +86,7 @@ import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
     SellService,
     StakingService,
     DepositService,
+    MasternodeService,
     BuyController,
     SellController,
     StakingController,

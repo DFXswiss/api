@@ -34,6 +34,7 @@ export class CryptoBuyService {
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('No matching entry found');
+    
     const bankTxWithOtherBuy = dto.bankTxId
       ? await this.cryptoBuyRepo.findOne({
           where: { id: Not(id), bankTx: { id: dto.bankTxId } },

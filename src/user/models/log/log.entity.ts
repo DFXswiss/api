@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, ManyToOne } from 'typeorm';
 import { User } from 'src/user/models/user/user.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { IEntity } from 'src/shared/models/entity';
 
 export enum LogDirection {
   fiat2asset = 'fiat-to-asset',
@@ -28,10 +29,7 @@ export enum LogStatus {
 }
 
 @Entity()
-export class Log {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Log extends IEntity {
   @Column({ unique: true, length: 256 })
   orderId: string;
 
@@ -106,10 +104,4 @@ export class Log {
 
   @ManyToOne(() => User)
   user: User;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }
