@@ -151,6 +151,7 @@ export class KycSchedulerService {
         userData.language?.symbol?.toLowerCase(),
       );
     } else {
+      userData.kycStatusChangeDate = new Date();
       userData.kycStatus = KycStatus.MANUAL;
     }
 
@@ -169,8 +170,6 @@ export class KycSchedulerService {
         customer.emails[0],
         userData?.language?.symbol?.toLocaleLowerCase(),
       );
-      userData.kycStatus = KycStatus.VIDEO_ID;
-      userData.kycState = KycState.NA;
 
       console.log(`KYC change: status of user ${userData.id}: ${userData.kycStatus}`);
     } else {

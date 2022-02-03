@@ -278,6 +278,7 @@ export class UserDataService {
         ? KycStatus.ONLINE_ID
         : KycStatus.CHATBOT;
     userData.kycState = KycState.NA;
+    userData.kycStatusChangeDate = new Date();
     userData.spiderData = spiderData;
     await this.userDataRepo.save(userData);
 

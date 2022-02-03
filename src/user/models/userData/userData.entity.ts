@@ -91,6 +91,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, default: KycState.NA })
   kycState: KycState;
 
+  @Column({ type: 'datetime2', nullable: true })
+  kycStatusChangeDate: Date;
+
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
 
