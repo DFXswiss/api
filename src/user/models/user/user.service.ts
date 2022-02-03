@@ -97,8 +97,8 @@ export class UserService {
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 
-  async uploadDocument(userId: number, document: Express.Multer.File): Promise<boolean | Error> {
-    return this.userDataService.uploadDocument(userId, document);
+  async uploadIncorporationCertificate(userId: number, document: Express.Multer.File): Promise<boolean | Error> {
+    return this.userDataService.uploadIncorporationCertificate(userId, document);
   }
 
   async getRefDataForId(userId: number): Promise<any> {

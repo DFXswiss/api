@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Query, Param, NotFoundException } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Query, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
@@ -26,19 +26,6 @@ export class StakingController {
     return this.stakingService.getUserStaking(jwt.id).then((l) => this.stakingService.toDtoList(jwt.id, l));
   }
 
-  @Get(':address')
-  async getStakingVolume(@Param('address') address: string): Promise<number> {
-    const stakingIds = await this.stakingService.getStakingByAddress(address);
-    if (stakingIds.length === 0) throw new NotFoundException('No DFX staking');
-    const stakingBalances = (
-      await this.cryptoInputService.getAllStakingBalance(
-        stakingIds.map((u) => u.id),
-        new Date(),
-      )
-    ).reduce((sum, current) => sum + current.balance, 0);
-    return stakingBalances;
-  }
-
   @Get('balance')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -46,6 +33,21 @@ export class StakingController {
   async getAllStakingBalance(@Query('date') date: Date = new Date()): Promise<{ id: number; balance: number }[]> {
     const stakingIds = await this.stakingService.getAllIds();
     return this.cryptoInputService.getAllStakingBalance(stakingIds, date);
+  }
+
+  @Get('balance/:address')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.DEFICHAIN_INCOME))
+  async getStakingBalance(@Param('address') address: string): Promise<number> {
+    const stakingRoutes = await this.stakingService.getStakingByAddress(address);
+    if (stakingRoutes.length === 0) return 0;
+
+    const stakingBalances = await this.cryptoInputService.getAllStakingBalance(
+      stakingRoutes.map((u) => u.id),
+      new Date(),
+    );
+    return stakingBalances.reduce((sum, current) => sum + current.balance, 0);
   }
 
   @Post()

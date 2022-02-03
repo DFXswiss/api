@@ -11,6 +11,7 @@ export class RoleGuard implements CanActivate {
     [UserRole.ADMIN]: [UserRole.ADMIN],
 
     [UserRole.MASTERNODE_OPERATOR]: [UserRole.MASTERNODE_OPERATOR],
+    [UserRole.DEFICHAIN_INCOME]: [UserRole.DEFICHAIN_INCOME],
   };
 
   constructor(private readonly entryRole: UserRole) {}

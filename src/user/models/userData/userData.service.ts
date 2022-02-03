@@ -178,7 +178,7 @@ export class UserDataService {
     return userData.riskState;
   }
 
-  async uploadDocument(userId: number, document: Express.Multer.File): Promise<boolean> {
+  async uploadIncorporationCertificate(userId: number, document: Express.Multer.File): Promise<boolean> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
       select: ['id'],

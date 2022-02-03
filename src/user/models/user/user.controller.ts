@@ -61,16 +61,16 @@ export class UserController {
     return { url: await this.userService.requestKyc(jwt.id, depositLimit) };
   }
 
-  @Post('upload')
+  @Post('incorporationCertificate')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @UseInterceptors(FilesInterceptor('files'))
-  async uploadFounderCertificate(
+  async uploadIncorporationCertificate(
     @GetJwt() jwt: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean | Error> {
-    return this.userService.uploadDocument(jwt.id, files[0]);
+    return this.userService.uploadIncorporationCertificate(jwt.id, files[0]);
   }
 
   @Get('all')

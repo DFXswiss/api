@@ -120,6 +120,17 @@ export class StakingService {
       .filter((id) => id);
   }
 
+  public async getStakingYield(): Promise<{ apr: number; apy: number }> {
+    const lastDfiRewards = await this.settingService.get('stakingRewards');
+    const lastDfiCollateral = await this.settingService.get('stakingCollateral');
+
+    const apr = await this.getApr(+lastDfiRewards, +lastDfiCollateral);
+    return {
+      apr: Util.round(apr, 2),
+      apy: Util.round(this.getApy(apr), 2),
+    };
+  }
+
   // --- DTO --- //
   async toDtoList(userId: number, staking: Staking[]): Promise<StakingDto[]> {
     const depositIds = staking
@@ -189,17 +200,6 @@ export class StakingService {
 
   private getApy(dfiApr: number): number {
     return Math.pow(1 + dfiApr / 365, 365) - 1;
-  }
-
-  public async getStakingYield(): Promise<{ apr: number; apy: number }> {
-    const lastDfiRewards = await this.settingService.get('stakingRewards');
-    const lastDfiCollateral = await this.settingService.get('stakingCollateral');
-
-    const apr = await this.getApr(+lastDfiRewards, +lastDfiCollateral);
-    return {
-      apr: Util.round(apr, 2),
-      apy: Util.round(this.getApy(apr), 2),
-    };
   }
 
   private async getAsset(assetId?: number): Promise<Asset | null> {
