@@ -44,8 +44,7 @@ export class CryptoInputService {
         .then((i) => i.map((u) => u.address))
         .then((i) => i.filter((u, j) => i.indexOf(u) === j))
         // get receive history
-        .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
-        .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
+        .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
         .then((i) => i.filter((h) => h.type === 'receive' || h.type === 'AccountToUtxos'))
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntity(h))))
