@@ -415,13 +415,14 @@ export class UserDataService {
         await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
-    await this.userDataRepo.save(userData);
 
     const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
     vipUser
       ? await this.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION)
       : await this.initiateIdentification(userData, false, KycDocument.INITIATE_ONLINE_IDENTIFICATION);
     userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
+    
+    await this.userDataRepo.save(userData);
 
     return userData;
   }
