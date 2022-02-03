@@ -37,19 +37,18 @@ export class CryptoInputService {
       // TODO: ignore own wallet address (UTXO holdings)
 
       const newInputs = await this.client
-        // get UTXOs >= 0.1 DFI
+        // get UTXOs >= 0.01 DFI
         .getUtxo()
-        .then((i) => i.filter((u) => u.amount.toNumber() >= 0.1))
+        .then((i) => i.filter((u) => u.amount.toNumber() >= 0.01))
         // get distinct addresses
         .then((i) => i.map((u) => u.address))
         .then((i) => i.filter((u, j) => i.indexOf(u) === j))
         // get receive history
-        .then((i) => Promise.all(i.map((a) => this.client.getHistory(a, lastHeight + 1, currentHeight))))
-        .then((i) => i.reduce((prev, curr) => prev.concat(curr), []))
+        .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
         .then((i) => i.filter((h) => h.type === 'receive' || h.type === 'AccountToUtxos'))
         // map to entities
         .then((i) => Promise.all(i.map((h) => this.createEntity(h))))
-        .then((i) => i.filter((e) => e != null && e.amount >= 0.1)); // min. deposit limit
+        .then((i) => i.filter((e) => e != null && e.amount >= 0.01)); // min. deposit limit
 
       // save and forward
       if (newInputs.length > 0) {

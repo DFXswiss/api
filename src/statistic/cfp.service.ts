@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
@@ -7,6 +7,14 @@ import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/setting/setting.service';
+
+interface CfpSettings {
+  inProgress: boolean;
+  currentRound: string;
+  startDate: string;
+  endDate: string;
+}
 
 interface CfpResponse {
   number: number;
@@ -85,20 +93,22 @@ export interface CfpResult {
 export class CfpService {
   private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
 
-  // current voting round
-  private readonly isCfpInProgress = true;
-  private readonly currentRound = '2202';
-  private readonly startDate = '2021-02-07T23:59:59+00:00';
-  private readonly endDate = '2021-02-14T23:59:59+00:00';
-
+  private settings: CfpSettings;
   private masterNodeCount: number;
   private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
 
-  constructor(private http: HttpService, private cryptoService: CryptoService) {
-    const validMasterNodes = Object.values(MasterNodes).filter(
+  constructor(
+    private readonly http: HttpService,
+    private readonly cryptoService: CryptoService,
+    readonly settingService: SettingService,
+    @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
+  ) {
+    settingService.getObj<CfpSettings>('cfp').then((s) => (this.settings = s));
+
+    validMasterNodes ??= Object.values(MasterNodes).filter(
       (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
-    );
+    ) as MasterNode[];
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }
@@ -123,8 +133,8 @@ export class CfpService {
   }
 
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
-    if (['latest', this.currentRound].includes(cfpId)) {
-      if (this.isCfpInProgress) {
+    if (['latest', this.settings.currentRound].includes(cfpId)) {
+      if (this.settings.inProgress) {
         // return current data from GitHub
         if (!this.cfpResults) await this.doUpdate();
         return this.cfpResults;
@@ -208,8 +218,8 @@ export class CfpService {
         neutral: neutralVotes,
         no: noVotes,
       },
-      startDate: this.startDate,
-      endDate: this.endDate,
+      startDate: this.settings.startDate,
+      endDate: this.settings.endDate,
     };
   }
 
@@ -217,7 +227,7 @@ export class CfpService {
     const matches = [];
 
     let match;
-    const regExp = this.getRegExp(this.currentRound, type);
+    const regExp = this.getRegExp(this.settings.currentRound, type);
 
     while ((match = regExp.exec(commentResponse.body)) !== null) {
       matches.push(match);

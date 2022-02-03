@@ -26,6 +26,7 @@ describe('CryptoInputService', () => {
     jest.spyOn(nodeClient, 'getInfo').mockResolvedValueOnce({ blocks: blocks } as BlockchainInfo);
     jest.spyOn(cryptoInputRepo, 'findOne').mockResolvedValueOnce({ blockHeight: lastBlocks } as CryptoInput);
     jest.spyOn(nodeClient, 'getUtxo').mockResolvedValueOnce(utxo);
+    jest.spyOn(nodeClient, 'getHistories').mockResolvedValueOnce([]);
   }
 
   beforeEach(async () => {
@@ -57,25 +58,33 @@ describe('CryptoInputService', () => {
   });
 
   it('should ignore small UTXO amounts', async () => {
-    setup(0, 0, [{ address: 'addr', amount: new BigNumber(0.05) }] as UTXO[]);
+    const blocks = 0;
+    const lastBlocks = 0;
+
+    setup(blocks, lastBlocks, [{ address: 'addr', amount: new BigNumber(0.005) }] as UTXO[]);
 
     await service.checkInputs();
 
-    expect(nodeClient.getHistory).toHaveBeenCalledTimes(0);
+    expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
+    expect(nodeClient.getHistories).toHaveBeenCalledWith([], lastBlocks + 1, blocks);
   });
 
   it('should remove address duplicates', async () => {
-    setup(0, 0, [
+    const blocks = 0;
+    const lastBlocks = 0;
+
+    setup(blocks, lastBlocks, [
       { address: 'addr', amount: new BigNumber(4) },
       { address: 'addr', amount: new BigNumber(3) },
     ] as UTXO[]);
 
     await service.checkInputs();
 
-    expect(nodeClient.getHistory).toHaveBeenCalledTimes(1);
+    expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
+    expect(nodeClient.getHistories).toHaveBeenCalledWith(['addr'], lastBlocks + 1, blocks);
   });
 
-  it('should get history with correct address and block height', async () => {
+  it('should get history with correct addresses and block height', async () => {
     const blocks = 46;
     const lastBlocks = 34;
 
@@ -87,9 +96,8 @@ describe('CryptoInputService', () => {
 
     await service.checkInputs();
 
-    expect(nodeClient.getHistory).toHaveBeenCalledTimes(2);
-    expect(nodeClient.getHistory).toHaveBeenCalledWith('addr1', lastBlocks + 1, blocks);
-    expect(nodeClient.getHistory).toHaveBeenCalledWith('addr2', lastBlocks + 1, blocks);
+    expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
+    expect(nodeClient.getHistories).toHaveBeenCalledWith(['addr1', 'addr2'], lastBlocks + 1, blocks);
   });
 
   // TODO: do more tests
