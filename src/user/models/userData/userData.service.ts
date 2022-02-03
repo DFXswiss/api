@@ -241,10 +241,8 @@ export class UserDataService {
       if (!chatBotResult) await this.preFillChatbot(userData, userInfo);
 
       return this.initiateIdentification(userData, false, KycDocument.INITIATE_CHATBOT_IDENTIFICATION);
-    } else if (
-      [KycStatus.WAIT_CHAT_BOT, KycStatus.WAIT_VIDEO_ID, KycStatus.WAIT_ONLINE_ID].includes(userData?.kycStatus)
-    ) {
-      if (userData?.kycStatus === KycStatus.WAIT_CHAT_BOT) {
+    } else if ([KycStatus.CHATBOT, KycStatus.VIDEO_ID, KycStatus.ONLINE_ID].includes(userData?.kycStatus)) {
+      if (userData?.kycStatus === KycStatus.CHATBOT) {
         const documentVersions = await this.kycApi.getDocumentVersion(userData.id, KycDocument.CHATBOT);
         const isCompleted = documentVersions.find((doc) => doc.state === State.COMPLETED) != null;
 
@@ -254,16 +252,16 @@ export class UserDataService {
         }
       }
       const documentType =
-        userData?.kycStatus === KycStatus.WAIT_CHAT_BOT
+        userData?.kycStatus === KycStatus.CHATBOT
           ? KycDocument.INITIATE_CHATBOT_IDENTIFICATION
-          : userData?.kycStatus === KycStatus.WAIT_ONLINE_ID
+          : userData?.kycStatus === KycStatus.ONLINE_ID
           ? KycDocument.INITIATE_ONLINE_IDENTIFICATION
           : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
 
       return userData.kycState === KycState.FAILED
         ? this.initiateIdentification(userData, false, documentType)
         : userData.spiderData.url;
-    } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.WAIT_MANUAL) {
+    } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.MANUAL) {
       const customer = await this.kycApi.getCustomer(userData.id);
       // send mail to support
       await this.mailService.sendLimitSupportMail(userData, customer.id, depositLimit);
@@ -276,7 +274,9 @@ export class UserDataService {
   public async initiateIdentification(userData: UserData, sendMail: boolean, identType: KycDocument): Promise<string> {
     // create/update spider data
     const initiateData = await this.kycApi.initiateIdentification(userData.id, sendMail, identType);
-    const spiderData = userData.spiderData ?? this.spiderDataRepo.create({ userData: userData });
+    const spiderData =
+      (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
+      this.spiderDataRepo.create({ userData: userData });
     spiderData.url =
       identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION
         ? initiateData.sessionUrl + '&nc=true'
@@ -287,10 +287,10 @@ export class UserDataService {
     // update user data
     userData.kycStatus =
       identType === KycDocument.INITIATE_VIDEO_IDENTIFICATION
-        ? KycStatus.WAIT_VIDEO_ID
+        ? KycStatus.VIDEO_ID
         : identType === KycDocument.INITIATE_ONLINE_IDENTIFICATION
-        ? KycStatus.WAIT_ONLINE_ID
-        : KycStatus.WAIT_CHAT_BOT;
+        ? KycStatus.ONLINE_ID
+        : KycStatus.CHATBOT;
     userData.kycState = KycState.NA;
     userData.spiderData = spiderData;
     await this.userDataRepo.save(userData);
@@ -420,8 +420,7 @@ export class UserDataService {
     vipUser
       ? await this.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION)
       : await this.initiateIdentification(userData, false, KycDocument.INITIATE_ONLINE_IDENTIFICATION);
-    userData.kycStatus = vipUser ? KycStatus.WAIT_VIDEO_ID : KycStatus.WAIT_ONLINE_ID;
-    
+
     await this.userDataRepo.save(userData);
 
     return userData;

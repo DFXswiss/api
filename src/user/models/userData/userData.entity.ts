@@ -9,11 +9,11 @@ import { AccountType } from './account-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
-  WAIT_CHAT_BOT = 'Chatbot',
-  WAIT_ADDRESS = 'Address',
-  WAIT_ONLINE_ID = 'OnlineId',
-  WAIT_VIDEO_ID = 'VideoId',
-  WAIT_MANUAL = 'Manual',
+  CHATBOT = 'Chatbot',
+  ADDRESS = 'Address',
+  ONLINE_ID = 'OnlineId',
+  VIDEO_ID = 'VideoId',
+  MANUAL = 'Manual',
   COMPLETED = 'Completed',
 }
 

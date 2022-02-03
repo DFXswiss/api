@@ -11,10 +11,10 @@ export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
   private readonly techMail = 'cto@dfx.swiss';
   private readonly kycStatus = {
-    [KycStatus.WAIT_CHAT_BOT]: 'chatbot onboarding',
-    [KycStatus.WAIT_ADDRESS]: 'invoice upload',
-    [KycStatus.WAIT_ONLINE_ID]: 'online identification',
-    [KycStatus.WAIT_VIDEO_ID]: 'video identification',
+    [KycStatus.CHATBOT]: 'chatbot onboarding',
+    [KycStatus.ADDRESS]: 'invoice upload',
+    [KycStatus.ONLINE_ID]: 'online identification',
+    [KycStatus.VIDEO_ID]: 'video identification',
   };
 
   constructor(private mailerService: MailerService) {}
