@@ -52,9 +52,13 @@ export class StakingService {
     return this.stakingRepo.find({ user: { id: userId } });
   }
 
+  async getStakingByAddress(address: string): Promise<Staking[]> {
+    return await this.stakingRepo.find({ where: { user: { address: address } }, relations: ['user'] });
+  }
+
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
     // KYC check
-    const kycStatus = await this.userDataService.getKycStatus(userId);
+    const { kycStatus } = await this.userDataService.getUserDataForUser(userId);
     if (![KycStatus.WAIT_MANUAL, KycStatus.COMPLETED].includes(kycStatus)) throw new BadRequestException('Missing KYC');
 
     // max. 10 routes
@@ -114,6 +118,17 @@ export class StakingService {
       .filter((s) => s.active)
       .map((s) => s.deposit?.id)
       .filter((id) => id);
+  }
+
+  public async getStakingYield(): Promise<{ apr: number; apy: number }> {
+    const lastDfiRewards = await this.settingService.get('stakingRewards');
+    const lastDfiCollateral = await this.settingService.get('stakingCollateral');
+
+    const apr = await this.getApr(+lastDfiRewards, +lastDfiCollateral);
+    return {
+      apr: Util.round(apr, 2),
+      apy: Util.round(this.getApy(apr), 2),
+    };
   }
 
   // --- DTO --- //
@@ -185,17 +200,6 @@ export class StakingService {
 
   private getApy(dfiApr: number): number {
     return Math.pow(1 + dfiApr / 365, 365) - 1;
-  }
-
-  public async getStakingYield(): Promise<{ apr: number; apy: number }> {
-    const lastDfiRewards = await this.settingService.get('stakingRewards');
-    const lastDfiCollateral = await this.settingService.get('stakingCollateral');
-
-    const apr = await this.getApr(+lastDfiRewards, +lastDfiCollateral);
-    return {
-      apr: Util.round(apr, 2),
-      apy: Util.round(this.getApy(apr), 2),
-    };
   }
 
   private async getAsset(assetId?: number): Promise<Asset | null> {

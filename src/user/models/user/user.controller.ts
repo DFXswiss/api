@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -9,6 +9,8 @@ import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -58,6 +60,17 @@ export class UserController {
     @Query('depositLimit') depositLimit?: string,
   ): Promise<boolean | { url: string }> {
     return { url: await this.userService.requestKyc(jwt.id, depositLimit) };
+  }
+
+  @Post('incorporationCertificate')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @UseInterceptors(FilesInterceptor('files'))
+  async uploadIncorporationCertificate(
+    @GetJwt() jwt: JwtPayload,
+    @UploadedFiles() files: Express.Multer.File[],
+  ): Promise<boolean> {
+    return this.userService.uploadDocument(jwt.id, files[0], KycDocument.INCORPORATION_CERTIFICATE);
   }
 
   @Get('all')

@@ -158,13 +158,12 @@ export class UserDataService {
     return { customer: customer, checkResult: checkResult };
   }
 
-  async getKycStatus(userId: number): Promise<KycStatus> {
+  async getUserDataForUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
       .innerJoinAndSelect('userData.users', 'user')
       .where('user.id = :id', { id: userId })
-      .getOne()
-      .then((user) => user.kycStatus);
+      .getOne();
   }
 
   async doNameCheck(userDataId: number): Promise<string> {
@@ -176,6 +175,42 @@ export class UserDataService {
     await this.userDataRepo.save(userData);
 
     return userData.riskState;
+  }
+
+  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
+    const userData = await this.getUserDataForUser(userId);
+    if (!userData) throw new NotFoundException(`No user data for user id ${userId}`);
+
+    const kycData = await this.kycApi.getCustomer(userData.id);
+    if (!kycData) throw new NotFoundException(`User with id ${userData.id} is not in spider`);
+
+    const version = new Date().getTime().toString();
+    await this.kycApi.createDocumentVersion(userData.id, kycDocument, version, false);
+
+    await this.kycApi.createDocumentVersionPart(
+      userData.id,
+      kycDocument,
+      version,
+      'content',
+      document.originalname,
+      document.mimetype as KycContentType,
+      false,
+    );
+    const uploadSuccessful = await this.kycApi.uploadDocument(
+      userData.id,
+      version,
+      kycDocument,
+      'content',
+      document.mimetype as KycContentType,
+      document.buffer,
+      false,
+    );
+
+    if (uploadSuccessful) {
+      await this.kycApi.changeDocumentState(userData.id, version, kycDocument, JSON.stringify(State.COMPLETED), false);
+    }
+
+    return uploadSuccessful;
   }
 
   async requestKyc(userId: number, depositLimit?: string): Promise<string | undefined> {
