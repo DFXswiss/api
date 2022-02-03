@@ -29,7 +29,7 @@ export class TransactionService {
       // await this.getDFITaxRewards(userAddress),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
-    return tx.sort((tx1, tx2) => ((tx1.date?.getTime() ?? 0) - (tx2.date?.getTime() ?? 0) > 0 ? -1 : 1));
+    return tx.sort((tx1, tx2) =>  Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1);
   }
 
   async getTransactionCsv(userId: number, userAddress: string): Promise<Readable> {

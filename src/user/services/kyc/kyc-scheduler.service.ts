@@ -8,6 +8,7 @@ import { Customer, KycDocument, State } from './dto/kyc.dto';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { UserDataService } from 'src/user/models/userData/userData.service';
 import { In } from 'typeorm';
+import { Lock } from 'src/shared/lock';
 
 enum KycStepState {
   ONGOING = 'Ongoing',
@@ -18,6 +19,8 @@ enum KycStepState {
 
 @Injectable()
 export class KycSchedulerService {
+  private readonly lock = new Lock(1800);
+
   constructor(
     private mailService: MailService,
     private userDataRepo: UserDataRepository,
@@ -48,9 +51,11 @@ export class KycSchedulerService {
 
   @Interval(300000)
   async syncKycData() {
-    const settingKey = 'spiderModificationDate';
+    // avoid overlaps
+    if (!this.lock.acquire()) return;
 
     try {
+      const settingKey = 'spiderModificationDate';
       const lastModificationTime = await this.settingService.get(settingKey);
       const newModificationTime = Date.now().toString();
 
@@ -73,6 +78,8 @@ export class KycSchedulerService {
       console.error('Exception during KYC sync:', e);
       await this.mailService.sendErrorMail('KYC Error', [e]);
     }
+
+    this.lock.release();
   }
 
   private async syncKycUser(userDataId: number): Promise<void> {
