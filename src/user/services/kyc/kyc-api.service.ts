@@ -69,6 +69,15 @@ export class KycApiService {
     return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
   }
 
+  async getKycData(userDataId: number): Promise<{ customer: Customer; checkResult: RiskState }> {
+    const customer = await this.getCustomer(userDataId);
+    if (!customer) return null;
+
+    const checkResult = await this.getCheckResult(userDataId);
+
+    return { customer: customer, checkResult: checkResult };
+  }
+
   async getCustomer(id: number): Promise<Customer> {
     return this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
   }

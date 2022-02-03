@@ -7,8 +7,9 @@ import { KycApiService } from './kyc-api.service';
 import { Customer, KycDocument, State } from './dto/kyc.dto';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { UserDataService } from 'src/user/models/userData/userData.service';
+import { In } from 'typeorm';
 
-enum DocumentState {
+enum KycStepState {
   ONGOING = 'Ongoing',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
@@ -24,6 +25,26 @@ export class KycSchedulerService {
     private kycApi: KycApiService,
     private settingService: SettingService,
   ) {}
+
+  @Interval(7200000)
+  async checkOngoingKyc() {
+    const userInProgress = await this.userDataRepo.find({
+      select: ['id'],
+      where: {
+        kycStatus: In([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID]),
+        kycState: In([KycState.NA, KycState.REMINDED]),
+      },
+    });
+
+    for (const user of userInProgress) {
+      try {
+        await this.syncKycUser(user.id);
+      } catch (e) {
+        console.error('Exception during KYC check:', e);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
+      }
+    }
+  }
 
   @Interval(300000)
   async syncKycData() {
@@ -59,34 +80,27 @@ export class KycSchedulerService {
     if (!userData) return;
 
     // update KYC data
-    const { checkResult, customer } = await this.userDataService.getKycData(userData.id);
+    const { checkResult, customer } = await this.kycApi.getKycData(userData.id);
     userData.riskState = checkResult;
     userData.kycCustomerId = customer.id;
 
     // check KYC progress
     if (![KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(userData.kycStatus)) return;
 
-    const documentType =
-      userData.kycStatus === KycStatus.CHATBOT
-        ? KycDocument.CHATBOT
-        : userData.kycStatus === KycStatus.ONLINE_ID
-        ? KycDocument.ONLINE_IDENTIFICATION
-        : KycDocument.VIDEO_IDENTIFICATION;
+    const stepState = await this.getStepState(userData.id, userData.kycStatus);
+    if (stepState === KycStepState.ONGOING) return;
 
-    const documentState = await this.getDocumentState(userData.id, documentType);
-    if (documentState === DocumentState.ONGOING) return;
-
-    switch (documentState) {
-      case DocumentState.COMPLETED:
+    switch (stepState) {
+      case KycStepState.COMPLETED:
         userData = await this.stepCompleted(userData);
         break;
-      case DocumentState.FAILED:
+      case KycStepState.FAILED:
         if (userData.kycState != KycState.FAILED) {
           userData = await this.stepFailed(userData, customer);
         }
         break;
-      case DocumentState.EXPIRED:
-        if (![KycState.REMINDED, KycState.RETRIED].includes(userData.kycState)) {
+      case KycStepState.EXPIRED:
+        if (![KycState.REMINDED].includes(userData.kycState)) {
           userData = await this.stepExpired(userData, customer);
         }
         break;
@@ -95,22 +109,30 @@ export class KycSchedulerService {
     await this.userDataRepo.save(userData);
   }
 
-  private async getDocumentState(userDataId: number, document: KycDocument): Promise<DocumentState> {
-    const versions = await this.kycApi.getDocumentVersion(userDataId, document);
-    if (!versions?.length) return DocumentState.ONGOING;
+  private async getStepState(userDataId: number, kycStatus: KycStatus): Promise<KycStepState> {
+    // TODO: centralize this mapping
+    const documentType =
+      kycStatus === KycStatus.CHATBOT
+        ? KycDocument.CHATBOT
+        : kycStatus === KycStatus.ONLINE_ID
+        ? KycDocument.ONLINE_IDENTIFICATION
+        : KycDocument.VIDEO_IDENTIFICATION;
+
+    const versions = await this.kycApi.getDocumentVersion(userDataId, documentType);
+    if (!versions?.length) return KycStepState.ONGOING;
 
     // completed
-    if (versions.find((doc) => doc.state === State.COMPLETED) != null) return DocumentState.COMPLETED;
+    if (versions.find((doc) => doc.state === State.COMPLETED) != null) return KycStepState.COMPLETED;
 
     // failed
     if (versions.find((doc) => doc.state != State.FAILED && this.dateDiffInDays(doc.creationTime) < 7) == null)
-      return DocumentState.FAILED;
+      return KycStepState.FAILED;
 
     // expired
     if (this.dateDiffInDays(versions[0].creationTime) > 2 && this.dateDiffInDays(versions[0].creationTime) < 7)
-      return DocumentState.EXPIRED;
+      return KycStepState.EXPIRED;
 
-    return DocumentState.ONGOING;
+    return KycStepState.ONGOING;
   }
 
   private async stepCompleted(userData: UserData): Promise<UserData> {

@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { KycState, KycStatus, RiskState, UserData } from './userData.entity';
-import { Customer, KycContentType, KycDocument, State } from 'src/user/services/kyc/dto/kyc.dto';
+import { KycState, KycStatus, UserData } from './userData.entity';
+import { KycContentType, KycDocument, State } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { MailService } from 'src/shared/services/mail.service';
@@ -21,11 +21,6 @@ export interface UserDataChecks {
   nameCheckRisk: string;
   activationDate: Date;
   kycStatus: KycStatus;
-}
-
-export interface CustomerDataDetailed {
-  customer: Customer;
-  checkResult: RiskState;
 }
 
 @Injectable()
@@ -147,15 +142,6 @@ export class UserDataService {
 
   async getAllUserData(): Promise<UserData[]> {
     return this.userDataRepo.getAllUserData();
-  }
-
-  async getKycData(userDataId: number): Promise<CustomerDataDetailed> {
-    const customer = await this.kycApi.getCustomer(userDataId);
-    if (!customer) return null;
-
-    const checkResult = await this.kycApi.getCheckResult(userDataId);
-
-    return { customer: customer, checkResult: checkResult };
   }
 
   async getUserDataForUser(userId: number): Promise<UserData> {
