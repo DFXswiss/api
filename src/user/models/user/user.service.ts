@@ -11,6 +11,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
+import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 
 @Injectable()
 export class UserService {
@@ -97,8 +98,8 @@ export class UserService {
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 
-  async uploadIncorporationCertificate(userId: number, document: Express.Multer.File): Promise<boolean | Error> {
-    return this.userDataService.uploadIncorporationCertificate(userId, document);
+  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
+    return this.userDataService.uploadDocument(userId, document, kycDocument);
   }
 
   async getRefDataForId(userId: number): Promise<any> {
