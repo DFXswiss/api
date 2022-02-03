@@ -10,6 +10,7 @@ import { CreateStakingDto } from './dto/create-staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { StakingDto } from './dto/staking.dto';
 import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
+import { Util } from 'src/shared/util';
 
 @ApiTags('staking')
 @Controller('staking')
@@ -47,7 +48,7 @@ export class StakingController {
       stakingRoutes.map((u) => u.id),
       new Date(),
     );
-    return stakingBalances.reduce((sum, current) => sum + current.balance, 0);
+    return Util.round(stakingBalances.reduce((sum, current) => sum + current.balance, 0), 8);
   }
 
   @Post()
