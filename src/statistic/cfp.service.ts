@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
@@ -102,12 +102,13 @@ export class CfpService {
     private readonly http: HttpService,
     private readonly cryptoService: CryptoService,
     readonly settingService: SettingService,
+    @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
   ) {
     settingService.getObj<CfpSettings>('cfp').then((s) => (this.settings = s));
 
-    const validMasterNodes = Object.values(MasterNodes).filter(
+    validMasterNodes ??= Object.values(MasterNodes).filter(
       (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
-    );
+    ) as MasterNode[];
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
   }

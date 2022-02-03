@@ -1,14 +1,27 @@
+import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { SettingService } from 'src/shared/setting/setting.service';
 import { CfpService } from './cfp.service';
 
 describe('CfpService', () => {
   let service: CfpService;
+  let settingService: SettingService;
 
   beforeEach(async () => {
+    settingService = createMock<SettingService>();
+
+    jest.spyOn(settingService, 'getObj').mockResolvedValueOnce({});
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CfpService, { provide: HttpService, useValue: {} }, { provide: CryptoService, useValue: {} }],
+      providers: [
+        CfpService,
+        { provide: HttpService, useValue: {} },
+        { provide: CryptoService, useValue: {} },
+        { provide: SettingService, useValue: settingService },
+        { provide: 'VALID_MNS', useValue: [] },
+      ],
     }).compile();
 
     service = module.get<CfpService>(CfpService);

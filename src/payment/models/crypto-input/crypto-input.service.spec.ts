@@ -57,7 +57,7 @@ describe('CryptoInputService', () => {
   });
 
   it('should ignore small UTXO amounts', async () => {
-    setup(0, 0, [{ address: 'addr', amount: new BigNumber(0.05) }] as UTXO[]);
+    setup(0, 0, [{ address: 'addr', amount: new BigNumber(0.005) }] as UTXO[]);
 
     await service.checkInputs();
 
