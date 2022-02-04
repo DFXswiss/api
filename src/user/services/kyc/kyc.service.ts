@@ -7,7 +7,7 @@ import { UserRepository } from 'src/user/models/user/user.repository';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
 import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
-import { KycDocument, KycContentType, KycDocumentState } from './dto/kyc.dto';
+import { KycDocument, KycContentType, KycDocumentState, InitiateResponse } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 
 @Injectable()
@@ -19,8 +19,6 @@ export class KycService {
     private readonly mailService: MailService,
     private readonly kycApi: KycApiService,
   ) {}
-
-  // TODO: cleanup
 
   public async uploadDocument(
     customerId: number,
@@ -62,15 +60,7 @@ export class KycService {
   public async initiateIdentification(userData: UserData, sendMail: boolean, identType: KycDocument): Promise<string> {
     // create/update spider data
     const initiateData = await this.kycApi.initiateIdentification(userData.id, sendMail, identType);
-    const spiderData =
-      (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
-      this.spiderDataRepo.create({ userData: userData });
-    spiderData.url =
-      identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION
-        ? initiateData.sessionUrl + '&nc=true'
-        : initiateData.sessionUrl;
-    spiderData.version = initiateData.locators[0].version;
-    await this.spiderDataRepo.save(spiderData);
+    const spiderData = await this.updateSpiderData(userData, identType, initiateData);
 
     // update user data
     userData.kycStatus =
@@ -81,10 +71,25 @@ export class KycService {
         : KycStatus.CHATBOT;
     userData.kycState = KycState.NA;
     userData.kycStatusChangeDate = new Date();
-    userData.spiderData = spiderData;
     await this.userDataRepo.save(userData);
 
     return spiderData.url;
+  }
+
+  private async updateSpiderData(userData: UserData, identType: KycDocument, initiateData: InitiateResponse) {
+    const spiderData =
+      (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
+      this.spiderDataRepo.create({ userData: userData });
+
+    spiderData.url =
+      identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION // TODO: get identType from response?
+        ? initiateData.sessionUrl + '&nc=true'
+        : initiateData.sessionUrl;
+        
+    spiderData.version = initiateData.locators[0].version;
+    await this.spiderDataRepo.save(spiderData);
+
+    return spiderData;
   }
 
   public async finishChatBot(userData: UserData): Promise<UserData> {
@@ -126,7 +131,7 @@ export class KycService {
     return userData;
   }
 
-  async preFillChatbot(userData: UserData, userInfo: UserInfo): Promise<void> {
+  async uploadInitialCustomerInfo(userData: UserData, userInfo: UserInfo): Promise<void> {
     // pre-fill customer info
     const customerInfo = {
       type: 'AdditionalPersonInformation',

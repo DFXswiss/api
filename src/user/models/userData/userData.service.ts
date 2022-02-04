@@ -209,7 +209,7 @@ export class UserDataService {
         'v1',
         'content',
       );
-      if (!chatBotResult) await this.kycService.preFillChatbot(userData, userInfo);
+      if (!chatBotResult) await this.kycService.uploadInitialCustomerInfo(userData, userInfo);
 
       return this.kycService.initiateIdentification(userData, false, KycDocument.INITIATE_CHATBOT_IDENTIFICATION);
     } else if ([KycStatus.CHATBOT, KycStatus.VIDEO_ID, KycStatus.ONLINE_ID].includes(userData?.kycStatus)) {
