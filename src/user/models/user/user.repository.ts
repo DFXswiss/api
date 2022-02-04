@@ -11,6 +11,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { AccountType } from '../userData/account-type.enum';
 import { Config } from 'src/config/config';
+import { TransactionService } from 'src/payment/models/transaction/transaction.service';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -20,6 +21,7 @@ export class UserRepository extends Repository<User> {
     languageService: LanguageService,
     countryService: CountryService,
     fiatService: FiatService,
+    transactionService: TransactionService,
   ): Promise<User> {
     let countryObject = null;
     let languageObject = null;
@@ -88,6 +90,8 @@ export class UserRepository extends Repository<User> {
 
     try {
       await this.save(user);
+
+      transactionService.activateDfiTaxAddress(user.address);
 
       createUserDto.country = countryObject;
       createUserDto.language = languageObject;
