@@ -8,12 +8,17 @@ import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
 import { Between, Not } from 'typeorm';
+import { UserRepository } from 'src/user/models/user/user.repository';
+import { User, UserStatus } from 'src/user/models/user/user.entity';
+import { BuyRepository } from '../buy/buy.repository';
 
 @Injectable()
 export class CryptoBuyService {
   constructor(
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly bankTxRepo: BankTxRepository,
+    private readonly buyRepo: BuyRepository,
+    private readonly userRepo: UserRepository,
     private readonly buyService: BuyService,
     private readonly fiatService: FiatService,
     private readonly userService: UserService,
@@ -28,13 +33,23 @@ export class CryptoBuyService {
 
     await this.updateBuyVolume([entity.buy?.id]);
     await this.updateRefVolume([entity.usedRef]);
+
+    const user =
+      entity.buy && entity.amlCheck === AmlCheck.PASS
+        ? (await this.buyRepo.findOne({ id: entity.buy.id }, { relations: ['user'] })).user
+        : null;
+    if (user) {
+      user.status = user.status === UserStatus.NA ? UserStatus.ACTIVE : null;
+      if (user.status) await this.userRepo.save(user);
+    }
+
     return entity;
   }
 
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('No matching entry found');
-    
+
     const bankTxWithOtherBuy = dto.bankTxId
       ? await this.cryptoBuyRepo.findOne({
           where: { id: Not(id), bankTx: { id: dto.bankTxId } },

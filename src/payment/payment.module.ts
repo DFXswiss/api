@@ -39,6 +39,7 @@ import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
 import { MasternodeController } from './models/masternode/masternode.controller';
 import { MasternodeService } from './models/masternode/masternode.service';
 import { MasternodeRepository } from './models/masternode/masternode.repository';
+import { UserRepository } from 'src/user/models/user/user.repository';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { MasternodeRepository } from './models/masternode/masternode.repository'
       StakingRepository,
       DepositRepository,
       MasternodeRepository,
+      UserRepository,
     ]),
     SharedModule,
     AinModule,

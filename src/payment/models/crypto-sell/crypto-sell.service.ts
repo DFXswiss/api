@@ -10,12 +10,15 @@ import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { Between, Not } from 'typeorm';
+import { UserRepository } from 'src/user/models/user/user.repository';
+import { UserStatus } from 'src/user/models/user/user.entity';
 
 @Injectable()
 export class CryptoSellService {
   constructor(
     private readonly cryptoSellRepo: CryptoSellRepository,
     private readonly bankTxRepo: BankTxRepository,
+    private readonly userRepo: UserRepository,
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly sellService: SellService,
     private readonly sellRepo: SellRepository,
@@ -29,13 +32,24 @@ export class CryptoSellService {
     entity = await this.cryptoSellRepo.save(entity);
 
     await this.updateSellVolume([entity.cryptoInput.route.id]);
+
+    const user =
+      entity.cryptoInput && entity.amlCheck === AmlCheck.PASS
+        ? (await this.cryptoInputRepo.findOne({ id: entity.cryptoInput.id }, { relations: ['route', 'route.user'] }))
+            .route.user
+        : null;
+    if (user) {
+      user.status = user.status === UserStatus.NA ? UserStatus.ACTIVE : null;
+      if (user.status) await this.userRepo.save(user);
+    }
+
     return entity;
   }
 
   async update(id: number, dto: UpdateCryptoSellDto): Promise<CryptoSell> {
     let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput', 'cryptoInput.route'] });
     if (!entity) throw new NotFoundException('No matching entry found');
-    
+
     const cryptoInputWithOtherSell = dto.cryptoInputId
       ? await this.cryptoSellRepo.findOne({
           where: { id: Not(id), cryptoInput: { id: dto.cryptoInputId } },
