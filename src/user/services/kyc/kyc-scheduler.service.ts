@@ -26,7 +26,7 @@ export class KycSchedulerService {
       await this.doVideoIdCheck();
     } catch (e) {
       console.error('Exception during KYC checks:', e);
-      await this.mailService.sendErrorMail('KYC Error', [e]);
+      // await this.mailService.sendErrorMail('KYC Error', [e]);
     }
   }
 
@@ -161,7 +161,7 @@ export class KycSchedulerService {
         await this.userDataRepo.save(userDataList[key]);
       } catch (e) {
         console.error('Exception during KYC checks:', e);
-        await this.mailService.sendErrorMail('KYC Error', [e]);
+        // await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }
