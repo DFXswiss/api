@@ -103,7 +103,7 @@ export interface SubmitResponse {
   customerVersionId: number;
 }
 
-export interface CheckVersion {
+export interface DocumentVersion {
   name: string;
   state: KycDocumentState;
   creationTime: number;

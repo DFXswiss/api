@@ -4,7 +4,7 @@ import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { UserDataService } from 'src/user/models/userData/userData.service';
+import { KycResult, UserDataService } from 'src/user/models/userData/userData.service';
 import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
@@ -94,7 +94,7 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number, depositLimit: string): Promise<string | undefined> {
+  async requestKyc(userId: number, depositLimit: string): Promise<KycResult> {
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 

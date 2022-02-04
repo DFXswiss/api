@@ -4,18 +4,10 @@ import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
-import { Customer, KycDocument, KycDocumentState } from './dto/kyc.dto';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { In } from 'typeorm';
 import { Lock } from 'src/shared/lock';
-import { KycService } from './kyc.service';
-
-enum KycStepState {
-  ONGOING = 'Ongoing',
-  COMPLETED = 'Completed',
-  FAILED = 'Failed',
-  EXPIRED = 'Expired',
-}
+import { KycService, KycStepState } from './kyc.service';
 
 @Injectable()
 export class KycSchedulerService {
@@ -95,108 +87,73 @@ export class KycSchedulerService {
     userData.kycCustomerId = customer.id;
 
     // check KYC progress
-    if (![KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(userData.kycStatus)) return;
-
-    const stepState = await this.getStepState(userData.id, userData.kycStatus);
-    if (stepState === KycStepState.ONGOING) return;
-
-    switch (stepState) {
-      case KycStepState.COMPLETED:
-        userData = await this.stepCompleted(userData);
-        break;
-      case KycStepState.FAILED:
-        if (userData.kycState != KycState.FAILED) {
-          userData = await this.stepFailed(userData, customer);
-        }
-        break;
-      case KycStepState.EXPIRED:
-        if (![KycState.REMINDED].includes(userData.kycState)) {
-          userData = await this.stepExpired(userData, customer);
-        }
-        break;
+    if ([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(userData.kycStatus)) {
+      userData = await this.checkKycProgress(userData);
     }
 
     await this.userDataRepo.save(userData);
   }
 
-  private async getStepState(userDataId: number, kycStatus: KycStatus): Promise<KycStepState> {
-    // TODO: centralize this mapping
-    const documentType =
-      kycStatus === KycStatus.CHATBOT
-        ? KycDocument.CHATBOT
-        : kycStatus === KycStatus.ONLINE_ID
-        ? KycDocument.ONLINE_IDENTIFICATION
-        : KycDocument.VIDEO_IDENTIFICATION;
+  public async checkKycProgress(userData: UserData): Promise<UserData> {
+    const stepState = await this.kycService.getStepState(userData.id, userData.kycStatus);
+    switch (stepState) {
+      case KycStepState.COMPLETED:
+        userData = await this.handleStepCompleted(userData);
+        break;
+      case KycStepState.FAILED:
+        if (userData.kycState != KycState.FAILED) {
+          userData = await this.handleStepFailed(userData);
+        }
+        break;
+      case KycStepState.EXPIRING:
+        if (userData.kycState !== KycState.REMINDED) {
+          userData = await this.handleStepExpiring(userData);
+        }
+        break;
+    }
 
-    const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
-    if (!versions?.length) return KycStepState.ONGOING;
-
-    // completed
-    if (versions.find((doc) => doc.state === KycDocumentState.COMPLETED) != null) return KycStepState.COMPLETED;
-
-    // failed
-    if (
-      versions.find((doc) => doc.state != KycDocumentState.FAILED && this.dateDiffInDays(doc.creationTime) < 7) == null
-    )
-      return KycStepState.FAILED;
-
-    // expired
-    if (this.dateDiffInDays(versions[0].creationTime) > 2 && this.dateDiffInDays(versions[0].creationTime) < 7)
-      return KycStepState.EXPIRED;
-
-    return KycStepState.ONGOING;
+    return userData;
   }
 
-  private async stepCompleted(userData: UserData): Promise<UserData> {
+  private async handleStepCompleted(userData: UserData): Promise<UserData> {
     if (userData.kycStatus === KycStatus.CHATBOT) {
-      userData = await this.kycService.finishChatBot(userData);
-      await this.mailService.sendChatBotMail(
+      userData = await this.kycService.chatbotCompleted(userData);
+      await this.mailService.sendChatbotCompleteMail(
         userData.firstname,
         userData.mail,
         userData.language?.symbol?.toLowerCase(),
       );
     } else {
-      userData.kycStatusChangeDate = new Date();
-      userData.kycStatus = KycStatus.MANUAL;
+      await this.mailService.sendIdentificationCompleteMail(
+        userData.firstname,
+        userData.mail,
+        userData.language?.symbol?.toLowerCase(),
+      );
+      userData = await this.kycService.goToStep(userData, KycStatus.MANUAL);
     }
-
-    console.log(`KYC change: status of user ${userData.id}: ${userData.kycStatus}`);
-
-    userData.kycState = KycState.NA;
     return userData;
   }
 
-  private async stepFailed(userData: UserData, customer: Customer): Promise<UserData> {
+  private async handleStepFailed(userData: UserData): Promise<UserData> {
+    // online ID failed => trigger video ID
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
-      // online ID failed => trigger video ID
-      await this.kycService.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION);
       await this.mailService.sendOnlineFailedMail(
-        customer.names[0].firstName,
-        customer.emails[0],
+        userData.firstname,
+        userData.mail,
         userData?.language?.symbol?.toLocaleLowerCase(),
       );
 
-      console.log(`KYC change: status of user ${userData.id}: ${userData.kycStatus}`);
-    } else {
-      await this.mailService.sendSupportFailedMail(userData, customer.id);
-      userData.kycState = KycState.FAILED;
-
-      console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState}`);
+      return await this.kycService.goToStep(userData, KycStatus.VIDEO_ID);
     }
 
-    return userData;
+    // notify support
+    await this.mailService.sendKycFailedMail(userData, userData.kycCustomerId);
+    return this.kycService.updateKycState(userData, KycState.FAILED);
   }
 
-  private async stepExpired(userData: UserData, customer: Customer): Promise<UserData> {
-    await this.mailService.sendReminderMail(customer.names[0].firstName, customer.emails[0], userData.kycStatus);
-    userData.kycState = KycState.REMINDED;
-
-    console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState}`);
-    return userData;
-  }
-
-  private dateDiffInDays(creationTime: number) {
-    const timeDiff = new Date().getTime() - new Date(creationTime).getTime();
-    return timeDiff / (1000 * 3600 * 24);
+  private async handleStepExpiring(userData: UserData): Promise<UserData> {
+    // send reminder
+    await this.mailService.sendKycReminderMail(userData.firstname, userData.mail, userData.kycStatus);
+    return this.kycService.updateKycState(userData, KycState.REMINDED);
   }
 }

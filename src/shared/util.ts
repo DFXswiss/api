@@ -13,6 +13,10 @@ export class Util {
     return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
   }
 
+  static daysDiff(from?: Date, to?: Date) {
+    return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / (1000 * 3600 * 24);
+  }
+
   static async readFileFromDisk(fileName: string): Promise<string> {
     return new Promise((resolve, reject) =>
       readFile(fileName, (err, data) => {

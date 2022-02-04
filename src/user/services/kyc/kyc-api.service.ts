@@ -9,7 +9,7 @@ import {
   Challenge,
   CheckResponse,
   CheckResult,
-  CheckVersion,
+  DocumentVersion,
   CreateResponse,
   Customer,
   CustomerInformationResponse,
@@ -120,7 +120,7 @@ export class KycApiService {
 
   // --- NAME CHECK --- //
   async checkCustomer(id: number): Promise<RiskState> {
-    await await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
+    await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
     return this.getCheckResult(id);
   }
 
@@ -162,8 +162,8 @@ export class KycApiService {
     return result === 'done';
   }
 
-  async getDocumentVersions(customerId: number, document: KycDocument): Promise<CheckVersion[]> {
-    return this.callApi<CheckVersion[]>(
+  async getDocumentVersions(customerId: number, document: KycDocument): Promise<DocumentVersion[]> {
+    return this.callApi<DocumentVersion[]>(
       `customers/${this.reference(customerId)}/documents/${document}/versions`,
       'GET',
     );

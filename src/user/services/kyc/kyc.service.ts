@@ -1,137 +1,50 @@
 import { Injectable } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { MailService } from 'src/shared/services/mail.service';
+import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { UserInfo } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
 import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
-import { UserDataRepository } from 'src/user/models/userData/userData.repository';
-import { KycDocument, KycContentType, KycDocumentState, InitiateResponse } from './dto/kyc.dto';
+import { KycDocument, KycContentType, KycDocumentState, InitiateResponse, DocumentVersion } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
+
+export enum KycStepState {
+  ONGOING,
+  COMPLETED,
+  FAILED,
+  EXPIRING,
+}
 
 @Injectable()
 export class KycService {
   constructor(
     private readonly userRepo: UserRepository,
-    private readonly userDataRepo: UserDataRepository,
     private readonly spiderDataRepo: SpiderDataRepository,
-    private readonly mailService: MailService,
     private readonly kycApi: KycApiService,
   ) {}
 
-  public async uploadDocument(
-    customerId: number,
-    isOrganization: boolean,
-    document: KycDocument,
-    version: string,
-    part: string,
-    fileName: string,
-    contentType: KycContentType,
-    data: any,
-  ): Promise<boolean> {
-    await this.kycApi.createDocumentVersion(customerId, isOrganization, document, version);
-    await this.kycApi.createDocumentVersionPart(
-      customerId,
-      isOrganization,
-      document,
-      version,
-      part,
-      fileName,
-      contentType,
-    );
-    const successful = await this.kycApi.uploadDocument(
-      customerId,
-      isOrganization,
-      document,
-      version,
-      part,
-      contentType,
-      data,
-    );
-    if (successful) {
-      await this.kycApi.changeDocumentState(customerId, isOrganization, document, version, KycDocumentState.COMPLETED);
+  // --- CUSTOMER UPDATE --- //
+  public async updateCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
+    if (userInfo.accountType === AccountType.PERSONAL) {
+      await this.kycApi.updatePersonalCustomer(userDataId, userInfo);
+    } else {
+      await this.kycApi.updateOrganizationCustomer(userDataId, userInfo);
     }
 
-    return successful;
+    await this.uploadInitialCustomerInfo(userDataId, userInfo);
   }
 
-  // TODO: return userData?
-  public async initiateIdentification(userData: UserData, sendMail: boolean, identType: KycDocument): Promise<string> {
-    // create/update spider data
-    const initiateData = await this.kycApi.initiateIdentification(userData.id, sendMail, identType);
-    const spiderData = await this.updateSpiderData(userData, identType, initiateData);
+  private async uploadInitialCustomerInfo(userDataId: number, userInfo: UserInfo): Promise<void> {
+    // check if info already exists
+    const initialCustomerInfo = await this.kycApi.getDocument(
+      userDataId,
+      KycDocument.INITIAL_CUSTOMER_INFORMATION,
+      'v1',
+      'content',
+    );
+    if (initialCustomerInfo) return;
 
-    // update user data
-    userData.kycStatus =
-      identType === KycDocument.INITIATE_VIDEO_IDENTIFICATION
-        ? KycStatus.VIDEO_ID
-        : identType === KycDocument.INITIATE_ONLINE_IDENTIFICATION
-        ? KycStatus.ONLINE_ID
-        : KycStatus.CHATBOT;
-    userData.kycState = KycState.NA;
-    userData.kycStatusChangeDate = new Date();
-    await this.userDataRepo.save(userData);
-
-    return spiderData.url;
-  }
-
-  private async updateSpiderData(userData: UserData, identType: KycDocument, initiateData: InitiateResponse) {
-    const spiderData =
-      (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
-      this.spiderDataRepo.create({ userData: userData });
-
-    spiderData.url =
-      identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION // TODO: get identType from response?
-        ? initiateData.sessionUrl + '&nc=true'
-        : initiateData.sessionUrl;
-        
-    spiderData.version = initiateData.locators[0].version;
-    await this.spiderDataRepo.save(spiderData);
-
-    return spiderData;
-  }
-
-  public async finishChatBot(userData: UserData): Promise<UserData> {
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
-    const spiderData = await this.spiderDataRepo.findOne({ userData: { id: userData.id } });
-
-    if (spiderData) {
-      const chatBotResult = await this.kycApi.getDocument(
-        userData.id,
-        KycDocument.CHATBOT_ONBOARDING,
-        spiderData.version,
-        'export',
-      );
-
-      // store chatbot result
-      spiderData.result = JSON.stringify(chatBotResult);
-      await this.spiderDataRepo.save(spiderData);
-
-      // update user data
-      try {
-        const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
-        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
-      } catch (e) {
-        const message = `Exception during KYC checks, failed to parse chatbot result for user ${userData.id} and version ${spiderData.version}:`;
-        console.error(message, e);
-        await this.mailService.sendErrorMail('KYC Error', [e]);
-      }
-    }
-
-    const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
-    vipUser
-      ? await this.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION)
-      : await this.initiateIdentification(userData, false, KycDocument.INITIATE_ONLINE_IDENTIFICATION);
-
-    await this.userDataRepo.save(userData);
-
-    return userData;
-  }
-
-  async uploadInitialCustomerInfo(userData: UserData, userInfo: UserInfo): Promise<void> {
     // pre-fill customer info
     const customerInfo = {
       type: 'AdditionalPersonInformation',
@@ -143,7 +56,7 @@ export class KycService {
     };
 
     await this.uploadDocument(
-      userData.id,
+      userDataId,
       false,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
       'v1',
@@ -166,7 +79,7 @@ export class KycService {
       };
 
       await this.uploadDocument(
-        userData.id,
+        userDataId,
         true,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'v1',
@@ -176,5 +89,152 @@ export class KycService {
         organizationInfo,
       );
     }
+  }
+
+  public async uploadDocument(
+    userDataId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    version: string,
+    part: string,
+    fileName: string,
+    contentType: KycContentType,
+    data: any,
+  ): Promise<boolean> {
+    await this.kycApi.createDocumentVersion(userDataId, isOrganization, document, version);
+    await this.kycApi.createDocumentVersionPart(
+      userDataId,
+      isOrganization,
+      document,
+      version,
+      part,
+      fileName,
+      contentType,
+    );
+    const successful = await this.kycApi.uploadDocument(
+      userDataId,
+      isOrganization,
+      document,
+      version,
+      part,
+      contentType,
+      data,
+    );
+    if (successful) {
+      await this.kycApi.changeDocumentState(userDataId, isOrganization, document, version, KycDocumentState.COMPLETED);
+    }
+
+    return successful;
+  }
+
+  // --- KYC PROGRESS --- //
+  public async getStepState(userDataId: number, kycStatus: KycStatus): Promise<KycStepState> {
+    const documentType =
+      kycStatus === KycStatus.CHATBOT
+        ? KycDocument.CHATBOT
+        : kycStatus === KycStatus.ONLINE_ID
+        ? KycDocument.ONLINE_IDENTIFICATION
+        : KycDocument.VIDEO_IDENTIFICATION;
+
+    const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
+    if (!versions?.length) return KycStepState.ONGOING;
+
+    // completed
+    if (versions.find((doc) => doc.state === KycDocumentState.COMPLETED) != null) return KycStepState.COMPLETED;
+
+    // failed
+    if (versions.find((doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < 7) == null)
+      return KycStepState.FAILED;
+
+    // expired
+    if (this.documentAge(versions[0]) > 2 && this.documentAge(versions[0]) < 7) return KycStepState.EXPIRING;
+
+    return KycStepState.ONGOING;
+  }
+
+  async goToStep(userData: UserData, status: KycStatus): Promise<UserData> {
+    if ([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(status)) {
+      const identType =
+        status === KycStatus.CHATBOT
+          ? KycDocument.INITIATE_CHATBOT_IDENTIFICATION
+          : status === KycStatus.ONLINE_ID
+          ? KycDocument.INITIATE_ONLINE_IDENTIFICATION
+          : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
+
+      const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
+      userData.spiderData = await this.updateSpiderData(userData, identType, initiateData);
+    }
+
+    return this.updateKycStatus(userData, status);
+  }
+
+  public async chatbotCompleted(userData: UserData): Promise<UserData> {
+    userData.riskState = await this.kycApi.checkCustomer(userData.id);
+
+    userData = await this.storeChatbotResult(userData);
+
+    const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
+    return vipUser
+      ? await this.goToStep(userData, KycStatus.VIDEO_ID)
+      : await this.goToStep(userData, KycStatus.ONLINE_ID);
+  }
+
+  // --- HELPER METHODS --- //
+  private documentAge(version: DocumentVersion) {
+    return Util.daysDiff(new Date(version.creationTime), new Date());
+  }
+
+  private updateKycStatus(userData: UserData, status: KycStatus): UserData {
+    console.log(`KYC change: status of user ${userData.id}: ${userData.kycStatus} -> ${status}`);
+
+    userData.kycStatus = status;
+    userData.kycState = KycState.NA;
+    userData.kycStatusChangeDate = new Date();
+    return userData;
+  }
+
+  public updateKycState(userData: UserData, state: KycState): UserData {
+    console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState} -> ${state}`);
+
+    userData.kycState = state;
+    return userData;
+  }
+
+  private async updateSpiderData(userData: UserData, identType: KycDocument, initiateData: InitiateResponse) {
+    const spiderData =
+      (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
+      this.spiderDataRepo.create({ userData: userData });
+
+    spiderData.url =
+      identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION // TODO: get identType from response?
+        ? initiateData.sessionUrl + '&nc=true'
+        : initiateData.sessionUrl;
+    spiderData.version = initiateData.locators[0].version;
+
+    return await this.spiderDataRepo.save(spiderData);
+  }
+
+  private async storeChatbotResult(userData: UserData): Promise<UserData> {
+    const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
+    if (spiderData) {
+      const chatBotResult = await this.kycApi.getDocument(
+        userData.id,
+        KycDocument.CHATBOT_ONBOARDING,
+        spiderData.version,
+        'export',
+      );
+
+      // store chatbot result
+      spiderData.result = JSON.stringify(chatBotResult);
+      userData.spiderData = await this.spiderDataRepo.save(spiderData);
+
+      // update user data
+      const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+      userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
+      userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
+      userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
+    }
+
+    return userData;
   }
 }
