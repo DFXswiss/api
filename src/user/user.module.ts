@@ -25,6 +25,7 @@ import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { KycApiService } from './services/kyc/kyc-api.service';
 import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
+import { KycService } from './services/kyc/kyc.service';
 
 @Module({
   imports: [
@@ -56,10 +57,11 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserDataService,
     BankDataService,
     RefService,
+    KycService,
     KycApiService,
-    AuthService,
     KycSchedulerService,
+    AuthService,
   ],
-  exports: [UserService, UserDataService, LogService,  KycApiService, RefService,KycSchedulerService],
+  exports: [UserService, UserDataService, LogService, RefService],
 })
 export class UserModule {}

@@ -4,11 +4,11 @@ import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
-import { Customer, KycDocument, State } from './dto/kyc.dto';
+import { Customer, KycDocument, KycDocumentState } from './dto/kyc.dto';
 import { SettingService } from 'src/shared/setting/setting.service';
-import { UserDataService } from 'src/user/models/userData/userData.service';
 import { In } from 'typeorm';
 import { Lock } from 'src/shared/lock';
+import { KycService } from './kyc.service';
 
 enum KycStepState {
   ONGOING = 'Ongoing',
@@ -22,11 +22,11 @@ export class KycSchedulerService {
   private readonly lock = new Lock(1800);
 
   constructor(
-    private mailService: MailService,
-    private userDataRepo: UserDataRepository,
-    private userDataService: UserDataService,
-    private kycApi: KycApiService,
-    private settingService: SettingService,
+    private readonly mailService: MailService,
+    private readonly userDataRepo: UserDataRepository,
+    private readonly kycService: KycService,
+    private readonly kycApi: KycApiService,
+    private readonly settingService: SettingService,
   ) {}
 
   @Interval(7200000)
@@ -60,7 +60,7 @@ export class KycSchedulerService {
       const newModificationTime = Date.now().toString();
 
       // get KYC changes
-      const changedRefs = await this.kycApi.getCustomerReferences(+(lastModificationTime ?? 0));
+      const changedRefs = await this.kycApi.getChangedCustomers(+(lastModificationTime ?? 0));
       const changedUserDataIds = changedRefs.map((c) => +c).filter((c) => !isNaN(c));
 
       // update
@@ -87,7 +87,10 @@ export class KycSchedulerService {
     if (!userData) return;
 
     // update KYC data
-    const { checkResult, customer } = await this.kycApi.getKycData(userData.id);
+    const [checkResult, customer] = await Promise.all([
+      this.kycApi.getCheckResult(userData.id),
+      this.kycApi.getCustomer(userData.id),
+    ]);
     userData.riskState = checkResult;
     userData.kycCustomerId = customer.id;
 
@@ -125,14 +128,16 @@ export class KycSchedulerService {
         ? KycDocument.ONLINE_IDENTIFICATION
         : KycDocument.VIDEO_IDENTIFICATION;
 
-    const versions = await this.kycApi.getDocumentVersion(userDataId, documentType);
+    const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
     if (!versions?.length) return KycStepState.ONGOING;
 
     // completed
-    if (versions.find((doc) => doc.state === State.COMPLETED) != null) return KycStepState.COMPLETED;
+    if (versions.find((doc) => doc.state === KycDocumentState.COMPLETED) != null) return KycStepState.COMPLETED;
 
     // failed
-    if (versions.find((doc) => doc.state != State.FAILED && this.dateDiffInDays(doc.creationTime) < 7) == null)
+    if (
+      versions.find((doc) => doc.state != KycDocumentState.FAILED && this.dateDiffInDays(doc.creationTime) < 7) == null
+    )
       return KycStepState.FAILED;
 
     // expired
@@ -144,7 +149,7 @@ export class KycSchedulerService {
 
   private async stepCompleted(userData: UserData): Promise<UserData> {
     if (userData.kycStatus === KycStatus.CHATBOT) {
-      userData = await this.userDataService.finishChatBot(userData);
+      userData = await this.kycService.finishChatBot(userData);
       await this.mailService.sendChatBotMail(
         userData.firstname,
         userData.mail,
@@ -164,7 +169,7 @@ export class KycSchedulerService {
   private async stepFailed(userData: UserData, customer: Customer): Promise<UserData> {
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       // online ID failed => trigger video ID
-      await this.userDataService.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION);
+      await this.kycService.initiateIdentification(userData, false, KycDocument.INITIATE_VIDEO_IDENTIFICATION);
       await this.mailService.sendOnlineFailedMail(
         customer.names[0].firstName,
         customer.emails[0],
