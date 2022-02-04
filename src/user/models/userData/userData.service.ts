@@ -11,7 +11,7 @@ import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entit
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
-import { KycService, KycStepState } from 'src/user/services/kyc/kyc.service';
+import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
 
 export interface KycResult {
   status: KycStatus;
@@ -214,21 +214,21 @@ export class UserDataService {
     userData.riskState = await this.kycApi.checkCustomer(userData.id);
 
     // start KYC
-    return await this.kycService.goToStep(userData, KycStatus.CHATBOT);
+    return await this.kycService.goToStatus(userData, KycStatus.CHATBOT);
   }
 
   private async checkKycProgress(userData: UserData): Promise<UserData> {
     // check if chatbot already finished
     if (userData.kycStatus === KycStatus.CHATBOT) {
-      const chatbotState = await this.kycService.getStepState(userData.id, userData.kycStatus);
-      if (chatbotState === KycStepState.COMPLETED) {
+      const chatbotProgress = await this.kycService.getKycProgress(userData.id, userData.kycStatus);
+      if (chatbotProgress === KycProgress.COMPLETED) {
         return await this.kycService.chatbotCompleted(userData);
       }
     }
 
     // retrigger, if failed
     if (userData.kycState === KycState.FAILED) {
-      return await this.kycService.goToStep(userData, userData.kycStatus);
+      return await this.kycService.goToStatus(userData, userData.kycStatus);
     }
 
     return userData;

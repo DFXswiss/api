@@ -7,7 +7,7 @@ import { KycApiService } from './kyc-api.service';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { In } from 'typeorm';
 import { Lock } from 'src/shared/lock';
-import { KycService, KycStepState } from './kyc.service';
+import { KycService, KycProgress } from './kyc.service';
 
 @Injectable()
 export class KycSchedulerService {
@@ -95,19 +95,19 @@ export class KycSchedulerService {
   }
 
   public async checkKycProgress(userData: UserData): Promise<UserData> {
-    const stepState = await this.kycService.getStepState(userData.id, userData.kycStatus);
-    switch (stepState) {
-      case KycStepState.COMPLETED:
-        userData = await this.handleStepCompleted(userData);
+    const progress = await this.kycService.getKycProgress(userData.id, userData.kycStatus);
+    switch (progress) {
+      case KycProgress.COMPLETED:
+        userData = await this.handleCompleted(userData);
         break;
-      case KycStepState.FAILED:
+      case KycProgress.FAILED:
         if (userData.kycState != KycState.FAILED) {
-          userData = await this.handleStepFailed(userData);
+          userData = await this.handleFailed(userData);
         }
         break;
-      case KycStepState.EXPIRING:
+      case KycProgress.EXPIRING:
         if (userData.kycState !== KycState.REMINDED) {
-          userData = await this.handleStepExpiring(userData);
+          userData = await this.handleExpiring(userData);
         }
         break;
     }
@@ -115,7 +115,7 @@ export class KycSchedulerService {
     return userData;
   }
 
-  private async handleStepCompleted(userData: UserData): Promise<UserData> {
+  private async handleCompleted(userData: UserData): Promise<UserData> {
     if (userData.kycStatus === KycStatus.CHATBOT) {
       userData = await this.kycService.chatbotCompleted(userData);
       await this.mailService.sendChatbotCompleteMail(
@@ -129,12 +129,12 @@ export class KycSchedulerService {
         userData.mail,
         userData.language?.symbol?.toLowerCase(),
       );
-      userData = await this.kycService.goToStep(userData, KycStatus.MANUAL);
+      userData = await this.kycService.goToStatus(userData, KycStatus.MANUAL);
     }
     return userData;
   }
 
-  private async handleStepFailed(userData: UserData): Promise<UserData> {
+  private async handleFailed(userData: UserData): Promise<UserData> {
     // online ID failed => trigger video ID
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       await this.mailService.sendOnlineFailedMail(
@@ -143,7 +143,7 @@ export class KycSchedulerService {
         userData?.language?.symbol?.toLocaleLowerCase(),
       );
 
-      return await this.kycService.goToStep(userData, KycStatus.VIDEO_ID);
+      return await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
     }
 
     // notify support
@@ -151,7 +151,7 @@ export class KycSchedulerService {
     return this.kycService.updateKycState(userData, KycState.FAILED);
   }
 
-  private async handleStepExpiring(userData: UserData): Promise<UserData> {
+  private async handleExpiring(userData: UserData): Promise<UserData> {
     // send reminder
     await this.mailService.sendKycReminderMail(userData.firstname, userData.mail, userData.kycStatus);
     return this.kycService.updateKycState(userData, KycState.REMINDED);

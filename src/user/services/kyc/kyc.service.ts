@@ -9,11 +9,11 @@ import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData
 import { KycDocument, KycContentType, KycDocumentState, InitiateResponse, DocumentVersion } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 
-export enum KycStepState {
-  ONGOING,
-  COMPLETED,
-  FAILED,
-  EXPIRING,
+export enum KycProgress {
+  ONGOING = 'Ongoing',
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
+  EXPIRING = 'Expiring',
 }
 
 @Injectable()
@@ -128,7 +128,7 @@ export class KycService {
   }
 
   // --- KYC PROGRESS --- //
-  public async getStepState(userDataId: number, kycStatus: KycStatus): Promise<KycStepState> {
+  public async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
     const documentType =
       kycStatus === KycStatus.CHATBOT
         ? KycDocument.CHATBOT
@@ -137,22 +137,22 @@ export class KycService {
         : KycDocument.VIDEO_IDENTIFICATION;
 
     const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
-    if (!versions?.length) return KycStepState.ONGOING;
+    if (!versions?.length) return KycProgress.ONGOING;
 
     // completed
-    if (versions.find((doc) => doc.state === KycDocumentState.COMPLETED) != null) return KycStepState.COMPLETED;
+    if (versions.find((doc) => doc.state === KycDocumentState.COMPLETED) != null) return KycProgress.COMPLETED;
 
     // failed
     if (versions.find((doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < 7) == null)
-      return KycStepState.FAILED;
+      return KycProgress.FAILED;
 
     // expired
-    if (this.documentAge(versions[0]) > 2 && this.documentAge(versions[0]) < 7) return KycStepState.EXPIRING;
+    if (this.documentAge(versions[0]) > 2 && this.documentAge(versions[0]) < 7) return KycProgress.EXPIRING;
 
-    return KycStepState.ONGOING;
+    return KycProgress.ONGOING;
   }
 
-  async goToStep(userData: UserData, status: KycStatus): Promise<UserData> {
+  async goToStatus(userData: UserData, status: KycStatus): Promise<UserData> {
     if ([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(status)) {
       const identType =
         status === KycStatus.CHATBOT
@@ -175,8 +175,8 @@ export class KycService {
 
     const vipUser = await this.userRepo.findOne({ where: { userData: { id: userData.id }, role: UserRole.VIP } });
     return vipUser
-      ? await this.goToStep(userData, KycStatus.VIDEO_ID)
-      : await this.goToStep(userData, KycStatus.ONLINE_ID);
+      ? await this.goToStatus(userData, KycStatus.VIDEO_ID)
+      : await this.goToStatus(userData, KycStatus.ONLINE_ID);
   }
 
   // --- HELPER METHODS --- //
