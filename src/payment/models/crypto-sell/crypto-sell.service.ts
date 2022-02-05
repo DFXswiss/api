@@ -12,16 +12,17 @@ import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { Between, Not } from 'typeorm';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class CryptoSellService {
   constructor(
     private readonly cryptoSellRepo: CryptoSellRepository,
     private readonly bankTxRepo: BankTxRepository,
-    private readonly userRepo: UserRepository,
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly sellService: SellService,
     private readonly sellRepo: SellRepository,
+    private readonly userService: UserService,
   ) {}
 
   async create(dto: CreateCryptoSellDto): Promise<CryptoSell> {
@@ -38,10 +39,8 @@ export class CryptoSellService {
         ? (await this.cryptoInputRepo.findOne({ id: entity.cryptoInput.id }, { relations: ['route', 'route.user'] }))
             .route.user
         : null;
-    if (user) {
-      user.status = user.status === UserStatus.NA ? UserStatus.ACTIVE : null;
-      if (user.status) await this.userRepo.save(user);
-    }
+
+    user?.status === UserStatus.NA ? await this.userService.updateStatus(user.id, UserStatus.ACTIVE) : null;
 
     return entity;
   }

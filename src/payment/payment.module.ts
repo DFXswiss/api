@@ -54,7 +54,6 @@ import { UserRepository } from 'src/user/models/user/user.repository';
       StakingRepository,
       DepositRepository,
       MasternodeRepository,
-      UserRepository,
     ]),
     SharedModule,
     AinModule,

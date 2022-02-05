@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { extractUserInfo, getUserInfo, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -34,9 +34,19 @@ export class UserService {
     return await this.toDto(user, detailedUser);
   }
 
-  async updateStatus(user: UpdateStatusDto): Promise<any> {
+  async updateStatusOld(user: UpdateStatusDto): Promise<any> {
     //TODO status ändern wenn transaction oder KYC
     return this.userRepo.updateStatus(user);
+  }
+
+  async updateStatus(userId: number, newUserStatus: UserStatus): Promise<User> {
+    const user = await this.userRepo.findOne({ id: userId });
+    if (!user) throw new NotFoundException('No matching user found');
+    try {
+      return Object.assign(user, await this.userRepo.save({ id: userId, status: newUserStatus }));
+    } catch (error) {
+      throw new ServiceUnavailableException(error.message);
+    }
   }
 
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {

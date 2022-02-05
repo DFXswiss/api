@@ -18,7 +18,6 @@ export class CryptoBuyService {
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly bankTxRepo: BankTxRepository,
     private readonly buyRepo: BuyRepository,
-    private readonly userRepo: UserRepository,
     private readonly buyService: BuyService,
     private readonly fiatService: FiatService,
     private readonly userService: UserService,
@@ -38,10 +37,8 @@ export class CryptoBuyService {
       entity.buy && entity.amlCheck === AmlCheck.PASS
         ? (await this.buyRepo.findOne({ id: entity.buy.id }, { relations: ['user'] })).user
         : null;
-    if (user) {
-      user.status = user.status === UserStatus.NA ? UserStatus.ACTIVE : null;
-      if (user.status) await this.userRepo.save(user);
-    }
+
+    user?.status === UserStatus.NA ? await this.userService.updateStatus(user.id, UserStatus.ACTIVE) : null;
 
     return entity;
   }
