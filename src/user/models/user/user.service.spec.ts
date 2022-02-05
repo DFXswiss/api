@@ -13,7 +13,6 @@ describe('UserService', () => {
 
   let userRepo: UserRepository;
   let userDataService: UserDataService;
-  let logService: LogService;
   let countryService: CountryService;
   let languageService: LanguageService;
   let fiatService: FiatService;
@@ -21,7 +20,6 @@ describe('UserService', () => {
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
     userDataService = createMock<UserDataService>();
-    logService = createMock<LogService>();
     countryService = createMock<CountryService>();
     languageService = createMock<LanguageService>();
     fiatService = createMock<FiatService>();
@@ -31,7 +29,6 @@ describe('UserService', () => {
         UserService,
         { provide: UserRepository, useValue: userRepo },
         { provide: UserDataService, useValue: userDataService },
-        { provide: LogService, useValue: logService },
         { provide: CountryService, useValue: countryService },
         { provide: LanguageService, useValue: languageService },
         { provide: FiatService, useValue: fiatService },
