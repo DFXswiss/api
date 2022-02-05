@@ -26,7 +26,10 @@ export class CryptoSellService {
   ) {}
 
   async create(dto: CreateCryptoSellDto): Promise<CryptoSell> {
-    let entity = await this.cryptoSellRepo.findOne({ cryptoInput: { id: dto.cryptoInputId } });
+    let entity = await this.cryptoSellRepo.findOne(
+      { cryptoInput: { id: dto.cryptoInputId } },
+      { relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user'] },
+    );
     if (entity) throw new ConflictException('There is already a crypto sell for the specified crypto input');
 
     entity = await this.createEntity(dto);
@@ -36,10 +39,8 @@ export class CryptoSellService {
 
     const user =
       entity.cryptoInput && entity.amlCheck === AmlCheck.PASS
-        ? (await this.cryptoInputRepo.findOne({ id: entity.cryptoInput.id }, { relations: ['route', 'route.user'] }))
-            .route.user
+        ? (await this.sellRepo.findOne({ id: entity.cryptoInput.route.id }, { relations: ['user'] })).user
         : null;
-
     user?.status === UserStatus.NA ? await this.userService.updateStatus(user.id, UserStatus.ACTIVE) : null;
 
     return entity;

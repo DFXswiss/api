@@ -24,7 +24,7 @@ export class CryptoBuyService {
   ) {}
 
   async create(dto: CreateCryptoBuyDto): Promise<CryptoBuy> {
-    let entity = await this.cryptoBuyRepo.findOne({ bankTx: { id: dto.bankTxId } });
+    let entity = await this.cryptoBuyRepo.findOne({ bankTx: { id: dto.bankTxId } }, { relations: ['buy', 'buy.user'] });
     if (entity) throw new ConflictException('There is already a crypto buy for the specified bank TX');
 
     entity = await this.createEntity(dto);
@@ -37,7 +37,6 @@ export class CryptoBuyService {
       entity.buy && entity.amlCheck === AmlCheck.PASS
         ? (await this.buyRepo.findOne({ id: entity.buy.id }, { relations: ['user'] })).user
         : null;
-
     user?.status === UserStatus.NA ? await this.userService.updateStatus(user.id, UserStatus.ACTIVE) : null;
 
     return entity;
