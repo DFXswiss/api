@@ -51,6 +51,7 @@ export enum KycDocument {
   USER_ADDED_DOCUMENT = 'user-added-document',
   VERIFICATION = 'verification',
   VIDEO_IDENTIFICATION = 'video_identification',
+  IDENTIFICATION_LOG = 'identification-log',
 }
 
 export enum KycDocumentState {

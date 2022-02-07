@@ -16,6 +16,7 @@ import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
 export interface KycResult {
   status: KycStatus;
   identUrl?: string;
+  setupUrl?: string;
 }
 
 @Injectable()
@@ -211,7 +212,7 @@ export class UserDataService {
 
     this.userDataRepo.save(userData);
 
-    return { status: userData.kycStatus, identUrl: userData.spiderData?.url };
+    return { status: userData.kycStatus, identUrl: userData.spiderData?.url, setupUrl: userData.spiderData?.setupUrl };
   }
 
   private async startKyc(userData: UserData, userInfo: UserInfo): Promise<UserData> {

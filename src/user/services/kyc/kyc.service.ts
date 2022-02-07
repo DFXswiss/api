@@ -212,6 +212,17 @@ export class KycService {
         : initiateData.sessionUrl;
     spiderData.version = initiateData.locators[0].version;
 
+    if ([KycDocument.INITIATE_ONLINE_IDENTIFICATION].includes(identType)) {
+      const identVersion = await this.kycApi.getDocumentVersions(userData.id, KycDocument.ONLINE_IDENTIFICATION);
+      const identificationId = await this.kycApi.getDocument(
+        userData.id,
+        KycDocument.ONLINE_IDENTIFICATION,
+        identVersion[0].name,
+        KycDocument.IDENTIFICATION_LOG,
+      );
+      if (identificationId)
+        spiderData.setupUrl = `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId.identificationId}/identification/start`;
+    }
     return await this.spiderDataRepo.save(spiderData);
   }
 
