@@ -8,17 +8,20 @@ export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
   private readonly techMail = 'cto@dfx.swiss';
   private readonly kycStatus = {
-    [KycStatus.CHATBOT]: 'chatbot onboarding',
-    [KycStatus.ADDRESS]: 'invoice upload',
-    [KycStatus.ONLINE_ID]: 'online identification',
-    [KycStatus.VIDEO_ID]: 'video identification',
+    [KycStatus.CHATBOT]: 'Chatbot',
+    [KycStatus.ONLINE_ID]: 'Online ID',
+    [KycStatus.VIDEO_ID]: 'Video ID',
   };
 
   constructor(private mailerService: MailerService) {}
 
-  async sendKycReminderMail(firstName: string, mail: string, kycStatus: KycStatus): Promise<void> {
-    const htmlBody = `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
-      <p>Please check your mails.</p>`;
+  async sendKycReminderMail(firstName: string, mail: string, kycStatus: KycStatus, language: string): Promise<void> {
+    const htmlBody =
+      language === 'de'
+        ? `<p>Freundliche Erinnerung an dein ${this.kycStatus[kycStatus]}.</p>
+    <p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen).</p>`
+        : `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
+      <p>Please continue by clicking on continue KYC on payment page (Buy & Sell).</p>`;
 
     await this.sendMail(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
   }
@@ -27,9 +30,9 @@ export class MailService {
     const htmlBody =
       language === 'de'
         ? `<p>du hast den Chatbot abgeschlossen.</p>
-    <p>Um die Online Identifikation zu starten, klicke KYC fortsetzen auf der Payment Seite. (Kaufen & Verkaufen)</p>`
+    <p>Um die Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen).</p>`
         : `<p>you have finished the first step of your verification.</p>
-      <p>To continue with online identification you have to click continue KYC on payment page. (Buy & Sell)</p>`;
+      <p>To continue with identification you have to click continue KYC on payment page (Buy & Sell).</p>`;
     const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Chatbot complete';
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
@@ -37,8 +40,8 @@ export class MailService {
   async sendIdentificationCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
     const htmlBody =
       language === 'de'
-        ? `<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert.</p>`
-        : `<p>you have completed KYC and are now provisionally verified.</p>`;
+        ? `<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert. Von deiner Seite sind keine weiteren Schritte mehr nötig.</p>`
+        : `<p>you have completed KYC and are now provisionally verified. No further steps are necessary from your side.</p>`;
     const title = language === 'de' ? 'Identifikation abgeschlossen' : 'Identification complete';
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
@@ -47,9 +50,9 @@ export class MailService {
     const htmlBody =
       language === 'de'
         ? `<p>deine Online Identifikation ist fehlgeschlagen.</p>
-    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment Seite. (Kaufen & Verkaufen)</p>`
+    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen).</p>`
         : `<p>your online identification failed.</p>
-      <p>We activated video identification. To start you have to click continue KYC on payment page. (Buy & Sell)</p>`;
+      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell).</p>`;
     const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
@@ -74,7 +77,7 @@ export class MailService {
 
   async sendKycLimitMail(userData: UserData, depositLimit: string): Promise<void> {
     const htmlSupportBody = `
-      <p>a customer want to increase his deposit limit.</p>
+      <p>a customer wants to increase his deposit limit.</p>
       <table>
           <tr>
               <td>Reference:</td>

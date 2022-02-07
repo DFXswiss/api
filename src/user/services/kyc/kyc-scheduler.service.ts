@@ -153,7 +153,7 @@ export class KycSchedulerService {
 
   private async handleExpiring(userData: UserData): Promise<UserData> {
     // send reminder
-    await this.mailService.sendKycReminderMail(userData.firstname, userData.mail, userData.kycStatus);
+    await this.mailService.sendKycReminderMail(userData.firstname, userData.mail, userData.kycStatus, userData.language?.symbol?.toLowerCase());
     return this.kycService.updateKycState(userData, KycState.REMINDED);
   }
 }

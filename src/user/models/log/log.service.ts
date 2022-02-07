@@ -101,20 +101,6 @@ export class LogService {
 
     if (existingLog) throw new ConflictException('Log already existing - duplicate log');
 
-    if (createLogDto.payment) {
-      // TODO: re-enable
-      // if (createLogDto.direction === LogDirection.fiat2asset) {
-      //   createLogDto.payment =
-      //     createLogDto.direction === LogDirection.fiat2asset
-      //       ? await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment)
-      //       : await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
-      // } else {
-      //   createLogDto.payment = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
-      // }
-    } else {
-      delete createLogDto.payment;
-    }
-
     if (createLogDto.fiat) {
       fiatObject = await this.fiatService.getFiatOld(createLogDto.fiat);
     } else {
