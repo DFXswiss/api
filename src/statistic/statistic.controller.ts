@@ -38,6 +38,11 @@ export class StatisticController {
     return this.cfpService.getCfpList();
   }
 
+  @Get('cfp/votingOpen')
+  async getCfpInProgress(): Promise<boolean> {
+    return this.cfpService.isVotingOpen();
+  } 
+
   @Get('cfp/:id')
   async getCfpResults(@Param('id') cfpId: string): Promise<CfpResult[]> {
     return this.cfpService.getCfpResults(cfpId);

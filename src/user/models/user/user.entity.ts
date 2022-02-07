@@ -109,6 +109,9 @@ export class User extends IEntity {
   @Column({ default: '0.0.0.0', length: 256 })
   ip: string;
 
+  @Column({ nullable: true, length: 'MAX' })
+  cfpVotes: string;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 

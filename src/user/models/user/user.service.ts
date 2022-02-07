@@ -9,6 +9,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
+import { CfpVotes } from './dto/cfp-votes.dto';
 
 @Injectable()
 export class UserService {
@@ -70,6 +71,7 @@ export class UserService {
     delete user.signature;
     delete user.ip;
     delete user.role;
+    delete user.cfpVotes;
     if (user.status != UserStatus.ACTIVE) delete user.ref;
     if (user.usedRef === '000-000') delete user.usedRef;
 
@@ -131,5 +133,16 @@ export class UserService {
   async getRefUser(userId: number): Promise<User | undefined> {
     const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
     return this.userRepo.findOne({ ref: usedRef });
+  }
+
+  async getCfpVotes(id: number): Promise<CfpVotes> {
+    return this.userRepo
+      .findOne({ id }, { select: ['id', 'cfpVotes'] })
+      .then((u) => (u.cfpVotes ? JSON.parse(u.cfpVotes) : {}));
+  }
+
+  async updateCfpVotes(id: number, votes: CfpVotes): Promise<CfpVotes> {
+    await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
+    return votes;
   }
 }
