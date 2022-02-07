@@ -4,7 +4,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserDataService } from './userData.service';
+import { KycResult, UserDataService } from './userData.service';
 import { UserData } from './userData.entity';
 import { UserDataRepository } from './userData.repository';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
@@ -47,7 +47,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@Param('id') id: number, @Param('depositLimit') depositLimit?: string): Promise<string | undefined> {
+  async requestKyc(@Param('id') id: number, @Param('depositLimit') depositLimit?: string): Promise<KycResult> {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
     const user = userData.users[0];
     if (!user) throw new BadRequestException('UserData has no user');

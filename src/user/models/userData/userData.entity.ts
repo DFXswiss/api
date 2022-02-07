@@ -9,11 +9,11 @@ import { AccountType } from './account-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
-  WAIT_CHAT_BOT = 'Chatbot',
-  WAIT_ADDRESS = 'Address',
-  WAIT_ONLINE_ID = 'OnlineId',
-  WAIT_VIDEO_ID = 'VideoId',
-  WAIT_MANUAL = 'Manual',
+  CHATBOT = 'Chatbot',
+  ADDRESS = 'Address',
+  ONLINE_ID = 'OnlineId',
+  VIDEO_ID = 'VideoId',
+  MANUAL = 'Manual',
   COMPLETED = 'Completed',
 }
 
@@ -21,7 +21,6 @@ export enum KycState {
   NA = 'NA',
   FAILED = 'Failed',
   REMINDED = 'Reminded',
-  RETRIED = 'Retried',
 }
 
 export enum RiskState {
@@ -91,6 +90,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, default: KycState.NA })
   kycState: KycState;
+
+  @Column({ type: 'datetime2', nullable: true })
+  kycStatusChangeDate: Date;
 
   @Column({ length: 256, nullable: true })
   riskState: RiskState;

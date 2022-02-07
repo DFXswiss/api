@@ -3,21 +3,22 @@ import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
 import { UserInfo } from 'src/user/models/user/user.entity';
-import { AccountType } from 'src/user/models/userData/account-type.enum';
 import { RiskState } from 'src/user/models/userData/userData.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
   CheckResponse,
   CheckResult,
-  CheckVersion,
+  DocumentVersion,
   CreateResponse,
   Customer,
   CustomerInformationResponse,
   InitiateResponse,
   KycContentType,
   KycDocument,
+  KycDocumentState,
   KycRelationType,
+  Organization,
   SubmitResponse,
 } from './dto/kyc.dto';
 
@@ -28,7 +29,16 @@ export class KycApiService {
 
   private sessionKey = 'session-key-will-be-updated';
 
-  constructor(private http: HttpService) {}
+  constructor(private readonly http: HttpService) {}
+
+  // --- CUSTOMER --- //
+  async getCustomer(id: number): Promise<Customer> {
+    return this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
+  }
+
+  async getChangedCustomers(modificationTime: number): Promise<string[]> {
+    return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
+  }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
     const data = {
@@ -41,8 +51,33 @@ export class KycApiService {
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
 
-  async updateCustomer(id: number, user: UserInfo): Promise<CreateResponse> {
-    const data = {
+  async updatePersonalCustomer(id: number, user: UserInfo): Promise<CreateResponse> {
+    const customer = this.buildCustomer(id, user);
+    return this.callApi<CreateResponse>('customers/simple', 'POST', customer);
+  }
+
+  async updateOrganizationCustomer(id: number, user: UserInfo): Promise<SubmitResponse[]> {
+    const person = {
+      contractReference: this.reference(id) + '_placeholder',
+      customer: this.buildCustomer(id, user),
+      relationTypes: [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
+    };
+
+    const organization = {
+      contractReference: this.reference(id) + '_placeholder',
+      customer: this.buildOrganization(id, user),
+      relationTypes: [KycRelationType.CONTRACTING_PARTNER],
+    };
+
+    return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person, organization]);
+  }
+
+  private buildCustomer(id: number, user: UserInfo): Partial<Customer> {
+    const preferredLanguage = ['es', 'pt'].includes(user.language?.symbol?.toLowerCase())
+      ? 'en'
+      : user.language?.symbol?.toLowerCase();
+
+    return {
       reference: this.reference(id),
       type: 'PERSON',
       names: [{ firstName: user.firstname, lastName: user.surname }],
@@ -59,31 +94,41 @@ export class KycApiService {
           countryCode: user.country?.symbol?.toUpperCase() ?? Config.defaultCountry,
         },
       ],
-      preferredLanguage: user.language?.symbol?.toLowerCase() ?? Config.defaultLanguage,
+      preferredLanguage: preferredLanguage ?? Config.defaultLanguage,
       activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
     };
-
-    return this.callApi<CreateResponse>('customers/simple', 'POST', data);
-  }
-  async getCustomerReferences(modificationTime: number): Promise<string[]> {
-    return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
   }
 
-  async getCustomer(id: number): Promise<Customer> {
-    return this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
+  private buildOrganization(id: number, user: UserInfo): Partial<Organization> {
+    return {
+      reference: this.reference(id, true),
+      type: 'ORGANISATION',
+      names: [user.organizationName],
+      countriesOfResidence: [user.organizationCountry?.symbol?.toUpperCase() ?? Config.defaultCountry],
+      structuredAddresses: [
+        {
+          type: 'BASIC',
+          street: user.organizationStreet,
+          houseNumber: user.organizationHouseNumber,
+          zipCode: user.organizationZip,
+          city: user.organizationLocation,
+          countryCode: user.organizationCountry?.symbol?.toUpperCase() ?? Config.defaultCountry,
+        },
+      ],
+    };
   }
 
-  async getCustomerInformation(userDataId: number): Promise<CustomerInformationResponse> {
-    return this.callApi<CustomerInformationResponse>(`customers/${this.reference(userDataId)}/information`, 'GET');
+  // --- NAME CHECK --- //
+  async checkCustomer(id: number): Promise<RiskState> {
+    await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
+    return this.getCheckResult(id);
   }
 
-  async doCheckResult(userDataId: number): Promise<RiskState> {
-    await this.checkCustomer(userDataId);
-    return this.getCheckResult(userDataId);
-  }
-
-  async getCheckResult(userDataId: number): Promise<RiskState> {
-    const customerInfo = await this.getCustomerInformation(userDataId);
+  async getCheckResult(id: number): Promise<RiskState> {
+    const customerInfo = await this.callApi<CustomerInformationResponse>(
+      `customers/${this.reference(id)}/information`,
+      'GET',
+    );
     if (customerInfo.lastCheckId < 0) return undefined;
 
     const customerCheckResult = await this.callApi<CheckResult>(
@@ -93,211 +138,48 @@ export class KycApiService {
     return customerCheckResult.risks[0].categoryKey;
   }
 
-  async getCustomerDocumentVersionParts(id: number, document: string, version: string): Promise<CheckResult> {
-    return this.callApi<any>(`customers/${this.reference(id)}/documents/${document}/versions/${version}/parts`, 'GET');
-  }
-
-  async downloadCustomerDocumentVersionParts(
-    id: number,
-    document: string,
-    version: string,
-    part: string,
-  ): Promise<any> {
+  // --- DOCUMENTS --- //
+  async getDocument(customerId: number, document: KycDocument, version: string, part: string): Promise<any> {
     return this.callApi<any>(
-      `customers/${this.reference(id)}/documents/${document}/versions/${version}/parts/${part}`,
+      `customers/${this.reference(customerId)}/documents/${document}/versions/${version}/parts/${part}`,
       'GET',
     );
   }
 
-  async getDocuments(id: number): Promise<CheckResult> {
-    return this.callApi<any>(`customers/${this.reference(id)}/documents/`, 'GET');
-  }
-
-  async checkCustomer(id: number): Promise<CheckResponse> {
-    const results = await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
-    return results[0];
-  }
-
-  async createFileReference(id: number, fileReference: number, lastName: string): Promise<InitiateResponse> {
-    const data = {
-      customer: {
-        reference: this.reference(id),
-        type: 'PERSON',
-        names: [{ lastName: lastName }],
-      },
-      contractReference: this.reference(fileReference),
-    };
-
-    const result = await this.callApi<InitiateResponse>('customers/contract-linked', 'POST', data);
-    return result[0];
-  }
-
-  async submitContractLinkedList(id: number, user: UserInfo): Promise<SubmitResponse[]> {
-    let organization = {};
-    const preferredLanguage = ['es', 'pt'].includes(user.language?.symbol?.toLowerCase())
-      ? 'en'
-      : user.language?.symbol?.toLowerCase();
-    const person = {
-      contractReference: user.accountType === AccountType.PERSONAL ? null : this.reference(id) + '_placeholder',
-      customer: {
-        reference: this.reference(id),
-        type: 'PERSON',
-        names: [{ firstName: user.firstname, lastName: user.surname }],
-        countriesOfResidence: [user.country.symbol],
-        emails: [user.mail],
-        telephones: [user.phone?.replace('+', '').replace(' ', '')],
-        structuredAddresses: [
-          {
-            type: 'BASIC',
-            street: user.street,
-            houseNumber: user.houseNumber,
-            zipCode: user.zip,
-            city: user.location,
-            countryCode: user.country?.symbol?.toUpperCase() ?? Config.defaultCountry,
-          },
-        ],
-        preferredLanguage: preferredLanguage ?? Config.defaultLanguage,
-        activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
-      },
-      relationTypes:
-        user.accountType === AccountType.PERSONAL
-          ? [KycRelationType.CONTRACTING_PARTNER, KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER]
-          : [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
-    };
-
-    if (user.accountType !== AccountType.PERSONAL) {
-      organization = {
-        customer: {
-          reference: this.reference(id, true),
-          type: 'ORGANISATION',
-          names: [user.organizationName],
-          countriesOfResidence: [user.organizationCountry?.symbol?.toUpperCase() ?? Config.defaultCountry],
-          structuredAddresses: [
-            {
-              type: 'BASIC',
-              street: user.organizationStreet,
-              houseNumber: user.organizationHouseNumber,
-              zipCode: user.organizationZip,
-              city: user.organizationLocation,
-              countryCode: user.organizationCountry?.symbol?.toUpperCase() ?? Config.defaultCountry,
-            },
-          ],
-        },
-        contractReference: this.reference(id) + '_placeholder',
-        relationTypes: [KycRelationType.CONTRACTING_PARTNER],
-      };
-    }
-
-    const result = await this.callApi<SubmitResponse[]>(
-      'customers/contract-linked-list',
-      'POST',
-      user.accountType === AccountType.PERSONAL ? [person] : [person, organization],
-    );
-    return result;
-  }
-
-  async initiateIdentification(id: number, sendMail: boolean, identType: KycDocument): Promise<InitiateResponse> {
-    let data = {};
-    if (identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION) {
-      const style = {
-        headerColor: Config.colors.white,
-        textColor: Config.colors.white,
-        warningColor: Config.colors.red,
-        backgroundColor: Config.colors.darkBlue,
-        overlayBackgroundColor: Config.colors.darkBlue,
-        buttonColor: Config.colors.white,
-        buttonBackgroundColor: Config.colors.red,
-        bubbleLeftColor: Config.colors.white,
-        bubbleLeftBackgroundColor: Config.colors.lightBlue,
-        bubbleRightColor: Config.colors.white,
-        bubbleRightBackgroundColor: Config.colors.lightBlue,
-        htmlHeaderInclude: '',
-        htmlBodyInclude: '',
-      };
-
-      data = {
-        references: [this.reference(id)],
-        sendInvitation: sendMail,
-        overridingStyleInfo: style,
-      };
-    } else {
-      data = {
-        references: [this.reference(id)],
-        sendInvitation: sendMail,
-      };
-    }
-    const result = await this.callApi<any>(`customers/initiate-${identType}-sessions`, 'POST', data);
-    return result[0];
-  }
-
-  async initiateDocumentUpload(id: number, kycDocuments: KycDocument[]): Promise<InitiateResponse> {
-    const query: string = this.getUploadDocumentQuery(kycDocuments);
-
-    const result = await this.callApi<InitiateResponse[]>(`customers/initiate-document-uploads?${query}`, 'POST', [
-      this.reference(id),
-    ]);
-    return result[0];
-  }
-
-  async uploadDocument(
-    id: number,
-    kycDocumentVersion: string,
-    kycDocument: KycDocument,
-    kycDocumentPart: string,
-    kycContentType: KycContentType,
-    kycData: any,
-    isOrganization: boolean,
-  ): Promise<boolean> {
-    const result = await this.callApi<string>(
-      `customers/${this.reference(
-        id,
-        isOrganization,
-      )}/documents/${kycDocument}/versions/${kycDocumentVersion}/parts/${kycDocumentPart}`,
-      'PUT',
-      kycData,
-      kycContentType,
-    );
-
-    return result === 'done';
-  }
-
   async changeDocumentState(
-    id: number,
-    kycDocumentVersion: string,
-    kycDocument: KycDocument,
-    kycState: string,
+    customerId: number,
     isOrganization: boolean,
+    document: KycDocument,
+    version: string,
+    state: KycDocumentState,
   ): Promise<boolean> {
     const result = await this.callApi<string>(
-      `customers/${this.reference(id, isOrganization)}/documents/${kycDocument}/versions/${kycDocumentVersion}/state`,
+      `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions/${version}/state`,
       'PUT',
-      kycState,
+      JSON.stringify(state),
     );
 
     return result === 'done';
   }
 
-  getUploadDocumentQuery(queryArray: KycDocument[]): string {
-    let resultString = '';
-    queryArray.forEach((a) => (resultString += 'documentName=' + a + '&'));
-    return resultString.slice(0, -1);
-  }
-
-  async getDocumentVersion(id: number, document: KycDocument): Promise<CheckVersion[]> {
-    return this.callApi<CheckVersion[]>(`customers/${this.reference(id)}/documents/${document}/versions`, 'GET');
+  async getDocumentVersions(customerId: number, document: KycDocument): Promise<DocumentVersion[]> {
+    return this.callApi<DocumentVersion[]>(
+      `customers/${this.reference(customerId)}/documents/${document}/versions`,
+      'GET',
+    );
   }
 
   async createDocumentVersion(
-    id: number,
+    customerId: number,
+    isOrganization: boolean,
     document: KycDocument,
     version: string,
-    isOrganization: boolean,
   ): Promise<boolean> {
     const data = {
       name: version,
     };
     const result = await this.callApi<string>(
-      `customers/${this.reference(id, isOrganization)}/documents/${document}/versions/${version}`,
+      `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions/${version}`,
       'PUT',
       data,
     );
@@ -305,13 +187,13 @@ export class KycApiService {
   }
 
   async createDocumentVersionPart(
-    id: number,
+    customerId: number,
+    isOrganization: boolean,
     document: KycDocument,
     version: string,
     part: string,
     fileName: string,
     contentType: KycContentType,
-    isOrganization: boolean,
   ): Promise<boolean> {
     const data = {
       name: part,
@@ -321,13 +203,46 @@ export class KycApiService {
     };
     const result = await this.callApi<string>(
       `customers/${this.reference(
-        id,
+        customerId,
         isOrganization,
       )}/documents/${document}/versions/${version}/parts/${part}/metadata`,
       'PUT',
       data,
     );
     return result === 'done';
+  }
+
+  async uploadDocument(
+    customerId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    version: string,
+    part: string,
+    contentType: KycContentType,
+    data: any,
+  ): Promise<boolean> {
+    const result = await this.callApi<string>(
+      `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions/${version}/parts/${part}`,
+      'PUT',
+      data,
+      contentType,
+    );
+
+    return result === 'done';
+  }
+
+  // --- IDENTIFICATION --- //
+  async initiateIdentification(id: number, sendMail: boolean, identType: KycDocument): Promise<InitiateResponse> {
+    const data = {
+      references: [this.reference(id)],
+      sendInvitation: sendMail,
+      overridingStyleInfo:
+        identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION ? Config.kyc.chatbotStyle : undefined,
+    };
+
+    return await this.callApi<InitiateResponse[]>(`customers/initiate-${identType}-sessions`, 'POST', data).then(
+      (r) => r[0],
+    );
   }
 
   // --- HELPER METHODS --- //
