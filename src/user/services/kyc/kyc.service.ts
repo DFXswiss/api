@@ -163,7 +163,7 @@ export class KycService {
           : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
 
       const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
-      userData.spiderData = await this.updateSpiderData(userData, identType, initiateData);
+      userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
 
     return this.updateKycStatus(userData, status);
@@ -201,29 +201,32 @@ export class KycService {
     return userData;
   }
 
-  private async updateSpiderData(userData: UserData, identType: KycDocument, initiateData: InitiateResponse) {
+  private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
     const spiderData =
       (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
       this.spiderDataRepo.create({ userData: userData });
 
+    const locator = initiateData.locators[0];
     spiderData.url =
-      identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION // TODO: get identType from response?
-        ? initiateData.sessionUrl + '&nc=true'
-        : initiateData.sessionUrl;
-    spiderData.version = initiateData.locators[0].version;
+      locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
+    spiderData.version = locator.version;
+    spiderData.secondUrl =
+      locator.document === KycDocument.ONLINE_IDENTIFICATION ? await this.getOnlineIdLink(userData) : null;
 
-    if ([KycDocument.INITIATE_ONLINE_IDENTIFICATION].includes(identType)) {
-      const identVersion = await this.kycApi.getDocumentVersions(userData.id, KycDocument.ONLINE_IDENTIFICATION);
-      const identificationId = await this.kycApi.getDocument(
-        userData.id,
-        KycDocument.ONLINE_IDENTIFICATION,
-        identVersion[0].name,
-        KycDocument.IDENTIFICATION_LOG,
-      );
-      if (identificationId)
-        spiderData.setupUrl = `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId.identificationId}/identification/start`;
-    }
     return await this.spiderDataRepo.save(spiderData);
+  }
+
+  private async getOnlineIdLink(userData: UserData): Promise<string> {
+    const identVersions = await this.kycApi.getDocumentVersions(userData.id, KycDocument.ONLINE_IDENTIFICATION);
+    const identificationId = await this.kycApi.getDocument(
+      userData.id,
+      KycDocument.ONLINE_IDENTIFICATION,
+      identVersions[0].name,
+      KycDocument.IDENTIFICATION_LOG,
+    );
+    return identificationId
+      ? `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId.identificationId}/identification/start`
+      : null;
   }
 
   private async storeChatbotResult(userData: UserData): Promise<UserData> {
@@ -248,7 +251,7 @@ export class KycService {
         userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
       }
     } catch (e) {
-      console.error('Failed to store chatbot result:', e);
+      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
     }
 
     return userData;

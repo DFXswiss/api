@@ -212,7 +212,12 @@ export class UserDataService {
 
     this.userDataRepo.save(userData);
 
-    return { status: userData.kycStatus, identUrl: userData.spiderData?.url, setupUrl: userData.spiderData?.setupUrl };
+    const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
+    return {
+      status: userData.kycStatus,
+      identUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
+      setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
+    };
   }
 
   private async startKyc(userData: UserData, userInfo: UserInfo): Promise<UserData> {

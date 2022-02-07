@@ -7,8 +7,8 @@ export class SpiderData extends IEntity {
   @Column({ length: 256 })
   url: string;
 
-  @Column({ nullable: true })
-  setupUrl: string;
+  @Column({ length: 256, nullable: true })
+  secondUrl: string;
 
   @Column({ length: 256 })
   version: string;
