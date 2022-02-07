@@ -11,6 +11,7 @@ import { SettingService } from 'src/shared/setting/setting.service';
 
 interface CfpSettings {
   inProgress: boolean;
+  votingOpen: boolean;
   currentRound: string;
   startDate: string;
   endDate: string;
@@ -101,21 +102,25 @@ export class CfpService {
   constructor(
     private readonly http: HttpService,
     private readonly cryptoService: CryptoService,
-    readonly settingService: SettingService,
+    private readonly settingService: SettingService,
     @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
   ) {
-    settingService.getObj<CfpSettings>('cfp').then((s) => (this.settings = s));
-
     validMasterNodes ??= Object.values(MasterNodes).filter(
       (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
     ) as MasterNode[];
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
+
+    this.doUpdate().then();
   }
 
   @Interval(600000)
   async doUpdate(): Promise<void> {
     try {
+      // update settings
+      this.settings = await this.settingService.getObj<CfpSettings>('cfp');
+
+      // update cfp results
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
       allCfp = allCfp.filter((cfp) =>
         cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)),
@@ -126,6 +131,10 @@ export class CfpService {
       console.error('Exception during CFP update:', e);
       throw new ServiceUnavailableException('Failed to update');
     }
+  }
+
+  isVotingOpen(): boolean {
+    return this.settings.votingOpen;
   }
 
   getCfpList(): string[] {
