@@ -92,6 +92,7 @@ export interface InitiateResponse {
 
   locators: [
     {
+      document: KycDocument;
       version: string;
     },
   ];
