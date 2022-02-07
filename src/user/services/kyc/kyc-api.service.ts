@@ -129,7 +129,7 @@ export class KycApiService {
       `customers/${this.reference(id)}/information`,
       'GET',
     );
-    if (customerInfo.lastCheckId < 0) return undefined;
+    if (!customerInfo || customerInfo.lastCheckId < 0) return undefined;
 
     const customerCheckResult = await this.callApi<CheckResult>(
       `customers/checks/${customerInfo.lastCheckId}/result`,

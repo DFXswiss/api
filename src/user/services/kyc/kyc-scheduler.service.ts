@@ -84,7 +84,7 @@ export class KycSchedulerService {
       this.kycApi.getCustomer(userData.id),
     ]);
     userData.riskState = checkResult;
-    userData.kycCustomerId = customer.id;
+    userData.kycCustomerId = customer?.id;
 
     // check KYC progress
     if ([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(userData.kycStatus)) {

@@ -14,7 +14,7 @@ export class Util {
   }
 
   static daysDiff(from?: Date, to?: Date) {
-    return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / (1000 * 3600 * 24);
+    return this.secondsDiff(from, to) / (3600 * 24);
   }
 
   static async readFileFromDisk(fileName: string): Promise<string> {
