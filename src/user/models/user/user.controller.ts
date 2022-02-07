@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -89,11 +89,11 @@ export class UserController {
     return this.userService.updateRole(user);
   }
 
-  @Put('status')
+  @Put(':id/status')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateStatus(@Body() dto: UpdateStatusDto): Promise<void> {
-    return this.userService.updateStatus(dto.id, dto.status);
+  async updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto): Promise<void> {
+    return this.userService.updateStatus(+id, dto.status);
   }
 }
