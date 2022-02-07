@@ -65,7 +65,7 @@ export class BuyController {
   ): Promise<BuyDto> {
     fees ??= await this.getFees(userId);
     return {
-      type: buy.asset != null ? BuyType.WALLET : BuyType.STAKING,
+      type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fees,

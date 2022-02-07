@@ -50,8 +50,11 @@ export class BuyService {
   // --- BUYS --- //
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
     // check asset
-    const asset = dto.type === BuyType.WALLET ? await this.assetService.getAsset(dto.asset.id) : null;
-    if (dto.type === BuyType.WALLET && !asset) throw new NotFoundException('No asset for id found');
+    const asset =
+      dto.type === BuyType.WALLET
+        ? await this.assetService.getAsset(dto.asset.id)
+        : await this.assetService.getAsset('DFI');
+    if (!asset) throw new NotFoundException('No asset for id found');
 
     // check staking
     const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
