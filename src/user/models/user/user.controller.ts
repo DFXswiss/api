@@ -93,7 +93,7 @@ export class UserController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateStatus(@Body() user: UpdateStatusDto): Promise<any> {
-    return this.userService.updateStatusOld(user);
+  async updateStatus(@Body() dto: UpdateStatusDto): Promise<void> {
+    return this.userService.updateStatus(dto.id, dto.status);
   }
 }

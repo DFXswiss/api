@@ -87,14 +87,6 @@ export class BuyService {
     return this.buyRepo.save(buy);
   }
 
-  async getBuy(id: number): Promise<Buy> {
-    return this.buyRepo.findOne(id);
-  }
-
-  async getAllBuys(): Promise<Buy[]> {
-    return this.buyRepo.find();
-  }
-
   async getUserBuys(userId: number): Promise<Buy[]> {
     return this.buyRepo.find({ user: { id: userId } });
   }

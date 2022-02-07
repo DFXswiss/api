@@ -3,7 +3,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
-import { LogService } from '../log/log.service';
 import { UserDataService } from '../userData/userData.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';

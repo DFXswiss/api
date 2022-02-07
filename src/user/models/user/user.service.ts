@@ -31,19 +31,12 @@ export class UserService {
     return await this.toDto(user, detailedUser);
   }
 
-  async updateStatusOld(user: UpdateStatusDto): Promise<any> {
-    //TODO status ändern wenn transaction oder KYC
-    return this.userRepo.updateStatus(user);
-  }
-
-  async updateStatus(userId: number, newUserStatus: UserStatus): Promise<User> {
+  async updateStatus(userId: number, status: UserStatus): Promise<void> {
     const user = await this.userRepo.findOne({ id: userId });
     if (!user) throw new NotFoundException('No matching user found');
-    try {
-      return Object.assign(user, await this.userRepo.save({ id: userId, status: newUserStatus }));
-    } catch (error) {
-      throw new ServiceUnavailableException(error.message);
-    }
+
+    user.status = status;
+    await this.userRepo.save(user);
   }
 
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {

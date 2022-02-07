@@ -10,7 +10,6 @@ import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { Between, Not } from 'typeorm';
-import { UserRepository } from 'src/user/models/user/user.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { UserService } from 'src/user/models/user/user.service';
 
@@ -26,22 +25,13 @@ export class CryptoSellService {
   ) {}
 
   async create(dto: CreateCryptoSellDto): Promise<CryptoSell> {
-    let entity = await this.cryptoSellRepo.findOne(
-      { cryptoInput: { id: dto.cryptoInputId } },
-      { relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user'] },
-    );
+    let entity = await this.cryptoSellRepo.findOne({ cryptoInput: { id: dto.cryptoInputId } });
     if (entity) throw new ConflictException('There is already a crypto sell for the specified crypto input');
 
     entity = await this.createEntity(dto);
     entity = await this.cryptoSellRepo.save(entity);
 
     await this.updateSellVolume([entity.cryptoInput.route.id]);
-
-    const user =
-      entity.cryptoInput && entity.amlCheck === AmlCheck.PASS
-        ? (await this.sellRepo.findOne({ id: entity.cryptoInput.route.id }, { relations: ['user'] })).user
-        : null;
-    user?.status === UserStatus.NA ? await this.userService.updateStatus(user.id, UserStatus.ACTIVE) : null;
 
     return entity;
   }
@@ -85,10 +75,17 @@ export class CryptoSellService {
 
     // crypto input
     if (dto.cryptoInputId) {
-      cryptoSell.cryptoInput = await this.cryptoInputRepo.findOne({ id: dto.cryptoInputId }, { relations: ['route'] });
+      cryptoSell.cryptoInput = await this.cryptoInputRepo.findOne(
+        { id: dto.cryptoInputId },
+        { relations: ['route', 'route.user'] },
+      );
       if (!cryptoSell.cryptoInput) throw new NotFoundException('No crypto input for ID found');
       if (cryptoSell.cryptoInput.route.type !== RouteType.SELL)
         throw new BadRequestException('Crypto input is not a sell input');
+    }
+
+    if (cryptoSell.amlCheck === AmlCheck.PASS && cryptoSell.cryptoInput?.route?.user?.status === UserStatus.NA) {
+      await this.userService.updateStatus(cryptoSell.cryptoInput.route.user.id, UserStatus.ACTIVE);
     }
 
     return cryptoSell;

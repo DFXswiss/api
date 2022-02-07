@@ -107,26 +107,6 @@ export class UserRepository extends Repository<User> {
     }
   }
 
-  async updateStatus(user: UpdateStatusDto): Promise<any> {
-    try {
-      let currentUser = null;
-
-      if (user.id) {
-        currentUser = await this.findOne({ id: user.id });
-      } else if (user.address) {
-        currentUser = await this.findOne({ address: user.address });
-      }
-
-      if (!currentUser) throw new NotFoundException('No matching user for id found');
-
-      currentUser.status = user.status;
-
-      return await this.save(currentUser);
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
   async getUserInternal(addressString: string): Promise<User> {
     return this.findOne({ address: addressString });
   }
