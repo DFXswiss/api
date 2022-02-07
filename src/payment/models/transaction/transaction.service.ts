@@ -69,7 +69,7 @@ export class TransactionService {
         {
           type: 'Trade',
           buyAmount: c.outputAmount,
-          buyAsset: c.buy.asset.name,
+          buyAsset: c.buy?.asset?.name,
           sellAmount: c.amount,
           sellAsset: c.fiat?.name,
           fee: c.fee ? c.fee * c.amount : null,

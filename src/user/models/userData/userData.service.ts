@@ -178,11 +178,22 @@ export class UserDataService {
   }
 
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const userData = await this.getUserDataForUser(userId);
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'],
+    });
+    const userData = user.userData;
+    const userInfo = getUserInfo(user);
     if (!userData) throw new NotFoundException(`No user data for user id ${userId}`);
 
     const kycData = await this.kycApi.getCustomer(userData.id);
-    if (!kycData) throw new NotFoundException(`User with id ${userData.id} is not in spider`);
+    if (!kycData) {
+      if (userData.accountType === AccountType.PERSONAL) {
+        await this.kycApi.updateCustomer(userData.id, userInfo);
+      } else {
+        await this.kycApi.submitContractLinkedList(userData.id, userInfo);
+      }
+    }
 
     const version = new Date().getTime().toString();
     await this.kycApi.createDocumentVersion(userData.id, kycDocument, version, false);
@@ -315,6 +326,7 @@ export class UserDataService {
       type: 'AdditionalPersonInformation',
       nickName: userInfo.firstname,
       onlyOwner: 'YES',
+      authorisesConversationPartner: 'YES',
       businessActivity: {
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
       },

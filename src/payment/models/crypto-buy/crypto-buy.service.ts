@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { BuyService } from 'src/payment/models/buy/buy.service';
+import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { AmlCheck, CryptoBuy } from './crypto-buy.entity';
@@ -8,12 +8,15 @@ import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
 import { Between, Not } from 'typeorm';
+import { UserStatus } from 'src/user/models/user/user.entity';
+import { BuyRepository } from '../buy/buy.repository';
 
 @Injectable()
 export class CryptoBuyService {
   constructor(
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly bankTxRepo: BankTxRepository,
+    private readonly buyRepo: BuyRepository,
     private readonly buyService: BuyService,
     private readonly fiatService: FiatService,
     private readonly userService: UserService,
@@ -28,17 +31,16 @@ export class CryptoBuyService {
 
     await this.updateBuyVolume([entity.buy?.id]);
     await this.updateRefVolume([entity.usedRef]);
+
     return entity;
   }
 
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('No matching entry found');
-    
+
     const bankTxWithOtherBuy = dto.bankTxId
-      ? await this.cryptoBuyRepo.findOne({
-          where: { id: Not(id), bankTx: { id: dto.bankTxId } },
-        })
+      ? await this.cryptoBuyRepo.findOne({ id: Not(id), bankTx: { id: dto.bankTxId } })
       : null;
     if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
 
@@ -55,7 +57,7 @@ export class CryptoBuyService {
   }
 
   async updateVolumes(): Promise<void> {
-    const buyIds = await this.buyService.getAllBuys().then((l) => l.map((b) => b.id));
+    const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
     await this.updateBuyVolume(buyIds);
   }
 
@@ -80,7 +82,7 @@ export class CryptoBuyService {
 
     // buy
     if (dto.buyId) {
-      cryptoBuy.buy = await this.buyService.getBuy(dto.buyId);
+      cryptoBuy.buy = await this.buyRepo.findOne({ where: { id: dto.buyId }, relations: ['user'] });
       if (!cryptoBuy.buy) throw new NotFoundException('No buy for ID found');
     }
 
@@ -88,6 +90,10 @@ export class CryptoBuyService {
     if (dto.currency) {
       cryptoBuy.fiat = await this.fiatService.getFiatByName(dto.currency);
       if (!cryptoBuy.fiat) throw new NotFoundException('No fiat for ID found');
+    }
+
+    if (cryptoBuy.amlCheck === AmlCheck.PASS && cryptoBuy.buy?.user?.status === UserStatus.NA) {
+      await this.userService.updateStatus(cryptoBuy.buy.user.id, UserStatus.ACTIVE);
     }
 
     return cryptoBuy;

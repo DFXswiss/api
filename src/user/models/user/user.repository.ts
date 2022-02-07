@@ -4,7 +4,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserStatus } from './user.entity';
-import { UpdateStatusDto } from './dto/update-status.dto';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
@@ -102,26 +101,6 @@ export class UserRepository extends Repository<User> {
   async getAllUser(): Promise<any> {
     try {
       return await this.find({ relations: ['userData', 'wallet'] });
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
-  }
-
-  async updateStatus(user: UpdateStatusDto): Promise<any> {
-    try {
-      let currentUser = null;
-
-      if (user.id) {
-        currentUser = await this.findOne({ id: user.id });
-      } else if (user.address) {
-        currentUser = await this.findOne({ address: user.address });
-      }
-
-      if (!currentUser) throw new NotFoundException('No matching user for id found');
-
-      currentUser.status = user.status;
-
-      return await this.save(currentUser);
     } catch (error) {
       throw new ConflictException(error.message);
     }

@@ -3,14 +3,11 @@ import { extractUserInfo, getUserInfo, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserDataService } from 'src/user/models/userData/userData.service';
-import { LogService } from 'src/user/models/log/log.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
-import { Config } from 'src/config/config';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 
 @Injectable()
@@ -18,7 +15,6 @@ export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly logService: LogService,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
@@ -34,9 +30,12 @@ export class UserService {
     return await this.toDto(user, detailedUser);
   }
 
-  async updateStatus(user: UpdateStatusDto): Promise<any> {
-    //TODO status ändern wenn transaction oder KYC
-    return this.userRepo.updateStatus(user);
+  async updateStatus(userId: number, status: UserStatus): Promise<void> {
+    const user = await this.userRepo.findOne({ id: userId });
+    if (!user) throw new NotFoundException('No matching user found');
+
+    user.status = status;
+    await this.userRepo.save(user);
   }
 
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
@@ -113,10 +112,6 @@ export class UserService {
       refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logService.getRefVolume(
-        user.ref,
-        (user.currency?.name ?? Config.defaultCurrency).toLowerCase(),
-      ),
     };
   }
 
