@@ -163,7 +163,7 @@ export class KycService {
           : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
 
       const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
-      userData.spiderData = await this.updateSpiderData(userData, initiateData);
+      userData.spiderData = await this.updateSpiderData(userData, identType, initiateData);
     }
 
     return this.updateKycStatus(userData, status);
@@ -201,17 +201,16 @@ export class KycService {
     return userData;
   }
 
-  private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
+  private async updateSpiderData(userData: UserData, identType: KycDocument, initiateData: InitiateResponse) {
     const spiderData =
       (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
       this.spiderDataRepo.create({ userData: userData });
 
-    const locator = initiateData.locators[0];
     spiderData.url =
-      locator.document === KycDocument.CHATBOT
+      identType === KycDocument.INITIATE_CHATBOT_IDENTIFICATION // TODO: get identType from response?
         ? initiateData.sessionUrl + '&nc=true'
         : initiateData.sessionUrl;
-    spiderData.version = locator.version;
+    spiderData.version = initiateData.locators[0].version;
 
     if ([KycDocument.INITIATE_ONLINE_IDENTIFICATION].includes(identType)) {
       const identVersion = await this.kycApi.getDocumentVersions(userData.id, KycDocument.ONLINE_IDENTIFICATION);
@@ -249,7 +248,7 @@ export class KycService {
         userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
       }
     } catch (e) {
-      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
+      console.error('Failed to store chatbot result:', e);
     }
 
     return userData;
