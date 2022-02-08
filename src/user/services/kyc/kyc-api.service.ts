@@ -51,9 +51,18 @@ export class KycApiService {
     return this.callApi<CreateResponse>('customers/simple', 'POST', data);
   }
 
-  async updatePersonalCustomer(id: number, user: UserInfo): Promise<CreateResponse> {
-    const customer = this.buildCustomer(id, user);
-    return this.callApi<CreateResponse>('customers/simple', 'POST', customer);
+  async updatePersonalCustomer(id: number, user: UserInfo): Promise<SubmitResponse[]> {
+    const person = {
+      contractReference: this.reference(id) + '_placeholder',
+      customer: this.buildCustomer(id, user),
+      relationTypes: [
+        KycRelationType.CONVERSION_PARTNER,
+        KycRelationType.BENEFICIAL_OWNER,
+        KycRelationType.CONTRACTING_PARTNER,
+      ],
+    };
+
+    return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person]);
   }
 
   async updateOrganizationCustomer(id: number, user: UserInfo): Promise<SubmitResponse[]> {
