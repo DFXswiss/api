@@ -209,10 +209,6 @@ export class KycService {
     const locator = initiateData.locators[0];
     spiderData.url =
       locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
-    spiderData.version = (await this.kycApi.getDocumentVersions(userData.id, KycDocument.CHATBOT)).find(
-      (u) => u.state == KycDocumentState.COMPLETED,
-    )?.name;
-
     spiderData.secondUrl =
       locator.document === KycDocument.ONLINE_IDENTIFICATION ? await this.getOnlineIdLink(userData) : null;
 
@@ -236,10 +232,13 @@ export class KycService {
     try {
       const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
       if (spiderData) {
+        const chatBot = (await this.kycApi.getDocumentVersions(userData.id, KycDocument.CHATBOT)).find(
+          (u) => u.state == KycDocumentState.COMPLETED,
+        );
         const chatBotResult = await this.kycApi.getDocument(
           userData.id,
           KycDocument.CHATBOT_ONBOARDING,
-          spiderData.version,
+          chatBot.name,
           'export',
         );
 
