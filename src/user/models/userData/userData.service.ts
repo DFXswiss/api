@@ -164,7 +164,7 @@ export class UserDataService {
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'],
+      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
     });
     const userData = user.userData;
     const userInfo = getUserInfo(user);
