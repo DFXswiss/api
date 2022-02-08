@@ -114,7 +114,7 @@ export class MailService {
     await this.sendMail(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
   }
 
-  async sendMail(recipient: string, salutation: string, subject: string, body: string) {
+  async sendMail(recipient: string, salutation: string, subject: string, body: string, from?: string, bcc?: string) {
     const htmlBody = `<h1>${salutation}</h1>
       <p>${body}</p>
       <p></p>
@@ -125,6 +125,8 @@ export class MailService {
       <p>2021 DFX AG</p>`;
 
     await this.mailerService.sendMail({
+      from: from ?? 'noreply@dfx.swiss',
+      bcc: bcc,
       to: recipient,
       subject: subject,
       html: htmlBody,
