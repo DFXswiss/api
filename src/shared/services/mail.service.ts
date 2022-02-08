@@ -114,7 +114,15 @@ export class MailService {
     await this.sendMail(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
   }
 
-  async sendMail(recipient: string, salutation: string, subject: string, body: string, from?: string, bcc?: string) {
+  async sendMail(
+    to: string,
+    salutation: string,
+    subject: string,
+    body: string,
+    from?: string,
+    bcc?: string,
+    cc?: string,
+  ) {
     const htmlBody = `<h1>${salutation}</h1>
       <p>${body}</p>
       <p></p>
@@ -122,12 +130,13 @@ export class MailService {
       <p>Your DFX team</p>
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
-      <p>2022 DFX AG</p>`;
+      <p>${new Date().getFullYear()} DFX AG</p>`;
 
     await this.mailerService.sendMail({
       from: from ?? 'noreply@dfx.swiss',
+      to: to,
+      cc: cc,
       bcc: bcc,
-      to: recipient,
       subject: subject,
       html: htmlBody,
     });
