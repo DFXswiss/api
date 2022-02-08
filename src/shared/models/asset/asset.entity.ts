@@ -1,6 +1,7 @@
-import { Buy } from 'src/user/models/buy/buy.entity';
+import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Log } from 'src/user/models/log/log.entity';
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, OneToMany } from 'typeorm';
+import { IEntity } from '../entity';
 
 export enum AssetType {
   COIN = 'Coin',
@@ -9,10 +10,7 @@ export enum AssetType {
 }
 
 @Entity()
-export class Asset {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Asset extends IEntity {
   @Column({ type: 'int', nullable: true })
   chainId: number;
 
@@ -42,10 +40,4 @@ export class Asset {
 
   @OneToMany(() => Log, (log) => log.asset)
   logs: Log[];
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

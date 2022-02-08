@@ -1,8 +1,11 @@
 export enum UserRole {
+  // user roles
   USER = 'User',
-  ADMIN = 'Admin',
-  EMPLOYEE = 'Employee',
   VIP = 'VIP',
-  SUPPORT = 'Support',
   BETA = 'Beta',
+  ADMIN = 'Admin',
+
+  // service roles
+  MASTERNODE_OPERATOR = 'MasternodeOperator',
+  DEFICHAIN_INCOME = 'DeFiChainIncome',
 }

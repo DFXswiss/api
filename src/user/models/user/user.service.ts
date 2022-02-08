@@ -3,44 +3,40 @@ import { extractUserInfo, getUserInfo, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { UpdateStatusDto } from './dto/update-status.dto';
-import { UserDataService } from 'src/user/models/userData/userData.service';
-import { LogDirection } from 'src/user/models/log/log.entity';
-import { LogService } from 'src/user/models/log/log.service';
+import { KycResult, UserDataService } from 'src/user/models/userData/userData.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { BuyService } from '../buy/buy.service';
 import { Util } from 'src/shared/util';
-import { Config } from 'src/config/config';
-import { StakingService } from '../staking/staking.service';
+import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
+import { CfpVotes } from './dto/cfp-votes.dto';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly logService: LogService,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
-    private readonly buyService: BuyService,
-    private readonly stakingService: StakingService,
   ) {}
 
   async getUser(userId: number, detailedUser = false): Promise<User> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: detailedUser ? ['userData', 'buys', 'sells', 'stakingRoutes', 'currency'] : ['userData', 'currency'],
+      relations: ['userData', 'currency'],
     });
     if (!user) throw new NotFoundException('No matching user for id found');
 
     return await this.toDto(user, detailedUser);
   }
 
-  async updateStatus(user: UpdateStatusDto): Promise<any> {
-    //TODO status ändern wenn transaction oder KYC
-    return this.userRepo.updateStatus(user);
+  async updateStatus(userId: number, status: UserStatus): Promise<void> {
+    const user = await this.userRepo.findOne({ id: userId });
+    if (!user) throw new NotFoundException('No matching user found');
+
+    user.status = status;
+    await this.userRepo.save(user);
   }
 
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
@@ -62,15 +58,9 @@ export class UserService {
     user['kycStatus'] = user.userData?.kycStatus;
     user['kycState'] = user.userData?.kycState;
     user['depositLimit'] = user.userData?.depositLimit;
-    user['fees'] = await this.getFees(user);
 
     if (detailed) {
       user['refData'] = await this.getRefData(user);
-      user['userVolume'] = await this.getUserVolume(user);
-    }
-
-    if (user.stakingRoutes) {
-      user['stakingRoutes'] = (await Promise.all(user.stakingRoutes.map((s) => this.stakingService.toDto(s)))) as any;
     }
 
     // select user info
@@ -81,6 +71,7 @@ export class UserService {
     delete user.signature;
     delete user.ip;
     delete user.role;
+    delete user.cfpVotes;
     if (user.status != UserStatus.ACTIVE) delete user.ref;
     if (user.usedRef === '000-000') delete user.usedRef;
 
@@ -104,17 +95,12 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number, depositLimit: string): Promise<string | undefined> {
+  async requestKyc(userId: number, depositLimit: string): Promise<KycResult> {
     return this.userDataService.requestKyc(userId, depositLimit);
   }
 
-  async getUserVolume(user: User): Promise<any> {
-    const buyVolume = await this.buyService.getUserVolume(user.id);
-    return {
-      buyVolume: buyVolume.volume,
-      annualBuyVolume: buyVolume.annualVolume,
-      sellVolume: await this.logService.getUserVolume(user, LogDirection.asset2fiat),
-    };
+  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
+    return this.userDataService.uploadDocument(userId, document, kycDocument);
   }
 
   async getRefDataForId(userId: number): Promise<any> {
@@ -128,10 +114,6 @@ export class UserService {
       refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
       refCount: await this.userRepo.getRefCount(user.ref),
       refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logService.getRefVolume(
-        user.ref,
-        (user.currency?.name ?? Config.defaultCurrency).toLowerCase(),
-      ),
     };
   }
 
@@ -144,21 +126,23 @@ export class UserService {
     return fee;
   }
 
-  async getFees(user: User): Promise<{ buy: number; refBonus: number; sell: number }> {
-    const { annualVolume } = await this.buyService.getUserVolume(user.id);
-    const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
-
-    const refUser = await this.userRepo.findOne({ ref: user.usedRef });
-    const refBonus = annualVolume < 100000 ? 1 - (refUser?.refFeePercent ?? 1) : 0;
-
-    return {
-      buy: baseFee - refBonus,
-      refBonus,
-      sell: 2.9,
-    };
-  }
-
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
     await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
+  }
+
+  async getRefUser(userId: number): Promise<User | undefined> {
+    const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
+    return this.userRepo.findOne({ ref: usedRef });
+  }
+
+  async getCfpVotes(id: number): Promise<CfpVotes> {
+    return this.userRepo
+      .findOne({ id }, { select: ['id', 'cfpVotes'] })
+      .then((u) => (u.cfpVotes ? JSON.parse(u.cfpVotes) : {}));
+  }
+
+  async updateCfpVotes(id: number, votes: CfpVotes): Promise<CfpVotes> {
+    await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
+    return votes;
   }
 }

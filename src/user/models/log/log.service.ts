@@ -5,7 +5,6 @@ import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { HttpService } from 'src/shared/services/http.service';
 import { LogDirection, LogType } from './log.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { User } from 'src/user/models/user/user.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Not } from 'typeorm';
@@ -102,20 +101,6 @@ export class LogService {
 
     if (existingLog) throw new ConflictException('Log already existing - duplicate log');
 
-    if (createLogDto.payment) {
-      // TODO: re-enable
-      // if (createLogDto.direction === LogDirection.fiat2asset) {
-      //   createLogDto.payment =
-      //     createLogDto.direction === LogDirection.fiat2asset
-      //       ? await this.buyPaymentRepo.getPaymentInternal(createLogDto.payment)
-      //       : await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
-      // } else {
-      //   createLogDto.payment = await this.sellPaymentRepo.getPaymentInternal(createLogDto.payment);
-      // }
-    } else {
-      delete createLogDto.payment;
-    }
-
     if (createLogDto.fiat) {
       fiatObject = await this.fiatService.getFiatOld(createLogDto.fiat);
     } else {
@@ -199,23 +184,5 @@ export class LogService {
 
   async getChfVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
     return this.logRepository.getChfVolume(logType, logDirection);
-  }
-
-  async getUserVolume(user: User, logDirection: LogDirection): Promise<any> {
-    const logsWithoutEur = await this.logRepository.find({
-      where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null, fiat: Not(2) },
-    });
-    const logsEur = await this.logRepository.find({
-      where: { type: LogType.TRANSACTION, address: user.address, direction: logDirection, status: null, fiat: 2 },
-    });
-
-    const volumeWithoutEur = await this.conversionService.convertFiatCurrency(
-      await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
-      'chf',
-      'eur',
-    );
-    const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
-
-    return Util.round(volumeWithoutEur + volumeEur, 0);
   }
 }

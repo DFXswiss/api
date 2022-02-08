@@ -1,24 +1,17 @@
-import { Buy } from 'src/user/models/buy/buy.entity';
+import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Log } from 'src/user/models/log/log.entity';
-import { Sell } from 'src/user/models/sell/sell.entity';
+import { Sell } from 'src/payment/models/sell/sell.entity';
 import { UserData } from 'src/user/models/userData/userData.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToMany,
-  CreateDateColumn,
-  ManyToOne,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { InternalServerErrorException } from '@nestjs/common';
 import { AccountType } from '../userData/account-type.enum';
-import { Staking } from '../staking/staking.entity';
+import { Staking } from '../../../payment/models/staking/staking.entity';
+import { IEntity } from 'src/shared/models/entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -28,10 +21,7 @@ export enum UserStatus {
 }
 
 @Entity()
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class User extends IEntity {
   @Column({ default: AccountType.PERSONAL, length: 256 })
   accountType: AccountType;
 
@@ -119,6 +109,9 @@ export class User {
   @Column({ default: '0.0.0.0', length: 256 })
   ip: string;
 
+  @Column({ nullable: true, length: 'MAX' })
+  cfpVotes: string;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
@@ -133,12 +126,6 @@ export class User {
 
   @OneToMany(() => Log, (logs) => logs.user)
   logs: Log[];
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }
 
 export interface UserInfo {

@@ -1,10 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column } from 'typeorm';
+import { IEntity } from '../entity';
 
 @Entity()
-export class Country {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class Country extends IEntity {
   @Column({ unique: true, length: 10 })
   symbol: string;
 
@@ -13,10 +11,4 @@ export class Country {
 
   @Column({ default: true })
   enable: boolean;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn() 
-  created: Date;
 }

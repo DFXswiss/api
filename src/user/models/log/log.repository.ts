@@ -4,7 +4,6 @@ import { CreateLogDto } from './dto/create-log.dto';
 import { Log, LogDirection, LogType } from './log.entity';
 import { isString } from 'class-validator';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { UserStatus } from 'src/user/models/user/user.entity';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -15,16 +14,6 @@ export class LogRepository extends Repository<Log> {
   async createLog(createLogDto: CreateLogDto, assetService: AssetService, fiatService: FiatService): Promise<any> {
     let fiatObject = null;
     let assetObject = null;
-
-    if (createLogDto.payment) {
-      // TODO: re-enable
-      // createLogDto.payment =
-      //   createLogDto.direction === LogDirection.fiat2asset
-      //     ? await getManager().getCustomRepository(BuyPaymentRepository).getPaymentInternal(createLogDto.payment)
-      //     : await getManager().getCustomRepository(SellPaymentRepository).getPaymentInternal(createLogDto.payment);
-    } else {
-      delete createLogDto.payment;
-    }
 
     if (createLogDto.fiat) {
       fiatObject = await fiatService.getFiatOld(createLogDto.fiat);
@@ -60,24 +49,6 @@ export class LogRepository extends Repository<Log> {
 
     try {
       await this.save(log);
-      if (log.type === LogType.TRANSACTION && !log.status) {
-        // if (createLogDto.user.mail) {
-        //   const fiat = (await fiatService.getFiat(createLogDto.fiat)).name;
-        //   const asset = (await assetService.getAsset(createLogDto.asset)).name;
-
-        //   await mailService.sendLogMail(createLogDto, 'Transaction has been completed', fiat, asset);
-        // }
-
-        if (log.user) {
-          const currentUser = log.user;
-
-          if (currentUser.status == UserStatus.NA) {
-            currentUser.status = UserStatus.ACTIVE;
-
-            await getManager().getCustomRepository(UserRepository).save(currentUser);
-          }
-        }
-      }
     } catch (error) {
       throw new ConflictException(error.message);
     }

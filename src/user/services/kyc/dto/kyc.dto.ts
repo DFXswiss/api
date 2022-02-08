@@ -1,15 +1,10 @@
-import { RiskState } from "src/user/models/userData/userData.entity";
-
-export enum State {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-}
+import { RiskState } from 'src/user/models/userData/userData.entity';
 
 export enum KycContentType {
   IMAGE = 'image/png',
   JSON = 'application/json',
   TEXT = 'text/plain',
+  PDF = 'application/pdf',
 }
 
 export enum KycRelationType {
@@ -42,6 +37,9 @@ export enum KycDocument {
   FINANCIAL_STATEMENTS = 'financial-statements',
   INCORPORATION_CERTIFICATE = 'incorporation_certificate',
   INITIAL_CUSTOMER_INFORMATION = 'initial-customer-information',
+  INITIATE_VIDEO_IDENTIFICATION = 'video-identification',
+  INITIATE_ONLINE_IDENTIFICATION = 'online-identification',
+  INITIATE_CHATBOT_IDENTIFICATION = 'onboarding-chatbot',
   INVOICE = 'invoice',
   MRZ = 'mrz',
   ONLINE_IDENTIFICATION = 'online-identification',
@@ -53,6 +51,13 @@ export enum KycDocument {
   USER_ADDED_DOCUMENT = 'user-added-document',
   VERIFICATION = 'verification',
   VIDEO_IDENTIFICATION = 'video_identification',
+  IDENTIFICATION_LOG = 'identification-log',
+}
+
+export enum KycDocumentState {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
 }
 
 export interface SubmitResponse {
@@ -81,11 +86,17 @@ export interface CreateResponse {
   customerVersionId: number;
 }
 
-export interface ChatBotResponse {
+export interface InitiateResponse {
   document: string;
   reference: string;
   sessionUrl: string;
-  version: string;
+
+  locators: [
+    {
+      document: KycDocument;
+      version: string;
+    },
+  ];
 }
 
 export interface SubmitResponse {
@@ -94,15 +105,9 @@ export interface SubmitResponse {
   customerVersionId: number;
 }
 
-export interface IdentificationResponse {
-  document: string;
-  reference: string;
-  version: string;
-}
-
-export interface CheckVersion {
+export interface DocumentVersion {
   name: string;
-  state: State;
+  state: KycDocumentState;
   creationTime: number;
   modificationTime: number;
 }
@@ -119,12 +124,11 @@ export interface Risk {
   categoryKey: RiskState;
 }
 
-export interface Customer {
-  reference: number;
+export interface CustomerBase {
+  reference: string;
   type: string;
   id?: number;
   versionId?: number;
-  names: [{ firstName: string; lastName: string }];
   datesOfBirth: [{ year: string; month: string; day: string }];
   citizenships: [string];
   countriesOfResidence: [string];
@@ -132,6 +136,7 @@ export interface Customer {
   telephones: [string];
   structuredAddresses: [
     {
+      type: string;
       street: string;
       houseNumber: string;
       zipCode: string;
@@ -142,8 +147,16 @@ export interface Customer {
   gender: string;
   title: string;
   preferredLanguage: string;
-  activationDate: { year: string; month: string; day: string };
-  deactivationDate: { year: string; month: string; day: string };
+  activationDate: { year: number; month: number; day: number };
+  deactivationDate: { year: number; month: number; day: number };
+}
+
+export interface Customer extends CustomerBase {
+  names: [{ firstName: string; lastName: string }];
+}
+
+export interface Organization extends CustomerBase {
+  names: string[];
 }
 
 export interface CustomerInformationResponse {

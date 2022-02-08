@@ -13,13 +13,7 @@ import { GetConfig } from './config/config';
 import { SeedService } from './shared/seed/seed.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forRoot(GetConfig().database),
-    SharedModule,
-    AinModule,
-    PaymentModule,
-    UserModule,
-  ],
+  imports: [TypeOrmModule.forRoot(GetConfig().database), SharedModule, AinModule, PaymentModule, UserModule],
   controllers: [AppController, StatisticController, AdminController],
   providers: [StatisticService, CfpService, SeedService],
   exports: [],

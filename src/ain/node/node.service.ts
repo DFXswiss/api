@@ -63,7 +63,7 @@ export class NodeService {
     };
   }
 
-  @Interval(3600000)
+  @Interval(900000)
   async checkNodes(): Promise<void> {
     const errors = await Promise.all([
       this.checkNode(NodeType.INPUT),

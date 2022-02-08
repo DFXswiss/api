@@ -1,13 +1,14 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { IEntity } from 'src/shared/models/entity';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { UserData } from '../userData/userData.entity';
 
 @Entity()
-export class SpiderData {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class SpiderData extends IEntity {
   @Column({ length: 256 })
   url: string;
+
+  @Column({ length: 256, nullable: true })
+  secondUrl: string;
 
   @Column({ length: 256 })
   version: string;

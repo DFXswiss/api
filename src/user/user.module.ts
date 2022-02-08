@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -13,31 +13,19 @@ import { AuthService } from './models/auth/auth.service';
 import { BankDataController } from './models/bank-data/bank-data.controller';
 import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
-import { BuyController } from './models/buy/buy.controller';
-import { BuyRepository } from './models/buy/buy.repository';
-import { BuyService } from './models/buy/buy.service';
 import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
-import { DepositController } from './models/deposit/deposit.controller';
-import { DepositRepository } from './models/deposit/deposit.repository';
-import { DepositService } from './models/deposit/deposit.service';
 import { LogController } from './models/log/log.controller';
 import { LogRepository } from './models/log/log.repository';
 import { LogService } from './models/log/log.service';
 import { RefController } from './models/referral/ref.controller';
 import { RefRepository } from './models/referral/ref.repository';
 import { RefService } from './models/referral/ref.service';
-import { SellController } from './models/sell/sell.controller';
-import { SellRepository } from './models/sell/sell.repository';
-import { SellService } from './models/sell/sell.service';
 import { UserController } from './models/user/user.controller';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { KycApiService } from './services/kyc/kyc-api.service';
 import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
-import { StakingRepository } from './models/staking/staking.repository';
-import { StakingController } from './models/staking/staking.controller';
-import { StakingService } from './models/staking/staking.service';
-import { PaymentModule } from 'src/payment/payment.module';
+import { KycService } from './services/kyc/kyc.service';
 
 @Module({
   imports: [
@@ -45,27 +33,18 @@ import { PaymentModule } from 'src/payment/payment.module';
       UserRepository,
       UserDataRepository,
       SpiderDataRepository,
-      BuyRepository,
-      SellRepository,
-      StakingRepository,
       LogRepository,
       WalletRepository,
-      DepositRepository,
       BankDataRepository,
       RefRepository,
     ]),
     SharedModule,
     AinModule,
-    forwardRef(() => PaymentModule),
   ],
   controllers: [
     UserController,
-    BuyController,
-    SellController,
-    StakingController,
     LogController,
     WalletController,
-    DepositController,
     UserDataController,
     BankDataController,
     RefController,
@@ -73,28 +52,16 @@ import { PaymentModule } from 'src/payment/payment.module';
   ],
   providers: [
     UserService,
-    BuyService,
-    SellService,
-    StakingService,
     LogService,
     WalletService,
-    DepositService,
     UserDataService,
     BankDataService,
     RefService,
-    KycSchedulerService,
+    KycService,
     KycApiService,
+    KycSchedulerService,
     AuthService,
   ],
-  exports: [
-    UserService,
-    BuyService,
-    SellService,
-    StakingService,
-    LogService,
-    KycSchedulerService,
-    KycApiService,
-    RefService,
-  ],
+  exports: [UserService, UserDataService, LogService, RefService],
 })
 export class UserModule {}

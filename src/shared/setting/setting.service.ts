@@ -10,11 +10,19 @@ export class SettingService {
     return this.settingRepo.find();
   }
 
-  async get(key: string): Promise<string | undefined> {
-    return this.settingRepo.findOne({ key: key }).then((d) => d?.value);
+  async get(key: string, defaultValue?: string): Promise<string | undefined> {
+    return this.settingRepo.findOne({ key: key }).then((d) => d?.value ?? defaultValue);
   }
 
   async set(key: string, value: string): Promise<void> {
     await this.settingRepo.save({ key, value });
+  }
+
+  async getObj<T>(key: string, defaultValue?: T): Promise<T | undefined> {
+    return this.settingRepo.findOne({ key: key }).then((d) => (d?.value ? JSON.parse(d?.value) : defaultValue));
+  }
+
+  async setObj<T>(key: string, value: T): Promise<void> {
+    await this.settingRepo.save({ key, value: JSON.stringify(value) });
   }
 }

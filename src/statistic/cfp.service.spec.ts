@@ -1,14 +1,27 @@
+import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { SettingService } from 'src/shared/setting/setting.service';
 import { CfpService } from './cfp.service';
 
 describe('CfpService', () => {
   let service: CfpService;
+  let settingService: SettingService;
 
   beforeEach(async () => {
+    settingService = createMock<SettingService>();
+
+    jest.spyOn(settingService, 'getObj').mockResolvedValueOnce({});
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CfpService, { provide: HttpService, useValue: {} }, { provide: CryptoService, useValue: {} }],
+      providers: [
+        CfpService,
+        { provide: HttpService, useValue: {} },
+        { provide: CryptoService, useValue: {} },
+        { provide: SettingService, useValue: settingService },
+        { provide: 'VALID_MNS', useValue: [] },
+      ],
     }).compile();
 
     service = module.get<CfpService>(CfpService);
@@ -19,7 +32,18 @@ describe('CfpService', () => {
   });
 
   it('should return the CFP list', () => {
-    expect(service.getCfpList()).toEqual(['2201', '2112', '2111', '2109', '2107', '2106', '2104', '2101', '2009']);
+    expect(service.getCfpList()).toEqual([
+      '2202',
+      '2201',
+      '2112',
+      '2111',
+      '2109',
+      '2107',
+      '2106',
+      '2104',
+      '2101',
+      '2009',
+    ]);
   });
 
   it('should return 2109 CFPs', async () => {

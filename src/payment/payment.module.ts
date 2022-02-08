@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
@@ -20,31 +20,77 @@ import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 import { TransactionController } from './models/transaction/transaction.controller';
 import { TransactionService } from './models/transaction/transaction.service';
 import { BitstampService } from './models/exchange/bitstamp.service';
+import { BuyController } from './models/buy/buy.controller';
+import { BuyRepository } from './models/buy/buy.repository';
+import { BuyService } from './models/buy/buy.service';
+import { DepositController } from './models/deposit/deposit.controller';
+import { DepositRepository } from './models/deposit/deposit.repository';
+import { DepositService } from './models/deposit/deposit.service';
+import { SellController } from './models/sell/sell.controller';
+import { SellRepository } from './models/sell/sell.repository';
+import { SellService } from './models/sell/sell.service';
+import { StakingController } from './models/staking/staking.controller';
+import { StakingRepository } from './models/staking/staking.repository';
+import { StakingService } from './models/staking/staking.service';
+import { RouteController } from './models/route/route.controller';
+import { CryptoSellRepository } from './models/crypto-sell/crypto-sell.repository';
+import { CryptoSellController } from './models/crypto-sell/crypto-sell.controller';
+import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
+import { MasternodeController } from './models/masternode/masternode.controller';
+import { MasternodeService } from './models/masternode/masternode.service';
+import { MasternodeRepository } from './models/masternode/masternode.repository';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       CryptoInputRepository,
       CryptoBuyRepository,
+      CryptoSellRepository,
       BankTxRepository,
       BankTxBatchRepository,
-      CryptoBuyRepository,
+      BuyRepository,
+      SellRepository,
+      StakingRepository,
+      DepositRepository,
+      MasternodeRepository,
     ]),
     SharedModule,
     AinModule,
-    forwardRef(() => UserModule),
+    UserModule,
   ],
-  controllers: [BankTxController, BankController, ExchangeController, CryptoBuyController, TransactionController],
+  controllers: [
+    BankTxController,
+    BankController,
+    ExchangeController,
+    CryptoBuyController,
+    CryptoSellController,
+    TransactionController,
+    RouteController,
+    BuyController,
+    SellController,
+    StakingController,
+    DepositController,
+    MasternodeController,
+  ],
   providers: [
     CryptoInputService,
     CryptoBuyService,
+    CryptoSellService,
     BankTxService,
     BankService,
     KrakenService,
     BinanceService,
     BitstampService,
     TransactionService,
+    BuyService,
+    SellService,
+    StakingService,
+    DepositService,
+    MasternodeService,
+    BuyController,
+    SellController,
+    StakingController,
   ],
-  exports: [CryptoInputService],
+  exports: [BuyService, SellService, StakingService, CryptoBuyService, CryptoSellService],
 })
 export class PaymentModule {}

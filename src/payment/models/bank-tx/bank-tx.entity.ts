@@ -1,20 +1,18 @@
-import { Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Column, ManyToOne } from 'typeorm';
+import { IEntity } from 'src/shared/models/entity';
+import { Entity, Column, ManyToOne } from 'typeorm';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
 @Entity()
-export class BankTx {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
   accountServiceRef: string;
 
   @Column({ type: 'datetime2', nullable: true })
   bookingDate?: Date;
-  
+
   @Column({ type: 'datetime2', nullable: true })
   valueDate?: Date;
-  
+
   @Column({ type: 'integer', nullable: true })
   txCount?: number;
 
@@ -110,10 +108,4 @@ export class BankTx {
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: false })
   batch: BankTxBatch;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }

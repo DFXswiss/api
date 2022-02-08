@@ -1,16 +1,8 @@
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Buy } from 'src/user/models/buy/buy.entity';
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  Column,
-  ManyToOne,
-  OneToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Buy } from 'src/payment/models/buy/buy.entity';
+import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
+import { IEntity } from 'src/shared/models/entity';
 
 export enum AmlCheck {
   PASS = 'Pass',
@@ -18,10 +10,7 @@ export enum AmlCheck {
 }
 
 @Entity()
-export class CryptoBuy {
-  @PrimaryGeneratedColumn()
-  id: number;
-
+export class CryptoBuy extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   inputDate: Date;
 
@@ -33,6 +22,9 @@ export class CryptoBuy {
 
   @Column({ type: 'float', nullable: true })
   amountInChf: number;
+
+  @Column({ type: 'float', nullable: true })
+  amountInEur: number;
 
   @Column({ length: 256, nullable: true })
   name: string;
@@ -82,10 +74,4 @@ export class CryptoBuy {
   @OneToOne(() => BankTx, { nullable: false })
   @JoinColumn()
   bankTx: BankTx;
-
-  @UpdateDateColumn()
-  updated: Date;
-
-  @CreateDateColumn()
-  created: Date;
 }
