@@ -59,7 +59,7 @@ export class StakingService {
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
     // KYC check
     const { kycStatus } = await this.userDataService.getUserDataForUser(userId);
-    if (![KycStatus.WAIT_MANUAL, KycStatus.COMPLETED].includes(kycStatus)) throw new BadRequestException('Missing KYC');
+    if (![KycStatus.MANUAL, KycStatus.COMPLETED].includes(kycStatus)) throw new BadRequestException('Missing KYC');
 
     // max. 10 routes
     const routeCount = await this.stakingRepo.count({ user: { id: userId } });

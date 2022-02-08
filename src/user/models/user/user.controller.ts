@@ -23,6 +23,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
+import { KycResult } from '../userData/userData.service';
 
 @ApiTags('user')
 @Controller('user')
@@ -67,11 +68,8 @@ export class UserController {
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(
-    @GetJwt() jwt: JwtPayload,
-    @Query('depositLimit') depositLimit?: string,
-  ): Promise<boolean | { url: string }> {
-    return { url: await this.userService.requestKyc(jwt.id, depositLimit) };
+  async requestKyc(@GetJwt() jwt: JwtPayload, @Query('depositLimit') depositLimit?: string): Promise<KycResult> {
+    return await this.userService.requestKyc(jwt.id, depositLimit);
   }
 
   @Post('incorporationCertificate')

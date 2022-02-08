@@ -24,6 +24,13 @@ export class Configuration {
   defaultCurrency = 'EUR';
   stakingPeriod = 365; // TODO: 28; // days
 
+  colors = {
+    white: '#FFFFFF',
+    red: '#F5516C',
+    lightBlue: '#0A355C',
+    darkBlue: '#072440',
+  };
+
   database: TypeOrmModuleOptions = {
     type: 'mssql',
     host: process.env.SQL_HOST,
@@ -65,6 +72,21 @@ export class Configuration {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
+    chatbotStyle: {
+      headerColor: this.colors.white,
+      textColor: this.colors.white,
+      warningColor: this.colors.red,
+      backgroundColor: this.colors.darkBlue,
+      overlayBackgroundColor: this.colors.darkBlue,
+      buttonColor: this.colors.white,
+      buttonBackgroundColor: this.colors.red,
+      bubbleLeftColor: this.colors.white,
+      bubbleLeftBackgroundColor: this.colors.lightBlue,
+      bubbleRightColor: this.colors.white,
+      bubbleRightBackgroundColor: this.colors.lightBlue,
+      htmlHeaderInclude: '',
+      htmlBodyInclude: '',
+    },
   };
 
   mail: MailerOptions = {
@@ -122,13 +144,6 @@ export class Configuration {
     enableRateLimit: true,
     timeout: 30000,
   };
-
-  colors = {
-    white: '#FFFFFF',
-    red: '#F5516C',
-    lightBlue: '#0A355C',
-    darkBlue: '#072440',
-  }
 
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
