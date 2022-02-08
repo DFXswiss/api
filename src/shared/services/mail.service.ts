@@ -125,7 +125,7 @@ export class MailService {
       <p>2022 DFX AG</p>`;
 
     await this.mailerService.sendMail({
-      from: `${from}@dfx.swiss` ?? 'noreply@dfx.swiss',
+      from: from ?? 'noreply@dfx.swiss',
       bcc: bcc,
       to: recipient,
       subject: subject,
