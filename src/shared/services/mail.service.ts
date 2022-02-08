@@ -122,10 +122,10 @@ export class MailService {
       <p>Your DFX team</p>
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
-      <p>2021 DFX AG</p>`;
+      <p>2022 DFX AG</p>`;
 
     await this.mailerService.sendMail({
-      from: from ?? 'noreply@dfx.swiss',
+      from: `${from}@dfx.swiss` ?? 'noreply@dfx.swiss',
       bcc: bcc,
       to: recipient,
       subject: subject,
