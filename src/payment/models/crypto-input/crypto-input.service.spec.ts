@@ -12,6 +12,7 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { BigNumber } from '@defichain/jellyfish-json';
 import { StakingService } from 'src/payment/models/staking/staking.service';
 
+// TODO: fix these
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
 
