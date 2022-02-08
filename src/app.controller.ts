@@ -11,6 +11,7 @@ import { FlagDto } from './dto/flag.dto';
 
 @Controller('')
 export class AppController {
+  private readonly appVersion = new Date().toISOString();
   private readonly lightWalletUrl = 'https://wallet.defichain.com/api/v0';
   private readonly homepageUrl = 'https://dfx.swiss';
   private readonly playStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details?id=com.defichain.app.dfx';
@@ -27,6 +28,12 @@ export class AppController {
   @ApiExcludeEndpoint()
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
+  }
+
+  @Get('version')
+  @ApiExcludeEndpoint()
+  async getVersion(): Promise<string> {
+    return this.appVersion;
   }
 
   @Get('app')

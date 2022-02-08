@@ -195,7 +195,7 @@ export class KycService {
   }
 
   public updateKycState(userData: UserData, state: KycState): UserData {
-    console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState} -> ${state}`);
+    console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState} -> ${state} (last change on ${userData.kycStatusChangeDate})`);
 
     userData.kycState = state;
     return userData;
@@ -209,23 +209,23 @@ export class KycService {
     const locator = initiateData.locators[0];
     spiderData.url =
       locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
-    spiderData.version = locator.version;
     spiderData.secondUrl =
-      locator.document === KycDocument.ONLINE_IDENTIFICATION ? await this.getOnlineIdLink(userData) : null;
+      locator.document === KycDocument.ONLINE_IDENTIFICATION
+        ? await this.getOnlineIdLink(userData, locator.version)
+        : null;
 
     return await this.spiderDataRepo.save(spiderData);
   }
 
-  private async getOnlineIdLink(userData: UserData): Promise<string> {
-    const identVersions = await this.kycApi.getDocumentVersions(userData.id, KycDocument.ONLINE_IDENTIFICATION);
-    const identificationId = await this.kycApi.getDocument(
+  private async getOnlineIdLink(userData: UserData, version: string): Promise<string> {
+    const onlineId = await this.kycApi.getDocument(
       userData.id,
       KycDocument.ONLINE_IDENTIFICATION,
-      identVersions[0].name,
+      version,
       KycDocument.IDENTIFICATION_LOG,
     );
-    return identificationId
-      ? `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId.identificationId}/identification/start`
+    return onlineId
+      ? `https://go.online-ident.ch/app/kycspiderauto/identifications/${onlineId.identificationId}/identification/start`
       : null;
   }
 
@@ -233,19 +233,22 @@ export class KycService {
     try {
       const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
       if (spiderData) {
-        const chatBotResult = await this.kycApi.getDocument(
+        // get the version of the completed chatbot document
+        const versions = await this.kycApi.getDocumentVersions(userData.id, KycDocument.CHATBOT);
+        const completedVersion = versions.find((u) => u.state == KycDocumentState.COMPLETED)?.name;
+
+        // get and store the result
+        const chatbotResult = await this.kycApi.getDocument(
           userData.id,
           KycDocument.CHATBOT_ONBOARDING,
-          spiderData.version,
+          completedVersion,
           'export',
         );
-
-        // store chatbot result
-        spiderData.result = JSON.stringify(chatBotResult);
+        spiderData.result = JSON.stringify(chatbotResult);
         userData.spiderData = await this.spiderDataRepo.save(spiderData);
 
         // update user data
-        const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
+        const formItems = JSON.parse(chatbotResult?.attributes?.form)?.items;
         userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
         userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
         userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
