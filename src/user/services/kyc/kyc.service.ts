@@ -209,7 +209,10 @@ export class KycService {
     const locator = initiateData.locators[0];
     spiderData.url =
       locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
-    spiderData.version = locator.version;
+    spiderData.version = (await this.kycApi.getDocumentVersions(userData.id, KycDocument.CHATBOT)).find(
+      (u) => u.state == KycDocumentState.COMPLETED,
+    )?.name;
+
     spiderData.secondUrl =
       locator.document === KycDocument.ONLINE_IDENTIFICATION ? await this.getOnlineIdLink(userData) : null;
 
