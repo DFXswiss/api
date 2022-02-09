@@ -143,13 +143,16 @@ export class KycSchedulerService {
   private async handleFailed(userData: UserData): Promise<UserData> {
     // online ID failed => trigger video ID
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
+      userData = await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
+
+      const spiderData = await this.spiderDataRepo.findOne({ where: { userData: userData.id } });
       await this.mailService.sendOnlineFailedMail(
         userData.firstname,
         userData.mail,
         userData?.language?.symbol?.toLocaleLowerCase(),
+        spiderData.secondUrl ?? spiderData.url,
       );
-
-      return await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
+      return userData;
     }
 
     // notify support

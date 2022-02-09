@@ -52,13 +52,13 @@ export class MailService {
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
-  async sendOnlineFailedMail(firstName: string, mail: string, language: string): Promise<void> {
+  async sendOnlineFailedMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
     const htmlBody =
       language === 'de'
         ? `<p>deine Online Identifikation ist fehlgeschlagen.</p>
-    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen).</p>`
+    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
         : `<p>your online identification failed.</p>
-      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell).</p>`;
+      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
     const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
