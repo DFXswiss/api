@@ -120,14 +120,12 @@ export class KycSchedulerService {
   private async handleCompleted(userData: UserData): Promise<UserData> {
     if (userData.kycStatus === KycStatus.CHATBOT) {
       userData = await this.kycService.chatbotCompleted(userData);
-      const spiderData = await this.spiderDataRepo.findOne({
-        where: { userData: userData.id },
-      });
+
       await this.mailService.sendChatbotCompleteMail(
         userData.firstname,
         userData.mail,
         userData.language?.symbol?.toLowerCase(),
-        spiderData.secondUrl ?? spiderData.url,
+        userData.spiderData?.url,
       );
     } else {
       await this.mailService.sendIdentificationCompleteMail(
@@ -145,12 +143,11 @@ export class KycSchedulerService {
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       userData = await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
 
-      const spiderData = await this.spiderDataRepo.findOne({ where: { userData: userData.id } });
       await this.mailService.sendOnlineFailedMail(
         userData.firstname,
         userData.mail,
         userData?.language?.symbol?.toLocaleLowerCase(),
-        spiderData.secondUrl ?? spiderData.url,
+        userData.spiderData?.url,
       );
       return userData;
     }
@@ -170,7 +167,7 @@ export class KycSchedulerService {
       userData.mail,
       userData.kycStatus,
       userData.language?.symbol?.toLowerCase(),
-      spiderData.secondUrl ?? spiderData.url,
+      spiderData.url,
     );
     return this.kycService.updateKycState(userData, KycState.REMINDED);
   }
