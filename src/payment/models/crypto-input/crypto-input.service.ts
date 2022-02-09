@@ -145,7 +145,7 @@ export class CryptoInputService {
     const sendUtxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
 
     // send accountToAccount
-    const outTxId = await this.client.sendToken( // TODO: specify UTXO to use
+    const outTxId = await this.client.sendToken(
       input.route.deposit.address,
       address,
       input.asset.dexName,

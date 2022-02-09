@@ -110,7 +110,7 @@ export class NodeClient {
   }
 
   async sendToken(addressFrom: string, addressTo: string, token: string, amount: number, utxo: any = []): Promise<string> {
-    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, utxo), true);
+    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, { utxos: utxo }), true);
   }
 
   // forwarding
