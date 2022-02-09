@@ -141,12 +141,16 @@ export class CryptoInputService {
 
     await this.client.waitForTx(utxoTx);
 
+    // get UTXO vout
+    const sendUtxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
+
     // send accountToAccount
     const outTxId = await this.client.sendToken( // TODO: specify UTXO to use
       input.route.deposit.address,
       address,
       input.asset.dexName,
       input.amount,
+      [{"txid": sendUtxo.txid, "vout": sendUtxo.vout}]
     );
 
     // retrieve remaining UTXO (without waiting)

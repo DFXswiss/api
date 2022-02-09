@@ -109,8 +109,8 @@ export class NodeClient {
     ).then((r: string) => this.parseAmount(r).amount);
   }
 
-  async sendToken(addressFrom: string, addressTo: string, token: string, amount: number): Promise<string> {
-    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }), true);
+  async sendToken(addressFrom: string, addressTo: string, token: string, amount: number, utxo: any = []): Promise<string> {
+    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, utxo), true);
   }
 
   // forwarding
