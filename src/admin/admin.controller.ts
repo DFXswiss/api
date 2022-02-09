@@ -24,6 +24,8 @@ export class AdminController {
         sendMailDto.body,
         sendMailDto.from,
         sendMailDto.bcc,
+        sendMailDto.cc,
+        sendMailDto.displayName,
       );
     }
   }

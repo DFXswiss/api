@@ -128,6 +128,7 @@ export class MailService {
     from?: string,
     bcc?: string,
     cc?: string,
+    displayName?: string,
   ) {
     const htmlBody = `<h1>${salutation}</h1>
       <p>${body}</p>
@@ -139,7 +140,7 @@ export class MailService {
       <p>${new Date().getFullYear()} DFX AG</p>`;
     try {
       await this.mailerService.sendMail({
-        from: from ?? 'noreply@dfx.swiss',
+        from: { name: displayName ?? 'DFX.swiss', address: from ?? 'noreply@dfx.com' },
         to: to,
         cc: cc,
         bcc: bcc,

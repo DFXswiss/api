@@ -6,8 +6,16 @@ export class SendMailDto {
   to: string;
 
   @IsOptional()
+  @IsNotEmpty()
+  displayName: string;
+
+  @IsOptional()
   @IsEmail()
   from: string;
+
+  @IsOptional()
+  @IsEmail()
+  cc: string;
 
   @IsOptional()
   @IsEmail()
