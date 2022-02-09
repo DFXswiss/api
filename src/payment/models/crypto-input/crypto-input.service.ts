@@ -31,8 +31,12 @@ export class CryptoInputService {
   @Interval(300000)
   async checkInputs(): Promise<void> {
     try {
+      // check if node in sync
+      const { blocks, headers } = await this.client.getInfo();
+      if (blocks < headers - 5) throw new Error('Node not in sync');
+
       // get block heights
-      const currentHeight = await this.client.getInfo().then((info) => info.blocks);
+      const currentHeight = blocks;
       const lastHeight = await this.cryptoInputRepo
         .findOne({ order: { blockHeight: 'DESC' } })
         .then((input) => input?.blockHeight ?? 0);
