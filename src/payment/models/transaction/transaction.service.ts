@@ -29,7 +29,7 @@ export class TransactionService {
       // await this.getDFITaxRewards(userAddress),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
-    return tx.sort((tx1, tx2) =>  Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1);
+    return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
   }
 
   async getTransactionCsv(userId: number, userAddress: string): Promise<Readable> {
@@ -52,8 +52,8 @@ export class TransactionService {
       .map((c) => [
         {
           type: 'Deposit',
-          buyAmount: c.amount,
-          buyAsset: c.fiat?.name,
+          buyAmount: c.bankTx?.txAmount,
+          buyAsset: c.bankTx?.txCurrency,
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -70,10 +70,10 @@ export class TransactionService {
           type: 'Trade',
           buyAmount: c.outputAmount,
           buyAsset: c.buy?.asset?.name,
-          sellAmount: c.amount,
-          sellAsset: c.fiat?.name,
-          fee: c.fee ? c.fee * c.amount : null,
-          feeAsset: c.fee ? c.fiat?.name : null,
+          sellAmount: c.bankTx?.txAmount,
+          sellAsset: c.bankTx?.txCurrency,
+          fee: c.fee ? c.fee * c.bankTx?.txAmount : null,
+          feeAsset: c.fee ? c.bankTx?.txCurrency : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.buy.user.address,
