@@ -7,6 +7,7 @@ import { Config } from 'src/config/config';
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
   private readonly techMail = 'cto@dfx.swiss';
+  private readonly noReplyMail = 'noreply@dfx.swiss';
   private readonly kycStatus = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
@@ -140,7 +141,7 @@ export class MailService {
       <p>${new Date().getFullYear()} DFX AG</p>`;
     try {
       await this.mailerService.sendMail({
-        from: { name: displayName ?? 'DFX.swiss', address: from ?? 'noreply@dfx.com' },
+        from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
         to: to,
         cc: cc,
         bcc: bcc,
@@ -148,7 +149,7 @@ export class MailService {
         html: htmlBody,
       });
     } catch (e) {
-      console.error(`Exception during send mail: from:${from}, to:${to}, cc:${cc}, bcc:${bcc}. Error:`, e);
+      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}. Error:`, e);
     }
   }
 }
