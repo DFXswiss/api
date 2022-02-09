@@ -36,33 +36,48 @@ export class KycApiService {
     return this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
   }
 
+  async getCustomerInfo(id: number): Promise<CustomerInformationResponse> {
+    return this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`, 'GET');
+  }
+
   async getChangedCustomers(modificationTime: number): Promise<string[]> {
     return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
   }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse> {
-    const data = {
-      reference: this.reference(id),
-      type: 'PERSON',
-      names: [{ lastName: name }],
-      preferredLanguage: Config.defaultLanguage,
-    };
-
-    return this.callApi<CreateResponse>('customers/simple', 'POST', data);
-  }
-
-  async updatePersonalCustomer(id: number, user: UserInfo): Promise<SubmitResponse[]> {
     const person = {
       contractReference: this.reference(id) + '_placeholder',
-      customer: this.buildCustomer(id, user),
-      relationTypes: [
-        KycRelationType.CONVERSION_PARTNER,
-        KycRelationType.BENEFICIAL_OWNER,
-        KycRelationType.CONTRACTING_PARTNER,
-      ],
+      customer: {
+        reference: this.reference(id),
+        type: 'PERSON',
+        names: [{ lastName: name }],
+        preferredLanguage: Config.defaultLanguage,
+      },
     };
 
-    return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person]);
+    return this.callApi<CreateResponse>('customers/contract-linked-list', 'POST', [person]);
+  }
+
+  async updatePersonalCustomer(id: number, user: UserInfo): Promise<SubmitResponse[] | CreateResponse> {
+    const customer = this.buildCustomer(id, user);
+
+    // handle legacy customers without contract reference
+    const customerInfo = await this.getCustomerInfo(id);
+    if (!customerInfo || customerInfo.contractReference) {
+      const person = {
+        contractReference: this.reference(id) + '_placeholder',
+        customer,
+        relationTypes: [
+          KycRelationType.CONVERSION_PARTNER,
+          KycRelationType.BENEFICIAL_OWNER,
+          KycRelationType.CONTRACTING_PARTNER,
+        ],
+      };
+
+      return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person]);
+    } else {
+      return this.callApi<CreateResponse>('customers/simple', 'POST', customer);
+    }
   }
 
   async updateOrganizationCustomer(id: number, user: UserInfo): Promise<SubmitResponse[]> {
@@ -134,10 +149,7 @@ export class KycApiService {
   }
 
   async getCheckResult(id: number): Promise<RiskState> {
-    const customerInfo = await this.callApi<CustomerInformationResponse>(
-      `customers/${this.reference(id)}/information`,
-      'GET',
-    );
+    const customerInfo = await this.getCustomerInfo(id);
     if (!customerInfo || customerInfo.lastCheckId < 0) return undefined;
 
     const customerCheckResult = await this.callApi<CheckResult>(
