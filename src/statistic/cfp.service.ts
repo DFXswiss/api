@@ -254,7 +254,7 @@ export class CfpService {
 
   private getRegExp(votingRound: string, type: VotingType): RegExp {
     return new RegExp(
-      `signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
+      `signmessage\\s"?(\\w*)"?\\s"?((?:${type}|${type.toUpperCase()})-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
       'gm',
     );
   }
