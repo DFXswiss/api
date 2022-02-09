@@ -1,5 +1,5 @@
 import { ApiClient } from '@defichain/jellyfish-api-core';
-import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
+import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
@@ -109,8 +109,17 @@ export class NodeClient {
     ).then((r: string) => this.parseAmount(r).amount);
   }
 
-  async sendToken(addressFrom: string, addressTo: string, token: string, amount: number, utxo: any = []): Promise<string> {
-    return this.callNode((c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, { utxos: utxo }), true);
+  async sendToken(
+    addressFrom: string,
+    addressTo: string,
+    token: string,
+    amount: number,
+    utxos?: SpendUTXO[],
+  ): Promise<string> {
+    return this.callNode(
+      (c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, { utxos }),
+      true,
+    );
   }
 
   // forwarding

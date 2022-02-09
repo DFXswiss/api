@@ -150,7 +150,7 @@ export class CryptoInputService {
       address,
       input.asset.dexName,
       input.amount,
-      [{"txid": sendUtxo.txid, "vout": sendUtxo.vout}]
+      [{ txid: sendUtxo.txid, vout: sendUtxo.vout }],
     );
 
     // retrieve remaining UTXO (without waiting)
