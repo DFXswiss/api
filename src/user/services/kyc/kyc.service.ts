@@ -195,7 +195,11 @@ export class KycService {
   }
 
   public updateKycState(userData: UserData, state: KycState): UserData {
-    console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState} -> ${state} (last change on ${userData.kycStatusChangeDate})`);
+    console.log(
+      `KYC change: state of user ${userData.id} (${userData.kycStatus}): ${
+        userData.kycState
+      } -> ${state} (last change on ${userData.kycStatusChangeDate.toLocaleString()})`,
+    );
 
     userData.kycState = state;
     return userData;

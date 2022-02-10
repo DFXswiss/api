@@ -302,8 +302,8 @@ export class KycApiService {
         },
       });
     } catch (e) {
-      if (nthTry > 1 && e.response?.status === 403) {
-        return this.request(url, method, data, contentType, nthTry - 1, true);
+      if (nthTry > 1 && [403, 500].includes(e.response?.status)) {
+        return this.request(url, method, data, contentType, nthTry - 1, e.response?.status === 403);
       }
       throw e;
     }
