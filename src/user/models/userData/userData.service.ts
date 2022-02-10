@@ -182,14 +182,13 @@ export class UserDataService {
       false,
       kycDocument,
       version,
-      'content',
       document.originalname,
-      document.mimetype as KycContentType,
+      document.mimetype,
       document.buffer,
     );
   }
 
-  async requestKyc(userId: number, depositLimit?: string): Promise<KycResult> {
+  async requestKyc(userId: number): Promise<KycResult> {
     // get user data
     const user = await this.userRepo.findOne({
       where: { id: userId },
@@ -202,14 +201,16 @@ export class UserDataService {
     const verification = await this.verifyUser(userData);
     if (!verification.result) throw new BadRequestException('User data incomplete');
 
-    if (userData?.kycStatus === KycStatus.NA) {
-      userData = await this.startKyc(userData, userInfo);
-    } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.MANUAL) {
-      await this.mailService.sendKycLimitMail(userData, depositLimit);
-    } else {
-      userData = await this.checkKycProgress(userData);
+    // check if KYC already completed
+    if ([KycStatus.MANUAL, KycStatus.COMPLETED].includes(userData.kycStatus)) {
+      throw new BadRequestException('KYC already completed');
     }
 
+    // update
+    userData =
+      userData.kycStatus === KycStatus.NA
+        ? await this.startKyc(userData, userInfo)
+        : await this.checkKycProgress(userData);
     this.userDataRepo.save(userData);
 
     const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);

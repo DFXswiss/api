@@ -61,7 +61,6 @@ export class KycService {
       false,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
       'v1',
-      'content',
       'initial-customer-information.json',
       KycContentType.JSON,
       customerInfo,
@@ -84,7 +83,6 @@ export class KycService {
         true,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'v1',
-        'content',
         'initial-customer-information.json',
         KycContentType.JSON,
         organizationInfo,
@@ -97,11 +95,11 @@ export class KycService {
     isOrganization: boolean,
     document: KycDocument,
     version: string,
-    part: string,
     fileName: string,
-    contentType: KycContentType,
+    contentType: KycContentType | string,
     data: any,
   ): Promise<boolean> {
+    const part = 'content';
     await this.kycApi.createDocumentVersion(userDataId, isOrganization, document, version);
     await this.kycApi.createDocumentVersionPart(
       userDataId,

@@ -214,7 +214,7 @@ export class KycApiService {
     version: string,
     part: string,
     fileName: string,
-    contentType: KycContentType,
+    contentType: KycContentType | string,
   ): Promise<boolean> {
     const data = {
       name: part,
@@ -239,7 +239,7 @@ export class KycApiService {
     document: KycDocument,
     version: string,
     part: string,
-    contentType: KycContentType,
+    contentType: KycContentType | string,
     data: any,
   ): Promise<boolean> {
     const result = await this.callApi<string>(

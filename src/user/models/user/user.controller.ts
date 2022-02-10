@@ -5,7 +5,6 @@ import {
   Param,
   Post,
   Put,
-  Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -24,11 +23,14 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { KycResult } from '../userData/userData.service';
+import { LimitRequestService } from '../limit-request/limit-request.service';
+import { LimitRequestDto } from '../limit-request/dto/limit-request.dto';
+import { LimitRequest } from '../limit-request/limit-request.entity';
 
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService, private readonly limitRequestService: LimitRequestService) {}
 
   @Get()
   @ApiBearerAuth()
@@ -68,8 +70,15 @@ export class UserController {
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetJwt() jwt: JwtPayload, @Query('depositLimit') depositLimit?: string): Promise<KycResult> {
-    return await this.userService.requestKyc(jwt.id, depositLimit);
+  async requestKyc(@GetJwt() jwt: JwtPayload): Promise<KycResult> {
+    return await this.userService.requestKyc(jwt.id);
+  }
+
+  @Post('limit')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async increaseLimit(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<LimitRequest> {
+    return await this.limitRequestService.increaseLimit(jwt.id, request);
   }
 
   @Post('incorporationCertificate')

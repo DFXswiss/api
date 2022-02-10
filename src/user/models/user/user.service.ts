@@ -95,8 +95,8 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number, depositLimit: string): Promise<KycResult> {
-    return this.userDataService.requestKyc(userId, depositLimit);
+  async requestKyc(userId: number): Promise<KycResult> {
+    return this.userDataService.requestKyc(userId);
   }
 
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
