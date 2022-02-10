@@ -82,32 +82,6 @@ export class MailService {
     await this.sendMail(this.supportMail, 'Hi DFX Support', 'KYC failed or expired', htmlSupportBody);
   }
 
-  async sendKycLimitMail(userData: UserData, depositLimit: string): Promise<void> {
-    const htmlSupportBody = `
-      <p>a customer wants to increase his deposit limit.</p>
-      <table>
-          <tr>
-              <td>Reference:</td>
-              <td>${userData.id}</td>
-          </tr>
-          <tr>
-              <td>Customer ID:</td>
-              <td>${userData.kycCustomerId}</td>
-          </tr>
-          <tr>
-              <td>KYC File Reference:</td>
-              <td>${userData.kycFileId}</td>
-          </tr>
-          <tr>
-              <td>Wanted deposit limit:</td>
-              <td>${depositLimit}</td>
-          </tr>
-      </table>
-    `;
-
-    await this.sendMail(this.supportMail, 'Hi DFX Support', 'Increase deposit limit', htmlSupportBody);
-  }
-
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
     const env = Config.environment.toUpperCase();
 

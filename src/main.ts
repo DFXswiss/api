@@ -23,7 +23,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cors());
 
-  app.use('*', json({ type: 'application/json' }));
+  app.use('*', json({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 
   app.setGlobalPrefix('v1', { exclude: ['', 'version', 'app'] });

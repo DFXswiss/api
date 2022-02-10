@@ -26,6 +26,8 @@ import { UserService } from './models/user/user.service';
 import { KycApiService } from './services/kyc/kyc-api.service';
 import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
 import { KycService } from './services/kyc/kyc.service';
+import { LimitRequestRepository } from './models/limit-request/limit-request.repository';
+import { LimitRequestService } from './models/limit-request/limit-request.service';
 
 @Module({
   imports: [
@@ -37,6 +39,7 @@ import { KycService } from './services/kyc/kyc.service';
       WalletRepository,
       BankDataRepository,
       RefRepository,
+      LimitRequestRepository,
     ]),
     SharedModule,
     AinModule,
@@ -61,6 +64,7 @@ import { KycService } from './services/kyc/kyc.service';
     KycApiService,
     KycSchedulerService,
     AuthService,
+    LimitRequestService,
   ],
   exports: [UserService, UserDataService, LogService, RefService],
 })

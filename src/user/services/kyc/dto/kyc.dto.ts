@@ -1,4 +1,4 @@
-import { RiskState } from 'src/user/models/userData/userData.entity';
+import { KycStatus, RiskState } from 'src/user/models/userData/userData.entity';
 
 export enum KycContentType {
   IMAGE = 'image/png',
@@ -53,6 +53,21 @@ export enum KycDocument {
   VIDEO_IDENTIFICATION = 'video_identification',
   IDENTIFICATION_LOG = 'identification-log',
 }
+
+export const KycDocuments: { [key: string]: { ident: KycDocument; document: KycDocument } } = {
+  [KycStatus.CHATBOT]: {
+    ident: KycDocument.INITIATE_CHATBOT_IDENTIFICATION,
+    document: KycDocument.CHATBOT,
+  },
+  [KycStatus.ONLINE_ID]: {
+    ident: KycDocument.INITIATE_ONLINE_IDENTIFICATION,
+    document: KycDocument.ONLINE_IDENTIFICATION,
+  },
+  [KycStatus.VIDEO_ID]: {
+    ident: KycDocument.INITIATE_VIDEO_IDENTIFICATION,
+    document: KycDocument.VIDEO_IDENTIFICATION,
+  },
+};
 
 export enum KycDocumentState {
   PENDING = 'PENDING',
