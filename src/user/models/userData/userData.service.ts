@@ -1,11 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { KycState, KycStatus, UserData } from './userData.entity';
-import { KycContentType, KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
+import { kycCompleted, KycState, KycStatus, UserData } from './userData.entity';
+import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { MailService } from 'src/shared/services/mail.service';
 import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
 import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -26,7 +25,6 @@ export class UserDataService {
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
-    private readonly mailService: MailService,
     private readonly kycApi: KycApiService,
     private readonly kycService: KycService,
   ) {}
@@ -202,7 +200,7 @@ export class UserDataService {
     if (!verification.result) throw new BadRequestException('User data incomplete');
 
     // check if KYC already completed
-    if ([KycStatus.MANUAL, KycStatus.COMPLETED].includes(userData.kycStatus)) {
+    if (kycCompleted(userData.kycStatus)) {
       throw new BadRequestException('KYC already completed');
     }
 

@@ -5,8 +5,15 @@ import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.re
 import { UserInfo } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
-import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
-import { KycDocument, KycContentType, KycDocumentState, InitiateResponse, DocumentVersion } from './dto/kyc.dto';
+import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import {
+  KycDocument,
+  KycContentType,
+  KycDocumentState,
+  InitiateResponse,
+  DocumentVersion,
+  KycDocuments,
+} from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 
 export enum KycProgress {
@@ -25,7 +32,7 @@ export class KycService {
   ) {}
 
   // --- CUSTOMER UPDATE --- //
-  public async updateCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
+  async updateCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
     if (userInfo.accountType === AccountType.PERSONAL) {
       await this.kycApi.updatePersonalCustomer(userDataId, userInfo);
     } else {
@@ -90,13 +97,13 @@ export class KycService {
     }
   }
 
-  public async uploadDocument(
+  async uploadDocument(
     userDataId: number,
     isOrganization: boolean,
     document: KycDocument,
     version: string,
     fileName: string,
-    contentType: KycContentType | string,
+    contentType: KycContentType | string,
     data: any,
   ): Promise<boolean> {
     const part = 'content';
@@ -127,14 +134,8 @@ export class KycService {
   }
 
   // --- KYC PROGRESS --- //
-  public async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
-    const documentType =
-      kycStatus === KycStatus.CHATBOT
-        ? KycDocument.CHATBOT
-        : kycStatus === KycStatus.ONLINE_ID
-        ? KycDocument.ONLINE_IDENTIFICATION
-        : KycDocument.VIDEO_IDENTIFICATION;
-
+  async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
+    const documentType = KycDocuments[kycStatus].document;
     const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
     if (!versions?.length) return KycProgress.ONGOING;
 
@@ -152,14 +153,8 @@ export class KycService {
   }
 
   async goToStatus(userData: UserData, status: KycStatus): Promise<UserData> {
-    if ([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(status)) {
-      const identType =
-        status === KycStatus.CHATBOT
-          ? KycDocument.INITIATE_CHATBOT_IDENTIFICATION
-          : status === KycStatus.ONLINE_ID
-          ? KycDocument.INITIATE_ONLINE_IDENTIFICATION
-          : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
-
+    if (kycInProgress(status)) {
+      const identType = KycDocuments[status].ident;
       const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
@@ -167,7 +162,7 @@ export class KycService {
     return this.updateKycStatus(userData, status);
   }
 
-  public async chatbotCompleted(userData: UserData): Promise<UserData> {
+  async chatbotCompleted(userData: UserData): Promise<UserData> {
     userData.riskState = await this.kycApi.checkCustomer(userData.id);
 
     userData = await this.storeChatbotResult(userData);
@@ -192,7 +187,7 @@ export class KycService {
     return userData;
   }
 
-  public updateKycState(userData: UserData, state: KycState): UserData {
+  updateKycState(userData: UserData, state: KycState): UserData {
     console.log(
       `KYC change: state of user ${userData.id} (${userData.kycStatus}): ${
         userData.kycState
