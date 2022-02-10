@@ -62,26 +62,35 @@ export class AppController {
   @Get('app/announcements')
   @ApiExcludeEndpoint()
   async getAnnouncements(): Promise<AnnouncementDto[]> {
-    const ignoredAnnouncements = await this.settingService.getObj<string[]>('ignoredAnnouncements', []);
     return Promise.all([
       this.settingService.getObj<AnnouncementDto[]>('announcements', []),
-      this.httpService
-        .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcements`)
-        .then((r) => r.filter((a) => !ignoredAnnouncements.includes(a.id))),
+      this.getLightWalletAnnouncements(),
     ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
   }
 
   @Get('app/settings/flags')
   @ApiExcludeEndpoint()
   async getFlags(): Promise<FlagDto[]> {
-    const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
     return Promise.all([
       this.settingService.getObj<FlagDto[]>('flags', []),
-      this.httpService
-        .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`)
-        .then((r) =>
-          r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null),
-        ),
+      this.getLightWalletFlags(),
     ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
+  }
+
+  // --- HELPER METHODS --- //
+  private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
+    const ignoredAnnouncements = await this.settingService.getObj<string[]>('ignoredAnnouncements', []);
+    return this.httpService
+      .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcementsasdf`)
+      .then((r) => r.filter((a) => !ignoredAnnouncements.includes(a.id)))
+      .catch(() => []);
+  }
+
+  private async getLightWalletFlags(): Promise<FlagDto[]> {
+    const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
+    return this.httpService
+      .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`)
+      .then((r) => r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null))
+      .catch(() => []);
   }
 }
