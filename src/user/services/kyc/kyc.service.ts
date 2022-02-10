@@ -25,6 +25,8 @@ export enum KycProgress {
 
 @Injectable()
 export class KycService {
+  private readonly defaultDocumentPart = 'content';
+
   constructor(
     private readonly userRepo: UserRepository,
     private readonly spiderDataRepo: SpiderDataRepository,
@@ -48,7 +50,7 @@ export class KycService {
       userDataId,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
       'v1',
-      'content',
+      this.defaultDocumentPart,
     );
     if (initialCustomerInfo) return;
 
@@ -106,14 +108,13 @@ export class KycService {
     contentType: KycContentType | string,
     data: any,
   ): Promise<boolean> {
-    const part = 'content';
     await this.kycApi.createDocumentVersion(userDataId, isOrganization, document, version);
     await this.kycApi.createDocumentVersionPart(
       userDataId,
       isOrganization,
       document,
       version,
-      part,
+      this.defaultDocumentPart,
       fileName,
       contentType,
     );
@@ -122,7 +123,7 @@ export class KycService {
       isOrganization,
       document,
       version,
-      part,
+      this.defaultDocumentPart,
       contentType,
       data,
     );
@@ -257,7 +258,7 @@ export class KycService {
 
   // --- URLS --- //
   getDocumentUrl(kycCustomerId: number, document: KycDocument, version: string): string {
-    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/content`;
+    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/${this.defaultDocumentPart}`;
   }
 
   getOnlineIdUrl(identificationId: string): string {

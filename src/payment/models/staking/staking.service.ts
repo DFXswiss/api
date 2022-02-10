@@ -4,7 +4,7 @@ import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
-import { kycCompleted, KycStatus } from '../../../user/models/userData/userData.entity';
+import { kycCompleted } from '../../../user/models/userData/userData.entity';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { StakingType } from './dto/staking-type.enum';
 import { StakingDto } from './dto/staking.dto';
