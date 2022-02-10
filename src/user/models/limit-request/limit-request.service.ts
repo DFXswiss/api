@@ -36,7 +36,11 @@ export class LimitRequestService {
         buffer,
       );
 
-      entity.documentProofUrl = `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${user.kycCustomerId}/doctype/user-added-document/version/${version}/part/content`;
+      entity.documentProofUrl = this.kycService.getDocumentUrl(
+        user.kycCustomerId,
+        KycDocument.USER_ADDED_DOCUMENT,
+        version,
+      );
     }
 
     // save

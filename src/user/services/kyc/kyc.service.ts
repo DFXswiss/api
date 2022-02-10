@@ -221,9 +221,7 @@ export class KycService {
       version,
       KycDocument.IDENTIFICATION_LOG,
     );
-    return onlineId
-      ? `https://go.online-ident.ch/app/kycspiderauto/identifications/${onlineId.identificationId}/identification/start`
-      : null;
+    return onlineId ? this.getOnlineIdUrl(onlineId.identificationId) : null;
   }
 
   private async storeChatbotResult(userData: UserData): Promise<UserData> {
@@ -255,5 +253,14 @@ export class KycService {
     }
 
     return userData;
+  }
+
+  // --- URLS --- //
+  getDocumentUrl(kycCustomerId: number, document: KycDocument, version: string): string {
+    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/content`;
+  }
+
+  getOnlineIdUrl(identificationId: string): string {
+    return `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId}/identification/start`;
   }
 }
