@@ -11,10 +11,12 @@ import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
+import { Lock } from 'src/shared/lock';
 
 @Injectable()
 export class CryptoInputService {
   private readonly client: NodeClient;
+  private readonly lock = new Lock(1800);
 
   constructor(
     nodeService: NodeService,
@@ -24,12 +26,13 @@ export class CryptoInputService {
     private readonly stakingService: StakingService,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
-    this.checkInputs(); // TODO: remove
   }
 
-  // TODO: avoid overlapping calls!
   @Interval(300000)
   async checkInputs(): Promise<void> {
+    // avoid overlaps
+    if (!this.lock.acquire()) return;
+
     try {
       // check if node in sync
       const { blocks, headers } = await this.client.getInfo();
@@ -62,6 +65,8 @@ export class CryptoInputService {
     } catch (e) {
       console.error('Exception during crypto input checks:', e);
     }
+
+    this.lock.release();
   }
 
   // --- HELPER METHODS --- //
@@ -146,7 +151,9 @@ export class CryptoInputService {
     await this.client.waitForTx(utxoTx);
 
     // get UTXO vout
-    const sendUtxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === utxoTx));
+    const sendUtxo = await this.client
+      .getUtxo()
+      .then((utxo) => utxo.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
 
     // send accountToAccount
     const outTxId = await this.client.sendToken(
@@ -154,7 +161,7 @@ export class CryptoInputService {
       address,
       input.asset.dexName,
       input.amount,
-      [{ txid: sendUtxo.txid, vout: sendUtxo.vout }],
+      [sendUtxo],
     );
 
     // retrieve remaining UTXO (without waiting)
