@@ -7,6 +7,7 @@ import { Config } from 'src/config/config';
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
   private readonly techMail = 'cto@dfx.swiss';
+  private readonly noReplyMail = 'noreply@dfx.swiss';
   private readonly kycStatus = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
@@ -15,24 +16,30 @@ export class MailService {
 
   constructor(private mailerService: MailerService) {}
 
-  async sendKycReminderMail(firstName: string, mail: string, kycStatus: KycStatus, language: string): Promise<void> {
+  async sendKycReminderMail(
+    firstName: string,
+    mail: string,
+    kycStatus: KycStatus,
+    language: string,
+    url: string,
+  ): Promise<void> {
     const htmlBody =
       language === 'de'
-        ? `<p>Freundliche Erinnerung an dein ${this.kycStatus[kycStatus]}.</p>
-    <p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen).</p>`
+        ? `<p>freundliche Erinnerung an dein ${this.kycStatus[kycStatus]}.</p>
+    <p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
         : `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
-      <p>Please continue by clicking on continue KYC on payment page (Buy & Sell).</p>`;
+      <p>Please continue by clicking on continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
 
     await this.sendMail(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
   }
 
-  async sendChatbotCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
+  async sendChatbotCompleteMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
     const htmlBody =
       language === 'de'
         ? `<p>du hast den Chatbot abgeschlossen.</p>
-    <p>Um die Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen).</p>`
+    <p>Um die Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
         : `<p>you have finished the first step of your verification.</p>
-      <p>To continue with identification you have to click continue KYC on payment page (Buy & Sell).</p>`;
+      <p>To continue with identification you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
     const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Chatbot complete';
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
@@ -46,13 +53,13 @@ export class MailService {
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
-  async sendOnlineFailedMail(firstName: string, mail: string, language: string): Promise<void> {
+  async sendOnlineFailedMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
     const htmlBody =
       language === 'de'
         ? `<p>deine Online Identifikation ist fehlgeschlagen.</p>
-    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen).</p>`
+    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
         : `<p>your online identification failed.</p>
-      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell).</p>`;
+      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
     const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
     await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
   }
@@ -122,6 +129,7 @@ export class MailService {
     from?: string,
     bcc?: string,
     cc?: string,
+    displayName?: string,
   ) {
     const htmlBody = `<h1>${salutation}</h1>
       <p>${body}</p>
@@ -131,14 +139,17 @@ export class MailService {
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>${new Date().getFullYear()} DFX AG</p>`;
-
-    await this.mailerService.sendMail({
-      from: from ?? 'noreply@dfx.swiss',
-      to: to,
-      cc: cc,
-      bcc: bcc,
-      subject: subject,
-      html: htmlBody,
-    });
+    try {
+      await this.mailerService.sendMail({
+        from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
+        to: to,
+        cc: cc,
+        bcc: bcc,
+        subject: subject,
+        html: htmlBody,
+      });
+    } catch (e) {
+      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}. Error:`, e);
+    }
   }
 }

@@ -8,6 +8,7 @@ import { SettingService } from 'src/shared/setting/setting.service';
 import { In } from 'typeorm';
 import { Lock } from 'src/shared/lock';
 import { KycService, KycProgress } from './kyc.service';
+import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 
 @Injectable()
 export class KycSchedulerService {
@@ -19,6 +20,7 @@ export class KycSchedulerService {
     private readonly kycService: KycService,
     private readonly kycApi: KycApiService,
     private readonly settingService: SettingService,
+    private readonly spiderDataRepo: SpiderDataRepository,
   ) {}
 
   @Interval(7200000)
@@ -118,10 +120,12 @@ export class KycSchedulerService {
   private async handleCompleted(userData: UserData): Promise<UserData> {
     if (userData.kycStatus === KycStatus.CHATBOT) {
       userData = await this.kycService.chatbotCompleted(userData);
+
       await this.mailService.sendChatbotCompleteMail(
         userData.firstname,
         userData.mail,
         userData.language?.symbol?.toLowerCase(),
+        userData.spiderData?.url,
       );
     } else {
       await this.mailService.sendIdentificationCompleteMail(
@@ -137,13 +141,15 @@ export class KycSchedulerService {
   private async handleFailed(userData: UserData): Promise<UserData> {
     // online ID failed => trigger video ID
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
+      userData = await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
+
       await this.mailService.sendOnlineFailedMail(
         userData.firstname,
         userData.mail,
         userData?.language?.symbol?.toLocaleLowerCase(),
+        userData.spiderData?.url,
       );
-
-      return await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
+      return userData;
     }
 
     // notify support
@@ -152,8 +158,17 @@ export class KycSchedulerService {
   }
 
   private async handleExpiring(userData: UserData): Promise<UserData> {
+    const spiderData = await this.spiderDataRepo.findOne({
+      where: { userData: userData.id },
+    });
     // send reminder
-    await this.mailService.sendKycReminderMail(userData.firstname, userData.mail, userData.kycStatus, userData.language?.symbol?.toLowerCase());
+    await this.mailService.sendKycReminderMail(
+      userData.firstname,
+      userData.mail,
+      userData.kycStatus,
+      userData.language?.symbol?.toLowerCase(),
+      spiderData.url,
+    );
     return this.kycService.updateKycState(userData, KycState.REMINDED);
   }
 }
