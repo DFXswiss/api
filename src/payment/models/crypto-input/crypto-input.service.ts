@@ -51,7 +51,7 @@ export class CryptoInputService {
         .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
         .then((i) => i.filter((h) => ['receive', 'AccountToAccount', 'AccountToUtxos'].includes(h.type)))
         // map to entities
-        .then((i) => Promise.all(i.map((h) => this.createEntity(h))))
+        .then((i) => this.createEntities(i))
         .then((i) => i.filter((h) => h != null && h.asset.sellable));
 
       // save and forward
@@ -70,6 +70,14 @@ export class CryptoInputService {
   }
 
   // --- HELPER METHODS --- //
+  private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
+    const inputs = [];
+    for (const history of histories) {
+      inputs.push(await this.createEntity(history));
+    }
+    return inputs;
+  }
+
   private async createEntity(history: AccountHistory): Promise<CryptoInput> {
     const { amount, asset: assetName } = this.client.parseAmount(history.amounts[0]);
 
@@ -125,37 +133,38 @@ export class CryptoInputService {
       // save
       await this.cryptoInputRepo.save(input);
 
-      // forward
+      // forward (only await UTXO)
       const targetAddress =
         input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
-      const outTxId =
-        input.asset.type === AssetType.COIN
-          ? await this.forwardUtxo(input, targetAddress)
-          : await this.forwardToken(input, targetAddress);
-
-      // update out TX ID
-      await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+      input.asset.type === AssetType.COIN
+        ? await this.forwardUtxo(input, targetAddress)
+        : this.forwardToken(input, targetAddress);
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
   }
 
-  private forwardUtxo(input: CryptoInput, address: string): Promise<string> {
-    return this.client.sendUtxo(input.route.deposit.address, address, input.amount);
+  private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
+    const outTxId = await this.client.sendUtxo(input.route.deposit.address, address, input.amount);
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
   }
 
-  private async forwardToken(input: CryptoInput, address: string): Promise<string> {
+  private async forwardToken(input: CryptoInput, address: string): Promise<void> {
     // get UTXO
-    const utxoTx = await this.client.sendUtxo(Config.node.utxoSpenderAddress, input.route.deposit.address, 0.01);
+    const utxoTx = await this.client.sendUtxo(
+      Config.node.utxoSpenderAddress,
+      input.route.deposit.address,
+      Config.node.minDfiDeposit / 2,
+    );
 
     await this.client.waitForTx(utxoTx);
 
     // get UTXO vout
     const sendUtxo = await this.client
       .getUtxo()
-      .then((utxo) => utxo.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
+      .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
 
-    // send accountToAccount
+    // send
     const outTxId = await this.client.sendToken(
       input.route.deposit.address,
       address,
@@ -163,11 +172,10 @@ export class CryptoInputService {
       input.amount,
       [sendUtxo],
     );
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
 
-    // retrieve remaining UTXO (without waiting)
-    this.retrieveUtxo(outTxId);
-
-    return outTxId;
+    // retrieve remaining UTXO
+    await this.retrieveUtxo(outTxId);
   }
 
   private async retrieveUtxo(txId: string): Promise<void> {
