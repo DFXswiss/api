@@ -61,8 +61,8 @@ export class KycApiService {
     }
   }
 
-  async updateCustomer(customer: Customer): Promise<void> {
-    await this.callApi<CreateResponse>('customers/simple', 'POST', customer);
+  async updateCustomer(customer: Customer): Promise<CreateResponse> {
+    return this.callApi<CreateResponse>('customers/simple', 'POST', customer);
   }
 
   async updatePersonalCustomer(id: number, user: UserInfo): Promise<SubmitResponse[] | CreateResponse> {

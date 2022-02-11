@@ -6,7 +6,6 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { UserDataService } from '../userData/userData.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
-import { UserDataRepository } from '../userData/userData.repository';
 import { KycService } from 'src/user/services/kyc/kyc.service';
 
 describe('UserService', () => {
@@ -17,12 +16,10 @@ describe('UserService', () => {
   let countryService: CountryService;
   let languageService: LanguageService;
   let fiatService: FiatService;
-  let userDataRepo: UserDataRepository;
   let kycService: KycService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
-    userDataRepo = createMock<UserDataRepository>();
     userDataService = createMock<UserDataService>();
     countryService = createMock<CountryService>();
     languageService = createMock<LanguageService>();
@@ -37,7 +34,6 @@ describe('UserService', () => {
         { provide: CountryService, useValue: countryService },
         { provide: LanguageService, useValue: languageService },
         { provide: FiatService, useValue: fiatService },
-        { provide: UserDataRepository, useValue: userDataRepo },
         { provide: KycService, useValue: kycService },
       ],
     }).compile();

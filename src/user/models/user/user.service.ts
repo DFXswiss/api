@@ -12,14 +12,12 @@ import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { KycService } from 'src/user/services/kyc/kyc.service';
 import { kycInProgress, KycState } from '../userData/userData.entity';
-import { UserDataRepository } from '../userData/userData.repository';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly userDataRepo: UserDataRepository,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
@@ -54,9 +52,10 @@ export class UserService {
       });
 
       if (kycInProgress(oldUser.userData.kycStatus)) {
-        this.userDataRepo.update({ id: oldUser.userData.id }, { kycState: KycState.FAILED });
+        oldUser.userData.kycState = KycState.FAILED;
       }
     }
+
     const user = await this.userRepo.updateUser(
       oldUser,
       newUser,
