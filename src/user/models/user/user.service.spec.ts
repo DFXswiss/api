@@ -6,6 +6,9 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { UserDataService } from '../userData/userData.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
+import { UserDataRepository } from '../userData/userData.repository';
+import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
+import { KycService } from 'src/user/services/kyc/kyc.service';
 
 describe('UserService', () => {
   let service: UserService;
@@ -15,13 +18,19 @@ describe('UserService', () => {
   let countryService: CountryService;
   let languageService: LanguageService;
   let fiatService: FiatService;
+  let userDataRepo: UserDataRepository;
+  let kycApiService: KycApiService;
+  let kycService: KycService;
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
+    userDataRepo = createMock<UserDataRepository>();
     userDataService = createMock<UserDataService>();
     countryService = createMock<CountryService>();
     languageService = createMock<LanguageService>();
     fiatService = createMock<FiatService>();
+    kycApiService = createMock<KycApiService>();
+    kycService = createMock<KycService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -31,6 +40,9 @@ describe('UserService', () => {
         { provide: CountryService, useValue: countryService },
         { provide: LanguageService, useValue: languageService },
         { provide: FiatService, useValue: fiatService },
+        { provide: UserDataRepository, useValue: userDataRepo },
+        { provide: KycApiService, useValue: kycApiService },
+        { provide: KycService, useValue: kycService },
       ],
     }).compile();
 
