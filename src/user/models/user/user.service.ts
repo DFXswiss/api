@@ -10,9 +10,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
-import { KycProgress, KycService } from 'src/user/services/kyc/kyc.service';
-import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
-import { KycState } from '../userData/userData.entity';
+import { KycService } from 'src/user/services/kyc/kyc.service';
+import { kycInProgress, KycState } from '../userData/userData.entity';
 import { UserDataRepository } from '../userData/userData.repository';
 
 @Injectable()
@@ -24,7 +23,6 @@ export class UserService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
-    private readonly kycApiService: KycApiService,
     private readonly kycService: KycService,
   ) {}
 
@@ -50,15 +48,13 @@ export class UserService {
     const oldUser = await this.userRepo.findOne({ where: { id: oldUserId }, relations: ['userData'] });
 
     if (newUser.phone != oldUser.phone || newUser.mail != oldUser.mail) {
-      oldUser.phone = newUser.phone;
-      oldUser.mail = newUser.mail;
-      const spiderUser = await this.kycApiService.getCustomer(oldUser.userData.id);
-      const userInfo = getUserInfo(oldUser, spiderUser);
-      await this.kycService.updateCustomer(oldUser.userData.id, userInfo);
-      const chatbotProgress = await this.kycService.getKycProgress(oldUser.userData.id, oldUser.userData.kycStatus);
-      if ([KycProgress.ONGOING, KycProgress.EXPIRING].includes(chatbotProgress)) {
-        oldUser.userData.kycState = KycState.FAILED;
-        this.userDataRepo.save(oldUser.userData);
+      await this.kycService.updateCustomer(oldUser.userData.id, {
+        telephones: [newUser.phone.replace('+', '').split(' ').join('')],
+        emails: [newUser.mail],
+      });
+
+      if (kycInProgress(oldUser.userData.kycStatus)) {
+        this.userDataRepo.update({ id: oldUser.userData.id }, { kycState: KycState.FAILED });
       }
     }
     const user = await this.userRepo.updateUser(

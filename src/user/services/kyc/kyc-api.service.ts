@@ -61,6 +61,10 @@ export class KycApiService {
     }
   }
 
+  async updateCustomer(customer: Customer): Promise<void> {
+    await this.callApi<CreateResponse>('customers/simple', 'POST', customer);
+  }
+
   async updatePersonalCustomer(id: number, user: UserInfo): Promise<SubmitResponse[] | CreateResponse> {
     const customer = this.buildCustomer(id, user);
 
@@ -123,8 +127,6 @@ export class KycApiService {
       ],
       preferredLanguage: preferredLanguage ?? Config.defaultLanguage,
       activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
-      datesOfBirth: user.datesOfBirth,
-      citizenships: user.citizenships,
     };
   }
 

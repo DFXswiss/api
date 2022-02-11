@@ -213,7 +213,7 @@ export class UserDataService {
 
   private async startKyc(userData: UserData, userInfo: UserInfo): Promise<UserData> {
     // update customer
-    await this.kycService.updateCustomer(userData.id, userInfo);
+    await this.kycService.initializeCustomer(userData.id, userInfo);
 
     // do name check
     userData.riskState = await this.kycApi.checkCustomer(userData.id);

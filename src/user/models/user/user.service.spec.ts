@@ -7,7 +7,6 @@ import { UserDataService } from '../userData/userData.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
 import { UserDataRepository } from '../userData/userData.repository';
-import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
 import { KycService } from 'src/user/services/kyc/kyc.service';
 
 describe('UserService', () => {
@@ -19,7 +18,6 @@ describe('UserService', () => {
   let languageService: LanguageService;
   let fiatService: FiatService;
   let userDataRepo: UserDataRepository;
-  let kycApiService: KycApiService;
   let kycService: KycService;
 
   beforeEach(async () => {
@@ -29,7 +27,6 @@ describe('UserService', () => {
     countryService = createMock<CountryService>();
     languageService = createMock<LanguageService>();
     fiatService = createMock<FiatService>();
-    kycApiService = createMock<KycApiService>();
     kycService = createMock<KycService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -41,7 +38,6 @@ describe('UserService', () => {
         { provide: LanguageService, useValue: languageService },
         { provide: FiatService, useValue: fiatService },
         { provide: UserDataRepository, useValue: userDataRepo },
-        { provide: KycApiService, useValue: kycApiService },
         { provide: KycService, useValue: kycService },
       ],
     }).compile();
