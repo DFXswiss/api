@@ -44,18 +44,21 @@ export class KycApiService {
     return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
   }
 
-  async createCustomer(id: number, name: string): Promise<CreateResponse> {
-    const person = {
-      contractReference: this.reference(id) + '_placeholder',
-      customer: {
-        reference: this.reference(id),
-        type: 'PERSON',
-        names: [{ lastName: name }],
-        preferredLanguage: Config.defaultLanguage,
-      },
-    };
+  async createCustomer(id: number, name: string): Promise<CreateResponse | undefined> {
+    const customer = await this.getCustomer(id);
+    if (!customer) {
+      const person = {
+        contractReference: this.reference(id) + '_placeholder',
+        customer: {
+          reference: this.reference(id),
+          type: 'PERSON',
+          names: [{ lastName: name }],
+          preferredLanguage: Config.defaultLanguage,
+        },
+      };
 
-    return this.callApi<CreateResponse>('customers/contract-linked-list', 'POST', [person]);
+      return this.callApi<CreateResponse>('customers/contract-linked-list', 'POST', [person]);
+    }
   }
 
   async updatePersonalCustomer(id: number, user: UserInfo): Promise<SubmitResponse[] | CreateResponse> {
@@ -214,7 +217,7 @@ export class KycApiService {
     version: string,
     part: string,
     fileName: string,
-    contentType: KycContentType | string,
+    contentType: KycContentType | string,
   ): Promise<boolean> {
     const data = {
       name: part,
@@ -239,7 +242,7 @@ export class KycApiService {
     document: KycDocument,
     version: string,
     part: string,
-    contentType: KycContentType | string,
+    contentType: KycContentType | string,
     data: any,
   ): Promise<boolean> {
     const result = await this.callApi<string>(

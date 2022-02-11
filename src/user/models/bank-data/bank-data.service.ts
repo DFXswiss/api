@@ -27,11 +27,8 @@ export class BankDataService {
     const bankData = this.bankDataRepo.create({ ...bankDataDto, userData: userData });
     await this.bankDataRepo.save(bankData);
 
-    const customer = await this.kycApiService.getCustomer(userData.id);
-
-    if (!customer) {
-      await this.kycApiService.createCustomer(userData.id, bankData.name);
-    }
+    // create customer, if not existing
+    await this.kycApiService.createCustomer(userData.id, bankData.name);
 
     userData.bankDatas.push(bankData);
 

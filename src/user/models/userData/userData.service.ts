@@ -160,19 +160,11 @@ export class UserDataService {
   }
 
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
-    });
-    const userData = user.userData;
-    const userInfo = getUserInfo(user);
+    const userData = await this.getUserDataForUser(userId);
     if (!userData) throw new NotFoundException(`No user data for user id ${userId}`);
 
     // create customer, if not existing
-    const kycData = await this.kycApi.getCustomer(userData.id);
-    if (!kycData) {
-      await this.kycService.updateCustomer(userData.id, userInfo);
-    }
+    await this.kycApi.createCustomer(userData.id, userData.surname);
 
     const version = new Date().getTime().toString();
     return await this.kycService.uploadDocument(
