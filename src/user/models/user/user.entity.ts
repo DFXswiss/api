@@ -12,6 +12,7 @@ import { InternalServerErrorException } from '@nestjs/common';
 import { AccountType } from '../userData/account-type.enum';
 import { Staking } from '../../../payment/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { Customer } from 'src/user/services/kyc/dto/kyc.dto';
 
 export enum UserStatus {
   NA = 'NA',
@@ -146,14 +147,16 @@ export interface UserInfo {
   organizationCountry: Country;
   phone: string;
   language: Language;
+  datesOfBirth?: [{ year: string; month: string; day: string }];
+  citizenships?: [string];
 }
 
-export function getUserInfo(user: User): UserInfo {
+export function getUserInfo(user: User, spiderUser?: Customer): UserInfo {
   if (!user.userData) throw new InternalServerErrorException('User data is not defined');
-  return extractUserInfo(user.userData.isMigrated ? user.userData : user);
+  return extractUserInfo(user.userData.isMigrated ? user.userData : user, spiderUser);
 }
 
-export function extractUserInfo(source: UserInfo): UserInfo {
+export function extractUserInfo(source: UserInfo, sourceSpider?: Customer): UserInfo {
   return {
     accountType: source.accountType,
     mail: source.mail,
@@ -172,5 +175,7 @@ export function extractUserInfo(source: UserInfo): UserInfo {
     organizationCountry: source.organizationCountry,
     phone: source.phone,
     language: source.language,
+    datesOfBirth: sourceSpider?.datesOfBirth,
+    citizenships: sourceSpider?.citizenships,
   };
 }

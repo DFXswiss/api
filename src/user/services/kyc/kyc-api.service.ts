@@ -123,6 +123,8 @@ export class KycApiService {
       ],
       preferredLanguage: preferredLanguage ?? Config.defaultLanguage,
       activationDate: { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() },
+      datesOfBirth: user.datesOfBirth,
+      citizenships: user.citizenships,
     };
   }
 
