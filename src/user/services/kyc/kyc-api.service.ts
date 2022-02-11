@@ -110,7 +110,7 @@ export class KycApiService {
       names: [{ firstName: user.firstname, lastName: user.surname }],
       countriesOfResidence: [user.country.symbol],
       emails: [user.mail],
-      telephones: [user.phone?.replace('+', '').replace(' ', '')],
+      telephones: [user.phone?.replace('+', '').split(' ').join('')],
       structuredAddresses: [
         {
           type: 'BASIC',
