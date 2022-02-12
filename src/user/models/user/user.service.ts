@@ -10,6 +10,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
+import { KycService } from 'src/user/services/kyc/kyc.service';
+import { kycInProgress, KycState } from '../userData/userData.entity';
 
 @Injectable()
 export class UserService {
@@ -19,6 +21,7 @@ export class UserService {
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
+    private readonly kycService: KycService,
   ) {}
 
   async getUser(userId: number, detailedUser = false): Promise<User> {
@@ -41,6 +44,18 @@ export class UserService {
 
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
     const oldUser = await this.userRepo.findOne({ where: { id: oldUserId }, relations: ['userData'] });
+
+    if (newUser.phone != oldUser.phone || newUser.mail != oldUser.mail) {
+      await this.kycService.updateCustomer(oldUser.userData.id, {
+        telephones: [newUser.phone.replace('+', '').split(' ').join('')],
+        emails: [newUser.mail],
+      });
+
+      if (kycInProgress(oldUser.userData.kycStatus)) {
+        oldUser.userData.kycState = KycState.FAILED;
+      }
+    }
+
     const user = await this.userRepo.updateUser(
       oldUser,
       newUser,

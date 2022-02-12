@@ -13,6 +13,7 @@ import {
   InitiateResponse,
   DocumentVersion,
   KycDocuments,
+  Customer,
 } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 
@@ -34,7 +35,14 @@ export class KycService {
   ) {}
 
   // --- CUSTOMER UPDATE --- //
-  async updateCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
+  async updateCustomer(userDataId: number, update: Partial<Customer>): Promise<void> {
+    const customer = await this.kycApi.getCustomer(userDataId);
+    if (customer) {
+      await this.kycApi.updateCustomer({ ...customer, ...update });
+    }
+  }
+
+  async initializeCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
     if (userInfo.accountType === AccountType.PERSONAL) {
       await this.kycApi.updatePersonalCustomer(userDataId, userInfo);
     } else {

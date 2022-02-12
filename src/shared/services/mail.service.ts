@@ -30,7 +30,7 @@ export class MailService {
         : `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
       <p>Please continue by clicking on continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
 
-    await this.sendMail(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
+    await this.sendMailInternal(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
   }
 
   async sendChatbotCompleteMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
@@ -41,7 +41,7 @@ export class MailService {
         : `<p>you have finished the first step of your verification.</p>
       <p>To continue with identification you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
     const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Chatbot complete';
-    await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
+    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
   async sendIdentificationCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
@@ -50,7 +50,7 @@ export class MailService {
         ? `<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert. Von deiner Seite sind keine weiteren Schritte mehr nötig.</p>`
         : `<p>you have completed KYC and are now provisionally verified. No further steps are necessary from your side.</p>`;
     const title = language === 'de' ? 'Identifikation abgeschlossen' : 'Identification complete';
-    await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
+    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
   async sendOnlineFailedMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
@@ -61,7 +61,7 @@ export class MailService {
         : `<p>your online identification failed.</p>
       <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
     const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
-    await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
+    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
   async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
@@ -79,7 +79,7 @@ export class MailService {
       </table>
     `;
 
-    await this.sendMail(this.supportMail, 'Hi DFX Support', 'KYC failed or expired', htmlSupportBody);
+    await this.sendMailInternal(this.supportMail, 'Hi DFX Support', 'KYC failed or expired', htmlSupportBody);
   }
 
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
@@ -92,7 +92,24 @@ export class MailService {
     </ul>
     `;
 
-    await this.sendMail(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
+    await this.sendMailInternal(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
+  }
+
+  async sendMailInternal(
+    to: string,
+    salutation: string,
+    subject: string,
+    body: string,
+    from?: string,
+    bcc?: string,
+    cc?: string,
+    displayName?: string,
+  ) {
+    try {
+      await this.sendMail(to, salutation, subject, body, from, bcc, cc, displayName);
+    } catch (e) {
+      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}. Error:`, e);
+    }
   }
 
   async sendMail(
@@ -113,17 +130,14 @@ export class MailService {
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>${new Date().getFullYear()} DFX AG</p>`;
-    try {
-      await this.mailerService.sendMail({
-        from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
-        to: to,
-        cc: cc,
-        bcc: bcc,
-        subject: subject,
-        html: htmlBody,
-      });
-    } catch (e) {
-      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}. Error:`, e);
-    }
+
+    await this.mailerService.sendMail({
+      from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
+      to: to,
+      cc: cc,
+      bcc: bcc,
+      subject: subject,
+      html: htmlBody,
+    });
   }
 }
