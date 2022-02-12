@@ -37,6 +37,9 @@ export class User extends IEntity {
   @Column({ type: 'float', default: 0 })
   refCredit: number;
 
+  @Column({ type: 'float', nullable: false, default: 0 })
+  payedRefVolume: number;
+
   @Column({ length: 256, unique: true })
   address: string;
 

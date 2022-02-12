@@ -1,0 +1,57 @@
+import { IEntity } from 'src/shared/models/entity';
+import { Entity, TableInheritance, Column } from 'typeorm';
+
+export enum RewardType {
+  STAKING = 'Staking-Reward',
+  REF = 'Ref-Reward',
+  //LM = 'LM-Reward',
+}
+
+@Entity()
+@TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
+export class Reward extends IEntity {
+  @Column()
+  type: RewardType;
+
+  @Column({ type: 'float', nullable: true })
+  inputAmount: number;
+
+  @Column({ length: 256, nullable: true }) // string oder referenzieren
+  inputAsset: string;
+
+  @Column({ type: 'float', nullable: true })
+  inputReferenceAmount: number;
+
+  @Column({ length: 256, nullable: true }) // string oder referenzieren
+  inputReferenceAsset: string;
+
+  @Column({ type: 'float', nullable: true })
+  outputReferenceAmount: number;
+
+  @Column({ length: 256, nullable: true }) // string oder referenzieren
+  outputReferenceAsset: string;
+
+  @Column({ type: 'float', nullable: true })
+  outputAmount: number;
+
+  @Column({ length: 256, nullable: true }) // string oder referenzieren
+  outputAsset: string;
+
+  @Column({ length: 256, nullable: true })
+  txId: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  outputDate: Date;
+
+  @Column({ type: 'float', nullable: true })
+  amountInChf: number;
+
+  @Column({ type: 'float', nullable: true })
+  amountInEur: number;
+
+  @Column({ length: 256, nullable: true })
+  recipientMail: string;
+
+  @Column({ type: 'float', nullable: true })
+  mailSendDate: number;
+}
