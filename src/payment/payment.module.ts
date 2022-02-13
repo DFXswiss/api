@@ -39,6 +39,12 @@ import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
 import { MasternodeController } from './models/masternode/masternode.controller';
 import { MasternodeService } from './models/masternode/masternode.service';
 import { MasternodeRepository } from './models/masternode/masternode.repository';
+import { StakingRewardRepository } from './models/staking-reward/staking-reward.respository';
+import { RefRewardRepository } from './models/ref-reward/ref-reward.repository';
+import { StakingRewardController } from './models/staking-reward/staking-reward.controller';
+import { RefRewardController } from './models/ref-reward/ref-reward.controller';
+import { StakingRewardService } from './models/staking-reward/staking-reward.service';
+import { RefRewardService } from './models/ref-reward/ref-reward.service';
 
 @Module({
   imports: [
@@ -53,6 +59,8 @@ import { MasternodeRepository } from './models/masternode/masternode.repository'
       StakingRepository,
       DepositRepository,
       MasternodeRepository,
+      StakingRewardRepository,
+      RefRewardRepository,
     ]),
     SharedModule,
     AinModule,
@@ -71,6 +79,8 @@ import { MasternodeRepository } from './models/masternode/masternode.repository'
     StakingController,
     DepositController,
     MasternodeController,
+    StakingRewardController,
+    RefRewardController,
   ],
   providers: [
     CryptoInputService,
@@ -90,6 +100,8 @@ import { MasternodeRepository } from './models/masternode/masternode.repository'
     BuyController,
     SellController,
     StakingController,
+    StakingRewardService,
+    RefRewardService,
   ],
   exports: [BuyService, SellService, StakingService, CryptoBuyService, CryptoSellService],
 })
