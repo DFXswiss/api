@@ -6,5 +6,5 @@ export class CreateStakingRewardDto extends StakingRewardDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsInt()
-  routeId: number;
+  stakingId: number;
 }

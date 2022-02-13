@@ -6,5 +6,5 @@ export class UpdateStakingRewardDto extends StakingRewardDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
-  routeId: number;
+  stakingId: number;
 }
