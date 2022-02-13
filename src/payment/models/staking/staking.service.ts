@@ -132,7 +132,7 @@ export class StakingService {
   }
 
   async updateRewardVolume(stakingId: number, volume: number): Promise<void> {
-    await this.sellRepo.update(stakingId, { volume: Util.round(volume, 0) });
+    await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
   }
 
   async getTotalRewardVolume(): Promise<number> {

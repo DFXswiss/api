@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Between } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
 import { StakingReward } from './staking-reward.entity';
-import { RewardRepository } from './staking-reward.respository';
+import { StakingRewardRepository } from './staking-reward.respository';
 import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { RewardType } from '../reward/reward.entity';
@@ -11,19 +11,25 @@ import { StakingService } from '../staking/staking.service';
 @Injectable()
 export class StakingRewardService {
   constructor(
-    private readonly rewardRepo: RewardRepository,
+    private readonly rewardRepo: StakingRewardRepository,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
-    let entity = await this.rewardRepo.findOne({ route: { id: dto.routeId } });
-    if (entity) throw new ConflictException('There is already a crypto buy for the specified bank TX');
+    let entity = await this.rewardRepo.findOne({
+      where: {
+        staking: { id: dto.stakingId },
+        txId: dto.txId,
+      },
+    });
+    if (entity)
+      throw new ConflictException('There is already the same staking reward for the specified staking route and txId');
 
     entity = await this.createEntity(dto);
     entity = await this.rewardRepo.save(entity);
 
-    await this.updateStakingVolume([entity.route.id]);
+    await this.updateStakingVolume([entity.staking.id]);
 
     return entity;
   }
@@ -37,13 +43,13 @@ export class StakingRewardService {
     //   : null;
     // if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
 
-    const routeIdBefore = entity.route?.id;
+    const routeIdBefore = entity.staking?.id;
 
     const update = await this.createEntity(dto);
 
     entity = await this.rewardRepo.save({ ...entity, ...update });
 
-    await this.updateStakingVolume([routeIdBefore, entity.route?.id]);
+    await this.updateStakingVolume([routeIdBefore, entity.staking?.id]);
 
     return entity;
   }
@@ -57,10 +63,10 @@ export class StakingRewardService {
   private async createEntity(dto: CreateStakingRewardDto | UpdateStakingRewardDto): Promise<StakingReward> {
     const reward = this.rewardRepo.create(dto);
 
-    // route
-    if (dto.routeId) {
-      reward.route = await this.stakingRepo.findOne(dto.routeId);
-      if (!reward.route) throw new NotFoundException('No Staking Route for ID found');
+    // staking
+    if (dto.stakingId) {
+      reward.staking = await this.stakingRepo.findOne(dto.stakingId);
+      if (!reward.staking) throw new NotFoundException('No Staking Route for ID found');
     }
 
     return reward;
@@ -73,9 +79,9 @@ export class StakingRewardService {
       const { volume } = await this.rewardRepo
         .createQueryBuilder('reward')
         .select('SUM(amountInEur)', 'volume')
-        .innerJoin('reward.route', 'stakingRoute')
+        .innerJoin('reward.staking', 'stakingRoute')
         .where('stakingRoute.id = :id', { id: id })
-        .andWhere('type = :check', { check: RewardType.STAKING })
+        .andWhere('reward.type = :check', { check: RewardType.STAKING })
         .getRawOne<{ volume: number }>();
 
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
@@ -91,7 +97,7 @@ export class StakingRewardService {
 
     const stakingReward = await this.rewardRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), type: RewardType.STAKING },
-      relations: ['route'],
+      relations: ['staking'],
     });
 
     return stakingReward.map((v) => ({

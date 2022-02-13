@@ -25,6 +25,6 @@ export class Staking extends DepositRoute {
   @ManyToOne(() => User, (user) => user.stakingRoutes, { nullable: false })
   user: User;
 
-  @OneToMany(() => StakingReward, (stakingReward) => stakingReward.route)
+  @OneToMany(() => StakingReward, (stakingReward) => stakingReward.staking)
   stakingReward: StakingReward[];
 }

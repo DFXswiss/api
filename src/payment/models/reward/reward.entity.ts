@@ -2,9 +2,9 @@ import { IEntity } from 'src/shared/models/entity';
 import { Entity, TableInheritance, Column } from 'typeorm';
 
 export enum RewardType {
-  STAKING = 'Staking-Reward',
-  REF = 'Ref-Reward',
-  //LM = 'LM-Reward',
+  STAKING = 'StakingReward',
+  REF = 'RefReward',
+  //LM = 'LMReward',
 }
 
 @Entity()

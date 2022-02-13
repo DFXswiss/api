@@ -68,6 +68,10 @@ export class UserService {
     return await this.toDto(user, true);
   }
 
+  async updateRewardVolume(stakingId: number, volume: number): Promise<void> {
+    await this.userRepo.update(stakingId, { payedRefVolume: Util.round(volume, 0) });
+  }
+
   private async toDto(user: User, detailed: boolean): Promise<User> {
     // add additional data
     user['kycStatus'] = user.userData?.kycStatus;
