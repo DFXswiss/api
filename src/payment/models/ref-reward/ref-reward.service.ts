@@ -1,24 +1,19 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Between } from 'typeorm';
 import { RewardType } from '../reward/reward.entity';
-import { StakingService } from '../staking/staking.service';
-import { RewardRepository } from './ref-reward.repository';
+import { RefRewardRepository } from './ref-reward.repository';
 import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
 import { UpdateRefRewardDto } from './dto/update.ref-reward.dto';
-import { UserRepository } from 'src/user/models/user/user.repository';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class RefRewardService {
-  constructor(
-    private readonly rewardRepo: RewardRepository,
-    private readonly userRepo: UserRepository,
-    private readonly stakingService: StakingService,
-  ) {}
+  constructor(private readonly rewardRepo: RefRewardRepository, private readonly userService: UserService) {}
 
   async create(dto: CreateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne({ user: { id: dto.userId } });
-    if (entity) throw new ConflictException('There is already a crypto buy for the specified bank TX');
+    let entity = await this.rewardRepo.findOne({ where: { user: { id: dto.userId }, txId: dto.txId } });
+    if (entity) throw new ConflictException('There is already the same ref reward for the specified user and txId');
 
     entity = await this.createEntity(dto);
     entity = await this.rewardRepo.save(entity);
@@ -29,7 +24,7 @@ export class RefRewardService {
   }
 
   async update(id: number, dto: UpdateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne(id, { relations: ['staking', 'staking.user'] });
+    let entity = await this.rewardRepo.findOne(id, { relations: ['user'] });
     if (!entity) throw new NotFoundException('No matching entry found');
 
     // const bankTxWithOtherBuy = dto.routeId
@@ -49,8 +44,8 @@ export class RefRewardService {
   }
 
   async updateVolumes(): Promise<void> {
-    const stakingIds = await this.userRepo.find().then((l) => l.map((b) => b.id));
-    await this.updateRefPayedVolume(stakingIds);
+    const userIds = await this.userService.getAllUser().then((l) => l.map((b) => b.id));
+    await this.updateRefPayedVolume(userIds);
   }
 
   // --- HELPER METHODS --- //
@@ -59,8 +54,8 @@ export class RefRewardService {
 
     // route
     if (dto.userId) {
-      reward.user = await this.userRepo.findOne(dto.userId);
-      if (!reward.user) throw new NotFoundException('No Staking Route for ID found');
+      reward.user = await this.userService.getUser(dto.userId);
+      if (!reward.user) throw new NotFoundException('No user for ID found');
     }
 
     return reward;
@@ -73,12 +68,12 @@ export class RefRewardService {
       const { volume } = await this.rewardRepo
         .createQueryBuilder('reward')
         .select('SUM(amountInEur)', 'volume')
-        .innerJoin('reward.route', 'stakingRoute')
-        .where('stakingRoute.id = :id', { id: id })
-        .andWhere('type = :check', { check: RewardType.STAKING })
+        .innerJoin('reward.user', 'user')
+        .where('user.id = :id', { id: id })
+        .andWhere('reward.type = :check', { check: RewardType.REF })
         .getRawOne<{ volume: number }>();
 
-      await this.stakingService.updateRewardVolume(id, volume ?? 0);
+      await this.userService.updateRewardVolume(id, volume ?? 0);
     }
   }
 
