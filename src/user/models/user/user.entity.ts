@@ -16,8 +16,6 @@ import { IEntity } from 'src/shared/models/entity';
 export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
-  ACTIVE_SELL = 'ActiveSell',
-  VERIFY = 'Verified',
 }
 
 @Entity()
