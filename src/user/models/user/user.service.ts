@@ -45,7 +45,7 @@ export class UserService {
   async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
     const oldUser = await this.userRepo.findOne({ where: { id: oldUserId }, relations: ['userData'] });
 
-    if (newUser.phone != oldUser.phone || newUser.mail != oldUser.mail) {
+    if ((newUser.phone && newUser.phone != oldUser.phone) || (newUser.mail && newUser.mail != oldUser.mail)) {
       await this.kycService.updateCustomer(oldUser.userData.id, {
         telephones: [newUser.phone.replace('+', '').split(' ').join('')],
         emails: [newUser.mail],
