@@ -1,7 +1,8 @@
-import { MailerService } from '@nestjs-modules/mailer';
+import { ISendMailOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { Config } from 'src/config/config';
+import { SentMessageInfo } from 'nodemailer';
 
 @Injectable()
 export class MailService {
@@ -131,7 +132,7 @@ export class MailService {
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>${new Date().getFullYear()} DFX AG</p>`;
 
-    await this.mailerService.sendMail({
+    await this.sendMailWithRetries({
       from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
       to: to,
       cc: cc,
@@ -139,5 +140,16 @@ export class MailService {
       subject: subject,
       html: htmlBody,
     });
+  }
+
+  private async sendMailWithRetries(sendMailOptions: ISendMailOptions, nthTry = 3): Promise<SentMessageInfo> {
+    try {
+      await this.mailerService.sendMail(sendMailOptions);
+    } catch (e) {
+      if (nthTry > 1) {
+        return this.sendMailWithRetries(sendMailOptions, nthTry - 1);
+      }
+      throw e;
+    }
   }
 }
