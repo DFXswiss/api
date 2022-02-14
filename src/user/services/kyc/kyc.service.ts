@@ -80,6 +80,10 @@ export class KycService {
       authorisesConversationPartner: 'YES',
       businessActivity: {
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        employer: { address: 'TOKEN_PURCHASE' },
+      },
+      financialBackground: {
+        liabilities: 'LESS_THAN_10000',
       },
     };
 
@@ -103,6 +107,7 @@ export class KycService {
         organisationType:
           userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        bearerShares: 'NO',
       };
 
       await this.uploadDocument(
