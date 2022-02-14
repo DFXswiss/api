@@ -47,7 +47,7 @@ export class UserService {
 
     if ((newUser.phone && newUser.phone != oldUser.phone) || (newUser.mail && newUser.mail != oldUser.mail)) {
       await this.kycService.updateCustomer(oldUser.userData.id, {
-        telephones: [newUser.phone.replace('+', '').split(' ').join('')],
+        telephones: [newUser.phone?.replace('+', '').split(' ').join('')],
         emails: [newUser.mail],
       });
 
