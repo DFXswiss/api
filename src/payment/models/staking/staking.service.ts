@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { In } from 'typeorm';
+import { In, SelectQueryBuilder } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
@@ -18,6 +18,9 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { SettingService } from 'src/shared/setting/setting.service';
 import { Util } from 'src/shared/util';
+import { Config } from 'src/config/config';
+import { CryptoInput } from '../crypto-input/crypto-input.entity';
+import { RouteType } from '../route/deposit-route.entity';
 
 @Injectable()
 export class StakingService {
@@ -152,7 +155,7 @@ export class StakingService {
   ): Promise<StakingDto> {
     const rewardType = this.getStakingType(staking.rewardDeposit?.id, staking.deposit.id);
     const paybackType = this.getStakingType(staking.paybackDeposit?.id, staking.deposit.id);
-    const balance = await this.cryptoInputRepo.getStakingBalance(staking.id, new Date());
+    const balance = await this.getStakingBalance(staking.id, new Date());
 
     stakingDepositsInUse ??= await this.getUserStakingDepositsInUse(userId);
 
@@ -205,5 +208,35 @@ export class StakingService {
   private async getAsset(assetId?: number): Promise<Asset | null> {
     const asset: Asset = await this.assetService.getAsset(assetId);
     return asset && asset.buyable ? asset : await this.assetService.getAsset('DFI');
+  }
+
+  // --- BALANCE --- //
+  async getStakingBalance(stakingId: number, date: Date): Promise<number> {
+    const { balance } = await this.getInputsForStakingPeriod(date)
+      .select('SUM(amount)', 'balance')
+      .andWhere('route.id = :stakingId', { stakingId })
+      .getRawOne<{ balance: number }>();
+
+    return balance ?? 0;
+  }
+
+  async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
+    return await this.getInputsForStakingPeriod(date)
+      .select('route.id', 'id')
+      .addSelect('SUM(amount)', 'balance')
+      .andWhere('route.id IN (:...stakingIds)', { stakingIds })
+      .groupBy('route.id')
+      .getRawMany<{ id: number; balance: number }>();
+  }
+
+  private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
+    const dateFrom = new Date(dateTo);
+    dateFrom.setDate(dateTo.getDate() - Config.stakingPeriod);
+
+    return this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .innerJoinAndSelect('cryptoInput.route', 'route')
+      .where('route.type = :type', { type: RouteType.STAKING })
+      .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
   }
 }

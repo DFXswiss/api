@@ -122,8 +122,10 @@ export class CfpService {
 
       // update cfp results
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter((cfp) =>
-        cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)),
+      allCfp = allCfp.filter(
+        (cfp) =>
+          cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
+          cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
       );
 
       this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));

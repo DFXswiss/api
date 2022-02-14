@@ -9,16 +9,12 @@ import { StakingService } from './staking.service';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { StakingDto } from './dto/staking.dto';
-import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { Util } from 'src/shared/util';
 
 @ApiTags('staking')
 @Controller('staking')
 export class StakingController {
-  constructor(
-    private readonly stakingService: StakingService,
-    private readonly cryptoInputService: CryptoInputService,
-  ) {}
+  constructor(private readonly stakingService: StakingService) {}
 
   @Get()
   @ApiBearerAuth()
@@ -33,7 +29,8 @@ export class StakingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllStakingBalance(@Query('date') date: Date = new Date()): Promise<{ id: number; balance: number }[]> {
     const stakingIds = await this.stakingService.getAllIds();
-    return this.cryptoInputService.getAllStakingBalance(stakingIds, date);
+    const balances = await this.stakingService.getAllStakingBalance(stakingIds, date);
+    return stakingIds.map((id) => ({ id, balance: balances.find((b) => b.id === id)?.balance ?? 0 }));
   }
 
   @Get('balance/:address')
@@ -44,7 +41,7 @@ export class StakingController {
     const stakingRoutes = await this.stakingService.getStakingByAddress(address);
     if (stakingRoutes.length === 0) return 0;
 
-    const stakingBalances = await this.cryptoInputService.getAllStakingBalance(
+    const stakingBalances = await this.stakingService.getAllStakingBalance(
       stakingRoutes.map((u) => u.id),
       new Date(),
     );

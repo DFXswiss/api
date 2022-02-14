@@ -45,20 +45,17 @@ export class KycApiService {
   }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse | undefined> {
-    const customer = await this.getCustomer(id);
-    if (!customer) {
-      const person = {
-        contractReference: this.reference(id) + '_placeholder',
-        customer: {
-          reference: this.reference(id),
-          type: 'PERSON',
-          names: [{ lastName: name }],
-          preferredLanguage: Config.defaultLanguage,
-        },
-      };
+    const person = {
+      contractReference: this.contract(id),
+      customer: {
+        reference: this.reference(id),
+        type: 'PERSON',
+        names: [{ lastName: name }],
+        preferredLanguage: Config.defaultLanguage,
+      },
+    };
 
-      return this.callApi<CreateResponse>('customers/contract-linked-list', 'POST', [person]);
-    }
+    return this.callApi<CreateResponse>('customers/contract-linked-list', 'POST', [person]);
   }
 
   async updateCustomer(customer: Customer): Promise<CreateResponse> {
@@ -72,7 +69,7 @@ export class KycApiService {
     const customerInfo = await this.getCustomerInfo(id);
     if (!customerInfo || customerInfo.contractReference) {
       const person = {
-        contractReference: this.reference(id) + '_placeholder',
+        contractReference: this.contract(id),
         customer,
         relationTypes: [
           KycRelationType.CONVERSION_PARTNER,
@@ -89,13 +86,13 @@ export class KycApiService {
 
   async updateOrganizationCustomer(id: number, user: UserInfo): Promise<SubmitResponse[]> {
     const person = {
-      contractReference: this.reference(id) + '_placeholder',
+      contractReference: this.contract(id),
       customer: this.buildCustomer(id, user),
       relationTypes: [KycRelationType.CONVERSION_PARTNER, KycRelationType.CONTROLLER],
     };
 
     const organization = {
-      contractReference: this.reference(id) + '_placeholder',
+      contractReference: this.contract(id),
       customer: this.buildOrganization(id, user),
       relationTypes: [KycRelationType.CONTRACTING_PARTNER],
     };
@@ -150,9 +147,8 @@ export class KycApiService {
   }
 
   // --- NAME CHECK --- //
-  async checkCustomer(id: number): Promise<RiskState> {
-    await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
-    return this.getCheckResult(id);
+  async checkCustomer(id: number): Promise<CheckResponse[]> {
+    return this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
   }
 
   async getCheckResult(id: number): Promise<RiskState> {
@@ -167,9 +163,15 @@ export class KycApiService {
   }
 
   // --- DOCUMENTS --- //
-  async getDocument(customerId: number, document: KycDocument, version: string, part: string): Promise<any> {
+  async getDocument(
+    customerId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    version: string,
+    part: string,
+  ): Promise<any> {
     return this.callApi<any>(
-      `customers/${this.reference(customerId)}/documents/${document}/versions/${version}/parts/${part}`,
+      `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions/${version}/parts/${part}`,
       'GET',
     );
   }
@@ -190,9 +192,13 @@ export class KycApiService {
     return result === 'done';
   }
 
-  async getDocumentVersions(customerId: number, document: KycDocument): Promise<DocumentVersion[]> {
+  async getDocumentVersions(
+    customerId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+  ): Promise<DocumentVersion[]> {
     return this.callApi<DocumentVersion[]>(
-      `customers/${this.reference(customerId)}/documents/${document}/versions`,
+      `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions`,
       'GET',
     );
   }
@@ -276,6 +282,10 @@ export class KycApiService {
   // --- HELPER METHODS --- //
   private reference(id: number, isOrganization = false): string {
     return isOrganization ? `${id}_organization` : `${id}`;
+  }
+
+  private contract(id: number): string {
+    return this.reference(id) + '_placeholder'; 
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {

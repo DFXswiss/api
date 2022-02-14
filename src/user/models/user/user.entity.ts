@@ -16,8 +16,6 @@ import { IEntity } from 'src/shared/models/entity';
 export enum UserStatus {
   NA = 'NA',
   ACTIVE = 'Active',
-  ACTIVE_SELL = 'ActiveSell',
-  VERIFY = 'Verified',
 }
 
 @Entity()
@@ -109,7 +107,7 @@ export class User extends IEntity {
   @Column({ default: '0.0.0.0', length: 256 })
   ip: string;
 
-  @Column({ nullable: true, length: 'MAX' })
+  @Column({ length: 'MAX', nullable: true })
   cfpVotes: string;
 
   @OneToMany(() => Buy, (buy) => buy.user)

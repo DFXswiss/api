@@ -5,7 +5,7 @@ import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.re
 import { UserInfo } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
-import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { kycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
 import {
   KycDocument,
   KycContentType,
@@ -14,6 +14,8 @@ import {
   DocumentVersion,
   KycDocuments,
   Customer,
+  CreateResponse,
+  ChatbotResult,
 } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 
@@ -35,6 +37,13 @@ export class KycService {
   ) {}
 
   // --- CUSTOMER UPDATE --- //
+  async createCustomer(userDataId: number, name: string): Promise<CreateResponse | undefined> {
+    const customer = await this.kycApi.getCustomer(userDataId);
+    if (!customer) {
+      return this.kycApi.createCustomer(userDataId, name);
+    }
+  }
+
   async updateCustomer(userDataId: number, update: Partial<Customer>): Promise<void> {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (customer) {
@@ -56,6 +65,7 @@ export class KycService {
     // check if info already exists
     const initialCustomerInfo = await this.kycApi.getDocument(
       userDataId,
+      false,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
       'v1',
       this.defaultDocumentPart,
@@ -70,6 +80,10 @@ export class KycService {
       authorisesConversationPartner: 'YES',
       businessActivity: {
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        employer: { address: 'TOKEN_PURCHASE' },
+      },
+      financialBackground: {
+        liabilities: 'LESS_THAN_10000',
       },
     };
 
@@ -93,6 +107,7 @@ export class KycService {
         organisationType:
           userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        bearerShares: 'NO',
       };
 
       await this.uploadDocument(
@@ -142,10 +157,18 @@ export class KycService {
     return successful;
   }
 
+  // --- NAME CHECK --- //
+  async checkCustomer(id: number): Promise<RiskState | undefined> {
+    return this.kycApi
+      .checkCustomer(id)
+      .then(() => this.kycApi.getCheckResult(id))
+      .catch(() => undefined);
+  }
+
   // --- KYC PROGRESS --- //
   async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
     const documentType = KycDocuments[kycStatus].document;
-    const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
+    const versions = await this.kycApi.getDocumentVersions(userDataId, false, documentType);
     if (!versions?.length) return KycProgress.ONGOING;
 
     // completed
@@ -172,7 +195,7 @@ export class KycService {
   }
 
   async chatbotCompleted(userData: UserData): Promise<UserData> {
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
+    userData.riskState = await this.checkCustomer(userData.id);
 
     userData = await this.storeChatbotResult(userData);
 
@@ -180,6 +203,33 @@ export class KycService {
     return vipUser
       ? await this.goToStatus(userData, KycStatus.VIDEO_ID)
       : await this.goToStatus(userData, KycStatus.ONLINE_ID);
+  }
+
+  async storeChatbotResult(userData: UserData): Promise<UserData> {
+    try {
+      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
+      if (spiderData) {
+        // get and store the result
+        const chatbotResult = {
+          person: await this.getChatbotResult(userData.id, false),
+          organization:
+            userData.accountType === AccountType.PERSONAL ? undefined : await this.getChatbotResult(userData.id, true),
+        };
+
+        spiderData.result = JSON.stringify(chatbotResult);
+        userData.spiderData = await this.spiderDataRepo.save(spiderData);
+
+        // update user data
+        const result =
+          userData.accountType === AccountType.PERSONAL ? chatbotResult.person : chatbotResult.organization;
+        userData.contribution = +result.contribution;
+        userData.plannedContribution = result.plannedDevelopmentOfAssets;
+      }
+    } catch (e) {
+      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
+    }
+
+    return userData;
   }
 
   // --- HELPER METHODS --- //
@@ -226,6 +276,7 @@ export class KycService {
   private async getOnlineIdLink(userData: UserData, version: string): Promise<string> {
     const onlineId = await this.kycApi.getDocument(
       userData.id,
+      false,
       KycDocument.ONLINE_IDENTIFICATION,
       version,
       KycDocument.IDENTIFICATION_LOG,
@@ -233,35 +284,22 @@ export class KycService {
     return onlineId ? this.getOnlineIdUrl(onlineId.identificationId) : null;
   }
 
-  private async storeChatbotResult(userData: UserData): Promise<UserData> {
-    try {
-      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
-      if (spiderData) {
-        // get the version of the completed chatbot document
-        const versions = await this.kycApi.getDocumentVersions(userData.id, KycDocument.CHATBOT);
-        const completedVersion = versions.find((u) => u.state == KycDocumentState.COMPLETED)?.name;
+  private async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
+    // get the version of the completed chatbot document
+    const versions = await this.kycApi.getDocumentVersions(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+    );
+    const completedVersion = versions.find((u) => u.state == KycDocumentState.COMPLETED)?.name;
 
-        // get and store the result
-        const chatbotResult = await this.kycApi.getDocument(
-          userData.id,
-          KycDocument.CHATBOT_ONBOARDING,
-          completedVersion,
-          'export',
-        );
-        spiderData.result = JSON.stringify(chatbotResult);
-        userData.spiderData = await this.spiderDataRepo.save(spiderData);
-
-        // update user data
-        const formItems = JSON.parse(chatbotResult?.attributes?.form)?.items;
-        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
-      }
-    } catch (e) {
-      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
-    }
-
-    return userData;
+    return this.kycApi.getDocument(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+      completedVersion,
+      this.defaultDocumentPart,
+    );
   }
 
   // --- URLS --- //

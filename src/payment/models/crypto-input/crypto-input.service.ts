@@ -131,8 +131,4 @@ export class CryptoInputService {
       console.error(`Failed to process crypto input:`, e);
     }
   }
-
-  async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
-    return this.cryptoInputRepo.getAllStakingBalance(stakingIds, date);
-  }
 }

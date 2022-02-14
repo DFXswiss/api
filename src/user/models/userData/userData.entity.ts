@@ -100,10 +100,7 @@ export class UserData extends IEntity {
   depositLimit: number;
 
   @Column({ type: 'integer', nullable: true })
-  contributionAmount: number;
-
-  @Column({ length: 256, nullable: true })
-  contributionCurrency: string;
+  contribution: number;
 
   @Column({ length: 256, nullable: true })
   plannedContribution: string;
