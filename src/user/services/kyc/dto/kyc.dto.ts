@@ -198,3 +198,8 @@ export interface ChatbotStyle {
   htmlHeaderInclude: string;
   htmlBodyInclude: string;
 }
+
+export interface ChatbotResult {
+  contribution: string;
+  plannedDevelopmentOfAssets: string;
+}
