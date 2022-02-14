@@ -5,7 +5,7 @@ import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.re
 import { UserInfo } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
-import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { kycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
 import {
   KycDocument,
   KycContentType,
@@ -14,6 +14,7 @@ import {
   DocumentVersion,
   KycDocuments,
   Customer,
+  CreateResponse,
 } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 
@@ -35,6 +36,13 @@ export class KycService {
   ) {}
 
   // --- CUSTOMER UPDATE --- //
+  async createCustomer(userDataId: number, name: string): Promise<CreateResponse | undefined> {
+    const customer = await this.kycApi.getCustomer(userDataId);
+    if (!customer) {
+      return this.kycApi.createCustomer(userDataId, name);
+    }
+  }
+
   async updateCustomer(userDataId: number, update: Partial<Customer>): Promise<void> {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (customer) {
@@ -142,6 +150,14 @@ export class KycService {
     return successful;
   }
 
+  // --- NAME CHECK --- //
+  async checkCustomer(id: number): Promise<RiskState | undefined> {
+    return this.kycApi
+      .checkCustomer(id)
+      .then(() => this.kycApi.getCheckResult(id))
+      .catch(() => undefined);
+  }
+
   // --- KYC PROGRESS --- //
   async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
     const documentType = KycDocuments[kycStatus].document;
@@ -172,7 +188,7 @@ export class KycService {
   }
 
   async chatbotCompleted(userData: UserData): Promise<UserData> {
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
+    userData.riskState = await this.checkCustomer(userData.id);
 
     userData = await this.storeChatbotResult(userData);
 

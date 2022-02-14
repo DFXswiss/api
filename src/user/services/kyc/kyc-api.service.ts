@@ -45,20 +45,17 @@ export class KycApiService {
   }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse | undefined> {
-    const customer = await this.getCustomer(id);
-    if (!customer) {
-      const person = {
-        contractReference: this.reference(id) + '_placeholder',
-        customer: {
-          reference: this.reference(id),
-          type: 'PERSON',
-          names: [{ lastName: name }],
-          preferredLanguage: Config.defaultLanguage,
-        },
-      };
+    const person = {
+      contractReference: this.reference(id) + '_placeholder',
+      customer: {
+        reference: this.reference(id),
+        type: 'PERSON',
+        names: [{ lastName: name }],
+        preferredLanguage: Config.defaultLanguage,
+      },
+    };
 
-      return this.callApi<CreateResponse>('customers/contract-linked-list', 'POST', [person]);
-    }
+    return this.callApi<CreateResponse>('customers/contract-linked-list', 'POST', [person]);
   }
 
   async updateCustomer(customer: Customer): Promise<CreateResponse> {
@@ -150,9 +147,8 @@ export class KycApiService {
   }
 
   // --- NAME CHECK --- //
-  async checkCustomer(id: number): Promise<RiskState> {
-    await this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
-    return this.getCheckResult(id);
+  async checkCustomer(id: number): Promise<CheckResponse[]> {
+    return this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
   }
 
   async getCheckResult(id: number): Promise<RiskState> {

@@ -5,7 +5,6 @@ import { kycCompleted, KycState, KycStatus, UserData } from './userData.entity';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
 import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
@@ -25,7 +24,6 @@ export class UserDataService {
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
-    private readonly kycApi: KycApiService,
     private readonly kycService: KycService,
   ) {}
 
@@ -150,10 +148,9 @@ export class UserDataService {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
 
-    const customer = await this.kycApi.getCustomer(userData.id);
-    if (!customer) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
+    userData.riskState = await this.kycService.checkCustomer(userData.id);
+    if (!userData.riskState) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
 
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
     await this.userDataRepo.save(userData);
 
     return userData.riskState;
@@ -164,7 +161,7 @@ export class UserDataService {
     if (!userData) throw new NotFoundException(`No user data for user id ${userId}`);
 
     // create customer, if not existing
-    await this.kycApi.createCustomer(userData.id, userData.surname);
+    await this.kycService.createCustomer(userData.id, userData.surname);
 
     const version = new Date().getTime().toString();
     return await this.kycService.uploadDocument(
@@ -216,7 +213,7 @@ export class UserDataService {
     await this.kycService.initializeCustomer(userData.id, userInfo);
 
     // do name check
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
+    userData.riskState = await this.kycService.checkCustomer(userData.id);
 
     // start KYC
     return await this.kycService.goToStatus(userData, KycStatus.CHATBOT);
