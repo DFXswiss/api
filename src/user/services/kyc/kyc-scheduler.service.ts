@@ -23,7 +23,7 @@ export class KycSchedulerService {
     private readonly spiderDataRepo: SpiderDataRepository,
   ) {}
 
-  @Interval(7200000)
+  @Interval(7230000)
   async checkOngoingKyc() {
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
