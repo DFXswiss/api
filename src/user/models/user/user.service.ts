@@ -3,12 +3,11 @@ import { extractUserInfo, getUserInfo, User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { KycResult, UserDataService } from 'src/user/models/userData/userData.service';
+import { UserDataService } from 'src/user/models/userData/userData.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
-import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { KycService } from 'src/user/services/kyc/kyc.service';
 import { kycInProgress, KycState } from '../userData/userData.entity';
@@ -109,18 +108,6 @@ export class UserService {
 
   async updateRole(user: UpdateRoleDto): Promise<any> {
     return this.userRepo.updateRole(user);
-  }
-
-  async requestKyc(userId: number): Promise<string> {
-    return this.userDataService.requestKyc(userId);
-  }
-
-  async getKycProgress(kycHash: string): Promise<KycResult> {
-    return this.userDataService.getKycProgress(kycHash);
-  }
-
-  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    return this.userDataService.uploadDocument(userId, document, kycDocument);
   }
 
   async getRefDataForId(userId: number): Promise<any> {

@@ -28,6 +28,8 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
 import { KycService } from './services/kyc/kyc.service';
 import { LimitRequestRepository } from './models/limit-request/limit-request.repository';
 import { LimitRequestService } from './models/limit-request/limit-request.service';
+import { IdentController } from './models/ident/ident.controller';
+import { IdentService } from './models/ident/ident.service';
 
 @Module({
   imports: [
@@ -52,6 +54,7 @@ import { LimitRequestService } from './models/limit-request/limit-request.servic
     BankDataController,
     RefController,
     AuthController,
+    IdentController,
   ],
   providers: [
     UserService,
@@ -65,6 +68,7 @@ import { LimitRequestService } from './models/limit-request/limit-request.servic
     KycSchedulerService,
     AuthService,
     LimitRequestService,
+    IdentService,
   ],
   exports: [UserService, UserDataService, LogService, RefService],
 })
