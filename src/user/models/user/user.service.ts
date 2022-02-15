@@ -72,6 +72,7 @@ export class UserService {
     // add additional data
     user['kycStatus'] = user.userData?.kycStatus;
     user['kycState'] = user.userData?.kycState;
+    user['kycHash'] = user.userData?.kycHash;
     user['depositLimit'] = user.userData?.depositLimit;
 
     if (detailed) {
@@ -110,8 +111,12 @@ export class UserService {
     return this.userRepo.updateRole(user);
   }
 
-  async requestKyc(userId: number): Promise<KycResult> {
+  async requestKyc(userId: number): Promise<string> {
     return this.userDataService.requestKyc(userId);
+  }
+
+  async getKycProgress(kycHash: string): Promise<KycResult> {
+    return this.userDataService.getKycProgress(kycHash);
   }
 
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {

@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Put,
-  UploadedFiles,
-  UseGuards,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -67,11 +57,16 @@ export class UserController {
     return this.userService.updateRefFee(jwt.id, fee);
   }
 
+  @Get('kyc')
+  async getKycProgress(@Query('code') code: string): Promise<KycResult> {
+    return await this.userService.getKycProgress(code);
+  }
+
   @Post('kyc')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetJwt() jwt: JwtPayload): Promise<KycResult> {
-    return await this.userService.requestKyc(jwt.id);
+  async requestKyc(@GetJwt() jwt: JwtPayload): Promise<string> {
+    return await this.userService.requestKyc(jwt.id).then(JSON.stringify);
   }
 
   @Post('limit')
@@ -92,6 +87,22 @@ export class UserController {
     return this.userService.uploadDocument(jwt.id, files[0], KycDocument.INCORPORATION_CERTIFICATE);
   }
 
+  // --- CFP VOTING --- //
+  @Get('cfpVotes')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getCfpVotes(@GetJwt() jwt: JwtPayload): Promise<CfpVotes> {
+    return this.userService.getCfpVotes(jwt.id);
+  }
+
+  @Put('cfpVotes')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async updateCfpVotes(@GetJwt() jwt: JwtPayload, @Body() votes: CfpVotes): Promise<CfpVotes> {
+    return this.userService.updateCfpVotes(jwt.id, votes);
+  }
+
+  // --- ADMIN --- //
   @Get('all')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -114,20 +125,5 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto): Promise<void> {
     return this.userService.updateStatus(+id, dto.status);
-  }
-
-  // --- CFP VOTING --- //
-  @Get('cfpVotes')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getCfpVotes(@GetJwt() jwt: JwtPayload): Promise<CfpVotes> {
-    return this.userService.getCfpVotes(jwt.id);
-  }
-
-  @Put('cfpVotes')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateCfpVotes(@GetJwt() jwt: JwtPayload, @Body() votes: CfpVotes): Promise<CfpVotes> {
-    return this.userService.updateCfpVotes(jwt.id, votes);
   }
 }

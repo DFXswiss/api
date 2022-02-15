@@ -134,6 +134,7 @@ export class KycSchedulerService {
         userData.language?.symbol?.toLowerCase(),
       );
       userData = await this.kycService.goToStatus(userData, KycStatus.MANUAL);
+      userData.kycHash = null;
     }
     return userData;
   }

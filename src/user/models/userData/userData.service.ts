@@ -1,15 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { kycCompleted, KycState, KycStatus, UserData } from './userData.entity';
+import { kycInProgress, KycState, KycStatus, UserData } from './userData.entity';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { AccountType } from './account-type.enum';
 import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
+import { Util } from 'src/shared/util';
 
 export interface KycResult {
   status: KycStatus;
@@ -25,7 +26,20 @@ export class UserDataService {
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly kycService: KycService,
-  ) {}
+  ) {
+    this.createHashes().then();
+  }
+
+  // TODO: remove after successful creation
+  private async createHashes(): Promise<void> {
+    const users = await this.userDataRepo.find({
+      where: { kycStatus: In([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID]), kycHash: IsNull() },
+    });
+    for (const user of users) {
+      user.kycHash = Util.createHash(user.id.toString() + new Date().toISOString).slice(0, 12);
+    }
+    await this.userDataRepo.save(users);
+  }
 
   async getUserData(name: string, location: string): Promise<UserData> {
     const bankData = await this.bankDataRepo.findOne({ where: { name, location }, relations: ['userData'] });
@@ -175,30 +189,52 @@ export class UserDataService {
     );
   }
 
-  async requestKyc(userId: number): Promise<KycResult> {
+  async requestKyc(userId: number): Promise<string> {
     // get user data
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'],
+      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
     });
     let userData = user.userData;
     const userInfo = getUserInfo(user);
+
+    // check if KYC already started
+    if (userData.kycStatus !== KycStatus.NA) {
+      throw new BadRequestException('KYC already in progress/completed');
+    }
 
     // check if user data complete
     const verification = await this.verifyUser(userData);
     if (!verification.result) throw new BadRequestException('User data incomplete');
 
-    // check if KYC already completed
-    if (kycCompleted(userData.kycStatus)) {
-      throw new BadRequestException('KYC already completed');
-    }
+    // update
+    userData = await this.startKyc(userData, userInfo);
+    await this.userDataRepo.save(userData);
+
+    return userData.kycHash;
+  }
+
+  private async startKyc(userData: UserData, userInfo: UserInfo): Promise<UserData> {
+    // update customer
+    await this.kycService.initializeCustomer(userData.id, userInfo);
+    userData.kycHash = Util.createHash(userData.id.toString() + new Date().getDate).slice(0, 12);
+
+    // do name check
+    userData.riskState = await this.kycService.checkCustomer(userData.id);
+
+    // start KYC
+    return await this.kycService.goToStatus(userData, KycStatus.CHATBOT);
+  }
+
+  async getKycProgress(kycHash: string): Promise<KycResult> {
+    let userData = await this.userDataRepo.findOne({ where: { kycHash }, relations: ['spiderData'] });
+    if (!userData) throw new NotFoundException('Invalid KYC hash');
+
+    if (!kycInProgress(userData.kycStatus)) throw new BadRequestException('KYC not in progress');
 
     // update
-    userData =
-      userData.kycStatus === KycStatus.NA
-        ? await this.startKyc(userData, userInfo)
-        : await this.checkKycProgress(userData);
-    this.userDataRepo.save(userData);
+    userData = await this.checkKycProgress(userData);
+    await this.userDataRepo.save(userData);
 
     const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
     return {
@@ -206,17 +242,6 @@ export class UserDataService {
       identUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
     };
-  }
-
-  private async startKyc(userData: UserData, userInfo: UserInfo): Promise<UserData> {
-    // update customer
-    await this.kycService.initializeCustomer(userData.id, userInfo);
-
-    // do name check
-    userData.riskState = await this.kycService.checkCustomer(userData.id);
-
-    // start KYC
-    return await this.kycService.goToStatus(userData, KycStatus.CHATBOT);
   }
 
   private async checkKycProgress(userData: UserData): Promise<UserData> {

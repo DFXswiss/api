@@ -47,11 +47,11 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@Param('id') id: number): Promise<KycResult> {
+  async requestKyc(@Param('id') id: number): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
     const user = userData.users[0];
     if (!user) throw new BadRequestException('UserData has no user');
-    
+
     return this.userDataService.requestKyc(user.id);
   }
 
