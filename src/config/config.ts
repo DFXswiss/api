@@ -122,7 +122,7 @@ export class Configuration {
       passive: process.env.NODE_INT_URL_PASSIVE,
     },
     walletPassword: process.env.NODE_WALLET_PASSWORD,
-    utxoSpenderAddress: 'tWGFApzyspQaMmyhyBfn8igS5EHcbuG23F', // TODO: from env
+    utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
     minDfiDeposit: 0.01,
