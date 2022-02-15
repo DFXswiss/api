@@ -49,7 +49,7 @@ export class CryptoInputService {
         .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
         // get receive history
         .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
-        .then((i) => i.filter((h) => ['receive', 'AccountToAccount', 'AccountToUtxos'].includes(h.type)))
+        .then((i) => i.filter((h) => ['receive', 'AccountToAccount', 'AnyAccountsToAccounts', 'AccountToUtxos'].includes(h.type)))
         // map to entities
         .then((i) => this.createEntities(i))
         .then((i) => i.filter((h) => h != null && h.asset.sellable));
