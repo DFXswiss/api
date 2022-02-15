@@ -265,6 +265,7 @@ export class CfpService {
     return (
       this.masterNodes[vote.address] &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
+      new Date(vote.createdAt) < new Date(this.settings.endDate) &&
       this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
     );
   }
