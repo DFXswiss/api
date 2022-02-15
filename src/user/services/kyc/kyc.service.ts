@@ -308,6 +308,6 @@ export class KycService {
   }
 
   getOnlineIdUrl(identificationId: string): string {
-    return `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId}/identification/start`;
+    return `https://go.online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
   }
 }
