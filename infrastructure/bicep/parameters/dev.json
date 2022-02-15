@@ -53,6 +53,9 @@
     "stakingWalletAddress": {
       "value": "xxx"
     },
+    "utxoSpenderAddress": {
+      "value": "xxx"
+    },
     "nodeServicePlanSkuName": {
       "value": "P1v2"
     },
