@@ -15,17 +15,17 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async sendMail(@Body() sendMailDtoList: SendMailDto[]): Promise<void> {
-    for (const sendMailDto of sendMailDtoList) {
+  async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
+    for (const dto of dtoList) {
       await this.mailService.sendMail(
-        sendMailDto.to,
-        sendMailDto.salutation,
-        sendMailDto.subject,
-        sendMailDto.body,
-        sendMailDto.from,
-        sendMailDto.bcc,
-        sendMailDto.cc,
-        sendMailDto.displayName,
+        dto.to,
+        dto.salutation,
+        dto.subject,
+        dto.body,
+        dto.from,
+        dto.bcc,
+        dto.cc,
+        dto.displayName,
       );
     }
   }

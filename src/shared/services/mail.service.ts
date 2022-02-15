@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { Config } from 'src/config/config';
 import { SentMessageInfo } from 'nodemailer';
+import { Util } from '../util';
 
 @Injectable()
 export class MailService {
@@ -147,6 +148,7 @@ export class MailService {
       await this.mailerService.sendMail(sendMailOptions);
     } catch (e) {
       if (nthTry > 1) {
+        await Util.delay(1000);
         return this.sendMailWithRetries(sendMailOptions, nthTry - 1);
       }
       throw e;
