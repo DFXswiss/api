@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
@@ -262,7 +262,12 @@ export class KycService {
       (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
       this.spiderDataRepo.create({ userData: userData });
 
-    const locator = initiateData.locators[0];
+    const locator = initiateData.locators?.[0];
+    if (!locator) {
+      console.error(`Failed to initiate identification. Initiate result:`, initiateData);
+      throw new ServiceUnavailableException('Failed to initiate identification');
+    }
+
     spiderData.url =
       locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
     spiderData.secondUrl =
