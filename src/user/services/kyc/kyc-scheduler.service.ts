@@ -5,7 +5,7 @@ import { UserDataRepository } from 'src/user/models/userData/userData.repository
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { SettingService } from 'src/shared/setting/setting.service';
-import { Equal, In, IsNull, Not } from 'typeorm';
+import { In } from 'typeorm';
 import { Lock } from 'src/shared/lock';
 import { KycService, KycProgress } from './kyc.service';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
@@ -21,38 +21,9 @@ export class KycSchedulerService {
     private readonly kycApi: KycApiService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
-  ) {
-    this.syncChatbotResults().then();
-  }
+  ) {}
 
-  // TODO: move to scheduled method?
-  async syncChatbotResults() {
-    const users = await this.userDataRepo.find({
-      select: ['id'],
-      where: [
-        {
-          kycStatus: Not(In([KycStatus.NA, KycStatus.CHATBOT])),
-          spiderData: { result: IsNull() },
-        },
-        {
-          kycStatus: Not(In([KycStatus.NA, KycStatus.CHATBOT])),
-          spiderData: { result: Equal('') },
-        },
-      ],
-      relations: ['spiderData'],
-    });
-
-    for (const user of users) {
-      let userData = await this.userDataRepo.findOne({ where: { id: user.id }, relations: ['spiderData'] });
-      userData.spiderData ??= this.spiderDataRepo.create({ url: '', userData });
-
-      // update chatbot result
-      userData = await this.kycService.storeChatbotResult(userData);
-      await this.userDataRepo.save(userData);
-    }
-  }
-
-  @Interval(7200000)
+  @Interval(7230000)
   async checkOngoingKyc() {
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
