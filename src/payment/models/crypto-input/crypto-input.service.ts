@@ -83,11 +83,12 @@ export class CryptoInputService {
   }
 
   private async createEntity(history: AccountHistory): Promise<CryptoInput> {
-    const { amount, asset: assetName } = this.client.parseAmount(history.amounts[0]);
+    const { amount: historyAmount, asset: assetName } = this.client.parseAmount(history.amounts[0]);
 
     // only received token
-    if (history.type == 'AccountToAccount' && amount < 0) return null;
+    if (history.type == 'AccountToAccount' && historyAmount < 0) return null;
 
+    const amount = Math.abs(historyAmount);
     const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
     const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
 
