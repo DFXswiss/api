@@ -4,7 +4,6 @@ import { BuyRepository } from 'src/payment/models/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { createHash } from 'crypto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Not } from 'typeorm';
 import { User } from '../../../user/models/user/user.entity';
