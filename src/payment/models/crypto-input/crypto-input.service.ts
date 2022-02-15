@@ -36,7 +36,7 @@ export class CryptoInputService {
     try {
       // check if node in sync
       const { blocks, headers } = await this.client.getInfo();
-      if (blocks < headers - 5) throw new Error('Node not in sync');
+      if (blocks < headers) throw new Error('Node not in sync');
 
       // get block heights
       const currentHeight = blocks;
@@ -189,6 +189,8 @@ export class CryptoInputService {
     const utxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === txId));
     if (utxo) {
       await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
+    } else {
+      console.error(`Could not retrieve UTXO: UTXO ${txId} not found`);
     }
   }
 }

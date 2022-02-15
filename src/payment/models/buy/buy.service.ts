@@ -4,7 +4,6 @@ import { BuyRepository } from 'src/payment/models/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { createHash } from 'crypto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Not } from 'typeorm';
 import { User } from '../../../user/models/user/user.entity';
@@ -81,10 +80,8 @@ export class BuyService {
     buy.deposit = staking?.deposit ?? null;
 
     // create hash
-    const hash = createHash('sha256');
-    hash.update(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban);
-    const hexHash = hash.digest('hex').toUpperCase();
-    buy.bankUsage = `${hexHash.slice(0, 4)}-${hexHash.slice(4, 8)}-${hexHash.slice(8, 12)}`;
+    const hash = Util.createHash(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban);
+    buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save
     return this.buyRepo.save(buy);

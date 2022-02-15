@@ -60,7 +60,7 @@ describe('CryptoInputService', () => {
   });
 
   it('should stop on desynchronized chain', async () => {
-    const headers = 345;
+    const headers = 340;
     const blocks = 339;
     const lastBlocks = 0;
 
@@ -73,7 +73,7 @@ describe('CryptoInputService', () => {
 
   it('should get history with correct addresses and block height', async () => {
     const headers = 51;
-    const blocks = 46;
+    const blocks = 51;
     const lastBlocks = 34;
 
     setup(headers, blocks, lastBlocks, ['addr1', 'addr2', 'addr3']);

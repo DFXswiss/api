@@ -84,6 +84,9 @@ export class UserData extends IEntity {
   @ManyToOne(() => Language, { eager: true })
   language: Language;
 
+  @Column({ length: 256, nullable: true })
+  riskState: RiskState;
+
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
@@ -93,8 +96,14 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   kycStatusChangeDate: Date;
 
+  @Column({ type: 'integer', nullable: true })
+  kycFileId: number;
+
+  @Column({ type: 'integer', nullable: true })
+  kycCustomerId: number;
+
   @Column({ length: 256, nullable: true })
-  riskState: RiskState;
+  kycHash: string;
 
   @Column({ type: 'float', default: 90000 })
   depositLimit: number;
@@ -104,12 +113,6 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   plannedContribution: string;
-
-  @Column({ type: 'integer', nullable: true })
-  kycFileId: number;
-
-  @Column({ type: 'integer', nullable: true })
-  kycCustomerId: number;
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];

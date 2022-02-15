@@ -1,3 +1,4 @@
+import { BinaryLike, createHash } from 'crypto';
 import { readFile } from 'fs';
 
 export class Util {
@@ -65,5 +66,11 @@ export class Util {
 
   static async delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  static createHash(data: BinaryLike): string {
+    const hash = createHash('sha256');
+    hash.update(data);
+    return hash.digest('hex').toUpperCase();
   }
 }
