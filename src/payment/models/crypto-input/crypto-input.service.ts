@@ -36,7 +36,7 @@ export class CryptoInputService {
     try {
       // check if node in sync
       const { blocks, headers } = await this.client.getInfo();
-      if (blocks < headers - 5) throw new Error('Node not in sync');
+      if (blocks < headers) throw new Error('Node not in sync');
 
       // get block heights
       const currentHeight = blocks;
