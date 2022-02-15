@@ -6,9 +6,6 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { UserDataService } from '../userData/userData.service';
-import { LanguageService } from 'src/shared/models/language/language.service';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Config } from 'src/config/config';
 
 @Injectable()
@@ -18,23 +15,15 @@ export class AuthService {
     private userDataService: UserDataService,
     private jwtService: JwtService,
     private cryptoService: CryptoService,
-    private languageService: LanguageService,
-    private countryService: CountryService,
-    private fiatService: FiatService,
   ) {}
 
-  async signUp(createUserDto: CreateUserDto): Promise<any> {
+  async signUp(createUserDto: CreateUserDto, userIp: string): Promise<any> {
     if (!this.verifySignature(createUserDto.address, createUserDto.signature)) {
       throw new BadRequestException('Wrong signature');
     }
 
     // create user and user data entry
-    const user = await this.userRepository.createUser(
-      createUserDto,
-      this.languageService,
-      this.countryService,
-      this.fiatService,
-    );
+    const user = await this.userRepository.createUser(createUserDto, userIp);
     await this.userDataService.createUserData(user);
 
     return this.signIn(createUserDto);

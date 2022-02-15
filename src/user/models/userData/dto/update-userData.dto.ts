@@ -1,16 +1,8 @@
-import { IsOptional, IsInt, IsEnum, IsEmail, IsString, IsBoolean } from 'class-validator';
+import { IsOptional, IsInt, IsEnum, IsEmail, IsString } from 'class-validator';
 import { AccountType } from '../account-type.enum';
 import { KycState, KycStatus } from '../userData.entity';
 
 export class UpdateUserDataDto {
-  @IsOptional()
-  @IsInt()
-  id: number;
-
-  @IsOptional()
-  @IsBoolean()
-  isMigrated: boolean;
-
   @IsOptional()
   @IsEnum(AccountType)
   accountType: AccountType;
@@ -18,6 +10,10 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEmail()
   mail: string;
+
+  @IsOptional()
+  @IsString()
+  phone: string;
 
   @IsOptional()
   @IsString()
@@ -46,12 +42,6 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsInt()
   countryId: number;
-
-  @IsOptional()
-  @IsString()
-  // TODO: user phonenumber decorator instead of string --> Figure it out
-  // @IsPhoneNumber()
-  phone: string;
 
   @IsOptional()
   @IsString()

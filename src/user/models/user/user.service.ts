@@ -1,36 +1,29 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { extractUserInfo, getUserInfo, User, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UserDataService } from 'src/user/models/userData/userData.service';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
 import { CfpVotes } from './dto/cfp-votes.dto';
-import { KycService } from 'src/user/services/kyc/kyc.service';
-import { kycInProgress, KycState } from '../userData/userData.entity';
+import { UserDetailDto } from './dto/user.dto';
+import { IdentService } from '../ident/ident.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly countryService: CountryService,
-    private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
-    private readonly kycService: KycService,
+    private readonly identService: IdentService,
   ) {}
 
-  async getUser(userId: number, detailedUser = false): Promise<User> {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData', 'currency'],
-    });
+  async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
+    const user = await this.userRepo.findOne(userId, { relations: ['userData', 'currency'] });
     if (!user) throw new NotFoundException('No matching user for id found');
 
-    return await this.toDto(user, detailedUser);
+    return await this.toDto(user, detailed);
   }
 
   async updateStatus(userId: number, status: UserStatus): Promise<void> {
@@ -41,87 +34,71 @@ export class UserService {
     await this.userRepo.save(user);
   }
 
-  async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
-    const oldUser = await this.userRepo.findOne({ where: { id: oldUserId }, relations: ['userData'] });
+  async updateUser(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
+    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
+    if (!user) throw new NotFoundException('No matching user found');
 
-    if ((newUser.phone && newUser.phone != oldUser.phone) || (newUser.mail && newUser.mail != oldUser.mail)) {
-      await this.kycService.updateCustomer(oldUser.userData.id, {
-        telephones: [newUser.phone?.replace('+', '').split(' ').join('')],
-        emails: [newUser.mail],
-      });
-
-      if (kycInProgress(oldUser.userData.kycStatus)) {
-        oldUser.userData.kycState = KycState.FAILED;
-      }
+    // update ref
+    const refUser = await this.userRepo.findOne({ where: { ref: dto.usedRef }, relations: ['userData'] });
+    if (
+      user.ref == dto.usedRef ||
+      (dto.usedRef && !refUser) ||
+      dto.usedRef === null ||
+      user.userData.id === refUser?.userData.id
+    ) {
+      // invalid ref
+      dto.usedRef = '000-000';
     }
 
-    const user = await this.userRepo.updateUser(
-      oldUser,
-      newUser,
-      this.languageService,
-      this.countryService,
-      this.fiatService,
-    );
-    user.userData = await this.userDataService.updateUserInfo(oldUser.userData, extractUserInfo(user));
+    // check currency
+    if (dto.currency) {
+      const currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!currency) throw new NotFoundException('No currency for ID found');
+    }
+
+    // update
+    user = await this.userRepo.save({ ...user, ...dto });
+    user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
 
     return await this.toDto(user, true);
   }
 
-  private async toDto(user: User, detailed: boolean): Promise<User> {
-    // add additional data
-    user['kycStatus'] = user.userData?.kycStatus;
-    user['kycState'] = user.userData?.kycState;
-    user['kycHash'] = user.userData?.kycHash;
-    user['depositLimit'] = user.userData?.depositLimit;
+  private async toDto(user: User, detailed: boolean): Promise<UserDetailDto> {
+    return {
+      accountType: user.userData?.accountType,
+      address: user.address,
+      status: user.status,
+      usedRef: user.usedRef === '000-000' ? undefined : user.usedRef,
+      currency: user.currency,
+      mail: user.userData?.mail,
+      phone: user.userData?.phone,
+      language: user.userData?.language,
 
-    if (detailed) {
-      user['refData'] = await this.getRefData(user);
-    }
+      ...(detailed && user.status !== UserStatus.ACTIVE
+        ? undefined
+        : {
+            ref: user.ref,
+            refFeePercent: user.refFeePercent,
+            refVolume: user.refVolume,
+            refCredit: user.refCredit,
+            refCount: await this.userRepo.getRefCount(user.ref),
+            refCountActive: await this.userRepo.getRefCountActive(user.ref),
+          }),
 
-    // select user info
-    user = { ...user, ...getUserInfo(user) };
-
-    // remove data to hide
-    delete user.userData;
-    delete user.signature;
-    delete user.ip;
-    delete user.role;
-    delete user.cfpVotes;
-    if (user.status != UserStatus.ACTIVE) delete user.ref;
-    if (user.usedRef === '000-000') delete user.usedRef;
-
-    return user;
+      kycStatus: user.userData?.kycStatus,
+      kycState: user.userData?.kycState,
+      kycHash: user.userData?.kycHash,
+      depositLimit: user.userData?.depositLimit,
+      identDataComplete: this.identService.isDataComplete(user.userData),
+    };
   }
 
   async getAllUser(): Promise<any> {
     return this.userRepo.getAllUser();
   }
 
-  async verifyUser(userId: number) {
-    const { userData } = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
-    });
-
-    return this.userDataService.verifyUser(userData);
-  }
-
   async updateRole(user: UpdateRoleDto): Promise<any> {
     return this.userRepo.updateRole(user);
-  }
-
-  async getRefDataForId(userId: number): Promise<any> {
-    const user = await this.userRepo.findOne(userId);
-    return this.getRefData(user);
-  }
-
-  async getRefData(user: User): Promise<any> {
-    return {
-      ref: user.status == UserStatus.NA ? undefined : user.ref,
-      refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
-      refCount: await this.userRepo.getRefCount(user.ref),
-      refCountActive: await this.userRepo.getRefCountActive(user.ref),
-    };
   }
 
   async updateRefFee(userId: number, fee: number): Promise<number> {

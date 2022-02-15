@@ -12,19 +12,6 @@ import { UpdateCountryDto } from './dto/update-country.dto';
 export class CountryController {
   constructor(private readonly countryService: CountryService) {}
 
-  @Get(':key')
-  @ApiParam({
-    name: 'key',
-    required: true,
-    description: 'either an integer for the country id or a string for the country symbol',
-    schema: { oneOf: [{ type: 'string' }, { type: 'integer' }] },
-  })
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getCountry(@Param() country: any): Promise<any> {
-    return this.countryService.getCountry(country);
-  }
-
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))

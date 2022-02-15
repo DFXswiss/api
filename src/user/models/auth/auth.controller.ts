@@ -12,8 +12,7 @@ export class AuthController {
 
   @Post('/signup')
   signUp(@Body() createUserDto: CreateUserDto, @RealIP() ip: string): Promise<void> {
-    createUserDto.ip = ip;
-    return this.authService.signUp(createUserDto);
+    return this.authService.signUp(createUserDto, ip);
   }
 
   @Post('/signin')

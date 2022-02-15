@@ -1,21 +1,28 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/util';
-import { getUserInfo, UserInfo } from 'src/user/models/user/user.entity';
-import { UserRepository } from 'src/user/models/user/user.repository';
 import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
 import { In, IsNull } from 'typeorm';
+import { AccountType } from '../userData/account-type.enum';
 import { UserDataRepository } from '../userData/userData.repository';
-import { KycResult, UserDataService } from '../userData/userData.service';
+import { UserDataService } from '../userData/userData.service';
+import { IdentUserDataDto } from './dto/ident-user-data.dto';
+
+export interface KycResult {
+  status: KycStatus;
+  identUrl?: string;
+  setupUrl?: string;
+}
 
 @Injectable()
 export class IdentService {
   constructor(
-    private readonly userRepo: UserRepository,
     private readonly userDataRepo: UserDataRepository,
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
+    private readonly countryService: CountryService,
   ) {
     this.createHashes().then();
   }
@@ -45,9 +52,64 @@ export class IdentService {
   }
 
   // --- KYC --- //
+  async updateIdentData(userId: number, data: IdentUserDataDto): Promise<void> {
+    const user = await this.userDataService.getUserDataForUser(userId);
+    if (!user) throw new NotFoundException(`No user data for user ID`);
+
+    // check countries
+    const [country, organizationCountry] = await Promise.all([
+      this.countryService.getCountry(data.country.id),
+      this.countryService.getCountry(data.organizationCountry?.id),
+    ]);
+    if (!country || (data.accountType !== AccountType.PERSONAL && !organizationCountry))
+      throw new BadRequestException('No country for ID found');
+
+    if (data.accountType === AccountType.PERSONAL) {
+      data.organizationName = null;
+      data.organizationStreet = null;
+      data.organizationHouseNumber = null;
+      data.organizationLocation = null;
+      data.organizationZip = null;
+      data.organizationCountry = null;
+    }
+
+    await this.userDataRepo.save({ ...user, ...data });
+  }
+
+  async dataComplete(userId: number): Promise<boolean> {
+    const user = await this.userDataService.getUserDataForUser(userId);
+    return this.isDataComplete(user);
+  }
+
+  isDataComplete(user: UserData): boolean {
+    const requiredFields = [
+      'mail',
+      'phone',
+      'firstname',
+      'surname',
+      'street',
+      'houseNumber',
+      'location',
+      'zip',
+      'country',
+    ].concat(
+      user.accountType === AccountType.PERSONAL
+        ? []
+        : [
+            'organizationName',
+            'organizationStreet',
+            'organizationHouseNumber',
+            'organizationLocation',
+            'organizationZip',
+            'organizationCountry',
+          ],
+    );
+    return requiredFields.filter((f) => !user[f]).length === 0;
+  }
+
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
     const userData = await this.userDataService.getUserDataForUser(userId);
-    if (!userData) throw new NotFoundException(`No user data for user id ${userId}`);
+    if (!userData) throw new NotFoundException(`No user data for user id`);
 
     // create customer, if not existing
     await this.kycService.createCustomer(userData.id, userData.surname);
@@ -65,33 +127,27 @@ export class IdentService {
   }
 
   async requestKyc(userId: number): Promise<string> {
-    // get user data
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
-    });
-    let userData = user.userData;
-    const userInfo = getUserInfo(user);
+    let user = await this.userDataService.getUserDataForUser(userId);
 
     // check if KYC already started
-    if (userData.kycStatus !== KycStatus.NA) {
+    if (user.kycStatus !== KycStatus.NA) {
       throw new BadRequestException('KYC already in progress/completed');
     }
 
     // check if user data complete
-    const verification = await this.userDataService.verifyUser(userData);
-    if (!verification.result) throw new BadRequestException('User data incomplete');
+    const dataComplete = await this.isDataComplete(user);
+    if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
     // update
-    userData = await this.startKyc(userData, userInfo);
-    await this.userDataRepo.save(userData);
+    user = await this.startKyc(user);
+    await this.userDataRepo.save(user);
 
-    return userData.kycHash;
+    return user.kycHash;
   }
 
-  private async startKyc(userData: UserData, userInfo: UserInfo): Promise<UserData> {
+  private async startKyc(userData: UserData): Promise<UserData> {
     // update customer
-    await this.kycService.initializeCustomer(userData.id, userInfo);
+    await this.kycService.initializeCustomer(userData);
     userData.kycHash = Util.createHash(userData.id.toString() + new Date().getDate).slice(0, 12);
 
     // do name check

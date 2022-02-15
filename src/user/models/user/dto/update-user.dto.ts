@@ -1,109 +1,39 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, IsInt, IsNumber, Matches, IsEnum } from 'class-validator';
-import { AccountType } from '../../userData/account-type.enum';
+import { IsEmail, IsOptional, IsString, IsNumber, Matches, IsObject } from 'class-validator';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Language } from 'src/shared/models/language/language.entity';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  id: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsEnum(AccountType)
-  accountType: AccountType;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsString()
   @Matches(/^(\w{1,3}-\w{1,3})$/)
-  usedRef: string;
+  usedRef?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
-  refFeePercent: number;
+  refFeePercent?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsEmail()
-  mail: string;
+  mail?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  firstname: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  surname: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  street: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  houseNumber: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  location: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  zip: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  language: any;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  country: any;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  currency: any;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  // TODO: user phonenumber decorator instead of string --> Figure it out
+  // TODO: use phone number decorator instead of string
   // @IsPhoneNumber()
-  phone: string;
+  phone?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  organizationName: string;
+  @IsObject()
+  language?: Language;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  organizationStreet: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  organizationHouseNumber: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  organizationLocation: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  organizationZip: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  organizationCountry: any;
+  @IsObject()
+  currency?: Fiat;
 }

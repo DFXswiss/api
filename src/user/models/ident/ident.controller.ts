@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -10,8 +10,8 @@ import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { LimitRequestDto } from '../limit-request/dto/limit-request.dto';
 import { LimitRequest } from '../limit-request/limit-request.entity';
 import { LimitRequestService } from '../limit-request/limit-request.service';
-import { KycResult } from '../userData/userData.service';
-import { IdentService } from './ident.service';
+import { IdentUserDataDto } from './dto/ident-user-data.dto';
+import { IdentService, KycResult } from './ident.service';
 
 @ApiTags('ident')
 @Controller('ident')
@@ -28,6 +28,14 @@ export class IdentController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async requestKyc(@GetJwt() jwt: JwtPayload): Promise<string> {
     return await this.identService.requestKyc(jwt.id).then(JSON.stringify);
+  }
+
+  @Post('data')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async updateIdentData(@GetJwt() jwt: JwtPayload, @Body() data: IdentUserDataDto): Promise<boolean> {
+    await this.identService.updateIdentData(jwt.id, data);
+    return true;
   }
 
   @Post('limit')

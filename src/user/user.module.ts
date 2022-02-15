@@ -70,6 +70,6 @@ import { IdentService } from './models/ident/ident.service';
     LimitRequestService,
     IdentService,
   ],
-  exports: [UserService, UserDataService, LogService, RefService],
+  exports: [UserService, UserDataService, RefService, IdentService],
 })
 export class UserModule {}
