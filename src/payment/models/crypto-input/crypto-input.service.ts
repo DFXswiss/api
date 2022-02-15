@@ -73,7 +73,11 @@ export class CryptoInputService {
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
     const inputs = [];
     for (const history of histories) {
-      inputs.push(await this.createEntity(history));
+      try {
+        inputs.push(await this.createEntity(history));
+      } catch (e) {
+        console.error(`Failed to process crypto input ${history.txid}:`, e);
+      }
     }
     return inputs;
   }
