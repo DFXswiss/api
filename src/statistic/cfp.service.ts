@@ -122,8 +122,10 @@ export class CfpService {
 
       // update cfp results
       let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter((cfp) =>
-        cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)),
+      allCfp = allCfp.filter(
+        (cfp) =>
+          cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
+          cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
       );
 
       this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
@@ -254,7 +256,7 @@ export class CfpService {
 
   private getRegExp(votingRound: string, type: VotingType): RegExp {
     return new RegExp(
-      `signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
+      `signmessage\\s"?(\\w*)"?\\s"?((?:${type}|${type.toUpperCase()})-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
       'gm',
     );
   }
@@ -263,6 +265,7 @@ export class CfpService {
     return (
       this.masterNodes[vote.address] &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
+      new Date(vote.createdAt) < new Date(this.settings.endDate) &&
       this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
     );
   }

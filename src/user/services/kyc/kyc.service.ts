@@ -5,8 +5,18 @@ import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.re
 import { UserInfo } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
-import { KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
-import { KycDocument, KycContentType, KycDocumentState, InitiateResponse, DocumentVersion } from './dto/kyc.dto';
+import { kycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
+import {
+  KycDocument,
+  KycContentType,
+  KycDocumentState,
+  InitiateResponse,
+  DocumentVersion,
+  KycDocuments,
+  Customer,
+  CreateResponse,
+  ChatbotResult,
+} from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 
 export enum KycProgress {
@@ -18,6 +28,8 @@ export enum KycProgress {
 
 @Injectable()
 export class KycService {
+  private readonly defaultDocumentPart = 'content';
+
   constructor(
     private readonly userRepo: UserRepository,
     private readonly spiderDataRepo: SpiderDataRepository,
@@ -25,7 +37,21 @@ export class KycService {
   ) {}
 
   // --- CUSTOMER UPDATE --- //
-  public async updateCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
+  async createCustomer(userDataId: number, name: string): Promise<CreateResponse | undefined> {
+    const customer = await this.kycApi.getCustomer(userDataId);
+    if (!customer) {
+      return this.kycApi.createCustomer(userDataId, name);
+    }
+  }
+
+  async updateCustomer(userDataId: number, update: Partial<Customer>): Promise<void> {
+    const customer = await this.kycApi.getCustomer(userDataId);
+    if (customer) {
+      await this.kycApi.updateCustomer({ ...customer, ...update });
+    }
+  }
+
+  async initializeCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
     if (userInfo.accountType === AccountType.PERSONAL) {
       await this.kycApi.updatePersonalCustomer(userDataId, userInfo);
     } else {
@@ -39,9 +65,10 @@ export class KycService {
     // check if info already exists
     const initialCustomerInfo = await this.kycApi.getDocument(
       userDataId,
+      false,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
       'v1',
-      'content',
+      this.defaultDocumentPart,
     );
     if (initialCustomerInfo) return;
 
@@ -53,6 +80,10 @@ export class KycService {
       authorisesConversationPartner: 'YES',
       businessActivity: {
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        employer: { address: 'TOKEN_PURCHASE' },
+      },
+      financialBackground: {
+        liabilities: 'LESS_THAN_10000',
       },
     };
 
@@ -61,7 +92,6 @@ export class KycService {
       false,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
       'v1',
-      'content',
       'initial-customer-information.json',
       KycContentType.JSON,
       customerInfo,
@@ -77,6 +107,7 @@ export class KycService {
         organisationType:
           userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        bearerShares: 'NO',
       };
 
       await this.uploadDocument(
@@ -84,7 +115,6 @@ export class KycService {
         true,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
         'v1',
-        'content',
         'initial-customer-information.json',
         KycContentType.JSON,
         organizationInfo,
@@ -92,14 +122,13 @@ export class KycService {
     }
   }
 
-  public async uploadDocument(
+  async uploadDocument(
     userDataId: number,
     isOrganization: boolean,
     document: KycDocument,
     version: string,
-    part: string,
     fileName: string,
-    contentType: KycContentType,
+    contentType: KycContentType | string,
     data: any,
   ): Promise<boolean> {
     await this.kycApi.createDocumentVersion(userDataId, isOrganization, document, version);
@@ -108,7 +137,7 @@ export class KycService {
       isOrganization,
       document,
       version,
-      part,
+      this.defaultDocumentPart,
       fileName,
       contentType,
     );
@@ -117,7 +146,7 @@ export class KycService {
       isOrganization,
       document,
       version,
-      part,
+      this.defaultDocumentPart,
       contentType,
       data,
     );
@@ -128,16 +157,18 @@ export class KycService {
     return successful;
   }
 
-  // --- KYC PROGRESS --- //
-  public async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
-    const documentType =
-      kycStatus === KycStatus.CHATBOT
-        ? KycDocument.CHATBOT
-        : kycStatus === KycStatus.ONLINE_ID
-        ? KycDocument.ONLINE_IDENTIFICATION
-        : KycDocument.VIDEO_IDENTIFICATION;
+  // --- NAME CHECK --- //
+  async checkCustomer(id: number): Promise<RiskState | undefined> {
+    return this.kycApi
+      .checkCustomer(id)
+      .then(() => this.kycApi.getCheckResult(id))
+      .catch(() => undefined);
+  }
 
-    const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
+  // --- KYC PROGRESS --- //
+  async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
+    const documentType = KycDocuments[kycStatus].document;
+    const versions = await this.kycApi.getDocumentVersions(userDataId, false, documentType);
     if (!versions?.length) return KycProgress.ONGOING;
 
     // completed
@@ -154,14 +185,8 @@ export class KycService {
   }
 
   async goToStatus(userData: UserData, status: KycStatus): Promise<UserData> {
-    if ([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(status)) {
-      const identType =
-        status === KycStatus.CHATBOT
-          ? KycDocument.INITIATE_CHATBOT_IDENTIFICATION
-          : status === KycStatus.ONLINE_ID
-          ? KycDocument.INITIATE_ONLINE_IDENTIFICATION
-          : KycDocument.INITIATE_VIDEO_IDENTIFICATION;
-
+    if (kycInProgress(status)) {
+      const identType = KycDocuments[status].ident;
       const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
@@ -169,8 +194,8 @@ export class KycService {
     return this.updateKycStatus(userData, status);
   }
 
-  public async chatbotCompleted(userData: UserData): Promise<UserData> {
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
+  async chatbotCompleted(userData: UserData): Promise<UserData> {
+    userData.riskState = await this.checkCustomer(userData.id);
 
     userData = await this.storeChatbotResult(userData);
 
@@ -178,6 +203,33 @@ export class KycService {
     return vipUser
       ? await this.goToStatus(userData, KycStatus.VIDEO_ID)
       : await this.goToStatus(userData, KycStatus.ONLINE_ID);
+  }
+
+  async storeChatbotResult(userData: UserData): Promise<UserData> {
+    try {
+      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
+      if (spiderData) {
+        // get and store the result
+        const chatbotResult = {
+          person: await this.getChatbotResult(userData.id, false),
+          organization:
+            userData.accountType === AccountType.PERSONAL ? undefined : await this.getChatbotResult(userData.id, true),
+        };
+
+        spiderData.result = JSON.stringify(chatbotResult);
+        userData.spiderData = await this.spiderDataRepo.save(spiderData);
+
+        // update user data
+        const result =
+          userData.accountType === AccountType.PERSONAL ? chatbotResult.person : chatbotResult.organization;
+        userData.contribution = +result.contribution;
+        userData.plannedContribution = result.plannedDevelopmentOfAssets;
+      }
+    } catch (e) {
+      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
+    }
+
+    return userData;
   }
 
   // --- HELPER METHODS --- //
@@ -194,8 +246,12 @@ export class KycService {
     return userData;
   }
 
-  public updateKycState(userData: UserData, state: KycState): UserData {
-    console.log(`KYC change: state of user ${userData.id} (${userData.kycStatus}): ${userData.kycState} -> ${state}`);
+  updateKycState(userData: UserData, state: KycState): UserData {
+    console.log(
+      `KYC change: state of user ${userData.id} (${userData.kycStatus}): ${
+        userData.kycState
+      } -> ${state} (last change on ${userData.kycStatusChangeDate?.toLocaleString()})`,
+    );
 
     userData.kycState = state;
     return userData;
@@ -209,54 +265,49 @@ export class KycService {
     const locator = initiateData.locators[0];
     spiderData.url =
       locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
-    spiderData.version = (await this.kycApi.getDocumentVersions(userData.id, KycDocument.CHATBOT)).find(
-      (u) => u.state == KycDocumentState.COMPLETED,
-    )?.name;
-
     spiderData.secondUrl =
-      locator.document === KycDocument.ONLINE_IDENTIFICATION ? await this.getOnlineIdLink(userData) : null;
+      locator.document === KycDocument.ONLINE_IDENTIFICATION
+        ? await this.getOnlineIdLink(userData, locator.version)
+        : null;
 
     return await this.spiderDataRepo.save(spiderData);
   }
 
-  private async getOnlineIdLink(userData: UserData): Promise<string> {
-    const identVersions = await this.kycApi.getDocumentVersions(userData.id, KycDocument.ONLINE_IDENTIFICATION);
-    const identificationId = await this.kycApi.getDocument(
+  private async getOnlineIdLink(userData: UserData, version: string): Promise<string> {
+    const onlineId = await this.kycApi.getDocument(
       userData.id,
+      false,
       KycDocument.ONLINE_IDENTIFICATION,
-      identVersions[0].name,
+      version,
       KycDocument.IDENTIFICATION_LOG,
     );
-    return identificationId
-      ? `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId.identificationId}/identification/start`
-      : null;
+    return onlineId ? this.getOnlineIdUrl(onlineId.identificationId) : null;
   }
 
-  private async storeChatbotResult(userData: UserData): Promise<UserData> {
-    try {
-      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
-      if (spiderData) {
-        const chatBotResult = await this.kycApi.getDocument(
-          userData.id,
-          KycDocument.CHATBOT_ONBOARDING,
-          spiderData.version,
-          'export',
-        );
+  private async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
+    // get the version of the completed chatbot document
+    const versions = await this.kycApi.getDocumentVersions(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+    );
+    const completedVersion = versions.find((u) => u.state == KycDocumentState.COMPLETED)?.name;
 
-        // store chatbot result
-        spiderData.result = JSON.stringify(chatBotResult);
-        userData.spiderData = await this.spiderDataRepo.save(spiderData);
+    return this.kycApi.getDocument(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+      completedVersion,
+      this.defaultDocumentPart,
+    );
+  }
 
-        // update user data
-        const formItems = JSON.parse(chatBotResult?.attributes?.form)?.items;
-        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
-      }
-    } catch (e) {
-      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
-    }
+  // --- URLS --- //
+  getDocumentUrl(kycCustomerId: number, document: KycDocument, version: string): string {
+    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/${this.defaultDocumentPart}`;
+  }
 
-    return userData;
+  getOnlineIdUrl(identificationId: string): string {
+    return `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId}/identification/start`;
   }
 }

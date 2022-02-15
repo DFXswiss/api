@@ -186,8 +186,4 @@ export class CryptoInputService {
       await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
     }
   }
-
-  async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
-    return this.cryptoInputRepo.getAllStakingBalance(stakingIds, date);
-  }
 }

@@ -1,12 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { KycState, KycStatus, UserData } from './userData.entity';
-import { KycContentType, KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
+import { kycCompleted, KycState, KycStatus, UserData } from './userData.entity';
+import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { MailService } from 'src/shared/services/mail.service';
-import { KycApiService } from 'src/user/services/kyc/kyc-api.service';
 import { extractUserInfo, getUserInfo, User, UserInfo } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
@@ -26,8 +24,6 @@ export class UserDataService {
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
-    private readonly mailService: MailService,
-    private readonly kycApi: KycApiService,
     private readonly kycService: KycService,
   ) {}
 
@@ -152,29 +148,20 @@ export class UserDataService {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
 
-    const customer = await this.kycApi.getCustomer(userData.id);
-    if (!customer) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
+    userData.riskState = await this.kycService.checkCustomer(userData.id);
+    if (!userData.riskState) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
 
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
     await this.userDataRepo.save(userData);
 
     return userData.riskState;
   }
 
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry', 'userData.spiderData'],
-    });
-    const userData = user.userData;
-    const userInfo = getUserInfo(user);
+    const userData = await this.getUserDataForUser(userId);
     if (!userData) throw new NotFoundException(`No user data for user id ${userId}`);
 
     // create customer, if not existing
-    const kycData = await this.kycApi.getCustomer(userData.id);
-    if (!kycData) {
-      await this.kycService.updateCustomer(userData.id, userInfo);
-    }
+    await this.kycService.createCustomer(userData.id, userData.surname);
 
     const version = new Date().getTime().toString();
     return await this.kycService.uploadDocument(
@@ -182,14 +169,13 @@ export class UserDataService {
       false,
       kycDocument,
       version,
-      'content',
       document.originalname,
-      document.mimetype as KycContentType,
+      document.mimetype,
       document.buffer,
     );
   }
 
-  async requestKyc(userId: number, depositLimit?: string): Promise<KycResult> {
+  async requestKyc(userId: number): Promise<KycResult> {
     // get user data
     const user = await this.userRepo.findOne({
       where: { id: userId },
@@ -202,14 +188,16 @@ export class UserDataService {
     const verification = await this.verifyUser(userData);
     if (!verification.result) throw new BadRequestException('User data incomplete');
 
-    if (userData?.kycStatus === KycStatus.NA) {
-      userData = await this.startKyc(userData, userInfo);
-    } else if (userData?.kycStatus === KycStatus.COMPLETED || userData?.kycStatus === KycStatus.MANUAL) {
-      await this.mailService.sendKycLimitMail(userData, depositLimit);
-    } else {
-      userData = await this.checkKycProgress(userData);
+    // check if KYC already completed
+    if (kycCompleted(userData.kycStatus)) {
+      throw new BadRequestException('KYC already completed');
     }
 
+    // update
+    userData =
+      userData.kycStatus === KycStatus.NA
+        ? await this.startKyc(userData, userInfo)
+        : await this.checkKycProgress(userData);
     this.userDataRepo.save(userData);
 
     const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
@@ -222,10 +210,10 @@ export class UserDataService {
 
   private async startKyc(userData: UserData, userInfo: UserInfo): Promise<UserData> {
     // update customer
-    await this.kycService.updateCustomer(userData.id, userInfo);
+    await this.kycService.initializeCustomer(userData.id, userInfo);
 
     // do name check
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
+    userData.riskState = await this.kycService.checkCustomer(userData.id);
 
     // start KYC
     return await this.kycService.goToStatus(userData, KycStatus.CHATBOT);

@@ -10,7 +10,6 @@ import { AccountType } from './account-type.enum';
 export enum KycStatus {
   NA = 'NA',
   CHATBOT = 'Chatbot',
-  ADDRESS = 'Address',
   ONLINE_ID = 'OnlineId',
   VIDEO_ID = 'VideoId',
   MANUAL = 'Manual',
@@ -101,10 +100,7 @@ export class UserData extends IEntity {
   depositLimit: number;
 
   @Column({ type: 'integer', nullable: true })
-  contributionAmount: number;
-
-  @Column({ length: 256, nullable: true })
-  contributionCurrency: string;
+  contribution: number;
 
   @Column({ length: 256, nullable: true })
   plannedContribution: string;
@@ -127,4 +123,12 @@ export class UserData extends IEntity {
 
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
+}
+
+export function kycInProgress(kycStatus?: KycStatus): boolean {
+  return [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(kycStatus);
+}
+
+export function kycCompleted(kycStatus?: KycStatus): boolean {
+  return [KycStatus.MANUAL, KycStatus.COMPLETED].includes(kycStatus);
 }
