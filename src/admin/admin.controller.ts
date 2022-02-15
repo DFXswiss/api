@@ -16,11 +16,18 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
-    await Promise.all(
-      dtoList.map((m) =>
-        this.mailService.sendMail(m.to, m.salutation, m.subject, m.body, m.from, m.bcc, m.cc, m.displayName),
-      ),
-    );
+    for (const dto of dtoList) {
+      await this.mailService.sendMail(
+        dto.to,
+        dto.salutation,
+        dto.subject,
+        dto.body,
+        dto.from,
+        dto.bcc,
+        dto.cc,
+        dto.displayName,
+      );
+    }
   }
 
   @Get('db')
