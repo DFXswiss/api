@@ -189,6 +189,8 @@ export class CryptoInputService {
     const utxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === txId));
     if (utxo) {
       await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
+    } else {
+      console.error(`Could not retrieve UTXO: UTXO ${txId} not found`);
     }
   }
 }
