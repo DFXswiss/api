@@ -7,6 +7,7 @@ import { CryptoService } from 'src/ain/services/crypto.service';
 import { Config } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
+import { User } from '../user/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -22,8 +23,8 @@ export class AuthService {
       throw new BadRequestException('Invalid signature');
     }
 
-    await this.userService.createUser(dto, userIp);
-    return this.signIn(dto);
+    const user = await this.userService.createUser(dto, userIp);
+    return { accessToken: this.generateToken(user) };
   }
 
   async signIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
@@ -38,8 +39,7 @@ export class AuthService {
       await this.userRepo.update({ id: user.id }, { signature: signature });
     }
 
-    const payload: JwtPayload = { id: user.id, address: user.address, role: user.role };
-    return { accessToken: this.jwtService.sign(payload) };
+    return { accessToken: this.generateToken(user) };
   }
 
   getSignMessage(address: string): string {
@@ -49,5 +49,10 @@ export class AuthService {
   private verifySignature(address: string, signature: string): boolean {
     const signatureMessage = this.getSignMessage(address);
     return this.cryptoService.verifySignature(signatureMessage, address, signature);
+  }
+
+  private generateToken(user: User): string {
+    const payload: JwtPayload = { id: user.id, address: user.address, role: user.role };
+    return this.jwtService.sign(payload);
   }
 }
