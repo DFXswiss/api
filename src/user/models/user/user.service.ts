@@ -10,6 +10,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { IdentService } from '../ident/ident.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { WalletService } from '../wallet/wallet.service';
 
 @Injectable()
 export class UserService {
@@ -18,6 +19,7 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly fiatService: FiatService,
     private readonly identService: IdentService,
+    private readonly walletService: WalletService,
   ) {}
 
   async getAllUser(): Promise<any> {
@@ -36,7 +38,7 @@ export class UserService {
   }
 
   async createUser(dto: CreateUserDto, userIp: string): Promise<User> {
-    const user = await this.userRepo.createUser(dto, userIp);
+    const user = await this.userRepo.createUser(this.walletService, dto, userIp);
     await this.userDataService.createUserData(user);
 
     return user;

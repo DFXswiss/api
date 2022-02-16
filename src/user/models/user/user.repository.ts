@@ -1,19 +1,17 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { EntityRepository, Not, Repository, getManager } from 'typeorm';
+import { EntityRepository, Not, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserStatus } from './user.entity';
-import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
+import { WalletService } from '../wallet/wallet.service';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
-  userRepository: any;
-  async createUser(dto: CreateUserDto, userIp: string): Promise<User> {
+  async createUser(walletService: WalletService, dto: CreateUserDto, userIp: string): Promise<User> {
     const user = this.create(dto);
 
     // wallet
-    const walletRepo = getManager().getCustomRepository(WalletRepository);
-    user.wallet = (await walletRepo.getWallet(dto.walletId)) ?? walletRepo.getWallet(1);
+    user.wallet = (await walletService.getWallet(dto.walletId)) ?? (await walletService.getWallet(1));
     user.ip = userIp;
 
     const refVar = String((await this.find()).length + 1001).padStart(6, '0');

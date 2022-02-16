@@ -5,7 +5,6 @@ import { SharedModule } from 'src/shared/shared.module';
 import { UserDataController } from 'src/user/models/userData/userData.controller';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { UserDataService } from 'src/user/models/userData/userData.service';
-import { WalletController } from 'src/user/models/wallet/wallet.controller';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/user/models/wallet/wallet.service';
 import { AuthController } from './models/auth/auth.controller';
@@ -49,7 +48,6 @@ import { IdentService } from './models/ident/ident.service';
   controllers: [
     UserController,
     LogController,
-    WalletController,
     UserDataController,
     BankDataController,
     RefController,
