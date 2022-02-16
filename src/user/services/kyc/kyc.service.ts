@@ -4,8 +4,8 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { AccountType } from 'src/user/models/userData/userData.entity';
-import { KycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
+import { AccountType } from 'src/user/models/user-data/user-data.entity';
+import { KycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/user-data/user-data.entity';
 import {
   CreateResponse,
   Customer,

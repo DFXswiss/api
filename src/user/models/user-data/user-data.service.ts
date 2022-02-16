@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { UpdateUserDataDto } from './dto/update-userData.dto';
-import { UserDataRepository } from './userData.repository';
-import { KycInProgress, KycState, UserData } from './userData.entity';
+import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { UserDataRepository } from './user-data.repository';
+import { KycInProgress, KycState, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { User } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';

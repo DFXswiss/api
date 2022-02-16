@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { KycService } from 'src/user/services/kyc/kyc.service';
-import { KycCompleted } from '../userData/userData.entity';
-import { UserDataService } from '../userData/userData.service';
+import { KycCompleted } from '../user-data/user-data.entity';
+import { UserDataService } from '../user-data/user-data.service';
 import { LimitRequestDto } from './dto/limit-request.dto';
 import { LimitRequest } from './limit-request.entity';
 import { LimitRequestRepository } from './limit-request.repository';

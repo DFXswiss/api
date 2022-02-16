@@ -1,12 +1,12 @@
 import { BadRequestException, Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UpdateUserDataDto } from './dto/update-userData.dto';
+import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserDataService } from './userData.service';
-import { UserData } from './userData.entity';
-import { UserDataRepository } from './userData.repository';
+import { UserDataService } from './user-data.service';
+import { UserData } from './user-data.entity';
+import { UserDataRepository } from './user-data.repository';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
 import { IdentService } from '../ident/ident.service';

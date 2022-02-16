@@ -3,12 +3,12 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Log } from 'src/user/models/log/log.entity';
 import { Sell } from 'src/payment/models/sell/sell.entity';
-import { UserData } from 'src/user/models/userData/userData.entity';
+import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
 import { Entity, Column, OneToMany, ManyToOne } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { AccountType } from '../userData/userData.entity';
+import { AccountType } from '../user-data/user-data.entity';
 import { Staking } from '../../../payment/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
 

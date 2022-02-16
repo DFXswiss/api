@@ -6,8 +6,8 @@ import {
   KycState,
   KycStatus,
   UserData,
-} from 'src/user/models/userData/userData.entity';
-import { UserDataRepository } from 'src/user/models/userData/userData.repository';
+} from 'src/user/models/user-data/user-data.entity';
+import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { SettingService } from 'src/shared/setting/setting.service';

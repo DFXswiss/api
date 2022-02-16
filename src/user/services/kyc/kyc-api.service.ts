@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
-import { RiskState, UserData } from 'src/user/models/userData/userData.entity';
+import { RiskState, UserData } from 'src/user/models/user-data/user-data.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,

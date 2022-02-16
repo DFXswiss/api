@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsEnum, IsString, IsObject, ValidateIf } from 'class-validator';
 import { Country } from 'src/shared/models/country/country.entity';
-import { AccountType } from '../../userData/userData.entity';
+import { AccountType } from '../../user-data/user-data.entity';
 
 export class IdentUserDataDto {
   @ApiProperty()
