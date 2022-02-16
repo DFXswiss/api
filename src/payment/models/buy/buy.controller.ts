@@ -72,10 +72,15 @@ export class BuyController {
     };
   }
 
-  private async getStaking(userId: number, deposit?: Deposit, stakingRoutes?: Staking[]): Promise<StakingDto | undefined> {
+  private async getStaking(
+    userId: number,
+    deposit?: Deposit,
+    stakingRoutes?: Staking[],
+  ): Promise<StakingDto | undefined> {
     if (deposit == null) return undefined;
 
-    return this.stakingService.toDto(userId, 
+    return this.stakingService.toDto(
+      userId,
       stakingRoutes
         ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
         : await this.stakingRepo.findOne({ where: { deposit: deposit.id } }),
@@ -86,8 +91,8 @@ export class BuyController {
     const { annualVolume } = await this.buyService.getUserVolume(userId);
     const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
 
-    const refUser = await this.userService.getRefUser(userId);
-    const refBonus = annualVolume < 100000 ? 1 - (refUser?.refFeePercent ?? 1) : 0;
+    const refFee = await this.userService.getRefUserProvision(userId);
+    const refBonus = annualVolume < 100000 ? 1 - (refFee ?? 1) : 0;
 
     return {
       fee: baseFee - refBonus,

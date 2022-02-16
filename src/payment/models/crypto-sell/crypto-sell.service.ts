@@ -85,7 +85,7 @@ export class CryptoSellService {
     }
 
     if (cryptoSell.amlCheck === AmlCheck.PASS && cryptoSell.cryptoInput?.route?.user?.status === UserStatus.NA) {
-      await this.userService.updateStatus(cryptoSell.cryptoInput.route.user.id, UserStatus.ACTIVE);
+      await this.userService.updateUserInternal(cryptoSell.cryptoInput.route.user.id, { status: UserStatus.ACTIVE });
     }
 
     return cryptoSell;

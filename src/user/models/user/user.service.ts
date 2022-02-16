@@ -2,7 +2,6 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateRoleDto } from './dto/update-role.dto';
 import { UserDataService } from 'src/user/models/userData/userData.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
@@ -11,6 +10,7 @@ import { UserDetailDto } from './dto/user.dto';
 import { IdentService } from '../ident/ident.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
+import { Like, Not } from 'typeorm';
 
 @Injectable()
 export class UserService {
@@ -22,13 +22,9 @@ export class UserService {
     private readonly walletService: WalletService,
   ) {}
 
-  async getAllUser(): Promise<any> {
-    return this.userRepo.getAllUser();
-  }
-
   async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne(userId, { relations: ['userData', 'currency'] });
-    if (!user) throw new NotFoundException('No matching user for id found');
+    if (!user) throw new NotFoundException('No matching user found');
 
     return await this.toDto(user, detailed);
   }
@@ -38,40 +34,30 @@ export class UserService {
   }
 
   async createUser(dto: CreateUserDto, userIp: string): Promise<User> {
-    const user = await this.userRepo.createUser(this.walletService, dto, userIp);
+    let user = this.userRepo.create(dto);
+
+    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
+    user.ip = userIp;
+    user.ref = await this.getNextRef();
+    user.usedRef = await this.checkRef(user, dto.usedRef);
+
+    user = await this.userRepo.save(user);
     await this.userDataService.createUserData(user);
 
     return user;
-  }
-
-  async updateStatus(userId: number, status: UserStatus): Promise<void> {
-    const user = await this.userRepo.findOne({ id: userId });
-    if (!user) throw new NotFoundException('No matching user found');
-
-    user.status = status;
-    await this.userRepo.save(user);
   }
 
   async updateUser(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
     let user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('No matching user found');
 
-    // update ref
-    const refUser = await this.userRepo.findOne({ where: { ref: dto.usedRef }, relations: ['userData'] });
-    if (
-      user.ref == dto.usedRef ||
-      (dto.usedRef && !refUser) ||
-      dto.usedRef === null ||
-      user.userData.id === refUser?.userData.id
-    ) {
-      // invalid ref
-      dto.usedRef = '000-000';
-    }
+    // check used ref
+    dto.usedRef = await this.checkRef(user, dto.usedRef);
 
     // check currency
     if (dto.currency) {
       const currency = await this.fiatService.getFiat(dto.currency.id);
-      if (!currency) throw new NotFoundException('No currency for ID found');
+      if (!currency) throw new NotFoundException('No matching currency found');
     }
 
     // update
@@ -81,6 +67,59 @@ export class UserService {
     return await this.toDto(user, true);
   }
 
+  async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
+    const user = await this.userRepo.findOne(id);
+    if (!user) throw new NotFoundException('No matching user found');
+
+    return await this.userRepo.save({ ...user, ...update });
+  }
+
+  // --- REF --- //
+  async updateRefProvision(userId: number, provision: number): Promise<number> {
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new NotFoundException('No matching user found');
+
+    if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
+    await this.userRepo.update({ id: userId }, { refFeePercent: provision });
+    return provision;
+  }
+
+  async getRefUserProvision(userId: number): Promise<number | undefined> {
+    const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
+    return this.userRepo
+      .findOne({ select: ['id', 'ref', 'refFeePercent'], where: { ref: usedRef } })
+      .then((u) => u?.refFeePercent);
+  }
+
+  async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
+    await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
+  }
+
+  private async checkRef(user: User, usedRef: string): Promise<string> {
+    const refUser = await this.userRepo.findOne({ where: { ref: usedRef }, relations: ['userData'] });
+    return usedRef === null ||
+      usedRef === user.ref ||
+      (usedRef && !refUser) ||
+      user?.userData?.id === refUser?.userData?.id
+      ? '000-000'
+      : usedRef;
+  }
+
+  private async getNextRef(): Promise<string> {
+    // get highest numerical ref
+    const nextRef = await this.userRepo
+      .findOne({
+        select: ['id', 'ref'],
+        where: { ref: Like('%[0-9]-[0-9]%') },
+        order: { ref: 'DESC' },
+      })
+      .then((u) => +u.ref.replace('-', '') + 1);
+
+    const ref = nextRef.toString().padStart(6, '0');
+    return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
+  }
+
+  // --- DTO --- //
   private async toDto(user: User, detailed: boolean): Promise<UserDetailDto> {
     return {
       accountType: user.userData?.accountType,
@@ -99,8 +138,8 @@ export class UserService {
             refFeePercent: user.refFeePercent,
             refVolume: user.refVolume,
             refCredit: user.refCredit,
-            refCount: await this.userRepo.getRefCount(user.ref),
-            refCountActive: await this.userRepo.getRefCountActive(user.ref),
+            refCount: await this.userRepo.count({ usedRef: user.ref }),
+            refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
           }),
 
       kycStatus: user.userData?.kycStatus,
@@ -111,28 +150,7 @@ export class UserService {
     };
   }
 
-  async updateRole(user: UpdateRoleDto): Promise<any> {
-    return this.userRepo.updateRole(user);
-  }
-
-  async updateRefFee(userId: number, fee: number): Promise<number> {
-    const user = await this.userRepo.findOne(userId);
-    if (!user) throw new NotFoundException('No matching user found');
-
-    if (user.refFeePercent < fee) throw new BadRequestException('Ref fee can only be decreased');
-    await this.userRepo.update({ id: userId }, { refFeePercent: fee });
-    return fee;
-  }
-
-  async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
-    await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
-  }
-
-  async getRefUser(userId: number): Promise<User | undefined> {
-    const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
-    return this.userRepo.findOne({ ref: usedRef });
-  }
-
+  // --- CFP VOTES --- //
   async getCfpVotes(id: number): Promise<CfpVotes> {
     return this.userRepo
       .findOne({ id }, { select: ['id', 'cfpVotes'] })

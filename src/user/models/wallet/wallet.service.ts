@@ -6,8 +6,8 @@ import { Wallet } from './wallet.entity';
 export class WalletService {
   constructor(private walletRepo: WalletRepository) {}
 
-  async getWallet(id: number): Promise<Wallet> {
-    return this.walletRepo.findOne(id);
+  async getWalletOrDefault(id: number): Promise<Wallet> {
+    return (await this.walletRepo.findOne(id)) ?? (await this.walletRepo.findOne(1));
   }
 
   // TODO: remove?

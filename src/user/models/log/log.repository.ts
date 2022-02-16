@@ -36,7 +36,7 @@ export class LogRepository extends Repository<Log> {
       if (!createLogDto.user)
         createLogDto.user = await getManager()
           .getCustomRepository(UserRepository)
-          .getUserInternal(createLogDto.address);
+          .findOne({ address: createLogDto.address });
     } else if (createLogDto.user) {
       createLogDto.orderId = createLogDto.user.address + ':' + new Date().toISOString();
     } else {

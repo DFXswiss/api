@@ -137,7 +137,7 @@ export class LogService {
     createLogDto.orderId = createLogDto.address + ':' + new Date().toISOString();
 
     if (!createLogDto.user) {
-      const userObject = await this.userRepo.getUserInternal(createLogDto.address);
+      const userObject = await this.userRepo.findOne({ address: createLogDto.address });
 
       createLogDto.user = userObject;
       //createLogDto.message = userObject.usedRef;

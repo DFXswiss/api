@@ -8,7 +8,6 @@ import { Wallet } from 'src/user/models/wallet/wallet.entity';
 import { Entity, Column, OneToMany, ManyToOne } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { InternalServerErrorException } from '@nestjs/common';
 import { AccountType } from '../userData/account-type.enum';
 import { Staking } from '../../../payment/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
@@ -20,10 +19,50 @@ export enum UserStatus {
 
 @Entity()
 export class User extends IEntity {
-  @Column({ default: AccountType.PERSONAL, length: 256 })
-  accountType: AccountType;
+  @Column({ length: 256, unique: true })
+  address: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, unique: true })
+  signature: string;
+
+  @ManyToOne(() => Wallet)
+  wallet: Wallet;
+
+  @Column({ length: 256, default: '000-000' })
+  usedRef: string;
+
+  @ManyToOne(() => Fiat, { eager: true })
+  currency: Fiat;
+
+  @Column({ length: 256, default: UserRole.USER })
+  role: UserRole;
+
+  @Column({ length: 256, default: UserStatus.NA })
+  status: UserStatus;
+
+  @Column({ length: 256, default: '0.0.0.0' })
+  ip: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  cfpVotes: string;
+
+  @OneToMany(() => Buy, (buy) => buy.user)
+  buys: Buy[];
+
+  @OneToMany(() => Sell, (sell) => sell.user)
+  sells: Sell[];
+
+  @OneToMany(() => Staking, (staking) => staking.user)
+  stakingRoutes: Staking[];
+
+  @ManyToOne(() => UserData)
+  userData: UserData;
+
+  @OneToMany(() => Log, (logs) => logs.user)
+  logs: Log[];
+
+  // --- REF --- //
+  @Column({ length: 256, unique: true })
   ref: string;
 
   @Column({ type: 'float', default: 0.5 })
@@ -35,20 +74,18 @@ export class User extends IEntity {
   @Column({ type: 'float', default: 0 })
   refCredit: number;
 
-  @Column({ length: 256, unique: true })
-  address: string;
-
-  @Column({ unique: true, length: 256 })
-  signature: string;
-
-  @ManyToOne(() => Wallet)
-  wallet: Wallet;
-
-  @Column({ default: '000-000', length: 256 })
-  usedRef: string;
+  // --- TO REMOVE --- //
+  @Column({ default: AccountType.PERSONAL, length: 256 })
+  accountType: AccountType;
 
   @Column({ length: 256, nullable: true })
   mail: string;
+
+  @Column({ length: 256, nullable: true })
+  phone: string;
+
+  @ManyToOne(() => Language, { eager: true })
+  language: Language;
 
   @Column({ length: 256, nullable: true })
   firstname: string;
@@ -88,40 +125,4 @@ export class User extends IEntity {
 
   @ManyToOne(() => Country, { eager: true })
   organizationCountry: Country;
-
-  @ManyToOne(() => Fiat, { eager: true })
-  currency: Fiat;
-
-  @Column({ length: 256, nullable: true })
-  phone: string;
-
-  @ManyToOne(() => Language, { eager: true })
-  language: Language;
-
-  @Column({ default: UserRole.USER, length: 256 })
-  role: UserRole;
-
-  @Column({ default: UserStatus.NA, length: 256 })
-  status: UserStatus;
-
-  @Column({ default: '0.0.0.0', length: 256 })
-  ip: string;
-
-  @Column({ length: 'MAX', nullable: true })
-  cfpVotes: string;
-
-  @OneToMany(() => Buy, (buy) => buy.user)
-  buys: Buy[];
-
-  @OneToMany(() => Sell, (sell) => sell.user)
-  sells: Sell[];
-
-  @OneToMany(() => Staking, (staking) => staking.user)
-  stakingRoutes: Staking[];
-
-  @ManyToOne(() => UserData)
-  userData: UserData;
-
-  @OneToMany(() => Log, (logs) => logs.user)
-  logs: Log[];
 }
