@@ -3,7 +3,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { BuyService } from '../../../payment/models/buy/buy.service';
 import { BuyController } from './buy.controller';
 import { UserService } from 'src/user/models/user/user.service';
-import { User } from 'src/user/models/user/user.entity';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
@@ -16,9 +15,9 @@ describe('BuyController', () => {
   let stakingRepo: StakingRepository;
   let stakingService: StakingService;
 
-  function setup(volume: number, refUser?: Partial<User>) {
+  function setup(volume: number, refProvision?: number) {
     jest.spyOn(buyService, 'getUserVolume').mockResolvedValueOnce({ volume: 0, annualVolume: volume });
-    jest.spyOn(userService, 'getRefUser').mockResolvedValueOnce(refUser as User);
+    jest.spyOn(userService, 'getRefUserProvision').mockResolvedValueOnce(refProvision);
   }
 
   beforeEach(async () => {
@@ -53,13 +52,13 @@ describe('BuyController', () => {
   });
 
   it('should return 0.5% bonus from ref user', async () => {
-    setup(0, { refFeePercent: 0.5 });
+    setup(0, 0.5);
 
     await expect(controller.getFees(1)).resolves.toStrictEqual({ fee: 2.4, refBonus: 0.5 });
   });
 
   it('should return 0.9% bonus from ref user', async () => {
-    setup(0, { refFeePercent: 0.1 });
+    setup(0, 0.1);
 
     await expect(controller.getFees(1)).resolves.toStrictEqual({ fee: 2.0, refBonus: 0.9 });
   });
@@ -72,7 +71,7 @@ describe('BuyController', () => {
   });
 
   it('should return 1.75 when volume = 5000 and ref user', async () => {
-    setup(5000, { refFeePercent: 0.1 });
+    setup(5000, 0.1);
 
     await expect(controller.getFees(1)).resolves.toStrictEqual({ fee: 1.75, refBonus: 0.9 });
   });
@@ -91,7 +90,7 @@ describe('BuyController', () => {
   });
 
   it('should return 1.4 and no bonus when volume > 100000 and ref user', async () => {
-    setup(100000, { refFeePercent: 0.5 });
+    setup(100000, 0.5);
 
     await expect(controller.getFees(1)).resolves.toStrictEqual({ fee: 1.4, refBonus: 0 });
   });

@@ -4,7 +4,7 @@ import { Util } from 'src/shared/util';
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
-import { AccountType } from '../user-data/user-data.entity';
+import { AccountType } from '../user-data/account-type.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import { IdentUserDataDto } from './dto/ident-user-data.dto';

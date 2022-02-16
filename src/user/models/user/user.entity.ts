@@ -8,9 +8,9 @@ import { Wallet } from 'src/user/models/wallet/wallet.entity';
 import { Entity, Column, OneToMany, ManyToOne } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { AccountType } from '../user-data/user-data.entity';
 import { Staking } from '../../../payment/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { AccountType } from '../user-data/account-type.enum';
 
 export enum UserStatus {
   NA = 'NA',

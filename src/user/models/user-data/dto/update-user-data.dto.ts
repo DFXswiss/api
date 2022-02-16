@@ -1,5 +1,6 @@
 import { IsOptional, IsInt, IsEnum, IsEmail, IsString } from 'class-validator';
-import { AccountType, KycState, KycStatus } from '../user-data.entity';
+import { AccountType } from '../account-type.enum';
+import { KycState, KycStatus } from '../user-data.entity';
 
 export class UpdateUserDataDto {
   @IsOptional()

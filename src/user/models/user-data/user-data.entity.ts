@@ -5,12 +5,7 @@ import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
-
-export enum AccountType {
-  PERSONAL = 'Personal',
-  BUSINESS = 'Business',
-  SOLE_PROPRIETORSHIP = 'SoleProprietorship',
-}
+import { AccountType } from './account-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
