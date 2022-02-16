@@ -207,7 +207,7 @@ export class StakingService {
 
   private async getAsset(assetId?: number): Promise<Asset | null> {
     const asset: Asset = await this.assetService.getAsset(assetId);
-    return asset && asset.buyable ? asset : await this.assetService.getAsset('DFI');
+    return asset && asset.buyable ? asset : await this.assetService.getAssetByDexName('DFI');
   }
 
   // --- BALANCE --- //

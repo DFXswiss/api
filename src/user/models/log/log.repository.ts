@@ -22,7 +22,7 @@ export class LogRepository extends Repository<Log> {
     }
 
     if (createLogDto.asset) {
-      assetObject = await assetService.getAsset(createLogDto.asset);
+      assetObject = await assetService.getAssetOld(createLogDto.asset);
     } else {
       delete createLogDto.asset;
     }

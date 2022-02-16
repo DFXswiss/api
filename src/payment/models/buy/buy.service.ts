@@ -52,7 +52,7 @@ export class BuyService {
     const asset =
       dto.type === BuyType.WALLET
         ? await this.assetService.getAsset(dto.asset.id)
-        : await this.assetService.getAsset('DFI');
+        : await this.assetService.getAssetByDexName('DFI');
     if (!asset) throw new NotFoundException('No asset for id found');
 
     // check staking

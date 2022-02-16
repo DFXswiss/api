@@ -108,11 +108,11 @@ export class LogService {
     }
 
     if (createLogDto.asset) {
-      assetObject = await this.assetService.getAsset(createLogDto.asset);
+      assetObject = await this.assetService.getAssetOld(createLogDto.asset);
     }
 
     if (assetObject.name != 'DFI') {
-      assetObject = await this.assetService.getAsset('DFI');
+      assetObject = await this.assetService.getAssetByDexName('DFI');
 
       const result = await this.http.get(`${this.baseUrl}`);
       const resultArray = result['prices'];
