@@ -7,14 +7,14 @@ import { UserRepository } from 'src/user/models/user/user.repository';
 import { AccountType } from 'src/user/models/userData/account-type.enum';
 import { kycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
 import {
+  CreateResponse,
+  Customer,
   KycDocument,
   KycContentType,
   KycDocumentState,
-  InitiateResponse,
-  DocumentVersion,
   KycDocuments,
-  Customer,
-  CreateResponse,
+  DocumentVersion,
+  InitiateResponse,
   ChatbotResult,
 } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
@@ -104,8 +104,7 @@ export class KycService {
           user.accountType === AccountType.SOLE_PROPRIETORSHIP
             ? 'AdditionalOrganisationInformation'
             : 'AdditionalLegalEntityInformation',
-        organisationType:
-          user.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
+        organisationType: user.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
         bearerShares: 'NO',
       };
@@ -313,6 +312,6 @@ export class KycService {
   }
 
   getOnlineIdUrl(identificationId: string): string {
-    return `https://go.${Config.kyc.kycPrefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
+    return `https://go.${Config.kyc.prefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
   }
 }
