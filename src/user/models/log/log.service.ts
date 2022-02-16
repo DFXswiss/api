@@ -168,7 +168,7 @@ export class LogService {
   async getRefVolume(ref: string, fiat: string): Promise<any> {
     const logsWithoutEur = await this.logRepository.find({ where: { usedRef: ref, fiat: Not(2) } });
     const logsEur = await this.logRepository.find({ where: { usedRef: ref, fiat: 2 } });
-    const volumeWithoutEur = await this.conversionService.convertFiatCurrency(
+    const volumeWithoutEur = await this.conversionService.convertFiat(
       await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
       'chf',
       fiat,
