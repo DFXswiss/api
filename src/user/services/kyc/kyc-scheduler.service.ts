@@ -38,7 +38,7 @@ export class KycSchedulerService {
         await this.syncKycUser(user.id);
       } catch (e) {
         console.error('Exception during KYC check:', e);
-        await this.mailService.sendErrorMail('KYC Error', [e]);
+        // await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }
@@ -63,7 +63,7 @@ export class KycSchedulerService {
           await this.syncKycUser(userDataId);
         } catch (e) {
           console.error('Exception during KYC sync:', e);
-          await this.mailService.sendErrorMail('KYC Error', [e]);
+          // await this.mailService.sendErrorMail('KYC Error', [e]);
         }
       }
 
