@@ -5,25 +5,26 @@ import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
+import { BankData } from './bank-data.entity';
 
 @ApiTags('bankData')
 @Controller('bankData')
 export class BankDataController {
   constructor(private readonly bankDataService: BankDataService) {}
 
-  @Delete(':id')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async deleteBankData(@Param('id') id: number): Promise<any> {
-    return await this.bankDataService.deleteBankData(+id);
-  }
-
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateBankData(@Param('id') id: number, @Body() bankDataDto: BankDataDto): Promise<any> {
-    return await this.bankDataService.updateBankData(+id, bankDataDto);
+  async updateBankData(@Param('id') id: string, @Body() dto: BankDataDto): Promise<BankData> {
+    return await this.bankDataService.updateBankData(+id, dto);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async deleteBankData(@Param('id') id: string): Promise<void> {
+    return await this.bankDataService.deleteBankData(+id);
   }
 }
