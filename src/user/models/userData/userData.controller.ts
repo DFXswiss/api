@@ -28,7 +28,7 @@ export class UserDataController {
   async getAllUserData(): Promise<UserData[]> {
     return this.userDataService.getAllUserData();
   }
-
+  
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -51,14 +51,6 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async addBankData(@Param('id') id: number, @Body() bankData: BankDataDto): Promise<UserData> {
     return this.bankDataService.addBankData(id, bankData);
-  }
-
-  @Get(':name/:location')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUserDataExtends(@Param('name') name: string, @Param('location') location: string): Promise<UserData> {
-    return this.userDataService.getUserData(name, location);
   }
 
   @Put(':id/merge')
