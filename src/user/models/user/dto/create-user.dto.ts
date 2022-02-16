@@ -1,12 +1,14 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 
 export class CreateUserDto {
+  @ApiProperty()
   @IsNotEmpty()
-  @Matches(/^(8\w{33}|d\w{33}|d\w{41})$/)
   @IsString()
+  @Matches(/^(8\w{33}|d\w{33}|d\w{41})$/)
   address: string;
 
+  @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Matches(/^.{87}=$/)
