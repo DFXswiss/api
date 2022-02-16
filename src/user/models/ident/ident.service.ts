@@ -4,7 +4,6 @@ import { Util } from 'src/shared/util';
 import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
-import { In, IsNull } from 'typeorm';
 import { AccountType } from '../userData/account-type.enum';
 import { UserDataRepository } from '../userData/userData.repository';
 import { UserDataService } from '../userData/userData.service';
@@ -23,20 +22,7 @@ export class IdentService {
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly countryService: CountryService,
-  ) {
-    this.createHashes().then();
-  }
-
-  // TODO: remove after successful creation
-  private async createHashes(): Promise<void> {
-    const users = await this.userDataRepo.find({
-      where: { kycStatus: In([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID]), kycHash: IsNull() },
-    });
-    for (const user of users) {
-      user.kycHash = Util.createHash(user.id.toString() + new Date().toISOString).slice(0, 12);
-    }
-    await this.userDataRepo.save(users);
-  }
+  ) {}
 
   // --- NAME CHECK --- //
   async doNameCheck(userDataId: number): Promise<string> {
