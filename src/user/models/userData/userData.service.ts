@@ -20,12 +20,6 @@ export class UserDataService {
     private readonly kycService: KycService,
   ) {}
 
-  async getUserData(name: string, location: string): Promise<UserData> {
-    const bankData = await this.bankDataRepo.findOne({ where: { name, location }, relations: ['userData'] });
-    if (!bankData) throw new NotFoundException(`No user data for name ${name} and location ${location}`);
-    return bankData.userData;
-  }
-
   async createUserData(user: User): Promise<UserData> {
     return await this.userDataRepo.save({ users: [user] });
   }
