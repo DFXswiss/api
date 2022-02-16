@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
@@ -308,6 +309,6 @@ export class KycService {
   }
 
   getOnlineIdUrl(identificationId: string): string {
-    return `https://go.online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
+    return `https://go.${Config.kyc.kycPrefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
   }
 }
