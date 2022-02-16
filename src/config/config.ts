@@ -65,7 +65,7 @@ export class Configuration {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
-    kycPrefix: process.env.KYC_PREFIX,
+    prefix: process.env.KYC_PREFIX ?? '',
     chatbotStyle: {
       headerColor: this.colors.white,
       textColor: this.colors.white,

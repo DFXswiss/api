@@ -314,6 +314,6 @@ export class KycService {
   }
 
   getOnlineIdUrl(identificationId: string): string {
-    return `https://go.${Config.kyc.kycPrefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
+    return `https://go.${Config.kyc.prefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
   }
 }
