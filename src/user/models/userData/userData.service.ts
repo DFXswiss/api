@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
 import { kycInProgress, KycState, UserData } from './userData.entity';
@@ -26,18 +26,18 @@ export class UserDataService {
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     let userData = await this.userDataRepo.findOne(userDataId);
-    if (!userData) throw new NotFoundException('No user for id found');
+    if (!userData) throw new NotFoundException('User data not found');
 
     userData = await this.updateUserSettings(userData, dto);
 
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
-      if (!userData.country) throw new NotFoundException('No country for ID found');
+      if (!userData.country) throw new BadRequestException('Country not found');
     }
 
     if (dto.organizationCountryId) {
       userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
-      if (!userData.organizationCountry) throw new NotFoundException('No country for ID found');
+      if (!userData.organizationCountry) throw new BadRequestException('Country not found');
     }
 
     if (dto.kycStatus && !dto.kycState) {
@@ -46,7 +46,7 @@ export class UserDataService {
 
     if (dto.mainBankDataId) {
       userData.mainBankData = await this.bankDataRepo.findOne(dto.mainBankDataId);
-      if (!userData.mainBankData) throw new NotFoundException(`No bank data for id ${dto.mainBankDataId} found`);
+      if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
     }
 
     if (dto.kycFileId) {
@@ -63,7 +63,7 @@ export class UserDataService {
     // check language
     if (dto.language) {
       const language = await this.languageService.getLanguage(dto.language.id);
-      if (!language) throw new NotFoundException('No language for ID found');
+      if (!language) throw new BadRequestException('Language not found');
     }
 
     // update spider

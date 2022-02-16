@@ -46,7 +46,7 @@ export class StakingService {
 
   async getStaking(id: number, userId: number): Promise<Staking> {
     const staking = await this.stakingRepo.findOne({ where: { id, user: { id: userId } } });
-    if (!staking) throw new NotFoundException('No matching staking route for id found');
+    if (!staking) throw new NotFoundException('Staking route not found');
 
     return staking;
   }
@@ -74,7 +74,7 @@ export class StakingService {
 
   async updateStaking(userId: number, dto: UpdateStakingDto): Promise<Staking> {
     const staking = await this.stakingRepo.findOne({ id: dto.id, user: { id: userId } });
-    if (!staking) throw new NotFoundException('No matching entry found');
+    if (!staking) throw new NotFoundException('Staking route not found');
 
     const update = await this.createEntity(userId, dto, staking);
     return await this.stakingRepo.save(update);

@@ -69,7 +69,7 @@ export class UserDataController {
   async requestKyc(@Param('id') id: number): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
     const user = userData.users[0];
-    if (!user) throw new BadRequestException('UserData has no user');
+    if (!user) throw new BadRequestException('User not found');
 
     return this.identService.requestKyc(user.id);
   }

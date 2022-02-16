@@ -38,7 +38,7 @@ export class CryptoSellService {
 
   async update(id: number, dto: UpdateCryptoSellDto): Promise<CryptoSell> {
     let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput', 'cryptoInput.route'] });
-    if (!entity) throw new NotFoundException('No matching entry found');
+    if (!entity) throw new NotFoundException('Crypto sell not found');
 
     const cryptoInputWithOtherSell = dto.cryptoInputId
       ? await this.cryptoSellRepo.findOne({
@@ -70,7 +70,7 @@ export class CryptoSellService {
     // bank tx
     if (dto.bankTxId) {
       cryptoSell.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-      if (!cryptoSell.bankTx) throw new NotFoundException('No bank TX for ID found');
+      if (!cryptoSell.bankTx) throw new BadRequestException('Bank TX not found');
     }
 
     // crypto input
@@ -79,7 +79,7 @@ export class CryptoSellService {
         { id: dto.cryptoInputId },
         { relations: ['route', 'route.user'] },
       );
-      if (!cryptoSell.cryptoInput) throw new NotFoundException('No crypto input for ID found');
+      if (!cryptoSell.cryptoInput) throw new BadRequestException('Crypto input not found');
       if (cryptoSell.cryptoInput.route.type !== RouteType.SELL)
         throw new BadRequestException('Crypto input is not a sell input');
     }

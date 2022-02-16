@@ -16,14 +16,14 @@ export class BankDataService {
 
   async addBankData(userDataId: number, dto: BankDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
-    if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
+    if (!userData) throw new NotFoundException('User data not found');
 
     const bankDataCheck = await this.bankDataRepo.findOne({
       iban: dto.iban,
       location: dto.location ?? null,
       name: dto.name,
     });
-    if (bankDataCheck) throw new ConflictException('Bank data with duplicate key');
+    if (bankDataCheck) throw new ConflictException('Bank data already exists');
 
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
@@ -37,7 +37,7 @@ export class BankDataService {
 
   async updateBankData(id: number, dto: BankDataDto): Promise<BankData> {
     const bankData = await this.bankDataRepo.findOne({ id });
-    if (!bankData) throw new NotFoundException('No matching bank data for ID found');
+    if (!bankData) throw new NotFoundException('Bank data not found');
 
     return this.bankDataRepo.save({ ...bankData, ...dto });
   }

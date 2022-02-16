@@ -156,7 +156,7 @@ export class CfpService {
     }
 
     const results = CfpResults[cfpId];
-    if (!results) throw new NotFoundException('No CFP result for id found');
+    if (!results) throw new NotFoundException('CFP not found');
 
     return results;
   }

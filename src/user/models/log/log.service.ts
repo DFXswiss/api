@@ -44,7 +44,7 @@ export class LogService {
         .getRawOne();
     }
 
-    if (existingLog) throw new ConflictException('Log already existing - duplicate log');
+    if (existingLog) throw new ConflictException('Log already exists');
 
     if (createLogDto.type === LogType.TRANSACTION && !createLogDto.status) {
       if (!createLogDto.user && createLogDto.address) {
@@ -99,7 +99,7 @@ export class LogService {
         .getRawOne();
     }
 
-    if (existingLog) throw new ConflictException('Log already existing - duplicate log');
+    if (existingLog) throw new ConflictException('Log already exists');
 
     if (createLogDto.fiat) {
       fiatObject = await this.fiatService.getFiatOld(createLogDto.fiat);

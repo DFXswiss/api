@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateBuyDto } from 'src/payment/models/buy/dto/create-buy.dto';
 import { BuyRepository } from 'src/payment/models/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
@@ -53,11 +53,11 @@ export class BuyService {
       dto.type === BuyType.WALLET
         ? await this.assetService.getAsset(dto.asset.id)
         : await this.assetService.getAssetByDexName('DFI');
-    if (!asset) throw new NotFoundException('No asset for id found');
+    if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking
     const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.type === BuyType.STAKING && !staking) throw new NotFoundException('No staking for id found');
+    if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
@@ -93,7 +93,7 @@ export class BuyService {
 
   async updateBuy(userId: number, dto: UpdateBuyDto): Promise<Buy> {
     const buy = await this.buyRepo.findOne({ id: dto.id, user: { id: userId } });
-    if (!buy) throw new NotFoundException('No matching entry found');
+    if (!buy) throw new NotFoundException('Buy route not found');
 
     return await this.buyRepo.save({ ...buy, ...dto });
   }

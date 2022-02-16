@@ -264,7 +264,7 @@ export class KycService {
     const locator = initiateData.locators?.[0];
     if (!locator) {
       console.error(`Failed to initiate identification. Initiate result:`, initiateData);
-      throw new ServiceUnavailableException('Failed to initiate identification');
+      throw new ServiceUnavailableException('Identification initiation failed');
     }
 
     spiderData.url =

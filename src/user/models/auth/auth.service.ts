@@ -31,7 +31,7 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
 
     const credentialsValid = this.verifySignature(address, signature);
-    if (!credentialsValid) throw new UnauthorizedException('Invalid Credentials');
+    if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
     if (user.signature.length !== 88) {

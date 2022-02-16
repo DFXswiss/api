@@ -24,7 +24,7 @@ export class UserService {
 
   async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne(userId, { relations: ['userData', 'currency'] });
-    if (!user) throw new NotFoundException('No matching user found');
+    if (!user) throw new NotFoundException('User not found');
 
     return await this.toDto(user, detailed);
   }
@@ -49,7 +49,7 @@ export class UserService {
 
   async updateUser(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
     let user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
-    if (!user) throw new NotFoundException('No matching user found');
+    if (!user) throw new NotFoundException('User not found');
 
     // check used ref
     dto.usedRef = await this.checkRef(user, dto.usedRef);
@@ -57,7 +57,7 @@ export class UserService {
     // check currency
     if (dto.currency) {
       const currency = await this.fiatService.getFiat(dto.currency.id);
-      if (!currency) throw new NotFoundException('No matching currency found');
+      if (!currency) throw new BadRequestException('Currency not found');
     }
 
     // update
@@ -69,7 +69,7 @@ export class UserService {
 
   async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
     const user = await this.userRepo.findOne(id);
-    if (!user) throw new NotFoundException('No matching user found');
+    if (!user) throw new NotFoundException('User not found');
 
     return await this.userRepo.save({ ...user, ...update });
   }
@@ -77,7 +77,7 @@ export class UserService {
   // --- REF --- //
   async updateRefProvision(userId: number, provision: number): Promise<number> {
     const user = await this.userRepo.findOne(userId);
-    if (!user) throw new NotFoundException('No matching user found');
+    if (!user) throw new NotFoundException('User not found');
 
     if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
     await this.userRepo.update({ id: userId }, { refFeePercent: provision });

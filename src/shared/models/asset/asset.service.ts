@@ -31,7 +31,7 @@ export class AssetService {
 
         if (asset) return asset;
 
-        throw new NotFoundException('No matching asset found');
+        throw new NotFoundException('Asset not found');
       }
     } else if (!isNaN(key)) {
       const asset = await this.assetRepo.findOne({ id: key });
@@ -42,21 +42,21 @@ export class AssetService {
 
       if (asset) return asset;
 
-      throw new NotFoundException('No matching asset found');
+      throw new NotFoundException('Asset not found');
     } else if (key.id) {
       const asset = await this.assetRepo.findOne({ id: key.id });
 
       if (asset) return asset;
 
-      throw new NotFoundException('No matching asset found');
+      throw new NotFoundException('Asset not found');
     } else if (key.name) {
       const asset = await this.assetRepo.findOne({ name: key.name });
 
       if (asset) return asset;
 
-      throw new NotFoundException('No matching asset found');
+      throw new NotFoundException('Asset not found');
     }
 
-    throw new BadRequestException('key must be number or string or JSON-Object');
+    throw new BadRequestException('Key must be number or string or JSON-Object');
   }
 }

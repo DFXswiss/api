@@ -28,7 +28,7 @@ export class RefService {
 
   async get(ip: string): Promise<string> {
     const ref = await this.refRepository.getAndRemove(ip);
-    if (!ref) throw new NotFoundException('No matching ref for ip found');
+    if (!ref) throw new NotFoundException('Ref not found');
 
     return ref.ref;
   }

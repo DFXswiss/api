@@ -40,7 +40,7 @@ export class SellService {
 
     // check fiat
     const fiat = await this.fiatService.getFiat(dto.fiat.id);
-    if (!fiat) throw new NotFoundException('No fiat for id found');
+    if (!fiat) throw new BadRequestException('Fiat not found');
 
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
@@ -59,7 +59,7 @@ export class SellService {
 
   async updateSell(userId: number, dto: UpdateSellDto): Promise<Sell> {
     const sell = await this.sellRepo.findOne({ id: dto.id, user: { id: userId } });
-    if (!sell) throw new NotFoundException('No matching entry found');
+    if (!sell) throw new NotFoundException('Sell route not found');
 
     return await this.sellRepo.save({ ...sell, ...dto });
   }

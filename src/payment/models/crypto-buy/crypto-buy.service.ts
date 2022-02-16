@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
@@ -37,7 +37,7 @@ export class CryptoBuyService {
 
   async update(id: number, dto: UpdateCryptoBuyDto): Promise<CryptoBuy> {
     let entity = await this.cryptoBuyRepo.findOne(id, { relations: ['buy'] });
-    if (!entity) throw new NotFoundException('No matching entry found');
+    if (!entity) throw new NotFoundException('Crypto buy not found');
 
     const bankTxWithOtherBuy = dto.bankTxId
       ? await this.cryptoBuyRepo.findOne({ id: Not(id), bankTx: { id: dto.bankTxId } })
@@ -77,19 +77,19 @@ export class CryptoBuyService {
     // bank tx
     if (dto.bankTxId) {
       cryptoBuy.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-      if (!cryptoBuy.bankTx) throw new NotFoundException('No bank TX for ID found');
+      if (!cryptoBuy.bankTx) throw new BadRequestException('Bank TX not found');
     }
 
     // buy
     if (dto.buyId) {
       cryptoBuy.buy = await this.buyRepo.findOne({ where: { id: dto.buyId }, relations: ['user'] });
-      if (!cryptoBuy.buy) throw new NotFoundException('No buy for ID found');
+      if (!cryptoBuy.buy) throw new BadRequestException('Buy route not found');
     }
 
     // fiat
     if (dto.currency) {
       cryptoBuy.fiat = await this.fiatService.getFiatByName(dto.currency);
-      if (!cryptoBuy.fiat) throw new NotFoundException('No fiat for ID found');
+      if (!cryptoBuy.fiat) throw new BadRequestException('Fiat not found');
     }
 
     if (cryptoBuy.amlCheck === AmlCheck.PASS && cryptoBuy.buy?.user?.status === UserStatus.NA) {

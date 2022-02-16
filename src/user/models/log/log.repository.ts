@@ -117,7 +117,7 @@ export class LogRepository extends Repository<Log> {
 
       if (log) return log;
 
-      throw new NotFoundException('No matching log for id found');
+      throw new NotFoundException('Log not found');
     }
   }
 
@@ -133,7 +133,7 @@ export class LogRepository extends Repository<Log> {
   async updateLog(updatedLog: UpdateLogDto): Promise<any> {
     try {
       const log = await this.findOne({ id: updatedLog.id });
-      if (!log) throw new NotFoundException('No matching user for id found');
+      if (!log) throw new NotFoundException('Log not found');
 
       return Object.assign(log, await this.save(updatedLog));
     } catch (error) {

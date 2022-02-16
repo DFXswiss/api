@@ -27,10 +27,10 @@ export class IdentService {
   // --- NAME CHECK --- //
   async doNameCheck(userDataId: number): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
-    if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
+    if (!userData) throw new NotFoundException('User data not found');
 
     userData.riskState = await this.kycService.checkCustomer(userData.id);
-    if (!userData.riskState) throw new NotFoundException(`User with id ${userDataId} is not in spider`);
+    if (!userData.riskState) throw new BadRequestException('User is not in Spider');
 
     await this.userDataRepo.save(userData);
 
@@ -40,7 +40,7 @@ export class IdentService {
   // --- KYC --- //
   async updateIdentData(userId: number, data: IdentUserDataDto): Promise<void> {
     const user = await this.userDataService.getUserDataForUser(userId);
-    if (!user) throw new NotFoundException(`No user data for user ID`);
+    if (!user) throw new NotFoundException(`User data not found`);
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
@@ -48,7 +48,7 @@ export class IdentService {
       this.countryService.getCountry(data.organizationCountry?.id),
     ]);
     if (!country || (data.accountType !== AccountType.PERSONAL && !organizationCountry))
-      throw new BadRequestException('No country for ID found');
+      throw new BadRequestException('Country not found');
 
     if (data.accountType === AccountType.PERSONAL) {
       data.organizationName = null;
@@ -95,7 +95,7 @@ export class IdentService {
 
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
     const userData = await this.userDataService.getUserDataForUser(userId);
-    if (!userData) throw new NotFoundException(`No user data for user id`);
+    if (!userData) throw new NotFoundException(`User data not found`);
 
     // create customer, if not existing
     await this.kycService.createCustomer(userData.id, userData.surname);
@@ -145,7 +145,7 @@ export class IdentService {
 
   async getKycProgress(kycHash: string): Promise<KycResult> {
     let userData = await this.userDataRepo.findOne({ where: { kycHash }, relations: ['spiderData'] });
-    if (!userData) throw new NotFoundException('Invalid KYC hash');
+    if (!userData) throw new NotFoundException('User not found');
 
     if (!kycInProgress(userData.kycStatus)) throw new BadRequestException('KYC not in progress');
 
