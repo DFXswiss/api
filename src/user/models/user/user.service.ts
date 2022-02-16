@@ -9,6 +9,7 @@ import { Util } from 'src/shared/util';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { IdentService } from '../ident/ident.service';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UserService {
@@ -19,11 +20,26 @@ export class UserService {
     private readonly identService: IdentService,
   ) {}
 
+  async getAllUser(): Promise<any> {
+    return this.userRepo.getAllUser();
+  }
+
   async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne(userId, { relations: ['userData', 'currency'] });
     if (!user) throw new NotFoundException('No matching user for id found');
 
     return await this.toDto(user, detailed);
+  }
+
+  async getUserByAddress(address: string): Promise<User> {
+    return this.userRepo.findOne({ address });
+  }
+
+  async createUser(dto: CreateUserDto, userIp: string): Promise<User> {
+    const user = await this.userRepo.createUser(dto, userIp);
+    await this.userDataService.createUserData(user);
+
+    return user;
   }
 
   async updateStatus(userId: number, status: UserStatus): Promise<void> {
@@ -91,10 +107,6 @@ export class UserService {
       depositLimit: user.userData?.depositLimit,
       identDataComplete: this.identService.isDataComplete(user.userData),
     };
-  }
-
-  async getAllUser(): Promise<any> {
-    return this.userRepo.getAllUser();
   }
 
   async updateRole(user: UpdateRoleDto): Promise<any> {

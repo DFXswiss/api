@@ -10,14 +10,14 @@ import { RealIP } from 'nestjs-real-ip';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post('/signup')
-  signUp(@Body() createUserDto: CreateUserDto, @RealIP() ip: string): Promise<void> {
-    return this.authService.signUp(createUserDto, ip);
+  @Post('signUp')
+  signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<{ accessToken: string }> {
+    return this.authService.signUp(dto, ip);
   }
 
-  @Post('/signin')
-  signIn(@Body() authCredentialsDto: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    return this.authService.signIn(authCredentialsDto);
+  @Post('signIn')
+  signIn(@Body() credentials: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    return this.authService.signIn(credentials);
   }
 
   @Get('signMessage')

@@ -16,7 +16,7 @@ export class MailService {
     [KycStatus.VIDEO_ID]: 'Video ID',
   };
 
-  constructor(private mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService) {}
 
   async sendKycReminderMail(
     firstName: string,

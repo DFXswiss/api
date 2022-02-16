@@ -1,15 +1,9 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { EntityRepository, Not, Repository, getManager } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { User, UserStatus } from './user.entity';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { LanguageService } from 'src/shared/models/language/language.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { AccountType } from '../userData/account-type.enum';
-import { Config } from 'src/config/config';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {

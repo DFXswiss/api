@@ -6,7 +6,7 @@ import { HttpService } from './http.service';
 export class ConversionService {
   private readonly fiatUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
 
-  constructor(private http: HttpService) {}
+  constructor(private readonly http: HttpService) {}
 
   public async convertFiat(
     amount: number,

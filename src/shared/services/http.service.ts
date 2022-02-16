@@ -12,7 +12,7 @@ export interface HttpError {
 
 @Injectable()
 export class HttpService {
-  constructor(private http: Http) {}
+  constructor(private readonly http: Http) {}
 
   public async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     return (await firstValueFrom(this.http.get<T>(url, config))).data;
