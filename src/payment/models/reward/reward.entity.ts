@@ -37,10 +37,10 @@ export class Reward extends IEntity {
   @Column({ length: 256, nullable: true }) // string oder referenzieren
   outputAsset: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   txId: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'datetime2', nullable: false })
   outputDate: Date;
 
   @Column({ type: 'float', nullable: true })

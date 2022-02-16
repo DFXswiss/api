@@ -1,6 +1,6 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsDate, IsString, IsNumber } from 'class-validator';
+import { IsOptional, IsDate, IsString, IsNumber, IsNotEmpty } from 'class-validator';
 
 export abstract class RewardDto {
   @ApiPropertyOptional()
@@ -43,13 +43,13 @@ export abstract class RewardDto {
   @IsString()
   outputAsset: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
+  @IsNotEmpty()
   @IsString()
   txId: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
+  @IsNotEmpty()
   @IsDate()
   @Type(() => Date)
   outputDate: Date;
