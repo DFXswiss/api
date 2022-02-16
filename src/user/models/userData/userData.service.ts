@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-userData.dto';
 import { UserDataRepository } from './userData.repository';
-import { kycInProgress, KycState, UserData } from './userData.entity';
+import { KycInProgress, KycState, UserData } from './userData.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { User } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -19,6 +19,17 @@ export class UserDataService {
     private readonly languageService: LanguageService,
     private readonly kycService: KycService,
   ) {}
+
+  async getUserDataForUser(userId: number): Promise<UserData> {
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .innerJoinAndSelect('userData.users', 'user')
+      .leftJoinAndSelect('userData.country', 'country')
+      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
+      .leftJoinAndSelect('userData.language', 'language')
+      .where('user.id = :id', { id: userId })
+      .getOne();
+  }
 
   async createUserData(user: User): Promise<UserData> {
     return await this.userDataRepo.save({ users: [user] });
@@ -73,27 +84,12 @@ export class UserDataService {
         emails: [dto.mail],
       });
 
-      if (kycInProgress(user.kycStatus)) {
+      if (KycInProgress(user.kycStatus)) {
         user.kycState = KycState.FAILED;
       }
     }
 
     return this.userDataRepo.save({ ...user, ...dto });
-  }
-
-  async getAllUserData(): Promise<UserData[]> {
-    return this.userDataRepo.getAllUserData();
-  }
-
-  async getUserDataForUser(userId: number): Promise<UserData> {
-    return this.userDataRepo
-      .createQueryBuilder('userData')
-      .innerJoinAndSelect('userData.users', 'user')
-      .leftJoinAndSelect('userData.country', 'country')
-      .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
-      .leftJoinAndSelect('userData.language', 'language')
-      .where('user.id = :id', { id: userId })
-      .getOne();
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {

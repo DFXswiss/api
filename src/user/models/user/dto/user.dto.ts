@@ -1,6 +1,6 @@
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
-import { AccountType } from '../../userData/account-type.enum';
+import { AccountType } from '../../userData/userData.entity';
 import { KycState, KycStatus } from '../../userData/userData.entity';
 import { UserStatus } from '../user.entity';
 

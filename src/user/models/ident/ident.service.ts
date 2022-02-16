@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/util';
-import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
-import { AccountType } from '../userData/account-type.enum';
+import { AccountType } from '../userData/userData.entity';
 import { UserDataRepository } from '../userData/userData.repository';
 import { UserDataService } from '../userData/userData.service';
 import { IdentUserDataDto } from './dto/ident-user-data.dto';
@@ -147,7 +147,7 @@ export class IdentService {
     let userData = await this.userDataRepo.findOne({ where: { kycHash }, relations: ['spiderData'] });
     if (!userData) throw new NotFoundException('User not found');
 
-    if (!kycInProgress(userData.kycStatus)) throw new BadRequestException('KYC not in progress');
+    if (!KycInProgress(userData.kycStatus)) throw new BadRequestException('KYC not in progress');
 
     // update
     userData = await this.checkKycProgress(userData);

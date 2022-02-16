@@ -4,7 +4,7 @@ import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
-import { kycCompleted } from '../../../user/models/userData/userData.entity';
+import { KycCompleted } from '../../../user/models/userData/userData.entity';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { StakingType } from './dto/staking-type.enum';
 import { StakingDto } from './dto/staking.dto';
@@ -62,7 +62,7 @@ export class StakingService {
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
     // KYC check
     const { kycStatus } = await this.userDataService.getUserDataForUser(userId);
-    if (!kycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
+    if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
 
     // max. 10 routes
     const routeCount = await this.stakingRepo.count({ user: { id: userId } });

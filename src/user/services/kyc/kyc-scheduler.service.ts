@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import {
+  KycInProgress,
+  KycInProgressStates,
+  KycState,
+  KycStatus,
+  UserData,
+} from 'src/user/models/userData/userData.entity';
 import { UserDataRepository } from 'src/user/models/userData/userData.repository';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
@@ -28,7 +34,7 @@ export class KycSchedulerService {
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
       where: {
-        kycStatus: In([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID]),
+        kycStatus: In(KycInProgressStates),
         kycState: In([KycState.NA, KycState.REMINDED]),
       },
     });
@@ -89,7 +95,7 @@ export class KycSchedulerService {
     userData.kycCustomerId = customer?.id;
 
     // check KYC progress
-    if (kycInProgress(userData.kycStatus)) {
+    if (KycInProgress(userData.kycStatus)) {
       userData = await this.checkKycProgress(userData);
     }
 

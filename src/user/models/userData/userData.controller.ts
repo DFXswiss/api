@@ -26,7 +26,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllUserData(): Promise<UserData[]> {
-    return this.userDataService.getAllUserData();
+    return this.userDataRepo.find();
   }
   
   @Put(':id')

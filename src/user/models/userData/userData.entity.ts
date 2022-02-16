@@ -5,7 +5,12 @@ import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
-import { AccountType } from './account-type.enum';
+
+export enum AccountType {
+  PERSONAL = 'Personal',
+  BUSINESS = 'Business',
+  SOLE_PROPRIETORSHIP = 'SoleProprietorship',
+}
 
 export enum KycStatus {
   NA = 'NA',
@@ -30,6 +35,7 @@ export enum RiskState {
 
 @Entity()
 export class UserData extends IEntity {
+  // TODO: remove
   @Column({ default: true })
   isMigrated: boolean;
 
@@ -128,10 +134,13 @@ export class UserData extends IEntity {
   spiderData: SpiderData;
 }
 
-export function kycInProgress(kycStatus?: KycStatus): boolean {
-  return [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(kycStatus);
+export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
+export const KycCompletedStates = [KycStatus.MANUAL, KycStatus.COMPLETED];
+
+export function KycInProgress(kycStatus?: KycStatus): boolean {
+  return KycInProgressStates.includes(kycStatus);
 }
 
-export function kycCompleted(kycStatus?: KycStatus): boolean {
-  return [KycStatus.MANUAL, KycStatus.COMPLETED].includes(kycStatus);
+export function KycCompleted(kycStatus?: KycStatus): boolean {
+  return KycCompletedStates.includes(kycStatus);
 }

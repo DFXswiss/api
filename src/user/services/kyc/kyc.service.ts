@@ -4,8 +4,8 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { AccountType } from 'src/user/models/userData/account-type.enum';
-import { kycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
+import { AccountType } from 'src/user/models/userData/userData.entity';
+import { KycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
 import {
   CreateResponse,
   Customer,
@@ -184,7 +184,7 @@ export class KycService {
   }
 
   async goToStatus(userData: UserData, status: KycStatus): Promise<UserData> {
-    if (kycInProgress(status)) {
+    if (KycInProgress(status)) {
       const identType = KycDocuments[status].ident;
       const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
