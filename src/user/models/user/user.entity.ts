@@ -80,7 +80,7 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   phone: string;
 
-  @ManyToOne(() => Language, { eager: true })
+  @ManyToOne(() => Language)
   language: Language;
 
   @Column({ length: 256, nullable: true })
@@ -101,7 +101,7 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   zip: string;
 
-  @ManyToOne(() => Country, { eager: true })
+  @ManyToOne(() => Country)
   country: Country;
 
   @Column({ length: 256, nullable: true })
@@ -119,6 +119,6 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   organizationZip: string;
 
-  @ManyToOne(() => Country, { eager: true })
+  @ManyToOne(() => Country)
   organizationCountry: Country;
 }
