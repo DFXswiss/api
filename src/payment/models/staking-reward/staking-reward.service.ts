@@ -17,6 +17,7 @@ export class StakingRewardService {
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
+    if (!dto.stakingId) throw new ConflictException('Staking route id is missing');
     let entity = await this.rewardRepo.findOne({
       where: {
         staking: { id: dto.stakingId },

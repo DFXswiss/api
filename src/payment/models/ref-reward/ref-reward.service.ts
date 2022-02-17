@@ -12,6 +12,7 @@ export class RefRewardService {
   constructor(private readonly rewardRepo: RefRewardRepository, private readonly userService: UserService) {}
 
   async create(dto: CreateRefRewardDto): Promise<RefReward> {
+    if (!dto.userId) throw new ConflictException('User id is missing');
     let entity = await this.rewardRepo.findOne({ where: { user: { id: dto.userId }, txId: dto.txId } });
     if (entity) throw new ConflictException('There is already the same ref reward for the specified user and txId');
 
