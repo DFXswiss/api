@@ -5,7 +5,6 @@ import { StakingReward } from './staking-reward.entity';
 import { StakingRewardRepository } from './staking-reward.respository';
 import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
-import { RewardType } from '../reward/reward.entity';
 import { StakingService } from '../staking/staking.service';
 
 @Injectable()
@@ -17,7 +16,6 @@ export class StakingRewardService {
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
-    if (!dto.stakingId) throw new ConflictException('Staking route id is missing');
     let entity = await this.rewardRepo.findOne({
       where: {
         staking: { id: dto.stakingId },
@@ -78,11 +76,10 @@ export class StakingRewardService {
 
     for (const id of stakingIds) {
       const { volume } = await this.rewardRepo
-        .createQueryBuilder('reward')
+        .createQueryBuilder('stakingReward')
         .select('SUM(amountInEur)', 'volume')
-        .innerJoin('reward.staking', 'stakingRoute')
+        .innerJoin('stakingReward.staking', 'stakingRoute')
         .where('stakingRoute.id = :id', { id: id })
-        .andWhere('reward.type = :check', { check: RewardType.STAKING })
         .getRawOne<{ volume: number }>();
 
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
@@ -97,7 +94,7 @@ export class StakingRewardService {
     if (!dateTo) dateTo = new Date();
 
     const stakingReward = await this.rewardRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo), type: RewardType.STAKING },
+      where: { outputDate: Between(dateFrom, dateTo) },
       relations: ['staking'],
     });
 

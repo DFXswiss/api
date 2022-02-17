@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, TableInheritance, Column } from 'typeorm';
+import { Column } from 'typeorm';
 
 export enum RewardType {
   STAKING = 'StakingReward',
@@ -7,12 +7,8 @@ export enum RewardType {
   //LM = 'LMReward',
 }
 
-@Entity()
-@TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
 export class Reward extends IEntity {
   @Column()
-  type: RewardType;
-
   @Column({ type: 'float', nullable: true })
   inputAmount: number;
 

@@ -1,8 +1,8 @@
-import { Column, ManyToOne, ChildEntity, Index } from 'typeorm';
+import { Column, ManyToOne, Index, Entity } from 'typeorm';
 import { Reward } from '../reward/reward.entity';
 import { Staking } from '../staking/staking.entity';
 
-@ChildEntity()
+@Entity()
 @Index('oneRewardPerRouteCheck', (stakingReward: StakingReward) => [stakingReward.txId, stakingReward.staking], {
   unique: true,
 })
@@ -19,6 +19,6 @@ export class StakingReward extends Reward {
   @Column({ type: 'datetime2', nullable: true })
   inputDate: Date;
 
-  @ManyToOne(() => Staking, (staking) => staking.stakingReward, { nullable: true })
+  @ManyToOne(() => Staking, (staking) => staking.stakingReward, { nullable: false })
   staking: Staking;
 }

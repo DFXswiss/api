@@ -1,6 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Between } from 'typeorm';
-import { RewardType } from '../reward/reward.entity';
 import { RefRewardRepository } from './ref-reward.repository';
 import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
@@ -12,7 +11,6 @@ export class RefRewardService {
   constructor(private readonly rewardRepo: RefRewardRepository, private readonly userService: UserService) {}
 
   async create(dto: CreateRefRewardDto): Promise<RefReward> {
-    if (!dto.userId) throw new ConflictException('User id is missing');
     let entity = await this.rewardRepo.findOne({ where: { user: { id: dto.userId }, txId: dto.txId } });
     if (entity) throw new ConflictException('There is already the same ref reward for the specified user and txId');
 
@@ -67,11 +65,10 @@ export class RefRewardService {
 
     for (const id of stakingIds) {
       const { volume } = await this.rewardRepo
-        .createQueryBuilder('reward')
+        .createQueryBuilder('refReward')
         .select('SUM(amountInEur)', 'volume')
-        .innerJoin('reward.user', 'user')
+        .innerJoin('refReward.user', 'user')
         .where('user.id = :id', { id: id })
-        .andWhere('reward.type = :check', { check: RewardType.REF })
         .getRawOne<{ volume: number }>();
 
       await this.userService.updateRewardVolume(id, volume ?? 0);
@@ -86,7 +83,7 @@ export class RefRewardService {
     if (!dateTo) dateTo = new Date();
 
     const refReward = await this.rewardRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo), type: RewardType.REF },
+      where: { outputDate: Between(dateFrom, dateTo) },
       relations: ['user'],
     });
 
