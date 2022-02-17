@@ -3,7 +3,6 @@ import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Util } from 'src/shared/util';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
@@ -17,13 +16,12 @@ export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly fiatService: FiatService,
     private readonly identService: IdentService,
     private readonly walletService: WalletService,
   ) {}
 
   async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne(userId, { relations: ['userData', 'currency'] });
+    const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
     return await this.toDto(user, detailed);
@@ -53,12 +51,6 @@ export class UserService {
 
     // check used ref
     dto.usedRef = await this.checkRef(user, dto.usedRef);
-
-    // check currency
-    if (dto.currency) {
-      const currency = await this.fiatService.getFiat(dto.currency.id);
-      if (!currency) throw new BadRequestException('Currency not found');
-    }
 
     // update
     user = await this.userRepo.save({ ...user, ...dto });
@@ -126,10 +118,10 @@ export class UserService {
       address: user.address,
       status: user.status,
       usedRef: user.usedRef === '000-000' ? undefined : user.usedRef,
-      currency: user.currency,
       mail: user.userData?.mail,
       phone: user.userData?.phone,
       language: user.userData?.language,
+      currency: user.userData?.currency,
 
       ...(detailed && user.status !== UserStatus.ACTIVE
         ? undefined

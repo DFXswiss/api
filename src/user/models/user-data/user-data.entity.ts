@@ -1,5 +1,6 @@
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
@@ -84,6 +85,9 @@ export class UserData extends IEntity {
 
   @ManyToOne(() => Language, { eager: true })
   language: Language;
+
+  @ManyToOne(() => Fiat, { eager: true })
+  currency: Fiat;
 
   @Column({ length: 256, nullable: true })
   riskState: RiskState;

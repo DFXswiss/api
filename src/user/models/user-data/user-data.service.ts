@@ -9,6 +9,8 @@ import { Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { KycService } from 'src/user/services/kyc/kyc.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class UserDataService {
@@ -17,6 +19,7 @@ export class UserDataService {
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
+    private readonly fiatService: FiatService,
     private readonly kycService: KycService,
   ) {}
 
@@ -32,7 +35,11 @@ export class UserDataService {
   }
 
   async createUserData(user: User): Promise<UserData> {
-    return await this.userDataRepo.save({ users: [user] });
+    return await this.userDataRepo.save({
+      users: [user],
+      language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
+      currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
+    });
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
@@ -75,6 +82,12 @@ export class UserDataService {
     if (dto.language) {
       const language = await this.languageService.getLanguage(dto.language.id);
       if (!language) throw new BadRequestException('Language not found');
+    }
+
+    // check currency
+    if (dto.currency) {
+      const currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!currency) throw new BadRequestException('Currency not found');
     }
 
     // update spider

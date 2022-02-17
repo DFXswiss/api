@@ -13,4 +13,8 @@ export class LanguageService {
   async getLanguage(id: number): Promise<Language> {
     return this.languageRepo.findOne(id);
   }
+
+  async getLanguageBySymbol(symbol: string): Promise<Language> {
+    return this.languageRepo.findOne({ symbol });
+  }
 }
