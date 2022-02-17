@@ -23,6 +23,25 @@ export class StakingController {
     return this.stakingService.getUserStaking(jwt.id).then((l) => this.stakingService.toDtoList(jwt.id, l));
   }
 
+  @Post()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async createStaking(@GetJwt() jwt: JwtPayload, @Body() createStakingDto: CreateStakingDto): Promise<StakingDto> {
+    return this.stakingService
+      .createStaking(jwt.id, createStakingDto)
+      .then((s) => this.stakingService.toDto(jwt.id, s));
+  }
+
+  @Put(':id')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async updateStaking(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() updateStakingDto: UpdateStakingDto): Promise<StakingDto> {
+    return this.stakingService
+      .updateStaking(jwt.id, +id, updateStakingDto)
+      .then((s) => this.stakingService.toDto(jwt.id, s));
+  }
+
+  // --- ADMIN --- //
   @Get('balance')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -46,23 +65,5 @@ export class StakingController {
       new Date(),
     );
     return Util.round(stakingBalances.reduce((sum, current) => sum + current.balance, 0), 8);
-  }
-
-  @Post()
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createStaking(@GetJwt() jwt: JwtPayload, @Body() createStakingDto: CreateStakingDto): Promise<StakingDto> {
-    return this.stakingService
-      .createStaking(jwt.id, createStakingDto)
-      .then((s) => this.stakingService.toDto(jwt.id, s));
-  }
-
-  @Put()
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateStaking(@GetJwt() jwt: JwtPayload, @Body() updateStakingDto: UpdateStakingDto): Promise<StakingDto> {
-    return this.stakingService
-      .updateStaking(jwt.id, updateStakingDto)
-      .then((s) => this.stakingService.toDto(jwt.id, s));
   }
 }

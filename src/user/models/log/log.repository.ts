@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { EntityRepository, getManager, Repository } from 'typeorm';
 import { CreateLogDto } from './dto/create-log.dto';
-import { Log, LogDirection, LogType } from './log.entity';
+import { Log, LogType } from './log.entity';
 import { isString } from 'class-validator';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
@@ -87,22 +87,6 @@ export class LogRepository extends Repository<Log> {
     }
   }
 
-  async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<number> {
-    const volumeLogs = await this.find({
-      type: logType,
-      direction: logDirection,
-    });
-    return this.sum(volumeLogs, 'assetValue', 8);
-  }
-
-  async getChfVolume(logType: LogType, logDirection: LogDirection): Promise<number> {
-    const volumeLogs = await this.find({
-      type: logType,
-      direction: logDirection,
-    });
-    return this.sum(volumeLogs, 'fiatInCHF', 2);
-  }
-
   async getLog(key: any): Promise<any> {
     if (!isNaN(key.key)) {
       const log = await this.findOne({ id: key.key });
@@ -119,15 +103,6 @@ export class LogRepository extends Repository<Log> {
 
       throw new NotFoundException('Log not found');
     }
-  }
-
-  async getRefVolumeChf(ref: string): Promise<number> {
-    const logs = await this.find({ where: { message: ref } });
-    return this.sum(logs, 'fiatInCHF', 2);
-  }
-
-  async sum(logs: Log[], value: string, decimals: number): Promise<number> {
-    return Math.round(logs.reduce((sum, log) => sum + log[value], 0) * Math.pow(10, decimals)) / Math.pow(10, decimals);
   }
 
   async updateLog(updatedLog: UpdateLogDto): Promise<any> {

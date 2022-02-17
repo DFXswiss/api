@@ -8,7 +8,7 @@ import { Util } from '../util';
 @Injectable()
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
-  private readonly techMail = 'cto@dfx.swiss';
+  private readonly monitoringMail = 'monitoring@dfx.swiss';
   private readonly noReplyMail = 'noreply@dfx.swiss';
   private readonly kycStatus = {
     [KycStatus.CHATBOT]: 'Chatbot',
@@ -94,7 +94,7 @@ export class MailService {
     </ul>
     `;
 
-    await this.sendMailInternal(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
+    await this.sendMailInternal(this.monitoringMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
   }
 
   async sendMailInternal(

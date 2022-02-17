@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { Util } from 'src/shared/util';
 import { LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';
@@ -12,8 +13,7 @@ export class RefService {
   async checkRefs(): Promise<void> {
     try {
       // registered refs expire after 3 days
-      const expirationDate = new Date();
-      expirationDate.setDate(expirationDate.getDate() - 3);
+      const expirationDate = Util.daysBefore(3);
 
       const expiredRefs = await this.refRepository.find({ updated: LessThan(expirationDate) });
       await this.refRepository.remove(expiredRefs);

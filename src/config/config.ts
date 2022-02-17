@@ -66,6 +66,8 @@ export class Configuration {
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
     prefix: process.env.KYC_PREFIX ?? '',
+    reminderAfterDays: 2,
+    failAfterDays: 7,
     chatbotStyle: {
       headerColor: this.colors.white,
       textColor: this.colors.white,

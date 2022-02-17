@@ -53,6 +53,9 @@ export class UserService {
     // check used ref
     dto.usedRef = await this.checkRef(user, dto.usedRef);
 
+    // check ref provision
+    if (user.refFeePercent < dto.refFeePercent) throw new BadRequestException('Ref provision can only be decreased');
+
     // update
     user = await this.userRepo.save({ ...user, ...dto });
     user.userData = await this.userDataService.updateUserSettings(user.userData, dto);

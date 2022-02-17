@@ -40,14 +40,6 @@ export class UserController {
     return this.userService.updateUser(jwt.id, newUser);
   }
 
-  // --- REF --- //
-  @Put('ref')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateRef(@GetJwt() jwt: JwtPayload, @Body() { fee }: { fee: number }): Promise<number> {
-    return this.userService.updateRefProvision(jwt.id, fee);
-  }
-
   // --- CFP VOTING --- //
   @Get('cfpVotes')
   @ApiBearerAuth()
