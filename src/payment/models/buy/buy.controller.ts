@@ -89,14 +89,6 @@ export class BuyController {
 
   async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
     const { annualVolume } = await this.buyService.getUserVolume(userId);
-    const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
-
-    const refFee = await this.userService.getRefUserProvision(userId);
-    const refBonus = annualVolume < 100000 ? 1 - (refFee ?? 1) : 0;
-
-    return {
-      fee: baseFee - refBonus,
-      refBonus,
-    };
+    return this.userService.getUserBuyFee(userId, annualVolume);
   }
 }

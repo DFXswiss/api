@@ -10,6 +10,7 @@ import { IdentService } from '../ident/ident.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Like, Not } from 'typeorm';
+import { AccountType } from '../user-data/account-type.enum';
 
 @Injectable()
 export class UserService {
@@ -76,11 +77,32 @@ export class UserService {
     return provision;
   }
 
-  async getRefUserProvision(userId: number): Promise<number | undefined> {
-    const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
-    return this.userRepo
+  async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
+    const { usedRef, accountType } = await this.userRepo.findOne({
+      select: ['id', 'usedRef', 'accountType'],
+      where: { id: userId },
+    });
+
+    const baseFee =
+      accountType === AccountType.PERSONAL
+        ? annualVolume < 5000
+          ? 2.9
+          : annualVolume < 50000
+          ? 2.65
+          : annualVolume < 100000
+          ? 2.4
+          : 1.4
+        : annualVolume < 100000
+        ? 2.9
+        : 1.9;
+
+    const refFee = await this.userRepo
       .findOne({ select: ['id', 'ref', 'refFeePercent'], where: { ref: usedRef } })
       .then((u) => u?.refFeePercent);
+
+    const refBonus = annualVolume < 100000 ? 1 - (refFee ?? 1) : 0;
+
+    return { fee: baseFee - refBonus, refBonus };
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
