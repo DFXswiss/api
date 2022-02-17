@@ -10,6 +10,8 @@ import { IdentService } from '../ident/ident.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Like, Not } from 'typeorm';
+import { CfpSettings } from 'src/statistic/cfp.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 
 @Injectable()
 export class UserService {
@@ -18,6 +20,7 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly identService: IdentService,
     private readonly walletService: WalletService,
+    private readonly settingService: SettingService,
   ) {}
 
   async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
@@ -144,6 +147,9 @@ export class UserService {
   }
 
   async updateCfpVotes(id: number, votes: CfpVotes): Promise<CfpVotes> {
+    const isVotingOpen = await this.settingService.getObj<CfpSettings>('cfp').then((s) => s.votingOpen);
+    if (!isVotingOpen) throw new BadRequestException('Voting is currently not allowed');
+
     await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
     return votes;
   }
