@@ -38,7 +38,7 @@ export class StakingController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.DEFICHAIN_INCOME))
   async getStakingBalance(@Param('address') address: string): Promise<number> {
-    const stakingRoutes = await this.stakingService.getStakingByAddress(address);
+    const stakingRoutes = await this.stakingService.getUserStakingByAddress(address);
     if (stakingRoutes.length === 0) return 0;
 
     const stakingBalances = await this.stakingService.getAllStakingBalance(

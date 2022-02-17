@@ -23,7 +23,7 @@ export class UserDataService {
     private readonly kycService: KycService,
   ) {}
 
-  async getUserDataForUser(userId: number): Promise<UserData> {
+  async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
       .innerJoinAndSelect('userData.users', 'user')

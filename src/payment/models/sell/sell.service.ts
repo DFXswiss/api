@@ -20,7 +20,7 @@ export class SellService {
     private readonly identService: IdentService,
   ) {}
 
-  async getSellForAddress(depositAddress: string): Promise<Sell> {
+  async getSellByAddress(depositAddress: string): Promise<Sell> {
     // does not work with find options
     return this.sellRepo
       .createQueryBuilder('sell')

@@ -39,7 +39,7 @@ export class IdentService {
 
   // --- KYC --- //
   async updateIdentData(userId: number, data: IdentUserDataDto): Promise<void> {
-    const user = await this.userDataService.getUserDataForUser(userId);
+    const user = await this.userDataService.getUserDataByUser(userId);
     if (!user) throw new NotFoundException(`User data not found`);
 
     // check countries
@@ -63,7 +63,7 @@ export class IdentService {
   }
 
   async dataComplete(userId: number): Promise<boolean> {
-    const user = await this.userDataService.getUserDataForUser(userId);
+    const user = await this.userDataService.getUserDataByUser(userId);
     return this.isDataComplete(user);
   }
 
@@ -94,7 +94,7 @@ export class IdentService {
   }
 
   async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const userData = await this.userDataService.getUserDataForUser(userId);
+    const userData = await this.userDataService.getUserDataByUser(userId);
     if (!userData) throw new NotFoundException(`User data not found`);
 
     // create customer, if not existing
@@ -113,7 +113,7 @@ export class IdentService {
   }
 
   async requestKyc(userId: number): Promise<string> {
-    let user = await this.userDataService.getUserDataForUser(userId);
+    let user = await this.userDataService.getUserDataByUser(userId);
 
     // check if KYC already started
     if (user.kycStatus !== KycStatus.NA) {

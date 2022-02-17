@@ -17,7 +17,7 @@ export class LimitRequestService {
 
   async increaseLimit(userId: number, dto: LimitRequestDto): Promise<LimitRequest> {
     // get user data
-    const user = await this.userDataService.getUserDataForUser(userId);
+    const user = await this.userDataService.getUserDataByUser(userId);
     if (!KycCompleted(user.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity

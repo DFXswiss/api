@@ -35,7 +35,7 @@ export class StakingService {
     private readonly settingService: SettingService,
   ) {}
 
-  async getStakingForAddress(depositAddress: string): Promise<Staking> {
+  async getStakingByAddress(depositAddress: string): Promise<Staking> {
     // does not work with find options
     return this.stakingRepo
       .createQueryBuilder('staking')
@@ -55,13 +55,13 @@ export class StakingService {
     return this.stakingRepo.find({ user: { id: userId } });
   }
 
-  async getStakingByAddress(address: string): Promise<Staking[]> {
+  async getUserStakingByAddress(address: string): Promise<Staking[]> {
     return await this.stakingRepo.find({ where: { user: { address: address } }, relations: ['user'] });
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
     // KYC check
-    const { kycStatus } = await this.userDataService.getUserDataForUser(userId);
+    const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
     if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
 
     // max. 10 routes
