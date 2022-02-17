@@ -10,6 +10,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Staking } from '../../../payment/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { AccountType } from '../user-data/account-type.enum';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -82,6 +83,9 @@ export class User extends IEntity {
 
   @ManyToOne(() => Language)
   language: Language;
+
+  @ManyToOne(() => Fiat)
+  currency: Fiat;
 
   @Column({ length: 256, nullable: true })
   firstname: string;
