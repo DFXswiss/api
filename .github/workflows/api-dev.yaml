@@ -3,9 +3,6 @@ name: API DEV CI/CD
 on:
   push:
     branches: [ develop ]
-  pull_request:
-    branches:    
-      - master
   workflow_dispatch:
 
 env:
@@ -15,7 +12,7 @@ env:
 
 jobs:
   build-and-deploy:
-    name: Build and deploy to DEV
+    name: Build, test and deploy to DEV
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
