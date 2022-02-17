@@ -7,9 +7,9 @@ import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 
-interface CfpSettings {
+export interface CfpSettings {
   inProgress: boolean;
   votingOpen: boolean;
   currentRound: string;
@@ -135,10 +135,6 @@ export class CfpService {
       console.error('Exception during CFP update:', e);
       throw new ServiceUnavailableException('Failed to update');
     }
-  }
-
-  isVotingOpen(): boolean {
-    return this.settings.votingOpen;
   }
 
   getCfpList(): string[] {
