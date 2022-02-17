@@ -4,8 +4,6 @@ on:
   push:
     branches: [ develop ]
   pull_request:
-    types:
-      - opened
     branches:    
       - master
   workflow_dispatch:
