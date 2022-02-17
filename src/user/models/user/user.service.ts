@@ -52,6 +52,9 @@ export class UserService {
     // check used ref
     dto.usedRef = await this.checkRef(user, dto.usedRef);
 
+    // check ref provision
+    if (user.refFeePercent < dto.refFeePercent) throw new BadRequestException('Ref provision can only be decreased');
+
     // update
     user = await this.userRepo.save({ ...user, ...dto });
     user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
@@ -67,15 +70,6 @@ export class UserService {
   }
 
   // --- REF --- //
-  async updateRefProvision(userId: number, provision: number): Promise<number> {
-    const user = await this.userRepo.findOne(userId);
-    if (!user) throw new NotFoundException('User not found');
-
-    if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
-    await this.userRepo.update({ id: userId }, { refFeePercent: provision });
-    return provision;
-  }
-
   async getRefUserProvision(userId: number): Promise<number | undefined> {
     const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
     return this.userRepo
