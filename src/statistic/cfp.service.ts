@@ -121,14 +121,16 @@ export class CfpService {
       this.settings = await this.settingService.getObj<CfpSettings>('cfp');
 
       // update cfp results
-      let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter(
-        (cfp) =>
-          cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
-          cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
-      );
+      if (this.settings.inProgress) {
+        let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
+        allCfp = allCfp.filter(
+          (cfp) =>
+            cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
+            cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
+        );
 
-      this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+        this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+      }
     } catch (e) {
       console.error('Exception during CFP update:', e);
       throw new ServiceUnavailableException('Failed to update');
@@ -147,7 +149,6 @@ export class CfpService {
     if (['latest', this.settings.currentRound].includes(cfpId)) {
       if (this.settings.inProgress) {
         // return current data from GitHub
-        if (!this.cfpResults) await this.doUpdate();
         return this.cfpResults;
       }
 
