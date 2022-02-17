@@ -14,8 +14,14 @@ export class Util {
     return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
   }
 
-  static daysDiff(from?: Date, to?: Date) {
+  static daysDiff(from?: Date, to?: Date): number {
     return this.secondsDiff(from, to) / (3600 * 24);
+  }
+
+  static daysBefore(days: number, from?: Date): Date {
+    const date = from ? new Date(from) : new Date();
+    date.setDate(date.getDate() - days);
+    return date;
   }
 
   static async readFileFromDisk(fileName: string): Promise<string> {

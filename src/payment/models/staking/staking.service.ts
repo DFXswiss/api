@@ -230,8 +230,7 @@ export class StakingService {
   }
 
   private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
-    const dateFrom = new Date(dateTo);
-    dateFrom.setDate(dateTo.getDate() - Config.stakingPeriod);
+    const dateFrom = Util.daysBefore(Config.stakingPeriod, dateTo);
 
     return this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Interval, Cron, CronExpression } from '@nestjs/schedule';
 import {
   KycInProgress,
   KycInProgressStates,
@@ -11,10 +11,12 @@ import { UserDataRepository } from 'src/user/models/user-data/user-data.reposito
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { SettingService } from 'src/shared/setting/setting.service';
-import { In } from 'typeorm';
+import { In, LessThan } from 'typeorm';
 import { Lock } from 'src/shared/lock';
 import { KycService, KycProgress } from './kyc.service';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
+import { Util } from 'src/shared/util';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class KycSchedulerService {
@@ -33,10 +35,18 @@ export class KycSchedulerService {
   async checkOngoingKyc() {
     const userInProgress = await this.userDataRepo.find({
       select: ['id'],
-      where: {
-        kycStatus: In(KycInProgressStates),
-        kycState: In([KycState.NA, KycState.REMINDED]),
-      },
+      where: [
+        {
+          kycStatus: In(KycInProgressStates),
+          kycState: KycState.NA,
+          kycStatusChangeDate: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
+        },
+        {
+          kycStatus: In(KycInProgressStates),
+          kycState: KycState.REMINDED,
+          kycStatusChangeDate: LessThan(Util.daysBefore(Config.kyc.failAfterDays)),
+        },
+      ],
     });
 
     for (const user of userInProgress) {
@@ -44,42 +54,49 @@ export class KycSchedulerService {
         await this.syncKycUser(user.id);
       } catch (e) {
         console.error('Exception during KYC check:', e);
-        await this.mailService.sendErrorMail('KYC Error', [e]);
+        // TODO: reactivate
+        // await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }
 
   @Interval(300000)
-  async syncKycData() {
+  async continuousSync() {
     // avoid overlaps
     if (!this.lock.acquire()) return;
 
-    try {
-      const settingKey = 'spiderModificationDate';
-      const lastModificationTime = await this.settingService.get(settingKey);
-      const newModificationTime = Date.now().toString();
+    const settingKey = 'spiderModificationDate';
+    const lastModificationTime = await this.settingService.get(settingKey);
+    const newModificationTime = Date.now().toString();
 
-      // get KYC changes
-      const changedRefs = await this.kycApi.getChangedCustomers(+(lastModificationTime ?? 0));
-      const changedUserDataIds = changedRefs.map((c) => +c).filter((c) => !isNaN(c));
+    await this.syncKycData(+(lastModificationTime ?? 0));
 
-      // update
-      for (const userDataId of changedUserDataIds) {
-        try {
-          await this.syncKycUser(userDataId);
-        } catch (e) {
-          console.error('Exception during KYC sync:', e);
-          await this.mailService.sendErrorMail('KYC Error', [e]);
-        }
-      }
-
-      await this.settingService.set(settingKey, newModificationTime);
-    } catch (e) {
-      console.error('Exception during KYC sync:', e);
-      await this.mailService.sendErrorMail('KYC Error', [e]);
-    }
+    await this.settingService.set(settingKey, newModificationTime);
 
     this.lock.release();
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async dailySync() {
+    const modificationDate = Util.daysBefore(1);
+    await this.syncKycData(modificationDate.getTime());
+  }
+
+  private async syncKycData(modificationTime: number) {
+    // get KYC changes
+    const changedRefs = await this.kycApi.getChangedCustomers(modificationTime);
+    const changedUserDataIds = changedRefs.map((c) => +c).filter((c) => !isNaN(c));
+
+    // update
+    for (const userDataId of changedUserDataIds) {
+      try {
+        await this.syncKycUser(userDataId);
+      } catch (e) {
+        console.error('Exception during KYC sync:', e);
+        // TODO: reactivate
+        // await this.mailService.sendErrorMail('KYC Error', [e]);
+      }
+    }
   }
 
   private async syncKycUser(userDataId: number): Promise<void> {
