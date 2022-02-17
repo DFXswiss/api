@@ -176,11 +176,16 @@ export class KycService {
     if (versions.find((doc) => doc.state === KycDocumentState.COMPLETED) != null) return KycProgress.COMPLETED;
 
     // failed
-    if (versions.find((doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < 7) == null)
+    if (versions.find((doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < Config.kyc.failAfterDays) == null)
       return KycProgress.FAILED;
 
     // expired
-    if (this.documentAge(versions[0]) > 2 && this.documentAge(versions[0]) < 7) return KycProgress.EXPIRING;
+    if (
+      this.documentAge(versions[0]) > Config.kyc.reminderAfterDays &&
+      this.documentAge(versions[0]) < Config.kyc.failAfterDays
+    ) {
+      return KycProgress.EXPIRING;
+    }
 
     return KycProgress.ONGOING;
   }
