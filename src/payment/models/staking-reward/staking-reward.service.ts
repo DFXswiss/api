@@ -86,7 +86,7 @@ export class StakingRewardService {
     }
   }
 
-  async getTransactions(
+  async getRewards(
     dateFrom?: Date,
     dateTo?: Date,
   ): Promise<{ date: Date; outputAmount: number; outputAsset: string }[]> {

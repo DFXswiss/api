@@ -10,12 +10,6 @@ export class StakingReward extends Reward {
   @Column({ type: 'float', nullable: true })
   fee: number;
 
-  @Column({ type: 'float', nullable: true })
-  apr: number;
-
-  @Column({ type: 'float', nullable: true })
-  apy: number;
-
   @Column({ type: 'datetime2', nullable: true })
   inputDate: Date;
 

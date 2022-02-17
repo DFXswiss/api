@@ -8,7 +8,9 @@ export enum RewardType {
 }
 
 export class Reward extends IEntity {
-  @Column()
+  @Column({ length: 256, nullable: false, unique: true }) // string oder referenzieren
+  internalId: string;
+
   @Column({ type: 'float', nullable: true })
   inputAmount: number;
 
