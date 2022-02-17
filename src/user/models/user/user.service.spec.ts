@@ -7,6 +7,8 @@ import { UserService } from './user.service';
 import { IdentService } from '../ident/ident.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { AccountType } from '../user-data/account-type.enum';
+import { User } from './user.entity';
 
 describe('UserService', () => {
   let service: UserService;
@@ -17,6 +19,10 @@ describe('UserService', () => {
   let identService: IdentService;
   let walletService: WalletService;
   let settingService: SettingService;
+
+  function setup(accountType: AccountType, refFeePercent?: number) {
+    jest.spyOn(userRepo, 'findOne').mockResolvedValue({ accountType, refFeePercent } as User);
+  }
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
@@ -43,5 +49,80 @@ describe('UserService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  // ref bonus
+  it('should return no bonus when no ref user', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 0)).resolves.toStrictEqual({ fee: 2.9, refBonus: 0 });
+  });
+
+  it('should return 0.5% bonus from ref user', async () => {
+    setup(AccountType.BUSINESS, 0.5);
+
+    await expect(service.getUserBuyFee(1, 0)).resolves.toStrictEqual({ fee: 2.4, refBonus: 0.5 });
+  });
+
+  it('should return 0.9% bonus from ref user', async () => {
+    setup(AccountType.SOLE_PROPRIETORSHIP, 0.1);
+
+    await expect(service.getUserBuyFee(1, 0)).resolves.toStrictEqual({ fee: 2.0, refBonus: 0.9 });
+  });
+
+  // volume
+  it('should return 2.9 when volume < 5000', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 4999.99)).resolves.toStrictEqual({ fee: 2.9, refBonus: 0 });
+  });
+
+  it('should return 1.75 when volume = 5000, personal and ref user', async () => {
+    setup(AccountType.PERSONAL, 0.1);
+
+    await expect(service.getUserBuyFee(1, 5000)).resolves.toStrictEqual({ fee: 1.75, refBonus: 0.9 });
+  });
+
+  it('should return 2% when volume = 5000, organization and ref user', async () => {
+    setup(AccountType.BUSINESS, 0.1);
+
+    await expect(service.getUserBuyFee(1, 5000)).resolves.toStrictEqual({ fee: 2, refBonus: 0.9 });
+  });
+
+  it('should return 2.4 when volume > 50000 and personal', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 64358)).resolves.toStrictEqual({ fee: 2.4, refBonus: 0 });
+  });
+
+  it('should return 2.9 when volume > 50000 and organization', async () => {
+    setup(AccountType.SOLE_PROPRIETORSHIP);
+
+    await expect(service.getUserBuyFee(1, 64358)).resolves.toStrictEqual({ fee: 2.9, refBonus: 0 });
+  });
+
+  // > 100'000
+  it('should return 1.4 and no bonus when volume > 100000, personal and no ref user', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.4, refBonus: 0 });
+  });
+
+  it('should return 1.4 and no bonus when volume > 100000, personal and ref user', async () => {
+    setup(AccountType.PERSONAL, 0.5);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.4, refBonus: 0 });
+  });
+
+  it('should return 1.9 and no bonus when volume > 100000, organization and no ref user', async () => {
+    setup(AccountType.BUSINESS);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.9, refBonus: 0 });
+  });
+
+  it('should return 1.9 and no bonus when volume > 100000, organization and ref user', async () => {
+    setup(AccountType.SOLE_PROPRIETORSHIP, 0.5);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.9, refBonus: 0 });
   });
 });

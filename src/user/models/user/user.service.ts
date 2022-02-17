@@ -92,14 +92,16 @@ export class UserService {
 
     const baseFee =
       accountType === AccountType.PERSONAL
-        ? annualVolume < 5000
+        ? // personal
+          annualVolume < 5000
           ? 2.9
           : annualVolume < 50000
           ? 2.65
           : annualVolume < 100000
           ? 2.4
           : 1.4
-        : annualVolume < 100000
+        : // organization
+        annualVolume < 100000
         ? 2.9
         : 1.9;
 
