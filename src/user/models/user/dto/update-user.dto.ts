@@ -23,8 +23,6 @@ export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  // TODO: use phone number decorator instead of string
-  // @IsPhoneNumber()
   phone?: string;
 
   @ApiPropertyOptional()
