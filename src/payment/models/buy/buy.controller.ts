@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -43,11 +43,11 @@ export class BuyController {
     return this.buyService.createBuy(jwt.id, jwt.address, createBuyDto).then((b) => this.toDto(jwt.id, b));
   }
 
-  @Put()
+  @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Body() updateBuyDto: UpdateBuyDto): Promise<BuyDto> {
-    return this.buyService.updateBuy(jwt.id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
+  async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() updateBuyDto: UpdateBuyDto): Promise<BuyDto> {
+    return this.buyService.updateBuy(jwt.id, +id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
   }
 
   // --- DTO --- //

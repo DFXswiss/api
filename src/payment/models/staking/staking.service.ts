@@ -72,8 +72,8 @@ export class StakingService {
     return this.stakingRepo.save(staking);
   }
 
-  async updateStaking(userId: number, dto: UpdateStakingDto): Promise<Staking> {
-    const staking = await this.stakingRepo.findOne({ id: dto.id, user: { id: userId } });
+  async updateStaking(userId: number, stakingId: number, dto: UpdateStakingDto): Promise<Staking> {
+    const staking = await this.stakingRepo.findOne({ id: stakingId, user: { id: userId } });
     if (!staking) throw new NotFoundException('Staking route not found');
 
     const update = await this.createEntity(userId, dto, staking);
