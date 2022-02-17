@@ -17,7 +17,6 @@ describe('BuyController', () => {
 
   function setup(volume: number, refProvision?: number) {
     jest.spyOn(buyService, 'getUserVolume').mockResolvedValueOnce({ volume: 0, annualVolume: volume });
-    jest.spyOn(userService, 'getRefUserProvision').mockResolvedValueOnce(refProvision);
   }
 
   beforeEach(async () => {

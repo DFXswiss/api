@@ -16,7 +16,7 @@ import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyRepository } from '../buy/buy.repository';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';

@@ -10,7 +10,7 @@ import {
 import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { In, LessThan } from 'typeorm';
 import { Lock } from 'src/shared/lock';
 import { KycService, KycProgress } from './kyc.service';
@@ -54,8 +54,7 @@ export class KycSchedulerService {
         await this.syncKycUser(user.id);
       } catch (e) {
         console.error('Exception during KYC check:', e);
-        // TODO: reactivate
-        // await this.mailService.sendErrorMail('KYC Error', [e]);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }
@@ -93,8 +92,7 @@ export class KycSchedulerService {
         await this.syncKycUser(userDataId);
       } catch (e) {
         console.error('Exception during KYC sync:', e);
-        // TODO: reactivate
-        // await this.mailService.sendErrorMail('KYC Error', [e]);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }
