@@ -12,14 +12,17 @@ import { CryptoSellRepository } from '../crypto-sell/crypto-sell.repository';
 import { SellService } from '../sell/sell.service';
 import { RouteType } from '../route/deposit-route.entity';
 import { BlockchainTransaction } from './dto/blockchainTransaction';
+import { StakingService } from '../staking/staking.service';
 
 @Injectable()
 export class TransactionService {
   constructor(
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
+    private readonly stakingService: StakingService,
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly cryptoSellRepo: CryptoSellRepository,
+    // private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly http: HttpService,
   ) {}
 
@@ -27,7 +30,7 @@ export class TransactionService {
     const tx = await Promise.all([
       await this.getBuyTransactions(userId),
       await this.getSellTransactions(userId),
-      await this.getDFITaxRewards(userAddress),
+      //await this.getDFITaxRewards(userAddress),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => ((tx1.date?.getTime() ?? 0) - (tx2.date?.getTime() ?? 0) > 0 ? -1 : 1));
@@ -40,7 +43,7 @@ export class TransactionService {
   }
 
   async activateDfiTaxAddress(userAddress: string): Promise<void> {
-    await this.getDFITaxRewards(userAddress);
+    this.getRewards(userAddress, 'YEAR');
     return;
   }
 
@@ -141,13 +144,12 @@ export class TransactionService {
   }
 
   // private async getStakingRewards(userId: number): Promise<TransactionDto[]> {
-  //   const sells = await this.sellService.getUserSells(userId);
-  //   const stakingTx = await this.cryptoSellRepo.find({
+  //   const stakingRoutes = await this.stakingService.getUserStaking(userId);
+  //   const stakingTx = await this.stakingRewardRepo.find({
   //     where: {
-  //       cryptoInput: { route: { id: In(sells.map((b) => b.id)), type: RouteType.SELL } },
-  //       amlCheck: AmlCheck.PASS,
+  //       staking: { id: In(stakingRoutes.map((b) => b.id)) },
   //     },
-  //     relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],
+  //     relations: ['staking', 'staking.user'],
   //   });
 
   //   return stakingTx
@@ -167,14 +169,14 @@ export class TransactionService {
   //         txid: c.cryptoInput.inTxId,
   //         buyValueInEur: null,
   //         sellValueInEur: null,
-  //       }
+  //       },
   //     ])
   //     .reduce((prev, curr) => prev.concat(curr), []);
   // }
 
   // DFI Tax
-  private async getDFITaxRewards(userAddress: string): Promise<TransactionDto[]> {
-    const rewards = await this.getRewards(userAddress);
+  private async getDFITaxRewards(userAddress: string, intervall: string): Promise<TransactionDto[]> {
+    const rewards = await this.getRewards(userAddress, intervall);
     return rewards.map((reward) => ({
       type: 'Mining',
       buyAmount: Util.round(reward.detail.qty, 8),
@@ -210,9 +212,9 @@ export class TransactionService {
   private createRandomDate(outputDate: Date, offset: number, amount: number): Date {
     return new Date(outputDate.getTime() + (offset - (amount % 10)) * 60 * 1000);
   }
-  private async getRewards(userAddress: string): Promise<Reward[]> {
-    const baseUrl = 'https://api.dfi.tax/v01/rwd';
-    const url = `${baseUrl}/${userAddress}/d/true/EUR`;
+  private async getRewards(userAddress: string, intervall: string): Promise<Reward[]> {
+    const baseUrl = 'https://api.dfi.tax/p01/rwd';
+    const url = `${baseUrl}/${userAddress}/${intervall}/EUR`;
     return await this.http.get<Reward[]>(url);
   }
   private async getAddressTransactions(userAddress: string, year: string): Promise<BlockchainTransaction[]> {
