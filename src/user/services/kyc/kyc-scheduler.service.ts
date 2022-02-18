@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression, Interval } from '@nestjs/schedule';
-import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
-import { UserDataRepository } from 'src/user/models/userData/userData.repository';
+import { Interval, Cron, CronExpression } from '@nestjs/schedule';
+import {
+  KycInProgress,
+  KycInProgressStates,
+  KycState,
+  KycStatus,
+  UserData,
+} from 'src/user/models/user-data/user-data.entity';
+import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { In, LessThan } from 'typeorm';
 import { Lock } from 'src/shared/lock';
 import { KycService, KycProgress } from './kyc.service';
@@ -31,12 +37,12 @@ export class KycSchedulerService {
       select: ['id'],
       where: [
         {
-          kycStatus: In([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID]),
+          kycStatus: In(KycInProgressStates),
           kycState: KycState.NA,
           kycStatusChangeDate: LessThan(Util.daysBefore(Config.kyc.reminderAfterDays)),
         },
         {
-          kycStatus: In([KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID]),
+          kycStatus: In(KycInProgressStates),
           kycState: KycState.REMINDED,
           kycStatusChangeDate: LessThan(Util.daysBefore(Config.kyc.failAfterDays)),
         },
@@ -48,8 +54,7 @@ export class KycSchedulerService {
         await this.syncKycUser(user.id);
       } catch (e) {
         console.error('Exception during KYC check:', e);
-        // TODO: reactivate
-        // await this.mailService.sendErrorMail('KYC Error', [e]);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }
@@ -87,8 +92,7 @@ export class KycSchedulerService {
         await this.syncKycUser(userDataId);
       } catch (e) {
         console.error('Exception during KYC sync:', e);
-        // TODO: reactivate
-        // await this.mailService.sendErrorMail('KYC Error', [e]);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
       }
     }
   }
@@ -106,7 +110,7 @@ export class KycSchedulerService {
     userData.kycCustomerId = customer?.id;
 
     // check KYC progress
-    if (kycInProgress(userData.kycStatus)) {
+    if (KycInProgress(userData.kycStatus)) {
       userData = await this.checkKycProgress(userData);
     }
 

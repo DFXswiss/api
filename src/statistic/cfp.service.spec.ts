@@ -2,7 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from 'src/shared/services/http.service';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { CfpService } from './cfp.service';
 
 describe('CfpService', () => {

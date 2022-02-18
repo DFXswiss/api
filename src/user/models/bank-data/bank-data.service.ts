@@ -1,9 +1,10 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
-import { UserData } from 'src/user/models/userData/userData.entity';
-import { UserDataRepository } from 'src/user/models/userData/userData.repository';
+import { UserData } from 'src/user/models/user-data/user-data.entity';
+import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
 import { KycService } from 'src/user/services/kyc/kyc.service';
+import { BankData } from './bank-data.entity';
 
 @Injectable()
 export class BankDataService {
@@ -13,53 +14,35 @@ export class BankDataService {
     private readonly kycService: KycService,
   ) {}
 
-  async addBankData(userDataId: number, bankDataDto: BankDataDto): Promise<UserData> {
+  async addBankData(userDataId: number, dto: BankDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['bankDatas'] });
-    if (!userData) throw new NotFoundException(`No user data for id ${userDataId}`);
+    if (!userData) throw new NotFoundException('User data not found');
 
     const bankDataCheck = await this.bankDataRepo.findOne({
-      iban: bankDataDto.iban,
-      location: bankDataDto.location ?? null,
-      name: bankDataDto.name,
+      iban: dto.iban,
+      location: dto.location ?? null,
+      name: dto.name,
     });
-    if (bankDataCheck) throw new ConflictException('Bank data with duplicate key');
+    if (bankDataCheck) throw new ConflictException('Bank data already exists');
 
-    const bankData = this.bankDataRepo.create({ ...bankDataDto, userData: userData });
+    const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
 
     // create customer, if not existing
     await this.kycService.createCustomer(userData.id, bankData.name);
 
     userData.bankDatas.push(bankData);
-
     return userData;
   }
 
-  async updateBankData(bankDataId: number, newBankData: BankDataDto): Promise<any> {
-    try {
-      const bankData = await this.bankDataRepo.findOne({
-        id: bankDataId,
-      });
+  async updateBankData(id: number, dto: BankDataDto): Promise<BankData> {
+    const bankData = await this.bankDataRepo.findOne({ id });
+    if (!bankData) throw new NotFoundException('Bank data not found');
 
-      if (!bankData) throw new NotFoundException('No matching bankdata for id found');
-
-      return this.bankDataRepo.save({ ...bankData, ...newBankData });
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
+    return this.bankDataRepo.save({ ...bankData, ...dto });
   }
 
-  async deleteBankData(bankDataId: number): Promise<any> {
-    try {
-      const bankData = await this.bankDataRepo.delete({
-        id: bankDataId,
-      });
-
-      if (!bankData) throw new NotFoundException('No matching bank data for id found');
-
-      return true;
-    } catch (error) {
-      throw new ConflictException(error.message);
-    }
+  async deleteBankData(id: number): Promise<void> {
+    await this.bankDataRepo.delete(id);
   }
 }

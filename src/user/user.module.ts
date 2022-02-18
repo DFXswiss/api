@@ -2,10 +2,9 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { UserDataController } from 'src/user/models/userData/userData.controller';
-import { UserDataRepository } from 'src/user/models/userData/userData.repository';
-import { UserDataService } from 'src/user/models/userData/userData.service';
-import { WalletController } from 'src/user/models/wallet/wallet.controller';
+import { UserDataController } from 'src/user/models/user-data/user-data.controller';
+import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/user/models/wallet/wallet.service';
 import { AuthController } from './models/auth/auth.controller';
@@ -49,7 +48,6 @@ import { IdentService } from './models/ident/ident.service';
   controllers: [
     UserController,
     LogController,
-    WalletController,
     UserDataController,
     BankDataController,
     RefController,
@@ -70,6 +68,6 @@ import { IdentService } from './models/ident/ident.service';
     LimitRequestService,
     IdentService,
   ],
-  exports: [UserService, UserDataService, LogService, RefService],
+  exports: [UserService, UserDataService, RefService, IdentService],
 })
 export class UserModule {}

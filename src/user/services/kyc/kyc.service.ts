@@ -3,22 +3,21 @@ import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
-import { UserInfo } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { AccountType } from 'src/user/models/userData/account-type.enum';
-import { kycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/userData/userData.entity';
+import { KycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/user-data/user-data.entity';
 import {
+  CreateResponse,
+  Customer,
   KycDocument,
   KycContentType,
   KycDocumentState,
-  InitiateResponse,
-  DocumentVersion,
   KycDocuments,
-  Customer,
-  CreateResponse,
+  DocumentVersion,
+  InitiateResponse,
   ChatbotResult,
 } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
+import { AccountType } from 'src/user/models/user-data/account-type.enum';
 
 export enum KycProgress {
   ONGOING = 'Ongoing',
@@ -52,17 +51,17 @@ export class KycService {
     }
   }
 
-  async initializeCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
-    if (userInfo.accountType === AccountType.PERSONAL) {
-      await this.kycApi.updatePersonalCustomer(userDataId, userInfo);
+  async initializeCustomer(user: UserData): Promise<void> {
+    if (user.accountType === AccountType.PERSONAL) {
+      await this.kycApi.updatePersonalCustomer(user.id, user);
     } else {
-      await this.kycApi.updateOrganizationCustomer(userDataId, userInfo);
+      await this.kycApi.updateOrganizationCustomer(user.id, user);
     }
 
-    await this.uploadInitialCustomerInfo(userDataId, userInfo);
+    await this.uploadInitialCustomerInfo(user.id, user);
   }
 
-  private async uploadInitialCustomerInfo(userDataId: number, userInfo: UserInfo): Promise<void> {
+  private async uploadInitialCustomerInfo(userDataId: number, user: UserData): Promise<void> {
     // check if info already exists
     const initialCustomerInfo = await this.kycApi.getDocument(
       userDataId,
@@ -76,7 +75,7 @@ export class KycService {
     // pre-fill customer info
     const customerInfo = {
       type: 'AdditionalPersonInformation',
-      nickName: userInfo.firstname,
+      nickName: user.firstname,
       onlyOwner: 'YES',
       authorisesConversationPartner: 'YES',
       businessActivity: {
@@ -99,14 +98,13 @@ export class KycService {
     );
 
     // pre-fill organization info
-    if (userInfo.accountType !== AccountType.PERSONAL) {
+    if (user.accountType !== AccountType.PERSONAL) {
       const organizationInfo = {
         type:
-          userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP
+          user.accountType === AccountType.SOLE_PROPRIETORSHIP
             ? 'AdditionalOrganisationInformation'
             : 'AdditionalLegalEntityInformation',
-        organisationType:
-          userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
+        organisationType: user.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
         bearerShares: 'NO',
       };
@@ -191,7 +189,7 @@ export class KycService {
   }
 
   async goToStatus(userData: UserData, status: KycStatus): Promise<UserData> {
-    if (kycInProgress(status)) {
+    if (KycInProgress(status)) {
       const identType = KycDocuments[status].ident;
       const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
@@ -271,7 +269,7 @@ export class KycService {
     const locator = initiateData.locators?.[0];
     if (!locator) {
       console.error(`Failed to initiate identification. Initiate result:`, initiateData);
-      throw new ServiceUnavailableException('Failed to initiate identification');
+      throw new ServiceUnavailableException('Identification initiation failed');
     }
 
     spiderData.url =

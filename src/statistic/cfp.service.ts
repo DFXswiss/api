@@ -7,9 +7,9 @@ import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 
-interface CfpSettings {
+export interface CfpSettings {
   inProgress: boolean;
   votingOpen: boolean;
   currentRound: string;
@@ -121,22 +121,20 @@ export class CfpService {
       this.settings = await this.settingService.getObj<CfpSettings>('cfp');
 
       // update cfp results
-      let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter(
-        (cfp) =>
-          cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
-          cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
-      );
+      if (this.settings.inProgress) {
+        let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
+        allCfp = allCfp.filter(
+          (cfp) =>
+            cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
+            cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
+        );
 
-      this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+        this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+      }
     } catch (e) {
       console.error('Exception during CFP update:', e);
       throw new ServiceUnavailableException('Failed to update');
     }
-  }
-
-  isVotingOpen(): boolean {
-    return this.settings.votingOpen;
   }
 
   getCfpList(): string[] {
@@ -147,7 +145,6 @@ export class CfpService {
     if (['latest', this.settings.currentRound].includes(cfpId)) {
       if (this.settings.inProgress) {
         // return current data from GitHub
-        if (!this.cfpResults) await this.doUpdate();
         return this.cfpResults;
       }
 
@@ -156,7 +153,7 @@ export class CfpService {
     }
 
     const results = CfpResults[cfpId];
-    if (!results) throw new NotFoundException('No CFP result for id found');
+    if (!results) throw new NotFoundException('CFP not found');
 
     return results;
   }

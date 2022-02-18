@@ -2,8 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
-import { UserInfo } from 'src/user/models/user/user.entity';
-import { RiskState } from 'src/user/models/userData/userData.entity';
+import { RiskState, UserData } from 'src/user/models/user-data/user-data.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -62,7 +61,7 @@ export class KycApiService {
     return this.callApi<CreateResponse>('customers/simple', 'POST', customer);
   }
 
-  async updatePersonalCustomer(id: number, user: UserInfo): Promise<SubmitResponse[] | CreateResponse> {
+  async updatePersonalCustomer(id: number, user: UserData): Promise<SubmitResponse[] | CreateResponse> {
     const customer = this.buildCustomer(id, user);
 
     // handle legacy customers without contract reference
@@ -84,7 +83,7 @@ export class KycApiService {
     }
   }
 
-  async updateOrganizationCustomer(id: number, user: UserInfo): Promise<SubmitResponse[]> {
+  async updateOrganizationCustomer(id: number, user: UserData): Promise<SubmitResponse[]> {
     const person = {
       contractReference: this.contract(id),
       customer: this.buildCustomer(id, user),
@@ -100,7 +99,7 @@ export class KycApiService {
     return await this.callApi<SubmitResponse[]>('customers/contract-linked-list', 'POST', [person, organization]);
   }
 
-  private buildCustomer(id: number, user: UserInfo): Partial<Customer> {
+  private buildCustomer(id: number, user: UserData): Partial<Customer> {
     const preferredLanguage = ['es', 'pt'].includes(user.language?.symbol?.toLowerCase())
       ? 'en'
       : user.language?.symbol?.toLowerCase();
@@ -127,7 +126,7 @@ export class KycApiService {
     };
   }
 
-  private buildOrganization(id: number, user: UserInfo): Partial<Organization> {
+  private buildOrganization(id: number, user: UserData): Partial<Organization> {
     return {
       reference: this.reference(id, true),
       type: 'ORGANISATION',
@@ -285,7 +284,7 @@ export class KycApiService {
   }
 
   private contract(id: number): string {
-    return this.reference(id) + '_placeholder'; 
+    return this.reference(id) + '_placeholder';
   }
 
   private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {

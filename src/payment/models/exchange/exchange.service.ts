@@ -69,7 +69,7 @@ export class ExchangeService {
   async getWithdraw(id: string, token: string): Promise<Transaction> {
     const withdrawals = await this.callApi((e) => e.fetchWithdrawals(token, undefined, 50));
     const withdrawal = withdrawals.find((w) => w.id === id);
-    if (!withdrawal) throw new NotFoundException('No withdrawal for ID found');
+    if (!withdrawal) throw new NotFoundException('Withdrawal not found');
 
     return withdrawal;
   }

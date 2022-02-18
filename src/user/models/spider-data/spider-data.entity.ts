@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
-import { UserData } from '../userData/userData.entity';
+import { UserData } from '../user-data/user-data.entity';
 
 @Entity()
 export class SpiderData extends IEntity {

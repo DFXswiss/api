@@ -1,12 +1,12 @@
 import { BadRequestException, Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UpdateUserDataDto } from './dto/update-userData.dto';
+import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { UserDataService } from './userData.service';
-import { UserData } from './userData.entity';
-import { UserDataRepository } from './userData.repository';
+import { UserDataService } from './user-data.service';
+import { UserData } from './user-data.entity';
+import { UserDataRepository } from './user-data.repository';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
 import { IdentService } from '../ident/ident.service';
@@ -26,7 +26,7 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllUserData(): Promise<UserData[]> {
-    return this.userDataService.getAllUserData();
+    return this.userDataRepo.find();
   }
   
   @Put(':id')
@@ -69,7 +69,7 @@ export class UserDataController {
   async requestKyc(@Param('id') id: number): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
     const user = userData.users[0];
-    if (!user) throw new BadRequestException('UserData has no user');
+    if (!user) throw new BadRequestException('User not found');
 
     return this.identService.requestKyc(user.id);
   }

@@ -21,11 +21,12 @@ import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './auth/jwt.strategy';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { ScheduleModule } from '@nestjs/schedule';
-import { SettingRepository } from './setting/setting.repository';
-import { SettingService } from './setting/setting.service';
+import { SettingRepository } from './models/setting/setting.repository';
+import { SettingService } from './models/setting/setting.service';
 import { GetConfig } from 'src/config/config';
 import { ConfigModule } from 'src/config/config.module';
 import { I18nModule } from 'nestjs-i18n';
+import { SettingController } from './models/setting/setting.controller';
 
 @Module({
   imports: [
@@ -44,7 +45,7 @@ import { I18nModule } from 'nestjs-i18n';
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
   ],
-  controllers: [AssetController, FiatController, CountryController, LanguageController],
+  controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [
     ConversionService,
     MailService,

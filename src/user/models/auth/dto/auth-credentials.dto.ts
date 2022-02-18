@@ -3,14 +3,14 @@ import { IsNotEmpty, IsString, Matches } from 'class-validator';
 
 export class AuthCredentialsDto {
   @ApiProperty()
-  @IsString()
   @IsNotEmpty()
+  @IsString()
   @Matches(/^(8\w{33}|d\w{33}|d\w{41})$/)
   address: string;
 
   @ApiProperty()
-  @IsString()
   @IsNotEmpty()
+  @IsString()
   @Matches(/^.{87}=$/)
   signature: string;
 }

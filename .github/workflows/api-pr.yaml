@@ -1,18 +1,17 @@
-name: API PRD CI/CD
+name: API PR CI
 
 on:
-  push:
-    branches: [ master ]
+  pull_request:
+    branches:    
+      - master
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: app-dfx-api-prd
-  AZURE_WEBAPP_PACKAGE_PATH: '.'
   NODE_VERSION: '14.x'
 
 jobs:
-  build-and-deploy:
-    name: Build, test and deploy to PRD
+  build:
+    name: Build and test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,10 +37,3 @@ jobs:
       - name: Run linter
         run: |
           npm run lint
-
-      - name: Deploy to Azure App Service (PRD)
-        uses: azure/webapps-deploy@0b651ed7546ecfc75024011f76944cb9b381ef1e
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.PRD_PUBLISH_PROFILE }}
-          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}

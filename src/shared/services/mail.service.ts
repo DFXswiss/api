@@ -1,6 +1,6 @@
 import { ISendMailOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { SentMessageInfo } from 'nodemailer';
 import { Util } from '../util';
@@ -16,7 +16,7 @@ export class MailService {
     [KycStatus.VIDEO_ID]: 'Video ID',
   };
 
-  constructor(private mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService) {}
 
   async sendKycReminderMail(
     firstName: string,

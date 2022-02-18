@@ -4,19 +4,19 @@ import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
-import { kycCompleted } from '../../../user/models/userData/userData.entity';
+import { KycCompleted } from '../../../user/models/user-data/user-data.entity';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { StakingType } from './dto/staking-type.enum';
 import { StakingDto } from './dto/staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { Staking } from './staking.entity';
 import { StakingRepository } from './staking.repository';
-import { UserDataService } from 'src/user/models/userData/userData.service';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyRepository } from '../buy/buy.repository';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
@@ -35,7 +35,7 @@ export class StakingService {
     private readonly settingService: SettingService,
   ) {}
 
-  async getStakingForAddress(depositAddress: string): Promise<Staking> {
+  async getStakingByAddress(depositAddress: string): Promise<Staking> {
     // does not work with find options
     return this.stakingRepo
       .createQueryBuilder('staking')
@@ -46,7 +46,7 @@ export class StakingService {
 
   async getStaking(id: number, userId: number): Promise<Staking> {
     const staking = await this.stakingRepo.findOne({ where: { id, user: { id: userId } } });
-    if (!staking) throw new NotFoundException('No matching staking route for id found');
+    if (!staking) throw new NotFoundException('Staking route not found');
 
     return staking;
   }
@@ -55,14 +55,14 @@ export class StakingService {
     return this.stakingRepo.find({ user: { id: userId } });
   }
 
-  async getStakingByAddress(address: string): Promise<Staking[]> {
+  async getUserStakingByAddress(address: string): Promise<Staking[]> {
     return await this.stakingRepo.find({ where: { user: { address: address } }, relations: ['user'] });
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
     // KYC check
-    const { kycStatus } = await this.userDataService.getUserDataForUser(userId);
-    if (!kycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
+    const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
+    if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
 
     // max. 10 routes
     const routeCount = await this.stakingRepo.count({ user: { id: userId } });
@@ -72,9 +72,9 @@ export class StakingService {
     return this.stakingRepo.save(staking);
   }
 
-  async updateStaking(userId: number, dto: UpdateStakingDto): Promise<Staking> {
-    const staking = await this.stakingRepo.findOne({ id: dto.id, user: { id: userId } });
-    if (!staking) throw new NotFoundException('No matching entry found');
+  async updateStaking(userId: number, stakingId: number, dto: UpdateStakingDto): Promise<Staking> {
+    const staking = await this.stakingRepo.findOne({ id: stakingId, user: { id: userId } });
+    if (!staking) throw new NotFoundException('Staking route not found');
 
     const update = await this.createEntity(userId, dto, staking);
     return await this.stakingRepo.save(update);
@@ -207,7 +207,7 @@ export class StakingService {
 
   private async getAsset(assetId?: number): Promise<Asset | null> {
     const asset: Asset = await this.assetService.getAsset(assetId);
-    return asset && asset.buyable ? asset : await this.assetService.getAsset('DFI');
+    return asset && asset.buyable ? asset : await this.assetService.getAssetByDexName('DFI');
   }
 
   // --- BALANCE --- //

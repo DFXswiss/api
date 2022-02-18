@@ -108,8 +108,8 @@ export class CryptoInputService {
 
     // get deposit route
     const route =
-      (await this.sellService.getSellForAddress(history.owner)) ??
-      (await this.stakingService.getStakingForAddress(history.owner));
+      (await this.sellService.getSellByAddress(history.owner)) ??
+      (await this.stakingService.getStakingByAddress(history.owner));
     if (!route) {
       console.error(`Failed to process crypto input. No matching route found. History entry:`, history);
       return null;

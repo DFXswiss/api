@@ -1,4 +1,4 @@
-import { KycStatus, RiskState } from 'src/user/models/userData/userData.entity';
+import { KycStatus, RiskState } from 'src/user/models/user-data/user-data.entity';
 
 export enum KycContentType {
   IMAGE = 'image/png',

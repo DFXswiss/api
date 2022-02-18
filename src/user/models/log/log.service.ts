@@ -3,13 +3,10 @@ import { LogRepository } from './log.repository';
 import { CreateLogDto } from './dto/create-log.dto';
 import { CreateVolumeLogDto } from './dto/create-volume-log.dto';
 import { HttpService } from 'src/shared/services/http.service';
-import { LogDirection, LogType } from './log.entity';
+import { LogType } from './log.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { Not } from 'typeorm';
-import { ConversionService } from 'src/shared/services/conversion.service';
-import { Util } from 'src/shared/util';
 
 // TODO: crypto conversion to service
 @Injectable()
@@ -20,7 +17,6 @@ export class LogService {
     private assetService: AssetService,
     private fiatService: FiatService,
     private userRepo: UserRepository,
-    private conversionService: ConversionService,
   ) {}
   private readonly baseUrl = 'https://api.coingecko.com/api/v3/coins/defichain/market_chart?vs_currency=chf&days=1';
 
@@ -44,7 +40,7 @@ export class LogService {
         .getRawOne();
     }
 
-    if (existingLog) throw new ConflictException('Log already existing - duplicate log');
+    if (existingLog) throw new ConflictException('Log already exists');
 
     if (createLogDto.type === LogType.TRANSACTION && !createLogDto.status) {
       if (!createLogDto.user && createLogDto.address) {
@@ -99,7 +95,7 @@ export class LogService {
         .getRawOne();
     }
 
-    if (existingLog) throw new ConflictException('Log already existing - duplicate log');
+    if (existingLog) throw new ConflictException('Log already exists');
 
     if (createLogDto.fiat) {
       fiatObject = await this.fiatService.getFiatOld(createLogDto.fiat);
@@ -108,11 +104,11 @@ export class LogService {
     }
 
     if (createLogDto.asset) {
-      assetObject = await this.assetService.getAsset(createLogDto.asset);
+      assetObject = await this.assetService.getAssetOld(createLogDto.asset);
     }
 
     if (assetObject.name != 'DFI') {
-      assetObject = await this.assetService.getAsset('DFI');
+      assetObject = await this.assetService.getAssetByDexName('DFI');
 
       const result = await this.http.get(`${this.baseUrl}`);
       const resultArray = result['prices'];
@@ -137,7 +133,7 @@ export class LogService {
     createLogDto.orderId = createLogDto.address + ':' + new Date().toISOString();
 
     if (!createLogDto.user) {
-      const userObject = await this.userRepo.getUserInternal(createLogDto.address);
+      const userObject = await this.userRepo.findOne({ address: createLogDto.address });
 
       createLogDto.user = userObject;
       //createLogDto.message = userObject.usedRef;
@@ -151,38 +147,5 @@ export class LogService {
     log.fiat = fiatObject;
 
     return log;
-  }
-
-  async getAllLog(): Promise<any> {
-    return this.logRepository.getAllLog();
-  }
-
-  async getAllUserLog(address: string): Promise<any> {
-    return this.logRepository.getAllUserLog(address);
-  }
-
-  async getLog(key: any): Promise<any> {
-    return this.logRepository.getLog(key);
-  }
-
-  async getRefVolume(ref: string, fiat: string): Promise<any> {
-    const logsWithoutEur = await this.logRepository.find({ where: { usedRef: ref, fiat: Not(2) } });
-    const logsEur = await this.logRepository.find({ where: { usedRef: ref, fiat: 2 } });
-    const volumeWithoutEur = await this.conversionService.convertFiatCurrency(
-      await this.logRepository.sum(logsWithoutEur, 'fiatInCHF', 2),
-      'chf',
-      fiat,
-    );
-    const volumeEur = await this.logRepository.sum(logsEur, 'fiatValue', 2);
-
-    return Util.round(volumeWithoutEur + volumeEur, 0);
-  }
-
-  async getAssetVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
-    return this.logRepository.getAssetVolume(logType, logDirection);
-  }
-
-  async getChfVolume(logType: LogType, logDirection: LogDirection): Promise<any> {
-    return this.logRepository.getChfVolume(logType, logDirection);
   }
 }
