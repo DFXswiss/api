@@ -9,6 +9,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { User } from './user.entity';
+import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 
 describe('UserService', () => {
   let service: UserService;
@@ -19,6 +20,7 @@ describe('UserService', () => {
   let identService: IdentService;
   let walletService: WalletService;
   let settingService: SettingService;
+  let dfiTaxService: DfiTaxService;
 
   function setup(accountType: AccountType, refFeePercent?: number) {
     jest.spyOn(userRepo, 'findOne').mockResolvedValue({ accountType, refFeePercent } as User);
@@ -31,6 +33,7 @@ describe('UserService', () => {
     identService = createMock<IdentService>();
     walletService = createMock<WalletService>();
     settingService = createMock<SettingService>();
+    dfiTaxService = createMock<DfiTaxService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -41,6 +44,7 @@ describe('UserService', () => {
         { provide: IdentService, useValue: identService },
         { provide: WalletService, useValue: walletService },
         { provide: SettingService, useValue: settingService },
+        { provide: DfiTaxService, useValue: dfiTaxService },
       ],
     }).compile();
 
