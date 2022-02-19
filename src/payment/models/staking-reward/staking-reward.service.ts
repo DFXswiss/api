@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Between } from 'typeorm';
+import { Between, Not } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
 import { StakingReward } from './staking-reward.entity';
 import { StakingRewardRepository } from './staking-reward.respository';
@@ -16,14 +16,17 @@ export class StakingRewardService {
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
-    let entity = await this.rewardRepo.findOne({
-      where: {
-        staking: { id: dto.stakingId },
-        txId: dto.txId,
-      },
-    });
+    let entity = await this.rewardRepo
+      .createQueryBuilder('stakingReward')
+      .innerJoin('stakingReward.staking', 'stakingRoute')
+      .where('stakingRoute.id = :id', { id: dto.stakingId })
+      .andWhere('stakingReward.txid = :txid', { txid: dto.txId })
+      .orWhere('stakingReward.internalId = :internalId', { internalId: dto.internalId })
+      .getRawOne();
     if (entity)
-      throw new ConflictException('There is already the same staking reward for the specified staking route and txId');
+      throw new ConflictException(
+        'There is already the same staking reward for the specified staking route and txId or the internal Id is already usedj',
+      );
 
     entity = await this.createEntity(dto);
     entity = await this.rewardRepo.save(entity);
@@ -37,16 +40,17 @@ export class StakingRewardService {
     let entity = await this.rewardRepo.findOne(id, { relations: ['staking', 'staking.user'] });
     if (!entity) throw new NotFoundException('No matching entry found');
 
-    // const bankTxWithOtherBuy = dto.routeId
-    //   ? await this.rewardRepo.findOne({ id: Not(id), bankTx: { id: dto.bankTxId } })
-    //   : null;
-    // if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
+    const internalIdWithOtherReward = dto.internalId
+      ? await this.rewardRepo.findOne({ id: Not(id), internalId: dto.internalId })
+      : null;
+    if (internalIdWithOtherReward)
+      throw new ConflictException('There is already a reward for the specified internal Id');
 
     const routeIdBefore = entity.staking?.id;
 
     const update = await this.createEntity(dto);
 
-    entity = await this.rewardRepo.save({ ...entity, ...update });
+    entity = await this.rewardRepo.save({ ...update, ...entity });
 
     await this.updateStakingVolume([routeIdBefore, entity.staking?.id]);
 

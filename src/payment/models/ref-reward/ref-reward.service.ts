@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Between } from 'typeorm';
+import { Between, Not } from 'typeorm';
 import { RefRewardRepository } from './ref-reward.repository';
 import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
@@ -11,8 +11,17 @@ export class RefRewardService {
   constructor(private readonly rewardRepo: RefRewardRepository, private readonly userService: UserService) {}
 
   async create(dto: CreateRefRewardDto): Promise<RefReward> {
-    let entity = await this.rewardRepo.findOne({ where: { user: { id: dto.userId }, txId: dto.txId } });
-    if (entity) throw new ConflictException('There is already the same ref reward for the specified user and txId');
+    let entity = await this.rewardRepo
+      .createQueryBuilder('refReward')
+      .innerJoin('refReward.user', 'user')
+      .where('user.id = :id', { id: dto.userId })
+      .andWhere('refReward.txid = :txid', { txid: dto.txId })
+      .orWhere('refReward.internalId = :internalId', { internalId: dto.internalId })
+      .getRawOne();
+    if (entity)
+      throw new ConflictException(
+        'There is already the same ref reward for the specified user and txId or the internal Id is already used',
+      );
 
     entity = await this.createEntity(dto);
     entity = await this.rewardRepo.save(entity);
@@ -26,16 +35,19 @@ export class RefRewardService {
     let entity = await this.rewardRepo.findOne(id, { relations: ['user'] });
     if (!entity) throw new NotFoundException('No matching entry found');
 
-    // const bankTxWithOtherBuy = dto.routeId
-    //   ? await this.rewardRepo.findOne({ id: Not(id), bankTx: { id: dto.bankTxId } })
-    //   : null;
-    // if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
+    const internalIdWithOtherReward = dto.internalId
+      ? await this.rewardRepo.findOne({ id: Not(id), internalId: dto.internalId })
+      : null;
+    if (internalIdWithOtherReward)
+      throw new ConflictException('There is already a reward for the specified internal Id');
 
     const userIdBefore = entity.user?.id;
 
     const update = await this.createEntity(dto);
 
-    entity = await this.rewardRepo.save({ ...entity, ...update });
+    //Object.fromEntries(Object.entries(entity).filter(([_, v]) => v != null));
+
+    entity = await this.rewardRepo.save({ ...update, ...entity });
 
     await this.updateRefPayedVolume([userIdBefore, entity.user?.id]);
 
