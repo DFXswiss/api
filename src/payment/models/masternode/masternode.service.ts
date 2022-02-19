@@ -19,7 +19,7 @@ export class MasternodeService {
 
   async update(hash: string, dto: UpdateMasternodeDto): Promise<Masternode> {
     const masternode = await this.masternodeRepo.findOne({ hash });
-    if (!masternode) throw new NotFoundException('No matching entry found');
+    if (!masternode) throw new NotFoundException('Masternode not found');
 
     return await this.masternodeRepo.save({ ...masternode, ...dto });
   }

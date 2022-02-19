@@ -1,5 +1,6 @@
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
@@ -9,11 +10,10 @@ import { AccountType } from './account-type.enum';
 
 export enum KycStatus {
   NA = 'NA',
-  WAIT_CHAT_BOT = 'Chatbot',
-  WAIT_ADDRESS = 'Address',
-  WAIT_ONLINE_ID = 'OnlineId',
-  WAIT_VIDEO_ID = 'VideoId',
-  WAIT_MANUAL = 'Manual',
+  CHATBOT = 'Chatbot',
+  ONLINE_ID = 'OnlineId',
+  VIDEO_ID = 'VideoId',
+  MANUAL = 'Manual',
   COMPLETED = 'Completed',
 }
 
@@ -21,7 +21,6 @@ export enum KycState {
   NA = 'NA',
   FAILED = 'Failed',
   REMINDED = 'Reminded',
-  RETRIED = 'Retried',
 }
 
 export enum RiskState {
@@ -32,6 +31,7 @@ export enum RiskState {
 
 @Entity()
 export class UserData extends IEntity {
+  // TODO: remove
   @Column({ default: true })
   isMigrated: boolean;
 
@@ -86,32 +86,38 @@ export class UserData extends IEntity {
   @ManyToOne(() => Language, { eager: true })
   language: Language;
 
+  @ManyToOne(() => Fiat, { eager: true })
+  currency: Fiat;
+
+  @Column({ length: 256, nullable: true })
+  riskState: RiskState;
+
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 
   @Column({ length: 256, default: KycState.NA })
   kycState: KycState;
 
-  @Column({ length: 256, nullable: true })
-  riskState: RiskState;
-
-  @Column({ type: 'float', default: 90000 })
-  depositLimit: number;
-
-  @Column({ type: 'integer', nullable: true })
-  contributionAmount: number;
-
-  @Column({ length: 256, nullable: true })
-  contributionCurrency: string;
-
-  @Column({ length: 256, nullable: true })
-  plannedContribution: string;
+  @Column({ type: 'datetime2', nullable: true })
+  kycStatusChangeDate: Date;
 
   @Column({ type: 'integer', nullable: true })
   kycFileId: number;
 
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
+
+  @Column({ length: 256, nullable: true })
+  kycHash: string;
+
+  @Column({ type: 'float', default: 90000 })
+  depositLimit: number;
+
+  @Column({ type: 'integer', nullable: true })
+  contribution: number;
+
+  @Column({ length: 256, nullable: true })
+  plannedContribution: string;
 
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
@@ -125,4 +131,15 @@ export class UserData extends IEntity {
 
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
+}
+
+export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
+export const KycCompletedStates = [KycStatus.MANUAL, KycStatus.COMPLETED];
+
+export function KycInProgress(kycStatus?: KycStatus): boolean {
+  return KycInProgressStates.includes(kycStatus);
+}
+
+export function KycCompleted(kycStatus?: KycStatus): boolean {
+  return KycCompletedStates.includes(kycStatus);
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { SellService } from './sell.service';
@@ -30,11 +30,11 @@ export class SellController {
     return this.sellService.createSell(jwt.id, createSellDto).then((s) => this.toDto(jwt.id, s));
   }
 
-  @Put()
+  @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateSell(@GetJwt() jwt: JwtPayload, @Body() updateSellDto: UpdateSellDto): Promise<SellDto> {
-    return this.sellService.updateSell(jwt.id, updateSellDto).then((s) => this.toDto(jwt.id, s));
+  async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() updateSellDto: UpdateSellDto): Promise<SellDto> {
+    return this.sellService.updateSell(jwt.id, +id, updateSellDto).then((s) => this.toDto(jwt.id, s));
   }
 
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {

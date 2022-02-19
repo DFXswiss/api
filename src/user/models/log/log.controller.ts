@@ -18,6 +18,7 @@ export class LogController {
 
   @Get('/id/:key')
   @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getLog(@Param() log: any): Promise<any> {
     return this.logRepo.getLog(log);
@@ -32,6 +33,7 @@ export class LogController {
 
   @Get('all')
   @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllLog(): Promise<any> {
     return this.logRepo.getAllLog();

@@ -10,6 +10,8 @@ import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { Between, Not } from 'typeorm';
+import { UserStatus } from 'src/user/models/user/user.entity';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class CryptoSellService {
@@ -19,6 +21,7 @@ export class CryptoSellService {
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly sellService: SellService,
     private readonly sellRepo: SellRepository,
+    private readonly userService: UserService,
   ) {}
 
   async create(dto: CreateCryptoSellDto): Promise<CryptoSell> {
@@ -29,13 +32,14 @@ export class CryptoSellService {
     entity = await this.cryptoSellRepo.save(entity);
 
     await this.updateSellVolume([entity.cryptoInput.route.id]);
+
     return entity;
   }
 
   async update(id: number, dto: UpdateCryptoSellDto): Promise<CryptoSell> {
     let entity = await this.cryptoSellRepo.findOne(id, { relations: ['cryptoInput', 'cryptoInput.route'] });
-    if (!entity) throw new NotFoundException('No matching entry found');
-    
+    if (!entity) throw new NotFoundException('Crypto sell not found');
+
     const cryptoInputWithOtherSell = dto.cryptoInputId
       ? await this.cryptoSellRepo.findOne({
           where: { id: Not(id), cryptoInput: { id: dto.cryptoInputId } },
@@ -66,15 +70,22 @@ export class CryptoSellService {
     // bank tx
     if (dto.bankTxId) {
       cryptoSell.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-      if (!cryptoSell.bankTx) throw new NotFoundException('No bank TX for ID found');
+      if (!cryptoSell.bankTx) throw new BadRequestException('Bank TX not found');
     }
 
     // crypto input
     if (dto.cryptoInputId) {
-      cryptoSell.cryptoInput = await this.cryptoInputRepo.findOne({ id: dto.cryptoInputId }, { relations: ['route'] });
-      if (!cryptoSell.cryptoInput) throw new NotFoundException('No crypto input for ID found');
+      cryptoSell.cryptoInput = await this.cryptoInputRepo.findOne(
+        { id: dto.cryptoInputId },
+        { relations: ['route', 'route.user'] },
+      );
+      if (!cryptoSell.cryptoInput) throw new BadRequestException('Crypto input not found');
       if (cryptoSell.cryptoInput.route.type !== RouteType.SELL)
         throw new BadRequestException('Crypto input is not a sell input');
+    }
+
+    if (cryptoSell.amlCheck === AmlCheck.PASS && cryptoSell.cryptoInput?.route?.user?.status === UserStatus.NA) {
+      await this.userService.updateUserInternal(cryptoSell.cryptoInput.route.user.id, { status: UserStatus.ACTIVE });
     }
 
     return cryptoSell;

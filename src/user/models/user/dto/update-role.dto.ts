@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsInt, IsEnum } from 'class-validator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 
@@ -8,7 +8,7 @@ export class UpdateRoleDto {
   @IsInt()
   id: number;
 
-  @ApiPropertyOptional()
+  @ApiProperty()
   @IsNotEmpty()
   @IsEnum(UserRole)
   role: UserRole;

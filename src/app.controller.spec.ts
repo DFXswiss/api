@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { HttpService } from './shared/services/http.service';
-import { SettingService } from './shared/setting/setting.service';
+import { SettingService } from './shared/models/setting/setting.service';
 import { RefService } from './user/models/referral/ref.service';
 
 describe('AppController', () => {

@@ -2,10 +2,9 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { UserDataController } from 'src/user/models/userData/userData.controller';
-import { UserDataRepository } from 'src/user/models/userData/userData.repository';
-import { UserDataService } from 'src/user/models/userData/userData.service';
-import { WalletController } from 'src/user/models/wallet/wallet.controller';
+import { UserDataController } from 'src/user/models/user-data/user-data.controller';
+import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/user/models/wallet/wallet.service';
 import { AuthController } from './models/auth/auth.controller';
@@ -25,6 +24,11 @@ import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
 import { KycApiService } from './services/kyc/kyc-api.service';
 import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
+import { KycService } from './services/kyc/kyc.service';
+import { LimitRequestRepository } from './models/limit-request/limit-request.repository';
+import { LimitRequestService } from './models/limit-request/limit-request.service';
+import { IdentController } from './models/ident/ident.controller';
+import { IdentService } from './models/ident/ident.service';
 
 @Module({
   imports: [
@@ -36,6 +40,7 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
       WalletRepository,
       BankDataRepository,
       RefRepository,
+      LimitRequestRepository,
     ]),
     SharedModule,
     AinModule,
@@ -43,11 +48,11 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
   controllers: [
     UserController,
     LogController,
-    WalletController,
     UserDataController,
     BankDataController,
     RefController,
     AuthController,
+    IdentController,
   ],
   providers: [
     UserService,
@@ -56,10 +61,13 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
     UserDataService,
     BankDataService,
     RefService,
+    KycService,
     KycApiService,
-    AuthService,
     KycSchedulerService,
+    AuthService,
+    LimitRequestService,
+    IdentService,
   ],
-  exports: [UserService, UserDataService, LogService,  KycApiService, RefService,KycSchedulerService],
+  exports: [UserService, UserDataService, RefService, IdentService],
 })
 export class UserModule {}

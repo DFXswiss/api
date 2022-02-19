@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { UserData } from 'src/user/models/userData/userData.entity';
+import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { Entity, Column, Index, ManyToOne } from 'typeorm';
 
 @Entity()

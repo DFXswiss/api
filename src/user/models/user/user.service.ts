@@ -1,140 +1,194 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { extractUserInfo, getUserInfo, User, UserStatus } from './user.entity';
+import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateRoleDto } from './dto/update-role.dto';
-import { UpdateStatusDto } from './dto/update-status.dto';
-import { UserDataService } from 'src/user/models/userData/userData.service';
-import { LogService } from 'src/user/models/log/log.service';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { LanguageService } from 'src/shared/models/language/language.service';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Util } from 'src/shared/util';
-import { Config } from 'src/config/config';
-import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
+import { CfpVotes } from './dto/cfp-votes.dto';
+import { UserDetailDto } from './dto/user.dto';
+import { IdentService } from '../ident/ident.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { WalletService } from '../wallet/wallet.service';
+import { Like, Not } from 'typeorm';
+import { AccountType } from '../user-data/account-type.enum';
+
+import { CfpSettings } from 'src/statistic/cfp.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { TransactionService } from 'src/payment/models/transaction/transaction.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly logService: LogService,
-    private readonly countryService: CountryService,
-    private readonly languageService: LanguageService,
-    private readonly fiatService: FiatService,
+    private readonly identService: IdentService,
+    private readonly walletService: WalletService,
+    private readonly settingService: SettingService,
+    private readonly transactionService: TransactionService,
   ) {}
 
-  async getUser(userId: number, detailedUser = false): Promise<User> {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData', 'currency'],
-    });
-    if (!user) throw new NotFoundException('No matching user for id found');
+  async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
+    const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
+    if (!user) throw new NotFoundException('User not found');
 
-    return await this.toDto(user, detailedUser);
+    return await this.toDto(user, detailed);
   }
 
-  async updateStatus(user: UpdateStatusDto): Promise<any> {
-    //TODO status ändern wenn transaction oder KYC
-    return this.userRepo.updateStatus(user);
+  async getUserByAddress(address: string): Promise<User> {
+    return this.userRepo.findOne({ address });
   }
 
-  async updateUser(oldUserId: number, newUser: UpdateUserDto): Promise<any> {
-    const oldUser = await this.userRepo.findOne({ where: { id: oldUserId }, relations: ['userData'] });
-    const user = await this.userRepo.updateUser(
-      oldUser,
-      newUser,
-      this.languageService,
-      this.countryService,
-      this.fiatService,
-    );
-    user.userData = await this.userDataService.updateUserInfo(oldUser.userData, extractUserInfo(user));
+  async createUser(dto: CreateUserDto, userIp: string): Promise<User> {
+    let user = this.userRepo.create(dto);
 
-    return await this.toDto(user, true);
-  }
+    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
+    user.ip = userIp;
+    user.ref = await this.getNextRef();
+    user.usedRef = await this.checkRef(user, dto.usedRef);
 
-  private async toDto(user: User, detailed: boolean): Promise<User> {
-    // add additional data
-    user['kycStatus'] = user.userData?.kycStatus;
-    user['kycState'] = user.userData?.kycState;
-    user['depositLimit'] = user.userData?.depositLimit;
+    user = await this.userRepo.save(user);
+    await this.userDataService.createUserData(user);
 
-    if (detailed) {
-      user['refData'] = await this.getRefData(user);
-    }
-
-    // select user info
-    user = { ...user, ...getUserInfo(user) };
-
-    // remove data to hide
-    delete user.userData;
-    delete user.signature;
-    delete user.ip;
-    delete user.role;
-    if (user.status != UserStatus.ACTIVE) delete user.ref;
-    if (user.usedRef === '000-000') delete user.usedRef;
+    this.transactionService.activateDfiTaxAddress(user.address);
 
     return user;
   }
 
-  async getAllUser(): Promise<any> {
-    return this.userRepo.getAllUser();
+  async updateUser(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
+    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
+    if (!user) throw new NotFoundException('User not found');
+
+    // check used ref
+    dto.usedRef = await this.checkRef(user, dto.usedRef);
+
+    // check ref provision
+    if (user.refFeePercent < dto.refFeePercent) throw new BadRequestException('Ref provision can only be decreased');
+
+    // update
+    user = await this.userRepo.save({ ...user, ...dto });
+    user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
+
+    return await this.toDto(user, true);
   }
 
-  async verifyUser(userId: number) {
-    const { userData } = await this.userRepo.findOne({
+  async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
+    const user = await this.userRepo.findOne(id);
+    if (!user) throw new NotFoundException('User not found');
+
+    return await this.userRepo.save({ ...user, ...update });
+  }
+
+  // --- REF --- //
+  async updateRefProvision(userId: number, provision: number): Promise<number> {
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
+    await this.userRepo.update({ id: userId }, { refFeePercent: provision });
+    return provision;
+  }
+
+  async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
+    const { usedRef, accountType } = await this.userRepo.findOne({
+      select: ['id', 'usedRef', 'accountType'],
       where: { id: userId },
-      relations: ['userData', 'userData.country', 'userData.organizationCountry'],
     });
 
-    return this.userDataService.verifyUser(userData);
-  }
+    const baseFee =
+      accountType === AccountType.PERSONAL
+        ? // personal
+          annualVolume < 5000
+          ? 2.9
+          : annualVolume < 50000
+          ? 2.65
+          : annualVolume < 100000
+          ? 2.4
+          : 1.4
+        : // organization
+        annualVolume < 100000
+        ? 2.9
+        : 1.9;
 
-  async updateRole(user: UpdateRoleDto): Promise<any> {
-    return this.userRepo.updateRole(user);
-  }
+    const refFee = await this.userRepo
+      .findOne({ select: ['id', 'ref', 'refFeePercent'], where: { ref: usedRef } })
+      .then((u) => u?.refFeePercent);
 
-  async requestKyc(userId: number, depositLimit: string): Promise<string | undefined> {
-    return this.userDataService.requestKyc(userId, depositLimit);
-  }
+    const refBonus = annualVolume < 100000 ? 1 - (refFee ?? 1) : 0;
 
-  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    return this.userDataService.uploadDocument(userId, document, kycDocument);
-  }
-
-  async getRefDataForId(userId: number): Promise<any> {
-    const user = await this.userRepo.findOne(userId);
-    return this.getRefData(user);
-  }
-
-  async getRefData(user: User): Promise<any> {
-    return {
-      ref: user.status == UserStatus.NA ? undefined : user.ref,
-      refFee: user.status == UserStatus.NA ? undefined : user.refFeePercent,
-      refCount: await this.userRepo.getRefCount(user.ref),
-      refCountActive: await this.userRepo.getRefCountActive(user.ref),
-      refVolume: await this.logService.getRefVolume(
-        user.ref,
-        (user.currency?.name ?? Config.defaultCurrency).toLowerCase(),
-      ),
-    };
-  }
-
-  async updateRefFee(userId: number, fee: number): Promise<number> {
-    const user = await this.userRepo.findOne(userId);
-    if (!user) throw new NotFoundException('No matching user found');
-
-    if (user.refFeePercent < fee) throw new BadRequestException('Ref fee can only be decreased');
-    await this.userRepo.update({ id: userId }, { refFeePercent: fee });
-    return fee;
+    return { fee: baseFee - refBonus, refBonus };
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
     await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
   }
 
-  async getRefUser(userId: number): Promise<User | undefined> {
-    const { usedRef } = await this.userRepo.findOne({ select: ['id', 'usedRef'], where: { id: userId } });
-    return this.userRepo.findOne({ ref: usedRef });
+  private async checkRef(user: User, usedRef: string): Promise<string> {
+    const refUser = await this.userRepo.findOne({ where: { ref: usedRef }, relations: ['userData'] });
+    return usedRef === null ||
+      usedRef === user.ref ||
+      (usedRef && !refUser) ||
+      user?.userData?.id === refUser?.userData?.id
+      ? '000-000'
+      : usedRef;
+  }
+
+  private async getNextRef(): Promise<string> {
+    // get highest numerical ref
+    const nextRef = await this.userRepo
+      .findOne({
+        select: ['id', 'ref'],
+        where: { ref: Like('%[0-9]-[0-9]%') },
+        order: { ref: 'DESC' },
+      })
+      .then((u) => +u.ref.replace('-', '') + 1);
+
+    const ref = nextRef.toString().padStart(6, '0');
+    return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
+  }
+
+  // --- DTO --- //
+  private async toDto(user: User, detailed: boolean): Promise<UserDetailDto> {
+    return {
+      accountType: user.userData?.accountType,
+      address: user.address,
+      status: user.status,
+      usedRef: user.usedRef === '000-000' ? undefined : user.usedRef,
+      mail: user.userData?.mail,
+      phone: user.userData?.phone,
+      language: user.userData?.language,
+      currency: user.userData?.currency,
+
+      ...(detailed && user.status !== UserStatus.ACTIVE
+        ? undefined
+        : {
+            ref: user.ref,
+            refFeePercent: user.refFeePercent,
+            refVolume: user.refVolume,
+            refCredit: user.refCredit,
+            refCount: await this.userRepo.count({ usedRef: user.ref }),
+            refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+          }),
+
+      kycStatus: user.userData?.kycStatus,
+      kycState: user.userData?.kycState,
+      kycHash: user.userData?.kycHash,
+      depositLimit: user.userData?.depositLimit,
+      identDataComplete: this.identService.isDataComplete(user.userData),
+    };
+  }
+
+  // --- CFP VOTES --- //
+  async getCfpVotes(id: number): Promise<CfpVotes> {
+    return this.userRepo
+      .findOne({ id }, { select: ['id', 'cfpVotes'] })
+      .then((u) => (u.cfpVotes ? JSON.parse(u.cfpVotes) : {}));
+  }
+
+  async updateCfpVotes(id: number, votes: CfpVotes): Promise<CfpVotes> {
+    const isVotingOpen = await this.settingService.getObj<CfpSettings>('cfp').then((s) => s.votingOpen);
+    if (!isVotingOpen) throw new BadRequestException('Voting is currently not allowed');
+
+    await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
+    return votes;
   }
 }

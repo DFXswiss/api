@@ -1,6 +1,4 @@
-import { Buy } from 'src/payment/models/buy/buy.entity';
-import { Log } from 'src/user/models/log/log.entity';
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column } from 'typeorm';
 import { IEntity } from '../entity';
 
 export enum AssetType {
@@ -34,10 +32,4 @@ export class Asset extends IEntity {
 
   @Column({ default: true })
   sellable: boolean;
-
-  @OneToMany(() => Buy, (buy) => buy.asset)
-  buys: Buy[];
-
-  @OneToMany(() => Log, (log) => log.asset)
-  logs: Log[];
 }

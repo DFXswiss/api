@@ -1,16 +1,9 @@
 import { MailerOptions } from '@nestjs-modules/mailer';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
-
-@Injectable()
-export class ConfigService {
-  constructor() {
-    Config = GetConfig();
-  }
-}
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -23,6 +16,13 @@ export class Configuration {
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';
   stakingPeriod = 365; // TODO: 28; // days
+
+  colors = {
+    white: '#FFFFFF',
+    red: '#F5516C',
+    lightBlue: '#0A355C',
+    darkBlue: '#072440',
+  };
 
   database: TypeOrmModuleOptions = {
     type: 'mssql',
@@ -65,6 +65,24 @@ export class Configuration {
     mandator: process.env.KYC_MANDATOR,
     user: process.env.KYC_USER,
     password: process.env.KYC_PASSWORD,
+    prefix: process.env.KYC_PREFIX ?? '',
+    reminderAfterDays: 2,
+    failAfterDays: 7,
+    chatbotStyle: {
+      headerColor: this.colors.white,
+      textColor: this.colors.white,
+      warningColor: this.colors.red,
+      backgroundColor: this.colors.darkBlue,
+      overlayBackgroundColor: this.colors.darkBlue,
+      buttonColor: this.colors.white,
+      buttonBackgroundColor: this.colors.red,
+      bubbleLeftColor: this.colors.white,
+      bubbleLeftBackgroundColor: this.colors.lightBlue,
+      bubbleRightColor: this.colors.white,
+      bubbleRightBackgroundColor: this.colors.lightBlue,
+      htmlHeaderInclude: '',
+      htmlBodyInclude: '',
+    },
   };
 
   mail: MailerOptions = {
@@ -107,8 +125,11 @@ export class Configuration {
       passive: process.env.NODE_INT_URL_PASSIVE,
     },
     walletPassword: process.env.NODE_WALLET_PASSWORD,
+    utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
+    minDfiDeposit: 0.01,
+    minTokenDeposit: 1, // USDT
   };
 
   ftp = {
@@ -122,13 +143,6 @@ export class Configuration {
     enableRateLimit: true,
     timeout: 30000,
   };
-
-  colors = {
-    white: '#FFFFFF',
-    red: '#F5516C',
-    lightBlue: '#0A355C',
-    darkBlue: '#072440',
-  }
 
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
@@ -145,6 +159,13 @@ export class Configuration {
       secret: process.env.BINANCE_SECRET,
       ...this.exchange,
     };
+  }
+}
+
+@Injectable()
+export class ConfigService {
+  constructor(@Optional() readonly config?: Configuration) {
+    Config = config ?? GetConfig();
   }
 }
 

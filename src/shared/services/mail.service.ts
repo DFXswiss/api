@@ -1,79 +1,72 @@
-import { MailerService } from '@nestjs-modules/mailer';
+import { ISendMailOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { CreateLogDto } from 'src/user/models/log/dto/create-log.dto';
-import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
-import { LogDirection } from 'src/user/models/log/log.entity';
-import { Util } from '../util';
+import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
+import { SentMessageInfo } from 'nodemailer';
+import { Util } from '../util';
 
 @Injectable()
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
-  private readonly techMail = 'cto@dfx.swiss';
+  private readonly monitoringMail = 'monitoring@dfx.swiss';
+  private readonly noReplyMail = 'noreply@dfx.swiss';
   private readonly kycStatus = {
-    [KycStatus.WAIT_CHAT_BOT]: 'chatbot onboarding',
-    [KycStatus.WAIT_ADDRESS]: 'invoice upload',
-    [KycStatus.WAIT_ONLINE_ID]: 'online identification',
-    [KycStatus.WAIT_VIDEO_ID]: 'video identification',
+    [KycStatus.CHATBOT]: 'Chatbot',
+    [KycStatus.ONLINE_ID]: 'Online ID',
+    [KycStatus.VIDEO_ID]: 'Video ID',
   };
 
-  constructor(private mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService) {}
 
-  // TODO: add fiat/asset object to createLogDto?
-  async sendLogMail(createLogDto: CreateLogDto, subject: string, fiatName: string, assetName: string) {
-    const firstName = createLogDto.user.firstname ?? 'DFX Dude';
+  async sendKycReminderMail(
+    firstName: string,
+    mail: string,
+    kycStatus: KycStatus,
+    language: string,
+    url: string,
+  ): Promise<void> {
+    const htmlBody =
+      language === 'de'
+        ? `<p>freundliche Erinnerung an dein ${this.kycStatus[kycStatus]}.</p>
+    <p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
+        : `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
+      <p>Please continue by clicking on continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
 
-    const fiatValue = Util.round(createLogDto.fiatValue, 2);
-    const assetValue = Util.round(createLogDto.assetValue, 8);
-    const exchangeRate = Util.round(createLogDto.fiatValue / createLogDto.assetValue, 2);
-
-    let htmlBody;
-    if (createLogDto.direction === LogDirection.fiat2asset) {
-      htmlBody = `<p><b>Your transaction has been successful.</b></p>
-        <p><b>Bank deposit: </b>${fiatValue} ${fiatName}</p>
-        <p><b>Asset received: </b>${assetValue} ${assetName}</p>
-        <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>
-        <p><b>Txid:</b> ${createLogDto.blockchainTx}</p>`;
-    } else if (createLogDto.direction === LogDirection.asset2fiat) {
-      htmlBody = `<p><b>Your transaction has been successful.</b></p>
-        <p><b>Asset withdrawal: </b>${assetValue} ${assetName}</p>
-        <p><b>Bank transfer: </b>${fiatValue} ${fiatName}</p>
-        <p><b>Exchange rate: </b>${exchangeRate} ${fiatName}/${assetName}</p>`;
-    }
-
-    await this.sendMail(createLogDto.user.mail, `Hi ${firstName}`, subject, htmlBody);
+    await this.sendMailInternal(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
   }
 
-  async sendReminderMail(firstName: string, mail: string, kycStatus: KycStatus): Promise<void> {
-    const htmlBody = `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
-      <p>Please check your mails.</p>`;
-
-    await this.sendMail(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
-  }
-
-  async sendChatBotMail(firstName: string, mail: string, language: string): Promise<void> {
+  async sendChatbotCompleteMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
     const htmlBody =
       language === 'de'
         ? `<p>du hast den Chatbot abgeschlossen.</p>
-    <p>Um die Online Identifikation zu starten, klicke KYC fortsetzen auf der Payment Seite. (Kaufen & Verkaufen)</p>`
+    <p>Um die Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
         : `<p>you have finished the first step of your verification.</p>
-      <p>To continue with online identification you have to click continue KYC on payment page. (Buy & Sell)</p>`;
-    const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Finished chatbot';
-    await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
+      <p>To continue with identification you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
+    const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Chatbot complete';
+    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
-  async sendOnlineFailedMail(firstName: string, mail: string, language: string): Promise<void> {
+  async sendIdentificationCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
+    const htmlBody =
+      language === 'de'
+        ? `<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert. Von deiner Seite sind keine weiteren Schritte mehr nötig.</p>`
+        : `<p>you have completed KYC and are now provisionally verified. No further steps are necessary from your side.</p>`;
+    const title = language === 'de' ? 'Identifikation abgeschlossen' : 'Identification complete';
+    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
+  }
+
+  async sendOnlineFailedMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
     const htmlBody =
       language === 'de'
         ? `<p>deine Online Identifikation ist fehlgeschlagen.</p>
-    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment Seite. (Kaufen & Verkaufen)</p>`
+    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
         : `<p>your online identification failed.</p>
-      <p>We activated video identification. To start you have to click continue KYC on payment page. (Buy & Sell)</p>`;
+      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
     const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
-    await this.sendMail(mail, `Hi ${firstName}`, title, htmlBody);
+    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
   }
 
-  async sendSupportFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
+  async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
     const htmlSupportBody = `
     <p>a customer has failed or expired during progress ${this.kycStatus[userData.kycStatus]}.</p>
       <table>
@@ -88,33 +81,7 @@ export class MailService {
       </table>
     `;
 
-    await this.sendMail(this.supportMail, 'Hi DFX Support', 'KYC failed or expired', htmlSupportBody);
-  }
-
-  async sendLimitSupportMail(userData: UserData, kycCustomerId: number, depositLimit: string): Promise<void> {
-    const htmlSupportBody = `
-      <p>a customer want to increase his deposit limit.</p>
-      <table>
-          <tr>
-              <td>Reference:</td>
-              <td>${userData.id}</td>
-          </tr>
-          <tr>
-              <td>Customer ID:</td>
-              <td>${kycCustomerId}</td>
-          </tr>
-          <tr>
-              <td>KYC File Reference:</td>
-              <td>${userData.kycFileId}</td>
-          </tr>
-          <tr>
-              <td>Wanted deposit limit:</td>
-              <td>${depositLimit}</td>
-          </tr>
-      </table>
-    `;
-
-    await this.sendMail(this.supportMail, 'Hi DFX Support', 'Increase deposit limit', htmlSupportBody);
+    await this.sendMailInternal(this.supportMail, 'Hi DFX Support', 'KYC failed or expired', htmlSupportBody);
   }
 
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
@@ -127,10 +94,36 @@ export class MailService {
     </ul>
     `;
 
-    await this.sendMail(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
+    await this.sendMailInternal(this.monitoringMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
   }
 
-  async sendMail(recipient: string, salutation: string, subject: string, body: string) {
+  async sendMailInternal(
+    to: string,
+    salutation: string,
+    subject: string,
+    body: string,
+    from?: string,
+    bcc?: string,
+    cc?: string,
+    displayName?: string,
+  ) {
+    try {
+      await this.sendMail(to, salutation, subject, body, from, bcc, cc, displayName);
+    } catch (e) {
+      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}. Error:`, e);
+    }
+  }
+
+  async sendMail(
+    to: string,
+    salutation: string,
+    subject: string,
+    body: string,
+    from?: string,
+    bcc?: string,
+    cc?: string,
+    displayName?: string,
+  ) {
     const htmlBody = `<h1>${salutation}</h1>
       <p>${body}</p>
       <p></p>
@@ -138,12 +131,27 @@ export class MailService {
       <p>Your DFX team</p>
       <p></p>
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
-      <p>2021 DFX AG</p>`;
+      <p>${new Date().getFullYear()} DFX AG</p>`;
 
-    await this.mailerService.sendMail({
-      to: recipient,
+    await this.sendMailWithRetries({
+      from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
+      to: to,
+      cc: cc,
+      bcc: bcc,
       subject: subject,
       html: htmlBody,
     });
+  }
+
+  private async sendMailWithRetries(sendMailOptions: ISendMailOptions, nthTry = 3): Promise<SentMessageInfo> {
+    try {
+      await this.mailerService.sendMail(sendMailOptions);
+    } catch (e) {
+      if (nthTry > 1) {
+        await Util.delay(1000);
+        return this.sendMailWithRetries(sendMailOptions, nthTry - 1);
+      }
+      throw e;
+    }
   }
 }

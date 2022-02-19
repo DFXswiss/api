@@ -7,10 +7,11 @@ import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/setting/setting.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 
-interface CfpSettings {
+export interface CfpSettings {
   inProgress: boolean;
+  votingOpen: boolean;
   currentRound: string;
   startDate: string;
   endDate: string;
@@ -101,27 +102,35 @@ export class CfpService {
   constructor(
     private readonly http: HttpService,
     private readonly cryptoService: CryptoService,
-    readonly settingService: SettingService,
+    private readonly settingService: SettingService,
     @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
   ) {
-    settingService.getObj<CfpSettings>('cfp').then((s) => (this.settings = s));
-
     validMasterNodes ??= Object.values(MasterNodes).filter(
       (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
     ) as MasterNode[];
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
+
+    this.doUpdate().then();
   }
 
   @Interval(600000)
   async doUpdate(): Promise<void> {
     try {
-      let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-      allCfp = allCfp.filter((cfp) =>
-        cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)),
-      );
+      // update settings
+      this.settings = await this.settingService.getObj<CfpSettings>('cfp');
 
-      this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+      // update cfp results
+      if (this.settings.inProgress) {
+        let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
+        allCfp = allCfp.filter(
+          (cfp) =>
+            cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
+            cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
+        );
+
+        this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+      }
     } catch (e) {
       console.error('Exception during CFP update:', e);
       throw new ServiceUnavailableException('Failed to update');
@@ -136,7 +145,6 @@ export class CfpService {
     if (['latest', this.settings.currentRound].includes(cfpId)) {
       if (this.settings.inProgress) {
         // return current data from GitHub
-        if (!this.cfpResults) await this.doUpdate();
         return this.cfpResults;
       }
 
@@ -145,7 +153,7 @@ export class CfpService {
     }
 
     const results = CfpResults[cfpId];
-    if (!results) throw new NotFoundException('No CFP result for id found');
+    if (!results) throw new NotFoundException('CFP not found');
 
     return results;
   }
@@ -245,7 +253,7 @@ export class CfpService {
 
   private getRegExp(votingRound: string, type: VotingType): RegExp {
     return new RegExp(
-      `signmessage\\s"?(\\w*)"?\\s"?(${type}-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
+      `signmessage\\s"?(\\w*)"?\\s"?((?:${type}|${type.toUpperCase()})-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
       'gm',
     );
   }
@@ -254,6 +262,7 @@ export class CfpService {
     return (
       this.masterNodes[vote.address] &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
+      new Date(vote.createdAt) < new Date(this.settings.endDate) &&
       this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
     );
   }

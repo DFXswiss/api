@@ -8,9 +8,9 @@ import { CryptoInputService } from './crypto-input.service';
 import { createMock } from '@golevelup/ts-jest';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { CryptoInput } from './crypto-input.entity';
-import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { BigNumber } from '@defichain/jellyfish-json';
 import { StakingService } from 'src/payment/models/staking/staking.service';
+import { TestSharedModule } from 'src/shared/test.shared.module';
+import { TestUtil } from 'src/shared/test.util';
 
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
@@ -22,10 +22,10 @@ describe('CryptoInputService', () => {
   let sellService: SellService;
   let stakingService: StakingService;
 
-  function setup(blocks: number, lastBlocks: number, utxo: UTXO[]) {
-    jest.spyOn(nodeClient, 'getInfo').mockResolvedValueOnce({ blocks: blocks } as BlockchainInfo);
+  function setup(headers: number, blocks: number, lastBlocks: number, addresses: string[]) {
+    jest.spyOn(nodeClient, 'getInfo').mockResolvedValueOnce({ headers, blocks } as BlockchainInfo);
     jest.spyOn(cryptoInputRepo, 'findOne').mockResolvedValueOnce({ blockHeight: lastBlocks } as CryptoInput);
-    jest.spyOn(nodeClient, 'getUtxo').mockResolvedValueOnce(utxo);
+    jest.spyOn(nodeClient, 'getAddressesWithFunds').mockResolvedValueOnce(addresses);
     jest.spyOn(nodeClient, 'getHistories').mockResolvedValueOnce([]);
   }
 
@@ -40,6 +40,7 @@ describe('CryptoInputService', () => {
     jest.spyOn(nodeService, 'getClient').mockImplementation(() => nodeClient);
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
       providers: [
         CryptoInputService,
         { provide: NodeService, useValue: nodeService },
@@ -47,6 +48,7 @@ describe('CryptoInputService', () => {
         { provide: AssetService, useValue: assetService },
         { provide: SellService, useValue: sellService },
         { provide: StakingService, useValue: stakingService },
+        TestUtil.provideConfig({ node: { utxoSpenderAddress: 'addr2' } }),
       ],
     }).compile();
 
@@ -57,47 +59,29 @@ describe('CryptoInputService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should ignore small UTXO amounts', async () => {
-    const blocks = 0;
+  it('should stop on desynchronized chain', async () => {
+    const headers = 340;
+    const blocks = 339;
     const lastBlocks = 0;
 
-    setup(blocks, lastBlocks, [{ address: 'addr', amount: new BigNumber(0.005) }] as UTXO[]);
+    setup(headers, blocks, lastBlocks, ['addr']);
 
     await service.checkInputs();
 
-    expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
-    expect(nodeClient.getHistories).toHaveBeenCalledWith([], lastBlocks + 1, blocks);
-  });
-
-  it('should remove address duplicates', async () => {
-    const blocks = 0;
-    const lastBlocks = 0;
-
-    setup(blocks, lastBlocks, [
-      { address: 'addr', amount: new BigNumber(4) },
-      { address: 'addr', amount: new BigNumber(3) },
-    ] as UTXO[]);
-
-    await service.checkInputs();
-
-    expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
-    expect(nodeClient.getHistories).toHaveBeenCalledWith(['addr'], lastBlocks + 1, blocks);
+    expect(cryptoInputRepo.findOne).toHaveBeenCalledTimes(0);
   });
 
   it('should get history with correct addresses and block height', async () => {
-    const blocks = 46;
+    const headers = 51;
+    const blocks = 51;
     const lastBlocks = 34;
 
-    setup(blocks, lastBlocks, [
-      { address: 'addr1', amount: new BigNumber(4) },
-      { address: 'addr1', amount: new BigNumber(3) },
-      { address: 'addr2', amount: new BigNumber(2) },
-    ] as UTXO[]);
+    setup(headers, blocks, lastBlocks, ['addr1', 'addr2', 'addr3']);
 
     await service.checkInputs();
 
     expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
-    expect(nodeClient.getHistories).toHaveBeenCalledWith(['addr1', 'addr2'], lastBlocks + 1, blocks);
+    expect(nodeClient.getHistories).toHaveBeenCalledWith(['addr1', 'addr3'], lastBlocks + 1, blocks);
   });
 
   // TODO: do more tests

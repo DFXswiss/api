@@ -1,7 +1,9 @@
 {
     "cSpell.words": [
         "ändern",
+        "authorises",
         "Bitstamp",
+        "citizenships",
         "Datas",
         "DEFICHAIN",
         "firstname",
@@ -17,5 +19,9 @@
         "überflüssige",
         "Verkauf",
         "wenn"
-    ]
+    ],
+    "files.exclude": {
+        "node_modules": true
+    },
+    "prettier.printWidth": 120,
 }

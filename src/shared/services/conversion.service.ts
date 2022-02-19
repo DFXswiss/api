@@ -4,22 +4,23 @@ import { HttpService } from './http.service';
 
 @Injectable()
 export class ConversionService {
-  constructor(private http: HttpService) {}
+  private readonly fiatUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
 
-  public async convertFiatCurrency(
+  constructor(private readonly http: HttpService) {}
+
+  public async convertFiat(
     amount: number,
     fromCurrency: string,
     toCurrency: string,
     date: Date = new Date(),
   ): Promise<number> {
-    const rate = await this.getRate(fromCurrency, toCurrency, date);
+    const rate = await this.getFiatRate(fromCurrency, toCurrency, date);
     return Util.round(amount * rate, 2);
   }
 
-  public async getRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
-    const baseUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
+  private async getFiatRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
     const dateString = this.isToday(date) ? 'latest' : date.toISOString().split('T')[0];
-    const url = `${baseUrl}/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;
+    const url = `${this.fiatUrl}/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;
 
     const result = await this.callApi<{ [currency: string]: number }>(url);
     return result[toCurrency.toLowerCase()];
