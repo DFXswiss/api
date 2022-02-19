@@ -1,4 +1,4 @@
-import { KycStatus, RiskState } from 'src/user/models/userData/userData.entity';
+import { KycStatus, RiskState } from 'src/user/models/user-data/user-data.entity';
 
 export enum KycContentType {
   IMAGE = 'image/png',
@@ -197,4 +197,9 @@ export interface ChatbotStyle {
   bubbleRightBackgroundColor: string;
   htmlHeaderInclude: string;
   htmlBodyInclude: string;
+}
+
+export interface ChatbotResult {
+  contribution: string;
+  plannedDevelopmentOfAssets: string;
 }

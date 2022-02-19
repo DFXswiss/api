@@ -46,7 +46,7 @@ export class RefRewardService {
 
     const update = await this.createEntity(dto);
 
-    Util.entityNullValueFilter(entity);
+    Util.removeNullFields(entity);
 
     entity = await this.rewardRepo.save({ ...update, ...entity });
 
@@ -67,7 +67,7 @@ export class RefRewardService {
     // route
     if (dto.userId) {
       reward.user = await this.userService.getUser(dto.userId);
-      if (!reward.user) throw new NotFoundException('No user for ID found');
+      if (!reward.user) throw new NotFoundException('No matching user found');
     }
 
     return reward;
@@ -84,7 +84,7 @@ export class RefRewardService {
         .where('user.id = :id', { id: id })
         .getRawOne<{ volume: number }>();
 
-      await this.userService.updateRewardVolume(id, volume ?? 0);
+      await this.userService.updatePaidRefReward(id, volume ?? 0);
     }
   }
 

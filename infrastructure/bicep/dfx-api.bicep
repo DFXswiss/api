@@ -20,6 +20,7 @@ param mailRefreshToken string
 param kycMandator string
 @secure()
 param kycPassword string
+param kycPrefix string
 
 @secure()
 param githubToken string
@@ -31,6 +32,7 @@ param nodePassword string
 param nodeWalletPassword string
 param dexWalletAddress string
 param stakingWalletAddress string
+param utxoSpenderAddress string
 
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
@@ -368,6 +370,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: kycPassword
         }
         {
+          name: 'KYC_PREFIX'
+          value: kycPrefix
+        }
+        {
           name: 'GH_TOKEN'
           value: githubToken
         }
@@ -423,6 +429,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'STAKING_WALLET_ADDRESS'
           value: stakingWalletAddress
+        }
+        {
+          name: 'UTXO_SPENDER_ADDRESS'
+          value: utxoSpenderAddress
         }
         {
           name: 'FTP_HOST'

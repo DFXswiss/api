@@ -91,7 +91,7 @@ export class ExchangeController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getTrade(@Param('id') tradeId: string): Promise<TradeResult> {
     const trade = this.trades[+tradeId];
-    if (!trade) throw new NotFoundException(`No trade found for id ${tradeId}`);
+    if (!trade) throw new NotFoundException('Trade not found');
     if ([TradeStatus.CLOSED, TradeStatus.FAILED].includes(trade.status)) delete this.trades[+tradeId];
 
     return trade;

@@ -4,7 +4,7 @@ import { Util } from '../util';
 export class FtpService {
   private readonly tmpFile = 'tmp';
 
-  private constructor(private client: Client) {}
+  private constructor(private readonly client: Client) {}
 
   // client operations
   static async connect(options: AccessOptions & { directory?: string }): Promise<FtpService> {

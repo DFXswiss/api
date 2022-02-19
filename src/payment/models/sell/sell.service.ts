@@ -3,24 +3,24 @@ import { CreateSellDto } from 'src/payment/models/sell/dto/create-sell.dto';
 import { UpdateSellDto } from 'src/payment/models/sell/dto/update-sell.dto';
 import { SellRepository } from 'src/payment/models/sell/sell.repository';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { UserService } from '../../../user/models/user/user.service';
 import { Sell } from './sell.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { User } from '../../../user/models/user/user.entity';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
+import { IdentService } from 'src/user/models/ident/ident.service';
 
 @Injectable()
 export class SellService {
   constructor(
     private readonly sellRepo: SellRepository,
     private readonly fiatService: FiatService,
-    private readonly userService: UserService,
     private readonly depositService: DepositService,
     private readonly stakingService: StakingService,
+    private readonly identService: IdentService,
   ) {}
 
-  async getSellForAddress(depositAddress: string): Promise<Sell> {
+  async getSellByAddress(depositAddress: string): Promise<Sell> {
     // does not work with find options
     return this.sellRepo
       .createQueryBuilder('sell')
@@ -35,12 +35,12 @@ export class SellService {
 
   async createSell(userId: number, dto: CreateSellDto): Promise<Sell> {
     // check user data
-    const verification = await this.userService.verifyUser(userId);
-    if (!verification.result) throw new BadRequestException('User data missing');
+    const dataComplete = await this.identService.dataComplete(userId);
+    if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
     // check fiat
     const fiat = await this.fiatService.getFiat(dto.fiat.id);
-    if (!fiat) throw new NotFoundException('No fiat for id found');
+    if (!fiat) throw new BadRequestException('Fiat not found');
 
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
@@ -57,9 +57,9 @@ export class SellService {
     return this.sellRepo.save(sell);
   }
 
-  async updateSell(userId: number, dto: UpdateSellDto): Promise<Sell> {
-    const sell = await this.sellRepo.findOne({ id: dto.id, user: { id: userId } });
-    if (!sell) throw new NotFoundException('No matching entry found');
+  async updateSell(userId: number, sellId: number, dto: UpdateSellDto): Promise<Sell> {
+    const sell = await this.sellRepo.findOne({ id: sellId, user: { id: userId } });
+    if (!sell) throw new NotFoundException('Sell route not found');
 
     return await this.sellRepo.save({ ...sell, ...dto });
   }

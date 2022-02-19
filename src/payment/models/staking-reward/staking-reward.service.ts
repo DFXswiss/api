@@ -51,7 +51,7 @@ export class StakingRewardService {
 
     const update = await this.createEntity(dto);
 
-    Util.entityNullValueFilter(entity);
+    Util.removeNullFields(entity);
 
     entity = await this.rewardRepo.save({ ...update, ...entity });
 

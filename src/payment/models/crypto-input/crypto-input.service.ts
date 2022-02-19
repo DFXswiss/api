@@ -4,16 +4,19 @@ import { Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
+import { Lock } from 'src/shared/lock';
 
 @Injectable()
 export class CryptoInputService {
   private readonly client: NodeClient;
+  private readonly lock = new Lock(1800);
 
   constructor(
     nodeService: NodeService,
@@ -27,28 +30,29 @@ export class CryptoInputService {
 
   @Interval(300000)
   async checkInputs(): Promise<void> {
+    // avoid overlaps
+    if (!this.lock.acquire()) return;
+
     try {
+      // check if node in sync
+      const { blocks, headers } = await this.client.getInfo();
+      if (blocks < headers) throw new Error('Node not in sync');
+
       // get block heights
-      const currentHeight = await this.client.getInfo().then((info) => info.blocks);
+      const currentHeight = blocks;
       const lastHeight = await this.cryptoInputRepo
         .findOne({ order: { blockHeight: 'DESC' } })
         .then((input) => input?.blockHeight ?? 0);
 
-      // TODO: ignore own wallet address (UTXO holdings)
-
       const newInputs = await this.client
-        // get UTXOs >= 0.01 DFI
-        .getUtxo()
-        .then((i) => i.filter((u) => u.amount.toNumber() >= 0.01))
-        // get distinct addresses
-        .then((i) => i.map((u) => u.address))
-        .then((i) => i.filter((u, j) => i.indexOf(u) === j))
+        .getAddressesWithFunds()
+        .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
         // get receive history
         .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
-        .then((i) => i.filter((h) => h.type === 'receive' || h.type === 'AccountToUtxos'))
+        .then((i) => i.filter((h) => ['receive', 'AccountToAccount', 'AnyAccountsToAccounts', 'AccountToUtxos'].includes(h.type)))
         // map to entities
-        .then((i) => Promise.all(i.map((h) => this.createEntity(h))))
-        .then((i) => i.filter((e) => e != null && e.amount >= 0.01)); // min. deposit limit
+        .then((i) => this.createEntities(i))
+        .then((i) => i.filter((h) => h != null && h.asset.sellable));
 
       // save and forward
       if (newInputs.length > 0) {
@@ -61,13 +65,39 @@ export class CryptoInputService {
     } catch (e) {
       console.error('Exception during crypto input checks:', e);
     }
+
+    this.lock.release();
   }
 
   // --- HELPER METHODS --- //
+  private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
+    const inputs = [];
+    for (const history of histories) {
+      try {
+        inputs.push(await this.createEntity(history));
+      } catch (e) {
+        console.error(`Failed to process crypto input ${history.txid}:`, e);
+      }
+    }
+    return inputs;
+  }
+
   private async createEntity(history: AccountHistory): Promise<CryptoInput> {
-    const amountEntry = history.amounts[0];
-    const amount = Math.abs(+amountEntry.split('@')[0]);
-    const assetName = amountEntry.split('@')[1];
+    const { amount: historyAmount, asset: assetName } = this.client.parseAmount(history.amounts[0]);
+
+    // only received token
+    if (history.type == 'AccountToAccount' && historyAmount < 0) return null;
+
+    const amount = Math.abs(historyAmount);
+    const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
+    const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
+
+    // min deposit
+    if (
+      (assetName === 'DFI' && amount < Config.node.minDfiDeposit) ||
+      (assetName !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
+    )
+      return null;
 
     // get asset
     const asset = await this.assetService.getAssetByDexName(assetName);
@@ -78,8 +108,8 @@ export class CryptoInputService {
 
     // get deposit route
     const route =
-      (await this.sellService.getSellForAddress(history.owner)) ??
-      (await this.stakingService.getStakingForAddress(history.owner));
+      (await this.sellService.getSellByAddress(history.owner)) ??
+      (await this.stakingService.getStakingByAddress(history.owner));
     if (!route) {
       console.error(`Failed to process crypto input. No matching route found. History entry:`, history);
       return null;
@@ -98,6 +128,8 @@ export class CryptoInputService {
       amount: amount,
       asset: asset,
       route: route,
+      btcAmount: btcAmount,
+      usdtAmount: usdtAmount,
     });
   }
 
@@ -106,33 +138,59 @@ export class CryptoInputService {
       // save
       await this.cryptoInputRepo.save(input);
 
-      // store BTC/USDT price
-      const btcAmount = await this.client.testPoolSwap(input.route.deposit.address, 'DFI', 'BTC', input.amount);
-      const usdtAmount = await this.client.testPoolSwap(input.route.deposit.address, 'DFI', 'USDT', input.amount);
-      await this.cryptoInputRepo.update(
-        { id: input.id },
-        { btcAmount: +btcAmount.split('@')[0], usdtAmount: +usdtAmount.split('@')[0] },
-      );
-
-      // forward
+      // forward (only await UTXO)
       const targetAddress =
         input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
-
-      // TODO: switch on type (for Token)
-      const outTxId = await this.client.sendUtxo(
-        input.route.deposit.address,
-        targetAddress,
-        input.amount,
-      );
-
-      // update out TX ID
-      await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+      input.asset.type === AssetType.COIN
+        ? await this.forwardUtxo(input, targetAddress)
+        : this.forwardToken(input, targetAddress);
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
   }
 
-  async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
-    return this.cryptoInputRepo.getAllStakingBalance(stakingIds, date);
+  private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
+    const outTxId = await this.client.sendUtxo(input.route.deposit.address, address, input.amount);
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+  }
+
+  private async forwardToken(input: CryptoInput, address: string): Promise<void> {
+    // get UTXO
+    const utxoTx = await this.client.sendUtxo(
+      Config.node.utxoSpenderAddress,
+      input.route.deposit.address,
+      Config.node.minDfiDeposit / 2,
+    );
+
+    await this.client.waitForTx(utxoTx);
+
+    // get UTXO vout
+    const sendUtxo = await this.client
+      .getUtxo()
+      .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
+
+    // send
+    const outTxId = await this.client.sendToken(
+      input.route.deposit.address,
+      address,
+      input.asset.dexName,
+      input.amount,
+      [sendUtxo],
+    );
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+
+    // retrieve remaining UTXO
+    await this.retrieveUtxo(outTxId);
+  }
+
+  private async retrieveUtxo(txId: string): Promise<void> {
+    await this.client.waitForTx(txId);
+
+    const utxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === txId));
+    if (utxo) {
+      await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
+    } else {
+      console.error(`Could not retrieve UTXO: UTXO ${txId} not found`);
+    }
   }
 }

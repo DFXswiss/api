@@ -1,3 +1,4 @@
+import { BinaryLike, createHash } from 'crypto';
 import { readFile } from 'fs';
 
 export class Util {
@@ -13,8 +14,14 @@ export class Util {
     return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
   }
 
-  static daysDiff(from?: Date, to?: Date) {
+  static daysDiff(from?: Date, to?: Date): number {
     return this.secondsDiff(from, to) / (3600 * 24);
+  }
+
+  static daysBefore(days: number, from?: Date): Date {
+    const date = from ? new Date(from) : new Date();
+    date.setDate(date.getDate() - days);
+    return date;
   }
 
   static async readFileFromDisk(fileName: string): Promise<string> {
@@ -67,7 +74,13 @@ export class Util {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  static async entityNullValueFilter(entity: any): Promise<any> {
-    return Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
+  static removeNullFields(entity: any): void {
+    Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
+  }
+
+  static createHash(data: BinaryLike): string {
+    const hash = createHash('sha256');
+    hash.update(data);
+    return hash.digest('hex').toUpperCase();
   }
 }

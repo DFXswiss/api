@@ -4,10 +4,10 @@ import { Ref } from './ref.entity';
 @EntityRepository(Ref)
 export class RefRepository extends Repository<Ref> {
   async addOrUpdate(ip: string, ref: string): Promise<Ref> {
-    const refObj = (await this.findOne({ ip })) ?? this.create({ip, ref});
-    refObj.ref = ref;
+    const entity = (await this.findOne({ ip })) ?? this.create({ip, ref});
+    entity.ref = ref;
 
-    return await this.save(refObj);
+    return await this.save(entity);
   }
 
   async getAndRemove(ip: string): Promise<Ref> {

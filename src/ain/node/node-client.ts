@@ -1,5 +1,5 @@
 import { ApiClient } from '@defichain/jellyfish-api-core';
-import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
@@ -49,7 +49,7 @@ export class NodeClient {
     );
   }
 
-  async waitForTx(txId: string, timeout = 300000): Promise<InWalletTransaction> {
+  async waitForTx(txId: string, timeout = 600000): Promise<InWalletTransaction> {
     const tx = await Util.poll(
       () => this.callNode((c) => c.wallet.getTransaction(txId)),
       (t) => t?.confirmations > 0,
@@ -59,6 +59,16 @@ export class NodeClient {
 
     if (!(tx?.confirmations > 0)) throw new ServiceUnavailableException('Wait for TX timed out');
     return tx;
+  }
+
+  async getAddressesWithFunds(): Promise<string[]> {
+    const [utxo, token] = await Promise.all([
+      this.getUtxo().then((i) =>
+        i.filter((u) => u.amount.toNumber() >= Config.node.minDfiDeposit).map((u) => u.address),
+      ),
+      this.getToken().then((i) => i.map((u) => u.owner)),
+    ]);
+    return [...new Set(utxo.concat(token))];
   }
 
   // UTXO
@@ -74,16 +84,41 @@ export class NodeClient {
   }
 
   // token
-  async testPoolSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<string> {
-    // TODO: use custom address
+  async getToken(): Promise<AccountResult<string, string>[]> {
+    return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
+  }
+
+  async testCompositeSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
+    if (tokenFrom === tokenTo) return amount;
+
     return this.callNode((c) =>
-      c.poolpair.testPoolSwap({
-        from: address,
-        tokenFrom: tokenFrom,
-        amountFrom: this.roundAmount(amount),
-        to: address,
-        tokenTo: tokenTo,
-      }),
+      c.call(
+        'testpoolswap',
+        [
+          {
+            from: address,
+            tokenFrom: tokenFrom,
+            amountFrom: this.roundAmount(amount),
+            to: address,
+            tokenTo: tokenTo,
+          },
+          'auto',
+        ],
+        'number',
+      ),
+    ).then((r: string) => this.parseAmount(r).amount);
+  }
+
+  async sendToken(
+    addressFrom: string,
+    addressTo: string,
+    token: string,
+    amount: number,
+    utxos?: SpendUTXO[],
+  ): Promise<string> {
+    return this.callNode(
+      (c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, { utxos }),
+      true,
     );
   }
 
@@ -106,6 +141,13 @@ export class NodeClient {
   // generic
   async call<T>(call: (client: ApiClient) => Promise<T>): Promise<T> {
     return this.callNode<T>(call);
+  }
+
+  parseAmount(amount: string): { amount: number; asset: string } {
+    return {
+      amount: +amount.split('@')[0],
+      asset: amount.split('@')[1],
+    };
   }
 
   // --- HELPER METHODS --- //

@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
 import { KycService } from 'src/user/services/kyc/kyc.service';
-import { kycCompleted } from '../userData/userData.entity';
-import { UserDataService } from '../userData/userData.service';
+import { KycCompleted } from '../user-data/user-data.entity';
+import { UserDataService } from '../user-data/user-data.service';
 import { LimitRequestDto } from './dto/limit-request.dto';
 import { LimitRequest } from './limit-request.entity';
 import { LimitRequestRepository } from './limit-request.repository';
@@ -17,8 +17,8 @@ export class LimitRequestService {
 
   async increaseLimit(userId: number, dto: LimitRequestDto): Promise<LimitRequest> {
     // get user data
-    const user = await this.userDataService.getUserDataForUser(userId);
-    if (!kycCompleted(user.kycStatus)) throw new BadRequestException('KYC not yet completed');
+    const user = await this.userDataService.getUserDataByUser(userId);
+    if (!KycCompleted(user.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity
     const entity = this.limitRequestRepo.create(dto);

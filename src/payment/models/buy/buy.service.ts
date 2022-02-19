@@ -1,10 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateBuyDto } from 'src/payment/models/buy/dto/create-buy.dto';
 import { BuyRepository } from 'src/payment/models/buy/buy.repository';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { createHash } from 'crypto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Not } from 'typeorm';
 import { User } from '../../../user/models/user/user.entity';
@@ -53,12 +52,12 @@ export class BuyService {
     const asset =
       dto.type === BuyType.WALLET
         ? await this.assetService.getAsset(dto.asset.id)
-        : await this.assetService.getAsset('DFI');
-    if (!asset) throw new NotFoundException('No asset for id found');
+        : await this.assetService.getAssetByDexName('DFI');
+    if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking
     const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.type === BuyType.STAKING && !staking) throw new NotFoundException('No staking for id found');
+    if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
@@ -81,10 +80,8 @@ export class BuyService {
     buy.deposit = staking?.deposit ?? null;
 
     // create hash
-    const hash = createHash('sha256');
-    hash.update(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban);
-    const hexHash = hash.digest('hex').toUpperCase();
-    buy.bankUsage = `${hexHash.slice(0, 4)}-${hexHash.slice(4, 8)}-${hexHash.slice(8, 12)}`;
+    const hash = Util.createHash(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban);
+    buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save
     return this.buyRepo.save(buy);
@@ -94,9 +91,9 @@ export class BuyService {
     return this.buyRepo.find({ user: { id: userId } });
   }
 
-  async updateBuy(userId: number, dto: UpdateBuyDto): Promise<Buy> {
-    const buy = await this.buyRepo.findOne({ id: dto.id, user: { id: userId } });
-    if (!buy) throw new NotFoundException('No matching entry found');
+  async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {
+    const buy = await this.buyRepo.findOne({ id: buyId, user: { id: userId } });
+    if (!buy) throw new NotFoundException('Buy route not found');
 
     return await this.buyRepo.save({ ...buy, ...dto });
   }

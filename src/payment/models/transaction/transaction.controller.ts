@@ -40,7 +40,7 @@ export class TransactionController {
   @ApiBearerAuth()
   async getCsv(@Query('key') key: string, @Response({ passthrough: true }) res): Promise<StreamableFile> {
     const csvFile = this.files[+key];
-    if (!csvFile) throw new NotFoundException(`No file found for key ${key}`);
+    if (!csvFile) throw new NotFoundException('File not found');
     delete this.files[+key];
 
     res.set({

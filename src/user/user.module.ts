@@ -2,10 +2,9 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
-import { UserDataController } from 'src/user/models/userData/userData.controller';
-import { UserDataRepository } from 'src/user/models/userData/userData.repository';
-import { UserDataService } from 'src/user/models/userData/userData.service';
-import { WalletController } from 'src/user/models/wallet/wallet.controller';
+import { UserDataController } from 'src/user/models/user-data/user-data.controller';
+import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { WalletService } from 'src/user/models/wallet/wallet.service';
 import { AuthController } from './models/auth/auth.controller';
@@ -28,6 +27,8 @@ import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
 import { KycService } from './services/kyc/kyc.service';
 import { LimitRequestRepository } from './models/limit-request/limit-request.repository';
 import { LimitRequestService } from './models/limit-request/limit-request.service';
+import { IdentController } from './models/ident/ident.controller';
+import { IdentService } from './models/ident/ident.service';
 
 @Module({
   imports: [
@@ -47,11 +48,11 @@ import { LimitRequestService } from './models/limit-request/limit-request.servic
   controllers: [
     UserController,
     LogController,
-    WalletController,
     UserDataController,
     BankDataController,
     RefController,
     AuthController,
+    IdentController,
   ],
   providers: [
     UserService,
@@ -65,7 +66,8 @@ import { LimitRequestService } from './models/limit-request/limit-request.servic
     KycSchedulerService,
     AuthService,
     LimitRequestService,
+    IdentService,
   ],
-  exports: [UserService, UserDataService, LogService, RefService],
+  exports: [UserService, UserDataService, RefService, IdentService],
 })
 export class UserModule {}

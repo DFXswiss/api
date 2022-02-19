@@ -1,21 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
-import { UserInfo } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
-import { AccountType } from 'src/user/models/userData/account-type.enum';
-import { kycInProgress, KycState, KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { KycInProgress, KycState, KycStatus, RiskState, UserData } from 'src/user/models/user-data/user-data.entity';
 import {
+  CreateResponse,
+  Customer,
   KycDocument,
   KycContentType,
   KycDocumentState,
-  InitiateResponse,
-  DocumentVersion,
   KycDocuments,
-  Customer,
+  DocumentVersion,
+  InitiateResponse,
+  ChatbotResult,
 } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
+import { AccountType } from 'src/user/models/user-data/account-type.enum';
 
 export enum KycProgress {
   ONGOING = 'Ongoing',
@@ -35,6 +37,13 @@ export class KycService {
   ) {}
 
   // --- CUSTOMER UPDATE --- //
+  async createCustomer(userDataId: number, name: string): Promise<CreateResponse | undefined> {
+    const customer = await this.kycApi.getCustomer(userDataId);
+    if (!customer) {
+      return this.kycApi.createCustomer(userDataId, name);
+    }
+  }
+
   async updateCustomer(userDataId: number, update: Partial<Customer>): Promise<void> {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (customer) {
@@ -42,20 +51,21 @@ export class KycService {
     }
   }
 
-  async initializeCustomer(userDataId: number, userInfo: UserInfo): Promise<void> {
-    if (userInfo.accountType === AccountType.PERSONAL) {
-      await this.kycApi.updatePersonalCustomer(userDataId, userInfo);
+  async initializeCustomer(user: UserData): Promise<void> {
+    if (user.accountType === AccountType.PERSONAL) {
+      await this.kycApi.updatePersonalCustomer(user.id, user);
     } else {
-      await this.kycApi.updateOrganizationCustomer(userDataId, userInfo);
+      await this.kycApi.updateOrganizationCustomer(user.id, user);
     }
 
-    await this.uploadInitialCustomerInfo(userDataId, userInfo);
+    await this.uploadInitialCustomerInfo(user.id, user);
   }
 
-  private async uploadInitialCustomerInfo(userDataId: number, userInfo: UserInfo): Promise<void> {
+  private async uploadInitialCustomerInfo(userDataId: number, user: UserData): Promise<void> {
     // check if info already exists
     const initialCustomerInfo = await this.kycApi.getDocument(
       userDataId,
+      false,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
       'v1',
       this.defaultDocumentPart,
@@ -65,11 +75,15 @@ export class KycService {
     // pre-fill customer info
     const customerInfo = {
       type: 'AdditionalPersonInformation',
-      nickName: userInfo.firstname,
+      nickName: user.firstname,
       onlyOwner: 'YES',
       authorisesConversationPartner: 'YES',
       businessActivity: {
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        employer: { address: 'TOKEN_PURCHASE' },
+      },
+      financialBackground: {
+        liabilities: 'LESS_THAN_10000',
       },
     };
 
@@ -84,15 +98,15 @@ export class KycService {
     );
 
     // pre-fill organization info
-    if (userInfo.accountType !== AccountType.PERSONAL) {
+    if (user.accountType !== AccountType.PERSONAL) {
       const organizationInfo = {
         type:
-          userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP
+          user.accountType === AccountType.SOLE_PROPRIETORSHIP
             ? 'AdditionalOrganisationInformation'
             : 'AdditionalLegalEntityInformation',
-        organisationType:
-          userInfo.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
+        organisationType: user.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
+        bearerShares: 'NO',
       };
 
       await this.uploadDocument(
@@ -142,27 +156,40 @@ export class KycService {
     return successful;
   }
 
+  // --- NAME CHECK --- //
+  async checkCustomer(id: number): Promise<RiskState | undefined> {
+    return this.kycApi
+      .checkCustomer(id)
+      .then(() => this.kycApi.getCheckResult(id))
+      .catch(() => undefined);
+  }
+
   // --- KYC PROGRESS --- //
   async getKycProgress(userDataId: number, kycStatus: KycStatus): Promise<KycProgress> {
     const documentType = KycDocuments[kycStatus].document;
-    const versions = await this.kycApi.getDocumentVersions(userDataId, documentType);
+    const versions = await this.kycApi.getDocumentVersions(userDataId, false, documentType);
     if (!versions?.length) return KycProgress.ONGOING;
 
     // completed
     if (versions.find((doc) => doc.state === KycDocumentState.COMPLETED) != null) return KycProgress.COMPLETED;
 
     // failed
-    if (versions.find((doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < 7) == null)
+    if (versions.find((doc) => doc.state != KycDocumentState.FAILED && this.documentAge(doc) < Config.kyc.failAfterDays) == null)
       return KycProgress.FAILED;
 
     // expired
-    if (this.documentAge(versions[0]) > 2 && this.documentAge(versions[0]) < 7) return KycProgress.EXPIRING;
+    if (
+      this.documentAge(versions[0]) > Config.kyc.reminderAfterDays &&
+      this.documentAge(versions[0]) < Config.kyc.failAfterDays
+    ) {
+      return KycProgress.EXPIRING;
+    }
 
     return KycProgress.ONGOING;
   }
 
   async goToStatus(userData: UserData, status: KycStatus): Promise<UserData> {
-    if (kycInProgress(status)) {
+    if (KycInProgress(status)) {
       const identType = KycDocuments[status].ident;
       const initiateData = await this.kycApi.initiateIdentification(userData.id, false, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
@@ -172,7 +199,7 @@ export class KycService {
   }
 
   async chatbotCompleted(userData: UserData): Promise<UserData> {
-    userData.riskState = await this.kycApi.checkCustomer(userData.id);
+    userData.riskState = await this.checkCustomer(userData.id);
 
     userData = await this.storeChatbotResult(userData);
 
@@ -180,6 +207,33 @@ export class KycService {
     return vipUser
       ? await this.goToStatus(userData, KycStatus.VIDEO_ID)
       : await this.goToStatus(userData, KycStatus.ONLINE_ID);
+  }
+
+  async storeChatbotResult(userData: UserData): Promise<UserData> {
+    try {
+      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
+      if (spiderData) {
+        // get and store the result
+        const chatbotResult = {
+          person: await this.getChatbotResult(userData.id, false),
+          organization:
+            userData.accountType === AccountType.PERSONAL ? undefined : await this.getChatbotResult(userData.id, true),
+        };
+
+        spiderData.result = JSON.stringify(chatbotResult);
+        userData.spiderData = await this.spiderDataRepo.save(spiderData);
+
+        // update user data
+        const result =
+          userData.accountType === AccountType.PERSONAL ? chatbotResult.person : chatbotResult.organization;
+        userData.contribution = +result.contribution;
+        userData.plannedContribution = result.plannedDevelopmentOfAssets;
+      }
+    } catch (e) {
+      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
+    }
+
+    return userData;
   }
 
   // --- HELPER METHODS --- //
@@ -212,7 +266,12 @@ export class KycService {
       (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
       this.spiderDataRepo.create({ userData: userData });
 
-    const locator = initiateData.locators[0];
+    const locator = initiateData.locators?.[0];
+    if (!locator) {
+      console.error(`Failed to initiate identification. Initiate result:`, initiateData);
+      throw new ServiceUnavailableException('Identification initiation failed');
+    }
+
     spiderData.url =
       locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
     spiderData.secondUrl =
@@ -226,6 +285,7 @@ export class KycService {
   private async getOnlineIdLink(userData: UserData, version: string): Promise<string> {
     const onlineId = await this.kycApi.getDocument(
       userData.id,
+      false,
       KycDocument.ONLINE_IDENTIFICATION,
       version,
       KycDocument.IDENTIFICATION_LOG,
@@ -233,35 +293,22 @@ export class KycService {
     return onlineId ? this.getOnlineIdUrl(onlineId.identificationId) : null;
   }
 
-  private async storeChatbotResult(userData: UserData): Promise<UserData> {
-    try {
-      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
-      if (spiderData) {
-        // get the version of the completed chatbot document
-        const versions = await this.kycApi.getDocumentVersions(userData.id, KycDocument.CHATBOT);
-        const completedVersion = versions.find((u) => u.state == KycDocumentState.COMPLETED)?.name;
+  private async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
+    // get the version of the completed chatbot document
+    const versions = await this.kycApi.getDocumentVersions(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+    );
+    const completedVersion = versions.find((u) => u.state == KycDocumentState.COMPLETED)?.name;
 
-        // get and store the result
-        const chatbotResult = await this.kycApi.getDocument(
-          userData.id,
-          KycDocument.CHATBOT_ONBOARDING,
-          completedVersion,
-          'export',
-        );
-        spiderData.result = JSON.stringify(chatbotResult);
-        userData.spiderData = await this.spiderDataRepo.save(spiderData);
-
-        // update user data
-        const formItems = JSON.parse(chatbotResult?.attributes?.form)?.items;
-        userData.contributionAmount = formItems?.['global.contribution']?.value?.split(' ')[1];
-        userData.contributionCurrency = formItems?.['global.contribution']?.value?.split(' ')[0];
-        userData.plannedContribution = formItems?.['global.plannedDevelopmentOfAssets']?.value?.en;
-      }
-    } catch (e) {
-      console.error(`Failed to store chatbot result for user ${userData.id}:`, e);
-    }
-
-    return userData;
+    return this.kycApi.getDocument(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+      completedVersion,
+      this.defaultDocumentPart,
+    );
   }
 
   // --- URLS --- //
@@ -270,6 +317,6 @@ export class KycService {
   }
 
   getOnlineIdUrl(identificationId: string): string {
-    return `https://go.online-ident.ch/app/kycspiderauto/identifications/${identificationId}/identification/start`;
+    return `https://go.${Config.kyc.prefix}online-ident.ch/app/dfxauto/identifications/${identificationId}/identification/start`;
   }
 }

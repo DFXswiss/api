@@ -27,40 +27,40 @@ export class FiatService {
 
         if (fiat) return fiat;
 
-        throw new NotFoundException('No matching fiat found');
+        throw new NotFoundException('Fiat not found');
       } else if (isString(key.key)) {
         const fiat = await this.fiatRepo.findOne({ name: key.key });
 
         if (fiat) return fiat;
 
-        throw new NotFoundException('No matching fiat found');
+        throw new NotFoundException('Fiat not found');
       }
     } else if (!isNaN(key)) {
       const fiat = await this.fiatRepo.findOne({ id: key });
 
       if (fiat) return fiat;
 
-      throw new NotFoundException('No matching fiat found');
+      throw new NotFoundException('Fiat not found');
     } else if (isString(key)) {
       const fiat = await this.fiatRepo.findOne({ name: key });
 
       if (fiat) return fiat;
 
-      throw new NotFoundException('No matching fiat found');
+      throw new NotFoundException('Fiat not found');
     } else if (key.id) {
       const fiat = await this.fiatRepo.findOne({ id: key.id });
 
       if (fiat) return fiat;
 
-      throw new NotFoundException('No matching fiat found');
+      throw new NotFoundException('Fiat not found');
     } else if (key.name) {
       const fiat = await this.fiatRepo.findOne({ name: key.name });
 
       if (fiat) return fiat;
 
-      throw new NotFoundException('No matching fiat found');
+      throw new NotFoundException('Fiat not found');
     }
 
-    throw new BadRequestException('key must be number or string or JSON-Object');
+    throw new BadRequestException('Key must be number or string or JSON-Object');
   }
 }

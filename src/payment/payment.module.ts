@@ -23,7 +23,6 @@ import { BitstampService } from './models/exchange/bitstamp.service';
 import { BuyController } from './models/buy/buy.controller';
 import { BuyRepository } from './models/buy/buy.repository';
 import { BuyService } from './models/buy/buy.service';
-import { DepositController } from './models/deposit/deposit.controller';
 import { DepositRepository } from './models/deposit/deposit.repository';
 import { DepositService } from './models/deposit/deposit.service';
 import { SellController } from './models/sell/sell.controller';
@@ -77,7 +76,6 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     BuyController,
     SellController,
     StakingController,
-    DepositController,
     MasternodeController,
     StakingRewardController,
     RefRewardController,

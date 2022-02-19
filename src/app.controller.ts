@@ -4,7 +4,7 @@ import { Request, Response } from 'express';
 import { Details, UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
 import { HttpService } from './shared/services/http.service';
-import { SettingService } from './shared/setting/setting.service';
+import { SettingService } from './shared/models/setting/setting.service';
 import { RefService } from './user/models/referral/ref.service';
 import { AnnouncementDto } from './dto/announcement.dto';
 import { FlagDto } from './dto/flag.dto';

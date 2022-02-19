@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -43,11 +43,11 @@ export class BuyController {
     return this.buyService.createBuy(jwt.id, jwt.address, createBuyDto).then((b) => this.toDto(jwt.id, b));
   }
 
-  @Put()
+  @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Body() updateBuyDto: UpdateBuyDto): Promise<BuyDto> {
-    return this.buyService.updateBuy(jwt.id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
+  async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() updateBuyDto: UpdateBuyDto): Promise<BuyDto> {
+    return this.buyService.updateBuy(jwt.id, +id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
   }
 
   // --- DTO --- //
@@ -72,10 +72,15 @@ export class BuyController {
     };
   }
 
-  private async getStaking(userId: number, deposit?: Deposit, stakingRoutes?: Staking[]): Promise<StakingDto | undefined> {
+  private async getStaking(
+    userId: number,
+    deposit?: Deposit,
+    stakingRoutes?: Staking[],
+  ): Promise<StakingDto | undefined> {
     if (deposit == null) return undefined;
 
-    return this.stakingService.toDto(userId, 
+    return this.stakingService.toDto(
+      userId,
       stakingRoutes
         ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
         : await this.stakingRepo.findOne({ where: { deposit: deposit.id } }),
@@ -84,14 +89,6 @@ export class BuyController {
 
   async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
     const { annualVolume } = await this.buyService.getUserVolume(userId);
-    const baseFee = annualVolume < 5000 ? 2.9 : annualVolume < 50000 ? 2.65 : annualVolume < 100000 ? 2.4 : 1.4;
-
-    const refUser = await this.userService.getRefUser(userId);
-    const refBonus = annualVolume < 100000 ? 1 - (refUser?.refFeePercent ?? 1) : 0;
-
-    return {
-      fee: baseFee - refBonus,
-      refBonus,
-    };
+    return this.userService.getUserBuyFee(userId, annualVolume);
   }
 }

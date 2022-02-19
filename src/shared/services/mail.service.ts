@@ -1,12 +1,14 @@
-import { MailerService } from '@nestjs-modules/mailer';
+import { ISendMailOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { KycStatus, UserData } from 'src/user/models/userData/userData.entity';
+import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
+import { SentMessageInfo } from 'nodemailer';
+import { Util } from '../util';
 
 @Injectable()
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
-  private readonly techMail = 'cto@dfx.swiss';
+  private readonly monitoringMail = 'monitoring@dfx.swiss';
   private readonly noReplyMail = 'noreply@dfx.swiss';
   private readonly kycStatus = {
     [KycStatus.CHATBOT]: 'Chatbot',
@@ -14,7 +16,7 @@ export class MailService {
     [KycStatus.VIDEO_ID]: 'Video ID',
   };
 
-  constructor(private mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService) {}
 
   async sendKycReminderMail(
     firstName: string,
@@ -92,7 +94,7 @@ export class MailService {
     </ul>
     `;
 
-    await this.sendMailInternal(this.techMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
+    await this.sendMailInternal(this.monitoringMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
   }
 
   async sendMailInternal(
@@ -131,7 +133,7 @@ export class MailService {
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>${new Date().getFullYear()} DFX AG</p>`;
 
-    await this.mailerService.sendMail({
+    await this.sendMailWithRetries({
       from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
       to: to,
       cc: cc,
@@ -139,5 +141,17 @@ export class MailService {
       subject: subject,
       html: htmlBody,
     });
+  }
+
+  private async sendMailWithRetries(sendMailOptions: ISendMailOptions, nthTry = 3): Promise<SentMessageInfo> {
+    try {
+      await this.mailerService.sendMail(sendMailOptions);
+    } catch (e) {
+      if (nthTry > 1) {
+        await Util.delay(1000);
+        return this.sendMailWithRetries(sendMailOptions, nthTry - 1);
+      }
+      throw e;
+    }
   }
 }

@@ -1,40 +1,46 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { LanguageService } from 'src/shared/models/language/language.service';
-import { UserDataService } from '../userData/userData.service';
+import { UserDataService } from '../user-data/user-data.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
-import { KycService } from 'src/user/services/kyc/kyc.service';
+import { IdentService } from '../ident/ident.service';
+import { WalletService } from '../wallet/wallet.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { AccountType } from '../user-data/account-type.enum';
+import { User } from './user.entity';
 
 describe('UserService', () => {
   let service: UserService;
 
   let userRepo: UserRepository;
   let userDataService: UserDataService;
-  let countryService: CountryService;
-  let languageService: LanguageService;
   let fiatService: FiatService;
-  let kycService: KycService;
+  let identService: IdentService;
+  let walletService: WalletService;
+  let settingService: SettingService;
+
+  function setup(accountType: AccountType, refFeePercent?: number) {
+    jest.spyOn(userRepo, 'findOne').mockResolvedValue({ accountType, refFeePercent } as User);
+  }
 
   beforeEach(async () => {
     userRepo = createMock<UserRepository>();
     userDataService = createMock<UserDataService>();
-    countryService = createMock<CountryService>();
-    languageService = createMock<LanguageService>();
     fiatService = createMock<FiatService>();
-    kycService = createMock<KycService>();
+    identService = createMock<IdentService>();
+    walletService = createMock<WalletService>();
+    settingService = createMock<SettingService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
         { provide: UserRepository, useValue: userRepo },
         { provide: UserDataService, useValue: userDataService },
-        { provide: CountryService, useValue: countryService },
-        { provide: LanguageService, useValue: languageService },
         { provide: FiatService, useValue: fiatService },
-        { provide: KycService, useValue: kycService },
+        { provide: IdentService, useValue: identService },
+        { provide: WalletService, useValue: walletService },
+        { provide: SettingService, useValue: settingService },
       ],
     }).compile();
 
@@ -43,5 +49,80 @@ describe('UserService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  // ref bonus
+  it('should return no bonus when no ref user', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 0)).resolves.toStrictEqual({ fee: 2.9, refBonus: 0 });
+  });
+
+  it('should return 0.5% bonus from ref user', async () => {
+    setup(AccountType.BUSINESS, 0.5);
+
+    await expect(service.getUserBuyFee(1, 0)).resolves.toStrictEqual({ fee: 2.4, refBonus: 0.5 });
+  });
+
+  it('should return 0.9% bonus from ref user', async () => {
+    setup(AccountType.SOLE_PROPRIETORSHIP, 0.1);
+
+    await expect(service.getUserBuyFee(1, 0)).resolves.toStrictEqual({ fee: 2.0, refBonus: 0.9 });
+  });
+
+  // volume
+  it('should return 2.9 when volume < 5000', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 4999.99)).resolves.toStrictEqual({ fee: 2.9, refBonus: 0 });
+  });
+
+  it('should return 1.75 when volume = 5000, personal and ref user', async () => {
+    setup(AccountType.PERSONAL, 0.1);
+
+    await expect(service.getUserBuyFee(1, 5000)).resolves.toStrictEqual({ fee: 1.75, refBonus: 0.9 });
+  });
+
+  it('should return 2% when volume = 5000, organization and ref user', async () => {
+    setup(AccountType.BUSINESS, 0.1);
+
+    await expect(service.getUserBuyFee(1, 5000)).resolves.toStrictEqual({ fee: 2, refBonus: 0.9 });
+  });
+
+  it('should return 2.4 when volume > 50000 and personal', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 64358)).resolves.toStrictEqual({ fee: 2.4, refBonus: 0 });
+  });
+
+  it('should return 2.9 when volume > 50000 and organization', async () => {
+    setup(AccountType.SOLE_PROPRIETORSHIP);
+
+    await expect(service.getUserBuyFee(1, 64358)).resolves.toStrictEqual({ fee: 2.9, refBonus: 0 });
+  });
+
+  // > 100'000
+  it('should return 1.4 and no bonus when volume > 100000, personal and no ref user', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.4, refBonus: 0 });
+  });
+
+  it('should return 1.4 and no bonus when volume > 100000, personal and ref user', async () => {
+    setup(AccountType.PERSONAL, 0.5);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.4, refBonus: 0 });
+  });
+
+  it('should return 1.9 and no bonus when volume > 100000, organization and no ref user', async () => {
+    setup(AccountType.BUSINESS);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.9, refBonus: 0 });
+  });
+
+  it('should return 1.9 and no bonus when volume > 100000, organization and ref user', async () => {
+    setup(AccountType.SOLE_PROPRIETORSHIP, 0.5);
+
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.9, refBonus: 0 });
   });
 });
