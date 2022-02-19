@@ -3,18 +3,18 @@ import { SepaFile } from './dto/sepa-file.dto';
 import { SepaCdi, SepaAddress, ChargeRecord } from './dto/sepa.dto';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx } from './bank-tx.entity';
-import * as XmlParser from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 
 export class SepaParser {
   static parseSepaFile(xmlFile: string): SepaFile {
-    const validationResult = XmlParser.validate(xmlFile);
+    const validationResult = XMLValidator.validate(xmlFile);
     if (validationResult !== true) {
       throw validationResult;
     }
 
-    return XmlParser.parse(xmlFile, { ignoreAttributes: false }).Document;
+    return new XMLParser({ ignoreAttributes: false }).parse(xmlFile).Document;
   }
 
   static parseBatch(file: SepaFile): Partial<BankTxBatch> {
