@@ -66,4 +66,8 @@ export class Util {
   static async delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  static async entityFilter(entity: any): Promise<any> {
+    return Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
+  }
 }
