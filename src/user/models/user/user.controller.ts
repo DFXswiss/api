@@ -23,14 +23,14 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserDto> {
-    return this.userService.getUser(jwt.id, false);
+    return this.userService.getUserDto(jwt.id, false);
   }
 
   @Get('detail')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getUserDetail(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
-    return this.userService.getUser(jwt.id, true);
+    return this.userService.getUserDto(jwt.id, true);
   }
 
   @Put()

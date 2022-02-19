@@ -1,9 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as helmet from 'helmet';
+import helmet from 'helmet';
 import * as morgan from 'morgan';
 import * as cors from 'cors';
-import * as chalk from 'chalk';
 import * as appInsights from 'applicationinsights';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
@@ -31,9 +30,9 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionFilter());
 
   const swaggerOptions = new DocumentBuilder()
-    .setTitle('DFX-API')
-    .setDescription('Investiere in jedes DeFiChain Asset mit EUR, CHF & USD via Banküberweisung')
-    .setVersion('v0.4')
+    .setTitle('DFX API')
+    .setDescription('DFX Backend API')
+    .setVersion('v1')
     .addBearerAuth()
     .build();
 
@@ -42,7 +41,7 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT || 3000);
 
-  console.log(chalk.blue.inverse(`Server listening on: ${await app.getUrl()}`));
+  console.log(`Server listening on: ${await app.getUrl()}`);
 }
 
 bootstrap();
