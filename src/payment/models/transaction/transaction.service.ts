@@ -9,18 +9,17 @@ import { Util } from 'src/shared/util';
 import { CryptoSellRepository } from '../crypto-sell/crypto-sell.repository';
 import { SellService } from '../sell/sell.service';
 import { RouteType } from '../route/deposit-route.entity';
-import { StakingService } from '../staking/staking.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
+import { StakingRewardService } from '../staking-reward/staking-reward.service';
 
 @Injectable()
 export class TransactionService {
   constructor(
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
-    private readonly stakingService: StakingService,
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly cryptoSellRepo: CryptoSellRepository,
-    // private readonly stakingRewardRepo: StakingRewardRepository,
+    private readonly stakingRewardService: StakingRewardService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
 
@@ -29,7 +28,7 @@ export class TransactionService {
       await this.getBuyTransactions(userId),
       await this.getSellTransactions(userId),
       // await this.getStakingRewards(userId),
-      //await this.getDfiTaxRewards(userAddress),
+      // await this.getDfiTaxRewards(userAddress),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
@@ -136,15 +135,8 @@ export class TransactionService {
   }
 
   // private async getStakingRewards(userId: number): Promise<TransactionDto[]> {
-  //   const stakingRoutes = await this.stakingService.getUserStaking(userId);
-  //   const stakingTx = await this.stakingRewardRepo.find({
-  //     where: {
-  //       staking: { id: In(stakingRoutes.map((b) => b.id)) },
-  //     },
-  //     relations: ['staking', 'staking.user'],
-  //   });
-
-  //   return stakingTx
+  //   const stakingRewards = await this.stakingRewardService.getUserRewards(userId);
+  //   return stakingRewards
   //     .map((c) => [
   //       {
   //         type: 'Staking',

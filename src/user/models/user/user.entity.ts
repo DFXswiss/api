@@ -12,7 +12,6 @@ import { IEntity } from 'src/shared/models/entity';
 import { AccountType } from '../user-data/account-type.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
-import { Reward } from 'src/payment/models/transaction/dto/reward';
 
 export enum UserStatus {
   NA = 'NA',
@@ -77,7 +76,7 @@ export class User extends IEntity {
   paidRefCredit: number;
 
   @OneToMany(() => RefReward, (reward) => reward.user)
-  refRewards: Reward[];
+  refRewards: RefReward[];
 
   // --- TO REMOVE --- //
   @Column({ default: AccountType.PERSONAL, length: 256 })
