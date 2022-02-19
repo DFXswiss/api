@@ -5,12 +5,12 @@ import { In } from 'typeorm';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { CryptoBuyRepository } from '../crypto-buy/crypto-buy.repository';
 import { TransactionDto } from './dto/transaction.dto';
-import { HttpService } from 'src/shared/services/http.service';
-import { Reward } from './dto/reward';
 import { Util } from 'src/shared/util';
 import { CryptoSellRepository } from '../crypto-sell/crypto-sell.repository';
 import { SellService } from '../sell/sell.service';
 import { RouteType } from '../route/deposit-route.entity';
+import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
+import { StakingRewardService } from '../staking-reward/staking-reward.service';
 
 @Injectable()
 export class TransactionService {
@@ -19,14 +19,16 @@ export class TransactionService {
     private readonly sellService: SellService,
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly cryptoSellRepo: CryptoSellRepository,
-    private readonly http: HttpService,
+    private readonly stakingRewardService: StakingRewardService,
+    private readonly dfiTaxService: DfiTaxService,
   ) {}
 
   async getTransactions(userId: number, userAddress: string): Promise<TransactionDto[]> {
     const tx = await Promise.all([
       await this.getBuyTransactions(userId),
       await this.getSellTransactions(userId),
-      // await this.getDFITaxRewards(userAddress),
+      // await this.getStakingRewards(userId),
+      // await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
@@ -39,8 +41,6 @@ export class TransactionService {
   }
 
   // --- HELPER METHODS --- //
-
-  // DFX
   private async getBuyTransactions(userId: number): Promise<TransactionDto[]> {
     const buys = await this.buyService.getUserBuys(userId);
     const cryptoBuys = await this.cryptoBuyRepo.find({
@@ -69,7 +69,7 @@ export class TransactionService {
         {
           type: 'Trade',
           buyAmount: c.outputAmount,
-          buyAsset: c.buy?.asset?.name,
+          buyAsset: c.buy?.deposit ? 'DFI' : c.buy?.asset?.name,
           sellAmount: c.bankTx?.txAmount,
           sellAsset: c.bankTx?.txCurrency,
           fee: c.fee ? c.fee * c.bankTx?.txAmount : null,
@@ -134,9 +134,32 @@ export class TransactionService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  // DFI Tax
-  private async getDFITaxRewards(userAddress: string): Promise<TransactionDto[]> {
-    const rewards = await this.getRewards(userAddress);
+  // private async getStakingRewards(userId: number): Promise<TransactionDto[]> {
+  //   const stakingRewards = await this.stakingRewardService.getUserRewards(userId);
+  //   return stakingRewards
+  //     .map((c) => [
+  //       {
+  //         type: 'Staking',
+  //         buyAmount: c.outputAmount,
+  //         buyAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
+  //         sellAmount: c.cryptoInput.amount,
+  //         sellAsset: c.cryptoInput.asset?.name,
+  //         fee: c.fee ? c.fee * c.cryptoInput.amount : null,
+  //         feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
+  //         exchange: 'DFX Staking',
+  //         tradeGroup: null,
+  //         comment: c.cryptoInput.route.user.address,
+  //         date: c.cryptoInput.created,
+  //         txid: c.cryptoInput.inTxId,
+  //         buyValueInEur: null,
+  //         sellValueInEur: null,
+  //       },
+  //     ])
+  //     .reduce((prev, curr) => prev.concat(curr), []);
+  // }
+
+  private async getDfiTaxRewards(userAddress: string, interval: string): Promise<TransactionDto[]> {
+    const rewards = await this.dfiTaxService.getRewards(userAddress, interval);
     return rewards.map((reward) => ({
       type: 'Mining',
       buyAmount: Util.round(reward.detail.qty, 8),
@@ -158,7 +181,6 @@ export class TransactionService {
     }));
   }
 
-  // Export
   private toCsv(list: any[], separator = ','): string {
     const headers = Object.keys(list[0]).join(separator);
     const values = list.map((t) =>
@@ -171,10 +193,5 @@ export class TransactionService {
 
   private createRandomDate(outputDate: Date, offset: number, amount: number): Date {
     return new Date(outputDate.getTime() + (offset - (amount % 10)) * 60 * 1000);
-  }
-  private async getRewards(userAddress: string): Promise<Reward[]> {
-    const baseUrl = 'https://api.dfi.tax/v01/rwd';
-    const url = `${baseUrl}/${userAddress}/d/true/EUR`;
-    return await this.http.get<Reward[]>(url);
   }
 }

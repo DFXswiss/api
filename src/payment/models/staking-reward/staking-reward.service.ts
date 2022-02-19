@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Between, Not } from 'typeorm';
+import { Not } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
 import { StakingReward } from './staking-reward.entity';
 import { StakingRewardRepository } from './staking-reward.respository';
@@ -59,6 +59,13 @@ export class StakingRewardService {
   async updateVolumes(): Promise<void> {
     const stakingIds = await this.stakingRepo.find().then((l) => l.map((b) => b.id));
     await this.updateRewardVolume(stakingIds);
+  }
+
+  async getUserRewards(userId: number): Promise<StakingReward[]> {
+    return await this.rewardRepo.find({
+      where: { staking: { user: { id: userId } } },
+      relations: ['staking', 'staking.user'],
+    });
   }
 
   // --- HELPER METHODS --- //

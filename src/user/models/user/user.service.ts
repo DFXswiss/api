@@ -11,9 +11,9 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
-
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 
 @Injectable()
 export class UserService {
@@ -23,6 +23,7 @@ export class UserService {
     private readonly identService: IdentService,
     private readonly walletService: WalletService,
     private readonly settingService: SettingService,
+    private readonly dfiTaxService: DfiTaxService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -54,6 +55,8 @@ export class UserService {
 
     user = await this.userRepo.save(user);
     await this.userDataService.createUserData(user);
+
+    this.dfiTaxService.activateAddress(user.address);
 
     return user;
   }
