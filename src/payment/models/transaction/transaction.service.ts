@@ -42,8 +42,6 @@ export class TransactionService {
   }
 
   // --- HELPER METHODS --- //
-
-  // DFX
   private async getBuyTransactions(userId: number): Promise<TransactionDto[]> {
     const buys = await this.buyService.getUserBuys(userId);
     const cryptoBuys = await this.cryptoBuyRepo.find({
@@ -168,7 +166,6 @@ export class TransactionService {
   //     .reduce((prev, curr) => prev.concat(curr), []);
   // }
 
-  // DFI Tax
   private async getDfiTaxRewards(userAddress: string, interval: string): Promise<TransactionDto[]> {
     const rewards = await this.dfiTaxService.getRewards(userAddress, interval);
     return rewards.map((reward) => ({
@@ -192,7 +189,6 @@ export class TransactionService {
     }));
   }
 
-  // Export
   private toCsv(list: any[], separator = ','): string {
     const headers = Object.keys(list[0]).join(separator);
     const values = list.map((t) =>

@@ -33,17 +33,17 @@ export class DfiTaxService {
 
   constructor(private readonly http: HttpService) {}
 
-  activateAddress(userAddress: string): void {
-    this.getRewards(userAddress, 'YEAR');
+  activateAddress(address: string): void {
+    this.getRewards(address, 'YEAR');
   }
 
-  async getRewards(userAddress: string, interval: string): Promise<DfiTaxReward[]> {
-    const url = `${this.baseUrl}/p01/rwd/${userAddress}/${interval}/EUR`;
+  async getRewards(address: string, interval: string): Promise<DfiTaxReward[]> {
+    const url = `${this.baseUrl}/p01/rwd/${address}/${interval}/EUR`;
     return await this.http.get<DfiTaxReward[]>(url);
   }
 
-  async getTransactions(userAddress: string, year: string): Promise<DfiTaxTransaction[]> {
-    const url = `${this.baseUrl}/v01/hst/${userAddress}/${year}/EUR`;
+  async getTransactions(address: string, interval: string): Promise<DfiTaxTransaction[]> {
+    const url = `${this.baseUrl}/v01/hst/${address}/${interval}/EUR`;
     return await this.http.get<DfiTaxTransaction[]>(url);
   }
 }
