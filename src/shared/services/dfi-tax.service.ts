@@ -27,7 +27,7 @@ export interface DfiTaxTransaction {
   ];
 }
 
-export enum DfiTaxIntervall {
+export enum DfiTaxInterval {
   YEAR = 'YEAR',
   MONTH = 'MONTH',
   WEEK = 'WEEK',
@@ -41,7 +41,7 @@ export class DfiTaxService {
   constructor(private readonly http: HttpService) {}
 
   activateAddress(address: string): void {
-    this.getRewards(address, DfiTaxIntervall.YEAR);
+    this.getRewards(address, DfiTaxInterval.YEAR);
   }
 
   async getRewards(address: string, interval: string): Promise<DfiTaxReward[]> {
