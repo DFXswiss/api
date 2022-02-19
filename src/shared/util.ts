@@ -67,7 +67,7 @@ export class Util {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  static async entityFilter(entity: any): Promise<any> {
+  static async entityNullValueFilter(entity: any): Promise<any> {
     return Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
   }
 }

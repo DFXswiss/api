@@ -5,6 +5,7 @@ import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
 import { UpdateRefRewardDto } from './dto/update.ref-reward.dto';
 import { UserService } from 'src/user/models/user/user.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class RefRewardService {
@@ -45,7 +46,7 @@ export class RefRewardService {
 
     const update = await this.createEntity(dto);
 
-    //Object.fromEntries(Object.entries(entity).filter(([_, v]) => v != null));
+    Util.entityNullValueFilter(entity);
 
     entity = await this.rewardRepo.save({ ...update, ...entity });
 

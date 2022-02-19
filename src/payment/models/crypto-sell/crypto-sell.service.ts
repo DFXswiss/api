@@ -12,6 +12,7 @@ import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { Between, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { UserService } from 'src/user/models/user/user.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class CryptoSellService {
@@ -52,7 +53,9 @@ export class CryptoSellService {
 
     const update = await this.createEntity(dto);
 
-    entity = await this.cryptoSellRepo.save({ ...entity, ...update });
+    Util.entityNullValueFilter(entity);
+
+    entity = await this.cryptoSellRepo.save({ ...update, ...entity });
 
     await this.updateSellVolume([sellIdBefore, entity.cryptoInput.route.id]);
     return entity;

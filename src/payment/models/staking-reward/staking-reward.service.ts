@@ -6,6 +6,7 @@ import { StakingRewardRepository } from './staking-reward.respository';
 import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class StakingRewardService {
@@ -49,6 +50,8 @@ export class StakingRewardService {
     const routeIdBefore = entity.staking?.id;
 
     const update = await this.createEntity(dto);
+
+    Util.entityNullValueFilter(entity);
 
     entity = await this.rewardRepo.save({ ...update, ...entity });
 

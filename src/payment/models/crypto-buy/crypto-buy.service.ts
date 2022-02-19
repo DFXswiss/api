@@ -10,6 +10,7 @@ import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
 import { Between, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../buy/buy.repository';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class CryptoBuyService {
@@ -49,7 +50,9 @@ export class CryptoBuyService {
 
     const update = await this.createEntity(dto);
 
-    entity = await this.cryptoBuyRepo.save({ ...entity, ...update });
+    Util.entityNullValueFilter(entity);
+
+    entity = await this.cryptoBuyRepo.save({ ...update, ...entity });
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
     await this.updateRefVolume([usedRefBefore, entity.usedRef]);
