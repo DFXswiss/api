@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/util';
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
@@ -134,7 +134,11 @@ export class IdentService {
   private async startKyc(userData: UserData): Promise<UserData> {
     // update customer
     await this.kycService.initializeCustomer(userData);
-    userData.kycHash = Util.createHash(userData.id.toString() + new Date().getDate).slice(0, 12);
+
+    // generate KYC hash
+    userData.kycHash = Util.createHash(userData.id.toString() + new Date().getDate()).slice(0, 12);
+    if ((await this.userDataRepo.findOne({ kycHash: userData.kycHash })) != null)
+      throw new InternalServerErrorException(`KYC hash ${userData.kycHash} already exists`);
 
     // do name check
     userData.riskState = await this.kycService.checkCustomer(userData.id);
