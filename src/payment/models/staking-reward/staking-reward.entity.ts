@@ -3,9 +3,7 @@ import { Reward } from '../reward/reward.entity';
 import { Staking } from '../staking/staking.entity';
 
 @Entity()
-@Index('oneRewardPerRouteCheck', (stakingReward: StakingReward) => [stakingReward.txId, stakingReward.staking], {
-  unique: true,
-})
+@Index('oneRewardPerRouteCheck', (reward: StakingReward) => [reward.txId, reward.staking], { unique: true })
 export class StakingReward extends Reward {
   @Column({ type: 'float', nullable: true })
   fee: number;
@@ -13,6 +11,6 @@ export class StakingReward extends Reward {
   @Column({ type: 'datetime2', nullable: true })
   inputDate: Date;
 
-  @ManyToOne(() => Staking, (staking) => staking.stakingReward, { nullable: false })
+  @ManyToOne(() => Staking, (staking) => staking.rewards, { nullable: false })
   staking: Staking;
 }

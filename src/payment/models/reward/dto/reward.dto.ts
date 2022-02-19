@@ -2,8 +2,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsNumber } from 'class-validator';
 
 export abstract class RewardDto {
-  internalId: string;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
@@ -43,10 +41,6 @@ export abstract class RewardDto {
   @IsOptional()
   @IsString()
   outputAsset: string;
-
-  txId: string;
-
-  outputDate: Date;
 
   @ApiPropertyOptional()
   @IsOptional()

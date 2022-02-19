@@ -126,7 +126,7 @@ export class UserService {
     await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
   }
 
-  async updatePaidRefReward(stakingId: number, volume: number): Promise<void> {
+  async updatePaidRefCredit(stakingId: number, volume: number): Promise<void> {
     await this.userRepo.update(stakingId, { paidRefCredit: Util.round(volume, 0) });
   }
 

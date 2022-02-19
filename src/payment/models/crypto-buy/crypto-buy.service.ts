@@ -143,18 +143,15 @@ export class CryptoBuyService {
   }
 
   async getTransactions(
-    dateFrom?: Date,
-    dateTo?: Date,
+    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
-    if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
-    if (!dateTo) dateTo = new Date();
-
-    const cryptoBuy = await this.cryptoBuyRepo.find({
+    const cryptoBuys = await this.cryptoBuyRepo.find({
       where: { outputDate: Between(dateFrom, dateTo) },
       relations: ['buy'],
     });
 
-    return cryptoBuy.map((v) => ({
+    return cryptoBuys.map((v) => ({
       fiatAmount: v.amountInEur,
       fiatCurrency: 'EUR',
       date: v.outputDate,

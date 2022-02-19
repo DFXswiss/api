@@ -138,14 +138,6 @@ export class StakingService {
     await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
   }
 
-  async getTotalRewardVolume(): Promise<number> {
-    return this.sellRepo
-      .createQueryBuilder('staking')
-      .select('SUM(rewardVolume)', 'volume')
-      .getRawOne<{ volume: number }>()
-      .then((r) => r.volume);
-  }
-
   // --- DTO --- //
   async toDtoList(userId: number, staking: Staking[]): Promise<StakingDto[]> {
     const depositIds = staking

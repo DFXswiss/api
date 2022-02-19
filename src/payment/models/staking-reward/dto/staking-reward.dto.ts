@@ -11,16 +11,6 @@ export abstract class StakingRewardDto extends RewardDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
-  apr: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  apy: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsDate()
   @Type(() => Date)
   inputDate: Date;

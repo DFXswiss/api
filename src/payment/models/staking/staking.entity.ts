@@ -7,9 +7,6 @@ import { StakingReward } from '../staking-reward/staking-reward.entity';
 
 @ChildEntity()
 export class Staking extends DepositRoute {
-  @Column({ type: 'float', default: 0 })
-  rewardVolume: number;
-
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   rewardDeposit: Deposit;
 
@@ -25,6 +22,9 @@ export class Staking extends DepositRoute {
   @ManyToOne(() => User, (user) => user.stakingRoutes, { nullable: false })
   user: User;
 
-  @OneToMany(() => StakingReward, (stakingReward) => stakingReward.staking)
-  stakingReward: StakingReward[];
+  @Column({ type: 'float', default: 0 })
+  rewardVolume: number;
+
+  @OneToMany(() => StakingReward, (reward) => reward.staking)
+  rewards: StakingReward[];
 }

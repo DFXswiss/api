@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Between, Not } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
 import { StakingReward } from './staking-reward.entity';
@@ -17,35 +17,31 @@ export class StakingRewardService {
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
-    let entity = await this.rewardRepo
-      .createQueryBuilder('stakingReward')
-      .innerJoin('stakingReward.staking', 'stakingRoute')
-      .where('stakingRoute.id = :id', { id: dto.stakingId })
-      .andWhere('stakingReward.txid = :txid', { txid: dto.txId })
-      .orWhere('stakingReward.internalId = :internalId', { internalId: dto.internalId })
-      .getRawOne();
+    let entity = await this.rewardRepo.findOne({
+      where: [{ staking: { id: dto.stakingId }, txId: dto.txId }, { internalId: dto.internalId }],
+    });
     if (entity)
       throw new ConflictException(
-        'There is already the same staking reward for the specified staking route and txId or the internal Id is already usedj',
+        'There is already the a staking reward for the specified staking route and txId or the internal id is already used',
       );
 
     entity = await this.createEntity(dto);
     entity = await this.rewardRepo.save(entity);
 
-    await this.updateStakingVolume([entity.staking.id]);
+    await this.updateRewardVolume([entity.staking.id]);
 
     return entity;
   }
 
   async update(id: number, dto: UpdateStakingRewardDto): Promise<StakingReward> {
     let entity = await this.rewardRepo.findOne(id, { relations: ['staking', 'staking.user'] });
-    if (!entity) throw new NotFoundException('No matching entry found');
+    if (!entity) throw new NotFoundException('Staking reward not found');
 
     const internalIdWithOtherReward = dto.internalId
       ? await this.rewardRepo.findOne({ id: Not(id), internalId: dto.internalId })
       : null;
     if (internalIdWithOtherReward)
-      throw new ConflictException('There is already a reward for the specified internal Id');
+      throw new ConflictException('There is already a reward for the specified internal id');
 
     const routeIdBefore = entity.staking?.id;
 
@@ -55,14 +51,14 @@ export class StakingRewardService {
 
     entity = await this.rewardRepo.save({ ...update, ...entity });
 
-    await this.updateStakingVolume([routeIdBefore, entity.staking?.id]);
+    await this.updateRewardVolume([routeIdBefore, entity.staking?.id]);
 
     return entity;
   }
 
   async updateVolumes(): Promise<void> {
     const stakingIds = await this.stakingRepo.find().then((l) => l.map((b) => b.id));
-    await this.updateStakingVolume(stakingIds);
+    await this.updateRewardVolume(stakingIds);
   }
 
   // --- HELPER METHODS --- //
@@ -72,13 +68,13 @@ export class StakingRewardService {
     // staking
     if (dto.stakingId) {
       reward.staking = await this.stakingRepo.findOne(dto.stakingId);
-      if (!reward.staking) throw new NotFoundException('No Staking Route for ID found');
+      if (!reward.staking) throw new BadRequestException('Staking route not found');
     }
 
     return reward;
   }
 
-  private async updateStakingVolume(stakingIds: number[]): Promise<void> {
+  private async updateRewardVolume(stakingIds: number[]): Promise<void> {
     stakingIds = stakingIds.filter((u, j) => stakingIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of stakingIds) {
@@ -91,24 +87,5 @@ export class StakingRewardService {
 
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
     }
-  }
-
-  async getRewards(
-    dateFrom?: Date,
-    dateTo?: Date,
-  ): Promise<{ date: Date; outputAmount: number; outputAsset: string }[]> {
-    if (!dateFrom) dateFrom = new Date('15 Aug 2021 00:00:00 GMT');
-    if (!dateTo) dateTo = new Date();
-
-    const stakingReward = await this.rewardRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo) },
-      relations: ['staking'],
-    });
-
-    return stakingReward.map((v) => ({
-      date: v.outputDate,
-      outputAmount: v.outputAmount,
-      outputAsset: v.outputAsset,
-    }));
   }
 }
