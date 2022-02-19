@@ -25,7 +25,15 @@ export class UserService {
     private readonly settingService: SettingService,
   ) {}
 
-  async getUser(userId: number, detailed = false): Promise<UserDetailDto> {
+  async getAllUser(): Promise<User[]> {
+    return await this.userRepo.find();
+  }
+
+  async getUser(userId: number): Promise<User> {
+    return await this.userRepo.findOne(userId);
+  }
+
+  async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
@@ -116,6 +124,10 @@ export class UserService {
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
     await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
+  }
+
+  async updatePaidRefCredit(stakingId: number, volume: number): Promise<void> {
+    await this.userRepo.update(stakingId, { paidRefCredit: Util.round(volume, 0) });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {

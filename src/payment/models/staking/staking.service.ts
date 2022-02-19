@@ -134,6 +134,10 @@ export class StakingService {
     };
   }
 
+  async updateRewardVolume(stakingId: number, volume: number): Promise<void> {
+    await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
+  }
+
   // --- DTO --- //
   async toDtoList(userId: number, staking: Staking[]): Promise<StakingDto[]> {
     const depositIds = staking
