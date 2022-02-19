@@ -9,7 +9,7 @@ import { Util } from 'src/shared/util';
 import { CryptoSellRepository } from '../crypto-sell/crypto-sell.repository';
 import { SellService } from '../sell/sell.service';
 import { RouteType } from '../route/deposit-route.entity';
-import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
+import { DfiTaxIntervall, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
 
 @Injectable()
@@ -28,7 +28,7 @@ export class TransactionService {
       await this.getBuyTransactions(userId),
       await this.getSellTransactions(userId),
       // await this.getStakingRewards(userId),
-      // await this.getDfiTaxRewards(userAddress),
+      // await this.getDfiTaxRewards(userAddress, DfiTaxIntervall.DAY),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));

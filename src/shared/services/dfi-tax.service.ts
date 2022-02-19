@@ -27,6 +27,13 @@ export interface DfiTaxTransaction {
   ];
 }
 
+export enum DfiTaxIntervall {
+  YEAR = 'YEAR',
+  MONTH = 'MONTH',
+  WEEK = 'WEEK',
+  DAY = 'DAY',
+}
+
 @Injectable()
 export class DfiTaxService {
   private readonly baseUrl = 'https://api.dfi.tax';
@@ -34,7 +41,7 @@ export class DfiTaxService {
   constructor(private readonly http: HttpService) {}
 
   activateAddress(address: string): void {
-    this.getRewards(address, 'YEAR');
+    this.getRewards(address, DfiTaxIntervall.YEAR);
   }
 
   async getRewards(address: string, interval: string): Promise<DfiTaxReward[]> {
