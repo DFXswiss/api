@@ -30,6 +30,7 @@ export class TransactionService {
     const tx = await Promise.all([
       await this.getBuyTransactions(userId),
       await this.getSellTransactions(userId),
+      // await this.getStakingRewards(userId),
       //await this.getDFITaxRewards(userAddress),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
