@@ -22,7 +22,7 @@ export class StakingRewardService {
     });
     if (entity)
       throw new ConflictException(
-        'There is already the a staking reward for the specified staking route and txId or the internal id is already used',
+        'There is already a staking reward for the specified staking route and txId or the internal id is already used',
       );
 
     entity = await this.createEntity(dto);
