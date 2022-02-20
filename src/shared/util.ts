@@ -74,6 +74,10 @@ export class Util {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  static removeNullFields(entity: any): void {
+    Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
+  }
+
   static createHash(data: BinaryLike): string {
     const hash = createHash('sha256');
     hash.update(data);
