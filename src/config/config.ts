@@ -2,7 +2,6 @@ import { MailerOptions } from '@nestjs-modules/mailer';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
-import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 
@@ -20,6 +19,7 @@ export class Configuration {
   defaultLinkedinUrl = 'https://www.linkedin.com/company/dfxswiss/';
   defaultInstagramUrl = 'https://www.instagram.com/dfx.swiss/';
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
+  defaultTemplate = 'src/shared/assets/mails/new';
   stakingPeriod = 365; // TODO: 28; // days
 
   colors = {
@@ -44,15 +44,6 @@ export class Configuration {
       migrationsDir: 'migration',
     },
     connectionTimeout: 30000,
-  };
-
-  i18n: I18nOptions = {
-    fallbackLanguage: this.defaultLanguage,
-    parser: I18nJsonParser,
-    parserOptions: {
-      path: path.join(__dirname, '../shared/i18n/'),
-      watch: true,
-    },
   };
 
   auth = {

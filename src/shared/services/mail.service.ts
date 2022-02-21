@@ -123,6 +123,7 @@ export class MailService {
     bcc?: string,
     cc?: string,
     displayName?: string,
+    template?: string,
     telegramUrl?: string,
     twitterUrl?: string,
     linkedinUrl?: string,
@@ -133,7 +134,7 @@ export class MailService {
       to: to,
       cc: cc,
       bcc: bcc,
-      template: 'src/shared/assets/mails/new',
+      template: template ? `src/shared/assets/mails/${template}` : Config.defaultTemplate,
       context: {
         salutation: salutation,
         body: body,

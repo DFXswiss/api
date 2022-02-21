@@ -54,7 +54,6 @@
     "helmet": "^5.0.2",
     "morgan": "^1.10.0",
     "mssql": "^6.3.1",
-    "nestjs-i18n": "^8.2.2",
     "nestjs-real-ip": "^2.0.0",
     "nodemailer": "^6.7.2",
     "passport": "^0.5.2",

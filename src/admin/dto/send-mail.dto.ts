@@ -35,6 +35,10 @@ export class SendMailDto {
 
   @IsOptional()
   @IsString()
+  template: string;
+
+  @IsOptional()
+  @IsString()
   telegramUrl: string;
 
   @IsOptional()

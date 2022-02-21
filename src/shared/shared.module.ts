@@ -25,7 +25,6 @@ import { SettingRepository } from './models/setting/setting.repository';
 import { SettingService } from './models/setting/setting.service';
 import { GetConfig } from 'src/config/config';
 import { ConfigModule } from 'src/config/config.module';
-import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { DfiTaxService } from './services/dfi-tax.service';
 
@@ -43,7 +42,6 @@ import { DfiTaxService } from './services/dfi-tax.service';
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
     MailerModule.forRoot(GetConfig().mail),
-    I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
