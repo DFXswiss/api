@@ -115,7 +115,7 @@ export class CryptoSellService {
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
     const cryptoSells = await this.cryptoSellRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo) },
+      where: { outputDate: Between(dateFrom, dateTo), amlCheck: 'Pass' },
       relations: ['cryptoInput'],
     });
 
