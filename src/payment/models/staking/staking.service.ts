@@ -6,7 +6,7 @@ import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
 import { KycCompleted } from '../../../user/models/user-data/user-data.entity';
 import { CreateStakingDto } from './dto/create-staking.dto';
-import { StakingType } from './dto/staking-type.enum';
+import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { StakingDto } from './dto/staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { Staking } from './staking.entity';
@@ -91,20 +91,20 @@ export class StakingService {
     });
 
     staking.rewardDeposit =
-      dto.rewardType === StakingType.REINVEST
+      dto.rewardType === PayoutType.REINVEST
         ? staking.deposit
-        : dto.rewardType === StakingType.BANK_ACCOUNT
+        : dto.rewardType === PayoutType.BANK_ACCOUNT
         ? ({ id: await this.getDepositId(userId, dto.rewardSell?.id) } as Deposit)
         : null;
     staking.paybackDeposit =
-      dto.paybackType === StakingType.REINVEST
+      dto.paybackType === PayoutType.REINVEST
         ? staking.deposit
-        : dto.paybackType === StakingType.BANK_ACCOUNT
+        : dto.paybackType === PayoutType.BANK_ACCOUNT
         ? ({ id: await this.getDepositId(userId, dto.paybackSell?.id) } as Deposit)
         : null;
 
-    staking.rewardAsset = dto.rewardType === StakingType.WALLET ? await this.getAsset(dto.rewardAsset?.id) : null;
-    staking.paybackAsset = dto.paybackType === StakingType.WALLET ? await this.getAsset(dto.paybackAsset?.id) : null;
+    staking.rewardAsset = dto.rewardType === PayoutType.WALLET ? await this.getAsset(dto.rewardAsset?.id) : null;
+    staking.paybackAsset = dto.paybackType === PayoutType.WALLET ? await this.getAsset(dto.paybackAsset?.id) : null;
 
     if ('active' in dto && dto.active != null) staking.active = dto.active;
 
@@ -157,8 +157,8 @@ export class StakingService {
     sellRoutes?: Sell[],
     stakingDepositsInUse?: number[],
   ): Promise<StakingDto> {
-    const rewardType = this.getStakingType(staking.rewardDeposit?.id, staking.deposit.id);
-    const paybackType = this.getStakingType(staking.paybackDeposit?.id, staking.deposit.id);
+    const rewardType = this.getPayoutType(staking.rewardDeposit?.id, staking.deposit.id);
+    const paybackType = this.getPayoutType(staking.paybackDeposit?.id, staking.deposit.id);
     const balance = await this.getStakingBalance(staking.id, new Date());
 
     stakingDepositsInUse ??= await this.getUserStakingDepositsInUse(userId);
@@ -178,16 +178,16 @@ export class StakingService {
     };
   }
 
-  private getStakingType(typeDepositId: number | undefined, depositId: number): StakingType {
+  private getPayoutType(typeDepositId: number | undefined, depositId: number): PayoutType {
     return typeDepositId
       ? typeDepositId === depositId
-        ? StakingType.REINVEST
-        : StakingType.BANK_ACCOUNT
-      : StakingType.WALLET;
+        ? PayoutType.REINVEST
+        : PayoutType.BANK_ACCOUNT
+      : PayoutType.WALLET;
   }
 
-  private async getSell(stakingType: StakingType, depositId: number, sellRoutes?: Sell[]): Promise<Sell | undefined> {
-    if (stakingType !== StakingType.BANK_ACCOUNT) return undefined;
+  private async getSell(payoutType: PayoutType, depositId: number, sellRoutes?: Sell[]): Promise<Sell | undefined> {
+    if (payoutType !== PayoutType.BANK_ACCOUNT) return undefined;
 
     return sellRoutes
       ? sellRoutes.find((r) => r.deposit.id === depositId)
