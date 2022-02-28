@@ -24,7 +24,7 @@ export class AppController {
   ) {}
 
   @Get()
-  @Redirect('api')
+  @Redirect('swagger')
   @ApiExcludeEndpoint()
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
