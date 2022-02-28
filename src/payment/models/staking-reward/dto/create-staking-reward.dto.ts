@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsInt, IsNotEmpty, IsString } from 'class-validator';
-import { StakingRewardType } from '../staking-reward.entity';
+import { PayoutType } from '../staking-reward.entity';
 import { StakingRewardDto } from './staking-reward.dto';
 
 export class CreateStakingRewardDto extends StakingRewardDto {
@@ -28,6 +28,6 @@ export class CreateStakingRewardDto extends StakingRewardDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsEnum(StakingRewardType)
-  stakingRewardType: StakingRewardType;
+  @IsEnum(PayoutType)
+  payoutType: PayoutType;
 }

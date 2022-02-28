@@ -11,7 +11,7 @@ import { SellService } from '../sell/sell.service';
 import { RouteType } from '../route/deposit-route.entity';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
-import { StakingRewardType } from '../staking-reward/staking-reward.entity';
+import { PayoutType } from '../staking-reward/staking-reward.entity';
 
 @Injectable()
 export class TransactionService {
@@ -147,8 +147,8 @@ export class TransactionService {
           sellAsset: null,
           fee: c.fee ? c.fee * c.inputAmount : null,
           feeAsset: c.fee ? c.inputAsset : null,
-          exchange: c.stakingRewardType === StakingRewardType.REINVEST ? 'DFX Staking' : 'DFX',
-          tradeGroup: c.stakingRewardType === StakingRewardType.REINVEST ? 'Staking' : null,
+          exchange: c.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
+          tradeGroup: c.payoutType === PayoutType.REINVEST ? 'Staking' : null,
           comment: 'DFX Staking Reward',
           date: c.outputDate,
           txid: c.txId,

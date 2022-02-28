@@ -2,10 +2,10 @@ import { Column, ManyToOne, Index, Entity } from 'typeorm';
 import { Reward } from '../reward/reward.entity';
 import { Staking } from '../staking/staking.entity';
 
-export enum StakingRewardType {
-  WALLET = 'Wallet',
+export enum PayoutType {
   REINVEST = 'Reinvest',
-  SELL = 'Sell',
+  WALLET = 'Wallet',
+  BANK_ACCOUNT = 'BankAccount'
 }
 
 @Entity()
@@ -18,7 +18,7 @@ export class StakingReward extends Reward {
   inputDate: Date;
 
   @Column({ length: 256, nullable: false })
-  stakingRewardType: StakingRewardType;
+  payoutType: PayoutType;
 
   @ManyToOne(() => Staking, (staking) => staking.rewards, { nullable: false })
   staking: Staking;
