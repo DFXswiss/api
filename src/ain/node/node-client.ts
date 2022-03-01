@@ -139,10 +139,6 @@ export class NodeClient {
   }
 
   // generic
-  async call<T>(call: (client: ApiClient) => Promise<T>): Promise<T> {
-    return this.callNode<T>(call);
-  }
-
   parseAmount(amount: string): { amount: number; asset: string } {
     return {
       amount: +amount.split('@')[0],
