@@ -26,6 +26,7 @@ export interface UserDetailDto extends UserDto {
   refFeePercent?: number;
   refVolume: number;
   refCredit: number;
+  paidRefCredit: number;
   refCount: number;
   refCountActive: number;
 }

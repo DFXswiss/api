@@ -174,6 +174,7 @@ export class UserService {
             refFeePercent: user.refFeePercent,
             refVolume: user.refVolume,
             refCredit: user.refCredit,
+            paidRefCredit: user.paidRefCredit,
             refCount: await this.userRepo.count({ usedRef: user.ref }),
             refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
           }),
