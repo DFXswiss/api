@@ -133,25 +133,18 @@ export class MailService {
       <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
       <p>${new Date().getFullYear()} DFX AG</p>`;
 
-    await this.sendMailWithRetries({
-      from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
-      to: to,
-      cc: cc,
-      bcc: bcc,
-      subject: subject,
-      html: htmlBody,
-    });
-  }
-
-  private async sendMailWithRetries(sendMailOptions: ISendMailOptions, nthTry = 3): Promise<SentMessageInfo> {
-    try {
-      await this.mailerService.sendMail(sendMailOptions);
-    } catch (e) {
-      if (nthTry > 1) {
-        await Util.delay(1000);
-        return this.sendMailWithRetries(sendMailOptions, nthTry - 1);
-      }
-      throw e;
-    }
+    await Util.retry(
+      () =>
+        this.mailerService.sendMail({
+          from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
+          to: to,
+          cc: cc,
+          bcc: bcc,
+          subject: subject,
+          html: htmlBody,
+        }),
+      3,
+      1000,
+    );
   }
 }

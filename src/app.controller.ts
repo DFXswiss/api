@@ -81,7 +81,7 @@ export class AppController {
   private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
     const ignoredAnnouncements = await this.settingService.getObj<string[]>('ignoredAnnouncements', []);
     return this.httpService
-      .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcementsasdf`)
+      .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcements`, { tryCount: 3 })
       .then((r) => r.filter((a) => !ignoredAnnouncements.includes(a.id)))
       .catch(() => []);
   }
@@ -89,7 +89,7 @@ export class AppController {
   private async getLightWalletFlags(): Promise<FlagDto[]> {
     const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
     return this.httpService
-      .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`)
+      .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
       .then((r) => r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null))
       .catch(() => []);
   }
