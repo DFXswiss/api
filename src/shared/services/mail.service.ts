@@ -110,7 +110,7 @@ export class MailService {
     try {
       await this.sendMail(to, salutation, subject, body, from, bcc, cc, displayName);
     } catch (e) {
-      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}. Error:`, e);
+      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}:`, e);
     }
   }
 

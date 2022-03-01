@@ -24,7 +24,9 @@ export class NodeClient {
 
   constructor(private readonly http: HttpService, private readonly url: string) {
     this.client = this.createJellyfishClient();
-    this.getChain().then((c) => (this.chain = c));
+    this.getChain()
+      .then((c) => (this.chain = c))
+      .catch((e) => console.error('Failed to get chain, defaulting to MainNet:', e));
   }
 
   // common
@@ -152,7 +154,6 @@ export class NodeClient {
       if (unlock) await this.unlock();
       return await call(this.client);
     } catch (e) {
-      // TODO: retries?
       console.log('Exception during node call:', e);
       throw new ServiceUnavailableException(e);
     }
