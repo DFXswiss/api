@@ -47,6 +47,7 @@ export class KycService {
   async updateCustomer(userDataId: number, update: Partial<Customer>): Promise<void> {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (customer) {
+      Util.removeNullFields(update);
       await this.kycApi.updateCustomer({ ...customer, ...update });
     }
   }
