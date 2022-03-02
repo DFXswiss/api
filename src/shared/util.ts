@@ -90,7 +90,7 @@ export class Util {
     } catch (e) {
       if (tryCount > 1) {
         await this.delay(delay);
-        return this.retry(action, tryCount - 1);
+        return this.retry(action, tryCount - 1, delay);
       }
 
       throw e;
