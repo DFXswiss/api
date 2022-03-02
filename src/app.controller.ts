@@ -8,7 +8,7 @@ import { SettingService } from './shared/models/setting/setting.service';
 import { RefService } from './user/models/referral/ref.service';
 import { AnnouncementDto } from './dto/announcement.dto';
 import { FlagDto } from './dto/flag.dto';
-import { AdvertisementDto } from './dto/advertisement.dto';
+import { AdDto, AdSettings, AdvertisementDto } from './dto/advertisement.dto';
 import { Util } from './shared/util';
 
 @Controller('')
@@ -81,15 +81,19 @@ export class AppController {
 
   @Get('app/advertisements')
   @ApiExcludeEndpoint()
-  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<{ id: string; url: string; displayTime: number }> {
-    // TODO: handle ids!
-    return Util.secondsDiff(date, new Date()) < 60
-      ? undefined
-      : {
-          id: '1',
-          url: `https://dfx.swiss/images/dfxsocials/dfx_ambassador_${this.getAdLanguage(lang)}.png`,
-          displayTime: 10,
-        };
+  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<AdDto> {
+    const adSettings = await this.settingService.getObj<AdSettings>('advertisements');
+
+    const nextAdIndex = (adSettings.ads.findIndex((ad) => ad.id === id) + 1) % adSettings.ads.length;
+    const nextAd = adSettings.ads[nextAdIndex];
+
+    if (Util.daysDiff(date, new Date()) < adSettings.displayInterval || !nextAd) return undefined;
+
+    return {
+      id: nextAd.id,
+      url: nextAd.url.replace('{{lang}}', this.getAdLanguage(lang)),
+      displayTime: adSettings.displayTime,
+    };
   }
 
   // --- HELPER METHODS --- //

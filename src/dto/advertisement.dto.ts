@@ -15,3 +15,15 @@ export class AdvertisementDto {
   @IsString()
   lang: string;
 }
+
+export interface AdSettings {
+  displayInterval: number;
+  displayTime: number;
+  ads: { id: string; url: string }[];
+}
+
+export interface AdDto {
+  id: string;
+  url: string;
+  displayTime: number;
+}
