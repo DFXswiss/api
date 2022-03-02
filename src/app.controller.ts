@@ -8,6 +8,8 @@ import { SettingService } from './shared/models/setting/setting.service';
 import { RefService } from './user/models/referral/ref.service';
 import { AnnouncementDto } from './dto/announcement.dto';
 import { FlagDto } from './dto/flag.dto';
+import { AdvertisementDto } from './dto/advertisement.dto';
+import { Util } from './shared/util';
 
 @Controller('')
 export class AppController {
@@ -75,6 +77,17 @@ export class AppController {
       this.settingService.getObj<FlagDto[]>('flags', []),
       this.getLightWalletFlags(),
     ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
+  }
+
+  @Get('app/advertisements')
+  @ApiExcludeEndpoint()
+  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<any> { // TODO: typing
+    // TODO: if params are null!
+    return Util.secondsDiff(date, new Date()) < 10
+      ? undefined
+      : id == '0'
+      ? { id: '1', url: 'https://dfx.swiss/images/dfxsocials/dfx_ambassador_de.png', displayTime: 4 }
+      : { id: '0', url: 'https://dfx.swiss/images/dfxsocials/dfx_ambassador_en.png', displayTime: 3 };
   }
 
   // --- HELPER METHODS --- //
