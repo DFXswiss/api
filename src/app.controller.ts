@@ -81,13 +81,15 @@ export class AppController {
 
   @Get('app/advertisements')
   @ApiExcludeEndpoint()
-  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<any> { // TODO: typing
-    // TODO: if params are null!
-    return Util.secondsDiff(date, new Date()) < 10
+  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<{ id: string; url: string; displayTime: 5 }> {
+    // TODO: handle ids!
+    return Util.secondsDiff(date, new Date()) < 60
       ? undefined
-      : id == '0'
-      ? { id: '1', url: 'https://dfx.swiss/images/dfxsocials/dfx_ambassador_de.png', displayTime: 4 }
-      : { id: '0', url: 'https://dfx.swiss/images/dfxsocials/dfx_ambassador_en.png', displayTime: 3 };
+      : {
+          id: '1',
+          url: `https://dfx.swiss/images/dfxsocials/dfx_ambassador_${this.getAdLanguage(lang)}.png`,
+          displayTime: 5,
+        };
   }
 
   // --- HELPER METHODS --- //
@@ -105,5 +107,14 @@ export class AppController {
       .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
       .then((r) => r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null))
       .catch(() => []);
+  }
+
+  private getAdLanguage(lang?: string): string {
+    switch (lang) {
+      case 'de':
+        return 'de';
+      default:
+        return 'en';
+    }
   }
 }
