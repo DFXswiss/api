@@ -81,14 +81,14 @@ export class AppController {
 
   @Get('app/advertisements')
   @ApiExcludeEndpoint()
-  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<{ id: string; url: string; displayTime: 5 }> {
+  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<{ id: string; url: string; displayTime: number }> {
     // TODO: handle ids!
     return Util.secondsDiff(date, new Date()) < 60
       ? undefined
       : {
           id: '1',
           url: `https://dfx.swiss/images/dfxsocials/dfx_ambassador_${this.getAdLanguage(lang)}.png`,
-          displayTime: 5,
+          displayTime: 10,
         };
   }
 
