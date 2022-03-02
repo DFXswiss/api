@@ -12,6 +12,7 @@ import { RouteType } from '../route/deposit-route.entity';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
+import { RefRewardService } from '../ref-reward/ref-reward.service';
 
 @Injectable()
 export class TransactionService {
@@ -21,6 +22,7 @@ export class TransactionService {
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly cryptoSellRepo: CryptoSellRepository,
     private readonly stakingRewardService: StakingRewardService,
+    private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
 
@@ -29,6 +31,7 @@ export class TransactionService {
       await this.getBuyTransactions(userId),
       await this.getSellTransactions(userId),
       // await this.getStakingRewards(userId),
+      // await this.getRefRewards(userId),
       // await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
@@ -150,6 +153,30 @@ export class TransactionService {
           exchange: c.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
           tradeGroup: c.payoutType === PayoutType.REINVEST ? 'Staking' : null,
           comment: 'DFX Staking Reward',
+          date: c.outputDate,
+          txid: c.txId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private async getRefRewards(userId: number): Promise<TransactionDto[]> {
+    const refRewards = await this.refRewardService.getUserRewards(userId);
+    return refRewards
+      .map((c) => [
+        {
+          type: 'Reward / Bonus',
+          buyAmount: c.outputAmount,
+          buyAsset: c.outputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Referral Reward',
           date: c.outputDate,
           txid: c.txId,
           buyValueInEur: null,
