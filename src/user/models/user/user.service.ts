@@ -110,19 +110,17 @@ export class UserService {
           ? 2.65
           : annualVolume < 100000
           ? 2.4
-          : 1.4
+          : 2.3
         : // organization
-        annualVolume < 100000
-        ? 2.9
-        : 1.9;
+          2.9;
 
     const refFee = await this.userRepo
       .findOne({ select: ['id', 'ref', 'refFeePercent'], where: { ref: usedRef } })
       .then((u) => u?.refFeePercent);
 
-    const refBonus = annualVolume < 100000 ? 1 - (refFee ?? 1) : 0;
+    const refBonus = 1 - (refFee ?? 1);
 
-    return { fee: baseFee - refBonus, refBonus };
+    return { fee: Util.round(baseFee - refBonus, 2), refBonus: Util.round(refBonus, 2) };
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
@@ -176,6 +174,7 @@ export class UserService {
             refFeePercent: user.refFeePercent,
             refVolume: user.refVolume,
             refCredit: user.refCredit,
+            paidRefCredit: user.paidRefCredit,
             refCount: await this.userRepo.count({ usedRef: user.ref }),
             refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
           }),

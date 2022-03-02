@@ -144,11 +144,11 @@ export interface CustomerBase {
   type: string;
   id?: number;
   versionId?: number;
-  datesOfBirth: [{ year: string; month: string; day: string }];
-  citizenships: [string];
-  countriesOfResidence: [string];
-  emails: [string];
-  telephones: [string];
+  datesOfBirth: { year: string; month: string; day: string }[];
+  citizenships: string[];
+  countriesOfResidence: string[];
+  emails: string[];
+  telephones: string[];
   structuredAddresses: [
     {
       type: string;
@@ -167,7 +167,7 @@ export interface CustomerBase {
 }
 
 export interface Customer extends CustomerBase {
-  names: [{ firstName: string; lastName: string }];
+  names: { firstName: string; lastName: string }[];
 }
 
 export interface Organization extends CustomerBase {

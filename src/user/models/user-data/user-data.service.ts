@@ -93,8 +93,8 @@ export class UserDataService {
     // update spider
     if ((dto.phone && dto.phone != user.phone) || (dto.mail && dto.mail != user.mail)) {
       await this.kycService.updateCustomer(user.id, {
-        telephones: [dto.phone?.replace('+', '').split(' ').join('')],
-        emails: [dto.mail],
+        telephones: dto.phone ? [dto.phone.replace('+', '').split(' ').join('')] : undefined,
+        emails: dto.mail ? [dto.mail] : undefined,
       });
 
       if (KycInProgress(user.kycStatus)) {

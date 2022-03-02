@@ -56,6 +56,13 @@ export class RefRewardService {
     await this.updatePaidRefCredit(userIds);
   }
 
+  async getUserRewards(userId: number): Promise<RefReward[]> {
+    return await this.rewardRepo.find({
+      where: { user: { id: userId } },
+      relations: ['user'],
+    });
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateRefRewardDto | UpdateRefRewardDto): Promise<RefReward> {
     const reward = this.rewardRepo.create(dto);

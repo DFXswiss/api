@@ -83,4 +83,17 @@ export class Util {
     hash.update(data);
     return hash.digest('hex').toUpperCase();
   }
+
+  static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {
+    try {
+      return await action();
+    } catch (e) {
+      if (tryCount > 1) {
+        await this.delay(delay);
+        return this.retry(action, tryCount - 1, delay);
+      }
+
+      throw e;
+    }
+  }
 }
