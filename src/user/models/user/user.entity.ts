@@ -44,6 +44,9 @@ export class User extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   cfpVotes: string;
 
+  @Column({ type: 'float', nullable: true})
+  buyFee: number;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
