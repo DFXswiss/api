@@ -1,40 +1,54 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BuyService } from 'src/payment/models/buy/buy.service';
 import { Readable } from 'stream';
-import { Between, In } from 'typeorm';
-import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
-import { CryptoBuyRepository } from '../crypto-buy/crypto-buy.repository';
 import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
-import { CryptoSellRepository } from '../crypto-sell/crypto-sell.repository';
-import { SellService } from '../sell/sell.service';
-import { RouteType } from '../route/deposit-route.entity';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
+import { CryptoBuyService } from '../crypto-buy/crypto-buy.service';
+import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
 
 @Injectable()
 export class HistoryService {
   constructor(
-    private readonly buyService: BuyService,
-    private readonly sellService: SellService,
-    private readonly cryptoBuyRepo: CryptoBuyRepository,
-    private readonly cryptoSellRepo: CryptoSellRepository,
+    private readonly cryptoBuyService: CryptoBuyService,
+    private readonly cryptoSellService: CryptoSellService,
     private readonly stakingRewardService: StakingRewardService,
     private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
 
   async getHistory(userId: number, userAddress: string, query: HistoryQuery): Promise<HistoryDto[]> {
-    const tx = await Promise.all([
-      query.buy === 'false' ? Promise.resolve([]) : await this.getBuyTransactions(userId, query.from, query.to),
-      query.sell === 'false' ? Promise.resolve([]) : await this.getSellTransactions(userId, query.from, query.to),
-      query.staking === 'false' ? Promise.resolve([]) : await this.getStakingRewards(userId, query.from, query.to),
-      query.ref === 'false' ? Promise.resolve([]) : await this.getRefRewards(userId, query.from, query.to),
-      query.lm === 'false' ? Promise.resolve([]) : await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY),
-    ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
+    let tx: HistoryDto[];
+    if (!query.buy && !query.sell && !query.staking && !query.ref && !query.lm) {
+      tx = await Promise.all([
+        await this.getBuyTransactions(userId, query.from, query.to),
+        await this.getSellTransactions(userId, query.from, query.to),
+        await this.getStakingRewards(userId, query.from, query.to),
+        await this.getRefRewards(userId, query.from, query.to),
+        // await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY),
+      ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
+    } else {
+      tx = await Promise.all([
+        query.buy === 'false' || query.buy === 'False' || !query.buy
+          ? Promise.resolve([])
+          : await this.getBuyTransactions(userId, query.from, query.to),
+        query.sell === 'false' || query.sell === 'False' || !query.sell
+          ? Promise.resolve([])
+          : await this.getSellTransactions(userId, query.from, query.to),
+        query.staking === 'false' || query.staking === 'False' || !query.staking
+          ? Promise.resolve([])
+          : await this.getStakingRewards(userId, query.from, query.to),
+        query.ref === 'false' || query.ref === 'False' || !query.ref
+          ? Promise.resolve([])
+          : await this.getRefRewards(userId, query.from, query.to),
+        // query.lm === 'false' || query.lm === 'False' || !query.lm
+        //   ? Promise.resolve([])
+        //   : await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY),
+      ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
+    }
 
     return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
   }
@@ -51,11 +65,7 @@ export class HistoryService {
     dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
     dateTo: Date = new Date(),
   ): Promise<HistoryDto[]> {
-    const buys = await this.buyService.getUserBuys(userId);
-    const cryptoBuys = await this.cryptoBuyRepo.find({
-      where: { buy: { id: In(buys.map((b) => b.id)) }, amlCheck: AmlCheck.PASS, outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'buy', 'buy.user'],
-    });
+    const cryptoBuys = await this.cryptoBuyService.getUserTransactions(userId, dateFrom, dateTo);
 
     return cryptoBuys
       .map((c) => [
@@ -100,15 +110,7 @@ export class HistoryService {
     dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
     dateTo: Date = new Date(),
   ): Promise<HistoryDto[]> {
-    const sells = await this.sellService.getUserSells(userId);
-    const cryptoSells = await this.cryptoSellRepo.find({
-      where: {
-        cryptoInput: { route: { id: In(sells.map((b) => b.id)), type: RouteType.SELL } },
-        amlCheck: AmlCheck.PASS,
-        outputDate: Between(dateFrom, dateTo),
-      },
-      relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],
-    });
+    const cryptoSells = await this.cryptoSellService.getUserTransactions(userId, dateFrom, dateTo);
 
     return cryptoSells
       .map((c) => [

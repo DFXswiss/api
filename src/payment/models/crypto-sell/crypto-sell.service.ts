@@ -66,6 +66,21 @@ export class CryptoSellService {
     await this.updateSellVolume(sellIds);
   }
 
+  async getUserTransactions(
+    userId: number,
+    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateTo: Date = new Date(),
+  ): Promise<CryptoSell[]> {
+    return await this.cryptoSellRepo.find({
+      where: {
+        cryptoInput: { route: { user: { id: userId } } },
+        amlCheck: AmlCheck.PASS,
+        outputDate: Between(dateFrom, dateTo),
+      },
+      relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],
+    });
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateCryptoSellDto | UpdateCryptoSellDto): Promise<CryptoSell> {
     const cryptoSell = this.cryptoSellRepo.create(dto);
