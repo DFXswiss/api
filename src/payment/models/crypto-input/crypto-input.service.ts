@@ -12,6 +12,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
+import { Not } from 'typeorm';
 
 @Injectable()
 export class CryptoInputService {
@@ -67,6 +68,25 @@ export class CryptoInputService {
     }
 
     this.lock.release();
+  }
+
+  @Interval(300000)
+  async checkConfirmations(): Promise<void> {
+    const unconfirmedInputs = await this.cryptoInputRepo.find({
+      select: ['id', 'outTxId', 'isConfirmed'],
+      where: { isConfirmed: false, outTxId: Not('') },
+    });
+
+    for (const input of unconfirmedInputs) {
+      try {
+        const { confirmations } = await this.client.waitForTx(input.outTxId);
+        if (confirmations > 60) {
+          await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
+        }
+      } catch (e) {
+        console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
+      }
+    }
   }
 
   // --- HELPER METHODS --- //
@@ -130,6 +150,7 @@ export class CryptoInputService {
       route: route,
       btcAmount: btcAmount,
       usdtAmount: usdtAmount,
+      isConfirmed: false,
     });
   }
 

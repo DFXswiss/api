@@ -31,4 +31,7 @@ export class CryptoInput extends IEntity {
 
   @ManyToOne(() => DepositRoute, { nullable: false })
   route: Sell | Staking;
+
+  @Column({ default: false })
+  isConfirmed: boolean;
 }
