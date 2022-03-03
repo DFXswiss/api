@@ -6,6 +6,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
+import { HistoryQuery } from './dto/history-query.dto';
 import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
 import { HistoryService } from './history.service';
 
@@ -21,15 +22,9 @@ export class HistoryController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getHistory(
     @GetJwt() jwt: JwtPayload,
-    @Query('startDate') dateFrom?: Date,
-    @Query('endDate') dateTo?: Date,
-    @Query('buy') buy?: boolean,
-    @Query('sell') sell?: boolean,
-    @Query('staking') staking?: boolean,
-    @Query('ref') ref?: boolean,
-    @Query('lm') lm?: boolean,
+    @Query() query: HistoryQuery,
   ): Promise<HistoryDto[] | CoinTrackingHistoryDto[]> {
-    const tx = await this.historyService.getHistory(jwt.id, jwt.address, dateFrom, dateTo, buy, sell, staking, ref, lm);
+    const tx = await this.historyService.getHistory(jwt.id, jwt.address, query);
     // return jwt.role === UserRole.CT ? tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } })) : tx;
     return tx;
   }
@@ -37,8 +32,8 @@ export class HistoryController {
   @Post('csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createCsv(@GetJwt() jwt: JwtPayload): Promise<number> {
-    const csvFile = await this.historyService.getHistoryCsv(jwt.id, jwt.address);
+  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQuery): Promise<number> {
+    const csvFile = await this.historyService.getHistoryCsv(jwt.id, jwt.address, query);
     const fileKey = Util.randomId();
     this.files[fileKey] = new StreamableFile(csvFile);
 

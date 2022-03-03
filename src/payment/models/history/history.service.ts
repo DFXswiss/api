@@ -13,6 +13,7 @@ import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.servi
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
+import { HistoryQuery } from './dto/history-query.dto';
 
 @Injectable()
 export class HistoryService {
@@ -26,51 +27,20 @@ export class HistoryService {
     private readonly dfiTaxService: DfiTaxService,
   ) {}
 
-  async getHistory(
-    userId: number,
-    userAddress: string,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
-    dateTo: Date = new Date(),
-    buy: boolean = false,
-    sell: boolean = false,
-    staking: boolean = false,
-    ref: boolean = false,
-    lm: boolean = false,
-  ): Promise<HistoryDto[]> {
-    let buyTransaction;
-    let sellTransaction;
-    let stakingReward;
-    let refReward;
-    // let lmReward;
-
-    if (buy) buyTransaction = await this.getBuyTransactions(userId, dateFrom, dateTo);
-    if (sell) sellTransaction = await this.getSellTransactions(userId, dateFrom, dateTo);
-    if (staking) stakingReward = await this.getStakingRewards(userId, dateFrom, dateTo);
-    if (ref) refReward = await this.getRefRewards(userId, dateFrom, dateTo);
-    // if (lm) lmReward = await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY);
-
-    const tx =
-      buy || sell || staking || ref || lm
-        ? await Promise.all([
-            buyTransaction,
-            sellTransaction,
-            stakingReward,
-            refReward,
-            //lm ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY) : null,
-          ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []))
-        : await Promise.all([
-            await this.getBuyTransactions(userId, dateFrom, dateTo),
-            await this.getSellTransactions(userId, dateFrom, dateTo),
-            await this.getStakingRewards(userId, dateFrom, dateTo),
-            await this.getRefRewards(userId, dateFrom, dateTo),
-            //lm ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY) : null,
-          ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
+  async getHistory(userId: number, userAddress: string, query: HistoryQuery): Promise<HistoryDto[]> {
+    const tx = await Promise.all([
+      query.buy === 'false' ? Promise.resolve([]) : await this.getBuyTransactions(userId, query.from, query.to),
+      query.sell === 'false' ? Promise.resolve([]) : await this.getSellTransactions(userId, query.from, query.to),
+      query.staking === 'false' ? Promise.resolve([]) : await this.getStakingRewards(userId, query.from, query.to),
+      query.ref === 'false' ? Promise.resolve([]) : await this.getRefRewards(userId, query.from, query.to),
+      query.lm === 'false' ? Promise.resolve([]) : await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY),
+    ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
   }
 
-  async getHistoryCsv(userId: number, userAddress: string): Promise<Readable> {
-    const tx = await this.getHistory(userId, userAddress);
+  async getHistoryCsv(userId: number, userAddress: string, query: HistoryQuery): Promise<Readable> {
+    const tx = await this.getHistory(userId, userAddress, query);
     if (tx.length === 0) throw new NotFoundException('No transactions found');
     return Readable.from([this.toCsv(tx)]);
   }
@@ -178,11 +148,7 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private async getStakingRewards(
-    userId: number,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
-    dateTo: Date = new Date(),
-  ): Promise<HistoryDto[]> {
+  private async getStakingRewards(userId: number, dateFrom: Date, dateTo: Date): Promise<HistoryDto[]> {
     const stakingRewards = await this.stakingRewardService.getUserRewards(userId, dateFrom, dateTo);
     return stakingRewards
       .map((c) => [
@@ -206,11 +172,7 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private async getRefRewards(
-    userId: number,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
-    dateTo: Date = new Date(),
-  ): Promise<HistoryDto[]> {
+  private async getRefRewards(userId: number, dateFrom: Date, dateTo: Date): Promise<HistoryDto[]> {
     const refRewards = await this.refRewardService.getUserRewards(userId, dateFrom, dateTo);
     return refRewards
       .map((c) => [
