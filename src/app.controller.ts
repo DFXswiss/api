@@ -116,9 +116,9 @@ export class AppController {
   private getAdLanguage(lang?: string): string {
     switch (lang) {
       case 'de':
-        return 'de';
+        return 'DE';
       default:
-        return 'en';
+        return 'EN';
     }
   }
 }
