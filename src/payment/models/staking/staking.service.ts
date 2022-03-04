@@ -174,6 +174,7 @@ export class StakingService {
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
       paybackAsset: staking.paybackAsset ?? undefined,
       balance: Util.round(balance, 2),
+      rewardVolume: staking.rewardVolume,
       isInUse: balance > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
     };
   }
