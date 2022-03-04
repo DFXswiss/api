@@ -17,8 +17,8 @@ import { BinanceService } from './models/exchange/binance.service';
 import { CryptoBuyRepository } from './models/crypto-buy/crypto-buy.repository';
 import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
 import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
-import { TransactionController } from './models/transaction/transaction.controller';
-import { TransactionService } from './models/transaction/transaction.service';
+import { HistoryController } from './models/history/history.controller';
+import { HistoryService } from './models/history/history.service';
 import { BitstampService } from './models/exchange/bitstamp.service';
 import { BuyController } from './models/buy/buy.controller';
 import { BuyRepository } from './models/buy/buy.repository';
@@ -71,7 +71,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     ExchangeController,
     CryptoBuyController,
     CryptoSellController,
-    TransactionController,
+    HistoryController,
     RouteController,
     BuyController,
     SellController,
@@ -89,7 +89,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     KrakenService,
     BinanceService,
     BitstampService,
-    TransactionService,
+    HistoryService,
     BuyService,
     SellService,
     StakingService,

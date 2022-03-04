@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Not } from 'typeorm';
+import { Between, Not } from 'typeorm';
 import { RefRewardRepository } from './ref-reward.repository';
 import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
@@ -56,9 +56,13 @@ export class RefRewardService {
     await this.updatePaidRefCredit(userIds);
   }
 
-  async getUserRewards(userId: number): Promise<RefReward[]> {
+  async getUserRewards(
+    userId: number,
+    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateTo: Date = new Date(),
+  ): Promise<RefReward[]> {
     return await this.rewardRepo.find({
-      where: { user: { id: userId } },
+      where: { user: { id: userId }, outputDate: Between(dateFrom, dateTo) },
       relations: ['user'],
     });
   }

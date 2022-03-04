@@ -8,6 +8,8 @@ import { SettingService } from './shared/models/setting/setting.service';
 import { RefService } from './user/models/referral/ref.service';
 import { AnnouncementDto } from './dto/announcement.dto';
 import { FlagDto } from './dto/flag.dto';
+import { AdDto, AdSettings, AdvertisementDto } from './dto/advertisement.dto';
+import { Util } from './shared/util';
 
 @Controller('')
 export class AppController {
@@ -77,6 +79,23 @@ export class AppController {
     ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
   }
 
+  @Get('app/advertisements')
+  @ApiExcludeEndpoint()
+  async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<AdDto> {
+    const adSettings = await this.settingService.getObj<AdSettings>('advertisements');
+
+    const nextAdIndex = (adSettings.ads.findIndex((ad) => ad.id === id) + 1) % adSettings.ads.length;
+    const nextAd = adSettings.ads[nextAdIndex];
+
+    if (Util.daysDiff(date, new Date()) < adSettings.displayInterval || !nextAd) return undefined;
+
+    return {
+      id: nextAd.id,
+      url: nextAd.url.replace('{{lang}}', this.getAdLanguage(lang)),
+      displayTime: adSettings.displayTime,
+    };
+  }
+
   // --- HELPER METHODS --- //
   private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
     const ignoredAnnouncements = await this.settingService.getObj<string[]>('ignoredAnnouncements', []);
@@ -92,5 +111,14 @@ export class AppController {
       .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
       .then((r) => r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null))
       .catch(() => []);
+  }
+
+  private getAdLanguage(lang?: string): string {
+    switch (lang?.slice(0, 2)) {
+      case 'de':
+        return 'DE';
+      default:
+        return 'EN';
+    }
   }
 }

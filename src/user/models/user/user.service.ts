@@ -96,10 +96,12 @@ export class UserService {
   }
 
   async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
-    const { usedRef, accountType } = await this.userRepo.findOne({
-      select: ['id', 'usedRef', 'accountType'],
+    const { usedRef, accountType, buyFee } = await this.userRepo.findOne({
+      select: ['id', 'usedRef', 'accountType', 'buyFee'],
       where: { id: userId },
     });
+
+    if (buyFee != null) return { fee: buyFee * 100, refBonus: 0 };
 
     const baseFee =
       accountType === AccountType.PERSONAL

@@ -73,6 +73,17 @@ export class CryptoBuyService {
     await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
+  async getUserTransactions(
+    userId: number,
+    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateTo: Date = new Date(),
+  ): Promise<CryptoBuy[]> {
+    return await this.cryptoBuyRepo.find({
+      where: { buy: { user: { id: userId } }, amlCheck: AmlCheck.PASS, outputDate: Between(dateFrom, dateTo) },
+      relations: ['bankTx', 'buy', 'buy.user'],
+    });
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateCryptoBuyDto | UpdateCryptoBuyDto): Promise<CryptoBuy> {
     const cryptoBuy = this.cryptoBuyRepo.create(dto);
