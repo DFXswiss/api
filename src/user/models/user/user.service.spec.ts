@@ -106,27 +106,27 @@ describe('UserService', () => {
   });
 
   // > 100'000
-  it('should return 1.4 and no bonus when volume > 100000, personal and no ref user', async () => {
+  it('should return 2.3 and no bonus when volume > 100000, personal and no ref user', async () => {
     setup(AccountType.PERSONAL);
 
-    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.4, refBonus: 0 });
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 2.3, refBonus: 0 });
   });
 
-  it('should return 1.4 and no bonus when volume > 100000, personal and ref user', async () => {
+  it('should return 1.8 when volume > 100000, personal and ref user', async () => {
     setup(AccountType.PERSONAL, 0.5);
 
-    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.4, refBonus: 0 });
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.8, refBonus: 0.5 });
   });
 
-  it('should return 1.9 and no bonus when volume > 100000, organization and no ref user', async () => {
+  it('should return 2.9 and no bonus when volume > 100000, organization and no ref user', async () => {
     setup(AccountType.BUSINESS);
 
-    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.9, refBonus: 0 });
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 2.9, refBonus: 0 });
   });
 
-  it('should return 1.9 and no bonus when volume > 100000, organization and ref user', async () => {
-    setup(AccountType.SOLE_PROPRIETORSHIP, 0.5);
+  it('should return 2 when volume > 100000, organization and ref user', async () => {
+    setup(AccountType.SOLE_PROPRIETORSHIP, 0.1);
 
-    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 1.9, refBonus: 0 });
+    await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 2, refBonus: 0.9 });
   });
 });

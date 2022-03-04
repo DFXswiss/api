@@ -11,6 +11,8 @@ import { SellService } from '../sell/sell.service';
 import { RouteType } from '../route/deposit-route.entity';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
+import { PayoutType } from '../staking-reward/staking-reward.entity';
+import { RefRewardService } from '../ref-reward/ref-reward.service';
 
 @Injectable()
 export class TransactionService {
@@ -20,6 +22,7 @@ export class TransactionService {
     private readonly cryptoBuyRepo: CryptoBuyRepository,
     private readonly cryptoSellRepo: CryptoSellRepository,
     private readonly stakingRewardService: StakingRewardService,
+    private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
 
@@ -28,6 +31,7 @@ export class TransactionService {
       await this.getBuyTransactions(userId),
       await this.getSellTransactions(userId),
       // await this.getStakingRewards(userId),
+      // await this.getRefRewards(userId),
       // await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
@@ -134,49 +138,73 @@ export class TransactionService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  // private async getStakingRewards(userId: number): Promise<TransactionDto[]> {
-  //   const stakingRewards = await this.stakingRewardService.getUserRewards(userId);
-  //   return stakingRewards
-  //     .map((c) => [
-  //       {
-  //         type: 'Staking',
-  //         buyAmount: c.outputAmount,
-  //         buyAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
-  //         sellAmount: c.cryptoInput.amount,
-  //         sellAsset: c.cryptoInput.asset?.name,
-  //         fee: c.fee ? c.fee * c.cryptoInput.amount : null,
-  //         feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
-  //         exchange: 'DFX Staking',
-  //         tradeGroup: null,
-  //         comment: c.cryptoInput.route.user.address,
-  //         date: c.cryptoInput.created,
-  //         txid: c.cryptoInput.inTxId,
-  //         buyValueInEur: null,
-  //         sellValueInEur: null,
-  //       },
-  //     ])
-  //     .reduce((prev, curr) => prev.concat(curr), []);
-  // }
+  private async getStakingRewards(userId: number): Promise<TransactionDto[]> {
+    const stakingRewards = await this.stakingRewardService.getUserRewards(userId);
+    return stakingRewards
+      .map((c) => [
+        {
+          type: 'Staking',
+          buyAmount: c.outputAmount,
+          buyAsset: c.outputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: c.fee ? c.fee * c.inputAmount : null,
+          feeAsset: c.fee ? c.inputAsset : null,
+          exchange: c.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
+          tradeGroup: c.payoutType === PayoutType.REINVEST ? 'Staking' : null,
+          comment: 'DFX Staking Reward',
+          date: c.outputDate,
+          txid: c.txId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private async getRefRewards(userId: number): Promise<TransactionDto[]> {
+    const refRewards = await this.refRewardService.getUserRewards(userId);
+    return refRewards
+      .map((c) => [
+        {
+          type: 'Reward / Bonus',
+          buyAmount: c.outputAmount,
+          buyAsset: c.outputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Referral Reward',
+          date: c.outputDate,
+          txid: c.txId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
 
   private async getDfiTaxRewards(userAddress: string, interval: string): Promise<TransactionDto[]> {
     const rewards = await this.dfiTaxService.getRewards(userAddress, interval);
     return rewards.map((reward) => ({
       type: 'Mining',
-      buyAmount: Util.round(reward.detail.qty, 8),
+      buyAmount: Util.round(reward.qty, 8),
       // TODO: new col in asset table to differentiate stocks and crypto token
-      buyAsset: ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(reward.detail.token)
-        ? reward.detail.token
-        : `d${reward.detail.token}`,
+      buyAsset: ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(reward.token)
+        ? reward.token
+        : `d${reward.token}`,
       sellAmount: null,
       sellAsset: null,
       fee: null,
       feeAsset: null,
       exchange: 'DFX',
       tradeGroup: null,
-      comment: `Liquidity Mining ${reward.category} ${reward.detail.pool}`,
+      comment: `Liquidity Mining ${reward.category} ${reward.pool}`,
       date: new Date(reward.date),
       txid: null,
-      buyValueInEur: Util.round(reward.value, 8),
+      buyValueInEur: Util.round(reward.value_open, 8),
       sellValueInEur: null,
     }));
   }

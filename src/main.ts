@@ -31,13 +31,13 @@ async function bootstrap() {
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
-    .setDescription('DFX Backend API')
+    .setDescription('DFX API')
     .setVersion('v1')
     .addBearerAuth()
     .build();
 
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerOptions);
-  SwaggerModule.setup('/api', app, swaggerDocument);
+  SwaggerModule.setup('/swagger', app, swaggerDocument);
 
   await app.listen(process.env.PORT || 3000);
 

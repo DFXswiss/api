@@ -2,14 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from './http.service';
 
 export interface DfiTaxReward {
-  value: number;
+  value_open: number;
   category: string;
   date: string;
-  detail: {
-    token: string;
-    qty: number;
-    pool: string;
-  };
+  token: string;
+  qty: number;
+  pool: string;
 }
 
 export interface DfiTaxTransaction {
