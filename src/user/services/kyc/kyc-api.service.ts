@@ -154,10 +154,13 @@ export class KycApiService {
     const customerInfo = await this.getCustomerInfo(id);
     if (!customerInfo || customerInfo.lastCheckId < 0) return undefined;
 
-    const customerCheckResult = await this.callApi<CheckResult>(
-      `customers/checks/${customerInfo.lastCheckId}/result`,
-      'GET',
-    );
+    const customerCheckResult =
+      customerInfo.lastCheckVerificationId < 0
+        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET')
+        : await this.callApi<CheckResult>(
+            `customers/checks/verifications/${customerInfo.lastCheckVerificationId}/result`,
+            'GET',
+          );
     return customerCheckResult.risks[0].categoryKey;
   }
 

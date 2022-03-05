@@ -1,4 +1,4 @@
-abstract class TransactionDtoBase {
+abstract class HistoryDtoBase {
   type: string;
   buyAmount: number;
   buyAsset: string;
@@ -14,10 +14,10 @@ abstract class TransactionDtoBase {
   sellValueInEur: number;
 }
 
-export class TransactionDto extends TransactionDtoBase {
+export class HistoryDto extends HistoryDtoBase {
   date: Date;
 }
 
-export class CoinTrackingTransactionDto extends TransactionDtoBase {
+export class CoinTrackingHistoryDto extends HistoryDtoBase {
   date: number;
 }

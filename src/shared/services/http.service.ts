@@ -16,7 +16,7 @@ export class HttpService {
   constructor(private readonly http: Http) {}
 
   public async get<T>(url: string, config?: AxiosRequestConfig & { tryCount?: number }): Promise<T> {
-    return (await Util.retry(() => firstValueFrom(this.http.get<T>(url, config)), config?.tryCount ?? 1, 1000)).data;
+    return (await Util.retry(() => firstValueFrom(this.http.get<T>(url, config)), config?.tryCount ?? 1)).data;
   }
 
   public async put<T>(url: string, data: any, config?: AxiosRequestConfig & { tryCount?: number }): Promise<T> {

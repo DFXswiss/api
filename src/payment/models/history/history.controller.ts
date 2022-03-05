@@ -6,21 +6,25 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
-import { CoinTrackingTransactionDto, TransactionDto } from './dto/transaction.dto';
-import { TransactionService } from './transaction.service';
+import { HistoryQuery } from './dto/history-query.dto';
+import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
+import { HistoryService } from './history.service';
 
-@ApiTags('transaction')
-@Controller('transaction')
-export class TransactionController {
+@ApiTags('history')
+@Controller('history')
+export class HistoryController {
   private files: { [key: number]: StreamableFile } = {};
 
-  constructor(private readonly transactionService: TransactionService) {}
+  constructor(private readonly historyService: HistoryService) {}
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getTransactions(@GetJwt() jwt: JwtPayload): Promise<TransactionDto[] | CoinTrackingTransactionDto[]> {
-    const tx = await this.transactionService.getTransactions(jwt.id, jwt.address);
+  async getHistory(
+    @GetJwt() jwt: JwtPayload,
+    @Query() query: HistoryQuery,
+  ): Promise<HistoryDto[] | CoinTrackingHistoryDto[]> {
+    const tx = await this.historyService.getHistory(jwt.id, jwt.address, query);
     // return jwt.role === UserRole.CT ? tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } })) : tx;
     return tx;
   }
@@ -28,8 +32,8 @@ export class TransactionController {
   @Post('csv')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createCsv(@GetJwt() jwt: JwtPayload): Promise<number> {
-    const csvFile = await this.transactionService.getTransactionCsv(jwt.id, jwt.address);
+  async createCsv(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQuery): Promise<number> {
+    const csvFile = await this.historyService.getHistoryCsv(jwt.id, jwt.address, query);
     const fileKey = Util.randomId();
     this.files[fileKey] = new StreamableFile(csvFile);
 

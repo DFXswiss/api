@@ -22,8 +22,8 @@ describe('UserService', () => {
   let settingService: SettingService;
   let dfiTaxService: DfiTaxService;
 
-  function setup(accountType: AccountType, refFeePercent?: number) {
-    jest.spyOn(userRepo, 'findOne').mockResolvedValue({ accountType, refFeePercent } as User);
+  function setup(accountType: AccountType, refFeePercent?: number, buyFee?: number) {
+    jest.spyOn(userRepo, 'findOne').mockResolvedValue({ accountType, refFeePercent, buyFee } as User);
   }
 
   beforeEach(async () => {
@@ -128,5 +128,12 @@ describe('UserService', () => {
     setup(AccountType.SOLE_PROPRIETORSHIP, 0.1);
 
     await expect(service.getUserBuyFee(1, 100000)).resolves.toStrictEqual({ fee: 2, refBonus: 0.9 });
+  });
+
+  // individual fee
+  it('should return 0.5 when individual fee 0.005', async () => {
+    setup(AccountType.PERSONAL, 0.1, 0.005);
+
+    await expect(service.getUserBuyFee(1, 23467)).resolves.toStrictEqual({ fee: 0.5, refBonus: 0 });
   });
 });
