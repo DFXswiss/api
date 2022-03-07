@@ -26,6 +26,11 @@ export class AdminController {
         dto.bcc,
         dto.cc,
         dto.displayName,
+        dto.template,
+        dto.telegramUrl,
+        dto.twitterUrl,
+        dto.linkedinUrl,
+        dto.instagramUrl,
       );
     }
   }

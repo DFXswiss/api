@@ -4,6 +4,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -15,6 +16,11 @@ export class Configuration {
   defaultLanguage = 'de';
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';
+  defaultTelegramUrl = 'https://t.me/DFXswiss';
+  defaultLinkedinUrl = 'https://www.linkedin.com/company/dfxswiss/';
+  defaultInstagramUrl = 'https://www.instagram.com/dfx.swiss/';
+  defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
+  defaultTemplate = 'src/shared/assets/mails/new';
   stakingPeriod = 365; // TODO: 28; // days
 
   colors = {
@@ -102,6 +108,13 @@ export class Configuration {
     },
     defaults: {
       from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
+    },
+    template: {
+      dir: path.join(__dirname, '../shared/assets/mails'),
+      adapter: new HandlebarsAdapter(),
+      options: {
+        strict: true,
+      },
     },
   };
 
