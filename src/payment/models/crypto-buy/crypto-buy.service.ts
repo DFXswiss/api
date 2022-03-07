@@ -158,7 +158,7 @@ export class CryptoBuyService {
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
     const cryptoBuys = await this.cryptoBuyRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo) },
+      where: { outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
       relations: ['buy'],
     });
 

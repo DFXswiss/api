@@ -221,7 +221,7 @@ export class KycService {
             userData.accountType === AccountType.PERSONAL ? undefined : await this.getChatbotResult(userData.id, true),
         };
 
-        spiderData.result = JSON.stringify(chatbotResult);
+        spiderData.chatbotResult = JSON.stringify(chatbotResult);
         userData.spiderData = await this.spiderDataRepo.save(spiderData);
 
         // update user data
@@ -275,15 +275,16 @@ export class KycService {
 
     spiderData.url =
       locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
-    spiderData.secondUrl =
+    spiderData.identId =
       locator.document === KycDocument.ONLINE_IDENTIFICATION
-        ? await this.getOnlineIdLink(userData, locator.version)
+        ? await this.getOnlineIdentId(userData, locator.version)
         : null;
+    spiderData.secondUrl = spiderData.identId ? this.getOnlineIdUrl(spiderData.identId) : null;
 
     return await this.spiderDataRepo.save(spiderData);
   }
 
-  private async getOnlineIdLink(userData: UserData, version: string): Promise<string> {
+  private async getOnlineIdentId(userData: UserData, version: string): Promise<string | undefined> {
     const onlineId = await this.kycApi.getDocument(
       userData.id,
       false,
@@ -291,7 +292,7 @@ export class KycService {
       version,
       KycDocument.IDENTIFICATION_LOG,
     );
-    return onlineId ? this.getOnlineIdUrl(onlineId.identificationId) : null;
+    return onlineId?.identificationId;
   }
 
   private async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {

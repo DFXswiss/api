@@ -122,16 +122,12 @@ export class MailService {
     bcc?: string,
     cc?: string,
     displayName?: string,
+    template?: string,
+    telegramUrl?: string,
+    twitterUrl?: string,
+    linkedinUrl?: string,
+    instagramUrl?: string,
   ) {
-    const htmlBody = `<h1>${salutation}</h1>
-      <p>${body}</p>
-      <p></p>
-      <p>Thanks,</p>
-      <p>Your DFX team</p>
-      <p></p>
-      <p><img src="https://dfx.swiss/images/Logo_DFX/png/DFX_600px.png" height="100px" width="200px"></p>
-      <p>${new Date().getFullYear()} DFX AG</p>`;
-
     await Util.retry(
       () =>
         this.mailerService.sendMail({
@@ -139,8 +135,17 @@ export class MailService {
           to: to,
           cc: cc,
           bcc: bcc,
+          template: template ?? Config.defaultMailTemplate,
+          context: {
+            salutation: salutation,
+            body: body,
+            date: new Date().getFullYear(),
+            telegramUrl: telegramUrl ?? Config.defaultTelegramUrl,
+            twitterUrl: twitterUrl ?? Config.defaultTwitterUrl,
+            linkedinUrl: linkedinUrl ?? Config.defaultLinkedinUrl,
+            instagramUrl: instagramUrl ?? Config.defaultInstagramUrl,
+          },
           subject: subject,
-          html: htmlBody,
         }),
       3,
       1000,

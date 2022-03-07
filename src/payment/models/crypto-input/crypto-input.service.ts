@@ -35,12 +35,9 @@ export class CryptoInputService {
     if (!this.lock.acquire()) return;
 
     try {
-      // check if node in sync
-      const { blocks, headers } = await this.client.getInfo();
-      if (blocks < headers) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
+      const { blocks: currentHeight } = await this.checkNodeInSync();
 
       // get block heights
-      const currentHeight = blocks;
       const lastHeight = await this.cryptoInputRepo
         .findOne({ order: { blockHeight: 'DESC' } })
         .then((input) => input?.blockHeight ?? 0);
@@ -53,7 +50,7 @@ export class CryptoInputService {
         .then((i) => i.filter((h) => ['receive', 'AccountToAccount', 'AnyAccountsToAccounts', 'AccountToUtxos'].includes(h.type)))
         // map to entities
         .then((i) => this.createEntities(i))
-        .then((i) => i.filter((h) => h != null && h.asset.sellable));
+        .then((i) => i.filter((h) => h != null));
 
       // save and forward
       if (newInputs.length > 0) {
@@ -72,24 +69,37 @@ export class CryptoInputService {
 
   @Interval(300000)
   async checkConfirmations(): Promise<void> {
-    const unconfirmedInputs = await this.cryptoInputRepo.find({
-      select: ['id', 'outTxId', 'isConfirmed'],
-      where: { isConfirmed: false, outTxId: Not('') },
-    });
+    try {
+      await this.checkNodeInSync();
 
-    for (const input of unconfirmedInputs) {
-      try {
-        const { confirmations } = await this.client.waitForTx(input.outTxId);
-        if (confirmations > 60) {
-          await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
+      const unconfirmedInputs = await this.cryptoInputRepo.find({
+        select: ['id', 'outTxId', 'isConfirmed'],
+        where: { isConfirmed: false, outTxId: Not('') },
+      });
+
+      for (const input of unconfirmedInputs) {
+        try {
+          const { confirmations } = await this.client.waitForTx(input.outTxId);
+          if (confirmations > 60) {
+            await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
+          }
+        } catch (e) {
+          console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
         }
-      } catch (e) {
-        console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
       }
+    } catch (e) {
+      console.error('Exception during crypto confirmations checks:', e);
     }
   }
 
   // --- HELPER METHODS --- //
+  private async checkNodeInSync(): Promise<{ headers: number; blocks: number }> {
+    const { blocks, headers } = await this.client.getInfo();
+    if (blocks < headers) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
+
+    return { headers, blocks };
+  }
+
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
     const inputs = [];
     for (const history of histories) {
@@ -108,21 +118,29 @@ export class CryptoInputService {
     // only received token
     if (history.type == 'AccountToAccount' && historyAmount < 0) return null;
 
-    const amount = Math.abs(historyAmount);
-    const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
-    const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
-
-    // min deposit
-    if (
-      (assetName === 'DFI' && amount < Config.node.minDfiDeposit) ||
-      (assetName !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
-    )
-      return null;
-
     // get asset
     const asset = await this.assetService.getAssetByDexName(assetName);
     if (!asset) {
       console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
+      return null;
+    }
+
+    // only sellable
+    if (!asset.sellable) {
+      console.log('Ignoring unsellable crypto input. History entry:', history);
+      return null;
+    }
+
+    const amount = Math.abs(historyAmount);
+    const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
+    const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
+
+    // min. deposit
+    if (
+      (assetName === 'DFI' && amount < Config.node.minDfiDeposit) ||
+      (assetName !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
+    ) {
+      console.log('Ignoring too small crypto input. History entry:', history);
       return null;
     }
 

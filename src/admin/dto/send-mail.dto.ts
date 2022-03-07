@@ -6,7 +6,7 @@ export class SendMailDto {
   to: string;
 
   @IsOptional()
-  @IsNotEmpty()
+  @IsString()
   displayName: string;
 
   @IsOptional()
@@ -32,4 +32,24 @@ export class SendMailDto {
   @IsNotEmpty()
   @IsString()
   body: string;
+
+  @IsOptional()
+  @IsString()
+  template: string;
+
+  @IsOptional()
+  @IsString()
+  telegramUrl: string;
+
+  @IsOptional()
+  @IsString()
+  instagramUrl: string;
+
+  @IsOptional()
+  @IsString()
+  linkedinUrl: string;
+
+  @IsOptional()
+  @IsString()
+  twitterUrl: string;
 }
