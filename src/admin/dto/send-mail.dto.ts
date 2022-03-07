@@ -6,7 +6,7 @@ export class SendMailDto {
   to: string;
 
   @IsOptional()
-  @IsNotEmpty()
+  @IsString()
   displayName: string;
 
   @IsOptional()
