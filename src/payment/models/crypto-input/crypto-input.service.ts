@@ -50,7 +50,7 @@ export class CryptoInputService {
         .then((i) => i.filter((h) => ['receive', 'AccountToAccount', 'AnyAccountsToAccounts', 'AccountToUtxos'].includes(h.type)))
         // map to entities
         .then((i) => this.createEntities(i))
-        .then((i) => i.filter((h) => h != null && h.asset.sellable));
+        .then((i) => i.filter((h) => h != null));
 
       // save and forward
       if (newInputs.length > 0) {
@@ -118,21 +118,29 @@ export class CryptoInputService {
     // only received token
     if (history.type == 'AccountToAccount' && historyAmount < 0) return null;
 
-    const amount = Math.abs(historyAmount);
-    const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
-    const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
-
-    // min deposit
-    if (
-      (assetName === 'DFI' && amount < Config.node.minDfiDeposit) ||
-      (assetName !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
-    )
-      return null;
-
     // get asset
     const asset = await this.assetService.getAssetByDexName(assetName);
     if (!asset) {
       console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
+      return null;
+    }
+
+    // only sellable
+    if (!asset.sellable) {
+      console.log('Ignoring unsellable crypto input. History entry:', history);
+      return null;
+    }
+
+    const amount = Math.abs(historyAmount);
+    const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
+    const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
+
+    // min. deposit
+    if (
+      (assetName === 'DFI' && amount < Config.node.minDfiDeposit) ||
+      (assetName !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
+    ) {
+      console.log('Ignoring too small crypto input. History entry:', history);
       return null;
     }
 
