@@ -35,12 +35,9 @@ export class CryptoInputService {
     if (!this.lock.acquire()) return;
 
     try {
-      // check if node in sync
-      const { blocks, headers } = await this.client.getInfo();
-      if (blocks < headers) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
+      const { blocks: currentHeight } = await this.checkNodeInSync();
 
       // get block heights
-      const currentHeight = blocks;
       const lastHeight = await this.cryptoInputRepo
         .findOne({ order: { blockHeight: 'DESC' } })
         .then((input) => input?.blockHeight ?? 0);
@@ -72,24 +69,37 @@ export class CryptoInputService {
 
   @Interval(300000)
   async checkConfirmations(): Promise<void> {
-    const unconfirmedInputs = await this.cryptoInputRepo.find({
-      select: ['id', 'outTxId', 'isConfirmed'],
-      where: { isConfirmed: false, outTxId: Not('') },
-    });
+    try {
+      await this.checkNodeInSync();
 
-    for (const input of unconfirmedInputs) {
-      try {
-        const { confirmations } = await this.client.waitForTx(input.outTxId);
-        if (confirmations > 60) {
-          await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
+      const unconfirmedInputs = await this.cryptoInputRepo.find({
+        select: ['id', 'outTxId', 'isConfirmed'],
+        where: { isConfirmed: false, outTxId: Not('') },
+      });
+
+      for (const input of unconfirmedInputs) {
+        try {
+          const { confirmations } = await this.client.waitForTx(input.outTxId);
+          if (confirmations > 60) {
+            await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
+          }
+        } catch (e) {
+          console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
         }
-      } catch (e) {
-        console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
       }
+    } catch (e) {
+      console.error('Exception during crypto confirmations checks:', e);
     }
   }
 
   // --- HELPER METHODS --- //
+  private async checkNodeInSync(): Promise<{ headers: number; blocks: number }> {
+    const { blocks, headers } = await this.client.getInfo();
+    if (blocks < headers) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
+
+    return { headers, blocks };
+  }
+
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
     const inputs = [];
     for (const history of histories) {
