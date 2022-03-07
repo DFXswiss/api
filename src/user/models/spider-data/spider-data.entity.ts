@@ -11,7 +11,13 @@ export class SpiderData extends IEntity {
   secondUrl: string;
 
   @Column({ length: 'MAX', nullable: true })
-  result: string;
+  chatbotResult: string;
+
+  @Column({ length: 256, nullable: true })
+  identId: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  identResult: string;
 
   @OneToOne(() => UserData, (u) => u.spiderData, { nullable: false })
   @JoinColumn()
