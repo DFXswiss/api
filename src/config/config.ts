@@ -20,7 +20,7 @@ export class Configuration {
   defaultLinkedinUrl = 'https://www.linkedin.com/company/dfxswiss/';
   defaultInstagramUrl = 'https://www.instagram.com/dfx.swiss/';
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
-  defaultTemplate = 'src/shared/assets/mails/new';
+  defaultTemplate = 'personal';
   stakingPeriod = 365; // TODO: 28; // days
 
   colors = {

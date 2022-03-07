@@ -135,7 +135,7 @@ export class MailService {
           to: to,
           cc: cc,
           bcc: bcc,
-          template: template ? `src/shared/assets/mails/${template}` : Config.defaultTemplate,
+          template: template ?? Config.defaultTemplate,
           context: {
             salutation: salutation,
             body: body,
