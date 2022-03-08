@@ -9,6 +9,16 @@
       "salutation": "You have finished the chatbot.",
       "body": "<p>To continue with identification you have to click continue KYC on payment page (Buy & Sell) or <a href=\"{url}\">here</a>.</p>",
       "title": "Chatbot completed"
+    },
+    "ident": {
+      "salutation": "You have finished the identification.",
+      "body": "<p>you have completed KYC and are now provisionally verified. No further steps are necessary from your side.</p>",
+      "title": "Identification completed"
+    },
+    "failed": {
+      "salutation": "Your online identification failed.",
+      "body": "<p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href=\"{url}\">here</a>.</p>",
+      "title": "Online identification failed"
     }
   }
 }

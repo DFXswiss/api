@@ -4,7 +4,6 @@ import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity'
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
-import { Language } from '../models/language/language.entity';
 
 @Injectable()
 export class MailService {
@@ -52,23 +51,30 @@ export class MailService {
   }
 
   async sendIdentificationCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert. Von deiner Seite sind keine weiteren Schritte mehr nötig.</p>`
-        : `<p>you have completed KYC and are now provisionally verified. No further steps are necessary from your side.</p>`;
-    const title = language === 'de' ? 'Identifikation abgeschlossen' : 'Identification complete';
-    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
+    const salutation = await this.i18n.translate('mail.kyc.ident.salutation', {
+      lang: language,
+    });
+    const body = await this.i18n.translate('mail.kyc.ident.body', {
+      lang: language,
+    });
+    const title = await this.i18n.translate('mail.kyc.ident.title', {
+      lang: language,
+    });
+    await this.sendMailInternal(mail, salutation, title, body);
   }
 
   async sendOnlineFailedMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>deine Online Identifikation ist fehlgeschlagen.</p>
-    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
-        : `<p>your online identification failed.</p>
-      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
-    const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
-    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
+    const salutation = await this.i18n.translate('mail.kyc.ident.salutation', {
+      lang: language,
+    });
+    const body = await this.i18n.translate('mail.kyc.ident.body', {
+      lang: language,
+      args: { url: url },
+    });
+    const title = await this.i18n.translate('mail.kyc.ident.title', {
+      lang: language,
+    });
+    await this.sendMailInternal(mail, salutation, title, body);
   }
 
   async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
@@ -134,7 +140,6 @@ export class MailService {
     linkedinUrl?: string,
     instagramUrl?: string,
   ) {
-    await this.sendChatbotCompleteMail(to, 'de', 'hallo.com');
     await Util.retry(
       () =>
         this.mailerService.sendMail({

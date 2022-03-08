@@ -7,8 +7,18 @@
     },
     "chatbot": {
       "salutation": "Du hast den Chatbot abgeschlossen.",
-      "body": "<p>Um die Online Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\">hier</a>.</p>`",
+      "body": "<p>Um die Online Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\">hier</a>.</p>",
       "title": "Chatbot abgeschlossen"
+    },
+    "ident": {
+      "salutation": "Identifikation abgeschlossen.",
+      "body": "<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert. Von deiner Seite sind keine weiteren Schritte mehr nötig.</p>",
+      "title": "Identifikation abgeschlossen"
+    },
+    "failed": {
+      "salutation": "Deine Online Identifikation ist fehlgeschlagen.",
+      "body": "<p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\"  style=\"color:#0A355C\">hier</a>.</p>",
+      "title": "Online Identifikation fehlgeschlagen"
     }
   }
 }

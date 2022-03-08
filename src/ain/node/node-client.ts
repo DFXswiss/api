@@ -4,7 +4,9 @@ import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/bloc
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { QueueHandler } from 'src/shared/queue_handler';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
 
@@ -21,9 +23,12 @@ enum Chain {
 export class NodeClient {
   private chain: Chain = Chain.MAIN;
   private readonly client: ApiClient;
+  private readonly queue: QueueHandler;
 
-  constructor(private readonly http: HttpService, private readonly url: string) {
+  constructor(private readonly http: HttpService, private readonly url: string, scheduler: SchedulerRegistry) {
     this.client = this.createJellyfishClient();
+    this.queue = new QueueHandler(scheduler, 60000);
+
     this.getChain()
       .then((c) => (this.chain = c))
       .catch((e) => console.error('Failed to get chain, defaulting to MainNet:', e));
@@ -152,7 +157,7 @@ export class NodeClient {
   private async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
     try {
       if (unlock) await this.unlock();
-      return await call(this.client);
+      return await this.call(call);
     } catch (e) {
       console.log('Exception during node call:', e);
       throw new ServiceUnavailableException(e);
@@ -160,7 +165,13 @@ export class NodeClient {
   }
 
   private async unlock(timeout = 10): Promise<any> {
-    return this.client.call(NodeCommand.UNLOCK, [Config.node.walletPassword, timeout], 'number');
+    return await this.call((client: ApiClient) =>
+      client.call(NodeCommand.UNLOCK, [Config.node.walletPassword, timeout], 'number'),
+    );
+  }
+
+  private call<T>(call: (client: ApiClient) => Promise<T>): Promise<T> {
+    return this.queue.handle(() => call(this.client));
   }
 
   private createJellyfishClient(): ApiClient {
