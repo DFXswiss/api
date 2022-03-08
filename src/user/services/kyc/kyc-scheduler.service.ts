@@ -191,11 +191,7 @@ export class KycSchedulerService {
         userData.spiderData?.url,
       );
     } else {
-      await this.mailService.sendIdentificationCompleteMail(
-        userData.firstname,
-        userData.mail,
-        userData.language?.symbol?.toLowerCase(),
-      );
+      await this.mailService.sendIdentificationCompleteMail(userData.mail, userData.language?.symbol?.toLowerCase());
       userData = await this.kycService.goToStatus(userData, KycStatus.MANUAL);
       userData.kycHash = null;
     }
@@ -208,7 +204,6 @@ export class KycSchedulerService {
       userData = await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
 
       await this.mailService.sendOnlineFailedMail(
-        userData.firstname,
         userData.mail,
         userData?.language?.symbol?.toLocaleLowerCase(),
         userData.spiderData?.url,

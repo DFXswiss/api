@@ -50,7 +50,7 @@ export class MailService {
     await this.sendMailInternal(mail, salutation, title, body);
   }
 
-  async sendIdentificationCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
+  async sendIdentificationCompleteMail(mail: string, language: string): Promise<void> {
     const salutation = await this.i18n.translate('mail.kyc.ident.salutation', {
       lang: language,
     });
@@ -63,15 +63,15 @@ export class MailService {
     await this.sendMailInternal(mail, salutation, title, body);
   }
 
-  async sendOnlineFailedMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
-    const salutation = await this.i18n.translate('mail.kyc.ident.salutation', {
+  async sendOnlineFailedMail(mail: string, language: string, url: string): Promise<void> {
+    const salutation = await this.i18n.translate('mail.kyc.failed.salutation', {
       lang: language,
     });
-    const body = await this.i18n.translate('mail.kyc.ident.body', {
+    const body = await this.i18n.translate('mail.kyc.failed.body', {
       lang: language,
       args: { url: url },
     });
-    const title = await this.i18n.translate('mail.kyc.ident.title', {
+    const title = await this.i18n.translate('mail.kyc.failed.title', {
       lang: language,
     });
     await this.sendMailInternal(mail, salutation, title, body);
