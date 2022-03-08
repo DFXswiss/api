@@ -135,12 +135,12 @@ export class UserService {
   }
 
   async getUserStakingFee(userId: number): Promise<number> {
-    /*const user =*/ await this.userRepo.findOne({
+    const user = await this.userRepo.findOne({
       select: ['id', 'stakingFee'],
       where: { id: userId },
     });
 
-    return 0; // TODO: Util.round((user?.stakingFee ?? 0.125) * 100, 2);
+    return Util.round((user?.stakingFee ?? 0.125) * 100, 2);
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
