@@ -7,6 +7,7 @@ import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
+import { IdentUpdateDto } from './dto/ident-update.dto';
 import { IdentUserDataDto } from './dto/ident-user-data.dto';
 
 export interface KycResult {
@@ -180,5 +181,19 @@ export class IdentService {
     }
 
     return userData;
+  }
+
+  // --- WEBHOOK UPDATES --- //
+  async identUpdate(data: IdentUpdateDto): Promise<void> {
+    const user = await this.userDataRepo.findOne({
+      where: { spiderData: { identTransactionId: data?.identificationprocess?.transactionnumber } },
+      relations: ['spiderData'],
+    });
+
+    if (user) {
+      console.log(`Received webhook call for user ${user.id}:`, data);
+    } else {
+      console.log(`Received unmatched webhook call:`, data);
+    }
   }
 }

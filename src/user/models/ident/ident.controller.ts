@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Query, Req, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  Query,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
@@ -13,7 +23,8 @@ import { LimitRequest } from '../limit-request/limit-request.entity';
 import { LimitRequestService } from '../limit-request/limit-request.service';
 import { IdentUserDataDto } from './dto/ident-user-data.dto';
 import { IdentService, KycResult } from './ident.service';
-import { Request } from 'express';
+import { IdentUpdateDto } from './dto/ident-update.dto';
+import { Config } from 'src/config/config';
 
 @ApiTags('ident')
 @Controller('ident')
@@ -61,15 +72,22 @@ export class IdentController {
   // --- ID NOW WEBHOOKS --- //
   @Post('online')
   @ApiExcludeEndpoint()
-  async onlineIdWebhook(@RealIP() ip: string, @Body() data: any, @Req() req: Request) {
-    console.log(`Received online webhook call from ${ip}:`, data);
-    console.log('Request details:', req);
+  async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentUpdateDto) {
+    this.checkWebhookIp(ip, data);
+    this.identService.identUpdate(data);
   }
 
   @Post('video')
   @ApiExcludeEndpoint()
-  async videoIdWebhook(@RealIP() ip: string, @Body() data: any, @Req() req: Request) {
-    console.log(`Received video webhook call from ${ip}:`, data);
-    console.log('Request details:', req);
+  async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentUpdateDto) {
+    this.checkWebhookIp(ip, data);
+    this.identService.identUpdate(data);
+  }
+
+  private checkWebhookIp(ip: string, data: IdentUpdateDto) {
+    if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
+      console.error(`Received webhook call from invalid IP ${ip}:`, data);
+      throw new ForbiddenException('Invalid source IP');
+    }
   }
 }

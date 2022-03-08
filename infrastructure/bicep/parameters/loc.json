@@ -35,6 +35,9 @@
     "kycPassword": {
       "value": "xxx"
     },
+    "kycWebhookIps": {
+      "value": "*"
+    },
     "githubToken": {
       "value": "xxx"
     },

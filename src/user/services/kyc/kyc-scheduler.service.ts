@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval, Cron, CronExpression } from '@nestjs/schedule';
 import {
+  KycCompletedStates,
   KycInProgress,
   KycInProgressStates,
   KycState,
@@ -11,12 +12,13 @@ import { UserDataRepository } from 'src/user/models/user-data/user-data.reposito
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { In, LessThan } from 'typeorm';
+import { In, IsNull, LessThan } from 'typeorm';
 import { Lock } from 'src/shared/lock';
 import { KycService, KycProgress } from './kyc.service';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
+import { KycContentType, KycDocument, KycDocumentState } from './dto/kyc.dto';
 
 @Injectable()
 export class KycSchedulerService {
@@ -30,6 +32,47 @@ export class KycSchedulerService {
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
   ) {}
+
+  @Interval(7230000)
+  async fetchMissingIdentData() {
+    const users = await this.userDataRepo.find({
+      where: {
+        kycStatus: In(KycCompletedStates),
+        spiderData: { identResult: IsNull() },
+      },
+      relations: ['spiderData'],
+    });
+
+    for (const user of users) {
+      try {
+        let document = KycDocument.ONLINE_IDENTIFICATION;
+        let version = await this.kycApi.getDocumentVersion(user.id, false, document, KycDocumentState.COMPLETED);
+
+        if (!version) {
+          document = KycDocument.VIDEO_IDENTIFICATION;
+          version = await this.kycApi.getDocumentVersion(user.id, false, document, KycDocumentState.COMPLETED);
+        }
+
+        if (version) {
+          const xmlPart = await this.kycApi
+            .getDocumentVersionParts(user.id, false, document, version.name)
+            .then((parts) => parts.find((p) => p.contentType === KycContentType.XML));
+
+          if (xmlPart) {
+            const file = await this.kycApi.getDocument<string>(user.id, false, document, version.name, xmlPart.name);
+            const content = Util.parseXml<any>(file);
+
+            await this.spiderDataRepo.update(user.spiderData.id, {
+              identResult: JSON.stringify(content.identifications.identification),
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Exception during ident data fetch:', e);
+        await this.mailService.sendErrorMail('KYC Error', [e]);
+      }
+    }
+  }
 
   @Interval(7230000)
   async checkOngoingKyc() {
