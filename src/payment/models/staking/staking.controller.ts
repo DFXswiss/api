@@ -35,7 +35,11 @@ export class StakingController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateStaking(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() updateStakingDto: UpdateStakingDto): Promise<StakingDto> {
+  async updateStaking(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() updateStakingDto: UpdateStakingDto,
+  ): Promise<StakingDto> {
     return this.stakingService
       .updateStaking(jwt.id, +id, updateStakingDto)
       .then((s) => this.stakingService.toDto(jwt.id, s));
