@@ -19,6 +19,7 @@ import {
   KycRelationType,
   Organization,
   SubmitResponse,
+  DocumentVersionPart,
 } from './dto/kyc.dto';
 
 @Injectable()
@@ -32,15 +33,15 @@ export class KycApiService {
 
   // --- CUSTOMER --- //
   async getCustomer(id: number): Promise<Customer> {
-    return this.callApi<Customer>(`customers/${this.reference(id)}`, 'GET');
+    return this.callApi<Customer>(`customers/${this.reference(id)}`);
   }
 
   async getCustomerInfo(id: number): Promise<CustomerInformationResponse> {
-    return this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`, 'GET');
+    return this.callApi<CustomerInformationResponse>(`customers/${this.reference(id)}/information`);
   }
 
   async getChangedCustomers(modificationTime: number): Promise<string[]> {
-    return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`, 'GET');
+    return this.callApi<string[]>(`customers?modificationTime=${modificationTime}`);
   }
 
   async createCustomer(id: number, name: string): Promise<CreateResponse | undefined> {
@@ -156,25 +157,23 @@ export class KycApiService {
 
     const customerCheckResult =
       customerInfo.lastCheckVerificationId < 0
-        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`, 'GET')
+        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`)
         : await this.callApi<CheckResult>(
             `customers/checks/verifications/${customerInfo.lastCheckVerificationId}/result`,
-            'GET',
           );
     return customerCheckResult.risks[0].categoryKey;
   }
 
   // --- DOCUMENTS --- //
-  async getDocument(
+  async getDocument<T>(
     customerId: number,
     isOrganization: boolean,
     document: KycDocument,
     version: string,
     part: string,
-  ): Promise<any> {
-    return this.callApi<any>(
+  ): Promise<T> {
+    return this.callApi<T>(
       `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions/${version}/parts/${part}`,
-      'GET',
     );
   }
 
@@ -201,7 +200,17 @@ export class KycApiService {
   ): Promise<DocumentVersion[]> {
     return this.callApi<DocumentVersion[]>(
       `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions`,
-      'GET',
+    );
+  }
+
+  async getDocumentVersion(
+    customerId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    state: KycDocumentState,
+  ): Promise<DocumentVersion> {
+    return this.getDocumentVersions(customerId, isOrganization, document).then((versions) =>
+      versions?.find((v) => v?.state === state),
     );
   }
 
@@ -220,6 +229,17 @@ export class KycApiService {
       data,
     );
     return result === 'done';
+  }
+
+  async getDocumentVersionParts(
+    customerId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    version: string,
+  ): Promise<DocumentVersionPart[]> {
+    return this.callApi<DocumentVersionPart[]>(
+      `customers/${this.reference(customerId, isOrganization)}/documents/${document}/versions/${version}/parts`,
+    );
   }
 
   async createDocumentVersionPart(
@@ -290,7 +310,7 @@ export class KycApiService {
     return this.reference(id) + '_placeholder';
   }
 
-  private async callApi<T>(url: string, method: Method, data?: any, contentType?: any): Promise<T> {
+  private async callApi<T>(url: string, method: Method = 'GET', data?: any, contentType?: any): Promise<T> {
     return this.request<T>(url, method, data, contentType).catch((e: HttpError) => {
       if (e.response?.status === 404) {
         return null;

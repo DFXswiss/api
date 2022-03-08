@@ -1,10 +1,12 @@
 import { KycStatus, RiskState } from 'src/user/models/user-data/user-data.entity';
 
 export enum KycContentType {
-  IMAGE = 'image/png',
+  PNG = 'image/png',
+  JPEG = 'image/jpeg',
   JSON = 'application/json',
-  TEXT = 'text/plain',
   PDF = 'application/pdf',
+  TEXT = 'text/plain',
+  XML = 'text/xml',
 }
 
 export enum KycRelationType {
@@ -123,6 +125,15 @@ export interface SubmitResponse {
 export interface DocumentVersion {
   name: string;
   state: KycDocumentState;
+  creationTime: number;
+  modificationTime: number;
+}
+
+export interface DocumentVersionPart {
+  name: string;
+  label: string;
+  fileName: string;
+  contentType: KycContentType;
   creationTime: number;
   modificationTime: number;
 }
