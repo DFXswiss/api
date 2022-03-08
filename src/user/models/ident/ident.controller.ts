@@ -74,16 +74,14 @@ export class IdentController {
   @ApiExcludeEndpoint()
   async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentUpdateDto) {
     this.checkWebhookIp(ip, data);
-
-    console.log(`Received online webhook call from ${ip}:`, data);
+    this.identService.identUpdate(data);
   }
 
   @Post('video')
   @ApiExcludeEndpoint()
   async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentUpdateDto) {
     this.checkWebhookIp(ip, data);
-
-    console.log(`Received video webhook call from ${ip}:`, data);
+    this.identService.identUpdate(data);
   }
 
   private checkWebhookIp(ip: string, data: IdentUpdateDto) {
