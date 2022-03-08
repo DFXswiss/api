@@ -143,7 +143,6 @@ export class KycSchedulerService {
       userData = await this.kycService.chatbotCompleted(userData);
 
       await this.mailService.sendChatbotCompleteMail(
-        userData.firstname,
         userData.mail,
         userData.language?.symbol?.toLowerCase(),
         userData.spiderData?.url,
@@ -185,7 +184,6 @@ export class KycSchedulerService {
     });
     // send reminder
     await this.mailService.sendKycReminderMail(
-      userData.firstname,
       userData.mail,
       userData.kycStatus,
       userData.language?.symbol?.toLowerCase(),

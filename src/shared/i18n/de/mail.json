@@ -1,67 +1,14 @@
-{  
-    "on_ramp":{
-        "header": "Deine Einzahlung wurde erfolgreich bearbeitet",
-        "closing_words":["Viel Spaß beim Trading"]
+{
+  "kyc": {
+    "reminder": {
+      "salutation": "Freundliche Erinnerung an dein {status}.",
+      "body": "<p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\">hier</a>.</p>",
+      "title": "KYC Erinnerung"
     },
-    "off_ramp":{
-        "1":{
-            "header": "Wir haben deine Assets erhalten ",
-            "closing_words": ["Nächster Schrit: Wir werden deine Assets verkaufen und bereiten danach die Überweisung vor.",
-            "Sobald dein Geld unser Bankkonto per Überweisung verlässt, senden wird die endgültige Überweisungs-E-Mail."]
-        },
-        "2":{
-            "header": "Wir haben deine Assets verkauft",
-            "closing_words": ["nächster Schritt: Wir haben deine Assets verkauft und bereiten nun die Überweisung vor.",
-            "Sobald dein Geld unser Bankkonto per Überweisung verlässt, senden wird die endgültige Überweisungs-E-Mail."]
-        },
-        "3":{
-            "header": "Wir haben die Überweisung veranlasst",
-            "closing_words": ["Die Zahlung hat soeben unser Bankkonto verlassen und wird bald auf deinem Bankkonto sichtbar sein.",
-            "Die Zahlung hat soeben unser Bankkonto verlassen und wird in Kürze auf deinem Bankkonto sichtbar sein.",
-            "In dieser Zwischenzeit sind die Banken für die Dauer der Überweisung verantwortlich.",
-            "",
-            "Vielen Dank, dass Du den DFX Auszahlungsdienst nutzt."]
-        }
-    },
-    "kyc_return":{
-        "header":"Wir benötigen deine Rückmeldung, um deine Einzahlung abschließen zu können (Limit überschritten)",
-        "closing_words":
-            ["Um deine Einzahlung bearbeiten zu können, benötigen wir dein Feedback",
-            "Mit deiner Einzahlung hast Du den Höchstbetrag von 900 € pro Tag ohne Verifizierung (KYC) überschritten",
-            "Wir können Dir die folgenden Optionen anbieten:",
-            "",
-            "1) Verifizierung (KYC) - bitte folge den Anweisungen => <a href=\"https://defichain-wiki.com/wiki/DFX_FAQ#Schritt-f.C3.BCr-Schritt_Anleitung_KYC-Prozess\">KYC Anleitung</a>",
-            "Nach Verifizierung führen wir deinen Auftrag aus und schreiben dein Geld ensprechend gut.",
-            "",
-            "2) Rückgabe - Wenn du keine Überprüfung vornehmen möchtest, erstatten wir deine gesamte Anzahlung zurück.",
-            "In diesem Fall sende bitte eine E-Mail an support@dfx.swiss mit deiner IBAN und dem Grund der Rücksendung.",
-            "",
-            "Wenn wir innerhalb von fünf Werktagen nichts von Dir hören, überweisen wir deine Einzahlung auf dein Bankkonto zurück."]
-    },
-    "hash_return":{
-        "header":"Wir benötigen deine Rückmeldung, um deine Einzahlung zu vervollständigen (fehlende Informationen)",
-        "closing_words":
-            ["Leider können wir deine Einzahlung aufgrund eines falschen Verwendungszwecks (falscher oder fehlender Hash-Code) nicht genau zuordnen.",
-            "Der Hash-Code (Format xxxx-xxxx-xxxx) wurde in Verbindung mit deiner Fiat2Crypto Payment Route erstellt."]
-    },
-    "kyc_reminder":{
-        "header":"Eine freundliche Erinnerung an deine laufende KYC-Verifizierung bei DFX.swiss.",
-        "closing_words":["Eine freundliche Erinnerung an deine laufende KYC-Verifizierung bei DFX.swiss.","Bitte überprüfe die Zahlungsseite (Kauf & Verkauf-Button in der DFX App) oder deine Mails"]
-    },
-    "table":{
-        "deposit": "Eingezahlt",
-        "crypto_payment": "Krypto Zahlung",
-        "fee": "Gebühr",
-        "foreign_currency_fee": "Wechselkursgebühr Fremdwährung",
-        "exchange_rate": "Wechselkurs",
-        "wallet_address": "Wallet Adresse",
-        "transaction_id": "Transaktions-ID",
-        "output": "Ausgabe",
-        "bank_account": "Bankkonto",
-        "bank_tx_id": "Bank Tx ID",
-        "payout": "Auszahlung",
-        "tx_id": "Transaktions-ID"
-    },  
-    "tie_off":"Dein DFX Team",
-    "bitcoiners": "Bitcoiners by heart ♥"
+    "chatbot": {
+      "salutation": "Du hast den Chatbot abgeschlossen.",
+      "body": "<p>Um die Online Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\">hier</a>.</p>`",
+      "title": "Chatbot abgeschlossen"
+    }
+  }
 }

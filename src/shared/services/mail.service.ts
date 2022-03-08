@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { Util } from '../util';
+import { I18nService } from 'nestjs-i18n';
+import { Language } from '../models/language/language.entity';
 
 @Injectable()
 export class MailService {
@@ -15,34 +17,38 @@ export class MailService {
     [KycStatus.VIDEO_ID]: 'Video ID',
   };
 
-  constructor(private readonly mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService, private readonly i18n: I18nService) {}
 
-  async sendKycReminderMail(
-    firstName: string,
-    mail: string,
-    kycStatus: KycStatus,
-    language: string,
-    url: string,
-  ): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>freundliche Erinnerung an dein ${this.kycStatus[kycStatus]}.</p>
-    <p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
-        : `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
-      <p>Please continue by clicking on continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
+  async sendKycReminderMail(mail: string, kycStatus: KycStatus, language: string, url: string): Promise<void> {
+    const salutation = await this.i18n.translate('mail.kyc.reminder.salutation', {
+      lang: language,
+      args: { status: this.kycStatus[kycStatus] },
+    });
 
-    await this.sendMailInternal(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
+    const body = await this.i18n.translate('mail.kyc.reminder.body', {
+      lang: language,
+      args: { url: url },
+    });
+
+    const title = await this.i18n.translate('mail.kyc.reminder.title', {
+      lang: language,
+    });
+
+    await this.sendMailInternal(mail, salutation, title, body);
   }
 
-  async sendChatbotCompleteMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>du hast den Chatbot abgeschlossen.</p>
-    <p>Um die Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
-        : `<p>you have finished the first step of your verification.</p>
-      <p>To continue with identification you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
-    const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Chatbot complete';
-    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
+  async sendChatbotCompleteMail(mail: string, language: string, url: string): Promise<void> {
+    const salutation = await this.i18n.translate('mail.kyc.chatbot.salutation', {
+      lang: language,
+    });
+    const body = await this.i18n.translate('mail.kyc.chatbot.body', {
+      lang: language,
+      args: { url: url },
+    });
+    const title = await this.i18n.translate('mail.kyc.chatbot.title', {
+      lang: language,
+    });
+    await this.sendMailInternal(mail, salutation, title, body);
   }
 
   async sendIdentificationCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
@@ -128,6 +134,7 @@ export class MailService {
     linkedinUrl?: string,
     instagramUrl?: string,
   ) {
+    await this.sendChatbotCompleteMail(to, 'de', 'hallo.com');
     await Util.retry(
       () =>
         this.mailerService.sendMail({
