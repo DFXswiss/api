@@ -1,6 +1,6 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Interval, SchedulerRegistry } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
@@ -23,7 +23,11 @@ export class NodeService {
   private readonly urls: Record<NodeType, Record<NodeMode, string>>;
   private readonly clients: Record<NodeType, Record<NodeMode, NodeClient | undefined>>;
 
-  constructor(private readonly http: HttpService, private readonly mailService: MailService) {
+  constructor(
+    private readonly http: HttpService,
+    private readonly mailService: MailService,
+    scheduler: SchedulerRegistry,
+  ) {
     this.urls = {
       [NodeType.INPUT]: {
         [NodeMode.ACTIVE]: Config.node.inp.active,
@@ -45,20 +49,20 @@ export class NodeService {
 
     this.clients = {
       [NodeType.INPUT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.ACTIVE),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.PASSIVE),
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.ACTIVE, scheduler),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.PASSIVE, scheduler),
       },
       [NodeType.DEX]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.DEX, NodeMode.ACTIVE),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.DEX, NodeMode.PASSIVE),
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.DEX, NodeMode.ACTIVE, scheduler),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.DEX, NodeMode.PASSIVE, scheduler),
       },
       [NodeType.OUTPUT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.ACTIVE),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.PASSIVE),
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.ACTIVE, scheduler),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.PASSIVE, scheduler),
       },
       [NodeType.INT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INT, NodeMode.ACTIVE),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INT, NodeMode.PASSIVE),
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INT, NodeMode.ACTIVE, scheduler),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INT, NodeMode.PASSIVE, scheduler),
       },
     };
   }
@@ -90,8 +94,8 @@ export class NodeService {
   // --- HELPER METHODS --- //
 
   // utility
-  createNodeClient(node: NodeType, mode: NodeMode): NodeClient | undefined {
-    return this.urls[node][mode] ? new NodeClient(this.http, this.urls[node][mode]) : undefined;
+  createNodeClient(node: NodeType, mode: NodeMode, scheduler: SchedulerRegistry): NodeClient | undefined {
+    return this.urls[node][mode] ? new NodeClient(this.http, this.urls[node][mode], scheduler) : undefined;
   }
 
   // health checks
