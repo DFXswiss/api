@@ -214,3 +214,8 @@ export interface ChatbotResult {
   contribution: string;
   plannedDevelopmentOfAssets: string;
 }
+
+export interface IdentificationLog {
+  transactionId: string;
+  identificationId: string;
+}

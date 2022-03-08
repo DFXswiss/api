@@ -1,6 +1,6 @@
 import { HttpService as Http } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
-import { AxiosRequestConfig } from 'axios';
+import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { Util } from '../util';
 
@@ -16,7 +16,11 @@ export class HttpService {
   constructor(private readonly http: Http) {}
 
   public async get<T>(url: string, config?: AxiosRequestConfig & { tryCount?: number }): Promise<T> {
-    return (await Util.retry(() => firstValueFrom(this.http.get<T>(url, config)), config?.tryCount ?? 1)).data;
+    return (await this.getRaw<T>(url, config)).data;
+  }
+
+  public async getRaw<T>(url: string, config?: AxiosRequestConfig & { tryCount?: number }): Promise<AxiosResponse<T>> {
+    return await Util.retry(() => firstValueFrom(this.http.get<T>(url, config)), config?.tryCount ?? 1);
   }
 
   public async put<T>(url: string, data: any, config?: AxiosRequestConfig & { tryCount?: number }): Promise<T> {
