@@ -91,6 +91,7 @@ export class Configuration {
       htmlHeaderInclude: '',
       htmlBodyInclude: '',
     },
+    allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
   mail: MailerOptions = {
