@@ -93,7 +93,7 @@ export class MailService {
   }
 
   async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
-    const htmlSupportBody = `
+    const body = `
     <p>a customer has failed or expired during progress ${this.kycStatus[userData.kycStatus]}.</p>
       <table>
           <tr>
@@ -111,7 +111,7 @@ export class MailService {
       to: this.supportMail,
       salutation: 'Hi DFX Support',
       subject: 'KYC failed or expired',
-      body: htmlSupportBody,
+      body,
     });
   }
 
