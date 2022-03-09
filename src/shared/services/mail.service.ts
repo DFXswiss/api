@@ -5,7 +5,7 @@ import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
 
-interface SendMailDto {
+interface SendMailOptions {
   to: string;
   salutation: string;
   subject: string;
@@ -21,7 +21,7 @@ interface SendMailDto {
   instagramUrl?: string;
 }
 
-interface KycMailDto {
+interface KycMailContent {
   salutation: string;
   body: string;
   subject: string;
@@ -109,43 +109,43 @@ export class MailService {
     });
   }
 
-  async sendMailInternal(sendMailDto: SendMailDto) {
+  async sendMailInternal(options: SendMailOptions) {
     try {
-      await this.sendMail(sendMailDto);
+      await this.sendMail(options);
     } catch (e) {
       console.error(
-        `Exception during send mail: from:${sendMailDto.from}, to:${sendMailDto.to}, subject:${sendMailDto.subject}:`,
+        `Exception during send mail: from:${options.from}, to:${options.to}, subject:${options.subject}:`,
         e,
       );
     }
   }
 
-  async sendMail(sendMailDto: SendMailDto) {
+  async sendMail(options: SendMailOptions) {
     await Util.retry(
       () =>
         this.mailerService.sendMail({
-          from: { name: sendMailDto.displayName ?? 'DFX.swiss', address: sendMailDto.from ?? this.noReplyMail },
-          to: sendMailDto.to,
-          cc: sendMailDto.cc,
-          bcc: sendMailDto.bcc,
-          template: sendMailDto.template ?? Config.defaultMailTemplate,
+          from: { name: options.displayName ?? 'DFX.swiss', address: options.from ?? this.noReplyMail },
+          to: options.to,
+          cc: options.cc,
+          bcc: options.bcc,
+          template: options.template ?? Config.defaultMailTemplate,
           context: {
-            salutation: sendMailDto.salutation,
-            body: sendMailDto.body,
+            salutation: options.salutation,
+            body: options.body,
             date: new Date().getFullYear(),
-            telegramUrl: sendMailDto.telegramUrl ?? Config.defaultTelegramUrl,
-            twitterUrl: sendMailDto.twitterUrl ?? Config.defaultTwitterUrl,
-            linkedinUrl: sendMailDto.linkedinUrl ?? Config.defaultLinkedinUrl,
-            instagramUrl: sendMailDto.instagramUrl ?? Config.defaultInstagramUrl,
+            telegramUrl: options.telegramUrl ?? Config.defaultTelegramUrl,
+            twitterUrl: options.twitterUrl ?? Config.defaultTwitterUrl,
+            linkedinUrl: options.linkedinUrl ?? Config.defaultLinkedinUrl,
+            instagramUrl: options.instagramUrl ?? Config.defaultInstagramUrl,
           },
-          subject: sendMailDto.subject,
+          subject: options.subject,
         }),
       3,
       1000,
     );
   }
 
-  private async t(key: string, lang: string, args?: any): Promise<KycMailDto> {
+  private async t(key: string, lang: string, args?: any): Promise<KycMailContent> {
     const salutation = await this.i18n.translate(`${key}.salutation`, { lang, args });
     const body = await this.i18n.translate(`${key}.body`, { lang, args });
     const subject = await this.i18n.translate(`${key}.title`, { lang, args });
