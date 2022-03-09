@@ -4,6 +4,7 @@ import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity'
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
+import { template } from 'handlebars';
 
 @Injectable()
 export class MailService {
@@ -21,19 +22,18 @@ export class MailService {
   async sendKycReminderMail(mail: string, kycStatus: KycStatus, language: string, url: string): Promise<void> {
     const salutation = await this.i18n.translate('mail.kyc.reminder.salutation', {
       lang: language,
-      args: { status: this.kycStatus[kycStatus] },
     });
 
     const body = await this.i18n.translate('mail.kyc.reminder.body', {
       lang: language,
-      args: { url: url },
+      args: { status: this.kycStatus[kycStatus], url: url },
     });
 
     const title = await this.i18n.translate('mail.kyc.reminder.title', {
       lang: language,
     });
 
-    await this.sendMailInternal(mail, salutation, title, body);
+    await this.sendMailInternal(mail, salutation, title, body, null, null, null, null, 'default');
   }
 
   async sendChatbotCompleteMail(mail: string, language: string, url: string): Promise<void> {
@@ -47,7 +47,7 @@ export class MailService {
     const title = await this.i18n.translate('mail.kyc.chatbot.title', {
       lang: language,
     });
-    await this.sendMailInternal(mail, salutation, title, body);
+    await this.sendMailInternal(mail, salutation, title, body, null, null, null, null, 'default');
   }
 
   async sendIdentificationCompleteMail(mail: string, language: string): Promise<void> {
@@ -60,7 +60,7 @@ export class MailService {
     const title = await this.i18n.translate('mail.kyc.ident.title', {
       lang: language,
     });
-    await this.sendMailInternal(mail, salutation, title, body);
+    await this.sendMailInternal(mail, salutation, title, body, null, null, null, null, 'default');
   }
 
   async sendOnlineFailedMail(mail: string, language: string, url: string): Promise<void> {
@@ -74,7 +74,7 @@ export class MailService {
     const title = await this.i18n.translate('mail.kyc.failed.title', {
       lang: language,
     });
-    await this.sendMailInternal(mail, salutation, title, body);
+    await this.sendMailInternal(mail, salutation, title, body, null, null, null, null, 'default');
   }
 
   async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
@@ -117,9 +117,10 @@ export class MailService {
     bcc?: string,
     cc?: string,
     displayName?: string,
+    template?: string,
   ) {
     try {
-      await this.sendMail(to, salutation, subject, body, from, bcc, cc, displayName);
+      await this.sendMail(to, salutation, subject, body, from, bcc, cc, displayName, template);
     } catch (e) {
       console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}:`, e);
     }

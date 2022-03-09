@@ -1,23 +1,23 @@
 {
   "kyc": {
     "reminder": {
-      "salutation": "Friendly reminder of your {status}.",
-      "body": "<p>Please continue by clicking on continue KYC on payment page (Buy & Sell) or <a href=\"{url}\">here</a>.</p>",
-      "title": "KYC Reminder"
+      "salutation": "Complete your verification",
+      "body": "<p>We have noticed that you have not completed the {status}</p><p>Please continue by clicking on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
+      "title": "Complete your verification"
     },
     "chatbot": {
-      "salutation": "You have finished the chatbot.",
-      "body": "<p>To continue with identification you have to click continue KYC on payment page (Buy & Sell) or <a href=\"{url}\">here</a>.</p>",
+      "salutation": "Chatbot completed - next step for your verification",
+      "body": "<p>To start the online identification process, click on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Chatbot completed"
     },
     "ident": {
-      "salutation": "You have finished the identification.",
-      "body": "<p>you have completed KYC and are now provisionally verified. No further steps are necessary from your side.</p>",
-      "title": "Identification completed"
+      "salutation": "Your verification is complete",
+      "body": "<p>We are happy to inform you that your verification has been successfully completed.<br> No further steps are necessary from your side.</p><p>Happy trading!</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "title": "Verification completed"
     },
     "failed": {
-      "salutation": "Your online identification failed.",
-      "body": "<p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href=\"{url}\">here</a>.</p>",
+      "salutation": "Your online identification has failed",
+      "body": "<p>We have noticed that your online identification has failed. However, we have already unlocked video identification for you.<br>Please continue by clicking on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Online identification failed"
     }
   }

@@ -1,23 +1,23 @@
 {
   "kyc": {
     "reminder": {
-      "salutation": "Freundliche Erinnerung an dein {status}.",
-      "body": "<p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\">hier</a>.</p>",
-      "title": "KYC Erinnerung"
+      "salutation": "Vervollständige deine Verifizierung",
+      "body": "<p>Uns ist aufgefallen, dass {status} noch nicht vollständig abgeschlossen wurde.</p><p>Weiter geht es, indem man auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a> klickt.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "title": "Vervollständige die Verifizierung"
     },
     "chatbot": {
-      "salutation": "Du hast den Chatbot abgeschlossen.",
-      "body": "<p>Um die Online Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\">hier</a>.</p>",
+      "salutation": "Chatbot abgeschlossen - nächster Schritt zur Verifizierung",
+      "body": "<p>Um den Online-Identifizierungsprozess zu starten, klicke auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a>.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Chatbot abgeschlossen"
     },
     "ident": {
-      "salutation": "Identifikation abgeschlossen.",
-      "body": "<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert. Von deiner Seite sind keine weiteren Schritte mehr nötig.</p>",
-      "title": "Identifikation abgeschlossen"
+      "salutation": "Deine Verifizierung ist abgeschlossen",
+      "body": "<p>Wir freuen uns, mitteilen zu können, dass deine Verifizierung erfolgreich abgeschlossen wurde.<br>Von deiner Seite sind keine weiteren Schritte mehr nötig.</p><p>Viel Erfolg beim Traden!</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "title": "Verifizierung abgeschlossen"
     },
     "failed": {
-      "salutation": "Deine Online Identifikation ist fehlgeschlagen.",
-      "body": "<p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href=\"{url}\"  style=\"color:#0A355C\">hier</a>.</p>",
+      "salutation": "Deine Online-Identifikation ist fehlgeschlagen",
+      "body": "<p>Wir haben festgestellt, dass die Online-Identifizierung fehlgeschlagen ist. Wir haben jedoch bereits die Video-Identifikation freigeschaltet.<br>Weiter geht es, indem man auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) klickt oder <a href=\"{url}\"  style=\"color:#FFFFFF\">hier</a>.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Online Identifikation fehlgeschlagen"
     }
   }
