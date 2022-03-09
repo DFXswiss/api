@@ -62,8 +62,16 @@ export class KycSchedulerService {
             const file = await this.kycApi.getDocument<string>(user.id, false, document, version.name, xmlPart.name);
             const content = Util.parseXml<any>(file);
 
+            const identResult = JSON.stringify(content.identifications.identification)
+              .split('@_status')
+              .join('status')
+              .split('#text')
+              .join('value')
+              .split('@_original')
+              .join('original');
+
             user.spiderData ??= this.spiderDataRepo.create({ userData: user });
-            user.spiderData.identResult = JSON.stringify(content.identifications.identification);
+            user.spiderData.identResult = identResult;
             await this.spiderDataRepo.save(user.spiderData);
           }
         }
