@@ -21,6 +21,12 @@ interface SendMailDto {
   instagramUrl?: string;
 }
 
+interface KycMailDto {
+  salutation: string;
+  body: string;
+  subject: string;
+}
+
 @Injectable()
 export class MailService {
   private readonly supportMail = 'support@dfx.swiss';
@@ -35,59 +41,29 @@ export class MailService {
   constructor(private readonly mailerService: MailerService, private readonly i18n: I18nService) {}
 
   async sendKycReminderMail(to: string, kycStatus: KycStatus, language: string, url: string): Promise<void> {
-    const salutation = await this.i18n.translate('mail.kyc.reminder.salutation', {
-      lang: language,
-    });
-
-    const body = await this.i18n.translate('mail.kyc.reminder.body', {
-      lang: language,
-      args: { status: this.kycStatus[kycStatus], url: url },
-    });
-
-    const subject = await this.i18n.translate('mail.kyc.reminder.title', {
-      lang: language,
+    const { salutation, body, subject } = await this.t('mail.kyc.reminder', language, {
+      status: this.kycStatus[kycStatus],
+      url: url,
     });
 
     await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 
   async sendChatbotCompleteMail(to: string, language: string, url: string): Promise<void> {
-    const salutation = await this.i18n.translate('mail.kyc.chatbot.salutation', {
-      lang: language,
-    });
-    const body = await this.i18n.translate('mail.kyc.chatbot.body', {
-      lang: language,
-      args: { url: url },
-    });
-    const subject = await this.i18n.translate('mail.kyc.chatbot.title', {
-      lang: language,
+    const { salutation, body, subject } = await this.t('mail.kyc.chatbot', language, {
+      url: url,
     });
     await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 
   async sendIdentificationCompleteMail(to: string, language: string): Promise<void> {
-    const salutation = await this.i18n.translate('mail.kyc.ident.salutation', {
-      lang: language,
-    });
-    const body = await this.i18n.translate('mail.kyc.ident.body', {
-      lang: language,
-    });
-    const subject = await this.i18n.translate('mail.kyc.ident.title', {
-      lang: language,
-    });
+    const { salutation, body, subject } = await this.t('mail.kyc.ident', language);
     await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 
   async sendOnlineFailedMail(to: string, language: string, url: string): Promise<void> {
-    const salutation = await this.i18n.translate('mail.kyc.failed.salutation', {
-      lang: language,
-    });
-    const body = await this.i18n.translate('mail.kyc.failed.body', {
-      lang: language,
-      args: { url: url },
-    });
-    const subject = await this.i18n.translate('mail.kyc.failed.title', {
-      lang: language,
+    const { salutation, body, subject } = await this.t('mail.kyc.failed', language, {
+      url: url,
     });
     await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
@@ -167,5 +143,23 @@ export class MailService {
       3,
       1000,
     );
+  }
+
+  private async t(key: string, language: string, args?: any): Promise<KycMailDto> {
+    const salutation = await this.i18n.translate(`${key}.salutation`, {
+      lang: language,
+      args: args,
+    });
+
+    const body = await this.i18n.translate(`${key}.body`, {
+      lang: language,
+      args: args,
+    });
+
+    const subject = await this.i18n.translate(`${key}.title`, {
+      lang: language,
+      args: args,
+    });
+    return { salutation, body, subject };
   }
 }
