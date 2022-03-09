@@ -17,21 +17,21 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
-      await this.mailService.sendMail(
-        dto.to,
-        dto.salutation,
-        dto.subject,
-        dto.body,
-        dto.from,
-        dto.bcc,
-        dto.cc,
-        dto.displayName,
-        dto.template,
-        dto.telegramUrl,
-        dto.twitterUrl,
-        dto.linkedinUrl,
-        dto.instagramUrl,
-      );
+      await this.mailService.sendMail({
+        to: dto.to,
+        salutation: dto.salutation,
+        subject: dto.subject,
+        body: dto.body,
+        from: dto.from,
+        bcc: dto.bcc,
+        cc: dto.cc,
+        displayName: dto.displayName,
+        template: dto.template,
+        telegramUrl: dto.telegramUrl,
+        twitterUrl: dto.twitterUrl,
+        linkedinUrl: dto.linkedinUrl,
+        instagramUrl: dto.instagramUrl,
+      });
     }
   }
 
