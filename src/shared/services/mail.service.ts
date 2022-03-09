@@ -145,21 +145,11 @@ export class MailService {
     );
   }
 
-  private async t(key: string, language: string, args?: any): Promise<KycMailDto> {
-    const salutation = await this.i18n.translate(`${key}.salutation`, {
-      lang: language,
-      args: args,
-    });
+  private async t(key: string, lang: string, args?: any): Promise<KycMailDto> {
+    const salutation = await this.i18n.translate(`${key}.salutation`, { lang, args });
+    const body = await this.i18n.translate(`${key}.body`, { lang, args });
+    const subject = await this.i18n.translate(`${key}.title`, { lang, args });
 
-    const body = await this.i18n.translate(`${key}.body`, {
-      lang: language,
-      args: args,
-    });
-
-    const subject = await this.i18n.translate(`${key}.title`, {
-      lang: language,
-      args: args,
-    });
     return { salutation, body, subject };
   }
 }
