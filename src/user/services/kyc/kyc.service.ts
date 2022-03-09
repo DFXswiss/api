@@ -15,9 +15,12 @@ import {
   DocumentVersion,
   InitiateResponse,
   ChatbotResult,
+  IdentificationLog,
 } from './dto/kyc.dto';
 import { KycApiService } from './kyc-api.service';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
+import { HttpService } from 'src/shared/services/http.service';
+import { ClientRequest } from 'http';
 
 export enum KycProgress {
   ONGOING = 'Ongoing',
@@ -34,6 +37,7 @@ export class KycService {
     private readonly userRepo: UserRepository,
     private readonly spiderDataRepo: SpiderDataRepository,
     private readonly kycApi: KycApiService,
+    private readonly http: HttpService,
   ) {}
 
   // --- CUSTOMER UPDATE --- //
@@ -273,42 +277,57 @@ export class KycService {
       throw new ServiceUnavailableException('Identification initiation failed');
     }
 
-    spiderData.url =
-      locator.document === KycDocument.CHATBOT ? initiateData.sessionUrl + '&nc=true' : initiateData.sessionUrl;
-    spiderData.identId =
-      locator.document === KycDocument.ONLINE_IDENTIFICATION
-        ? await this.getOnlineIdentId(userData, locator.version)
-        : null;
-    spiderData.secondUrl = spiderData.identId ? this.getOnlineIdUrl(spiderData.identId) : null;
+    switch (locator.document) {
+      case KycDocument.CHATBOT:
+        spiderData.url = initiateData.sessionUrl + '&nc=true';
+        break;
+
+      case KycDocument.ONLINE_IDENTIFICATION:
+        const log = await this.getOnlineIdLog(userData, locator.version);
+
+        spiderData.url = initiateData.sessionUrl;
+        spiderData.secondUrl = log ? this.getOnlineIdUrl(log.identificationId) : null;
+        spiderData.identTransactionId = log ? log.transactionId : null;
+        break;
+
+      case KycDocument.VIDEO_IDENTIFICATION:
+        spiderData.url = initiateData.sessionUrl;
+        spiderData.secondUrl = null;
+        spiderData.identTransactionId = await this.getVideoTransactionId(initiateData.sessionUrl);
+        break;
+    }
 
     return await this.spiderDataRepo.save(spiderData);
   }
 
-  private async getOnlineIdentId(userData: UserData, version: string): Promise<string | undefined> {
-    const onlineId = await this.kycApi.getDocument(
+  private async getOnlineIdLog(userData: UserData, version: string): Promise<IdentificationLog | undefined> {
+    return await this.kycApi.getDocument<IdentificationLog>(
       userData.id,
       false,
       KycDocument.ONLINE_IDENTIFICATION,
       version,
       KycDocument.IDENTIFICATION_LOG,
     );
-    return onlineId?.identificationId;
+  }
+
+  private async getVideoTransactionId(sessionUrl: string): Promise<string> {
+    const request = await this.http.getRaw(sessionUrl).then((r) => r.request as ClientRequest);
+    return request.path.substring(request.path.lastIndexOf('/') + 1);
   }
 
   private async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
-    // get the version of the completed chatbot document
-    const versions = await this.kycApi.getDocumentVersions(
+    const completedVersion = await this.kycApi.getDocumentVersion(
       userDataId,
       isOrganization,
       KycDocument.ADDITIONAL_INFORMATION,
+      KycDocumentState.COMPLETED,
     );
-    const completedVersion = versions.find((u) => u.state == KycDocumentState.COMPLETED)?.name;
 
-    return this.kycApi.getDocument(
+    return this.kycApi.getDocument<ChatbotResult>(
       userDataId,
       isOrganization,
       KycDocument.ADDITIONAL_INFORMATION,
-      completedVersion,
+      completedVersion?.name,
       this.defaultDocumentPart,
     );
   }

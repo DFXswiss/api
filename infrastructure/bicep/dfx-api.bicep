@@ -21,6 +21,7 @@ param kycMandator string
 @secure()
 param kycPassword string
 param kycPrefix string
+param kycWebhookIps string
 
 @secure()
 param githubToken string
@@ -326,14 +327,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: jwtSecret
         }
         {
-          name: 'SIGN_MESSAGE'
-          value: 'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_'
-        }
-        {
-          name: 'SIGN_MESSAGE_WALLET'
-          value: 'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_'
-        }
-        {
           name: 'SQL_SYNCHRONIZE'
           value: 'false'
         }
@@ -372,6 +365,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'KYC_PREFIX'
           value: kycPrefix
+        }
+        {
+          name: 'KYC_WEBHOOK_IPS'
+          value: kycWebhookIps
         }
         {
           name: 'GH_TOKEN'

@@ -125,6 +125,24 @@ export class UserService {
     return { fee: Util.round(baseFee - refBonus, 2), refBonus: Util.round(refBonus, 2) };
   }
 
+  async getUserSellFee(userId: number): Promise<number> {
+    const user = await this.userRepo.findOne({
+      select: ['id', 'sellFee'],
+      where: { id: userId },
+    });
+
+    return Util.round((user?.sellFee ?? 0.029) * 100, 2);
+  }
+
+  async getUserStakingFee(userId: number): Promise<number> {
+    const user = await this.userRepo.findOne({
+      select: ['id', 'stakingFee'],
+      where: { id: userId },
+    });
+
+    return Util.round((user?.stakingFee ?? 0.125) * 100, 2);
+  }
+
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
     await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
   }

@@ -20,8 +20,8 @@ export class AppController {
   private readonly appleStoreUrl = 'https://apps.apple.com/app/id1582633093';
 
   constructor(
+    private readonly http: HttpService,
     private readonly refService: RefService,
-    private readonly httpService: HttpService,
     private readonly settingService: SettingService,
   ) {}
 
@@ -99,7 +99,7 @@ export class AppController {
   // --- HELPER METHODS --- //
   private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
     const ignoredAnnouncements = await this.settingService.getObj<string[]>('ignoredAnnouncements', []);
-    return this.httpService
+    return this.http
       .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcements`, { tryCount: 3 })
       .then((r) => r.filter((a) => !ignoredAnnouncements.includes(a.id)))
       .catch(() => []);
@@ -107,7 +107,7 @@ export class AppController {
 
   private async getLightWalletFlags(): Promise<FlagDto[]> {
     const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
-    return this.httpService
+    return this.http
       .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
       .then((r) => r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null))
       .catch(() => []);

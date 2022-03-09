@@ -3,6 +3,29 @@ import { Injectable } from '@nestjs/common';
 import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { Util } from '../util';
+import { I18nService } from 'nestjs-i18n';
+
+interface SendMailOptions {
+  to: string;
+  salutation: string;
+  subject: string;
+  body: string;
+  from?: string;
+  bcc?: string;
+  cc?: string;
+  displayName?: string;
+  template?: string;
+  telegramUrl?: string;
+  twitterUrl?: string;
+  linkedinUrl?: string;
+  instagramUrl?: string;
+}
+
+interface KycMailContent {
+  salutation: string;
+  body: string;
+  subject: string;
+}
 
 @Injectable()
 export class MailService {
@@ -15,58 +38,38 @@ export class MailService {
     [KycStatus.VIDEO_ID]: 'Video ID',
   };
 
-  constructor(private readonly mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService, private readonly i18n: I18nService) {}
 
-  async sendKycReminderMail(
-    firstName: string,
-    mail: string,
-    kycStatus: KycStatus,
-    language: string,
-    url: string,
-  ): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>freundliche Erinnerung an dein ${this.kycStatus[kycStatus]}.</p>
-    <p>Um fortzufahren, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
-        : `<p>friendly reminder of your ${this.kycStatus[kycStatus]}.</p>
-      <p>Please continue by clicking on continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
+  async sendKycReminderMail(to: string, kycStatus: KycStatus, language: string, url: string): Promise<void> {
+    const { salutation, body, subject } = await this.t('mail.kyc.reminder', language, {
+      status: this.kycStatus[kycStatus],
+      url: url,
+    });
 
-    await this.sendMailInternal(mail, `Hi ${firstName}`, 'KYC Reminder', htmlBody);
+    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 
-  async sendChatbotCompleteMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>du hast den Chatbot abgeschlossen.</p>
-    <p>Um die Identifikation zu starten, klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
-        : `<p>you have finished the first step of your verification.</p>
-      <p>To continue with identification you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
-    const title = language === 'de' ? 'Chatbot abgeschlossen' : 'Chatbot complete';
-    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
+  async sendChatbotCompleteMail(to: string, language: string, url: string): Promise<void> {
+    const { salutation, body, subject } = await this.t('mail.kyc.chatbot', language, {
+      url: url,
+    });
+    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 
-  async sendIdentificationCompleteMail(firstName: string, mail: string, language: string): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>du hast KYC abgeschlossen und bist nun provisorisch verifiziert. Von deiner Seite sind keine weiteren Schritte mehr nötig.</p>`
-        : `<p>you have completed KYC and are now provisionally verified. No further steps are necessary from your side.</p>`;
-    const title = language === 'de' ? 'Identifikation abgeschlossen' : 'Identification complete';
-    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
+  async sendIdentificationCompleteMail(to: string, language: string): Promise<void> {
+    const { salutation, body, subject } = await this.t('mail.kyc.ident', language);
+    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 
-  async sendOnlineFailedMail(firstName: string, mail: string, language: string, url: string): Promise<void> {
-    const htmlBody =
-      language === 'de'
-        ? `<p>deine Online Identifikation ist fehlgeschlagen.</p>
-    <p>Wir haben für dich Video Idenfikation aktiviert. Zum Starten klicke KYC fortsetzen auf der Payment-Seite (Kaufen & Verkaufen) oder <a href="${url}">hier</a>.</p>`
-        : `<p>your online identification failed.</p>
-      <p>We activated video identification. To start you have to click continue KYC on payment page (Buy & Sell) or <a href="${url}">here</a>.</p>`;
-    const title = language === 'de' ? 'Online Identifikation fehlgeschlagen' : 'Online identification failed';
-    await this.sendMailInternal(mail, `Hi ${firstName}`, title, htmlBody);
+  async sendOnlineFailedMail(to: string, language: string, url: string): Promise<void> {
+    const { salutation, body, subject } = await this.t('mail.kyc.failed', language, {
+      url: url,
+    });
+    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 
   async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
-    const htmlSupportBody = `
+    const body = `
     <p>a customer has failed or expired during progress ${this.kycStatus[userData.kycStatus]}.</p>
       <table>
           <tr>
@@ -80,75 +83,73 @@ export class MailService {
       </table>
     `;
 
-    await this.sendMailInternal(this.supportMail, 'Hi DFX Support', 'KYC failed or expired', htmlSupportBody);
+    await this.sendMailInternal({
+      to: this.supportMail,
+      salutation: 'Hi DFX Support',
+      subject: 'KYC failed or expired',
+      body,
+    });
   }
 
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
     const env = Config.environment.toUpperCase();
 
-    const htmlBody = `
+    const body = `
     <p>there seem to be some problems on ${env} API:</p>
     <ul>
       ${errors.reduce((prev, curr) => prev + '<li>' + curr + '</li>', '')}
     </ul>
     `;
 
-    await this.sendMailInternal(this.monitoringMail, 'Hi DFX Tech Support', `${subject} (${env})`, htmlBody);
+    await this.sendMailInternal({
+      to: this.monitoringMail,
+      salutation: 'Hi DFX Tech Support',
+      subject: `${subject} (${env})`,
+      body,
+    });
   }
 
-  async sendMailInternal(
-    to: string,
-    salutation: string,
-    subject: string,
-    body: string,
-    from?: string,
-    bcc?: string,
-    cc?: string,
-    displayName?: string,
-  ) {
+  async sendMailInternal(options: SendMailOptions) {
     try {
-      await this.sendMail(to, salutation, subject, body, from, bcc, cc, displayName);
+      await this.sendMail(options);
     } catch (e) {
-      console.error(`Exception during send mail: from:${from}, to:${to}, subject:${subject}:`, e);
+      console.error(
+        `Exception during send mail: from:${options.from}, to:${options.to}, subject:${options.subject}:`,
+        e,
+      );
     }
   }
 
-  async sendMail(
-    to: string,
-    salutation: string,
-    subject: string,
-    body: string,
-    from?: string,
-    bcc?: string,
-    cc?: string,
-    displayName?: string,
-    template?: string,
-    telegramUrl?: string,
-    twitterUrl?: string,
-    linkedinUrl?: string,
-    instagramUrl?: string,
-  ) {
+  async sendMail(options: SendMailOptions) {
     await Util.retry(
       () =>
         this.mailerService.sendMail({
-          from: { name: displayName ?? 'DFX.swiss', address: from ?? this.noReplyMail },
-          to: to,
-          cc: cc,
-          bcc: bcc,
-          template: template ?? Config.defaultMailTemplate,
+          from: { name: options.displayName ?? 'DFX.swiss', address: options.from ?? this.noReplyMail },
+          to: options.to,
+          cc: options.cc,
+          bcc: options.bcc,
+          template: options.template ?? Config.defaultMailTemplate,
           context: {
-            salutation: salutation,
-            body: body,
+            salutation: options.salutation,
+            body: options.body,
             date: new Date().getFullYear(),
-            telegramUrl: telegramUrl ?? Config.defaultTelegramUrl,
-            twitterUrl: twitterUrl ?? Config.defaultTwitterUrl,
-            linkedinUrl: linkedinUrl ?? Config.defaultLinkedinUrl,
-            instagramUrl: instagramUrl ?? Config.defaultInstagramUrl,
+            telegramUrl: options.telegramUrl ?? Config.defaultTelegramUrl,
+            twitterUrl: options.twitterUrl ?? Config.defaultTwitterUrl,
+            linkedinUrl: options.linkedinUrl ?? Config.defaultLinkedinUrl,
+            instagramUrl: options.instagramUrl ?? Config.defaultInstagramUrl,
           },
-          subject: subject,
+          subject: options.subject,
         }),
       3,
       1000,
     );
+  }
+
+  private async t(key: string, lang: string, args?: any): Promise<KycMailContent> {
+    const salutation = await this.i18n.translate(`${key}.salutation`, { lang, args });
+    const body = await this.i18n.translate(`${key}.body`, { lang, args });
+    const subject = await this.i18n.translate(`${key}.title`, { lang, args });
+
+    return { salutation, body, subject };
   }
 }

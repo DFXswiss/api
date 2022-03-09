@@ -46,13 +46,18 @@ export class BuyController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() updateBuyDto: UpdateBuyDto): Promise<BuyDto> {
+  async updateBuyRoute(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() updateBuyDto: UpdateBuyDto,
+  ): Promise<BuyDto> {
     return this.buyService.updateBuy(jwt.id, +id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
   }
 
   // --- DTO --- //
   private async toDtoList(userId: number, buys: Buy[]): Promise<BuyDto[]> {
     const fees = await this.getFees(userId);
+
     const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
     return Promise.all(buys.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
   }
@@ -64,6 +69,7 @@ export class BuyController {
     stakingRoutes?: Staking[],
   ): Promise<BuyDto> {
     fees ??= await this.getFees(userId);
+
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,

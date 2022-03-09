@@ -10,11 +10,12 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { SellDto } from './dto/sell.dto';
 import { Sell } from './sell.entity';
+import { UserService } from 'src/user/models/user/user.service';
 
 @ApiTags('sell')
 @Controller('sell')
 export class SellController {
-  constructor(private readonly sellService: SellService) {}
+  constructor(private readonly sellService: SellService, private readonly userService: UserService) {}
 
   @Get()
   @ApiBearerAuth()
@@ -33,20 +34,28 @@ export class SellController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() updateSellDto: UpdateSellDto): Promise<SellDto> {
+  async updateSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() updateSellDto: UpdateSellDto,
+  ): Promise<SellDto> {
     return this.sellService.updateSell(jwt.id, +id, updateSellDto).then((s) => this.toDto(jwt.id, s));
   }
 
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
     const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
-    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse)));
+    const fee = await this.userService.getUserSellFee(userId);
+
+    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse, fee)));
   }
 
-  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[]): Promise<SellDto> {
+  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[], fee?: number): Promise<SellDto> {
     sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
+    fee ??= await this.userService.getUserSellFee(userId);
+
     return {
       ...sell,
-      fee: 2.9,
+      fee: fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
     };
   }

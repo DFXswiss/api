@@ -14,7 +14,7 @@ export class SpiderData extends IEntity {
   chatbotResult: string;
 
   @Column({ length: 256, nullable: true })
-  identId: string;
+  identTransactionId: string;
 
   @Column({ length: 'MAX', nullable: true })
   identResult: string;

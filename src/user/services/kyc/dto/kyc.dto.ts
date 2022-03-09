@@ -1,10 +1,12 @@
 import { KycStatus, RiskState } from 'src/user/models/user-data/user-data.entity';
 
 export enum KycContentType {
-  IMAGE = 'image/png',
+  PNG = 'image/png',
+  JPEG = 'image/jpeg',
   JSON = 'application/json',
-  TEXT = 'text/plain',
   PDF = 'application/pdf',
+  TEXT = 'text/plain',
+  XML = 'text/xml',
 }
 
 export enum KycRelationType {
@@ -127,6 +129,15 @@ export interface DocumentVersion {
   modificationTime: number;
 }
 
+export interface DocumentVersionPart {
+  name: string;
+  label: string;
+  fileName: string;
+  contentType: KycContentType;
+  creationTime: number;
+  modificationTime: number;
+}
+
 export interface CheckResult {
   checkId: number;
   checkTime: number;
@@ -202,4 +213,9 @@ export interface ChatbotStyle {
 export interface ChatbotResult {
   contribution: string;
   plannedDevelopmentOfAssets: string;
+}
+
+export interface IdentificationLog {
+  transactionId: string;
+  identificationId: string;
 }

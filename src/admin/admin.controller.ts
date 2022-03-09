@@ -17,21 +17,7 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
-      await this.mailService.sendMail(
-        dto.to,
-        dto.salutation,
-        dto.subject,
-        dto.body,
-        dto.from,
-        dto.bcc,
-        dto.cc,
-        dto.displayName,
-        dto.template,
-        dto.telegramUrl,
-        dto.twitterUrl,
-        dto.linkedinUrl,
-        dto.instagramUrl,
-      );
+      await this.mailService.sendMail(dto);
     }
   }
 

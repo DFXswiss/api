@@ -1,4 +1,5 @@
 import { BinaryLike, createHash } from 'crypto';
+import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
 
 export class Util {
@@ -95,5 +96,14 @@ export class Util {
 
       throw e;
     }
+  }
+
+  static parseXml<T>(file: string): T {
+    const validationResult = XMLValidator.validate(file);
+    if (validationResult !== true) {
+      throw validationResult;
+    }
+
+    return new XMLParser({ ignoreAttributes: false }).parse(file);
   }
 }

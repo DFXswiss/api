@@ -21,6 +21,7 @@ import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { RouteType } from '../route/deposit-route.entity';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class StakingService {
@@ -33,6 +34,7 @@ export class StakingService {
     private readonly assetService: AssetService,
     private readonly buyRepo: BuyRepository,
     private readonly settingService: SettingService,
+    private readonly userService: UserService,
   ) {}
 
   async getStakingByAddress(depositAddress: string): Promise<Staking> {
@@ -115,14 +117,6 @@ export class StakingService {
     return this.stakingRepo.find({ select: ['id'] }).then((results) => results.map((r) => r.id));
   }
 
-  async getUserStakingDepositsInUse(userId: number): Promise<number[]> {
-    const buyRoutes = await this.buyRepo.find({ user: { id: userId } });
-    return buyRoutes
-      .filter((s) => s.active)
-      .map((s) => s.deposit?.id)
-      .filter((id) => id);
-  }
-
   public async getStakingYield(): Promise<{ apr: number; apy: number }> {
     const lastDfiRewards = await this.settingService.get('stakingRewards');
     const lastDfiCollateral = await this.settingService.get('stakingCollateral');
@@ -138,63 +132,7 @@ export class StakingService {
     await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
   }
 
-  // --- DTO --- //
-  async toDtoList(userId: number, staking: Staking[]): Promise<StakingDto[]> {
-    const depositIds = staking
-      .map((s) => [s.rewardDeposit?.id, s.paybackDeposit?.id])
-      .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((id) => id);
-    const sellRoutes = await this.sellRepo.find({ where: { deposit: { id: In(depositIds) } }, relations: ['deposit'] });
-
-    const stakingDepositsInUse = await this.getUserStakingDepositsInUse(userId);
-
-    return Promise.all(staking.map((s) => this.toDto(userId, s, sellRoutes, stakingDepositsInUse)));
-  }
-
-  async toDto(
-    userId: number,
-    staking: Staking,
-    sellRoutes?: Sell[],
-    stakingDepositsInUse?: number[],
-  ): Promise<StakingDto> {
-    const rewardType = this.getPayoutType(staking.rewardDeposit?.id, staking.deposit.id);
-    const paybackType = this.getPayoutType(staking.paybackDeposit?.id, staking.deposit.id);
-    const balance = await this.getStakingBalance(staking.id, new Date());
-
-    stakingDepositsInUse ??= await this.getUserStakingDepositsInUse(userId);
-
-    return {
-      id: staking.id,
-      active: staking.active,
-      deposit: staking.deposit,
-      rewardType,
-      rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id, sellRoutes),
-      rewardAsset: staking.rewardAsset ?? undefined,
-      paybackType,
-      paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
-      paybackAsset: staking.paybackAsset ?? undefined,
-      balance: Util.round(balance, 2),
-      rewardVolume: staking.rewardVolume ?? 0,
-      isInUse: balance > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
-    };
-  }
-
-  private getPayoutType(typeDepositId: number | undefined, depositId: number): PayoutType {
-    return typeDepositId
-      ? typeDepositId === depositId
-        ? PayoutType.REINVEST
-        : PayoutType.BANK_ACCOUNT
-      : PayoutType.WALLET;
-  }
-
-  private async getSell(payoutType: PayoutType, depositId: number, sellRoutes?: Sell[]): Promise<Sell | undefined> {
-    if (payoutType !== PayoutType.BANK_ACCOUNT) return undefined;
-
-    return sellRoutes
-      ? sellRoutes.find((r) => r.deposit.id === depositId)
-      : await this.sellRepo.findOne({ where: { deposit: { id: depositId } } });
-  }
-
+  // --- HELPER METHODS --- //
   private async getDepositId(userId: number, sellId?: number): Promise<number> {
     const sell = await this.sellRepo.findOne({ where: { id: sellId, user: { id: userId } }, relations: ['deposit'] });
     if (!sell) throw new BadRequestException('Missing sell route');
@@ -242,5 +180,74 @@ export class StakingService {
       .innerJoinAndSelect('cryptoInput.route', 'route')
       .where('route.type = :type', { type: RouteType.STAKING })
       .andWhere('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+  }
+
+  // --- DTO --- //
+  async toDtoList(userId: number, staking: Staking[]): Promise<StakingDto[]> {
+    const depositIds = staking
+      .map((s) => [s.rewardDeposit?.id, s.paybackDeposit?.id])
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((id) => id);
+    const sellRoutes = await this.sellRepo.find({ where: { deposit: { id: In(depositIds) } }, relations: ['deposit'] });
+
+    const stakingDepositsInUse = await this.getUserStakingDepositsInUse(userId);
+    const fee = await this.userService.getUserStakingFee(userId);
+
+    return Promise.all(staking.map((s) => this.toDto(userId, s, sellRoutes, stakingDepositsInUse, fee)));
+  }
+
+  async toDto(
+    userId: number,
+    staking: Staking,
+    sellRoutes?: Sell[],
+    stakingDepositsInUse?: number[],
+    fee?: number,
+  ): Promise<StakingDto> {
+    const rewardType = this.getPayoutType(staking.rewardDeposit?.id, staking.deposit.id);
+    const paybackType = this.getPayoutType(staking.paybackDeposit?.id, staking.deposit.id);
+    const balance = await this.getStakingBalance(staking.id, new Date());
+
+    stakingDepositsInUse ??= await this.getUserStakingDepositsInUse(userId);
+    fee ??= await this.userService.getUserStakingFee(userId);
+
+    return {
+      id: staking.id,
+      active: staking.active,
+      deposit: staking.deposit,
+      rewardType,
+      rewardSell: await this.getSell(rewardType, staking.rewardDeposit?.id, sellRoutes),
+      rewardAsset: staking.rewardAsset ?? undefined,
+      paybackType,
+      paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
+      paybackAsset: staking.paybackAsset ?? undefined,
+      balance: Util.round(balance, 2),
+      rewardVolume: staking.rewardVolume ?? 0,
+      isInUse: balance > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
+      fee: fee,
+    };
+  }
+
+  private async getUserStakingDepositsInUse(userId: number): Promise<number[]> {
+    const buyRoutes = await this.buyRepo.find({ user: { id: userId } });
+    return buyRoutes
+      .filter((s) => s.active)
+      .map((s) => s.deposit?.id)
+      .filter((id) => id);
+  }
+
+  private getPayoutType(typeDepositId: number | undefined, depositId: number): PayoutType {
+    return typeDepositId
+      ? typeDepositId === depositId
+        ? PayoutType.REINVEST
+        : PayoutType.BANK_ACCOUNT
+      : PayoutType.WALLET;
+  }
+
+  private async getSell(payoutType: PayoutType, depositId: number, sellRoutes?: Sell[]): Promise<Sell | undefined> {
+    if (payoutType !== PayoutType.BANK_ACCOUNT) return undefined;
+
+    return sellRoutes
+      ? sellRoutes.find((r) => r.deposit.id === depositId)
+      : await this.sellRepo.findOne({ where: { deposit: { id: depositId } } });
   }
 }
