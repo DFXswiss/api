@@ -6,7 +6,7 @@ import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { QueueHandler } from 'src/shared/queue_handler';
+import { QueueHandler } from 'src/shared/queue-handler';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
 
