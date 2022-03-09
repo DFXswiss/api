@@ -1,24 +1,24 @@
 {
   "kyc": {
     "reminder": {
-      "salutation": "Complete your verification",
-      "body": "<p>We have noticed that you have not completed the {status}</p><p>Please continue by clicking on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
+      "salutation": "Completa tu verificación",
+      "body": "<p>Nos hemos dado cuenta de que no has completado la verificación ({status})</p><p>Por favor continue apretando el botón de refresco en la sección \"límite\" de la página de pago (Compra, Vende y Staking) o <a href=\"{url}\" style=\"color:#FFFFFF\">aquí</a>.</p><p>Da el último paso y empieza a crear tu libertad financiera hoy</p><p>Tu Equipo DFX<br>Bitcoiners de corazón ♥</p>",
       "title": "Complete your verification"
     },
     "chatbot": {
-      "salutation": "Chatbot completed - next step for your verification",
-      "body": "<p>To start the online identification process, click on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
-      "title": "Chatbot completed"
+      "salutation": "Chatbot completado - el siguiente paso para tu verificación",
+      "body": "<p>Para empezar el proceso de identificacion online, apreta el botón de refresco en la sección \"límite\" de la página de pago (Compra, Vende y Staking) o <a href=\"{url}\" style=\"color:#FFFFFF\">aquí</a>.</p><p>Da el último paso y empieza a crear tu libertad financiera hoy</p><p>Tu Equipo DFX<br>Bitcoiners de corazón ♥</p>",
+      "title": "Chatbot completado"
     },
     "ident": {
-      "salutation": "Your verification is complete",
-      "body": "<p>We are happy to inform you that your verification has been successfully completed.<br>No further steps are necessary from your side.</p><p>Happy trading!</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
-      "title": "Verification completed"
+      "salutation": "Tu verificación ha sido completada",
+      "body": "<p>Estamos contentos de informarte de que tu verificación ha sido completada exitosamente.<br>No son necesarios más pasos por su parte.</p><p>Buen trading!</p><p>Tu Equipo DFX<br>Bitcoiners de corazón ♥</p>",
+      "title": "Verificación  completado"
     },
     "failed": {
-      "salutation": "Your online identification has failed",
-      "body": "<p>We have noticed that your online identification has failed. However, we have already unlocked video identification for you.<br>Please continue by clicking on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
-      "title": "Online identification failed"
+      "salutation": "Tu identificación online ha fallado",
+      "body": "<p>Nos hemos dado cuenta de que tu identificación online ha fallado. De todas formas, hemos desbloquado la identificación por video para ti.<br>Por favor, continúa apretando el botón de refresco en la sección \"límite\" en la página de pago (Compra, Vende y Staking) o <a href=\"{url}\" style=\"color:#FFFFFF\">aquí</a>.</p><p>Da el último paso y empieza a crear tu libertad financiera hoy</p><p>Tu Equipo DFX<br>Bitcoiners de corazón ♥</p>",
+      "title": "Tu identificación online ha fallado"
     }
   }
 }
