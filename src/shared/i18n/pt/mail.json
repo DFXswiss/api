@@ -12,7 +12,7 @@
     },
     "ident": {
       "salutation": "Your verification is complete",
-      "body": "<p>We are happy to inform you that your verification has been successfully completed.<br> No further steps are necessary from your side.</p><p>Happy trading!</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>We are happy to inform you that your verification has been successfully completed.<br>No further steps are necessary from your side.</p><p>Happy trading!</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Verification completed"
     },
     "failed": {
