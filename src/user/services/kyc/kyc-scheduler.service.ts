@@ -70,7 +70,7 @@ export class KycSchedulerService {
               .split('@_original')
               .join('original');
 
-            user.spiderData ??= this.spiderDataRepo.create({ userData: user });
+            user.spiderData ??= this.spiderDataRepo.create({ url: '', userData: user });
             user.spiderData.identResult = identResult;
             await this.spiderDataRepo.save(user.spiderData);
           }
