@@ -53,28 +53,29 @@ export class KycSchedulerService {
           version = await this.kycApi.getDocumentVersion(user.id, false, document, KycDocumentState.COMPLETED);
         }
 
-        if (version) {
-          const xmlPart = await this.kycApi
-            .getDocumentVersionParts(user.id, false, document, version.name)
-            .then((parts) => parts.find((p) => p.contentType === KycContentType.XML));
+        if (!version) throw new Error(`No completed ident version found for user ${user.id}`);
 
-          if (xmlPart) {
-            const file = await this.kycApi.getDocument<string>(user.id, false, document, version.name, xmlPart.name);
-            const content = Util.parseXml<any>(file);
+        const xmlPart = await this.kycApi
+          .getDocumentVersionParts(user.id, false, document, version.name)
+          .then((parts) => parts.find((p) => p.contentType === KycContentType.XML));
 
-            const identResult = JSON.stringify(content.identifications.identification)
-              .split('@_status')
-              .join('status')
-              .split('#text')
-              .join('value')
-              .split('@_original')
-              .join('original');
+        if (!xmlPart)
+          throw new Error(`No XML part found for user ${user.id}, document ${document} and version ${version.name}`);
 
-            user.spiderData ??= this.spiderDataRepo.create({ url: '', userData: user });
-            user.spiderData.identResult = identResult;
-            await this.spiderDataRepo.save(user.spiderData);
-          }
-        }
+        const file = await this.kycApi.getDocument<string>(user.id, false, document, version.name, xmlPart.name);
+        const content = Util.parseXml<any>(file);
+
+        const identResult = JSON.stringify(content.identifications.identification)
+          .split('@_status')
+          .join('status')
+          .split('#text')
+          .join('value')
+          .split('@_original')
+          .join('original');
+
+        user.spiderData ??= this.spiderDataRepo.create({ url: '', userData: user });
+        user.spiderData.identResult = identResult;
+        await this.spiderDataRepo.save(user.spiderData);
       } catch (e) {
         console.error('Exception during ident data fetch:', e);
         await this.mailService.sendErrorMail('KYC Error', [e]);
