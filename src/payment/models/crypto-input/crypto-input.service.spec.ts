@@ -11,6 +11,7 @@ import { CryptoInput } from './crypto-input.entity';
 import { StakingService } from 'src/payment/models/staking/staking.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { TestUtil } from 'src/shared/test.util';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
@@ -38,6 +39,10 @@ describe('CryptoInputService', () => {
     stakingService = createMock<StakingService>();
 
     jest.spyOn(nodeService, 'getClient').mockImplementation(() => nodeClient);
+    jest.spyOn(nodeClient, 'parseAmount').mockImplementation((a) => ({
+      amount: +a.split('@')[0],
+      asset: a.split('@')[1],
+    }));
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -82,6 +87,81 @@ describe('CryptoInputService', () => {
 
     expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
     expect(nodeClient.getHistories).toHaveBeenCalledWith(['addr1', 'addr3'], lastBlocks + 1, blocks);
+  });
+
+  // --- AMOUNTS --- //
+  it('should return UTXO on receive', () => {
+    expect(service.getAmounts({ type: 'receive', amounts: ['3@DFI'] } as AccountHistory)).toStrictEqual([
+      {
+        amount: 3,
+        asset: 'DFI',
+        isToken: false,
+      },
+    ]);
+  });
+
+  it('should return positive amount and UTXO on AccountToUtxos', () => {
+    expect(service.getAmounts({ type: 'AccountToUtxos', amounts: ['-2.456@DFI'] } as AccountHistory)).toStrictEqual([
+      {
+        amount: 2.456,
+        asset: 'DFI',
+        isToken: false,
+      },
+    ]);
+  });
+
+  it('should return multiple amounts and token on AccountToAccount', () => {
+    expect(
+      service.getAmounts({ type: 'AccountToAccount', amounts: ['2@BTC', '3@USDT'] } as AccountHistory),
+    ).toStrictEqual([
+      {
+        amount: 2,
+        asset: 'BTC',
+        isToken: true,
+      },
+      {
+        amount: 3,
+        asset: 'USDT',
+        isToken: true,
+      },
+    ]);
+  });
+
+  it('should return token on WithdrawFromVault', () => {
+    expect(service.getAmounts({ type: 'WithdrawFromVault', amounts: ['1@DFI'] } as AccountHistory)).toStrictEqual([
+      {
+        amount: 1,
+        asset: 'DFI',
+        isToken: true,
+      },
+    ]);
+  });
+
+  it('should return only positive amounts and token on PoolSwap', () => {
+    expect(service.getAmounts({ type: 'PoolSwap', amounts: ['-2@BTC', '3@USDT'] } as AccountHistory)).toStrictEqual([
+      {
+        amount: 3,
+        asset: 'USDT',
+        isToken: true,
+      },
+    ]);
+  });
+
+  it('should return only positive amounts and token on RemovePoolLiquidity', () => {
+    expect(
+      service.getAmounts({ type: 'RemovePoolLiquidity', amounts: ['-2@BTC-DFI', '3@BTC', '1@DFI'] } as AccountHistory),
+    ).toStrictEqual([
+      {
+        amount: 3,
+        asset: 'BTC',
+        isToken: true,
+      },
+      {
+        amount: 1,
+        asset: 'DFI',
+        isToken: true,
+      },
+    ]);
   });
 
   // TODO: do more tests

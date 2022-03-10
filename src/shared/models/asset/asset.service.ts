@@ -15,7 +15,8 @@ export class AssetService {
     return this.assetRepo.findOne(id);
   }
 
-  async getAssetByDexName(name: string): Promise<Asset> {
+  async getAssetByDexName(name: string, isToken?: boolean): Promise<Asset> {
+    if (name === 'DFI' && isToken) name = 'DFI-Token';
     return this.assetRepo.findOne({ where: { dexName: name } });
   }
 

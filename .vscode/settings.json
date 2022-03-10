@@ -1,6 +1,5 @@
 {
     "cSpell.words": [
-        "ändern",
         "authorises",
         "Bitstamp",
         "citizenships",
@@ -8,7 +7,6 @@
         "DEFICHAIN",
         "firstname",
         "Kauf",
-        "löschen",
         "masternode",
         "nestjs",
         "Organisation",
@@ -16,9 +14,8 @@
         "phonenumber",
         "timelock",
         "typeorm",
-        "überflüssige",
+        "utxo",
         "Verkauf",
-        "wenn"
     ],
     "files.exclude": {
         "node_modules": true
