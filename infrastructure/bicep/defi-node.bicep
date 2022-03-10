@@ -56,6 +56,7 @@ resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
           description: 'Allow all from VNet'
         }
       ]
+      scmIpSecurityRestrictionsUseMain: true
       azureStorageAccounts: {
         'node-data': {
           type: 'AzureFiles'
@@ -98,6 +99,7 @@ resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = if (hasBacku
           description: 'Allow all from VNet'
         }
       ]
+      scmIpSecurityRestrictionsUseMain: true
       azureStorageAccounts: {
         'node-data': {
           type: 'AzureFiles'
