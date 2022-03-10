@@ -127,6 +127,10 @@ describe('CryptoInputService', () => {
     ]);
   });
 
+  it('should return no amounts on AccountToAccount, if amount is negative', () => {
+    expect(service.getAmounts({ type: 'AccountToAccount', amounts: ['-2@BTC'] } as AccountHistory)).toStrictEqual([]);
+  });
+
   it('should return token on WithdrawFromVault', () => {
     expect(service.getAmounts({ type: 'WithdrawFromVault', amounts: ['1@DFI'] } as AccountHistory)).toStrictEqual([
       {
