@@ -23,7 +23,7 @@ import { LimitRequest } from '../limit-request/limit-request.entity';
 import { LimitRequestService } from '../limit-request/limit-request.service';
 import { IdentUserDataDto } from './dto/ident-user-data.dto';
 import { IdentService, KycResult } from './ident.service';
-import { IdentUpdateDto } from './dto/ident-update.dto';
+import { IdentResultDto } from './dto/ident-result.dto';
 import { Config } from 'src/config/config';
 
 @ApiTags('ident')
@@ -72,19 +72,19 @@ export class IdentController {
   // --- ID NOW WEBHOOKS --- //
   @Post('online')
   @ApiExcludeEndpoint()
-  async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentUpdateDto) {
+  async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
     this.identService.identUpdate(data);
   }
 
   @Post('video')
   @ApiExcludeEndpoint()
-  async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentUpdateDto) {
+  async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
     this.identService.identUpdate(data);
   }
 
-  private checkWebhookIp(ip: string, data: IdentUpdateDto) {
+  private checkWebhookIp(ip: string, data: IdentResultDto) {
     if (!Config.kyc.allowedWebhookIps.includes('*') && !Config.kyc.allowedWebhookIps.includes(ip)) {
       console.error(`Received webhook call from invalid IP ${ip}:`, data);
       throw new ForbiddenException('Invalid source IP');

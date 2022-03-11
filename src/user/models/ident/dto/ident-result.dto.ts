@@ -22,7 +22,7 @@ export interface IdentItem {
   original: string;
 }
 
-export interface IdentUpdateDto {
+export interface IdentResultDto {
   identificationprocess: {
     result: IdentResult;
     reason: string;
@@ -72,17 +72,17 @@ export interface IdentUpdateDto {
   };
 }
 
-export function IdentPending(update: IdentUpdateDto): boolean {
+export function IdentPending(update: IdentResultDto): boolean {
   return [IdentResult.REVIEW_PENDING, IdentResult.CHECK_PENDING, IdentResult.FRAUD_SUSPICION_PENDING].includes(
     update?.identificationprocess?.result,
   );
 }
 
-export function IdentSucceeded(update: IdentUpdateDto): boolean {
+export function IdentSucceeded(update: IdentResultDto): boolean {
   return [IdentResult.SUCCESS, IdentResult.SUCCESS_DATA_CHANGED].includes(update?.identificationprocess?.result);
 }
 
-export function IdentFailed(update: IdentUpdateDto): boolean {
+export function IdentFailed(update: IdentResultDto): boolean {
   return [IdentResult.ABORTED, IdentResult.CANCELED, IdentResult.FRAUD_SUSPICION_CONFIRMED].includes(
     update?.identificationprocess?.result,
   );

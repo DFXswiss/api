@@ -21,6 +21,7 @@ export enum KycState {
   NA = 'NA',
   FAILED = 'Failed',
   REMINDED = 'Reminded',
+  REVIEW = 'Review',
 }
 
 export enum RiskState {
