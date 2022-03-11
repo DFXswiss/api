@@ -135,6 +135,7 @@ export class CryptoSellService {
     });
 
     return cryptoSells.map((v) => ({
+      id: v.id,
       fiatAmount: v.amountInEur,
       fiatCurrency: 'EUR',
       date: v.outputDate,
