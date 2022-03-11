@@ -54,6 +54,7 @@ interface Vote {
   vote: string;
   createdAt: string;
   isCake: boolean;
+  isDfx: boolean;
 }
 
 export interface MasterNode {
@@ -78,6 +79,12 @@ export interface CfpResult {
     no: number;
   };
   cakeVotes: {
+    total: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  dfxVotes: {
     total: number;
     yes: number;
     neutral: number;
@@ -195,6 +202,11 @@ export class CfpService {
     const noVotesCake = noVotes.filter((v) => v.isCake);
     const neutralVotesCake = neutralVotes.filter((v) => v.isCake);
 
+    const dfxVotes = votes.filter((v) => v.isDfx);
+    const yesVotesDfx = yesVotes.filter((v) => v.isDfx);
+    const noVotesDfx = noVotes.filter((v) => v.isDfx);
+    const neutralVotesDfx = neutralVotes.filter((v) => v.isDfx);
+
     const requiredVotes = type === VotingType.CFP ? 1 / 2 : 2 / 3;
     const currentResult =
       yesVotes.length / (yesVotes.length + noVotes.length) > requiredVotes
@@ -225,6 +237,12 @@ export class CfpService {
         neutral: neutralVotesCake.length,
         no: noVotesCake.length,
       },
+      dfxVotes: {
+        total: dfxVotes.length,
+        yes: yesVotesDfx.length,
+        neutral: neutralVotesDfx.length,
+        no: noVotesDfx.length,
+      },
       voteDetails: {
         yes: yesVotes,
         neutral: neutralVotes,
@@ -252,7 +270,7 @@ export class CfpService {
       vote: m[2],
       createdAt: commentResponse.created_at,
       isCake: Object.values(CakeMasterNodes).find((n) => n.address === m[1]) != null,
-      isDFX: this.dfxMasternodes.find((n) => n.owner === m[1]) != null,
+      isDfx: this.dfxMasternodes.find((n) => n.owner === m[1]) != null,
     }));
   }
 
