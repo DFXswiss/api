@@ -7,6 +7,7 @@ import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
+import { MasternodeService } from '../masternode/masternode.service';
 
 @Injectable()
 export class StakingRewardService {
@@ -14,6 +15,7 @@ export class StakingRewardService {
     private readonly rewardRepo: StakingRewardRepository,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
+    private readonly masternodeService: MasternodeService,
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
@@ -98,5 +100,54 @@ export class StakingRewardService {
 
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
     }
+  }
+  async getTotalVolume(): Promise<number> {
+    return this.rewardRepo
+      .createQueryBuilder('stakingReward')
+      .select('SUM(amountInEur)', 'volume')
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume);
+  }
+
+  async getTransactions(
+    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateTo: Date = new Date(),
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    const stakingRewards = await this.rewardRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+    });
+
+    return stakingRewards.map((v) => ({
+      id: v.id,
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.outputAsset,
+      payoutType: v.payoutType,
+    }));
+  }
+
+  public async getYield(): Promise<{ apr: number; apy: number }> {
+    const stakingRewards = await this.getTransactions(this.getLastWeeksDate(), new Date());
+    const rewardSum = stakingRewards.reduce((a, b) => a + b.cryptoAmount, 0);
+    const stakingCollateral = await this.masternodeService.getCount();
+    const apr = await this.getApr(+rewardSum, +stakingCollateral * 20000);
+    return {
+      apr: Util.round(apr, 2),
+      apy: Util.round(this.getApy(apr), 2),
+    };
+  }
+
+  private getLastWeeksDate(): Date {
+    const now = new Date();
+    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+  private async getApr(stakingRewards: number, stakingCollateral: number): Promise<number> {
+    return (stakingRewards / stakingCollateral) * (365 / 7);
+  }
+
+  private getApy(stakingApr: number): number {
+    return Math.pow(1 + stakingApr / 365, 365) - 1;
   }
 }

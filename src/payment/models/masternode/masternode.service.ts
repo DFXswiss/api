@@ -23,4 +23,12 @@ export class MasternodeService {
 
     return await this.masternodeRepo.save({ ...masternode, ...dto });
   }
+
+  async getCount(): Promise<number> {
+    return this.masternodeRepo.count();
+  }
+
+  async getActiveMasternodes(): Promise<Masternode[]> {
+    return this.masternodeRepo.find({ where: { enabled: true }, select: ['operator'] });
+  }
 }
