@@ -16,7 +16,6 @@ describe('CfpService', () => {
     masternodeService = createMock<MasternodeService>();
 
     jest.spyOn(settingService, 'getObj').mockResolvedValueOnce({});
-    jest.spyOn(masternodeService, 'getObj').mockResolvedValueOnce({});
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
