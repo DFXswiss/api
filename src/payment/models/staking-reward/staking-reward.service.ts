@@ -101,7 +101,7 @@ export class StakingRewardService {
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
     }
   }
-  async getTotalVolume(): Promise<number> {
+  async getTotalRewards(): Promise<number> {
     return this.rewardRepo
       .createQueryBuilder('stakingReward')
       .select('SUM(amountInEur)', 'volume')
@@ -129,7 +129,7 @@ export class StakingRewardService {
   }
 
   public async getYield(): Promise<{ apr: number; apy: number }> {
-    const stakingRewards = await this.getTransactions(this.getLastWeeksDate(), new Date());
+    const stakingRewards = await this.getTransactions(this.getLastWeekDate());
     const rewardSum = stakingRewards.reduce((a, b) => a + b.cryptoAmount, 0);
     const stakingCollateral = await this.masternodeService.getCount();
     const apr = await this.getApr(+rewardSum, +stakingCollateral * 20000);
@@ -139,9 +139,10 @@ export class StakingRewardService {
     };
   }
 
-  private getLastWeeksDate(): Date {
-    const now = new Date();
-    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  private getLastWeekDate(): Date {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date;
   }
   private async getApr(stakingRewards: number, stakingCollateral: number): Promise<number> {
     return (stakingRewards / stakingCollateral) * (365 / 7);

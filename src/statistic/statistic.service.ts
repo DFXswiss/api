@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BuyService } from 'src/payment/models/buy/buy.service';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
+import { RefRewardService } from 'src/payment/models/ref-reward/ref-reward.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -12,6 +13,7 @@ export class StatisticService {
     private sellService: SellService,
     private settingService: SettingService,
     private stakingRewardService: StakingRewardService,
+    private refRewardService: RefRewardService,
     private masternodeService: MasternodeService,
   ) {}
 
@@ -28,12 +30,15 @@ export class StatisticService {
         buy: await this.buyService.getTotalVolume(),
         sell: await this.sellService.getTotalVolume(),
       },
-      status: await this.getStatus(),
+      totalRewards: {
+        staking: await this.stakingRewardService.getTotalRewards(),
+        ref: await this.refRewardService.getTotalRewards(),
+      },
       staking: {
         masternodes: await this.masternodeService.getCount(),
-        rewards: await this.stakingRewardService.getTotalVolume(),
         yield: await this.stakingRewardService.getYield(),
       },
+      status: await this.getStatus(),
     };
   }
 }

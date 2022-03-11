@@ -105,6 +105,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     BuyService,
     SellService,
     StakingRewardService,
+    RefRewardService,
     MasternodeService,
     StakingService,
     CryptoBuyService,

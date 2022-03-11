@@ -29,6 +29,6 @@ export class MasternodeService {
   }
 
   async getActiveMasternodes(): Promise<Masternode[]> {
-    return this.masternodeRepo.find({ where: { enabled: true }, select: ['operator'] });
+    return this.masternodeRepo.find({ where: { enabled: true } });
   }
 }

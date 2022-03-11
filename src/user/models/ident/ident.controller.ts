@@ -69,14 +69,6 @@ export class IdentController {
     return this.identService.uploadDocument(jwt.id, files[0], KycDocument.INCORPORATION_CERTIFICATE);
   }
 
-  @Post('upload')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @UseInterceptors(FilesInterceptor('files'))
-  async uploadFile(@GetJwt() jwt: JwtPayload, @UploadedFiles() files: Express.Multer.File[]): Promise<boolean> {
-    return this.identService.uploadDocument(jwt.id, files[0], KycDocument.USER_ADDED_DOCUMENT);
-  }
-
   // --- ID NOW WEBHOOKS --- //
   @Post('online')
   @ApiExcludeEndpoint()
