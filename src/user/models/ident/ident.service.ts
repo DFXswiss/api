@@ -195,6 +195,11 @@ export class IdentService {
       return;
     }
 
+    if (![KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(user.kycStatus)) {
+      console.error(`Received webhook call for user ${user.id} in invalid KYC status ${user.kycStatus}:`, result);
+      return;
+    }
+
     console.log(`Received webhook call for user ${user.id}:`, result);
 
     if (IdentSucceeded(result)) {
