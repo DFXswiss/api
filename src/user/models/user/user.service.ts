@@ -140,7 +140,7 @@ export class UserService {
       where: { id: userId },
     });
 
-    return Util.round((user?.stakingFee ?? 0.125) * 100, 2);
+    return Util.round((user?.stakingFee ?? 0) * 100, 2);
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
