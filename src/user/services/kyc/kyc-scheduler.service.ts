@@ -179,7 +179,7 @@ export class KycSchedulerService {
     const document = KycDocuments[userData.kycStatus].document;
 
     const version = await this.kycApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
-    if (!version) throw new Error(`No completed ident version found for user ${userData.id}`);
+    if (!version) throw new Error(`No completed ${document} version found for user ${userData.id}`);
 
     const xmlPart = await this.kycApi
       .getDocumentVersionParts(userData.id, false, document, version.name)

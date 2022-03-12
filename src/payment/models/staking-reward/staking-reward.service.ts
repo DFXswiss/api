@@ -129,10 +129,18 @@ export class StakingRewardService {
   }
 
   public async getYield(): Promise<{ apr: number; apy: number }> {
-    const stakingRewards = await this.getTransactions(this.getLastWeekDate());
-    const rewardSum = stakingRewards.reduce((a, b) => a + b.cryptoAmount, 0);
-    const stakingCollateral = await this.masternodeService.getCount();
-    const apr = await this.getApr(+rewardSum, +stakingCollateral * 20000);
+    const { rewardVolume } = await this.rewardRepo
+      .createQueryBuilder('stakingReward')
+      .select('SUM(outputAmount)', 'rewardVolume')
+      .where('stakingReward.outputDate BETWEEN :dateFrom AND :dateTo', {
+        dateFrom: this.getLastWeekDate(),
+        dateTo: new Date(),
+      })
+      .getRawOne<{ rewardVolume: number }>();
+
+    const masternodeCount = await this.masternodeService.getCount();
+
+    const apr = await this.getWeeklyApr(rewardVolume, masternodeCount * 20000);
     return {
       apr: Util.round(apr, 2),
       apy: Util.round(this.getApy(apr), 2),
@@ -144,11 +152,11 @@ export class StakingRewardService {
     date.setDate(date.getDate() - 7);
     return date;
   }
-  private async getApr(stakingRewards: number, stakingCollateral: number): Promise<number> {
-    return (stakingRewards / stakingCollateral) * (365 / 7);
+  private async getWeeklyApr(weeklyInterest: number, collateral: number): Promise<number> {
+    return (weeklyInterest / collateral) * (365 / 7);
   }
 
-  private getApy(stakingApr: number): number {
-    return Math.pow(1 + stakingApr / 365, 365) - 1;
+  private getApy(apr: number): number {
+    return Math.pow(1 + apr / 365, 365) - 1;
   }
 }
