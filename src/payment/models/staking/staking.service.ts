@@ -21,7 +21,6 @@ import { Config } from 'src/config/config';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { RouteType } from '../route/deposit-route.entity';
 import { UserService } from 'src/user/models/user/user.service';
-import { Interval } from '@nestjs/schedule';
 
 @Injectable()
 export class StakingService {
@@ -35,42 +34,6 @@ export class StakingService {
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
   ) {}
-
-  // TODO: remove temporary code
-  @Interval(300000)
-  async fillStakingStarts() {
-    const users = await this.userService.getUsersWithoutStakingStart();
-    for (const user of users) {
-      try {
-        const stakingIds = user.stakingRoutes.map((r) => r.id);
-        if (stakingIds.length === 0) continue;
-
-        const stakingBalances = await this.getAllStakingBalance(stakingIds, new Date());
-        const startDates = await Promise.all(
-          stakingBalances.filter((b) => b.balance >= Config.staking.minInvestment).map((b) => this.getStartDate(b.id)),
-        );
-
-        if (startDates.find((d) => d)) {
-          const date = new Date(Math.min(...startDates.filter((d) => d)));
-          this.userService.activateStaking(user.id, date);
-        }
-      } catch (e) {
-        console.error(`Failed to calculate staking start date of user ${user.id}:`, e);
-      }
-    }
-  }
-
-  private async getStartDate(stakingId: number): Promise<number | undefined> {
-    const inputs = await this.cryptoInputRepo.find({ where: { route: { id: stakingId } }, order: { created: 'ASC' } });
-
-    let balance = 0;
-    for (const input of inputs) {
-      balance += input.amount;
-      if (balance >= Config.staking.minInvestment) return input.created.getTime();
-    }
-
-    return undefined;
-  }
 
   async getStakingByAddress(depositAddress: string): Promise<Staking> {
     // does not work with find options
