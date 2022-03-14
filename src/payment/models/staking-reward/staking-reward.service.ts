@@ -101,12 +101,12 @@ export class StakingRewardService {
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
     }
   }
-  async getTotalRewards(): Promise<number> {
-    return this.rewardRepo
+  async getTotalStakingRewards(): Promise<number> {
+    return await this.stakingRepo
       .createQueryBuilder('stakingReward')
-      .select('SUM(amountInEur)', 'volume')
-      .getRawOne<{ volume: number }>()
-      .then((r) => r.volume);
+      .select('SUM(rewardVolume)', 'rewardVolume')
+      .getRawOne<{ rewardVolume: number }>()
+      .then((r) => r.rewardVolume);
   }
 
   async getTransactions(

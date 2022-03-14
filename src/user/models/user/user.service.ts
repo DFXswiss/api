@@ -174,6 +174,14 @@ export class UserService {
       : usedRef;
   }
 
+  public async getTotalRefRewards(): Promise<number> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(refVolume)', 'refVolume')
+      .getRawOne<{ refVolume: number }>()
+      .then((r) => r.refVolume);
+  }
+
   private async getNextRef(): Promise<string> {
     // get highest numerical ref
     const nextRef = await this.userRepo

@@ -5,6 +5,7 @@ import { RefRewardService } from 'src/payment/models/ref-reward/ref-reward.servi
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class StatisticService {
@@ -13,8 +14,8 @@ export class StatisticService {
     private sellService: SellService,
     private settingService: SettingService,
     private stakingRewardService: StakingRewardService,
-    private refRewardService: RefRewardService,
     private masternodeService: MasternodeService,
+    private userService: UserService,
   ) {}
 
   async getStatus(): Promise<any> {
@@ -31,8 +32,8 @@ export class StatisticService {
         sell: await this.sellService.getTotalVolume(),
       },
       totalRewards: {
-        staking: await this.stakingRewardService.getTotalRewards(),
-        ref: await this.refRewardService.getTotalRewards(),
+        staking: await this.stakingRewardService.getTotalStakingRewards(),
+        ref: await this.userService.getTotalRefRewards(),
       },
       staking: {
         masternodes: await this.masternodeService.getCount(),
