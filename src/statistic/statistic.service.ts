@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BuyService } from 'src/payment/models/buy/buy.service';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
-import { RefRewardService } from 'src/payment/models/ref-reward/ref-reward.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
