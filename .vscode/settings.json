@@ -1,27 +1,38 @@
 {
-    "cSpell.words": [
-        "ändern",
-        "authorises",
-        "Bitstamp",
-        "citizenships",
-        "Datas",
-        "DEFICHAIN",
-        "firstname",
-        "Kauf",
-        "löschen",
-        "masternode",
-        "nestjs",
-        "Organisation",
-        "originalname",
-        "phonenumber",
-        "timelock",
-        "typeorm",
-        "überflüssige",
-        "Verkauf",
-        "wenn"
-    ],
-    "files.exclude": {
-        "node_modules": true
-    },
-    "prettier.printWidth": 120,
+  "cSpell.words": [
+    "APPINSIGHTS",
+    "authorises",
+    "Bitstamp",
+    "ccxt",
+    "citizenships",
+    "Datas",
+    "DEFICHAIN",
+    "DFIP",
+    "firstname",
+    "golevelup",
+    "IBAN",
+    "INSTRUMENTATIONKEY",
+    "Kauf",
+    "masternode",
+    "masternodes",
+    "nestjs",
+    "oflags",
+    "orderbook",
+    "Organisation",
+    "originalname",
+    "phonenumber",
+    "respository",
+    "signmessage",
+    "timelock",
+    "txid",
+    "typeorm",
+    "utxo",
+    "Utxos",
+    "Verkauf",
+    "vout"
+  ],
+  "files.exclude": {
+    "node_modules": true
+  },
+  "prettier.printWidth": 120
 }

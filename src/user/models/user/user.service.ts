@@ -9,11 +9,12 @@ import { UserDetailDto } from './dto/user.dto';
 import { IdentService } from '../ident/ident.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Like, Not } from 'typeorm';
+import { IsNull, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class UserService {
@@ -25,6 +26,11 @@ export class UserService {
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
+
+  // TODO: remove temporary code
+  async getUsersWithoutStakingStart(): Promise<User[]> {
+    return await this.userRepo.find({ where: { stakingStart: IsNull() }, relations: ['stakingRoutes'] });
+  }
 
   async getAllUser(): Promise<User[]> {
     return await this.userRepo.find();
@@ -107,14 +113,14 @@ export class UserService {
       accountType === AccountType.PERSONAL
         ? // personal
           annualVolume < 5000
-          ? 2.9
+          ? Config.buy.fee.private.base
           : annualVolume < 50000
-          ? 2.65
+          ? Config.buy.fee.private.moreThan5k
           : annualVolume < 100000
-          ? 2.4
-          : 2.3
+          ? Config.buy.fee.private.moreThan50k
+          : Config.buy.fee.private.moreThan100k
         : // organization
-          2.9;
+          Config.buy.fee.organization;
 
     const refFee = await this.userRepo
       .findOne({ select: ['id', 'ref', 'refFeePercent'], where: { ref: usedRef } })
@@ -131,24 +137,31 @@ export class UserService {
       where: { id: userId },
     });
 
-    return Util.round((user?.sellFee ?? 0.029) * 100, 2);
+    return Util.round((user?.sellFee ?? Config.sell.fee) * 100, 2);
   }
 
   async getUserStakingFee(userId: number): Promise<number> {
     const user = await this.userRepo.findOne({
-      select: ['id', 'stakingFee'],
+      select: ['id', 'stakingFee', 'stakingStart'],
       where: { id: userId },
     });
 
-    return Util.round((user?.stakingFee ?? 0.125) * 100, 2);
+    const hasFreeStaking = Util.daysDiff(user.stakingStart ?? new Date(), new Date()) < Config.staking.freeDays;
+
+    return Util.round((user?.stakingFee ?? (hasFreeStaking ? 0 : Config.staking.fee)) * 100, 2);
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
     await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
   }
 
-  async updatePaidRefCredit(stakingId: number, volume: number): Promise<void> {
-    await this.userRepo.update(stakingId, { paidRefCredit: Util.round(volume, 0) });
+  async updatePaidRefCredit(id: number, volume: number): Promise<void> {
+    await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
+  }
+
+  // TODO: remove temporary param
+  async activateStaking(id: number, startDate: Date = new Date()): Promise<void> {
+    await this.userRepo.update(id, { stakingStart: startDate });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {

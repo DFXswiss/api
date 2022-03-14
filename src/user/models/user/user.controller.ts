@@ -4,14 +4,13 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateRoleDto } from './dto/update-role.dto';
 import { UserService } from './user.service';
-import { UpdateStatusDto } from './dto/update-status.dto';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { CfpVotes } from './dto/cfp-votes.dto';
-import { UserDetailDto, UserDto } from './dto/user.dto';
 import { User } from './user.entity';
+import { UserDetailDto, UserDto } from './dto/user.dto';
+import { CfpVotes } from './dto/cfp-votes.dto';
+import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -56,19 +55,11 @@ export class UserController {
   }
 
   // --- ADMIN --- //
-  @Put('role')
+  @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateRole(@Body() dto: UpdateRoleDto): Promise<User> {
-    return this.userService.updateUserInternal(dto.id, { role: dto.role });
-  }
-
-  @Put(':id/status')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto): Promise<User> {
-    return this.userService.updateUserInternal(+id, { status: dto.status });
+  async updateUserAdmin(@Param('id') id: string, @Body() dto: UpdateUserAdminDto): Promise<User> {
+    return this.userService.updateUserInternal(+id, dto);
   }
 }

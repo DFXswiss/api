@@ -292,6 +292,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
       httpLoggingEnabled: true
       logsDirectorySizeLimit: 100
       vnetRouteAllEnabled: true
+      scmIpSecurityRestrictionsUseMain: true
       
       appSettings: [
         {

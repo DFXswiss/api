@@ -21,7 +21,6 @@ export class Configuration {
   defaultInstagramUrl = 'https://www.instagram.com/dfx.swiss/';
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultMailTemplate = 'personal';
-  stakingPeriod = 365; // TODO: 28; // days
 
   colors = {
     white: '#FFFFFF',
@@ -146,6 +145,29 @@ export class Configuration {
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
     minDfiDeposit: 0.01,
     minTokenDeposit: 1, // USDT
+  };
+
+  buy = {
+    fee: {
+      organization: 2.9,
+      private: {
+        base: 2.9,
+        moreThan5k: 2.65,
+        moreThan50k: 2.4,
+        moreThan100k: 2.3,
+      },
+    },
+  };
+
+  sell = {
+    fee: 0.029,
+  };
+
+  staking = {
+    fee: 0.125,
+    period: 365, // TODO: 28; // days
+    minInvestment: 100, // DFI
+    freeDays: 365, // TODO: 31?
   };
 
   ftp = {

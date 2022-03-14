@@ -101,6 +101,15 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     StakingRewardService,
     RefRewardService,
   ],
-  exports: [BuyService, SellService, StakingService, CryptoBuyService, CryptoSellService],
+  exports: [
+    BuyService,
+    SellService,
+    StakingRewardService,
+    RefRewardService,
+    MasternodeService,
+    StakingService,
+    CryptoBuyService,
+    CryptoSellService,
+  ],
 })
 export class PaymentModule {}

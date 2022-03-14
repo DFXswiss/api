@@ -7,6 +7,7 @@ import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
+import { MasternodeService } from '../masternode/masternode.service';
 
 @Injectable()
 export class StakingRewardService {
@@ -14,6 +15,7 @@ export class StakingRewardService {
     private readonly rewardRepo: StakingRewardRepository,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
+    private readonly masternodeService: MasternodeService,
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
@@ -98,5 +100,65 @@ export class StakingRewardService {
 
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
     }
+  }
+  async getTotalRewards(): Promise<number> {
+    return this.rewardRepo
+      .createQueryBuilder('stakingReward')
+      .select('SUM(amountInEur)', 'volume')
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume);
+  }
+
+  async getTransactions(
+    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateTo: Date = new Date(),
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    const stakingRewards = await this.rewardRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+    });
+
+    return stakingRewards.map((v) => ({
+      id: v.id,
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.outputAsset,
+      payoutType: v.payoutType,
+    }));
+  }
+
+  public async getYield(): Promise<{ apr: number; apy: number }> {
+    const { rewardVolume } = await this.rewardRepo
+      .createQueryBuilder('stakingReward')
+      .select('SUM(outputAmount)', 'rewardVolume')
+      .where('stakingReward.outputDate BETWEEN :dateFrom AND :dateTo', {
+        dateFrom: this.getLastWeekDate(),
+        dateTo: new Date(),
+      })
+      .getRawOne<{ rewardVolume: number }>();
+
+    const masternodeCount = await this.masternodeService.getCount();
+    const masternodeCountLastWeek = await this.masternodeService.getCount(Util.daysBefore(7, new Date()));
+    const collateral = ((masternodeCount + masternodeCountLastWeek) / 2) * 20000;
+
+    const apr = await this.getWeeklyApr(rewardVolume, collateral);
+    return {
+      apr: Util.round(apr, 2),
+      apy: Util.round(this.getApy(apr), 2),
+    };
+  }
+
+  private getLastWeekDate(): Date {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date;
+  }
+  private async getWeeklyApr(weeklyInterest: number, collateral: number): Promise<number> {
+    return (weeklyInterest / collateral) * (365 / 7);
+  }
+
+  private getApy(apr: number): number {
+    return Math.pow(1 + apr / 365, 365) - 1;
   }
 }

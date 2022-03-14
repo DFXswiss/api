@@ -20,7 +20,7 @@ export class RefService {
 
   async addOrUpdate(ip: string, ref: string): Promise<Ref | undefined> {
     try {
-      return this.refRepository.addOrUpdate(ip, ref);
+      return await this.refRepository.addOrUpdate(ip, ref);
     } catch (e) {
       console.error('Exception during ref update:', e);
     }

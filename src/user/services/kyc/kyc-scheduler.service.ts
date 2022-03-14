@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval, Cron, CronExpression } from '@nestjs/schedule';
 import {
-  KycCompletedStates,
   KycInProgress,
   KycInProgressStates,
   KycState,
@@ -12,13 +11,14 @@ import { UserDataRepository } from 'src/user/models/user-data/user-data.reposito
 import { MailService } from '../../../shared/services/mail.service';
 import { KycApiService } from './kyc-api.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { In, IsNull, LessThan } from 'typeorm';
+import { In, LessThan } from 'typeorm';
 import { Lock } from 'src/shared/lock';
 import { KycService, KycProgress } from './kyc.service';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { KycContentType, KycDocument, KycDocumentState } from './dto/kyc.dto';
+import { KycDocuments, KycDocumentState, KycContentType } from './dto/kyc.dto';
+import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 
 @Injectable()
 export class KycSchedulerService {
@@ -32,55 +32,6 @@ export class KycSchedulerService {
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
   ) {}
-
-  @Interval(7230000)
-  async fetchMissingIdentData() {
-    const users = await this.userDataRepo.find({
-      where: {
-        kycStatus: In(KycCompletedStates),
-        spiderData: { identResult: IsNull() },
-      },
-      relations: ['spiderData'],
-    });
-
-    for (const user of users) {
-      try {
-        let document = KycDocument.ONLINE_IDENTIFICATION;
-        let version = await this.kycApi.getDocumentVersion(user.id, false, document, KycDocumentState.COMPLETED);
-
-        if (!version) {
-          document = KycDocument.VIDEO_IDENTIFICATION;
-          version = await this.kycApi.getDocumentVersion(user.id, false, document, KycDocumentState.COMPLETED);
-        }
-
-        if (version) {
-          const xmlPart = await this.kycApi
-            .getDocumentVersionParts(user.id, false, document, version.name)
-            .then((parts) => parts.find((p) => p.contentType === KycContentType.XML));
-
-          if (xmlPart) {
-            const file = await this.kycApi.getDocument<string>(user.id, false, document, version.name, xmlPart.name);
-            const content = Util.parseXml<any>(file);
-
-            const identResult = JSON.stringify(content.identifications.identification)
-              .split('@_status')
-              .join('status')
-              .split('#text')
-              .join('value')
-              .split('@_original')
-              .join('original');
-
-            user.spiderData ??= this.spiderDataRepo.create({ url: '', userData: user });
-            user.spiderData.identResult = identResult;
-            await this.spiderDataRepo.save(user.spiderData);
-          }
-        }
-      } catch (e) {
-        console.error('Exception during ident data fetch:', e);
-        await this.mailService.sendErrorMail('KYC Error', [e]);
-      }
-    }
-  }
 
   @Interval(7230000)
   async checkOngoingKyc() {
@@ -199,29 +150,14 @@ export class KycSchedulerService {
         userData.spiderData?.url,
       );
     } else {
-      await this.mailService.sendIdentificationCompleteMail(userData.mail, userData.language?.symbol?.toLowerCase());
-      userData = await this.kycService.goToStatus(userData, KycStatus.MANUAL);
-      userData.kycHash = null;
+      const identResult = await this.fetchIdentResult(userData);
+      userData = await this.kycService.identCompleted(userData, identResult);
     }
     return userData;
   }
 
   private async handleFailed(userData: UserData): Promise<UserData> {
-    // online ID failed => trigger video ID
-    if (userData.kycStatus === KycStatus.ONLINE_ID) {
-      userData = await this.kycService.goToStatus(userData, KycStatus.VIDEO_ID);
-
-      await this.mailService.sendOnlineFailedMail(
-        userData.mail,
-        userData?.language?.symbol?.toLocaleLowerCase(),
-        userData.spiderData?.url,
-      );
-      return userData;
-    }
-
-    // notify support
-    await this.mailService.sendKycFailedMail(userData, userData.kycCustomerId);
-    return this.kycService.updateKycState(userData, KycState.FAILED);
+    return await this.kycService.stepFailed(userData);
   }
 
   private async handleExpiring(userData: UserData): Promise<UserData> {
@@ -236,5 +172,32 @@ export class KycSchedulerService {
       spiderData.url,
     );
     return this.kycService.updateKycState(userData, KycState.REMINDED);
+  }
+
+  // --- HELPER METHODS --- //
+  private async fetchIdentResult(userData: UserData): Promise<IdentResultDto> {
+    const document = KycDocuments[userData.kycStatus].document;
+
+    const version = await this.kycApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+    if (!version) throw new Error(`No completed ${document} version found for user ${userData.id}`);
+
+    const xmlPart = await this.kycApi
+      .getDocumentVersionParts(userData.id, false, document, version.name)
+      .then((parts) => parts.find((p) => p.contentType === KycContentType.XML));
+    if (!xmlPart)
+      throw new Error(`No XML part found for user ${userData.id}, document ${document} and version ${version.name}`);
+
+    const file = await this.kycApi.getDocument<string>(userData.id, false, document, version.name, xmlPart.name);
+    const content = Util.parseXml<any>(file);
+
+    const result = JSON.stringify(content.identifications.identification)
+      .split('@_status')
+      .join('status')
+      .split('#text')
+      .join('value')
+      .split('@_original')
+      .join('original');
+
+    return JSON.parse(result);
   }
 }

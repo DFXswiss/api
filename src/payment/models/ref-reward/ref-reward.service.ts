@@ -94,4 +94,30 @@ export class RefRewardService {
       await this.userService.updatePaidRefCredit(id, volume ?? 0);
     }
   }
+
+  async getTotalRewards(): Promise<number> {
+    return this.rewardRepo
+      .createQueryBuilder('refReward')
+      .select('SUM(amountInEur)', 'volume')
+      .getRawOne<{ volume: number }>()
+      .then((r) => r.volume);
+  }
+
+  async getTransactions(
+    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateTo: Date = new Date(),
+  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    const refRewards = await this.rewardRepo.find({
+      where: { outputDate: Between(dateFrom, dateTo) },
+    });
+
+    return refRewards.map((v) => ({
+      id: v.id,
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
+      date: v.outputDate,
+      cryptoAmount: v.outputAmount,
+      cryptoCurrency: v.outputAsset,
+    }));
+  }
 }

@@ -14,6 +14,12 @@ import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { Not } from 'typeorm';
 
+interface HistoryAmount {
+  amount: number;
+  asset: string;
+  isToken: boolean;
+}
+
 @Injectable()
 export class CryptoInputService {
   private readonly client: NodeClient;
@@ -47,7 +53,7 @@ export class CryptoInputService {
         .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
         // get receive history
         .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
-        .then((i) => i.filter((h) => ['receive', 'AccountToAccount', 'AnyAccountsToAccounts', 'AccountToUtxos'].includes(h.type)))
+        .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
         // map to entities
         .then((i) => this.createEntities(i))
         .then((i) => i.filter((h) => h != null));
@@ -104,7 +110,10 @@ export class CryptoInputService {
     const inputs = [];
     for (const history of histories) {
       try {
-        inputs.push(await this.createEntity(history));
+        const amounts = this.getAmounts(history);
+        for (const amount of amounts) {
+          inputs.push(await this.createEntity(history, amount));
+        }
       } catch (e) {
         console.error(`Failed to process crypto input ${history.txid}:`, e);
       }
@@ -112,33 +121,42 @@ export class CryptoInputService {
     return inputs;
   }
 
-  private async createEntity(history: AccountHistory): Promise<CryptoInput> {
-    const { amount: historyAmount, asset: assetName } = this.client.parseAmount(history.amounts[0]);
+  private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
+  private readonly tokenTxTypes = ['AccountToAccount', 'WithdrawFromVault', 'PoolSwap', 'RemovePoolLiquidity'];
 
-    // only received token
-    if (history.type == 'AccountToAccount' && historyAmount < 0) return null;
+  getAmounts(history: AccountHistory): HistoryAmount[] {
+    const amounts = this.utxoTxTypes.includes(history.type)
+      ? history.amounts.map((a) => this.parseAmount(a, false))
+      : history.amounts.map((a) => this.parseAmount(a, true)).filter((a) => a.amount > 0);
 
+    return amounts.map((a) => ({ ...a, amount: Math.abs(a.amount) }));
+  }
+
+  private parseAmount(amount: string, isToken: boolean): HistoryAmount {
+    return { ...this.client.parseAmount(amount), isToken };
+  }
+
+  private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
     // get asset
-    const asset = await this.assetService.getAssetByDexName(assetName);
-    if (!asset) {
-      console.error(`Failed to process crypto input. No asset ${assetName} found. History entry:`, history);
+    const assetEntity = await this.assetService.getAssetByDexName(asset, isToken);
+    if (!assetEntity) {
+      console.error(`Failed to process crypto input. No asset ${asset} found. History entry:`, history);
       return null;
     }
 
     // only sellable
-    if (!asset.sellable) {
+    if (!assetEntity.sellable) {
       console.log('Ignoring unsellable crypto input. History entry:', history);
       return null;
     }
 
-    const amount = Math.abs(historyAmount);
-    const btcAmount = await this.client.testCompositeSwap(history.owner, assetName, 'BTC', amount);
-    const usdtAmount = await this.client.testCompositeSwap(history.owner, assetName, 'USDT', amount);
+    const btcAmount = await this.client.testCompositeSwap(history.owner, asset, 'BTC', amount);
+    const usdtAmount = await this.client.testCompositeSwap(history.owner, asset, 'USDT', amount);
 
     // min. deposit
     if (
-      (assetName === 'DFI' && amount < Config.node.minDfiDeposit) ||
-      (assetName !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
+      (asset === 'DFI' && amount < Config.node.minDfiDeposit) ||
+      (asset !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
     ) {
       console.log('Ignoring too small crypto input. History entry:', history);
       return null;
@@ -154,7 +172,7 @@ export class CryptoInputService {
     }
 
     // only DFI for staking
-    if (route.type === RouteType.STAKING && asset.name != 'DFI') {
+    if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
       console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
       return null;
     }
@@ -164,7 +182,7 @@ export class CryptoInputService {
       outTxId: '', // will be set after crypto forward
       blockHeight: history.blockHeight,
       amount: amount,
-      asset: asset,
+      asset: assetEntity,
       route: route,
       btcAmount: btcAmount,
       usdtAmount: usdtAmount,
@@ -176,6 +194,9 @@ export class CryptoInputService {
     try {
       // save
       await this.cryptoInputRepo.save(input);
+      if (input.route.type === RouteType.STAKING) {
+        await this.stakingService.updateBalance(input.route.id);
+      }
 
       // forward (only await UTXO)
       const targetAddress =

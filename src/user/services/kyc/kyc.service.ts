@@ -21,6 +21,8 @@ import { KycApiService } from './kyc-api.service';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { HttpService } from 'src/shared/services/http.service';
 import { ClientRequest } from 'http';
+import { MailService } from 'src/shared/services/mail.service';
+import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 
 export enum KycProgress {
   ONGOING = 'Ongoing',
@@ -37,6 +39,7 @@ export class KycService {
     private readonly userRepo: UserRepository,
     private readonly spiderDataRepo: SpiderDataRepository,
     private readonly kycApi: KycApiService,
+    private readonly mailService: MailService,
     private readonly http: HttpService,
   ) {}
 
@@ -51,6 +54,9 @@ export class KycService {
   async updateCustomer(userDataId: number, update: Partial<Customer>): Promise<void> {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (customer) {
+      // remove empty names
+      customer.names = customer.names.filter((n) => n.firstName != '' || n.lastName != '');
+
       Util.removeNullFields(update);
       await this.kycApi.updateCustomer({ ...customer, ...update });
     }
@@ -239,6 +245,57 @@ export class KycService {
     }
 
     return userData;
+  }
+
+  async identCompleted(userData: UserData, result: IdentResultDto): Promise<UserData> {
+    userData = await this.storeIdentResult(userData, result);
+
+    await this.mailService.sendIdentificationCompleteMail(userData.mail, userData.language?.symbol?.toLowerCase());
+    return await this.goToStatus(userData, KycStatus.MANUAL);
+  }
+
+  async identInReview(userData: UserData, result: IdentResultDto): Promise<UserData> {
+    userData = await this.storeIdentResult(userData, result);
+
+    return this.updateKycState(userData, KycState.REVIEW);
+  }
+
+  async identFailed(userData: UserData, result: IdentResultDto): Promise<UserData> {
+    userData = await this.storeIdentResult(userData, result);
+
+    return await this.stepFailed(userData);
+  }
+
+  private async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
+    try {
+      const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
+      if (spiderData) {
+        spiderData.identResult = JSON.stringify(result);
+        userData.spiderData = await this.spiderDataRepo.save(spiderData);
+      }
+    } catch (e) {
+      console.error(`Failed to store ident result for user ${userData.id}:`, e);
+    }
+
+    return userData;
+  }
+
+  async stepFailed(userData: UserData): Promise<UserData> {
+    // online ID failed => trigger video ID
+    if (userData.kycStatus === KycStatus.ONLINE_ID) {
+      userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
+
+      await this.mailService.sendOnlineFailedMail(
+        userData.mail,
+        userData?.language?.symbol?.toLocaleLowerCase(),
+        userData.spiderData?.url,
+      );
+      return userData;
+    }
+
+    // notify support
+    await this.mailService.sendKycFailedMail(userData, userData.kycCustomerId);
+    return this.updateKycState(userData, KycState.FAILED);
   }
 
   // --- HELPER METHODS --- //

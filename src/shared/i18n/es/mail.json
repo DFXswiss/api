@@ -13,7 +13,7 @@
     "ident": {
       "salutation": "Tu verificación ha sido completada",
       "body": "<p>Estamos contentos de informarte de que tu verificación ha sido completada exitosamente.<br>No son necesarios más pasos por su parte.</p><p>Buen trading!</p><p>Tu Equipo DFX<br>Bitcoiners de corazón ♥</p>",
-      "title": "Verificación  completado"
+      "title": "Verificación completado"
     },
     "failed": {
       "salutation": "Tu identificación online ha fallado",

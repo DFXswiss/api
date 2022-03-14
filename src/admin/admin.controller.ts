@@ -1,15 +1,28 @@
-import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  UseGuards,
+  Body,
+  Get,
+  Query,
+  BadRequestException,
+  UseInterceptors,
+  UploadedFiles,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MailService } from 'src/shared/services/mail.service';
+import { IdentService } from 'src/user/models/ident/ident.service';
 import { getConnection } from 'typeorm';
 import { SendMailDto } from './dto/send-mail.dto';
+import { UpdateFileDto } from './dto/upload-file.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly mailService: MailService) {}
+  constructor(private readonly mailService: MailService, private readonly identService: IdentService) {}
 
   @Post('mail')
   @ApiBearerAuth()
@@ -19,6 +32,18 @@ export class AdminController {
     for (const dto of dtoList) {
       await this.mailService.sendMail(dto);
     }
+  }
+
+  @Post('upload')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseInterceptors(FilesInterceptor('files'))
+  async uploadFile(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() updateFileDto: UpdateFileDto,
+  ): Promise<boolean> {
+    return this.identService.uploadDocument(updateFileDto.userDataId, files[0], updateFileDto.documentType);
   }
 
   @Get('db')

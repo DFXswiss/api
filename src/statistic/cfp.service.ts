@@ -8,6 +8,8 @@ import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
+import { Masternode } from 'src/payment/models/masternode/masternode.entity';
 
 export interface CfpSettings {
   inProgress: boolean;
@@ -52,6 +54,7 @@ interface Vote {
   vote: string;
   createdAt: string;
   isCake: boolean;
+  isDfx: boolean;
 }
 
 export interface MasterNode {
@@ -81,6 +84,12 @@ export interface CfpResult {
     neutral: number;
     no: number;
   };
+  dfxVotes: {
+    total: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
   voteDetails: {
     yes: Vote[];
     neutral: Vote[];
@@ -98,11 +107,13 @@ export class CfpService {
   private masterNodeCount: number;
   private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
+  private dfxMasternodes: Masternode[];
 
   constructor(
     private readonly http: HttpService,
     private readonly cryptoService: CryptoService,
     private readonly settingService: SettingService,
+    private readonly masterNodeService: MasternodeService,
     @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
   ) {
     validMasterNodes ??= Object.values(MasterNodes).filter(
@@ -110,7 +121,6 @@ export class CfpService {
     ) as MasterNode[];
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
-
     this.doUpdate().then();
   }
 
@@ -122,6 +132,8 @@ export class CfpService {
 
       // update cfp results
       if (this.settings.inProgress) {
+        this.dfxMasternodes = await this.masterNodeService.getActiveMasternodes();
+
         let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
         allCfp = allCfp.filter(
           (cfp) =>
@@ -191,6 +203,11 @@ export class CfpService {
     const noVotesCake = noVotes.filter((v) => v.isCake);
     const neutralVotesCake = neutralVotes.filter((v) => v.isCake);
 
+    const dfxVotes = votes.filter((v) => v.isDfx);
+    const yesVotesDfx = yesVotes.filter((v) => v.isDfx);
+    const noVotesDfx = noVotes.filter((v) => v.isDfx);
+    const neutralVotesDfx = neutralVotes.filter((v) => v.isDfx);
+
     const requiredVotes = type === VotingType.CFP ? 1 / 2 : 2 / 3;
     const currentResult =
       yesVotes.length / (yesVotes.length + noVotes.length) > requiredVotes
@@ -221,6 +238,12 @@ export class CfpService {
         neutral: neutralVotesCake.length,
         no: noVotesCake.length,
       },
+      dfxVotes: {
+        total: dfxVotes.length,
+        yes: yesVotesDfx.length,
+        neutral: neutralVotesDfx.length,
+        no: noVotesDfx.length,
+      },
       voteDetails: {
         yes: yesVotes,
         neutral: neutralVotes,
@@ -248,6 +271,7 @@ export class CfpService {
       vote: m[2],
       createdAt: commentResponse.created_at,
       isCake: Object.values(CakeMasterNodes).find((n) => n.address === m[1]) != null,
+      isDfx: this.dfxMasternodes.find((n) => n.owner === m[1]) != null,
     }));
   }
 

@@ -27,7 +27,7 @@ export class NodeClient {
 
   constructor(private readonly http: HttpService, private readonly url: string, scheduler: SchedulerRegistry) {
     this.client = this.createJellyfishClient();
-    this.queue = new QueueHandler(scheduler, 60000);
+    this.queue = new QueueHandler(scheduler, 65000);
 
     this.getChain()
       .then((c) => (this.chain = c))

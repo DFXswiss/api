@@ -16,12 +16,12 @@ import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyRepository } from '../buy/buy.repository';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { RouteType } from '../route/deposit-route.entity';
 import { UserService } from 'src/user/models/user/user.service';
+import { Interval } from '@nestjs/schedule';
 
 @Injectable()
 export class StakingService {
@@ -33,9 +33,44 @@ export class StakingService {
     private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly assetService: AssetService,
     private readonly buyRepo: BuyRepository,
-    private readonly settingService: SettingService,
     private readonly userService: UserService,
   ) {}
+
+  // TODO: remove temporary code
+  @Interval(300000)
+  async fillStakingStarts() {
+    const users = await this.userService.getUsersWithoutStakingStart();
+    for (const user of users) {
+      try {
+        const stakingIds = user.stakingRoutes.map((r) => r.id);
+        if (stakingIds.length === 0) continue;
+
+        const stakingBalances = await this.getAllStakingBalance(stakingIds, new Date());
+        const startDates = await Promise.all(
+          stakingBalances.filter((b) => b.balance >= Config.staking.minInvestment).map((b) => this.getStartDate(b.id)),
+        );
+
+        if (startDates.find((d) => d)) {
+          const date = new Date(Math.min(...startDates.filter((d) => d)));
+          this.userService.activateStaking(user.id, date);
+        }
+      } catch (e) {
+        console.error(`Failed to calculate staking start date of user ${user.id}:`, e);
+      }
+    }
+  }
+
+  private async getStartDate(stakingId: number): Promise<number | undefined> {
+    const inputs = await this.cryptoInputRepo.find({ where: { route: { id: stakingId } }, order: { created: 'ASC' } });
+
+    let balance = 0;
+    for (const input of inputs) {
+      balance += input.amount;
+      if (balance >= Config.staking.minInvestment) return input.created.getTime();
+    }
+
+    return undefined;
+  }
 
   async getStakingByAddress(depositAddress: string): Promise<Staking> {
     // does not work with find options
@@ -117,17 +152,6 @@ export class StakingService {
     return this.stakingRepo.find({ select: ['id'] }).then((results) => results.map((r) => r.id));
   }
 
-  public async getStakingYield(): Promise<{ apr: number; apy: number }> {
-    const lastDfiRewards = await this.settingService.get('stakingRewards');
-    const lastDfiCollateral = await this.settingService.get('stakingCollateral');
-
-    const apr = await this.getApr(+lastDfiRewards, +lastDfiCollateral);
-    return {
-      apr: Util.round(apr, 2),
-      apy: Util.round(this.getApy(apr), 2),
-    };
-  }
-
   async updateRewardVolume(stakingId: number, volume: number): Promise<void> {
     await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
   }
@@ -140,20 +164,22 @@ export class StakingService {
     return sell.deposit.id;
   }
 
-  private async getApr(dfiRewards: number, dfiCollateral: number): Promise<number> {
-    return (dfiRewards / dfiCollateral) * 365;
-  }
-
-  private getApy(dfiApr: number): number {
-    return Math.pow(1 + dfiApr / 365, 365) - 1;
-  }
-
   private async getAsset(assetId?: number): Promise<Asset | null> {
     const asset: Asset = await this.assetService.getAsset(assetId);
     return asset && asset.buyable ? asset : await this.assetService.getAssetByDexName('DFI');
   }
 
   // --- BALANCE --- //
+  async updateBalance(stakingId: number): Promise<void> {
+    const staking = await this.stakingRepo.findOne({ where: { id: stakingId }, relations: ['user'] });
+    if (staking.user.stakingStart == null) {
+      const balance = await this.getStakingBalance(stakingId, new Date());
+      if (balance >= Config.staking.minInvestment) {
+        this.userService.activateStaking(staking.user.id);
+      }
+    }
+  }
+
   async getStakingBalance(stakingId: number, date: Date): Promise<number> {
     const { balance } = await this.getInputsForStakingPeriod(date)
       .select('SUM(amount)', 'balance')
@@ -173,7 +199,7 @@ export class StakingService {
   }
 
   private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
-    const dateFrom = Util.daysBefore(Config.stakingPeriod, dateTo);
+    const dateFrom = Util.daysBefore(Config.staking.period, dateTo);
 
     return this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
