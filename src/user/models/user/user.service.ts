@@ -9,7 +9,7 @@ import { UserDetailDto } from './dto/user.dto';
 import { IdentService } from '../ident/ident.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { IsNull, Like, Not } from 'typeorm';
+import { Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -26,11 +26,6 @@ export class UserService {
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
-
-  // TODO: remove temporary code
-  async getUsersWithoutStakingStart(): Promise<User[]> {
-    return await this.userRepo.find({ where: { stakingStart: IsNull() }, relations: ['stakingRoutes'] });
-  }
 
   async getAllUser(): Promise<User[]> {
     return await this.userRepo.find();
@@ -159,9 +154,8 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
   }
 
-  // TODO: remove temporary param
-  async activateStaking(id: number, startDate: Date = new Date()): Promise<void> {
-    await this.userRepo.update(id, { stakingStart: startDate });
+  async activateStaking(id: number): Promise<void> {
+    await this.userRepo.update(id, { stakingStart: new Date() });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
@@ -172,6 +166,14 @@ export class UserService {
       user?.userData?.id === refUser?.userData?.id
       ? '000-000'
       : usedRef;
+  }
+
+  public async getTotalRefRewards(): Promise<number> {
+    return await this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(refVolume)', 'refVolume')
+      .getRawOne<{ refVolume: number }>()
+      .then((r) => r.refVolume);
   }
 
   private async getNextRef(): Promise<string> {
