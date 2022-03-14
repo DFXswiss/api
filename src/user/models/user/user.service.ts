@@ -171,9 +171,9 @@ export class UserService {
   public async getTotalRefRewards(): Promise<number> {
     return await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(refVolume)', 'refVolume')
-      .getRawOne<{ refVolume: number }>()
-      .then((r) => r.refVolume);
+      .select('SUM(paidRefCredit)', 'paidRefCredit')
+      .getRawOne<{ paidRefCredit: number }>()
+      .then((r) => r.paidRefCredit);
   }
 
   private async getNextRef(): Promise<string> {
