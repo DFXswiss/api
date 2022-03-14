@@ -194,6 +194,9 @@ export class CryptoInputService {
     try {
       // save
       await this.cryptoInputRepo.save(input);
+      if (input.route.type === RouteType.STAKING) {
+        await this.stakingService.updateBalance(input.route.id);
+      }
 
       // forward (only await UTXO)
       const targetAddress =

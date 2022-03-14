@@ -133,6 +133,16 @@ export class StakingService {
   }
 
   // --- BALANCE --- //
+  async updateBalance(stakingId: number): Promise<void> {
+    const staking = await this.stakingRepo.findOne({ where: { id: stakingId }, relations: ['user'] });
+    if (staking.user.stakingStart == null) {
+      const balance = await this.getStakingBalance(stakingId, new Date());
+      if (balance >= Config.staking.minInvestment) {
+        this.userService.activateStaking(staking.user.id);
+      }
+    }
+  }
+
   async getStakingBalance(stakingId: number, date: Date): Promise<number> {
     const { balance } = await this.getInputsForStakingPeriod(date)
       .select('SUM(amount)', 'balance')
@@ -152,7 +162,7 @@ export class StakingService {
   }
 
   private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
-    const dateFrom = Util.daysBefore(Config.stakingPeriod, dateTo);
+    const dateFrom = Util.daysBefore(Config.staking.period, dateTo);
 
     return this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')

@@ -53,6 +53,9 @@ export class User extends IEntity {
   @Column({ type: 'float', nullable: true })
   stakingFee: number;
 
+  @Column({ type: 'datetime2', nullable: true })
+  stakingStart: Date;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
