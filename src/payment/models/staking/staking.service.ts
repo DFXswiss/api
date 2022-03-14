@@ -152,6 +152,14 @@ export class StakingService {
     return balance ?? 0;
   }
 
+  async getTotalStakingRewards(): Promise<number> {
+    return await this.stakingRepo
+      .createQueryBuilder('stakingReward')
+      .select('SUM(rewardVolume)', 'rewardVolume')
+      .getRawOne<{ rewardVolume: number }>()
+      .then((r) => r.rewardVolume);
+  }
+
   async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
     return await this.getInputsForStakingPeriod(date)
       .select('route.id', 'id')

@@ -101,13 +101,6 @@ export class StakingRewardService {
       await this.stakingService.updateRewardVolume(id, volume ?? 0);
     }
   }
-  async getTotalStakingRewards(): Promise<number> {
-    return await this.stakingRepo
-      .createQueryBuilder('stakingReward')
-      .select('SUM(rewardVolume)', 'rewardVolume')
-      .getRawOne<{ rewardVolume: number }>()
-      .then((r) => r.rewardVolume);
-  }
 
   async getTransactions(
     dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),

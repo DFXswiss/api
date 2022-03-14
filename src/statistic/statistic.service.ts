@@ -3,6 +3,7 @@ import { BuyService } from 'src/payment/models/buy/buy.service';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
+import { StakingService } from 'src/payment/models/staking/staking.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { UserService } from 'src/user/models/user/user.service';
 
@@ -13,6 +14,7 @@ export class StatisticService {
     private sellService: SellService,
     private settingService: SettingService,
     private stakingRewardService: StakingRewardService,
+    private stakingService: StakingService,
     private masternodeService: MasternodeService,
     private userService: UserService,
   ) {}
@@ -31,7 +33,7 @@ export class StatisticService {
         sell: await this.sellService.getTotalVolume(),
       },
       totalRewards: {
-        staking: await this.stakingRewardService.getTotalStakingRewards(),
+        staking: await this.stakingService.getTotalStakingRewards(),
         ref: await this.userService.getTotalRefRewards(),
       },
       staking: {

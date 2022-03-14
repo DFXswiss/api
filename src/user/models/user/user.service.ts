@@ -169,7 +169,7 @@ export class UserService {
   }
 
   public async getTotalRefRewards(): Promise<number> {
-    return this.userRepo
+    return await this.userRepo
       .createQueryBuilder('user')
       .select('SUM(refVolume)', 'refVolume')
       .getRawOne<{ refVolume: number }>()
