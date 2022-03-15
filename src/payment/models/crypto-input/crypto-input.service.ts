@@ -1,4 +1,5 @@
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
@@ -33,6 +34,28 @@ export class CryptoInputService {
     private readonly stakingService: StakingService,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
+  }
+
+  @Interval(900000)
+  async removePoolLiquidity(): Promise<void> {
+    try {
+      await this.checkNodeInSync();
+
+      const tokens = await this.client.getToken();
+      for (const token of tokens) {
+        const { asset } = this.client.parseAmount(token.amount);
+        const assetEntity = await this.assetService.getAssetByDexName(asset);
+
+        if (assetEntity?.isLP) {
+          console.log('Removing pool liquidity:', token);
+          await this.doTokenTx(token.owner, (utxo) =>
+            this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
+          );
+        }
+      }
+    } catch (e) {
+      console.error('Exception during liquidity pool removal:', e);
+    }
   }
 
   @Interval(300000)
@@ -171,6 +194,12 @@ export class CryptoInputService {
       return null;
     }
 
+    // ignore AccountToUtxos for sell
+    if (route.type === RouteType.SELL && history.type === 'AccountToUtxos') {
+      console.log('Ignoring AccountToUtxos crypto input on sell route. History entry:', history);
+      return null;
+    }
+
     // only DFI for staking
     if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
       console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
@@ -215,42 +244,46 @@ export class CryptoInputService {
   }
 
   private async forwardToken(input: CryptoInput, address: string): Promise<void> {
+    try {
+      await this.doTokenTx(input.route.deposit.address, async (utxo) => {
+        const outTxId = await this.client.sendToken(
+          input.route.deposit.address,
+          address,
+          input.asset.dexName,
+          input.amount,
+          [utxo],
+        );
+        await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+
+        return outTxId;
+      });
+    } catch (e) {
+      console.error(`Failed to forward token input:`, e);
+    }
+  }
+
+  private async doTokenTx(address: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
     // get UTXO
-    const utxoTx = await this.client.sendUtxo(
-      Config.node.utxoSpenderAddress,
-      input.route.deposit.address,
-      Config.node.minDfiDeposit / 2,
-    );
+    const utxoTx = await this.client.sendUtxo(Config.node.utxoSpenderAddress, address, Config.node.minDfiDeposit / 2);
 
     await this.client.waitForTx(utxoTx);
 
     // get UTXO vout
     const sendUtxo = await this.client
       .getUtxo()
-      .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
+      .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address == address));
 
-    // send
-    const outTxId = await this.client.sendToken(
-      input.route.deposit.address,
-      address,
-      input.asset.dexName,
-      input.amount,
-      [sendUtxo],
-    );
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+    // do TX
+    const outTxId = await tx(sendUtxo);
+
+    await this.client.waitForTx(outTxId);
 
     // retrieve remaining UTXO
-    await this.retrieveUtxo(outTxId);
-  }
-
-  private async retrieveUtxo(txId: string): Promise<void> {
-    await this.client.waitForTx(txId);
-
-    const utxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === txId));
+    const utxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === outTxId));
     if (utxo) {
       await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
     } else {
-      console.error(`Could not retrieve UTXO: UTXO ${txId} not found`);
+      console.error(`Could not retrieve UTXO: UTXO ${outTxId} not found`);
     }
   }
 }
