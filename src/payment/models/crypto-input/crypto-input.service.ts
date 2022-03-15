@@ -171,6 +171,12 @@ export class CryptoInputService {
       return null;
     }
 
+    // ignore AccountToUtxos for sell
+    if (route.type === RouteType.SELL && history.type === 'AccountToUtxos') {
+      console.log('Ignoring AccountToUtxos crypto input on sell route. History entry:', history);
+      return null;
+    }
+
     // only DFI for staking
     if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
       console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
@@ -215,32 +221,36 @@ export class CryptoInputService {
   }
 
   private async forwardToken(input: CryptoInput, address: string): Promise<void> {
-    // get UTXO
-    const utxoTx = await this.client.sendUtxo(
-      Config.node.utxoSpenderAddress,
-      input.route.deposit.address,
-      Config.node.minDfiDeposit / 2,
-    );
+    try {
+      // get UTXO
+      const utxoTx = await this.client.sendUtxo(
+        Config.node.utxoSpenderAddress,
+        input.route.deposit.address,
+        Config.node.minDfiDeposit / 2,
+      );
 
-    await this.client.waitForTx(utxoTx);
+      await this.client.waitForTx(utxoTx);
 
-    // get UTXO vout
-    const sendUtxo = await this.client
-      .getUtxo()
-      .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
+      // get UTXO vout
+      const sendUtxo = await this.client
+        .getUtxo()
+        .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address == input.route.deposit.address));
 
-    // send
-    const outTxId = await this.client.sendToken(
-      input.route.deposit.address,
-      address,
-      input.asset.dexName,
-      input.amount,
-      [sendUtxo],
-    );
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+      // send
+      const outTxId = await this.client.sendToken(
+        input.route.deposit.address,
+        address,
+        input.asset.dexName,
+        input.amount,
+        [sendUtxo],
+      );
+      await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
 
-    // retrieve remaining UTXO
-    await this.retrieveUtxo(outTxId);
+      // retrieve remaining UTXO
+      await this.retrieveUtxo(outTxId);
+    } catch (e) {
+      console.error(`Failed to forward token input:`, e);
+    }
   }
 
   private async retrieveUtxo(txId: string): Promise<void> {

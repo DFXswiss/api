@@ -123,10 +123,15 @@ export class NodeClient {
     amount: number,
     utxos?: SpendUTXO[],
   ): Promise<string> {
-    return this.callNode(
-      (c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, { utxos }),
-      true,
-    );
+    return token === 'DFI-Token'
+      ? this.callNode(
+          (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${amount}@DFI` }, { utxos }),
+          true,
+        )
+      : this.callNode(
+          (c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, { utxos }),
+          true,
+        );
   }
 
   // forwarding
