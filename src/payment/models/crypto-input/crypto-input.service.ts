@@ -1,4 +1,4 @@
-import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
@@ -37,7 +37,7 @@ export class CryptoInputService {
   }
 
   @Interval(900000)
-  async removePoolLiquidity(): Promise<void> {
+  async removePoolLiquidities(): Promise<void> {
     try {
       await this.checkNodeInSync();
 
@@ -47,10 +47,7 @@ export class CryptoInputService {
         const assetEntity = await this.assetService.getAssetByDexName(asset);
 
         if (assetEntity?.isLP) {
-          console.log('Removing pool liquidity:', token);
-          await this.doTokenTx(token.owner, (utxo) =>
-            this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
-          );
+          this.removePoolLiquidity(token); // no waiting
         }
       }
     } catch (e) {
@@ -169,7 +166,7 @@ export class CryptoInputService {
 
     // only sellable
     if (!assetEntity.sellable) {
-      console.log('Ignoring unsellable crypto input. History entry:', history);
+      console.log(`Ignoring unsellable crypto input (${amount} ${asset}). History entry:`, history);
       return null;
     }
 
@@ -181,7 +178,7 @@ export class CryptoInputService {
       (asset === 'DFI' && amount < Config.node.minDfiDeposit) ||
       (asset !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
     ) {
-      console.log('Ignoring too small crypto input. History entry:', history);
+      console.log(`Ignoring too small crypto input (${amount} ${asset}). History entry:`, history);
       return null;
     }
 
@@ -190,7 +187,10 @@ export class CryptoInputService {
       (await this.sellService.getSellByAddress(history.owner)) ??
       (await this.stakingService.getStakingByAddress(history.owner));
     if (!route) {
-      console.error(`Failed to process crypto input. No matching route found. History entry:`, history);
+      console.error(
+        `Failed to process crypto input. No matching route for ${history.owner} found. History entry:`,
+        history,
+      );
       return null;
     }
 
@@ -202,7 +202,7 @@ export class CryptoInputService {
 
     // only DFI for staking
     if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
-      console.log('Ignoring non-DFI crypto input on staking route. History entry:', history);
+      console.log(`Ignoring non-DFI crypto input (${amount} ${asset}) on staking route. History entry:`, history);
       return null;
     }
 
@@ -232,7 +232,7 @@ export class CryptoInputService {
         input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
       input.asset.type === AssetType.COIN
         ? await this.forwardUtxo(input, targetAddress)
-        : this.forwardToken(input, targetAddress);
+        : this.forwardToken(input, targetAddress); // no waiting
     } catch (e) {
       console.error(`Failed to process crypto input:`, e);
     }
@@ -259,6 +259,15 @@ export class CryptoInputService {
       });
     } catch (e) {
       console.error(`Failed to forward token input:`, e);
+    }
+  }
+
+  private async removePoolLiquidity(token: AccountResult<string, string>): Promise<void> {
+    try {
+      console.log('Removing pool liquidity:', token);
+      await this.doTokenTx(token.owner, (utxo) => this.client.removePoolLiquidity(token.owner, token.amount, [utxo]));
+    } catch (e) {
+      console.error('Failed to remove pool liquidity', e);
     }
   }
 
