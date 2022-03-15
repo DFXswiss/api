@@ -55,7 +55,7 @@ export class KycService {
     const customer = await this.kycApi.getCustomer(userDataId);
     if (customer) {
       // remove empty names
-      customer.names = customer.names.filter((n) => n.firstName != '' || n.lastName != '');
+      customer.names = customer.names.filter((n) => n.firstName !== '' || n.lastName !== '');
 
       Util.removeNullFields(update);
       await this.kycApi.updateCustomer({ ...customer, ...update });
@@ -251,7 +251,7 @@ export class KycService {
     userData = await this.storeIdentResult(userData, result);
 
     await this.mailService.sendIdentificationCompleteMail(userData.mail, userData.language?.symbol?.toLowerCase());
-    return await this.goToStatus(userData, KycStatus.MANUAL);
+    return await this.goToStatus(userData, KycStatus.CHECK);
   }
 
   async identInReview(userData: UserData, result: IdentResultDto): Promise<UserData> {
