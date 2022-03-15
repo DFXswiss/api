@@ -46,13 +46,14 @@ export class UserService {
     return this.userRepo.findOne({ address });
   }
 
-  async createUser(dto: CreateUserDto, userIp: string): Promise<User> {
+  async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string): Promise<User> {
     let user = this.userRepo.create(dto);
 
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ip = userIp;
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
+    user.origin = userOrigin;
 
     user = await this.userRepo.save(user);
     await this.userDataService.createUserData(user);

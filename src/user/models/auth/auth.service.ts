@@ -8,6 +8,7 @@ import { Config } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User } from '../user/user.entity';
+import { RefService } from '../referral/ref.service';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +17,7 @@ export class AuthService {
     private readonly userRepo: UserRepository,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
+    private readonly refService: RefService,
   ) {}
 
   async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
@@ -23,7 +25,12 @@ export class AuthService {
       throw new BadRequestException('Invalid signature');
     }
 
-    const user = await this.userService.createUser(dto, userIp);
+    const ref = await this.refService.get(userIp);
+    if (ref) {
+      dto.usedRef ??= ref.ref;
+    }
+
+    const user = await this.userService.createUser(dto, userIp, ref?.origin);
     return { accessToken: this.generateToken(user) };
   }
 
