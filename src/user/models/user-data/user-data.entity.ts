@@ -13,6 +13,7 @@ export enum KycStatus {
   CHATBOT = 'Chatbot',
   ONLINE_ID = 'OnlineId',
   VIDEO_ID = 'VideoId',
+  CHECK = 'Check',
   MANUAL = 'Manual',
   COMPLETED = 'Completed',
 }
