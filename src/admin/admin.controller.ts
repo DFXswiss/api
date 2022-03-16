@@ -15,14 +15,15 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MailService } from 'src/shared/services/mail.service';
-import { KycService } from 'src/user/models/kyc/kyc.service';
+import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
+import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly mailService: MailService, private readonly kycService: KycService) {}
+  constructor(private readonly mailService: MailService, private readonly spiderService: SpiderService) {}
 
   @Post('mail')
   @ApiBearerAuth()
@@ -43,7 +44,16 @@ export class AdminController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body() updateFileDto: UploadFileDto,
   ): Promise<boolean> {
-    return this.kycService.uploadDocument(updateFileDto.userDataId, files[0], updateFileDto.documentType);
+    const version = new Date().getTime().toString();
+    return await this.spiderService.uploadDocument(
+      updateFileDto.userDataId,
+      false,
+      updateFileDto.documentType,
+      version,
+      files[0].originalname,
+      files[0].mimetype,
+      files[0].buffer,
+    );
   }
 
   @Get('db')

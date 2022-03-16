@@ -31,6 +31,7 @@ import { IdentController } from './models/ident/ident.controller';
 import { IdentService } from './models/ident/ident.service';
 import { SpiderService } from './services/spider/spider.service';
 import { KycProcessService } from './models/kyc/kyc-process.service';
+import { KycController } from './models/kyc/kyc.controller';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { KycProcessService } from './models/kyc/kyc-process.service';
     RefController,
     AuthController,
     IdentController,
+    KycController,
   ],
   providers: [
     UserService,
@@ -72,6 +74,6 @@ import { KycProcessService } from './models/kyc/kyc-process.service';
     LimitRequestService,
     IdentService,
   ],
-  exports: [UserService, UserDataService, RefService, KycService],
+  exports: [UserService, UserDataService, RefService, KycService, SpiderService],
 })
 export class UserModule {}
