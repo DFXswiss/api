@@ -27,7 +27,7 @@ export class LimitRequestService {
     // upload document proof
     if (dto.documentProof) {
       const { contentType, buffer } = this.fromBase64(dto.documentProof);
-      const version = new Date().getTime().toString();
+      const version = Date.now().toString();
       await this.spiderService.uploadDocument(
         user.id,
         false,

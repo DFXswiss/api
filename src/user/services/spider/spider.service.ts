@@ -127,7 +127,7 @@ export class SpiderService {
     fileName: string,
     contentType: KycContentType | string,
     data: any,
-    version: string = new Date().getTime().toString(),
+    version: string =  Date.now().toString(),
   ): Promise<boolean> {
     await this.spiderApi.createDocumentVersion(userDataId, isOrganization, document, version);
     await this.spiderApi.createDocumentVersionPart(
