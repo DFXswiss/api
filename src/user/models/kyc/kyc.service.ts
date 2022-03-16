@@ -108,12 +108,10 @@ export class KycService {
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, userData.surname);
 
-    const version = new Date().getTime().toString();
     return await this.spiderService.uploadDocument(
       userData.id,
       false,
       kycDocument,
-      version,
       document.originalname,
       document.mimetype,
       document.buffer,

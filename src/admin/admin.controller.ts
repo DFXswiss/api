@@ -44,12 +44,10 @@ export class AdminController {
     @UploadedFiles() files: Express.Multer.File[],
     @Body() updateFileDto: UploadFileDto,
   ): Promise<boolean> {
-    const version = new Date().getTime().toString();
     return await this.spiderService.uploadDocument(
       updateFileDto.userDataId,
       false,
       updateFileDto.documentType,
-      version,
       files[0].originalname,
       files[0].mimetype,
       files[0].buffer,

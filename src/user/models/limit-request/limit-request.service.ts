@@ -32,10 +32,10 @@ export class LimitRequestService {
         user.id,
         false,
         KycDocument.USER_ADDED_DOCUMENT,
-        version,
         dto.documentProofName,
         contentType,
         buffer,
+        version,
       );
 
       entity.documentProofUrl = this.spiderService.getDocumentUrl(

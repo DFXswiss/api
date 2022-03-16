@@ -90,10 +90,10 @@ export class SpiderService {
       userDataId,
       false,
       KycDocument.INITIAL_CUSTOMER_INFORMATION,
-      'v1',
       'initial-customer-information.json',
       KycContentType.JSON,
       customerInfo,
+      'v1',
     );
 
     // pre-fill organization info
@@ -112,10 +112,10 @@ export class SpiderService {
         userDataId,
         true,
         KycDocument.INITIAL_CUSTOMER_INFORMATION,
-        'v1',
         'initial-customer-information.json',
         KycContentType.JSON,
         organizationInfo,
+        'v1',
       );
     }
   }
@@ -124,10 +124,10 @@ export class SpiderService {
     userDataId: number,
     isOrganization: boolean,
     document: KycDocument,
-    version: string,
     fileName: string,
     contentType: KycContentType | string,
     data: any,
+    version: string = new Date().getTime().toString(),
   ): Promise<boolean> {
     await this.spiderApi.createDocumentVersion(userDataId, isOrganization, document, version);
     await this.spiderApi.createDocumentVersionPart(
