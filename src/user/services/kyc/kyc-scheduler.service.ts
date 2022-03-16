@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval, Cron, CronExpression } from '@nestjs/schedule';
 import {
+  IdentInProgress,
   KycInProgress,
   KycInProgressStates,
   KycState,
@@ -17,7 +18,7 @@ import { KycService, KycProgress } from './kyc.service';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { KycDocuments, KycDocumentState, KycContentType } from './dto/kyc.dto';
+import { KycDocuments, KycDocumentState, KycContentType, KycDocument } from './dto/kyc.dto';
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 
 @Injectable()
@@ -99,7 +100,7 @@ export class KycSchedulerService {
     }
   }
 
-  private async syncKycUser(userDataId: number): Promise<void> {
+  async syncKycUser(userDataId: number, forceSync = false): Promise<void> {
     let userData = await this.userDataRepo.findOne(userDataId);
     if (!userData) return;
 
@@ -114,6 +115,14 @@ export class KycSchedulerService {
     // check KYC progress
     if (KycInProgress(userData.kycStatus)) {
       userData = await this.checkKycProgress(userData);
+    }
+
+    // force sync (chatbot and ident result)
+    if (forceSync) {
+      userData = await this.kycService.storeChatbotResult(userData);
+
+      const identResult = await this.fetchIdentResult(userData);
+      userData = await this.kycService.storeIdentResult(userData, identResult);
     }
 
     await this.userDataRepo.save(userData);
@@ -176,18 +185,16 @@ export class KycSchedulerService {
 
   // --- HELPER METHODS --- //
   private async fetchIdentResult(userData: UserData): Promise<IdentResultDto> {
-    const document = KycDocuments[userData.kycStatus].document;
-
-    const version = await this.kycApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
-    if (!version) throw new Error(`No completed ${document} version found for user ${userData.id}`);
+    const { document, version } = await this.getCompletedIdentDocument(userData);
+    if (!version) throw new Error(`No completed ident version found for user ${userData.id}`);
 
     const xmlPart = await this.kycApi
-      .getDocumentVersionParts(userData.id, false, document, version.name)
+      .getDocumentVersionParts(userData.id, false, document, version)
       .then((parts) => parts.find((p) => p.contentType === KycContentType.XML));
     if (!xmlPart)
-      throw new Error(`No XML part found for user ${userData.id}, document ${document} and version ${version.name}`);
+      throw new Error(`No XML part found for user ${userData.id}, document ${document} and version ${version}`);
 
-    const file = await this.kycApi.getDocument<string>(userData.id, false, document, version.name, xmlPart.name);
+    const file = await this.kycApi.getDocument<string>(userData.id, false, document, version, xmlPart.name);
     const content = Util.parseXml<any>(file);
 
     const result = JSON.stringify(content.identifications.identification)
@@ -199,5 +206,23 @@ export class KycSchedulerService {
       .join('original');
 
     return JSON.parse(result);
+  }
+
+  private async getCompletedIdentDocument(userData: UserData): Promise<{ document: KycDocument; version: string }> {
+    let document = IdentInProgress(userData.kycStatus)
+      ? KycDocuments[userData.kycStatus].document
+      : KycDocument.ONLINE_IDENTIFICATION;
+    let version = await this.kycApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+
+    if (!version) {
+      // fallback to other ident method
+      document =
+        document === KycDocument.ONLINE_IDENTIFICATION
+          ? KycDocument.VIDEO_IDENTIFICATION
+          : KycDocument.ONLINE_IDENTIFICATION;
+      version = await this.kycApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+    }
+
+    return { document, version: version?.name };
   }
 }

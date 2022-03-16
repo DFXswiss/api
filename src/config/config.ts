@@ -142,7 +142,7 @@ export class Configuration {
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
     minDfiDeposit: 0.01,
-    minTokenDeposit: 1, // USDT
+    minTokenDeposit: 0.4, // USDT
   };
 
   buy = {

@@ -209,6 +209,25 @@ export class KycService {
     return this.updateKycStatus(userData, status);
   }
 
+  async stepFailed(userData: UserData): Promise<UserData> {
+    // online ID failed => trigger video ID
+    if (userData.kycStatus === KycStatus.ONLINE_ID) {
+      userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
+
+      await this.mailService.sendOnlineFailedMail(
+        userData.mail,
+        userData?.language?.symbol?.toLocaleLowerCase(),
+        userData.spiderData?.url,
+      );
+      return userData;
+    }
+
+    // notify support
+    await this.mailService.sendKycFailedMail(userData, userData.kycCustomerId);
+    return this.updateKycState(userData, KycState.FAILED);
+  }
+
+  // --- CHATBOT --- //
   async chatbotCompleted(userData: UserData): Promise<UserData> {
     userData.riskState = await this.checkCustomer(userData.id);
 
@@ -247,6 +266,24 @@ export class KycService {
     return userData;
   }
 
+  private async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
+    const completedVersion = await this.kycApi.getDocumentVersion(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+      KycDocumentState.COMPLETED,
+    );
+
+    return this.kycApi.getDocument<ChatbotResult>(
+      userDataId,
+      isOrganization,
+      KycDocument.ADDITIONAL_INFORMATION,
+      completedVersion?.name,
+      this.defaultDocumentPart,
+    );
+  }
+
+  // --- IDENT --- //
   async identCompleted(userData: UserData, result: IdentResultDto): Promise<UserData> {
     userData = await this.storeIdentResult(userData, result);
 
@@ -266,7 +303,7 @@ export class KycService {
     return await this.stepFailed(userData);
   }
 
-  private async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
+  async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
     try {
       const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
       if (spiderData) {
@@ -280,22 +317,19 @@ export class KycService {
     return userData;
   }
 
-  async stepFailed(userData: UserData): Promise<UserData> {
-    // online ID failed => trigger video ID
-    if (userData.kycStatus === KycStatus.ONLINE_ID) {
-      userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
+  private async getOnlineIdLog(userData: UserData, version: string): Promise<IdentificationLog | undefined> {
+    return await this.kycApi.getDocument<IdentificationLog>(
+      userData.id,
+      false,
+      KycDocument.ONLINE_IDENTIFICATION,
+      version,
+      KycDocument.IDENTIFICATION_LOG,
+    );
+  }
 
-      await this.mailService.sendOnlineFailedMail(
-        userData.mail,
-        userData?.language?.symbol?.toLocaleLowerCase(),
-        userData.spiderData?.url,
-      );
-      return userData;
-    }
-
-    // notify support
-    await this.mailService.sendKycFailedMail(userData, userData.kycCustomerId);
-    return this.updateKycState(userData, KycState.FAILED);
+  private async getVideoTransactionId(sessionUrl: string): Promise<string> {
+    const request = await this.http.getRaw(sessionUrl).then((r) => r.request as ClientRequest);
+    return request.path.substring(request.path.lastIndexOf('/') + 1);
   }
 
   // --- HELPER METHODS --- //
@@ -355,38 +389,6 @@ export class KycService {
     }
 
     return await this.spiderDataRepo.save(spiderData);
-  }
-
-  private async getOnlineIdLog(userData: UserData, version: string): Promise<IdentificationLog | undefined> {
-    return await this.kycApi.getDocument<IdentificationLog>(
-      userData.id,
-      false,
-      KycDocument.ONLINE_IDENTIFICATION,
-      version,
-      KycDocument.IDENTIFICATION_LOG,
-    );
-  }
-
-  private async getVideoTransactionId(sessionUrl: string): Promise<string> {
-    const request = await this.http.getRaw(sessionUrl).then((r) => r.request as ClientRequest);
-    return request.path.substring(request.path.lastIndexOf('/') + 1);
-  }
-
-  private async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
-    const completedVersion = await this.kycApi.getDocumentVersion(
-      userDataId,
-      isOrganization,
-      KycDocument.ADDITIONAL_INFORMATION,
-      KycDocumentState.COMPLETED,
-    );
-
-    return this.kycApi.getDocument<ChatbotResult>(
-      userDataId,
-      isOrganization,
-      KycDocument.ADDITIONAL_INFORMATION,
-      completedVersion?.name,
-      this.defaultDocumentPart,
-    );
   }
 
   // --- URLS --- //

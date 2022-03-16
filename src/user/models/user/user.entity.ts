@@ -56,6 +56,9 @@ export class User extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   stakingStart: Date;
 
+  @Column({ length: 256, nullable: true })
+  origin: string;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 
