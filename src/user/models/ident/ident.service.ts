@@ -3,6 +3,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { Util } from 'src/shared/util';
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
+import { KycSchedulerService } from 'src/user/services/kyc/kyc-scheduler.service';
 import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -23,6 +24,7 @@ export class IdentService {
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly countryService: CountryService,
+    private readonly kycScheduler: KycSchedulerService,
   ) {}
 
   // --- NAME CHECK --- //
@@ -39,6 +41,10 @@ export class IdentService {
   }
 
   // --- KYC --- //
+  async resyncIdentData(userId: number): Promise<void> {
+    await this.kycScheduler.syncKycUser(userId, true);
+  }
+
   async updateIdentData(userId: number, data: IdentUserDataDto): Promise<void> {
     const user = await this.userDataService.getUserDataByUser(userId);
     if (!user) throw new NotFoundException(`User data not found`);

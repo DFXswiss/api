@@ -303,7 +303,7 @@ export class KycService {
     return await this.stepFailed(userData);
   }
 
-  private async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
+  async storeIdentResult(userData: UserData, result: IdentResultDto): Promise<UserData> {
     try {
       const spiderData = userData.spiderData ?? (await this.spiderDataRepo.findOne({ userData: { id: userData.id } }));
       if (spiderData) {
