@@ -6,7 +6,6 @@ import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Util } from 'src/shared/util';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
-import { IdentService } from '../ident/ident.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Like, Not } from 'typeorm';
@@ -15,13 +14,14 @@ import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
+import { KycService } from '../kyc/kyc.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly identService: IdentService,
+    private readonly kycService: KycService,
     private readonly walletService: WalletService,
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
@@ -219,7 +219,7 @@ export class UserService {
       kycState: user.userData?.kycState,
       kycHash: user.userData?.kycHash,
       depositLimit: user.userData?.depositLimit,
-      identDataComplete: this.identService.isDataComplete(user.userData),
+      kycDataComplete: this.kycService.isDataComplete(user.userData),
     };
   }
 

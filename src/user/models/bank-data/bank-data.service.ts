@@ -3,15 +3,15 @@ import { BankDataRepository } from 'src/user/models/bank-data/bank-data.reposito
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
-import { KycService } from 'src/user/services/kyc/kyc.service';
 import { BankData } from './bank-data.entity';
+import { SpiderService } from 'src/user/services/spider/spider.service';
 
 @Injectable()
 export class BankDataService {
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly bankDataRepo: BankDataRepository,
-    private readonly kycService: KycService,
+    private readonly spiderService: SpiderService,
   ) {}
 
   async addBankData(userDataId: number, dto: BankDataDto): Promise<UserData> {
@@ -29,7 +29,7 @@ export class BankDataService {
     await this.bankDataRepo.save(bankData);
 
     // create customer, if not existing
-    await this.kycService.createCustomer(userData.id, bankData.name);
+    await this.spiderService.createCustomer(userData.id, bankData.name);
 
     userData.bankDatas.push(bankData);
     return userData;

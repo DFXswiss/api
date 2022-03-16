@@ -22,13 +22,15 @@ import { RefService } from './models/referral/ref.service';
 import { UserController } from './models/user/user.controller';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
-import { KycApiService } from './services/kyc/kyc-api.service';
-import { KycSchedulerService } from './services/kyc/kyc-scheduler.service';
-import { KycService } from './services/kyc/kyc.service';
+import { SpiderApiService } from './services/spider/spider-api.service';
+import { SpiderSyncService } from './services/spider/spider-sync.service';
+import { KycService } from './models/kyc/kyc.service';
 import { LimitRequestRepository } from './models/limit-request/limit-request.repository';
 import { LimitRequestService } from './models/limit-request/limit-request.service';
 import { IdentController } from './models/ident/ident.controller';
 import { IdentService } from './models/ident/ident.service';
+import { SpiderService } from './services/spider/spider.service';
+import { KycProcessService } from './models/kyc/kyc-process.service';
 
 @Module({
   imports: [
@@ -62,12 +64,14 @@ import { IdentService } from './models/ident/ident.service';
     BankDataService,
     RefService,
     KycService,
-    KycApiService,
-    KycSchedulerService,
+    KycProcessService,
+    SpiderService,
+    SpiderApiService,
+    SpiderSyncService,
     AuthService,
     LimitRequestService,
     IdentService,
   ],
-  exports: [UserService, UserDataService, RefService, IdentService],
+  exports: [UserService, UserDataService, RefService, KycService],
 })
 export class UserModule {}

@@ -20,10 +20,10 @@ import {
   Organization,
   SubmitResponse,
   DocumentVersionPart,
-} from './dto/kyc.dto';
+} from './dto/spider.dto';
 
 @Injectable()
-export class KycApiService {
+export class SpiderApiService {
   private readonly baseUrl = 'https://kyc.eurospider.com/kyc-v8-api/rest';
   private readonly baseVersion = '2.0.0';
 

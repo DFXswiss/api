@@ -7,20 +7,23 @@ import { User } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
-import { KycService } from 'src/user/services/kyc/kyc.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Config } from 'src/config/config';
+import { SpiderService } from 'src/user/services/spider/spider.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { UserRepository } from '../user/user.repository';
 
 @Injectable()
 export class UserDataService {
   constructor(
     private readonly userDataRepo: UserDataRepository,
+    private readonly userRepo: UserRepository,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
-    private readonly kycService: KycService,
+    private readonly spiderService: SpiderService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -92,7 +95,7 @@ export class UserDataService {
 
     // update spider
     if ((dto.phone && dto.phone != user.phone) || (dto.mail && dto.mail != user.mail)) {
-      await this.kycService.updateCustomer(user.id, {
+      await this.spiderService.updateCustomer(user.id, {
         telephones: dto.phone ? [dto.phone.replace('+', '').split(' ').join('')] : undefined,
         emails: dto.mail ? [dto.mail] : undefined,
       });
@@ -114,5 +117,9 @@ export class UserDataService {
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
+  }
+
+  async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
+    return await this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
   }
 }
