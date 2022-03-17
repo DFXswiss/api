@@ -58,15 +58,20 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getRawData(@Query() { table, min }: { table: string; min?: string }): Promise<any> {
-    const data = await getConnection()
-      .createQueryBuilder()
-      .from(table, table)
-      .where('id >= :id', { id: +(min ?? 0) })
-      .getRawMany()
-      .catch((e: Error) => {
-        throw new BadRequestException(e.message);
-      });
+  async getRawData(
+    @Query() { table, min, updatedSince }: { table: string; min?: string; updatedSince?: string },
+  ): Promise<any> {
+    let query = getConnection().createQueryBuilder().from(table, table);
+
+    if (min != null) {
+      query = query.where('id >= :id', { id: +min });
+    } else if (updatedSince != null) {
+      query = query.where('updated >= :updated', { updated: new Date(updatedSince) });
+    }
+
+    const data = await query.getRawMany().catch((e: Error) => {
+      throw new BadRequestException(e.message);
+    });
 
     // transform to array
     const arrayData =
