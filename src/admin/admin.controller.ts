@@ -15,7 +15,6 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MailService } from 'src/shared/services/mail.service';
-import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { SendMailDto } from './dto/send-mail.dto';
