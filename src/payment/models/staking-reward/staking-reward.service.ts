@@ -65,7 +65,7 @@ export class StakingRewardService {
 
   async getUserRewards(
     userId: number,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<StakingReward[]> {
     return await this.rewardRepo.find({
@@ -103,7 +103,7 @@ export class StakingRewardService {
   }
 
   async getTransactions(
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
     const stakingRewards = await this.rewardRepo.find({

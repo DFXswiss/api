@@ -68,7 +68,7 @@ export class CryptoSellService {
 
   async getUserTransactions(
     userId: number,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<CryptoSell[]> {
     return await this.cryptoSellRepo.find({
@@ -126,7 +126,7 @@ export class CryptoSellService {
   }
 
   async getTransactions(
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
     const cryptoSells = await this.cryptoSellRepo.find({
