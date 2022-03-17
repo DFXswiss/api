@@ -335,6 +335,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: 'true'
         }
         {
+          name: 'MAIL_USER'
+          value: 'noreply@dfx.swiss'
+        }
+        {
           name: 'MAIL_SEND_GRID_USER'
           value: mailUser
         }

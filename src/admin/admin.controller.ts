@@ -82,7 +82,7 @@ export class AdminController {
         : undefined;
 
     //workaround for GS's TODO: Remove
-    if (table === 'buy') {
+    if (arrayData && table === 'buy') {
       const userTable = await getConnection()
         .createQueryBuilder()
         .from('user', 'user')
