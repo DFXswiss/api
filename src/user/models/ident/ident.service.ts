@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { KycStatus } from 'src/user/models/user-data/user-data.entity';
+import { IdentInProgress } from 'src/user/models/user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from './dto/ident-result.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
@@ -20,7 +20,7 @@ export class IdentService {
       return;
     }
 
-    if (![KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(user.kycStatus)) {
+    if (!IdentInProgress(user.kycStatus)) {
       console.error(`Received webhook call for user ${user.id} in invalid KYC status ${user.kycStatus}:`, result);
       return;
     }
