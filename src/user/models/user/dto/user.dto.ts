@@ -19,6 +19,7 @@ export interface UserDto {
   kycHash: string;
   depositLimit: number;
   identDataComplete: boolean;
+  apiKey: string;
 }
 
 export interface UserDetailDto extends UserDto {

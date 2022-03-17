@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -161,10 +161,18 @@ export class UserService {
   }
 
   async createApiData(userId: number, userAddress: string): Promise<ApiAuth> {
-    const apiKey = Util.createHash(Util.createHash(userAddress + new Date().getDate(), 'sha256'), 'md5');
+    const user = await this.userRepo.findOne({ id: userId });
+    if (user.apiKey) throw new ConflictException('Already existing API-Key');
+
+    const apiKey = Util.createHash(Util.createHash(userAddress + new Date().toISOString(), 'sha256'), 'md5');
     await this.userRepo.update(userId, { apiKey: apiKey });
     const apiSecret = await this.getApiSecretInternal(userId);
+
     return { apiKey: apiKey, apiSecret: apiSecret };
+  }
+
+  async deleteApiKey(userId: number): Promise<void> {
+    await this.userRepo.update(userId, { apiKey: null });
   }
 
   async getApiSecretInternal(userId: number): Promise<string> {
@@ -238,6 +246,7 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       depositLimit: user.userData?.depositLimit,
       identDataComplete: this.identService.isDataComplete(user.userData),
+      apiKey: user.apiKey,
     };
   }
 

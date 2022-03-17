@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -11,6 +11,7 @@ import { User } from './user.entity';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
+import { ApiAuth } from './dto/api-auth.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -37,6 +38,20 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async updateUser(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserDetailDto> {
     return this.userService.updateUser(jwt.id, newUser);
+  }
+
+  @Post('apiData')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async createApiKey(@GetJwt() jwt: JwtPayload): Promise<ApiAuth> {
+    return this.userService.createApiData(jwt.id, jwt.address);
+  }
+
+  @Delete('apiData')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async deleteApiKey(@GetJwt() jwt: JwtPayload): Promise<void> {
+    return this.userService.deleteApiKey(jwt.id);
   }
 
   // --- CFP VOTING --- //
