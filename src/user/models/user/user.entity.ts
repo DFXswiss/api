@@ -59,6 +59,9 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   origin: string;
 
+  @Column({ length: 256, nullable: true })
+  apiKey: string;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 

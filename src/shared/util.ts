@@ -79,8 +79,8 @@ export class Util {
     Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
   }
 
-  static createHash(data: BinaryLike): string {
-    const hash = createHash('sha256');
+  static createHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5'): string {
+    const hash = createHash(hashAlgo);
     hash.update(data);
     return hash.digest('hex').toUpperCase();
   }

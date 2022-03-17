@@ -15,6 +15,7 @@ import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
+import { ApiAuth } from './dto/api-auth.dto';
 
 @Injectable()
 export class UserService {
@@ -157,6 +158,23 @@ export class UserService {
 
   async activateStaking(id: number): Promise<void> {
     await this.userRepo.update(id, { stakingStart: new Date() });
+  }
+
+  async createApiData(userId: number, userAddress: string): Promise<ApiAuth> {
+    const apiKey = Util.createHash(Util.createHash(userAddress + new Date().getDate(), 'sha256'), 'md5');
+    await this.userRepo.update(userId, { apiKey: apiKey });
+    const apiSecret = await this.getApiSecretInternal(userId);
+    return { apiKey: apiKey, apiSecret: apiSecret };
+  }
+
+  async getApiSecretInternal(userId: number): Promise<string> {
+    const user = await this.userRepo.findOne({ id: userId });
+    return Util.createHash(user.apiKey + user.created, 'sha256');
+  }
+
+  async checkApiSecret(apiData: ApiAuth, timestamp: string): Promise<boolean> {
+    const user = await this.userRepo.findOne({ apiKey: apiData.apiKey });
+    return apiData.apiSecret === Util.createHash((await this.getApiSecretInternal(user.id)) + timestamp, 'sha256');
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
