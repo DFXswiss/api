@@ -12,10 +12,9 @@ param dbCapacity int
 @secure()
 param jwtSecret string = newGuid()
 
+param mailUser string
 @secure()
-param mailClientSecret string
-@secure()
-param mailRefreshToken string
+param mailPassword string
 
 param kycMandator string
 @secure()
@@ -340,16 +339,12 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: 'noreply@dfx.swiss'
         }
         {
-          name: 'MAIL_CLIENT_ID'
-          value: '578506515534-apbuebtmlc7eu8voept7ad7k74njcact.apps.googleusercontent.com'
+          name: 'MAIL_SEND_GRID_USER'
+          value: mailUser
         }
         {
-          name: 'MAIL_CLIENT_SECRET'
-          value: mailClientSecret
-        }
-        {
-          name: 'MAIL_REFRESH_TOKEN'
-          value: mailRefreshToken
+          name: 'MAIL_SEND_GRID_PASS'
+          value: mailPassword
         }
         {
           name: 'KYC_MANDATOR'
