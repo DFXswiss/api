@@ -154,7 +154,7 @@ export class StakingService {
 
   async getTotalStakingRewards(): Promise<number> {
     return await this.stakingRepo
-      .createQueryBuilder('stakingReward')
+      .createQueryBuilder('staking')
       .select('SUM(rewardVolume)', 'rewardVolume')
       .getRawOne<{ rewardVolume: number }>()
       .then((r) => r.rewardVolume);

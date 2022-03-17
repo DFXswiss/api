@@ -43,10 +43,11 @@ export class AppController {
   async createRef(
     @RealIP() ip: string,
     @Query('code') ref: string,
+    @Query('orig') origin: string,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    if (ref) await this.refService.addOrUpdate(ip, ref);
+    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
 
     // redirect user depending on platform
     let url = this.homepageUrl;

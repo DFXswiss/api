@@ -15,14 +15,14 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MailService } from 'src/shared/services/mail.service';
-import { IdentService } from 'src/user/models/ident/ident.service';
+import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { SendMailDto } from './dto/send-mail.dto';
-import { UpdateFileDto } from './dto/upload-file.dto';
+import { UploadFileDto } from './dto/upload-file.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly mailService: MailService, private readonly identService: IdentService) {}
+  constructor(private readonly mailService: MailService, private readonly spiderService: SpiderService) {}
 
   @Post('mail')
   @ApiBearerAuth()
@@ -41,24 +41,36 @@ export class AdminController {
   @UseInterceptors(FilesInterceptor('files'))
   async uploadFile(
     @UploadedFiles() files: Express.Multer.File[],
-    @Body() updateFileDto: UpdateFileDto,
+    @Body() updateFileDto: UploadFileDto,
   ): Promise<boolean> {
-    return this.identService.uploadDocument(updateFileDto.userDataId, files[0], updateFileDto.documentType);
+    return await this.spiderService.uploadDocument(
+      updateFileDto.userDataId,
+      false,
+      updateFileDto.documentType,
+      files[0].originalname,
+      files[0].mimetype,
+      files[0].buffer,
+    );
   }
 
   @Get('db')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getRawData(@Query() { table, min }: { table: string; min?: string }): Promise<any> {
-    const data = await getConnection()
-      .createQueryBuilder()
-      .from(table, table)
-      .where('id >= :id', { id: +(min ?? 0) })
-      .getRawMany()
-      .catch((e: Error) => {
-        throw new BadRequestException(e.message);
-      });
+  async getRawData(
+    @Query() { table, min, updatedSince }: { table: string; min?: string; updatedSince?: string },
+  ): Promise<any> {
+    let query = getConnection().createQueryBuilder().from(table, table);
+
+    if (min != null) {
+      query = query.where('id >= :id', { id: +min });
+    } else if (updatedSince != null) {
+      query = query.where('updated >= :updated', { updated: new Date(updatedSince) });
+    }
+
+    const data = await query.getRawMany().catch((e: Error) => {
+      throw new BadRequestException(e.message);
+    });
 
     // transform to array
     const arrayData =

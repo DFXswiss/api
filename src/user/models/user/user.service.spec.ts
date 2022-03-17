@@ -4,7 +4,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserRepository } from './user.repository';
 import { UserService } from './user.service';
-import { IdentService } from '../ident/ident.service';
+import { KycService } from '../kyc/kyc.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -19,7 +19,7 @@ describe('UserService', () => {
   let userRepo: UserRepository;
   let userDataService: UserDataService;
   let fiatService: FiatService;
-  let identService: IdentService;
+  let kycService: KycService;
   let walletService: WalletService;
   let settingService: SettingService;
   let dfiTaxService: DfiTaxService;
@@ -32,7 +32,7 @@ describe('UserService', () => {
     userRepo = createMock<UserRepository>();
     userDataService = createMock<UserDataService>();
     fiatService = createMock<FiatService>();
-    identService = createMock<IdentService>();
+    kycService = createMock<KycService>();
     walletService = createMock<WalletService>();
     settingService = createMock<SettingService>();
     dfiTaxService = createMock<DfiTaxService>();
@@ -43,7 +43,7 @@ describe('UserService', () => {
         { provide: UserRepository, useValue: userRepo },
         { provide: UserDataService, useValue: userDataService },
         { provide: FiatService, useValue: fiatService },
-        { provide: IdentService, useValue: identService },
+        { provide: KycService, useValue: kycService },
         { provide: WalletService, useValue: walletService },
         { provide: SettingService, useValue: settingService },
         { provide: DfiTaxService, useValue: dfiTaxService },

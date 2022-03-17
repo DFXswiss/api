@@ -16,6 +16,7 @@ export enum KycStatus {
   CHECK = 'Check',
   MANUAL = 'Manual',
   COMPLETED = 'Completed',
+  REJECTED = 'Rejected',
 }
 
 export enum KycState {
@@ -136,10 +137,15 @@ export class UserData extends IEntity {
 }
 
 export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
+export const IdentInProgressStates = [KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
 export const KycCompletedStates = [KycStatus.MANUAL, KycStatus.COMPLETED];
 
 export function KycInProgress(kycStatus?: KycStatus): boolean {
   return KycInProgressStates.includes(kycStatus);
+}
+
+export function IdentInProgress(kycStatus?: KycStatus): boolean {
+  return IdentInProgressStates.includes(kycStatus);
 }
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {

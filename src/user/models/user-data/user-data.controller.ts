@@ -9,7 +9,7 @@ import { UserData } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
-import { IdentService } from '../ident/ident.service';
+import { KycService } from '../kyc/kyc.service';
 
 @ApiTags('userData')
 @Controller('userData')
@@ -18,7 +18,7 @@ export class UserDataController {
     private readonly userDataService: UserDataService,
     private readonly bankDataService: BankDataService,
     private readonly userDataRepo: UserDataRepository,
-    private readonly identService: IdentService,
+    private readonly kycService: KycService,
   ) {}
 
   @Get()
@@ -28,20 +28,20 @@ export class UserDataController {
   async getAllUserData(): Promise<UserData[]> {
     return this.userDataRepo.find();
   }
-  
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateUserData(@Param('id') id: number, @Body() userData: UpdateUserDataDto): Promise<UserData> {
-    return this.userDataService.updateUserData(id, userData);
+  async updateUserData(@Param('id') id: string, @Body() userData: UpdateUserDataDto): Promise<UserData> {
+    return this.userDataService.updateUserData(+id, userData);
   }
 
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUserData(@Param('id') id: number): Promise<UserData> {
+  async getUserData(@Param('id') id: string): Promise<UserData> {
     return this.userDataRepo.findOne(id);
   }
 
@@ -49,16 +49,16 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async addBankData(@Param('id') id: number, @Body() bankData: BankDataDto): Promise<UserData> {
-    return this.bankDataService.addBankData(id, bankData);
+  async addBankData(@Param('id') id: string, @Body() bankData: BankDataDto): Promise<UserData> {
+    return this.bankDataService.addBankData(+id, bankData);
   }
 
   @Put(':id/merge')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async mergeUserData(@Param('id') masterId: number, @Query('id') slaveId: number): Promise<void> {
-    return this.userDataService.mergeUserData(masterId, slaveId);
+  async mergeUserData(@Param('id') masterId: string, @Query('id') slaveId: string): Promise<void> {
+    return this.userDataService.mergeUserData(+masterId, +slaveId);
   }
 
   // --- IDENT --- //
@@ -66,19 +66,27 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestKyc(@Param('id') id: number): Promise<string> {
+  async requestKyc(@Param('id') id: string): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
     const user = userData.users[0];
     if (!user) throw new BadRequestException('User not found');
 
-    return this.identService.requestKyc(user.id);
+    return this.kycService.requestKyc(user.id);
   }
 
   @Get(':id/nameCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getNameCheck(@Param('id') id: number): Promise<string> {
-    return this.identService.doNameCheck(id);
+  async getNameCheck(@Param('id') id: string): Promise<string> {
+    return this.kycService.doNameCheck(+id);
+  }
+
+  @Put(':id/resync')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async resyncKycData(@Param('id') id: string): Promise<void> {
+    return this.kycService.resyncKycData(+id);
   }
 }

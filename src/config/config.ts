@@ -95,14 +95,12 @@ export class Configuration {
 
   mail: MailerOptions = {
     transport: {
-      host: 'smtp.gmail.com',
-      secure: false,
+      host: 'smtp.sendgrid.net',
+      secure: true,
+      port: 465,
       auth: {
-        type: 'OAuth2',
-        user: process.env.MAIL_USER,
-        clientId: process.env.MAIL_CLIENT_ID,
-        clientSecret: process.env.MAIL_CLIENT_SECRET,
-        refreshToken: process.env.MAIL_REFRESH_TOKEN,
+        user: process.env.MAIL_SEND_GRID_USER,
+        pass: process.env.MAIL_SEND_GRID_PASS,
       },
       tls: {
         rejectUnauthorized: false,
@@ -144,7 +142,7 @@ export class Configuration {
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
     minDfiDeposit: 0.01,
-    minTokenDeposit: 1, // USDT
+    minTokenDeposit: 0.4, // USDT
   };
 
   buy = {

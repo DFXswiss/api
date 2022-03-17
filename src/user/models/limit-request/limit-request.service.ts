@@ -1,18 +1,18 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
-import { KycService } from 'src/user/services/kyc/kyc.service';
+import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 import { KycCompleted } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LimitRequestDto } from './dto/limit-request.dto';
 import { LimitRequest } from './limit-request.entity';
 import { LimitRequestRepository } from './limit-request.repository';
+import { SpiderService } from 'src/user/services/spider/spider.service';
 
 @Injectable()
 export class LimitRequestService {
   constructor(
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly userDataService: UserDataService,
-    private readonly kycService: KycService,
+    private readonly spiderService: SpiderService,
   ) {}
 
   async increaseLimit(userId: number, dto: LimitRequestDto): Promise<LimitRequest> {
@@ -27,18 +27,18 @@ export class LimitRequestService {
     // upload document proof
     if (dto.documentProof) {
       const { contentType, buffer } = this.fromBase64(dto.documentProof);
-      const version = new Date().getTime().toString();
-      await this.kycService.uploadDocument(
+      const version = Date.now().toString();
+      await this.spiderService.uploadDocument(
         user.id,
         false,
         KycDocument.USER_ADDED_DOCUMENT,
-        version,
         dto.documentProofName,
         contentType,
         buffer,
+        version,
       );
 
-      entity.documentProofUrl = this.kycService.getDocumentUrl(
+      entity.documentProofUrl = this.spiderService.getDocumentUrl(
         user.kycCustomerId,
         KycDocument.USER_ADDED_DOCUMENT,
         version,
