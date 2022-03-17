@@ -1,4 +1,5 @@
 export interface ApiAuth {
   apiKey: string;
-  apiSecret: string;
+  apiSecret?: string;
+  apiSign?: string;
 }

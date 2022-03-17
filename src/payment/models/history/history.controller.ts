@@ -6,6 +6,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
+import { HistoryApiQuery } from './dto/history-api-query.dto';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
 import { HistoryService } from './history.service';
@@ -25,7 +26,14 @@ export class HistoryController {
     @Query() query: HistoryQuery,
   ): Promise<HistoryDto[] | CoinTrackingHistoryDto[]> {
     const tx = await this.historyService.getHistory(jwt.id, jwt.address, query);
-    // return jwt.role === UserRole.CT ? tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } })) : tx;
+    return tx;
+  }
+
+  @Get('CoinTracking')
+  //@ApiBearerAuth()
+  //@UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getCoinTrackingApiHistory(@Query() query: HistoryApiQuery): Promise<CoinTrackingHistoryDto[] | HistoryDto[]> {
+    const tx = await this.historyService.getApiHistory(query);
     return tx;
   }
 

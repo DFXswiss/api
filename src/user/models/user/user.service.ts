@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -16,6 +22,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
 import { ApiAuth } from './dto/api-auth.dto';
+import { time } from 'console';
 
 @Injectable()
 export class UserService {
@@ -180,9 +187,12 @@ export class UserService {
     return Util.createHash(user.apiKey + user.created, 'sha256');
   }
 
-  async checkApiSecret(apiData: ApiAuth, timestamp: string): Promise<boolean> {
+  async checkApiSecret(apiData: ApiAuth, timestamp: string): Promise<User> {
     const user = await this.userRepo.findOne({ apiKey: apiData.apiKey });
-    return apiData.apiSecret === Util.createHash((await this.getApiSecretInternal(user.id)) + timestamp, 'sha256');
+    if (apiData.apiSign != Util.createHash((await this.getApiSecretInternal(user.id)) + timestamp, 'sha256'))
+      throw new ForbiddenException('Api Secret is not matching Api Key');
+
+    return user;
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Readable } from 'stream';
-import { HistoryDto } from './dto/history.dto';
+import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
@@ -9,6 +9,8 @@ import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CryptoBuyService } from '../crypto-buy/crypto-buy.service';
 import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
+import { HistoryApiQuery } from './dto/history-api-query.dto';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class HistoryService {
@@ -18,9 +20,23 @@ export class HistoryService {
     private readonly stakingRewardService: StakingRewardService,
     private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
+    private readonly userService: UserService,
   ) {}
 
-  async getHistory(userId: number, userAddress: string, query: HistoryQuery): Promise<HistoryDto[]> {
+  async getApiHistory(query: HistoryApiQuery): Promise<CoinTrackingHistoryDto[] | HistoryDto[]> {
+    const user = await this.userService.checkApiSecret(
+      { apiKey: query.apiKey, apiSign: query.apiSign },
+      query.timestamp,
+    );
+
+    return await this.getHistory(user.id, user.address, query);
+  }
+
+  async getHistory(
+    userId: number,
+    userAddress: string,
+    query: HistoryQuery,
+  ): Promise<HistoryDto[] | CoinTrackingHistoryDto[]> {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
