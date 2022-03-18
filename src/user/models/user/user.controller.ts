@@ -11,7 +11,7 @@ import { User } from './user.entity';
 import { UserDetailDto, UserDto } from './dto/user.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
-import { ApiAuth } from './dto/api-auth.dto';
+import { ApiKey } from './dto/api-key.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -40,14 +40,14 @@ export class UserController {
     return this.userService.updateUser(jwt.id, newUser);
   }
 
-  @Post('apiData')
+  @Post('apiKey/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createApiKey(@GetJwt() jwt: JwtPayload): Promise<ApiAuth> {
-    return this.userService.createApiData(jwt.id, jwt.address);
+  async createApiKey(@GetJwt() jwt: JwtPayload): Promise<ApiKey> {
+    return this.userService.createApiKey(jwt.id, jwt.address);
   }
 
-  @Delete('apiData')
+  @Delete('apiKey/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async deleteApiKey(@GetJwt() jwt: JwtPayload): Promise<void> {

@@ -1,4 +1,15 @@
-import { Controller, UseGuards, Get, StreamableFile, Response, Post, Query, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  UseGuards,
+  Get,
+  StreamableFile,
+  Response,
+  Post,
+  Query,
+  NotFoundException,
+  Header,
+  Headers,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -6,7 +17,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
-import { HistoryApiQuery } from './dto/history-api-query.dto';
+import { UserService } from 'src/user/models/user/user.service';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
 import { HistoryService } from './history.service';
@@ -16,7 +27,7 @@ import { HistoryService } from './history.service';
 export class HistoryController {
   private files: { [key: number]: StreamableFile } = {};
 
-  constructor(private readonly historyService: HistoryService) {}
+  constructor(private readonly historyService: HistoryService, private readonly userService: UserService) {}
 
   @Get()
   @ApiBearerAuth()
@@ -29,12 +40,16 @@ export class HistoryController {
     return tx;
   }
 
-  @Get('CoinTracking')
-  //@ApiBearerAuth()
-  //@UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getCoinTrackingApiHistory(@Query() query: HistoryApiQuery): Promise<CoinTrackingHistoryDto[] | HistoryDto[]> {
-    const tx = await this.historyService.getApiHistory(query);
-    return tx;
+  @Get('CT')
+  async getCoinTrackingApiHistory(
+    @Query() query: HistoryQuery,
+    @Headers('DFX-ACCESS-KEY') apiKey: string,
+    @Headers('DFX-ACCESS-SIGN') apiSign: string,
+    @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
+  ): Promise<CoinTrackingHistoryDto[]> {
+    const user = await this.userService.checkApiSign(apiKey, apiSign, timestamp);
+    const tx = await this.historyService.getHistory(user.id, user.address, query);
+    return tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } }));
   }
 
   @Post('csv')

@@ -21,7 +21,7 @@ import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
-import { ApiAuth } from './dto/api-auth.dto';
+import { ApiKey } from './dto/api-key.dto';
 import { time } from 'console';
 
 @Injectable()
@@ -167,30 +167,35 @@ export class UserService {
     await this.userRepo.update(id, { stakingStart: new Date() });
   }
 
-  async createApiData(userId: number, userAddress: string): Promise<ApiAuth> {
-    const user = await this.userRepo.findOne({ id: userId });
-    if (user.apiKey) throw new ConflictException('Already existing API-Key');
+  async createApiKey(userId: number, userAddress: string): Promise<ApiKey> {
+    let user = await this.userRepo.findOne({ id: userId });
+    if (user.apiKeyCT) throw new ConflictException('Already existing API-Key');
 
     const apiKey = Util.createHash(Util.createHash(userAddress + new Date().toISOString(), 'sha256'), 'md5');
-    await this.userRepo.update(userId, { apiKey: apiKey });
-    const apiSecret = await this.getApiSecretInternal(userId);
 
-    return { apiKey: apiKey, apiSecret: apiSecret };
+    user = Object.assign(user, await this.userRepo.save({ id: userId, apiKeyCT: apiKey }));
+
+    const apiSecret = await this.getApiSecretInternal(user);
+
+    return { key: apiKey, secret: apiSecret };
   }
 
   async deleteApiKey(userId: number): Promise<void> {
-    await this.userRepo.update(userId, { apiKey: null });
+    await this.userRepo.update(userId, { apiKeyCT: null });
   }
 
-  async getApiSecretInternal(userId: number): Promise<string> {
-    const user = await this.userRepo.findOne({ id: userId });
-    return Util.createHash(user.apiKey + user.created, 'sha256');
+  async getApiSecretInternal(user: User): Promise<string> {
+    if (!user.apiKeyCT) throw new ConflictException('apiKey is null');
+    return Util.createHash(user.apiKeyCT + user.created, 'sha256');
   }
 
-  async checkApiSecret(apiData: ApiAuth, timestamp: string): Promise<User> {
-    const user = await this.userRepo.findOne({ apiKey: apiData.apiKey });
-    if (apiData.apiSign != Util.createHash((await this.getApiSecretInternal(user.id)) + timestamp, 'sha256'))
-      throw new ForbiddenException('Api Secret is not matching Api Key');
+  async checkApiSign(apiKey: string, apiSign: string, timestamp: string): Promise<User> {
+    const user = await this.userRepo.findOne({ apiKeyCT: apiKey });
+    if (
+      !user ||
+      apiSign.toLocaleUpperCase() != Util.createHash((await this.getApiSecretInternal(user)) + timestamp, 'sha256')
+    )
+      throw new ForbiddenException('Invalid Api Key/Sign');
 
     return user;
   }
@@ -256,7 +261,7 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       depositLimit: user.userData?.depositLimit,
       identDataComplete: this.identService.isDataComplete(user.userData),
-      apiKey: user.apiKey,
+      apiKey: user.apiKeyCT,
     };
   }
 
