@@ -16,6 +16,7 @@ export enum KycStatus {
   CHECK = 'Check',
   MANUAL = 'Manual',
   COMPLETED = 'Completed',
+  REJECTED = 'Rejected',
 }
 
 export enum KycState {

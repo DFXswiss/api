@@ -23,10 +23,10 @@
     "dbCapacity": {
       "value": 20
     },
-    "mailClientSecret": {
+    "mailUser": {
       "value": "xxx"
     },
-    "mailRefreshToken": {
+    "mailPass": {
       "value": "xxx"
     },
     "kycMandator": {

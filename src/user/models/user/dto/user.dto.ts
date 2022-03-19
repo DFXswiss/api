@@ -18,8 +18,8 @@ export interface UserDto {
   kycState: KycState;
   kycHash: string;
   depositLimit: number;
-  identDataComplete: boolean;
-  apiKey: string;
+  kycDataComplete: boolean;
+  apiKeyCT: string;
 }
 
 export interface UserDetailDto extends UserDto {

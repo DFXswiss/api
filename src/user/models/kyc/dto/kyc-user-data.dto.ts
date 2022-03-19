@@ -3,7 +3,7 @@ import { IsNotEmpty, IsEnum, IsString, IsObject, ValidateIf } from 'class-valida
 import { Country } from 'src/shared/models/country/country.entity';
 import { AccountType } from '../../user-data/account-type.enum';
 
-export class IdentUserDataDto {
+export class KycUserDataDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEnum(AccountType)
@@ -45,37 +45,37 @@ export class IdentUserDataDto {
   country: Country;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: IdentUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationName: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: IdentUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationStreet: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: IdentUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationHouseNumber: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: IdentUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationLocation: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: IdentUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationZip: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: IdentUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsObject()
   organizationCountry: Country;

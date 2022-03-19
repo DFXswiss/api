@@ -1,193 +1,12 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { Util } from 'src/shared/util';
-import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
-import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
-import { KycSchedulerService } from 'src/user/services/kyc/kyc-scheduler.service';
-import { KycService, KycProgress } from 'src/user/services/kyc/kyc.service';
-import { AccountType } from '../user-data/account-type.enum';
+import { Injectable } from '@nestjs/common';
+import { IdentInProgress } from 'src/user/models/user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
-import { UserDataService } from '../user-data/user-data.service';
 import { IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from './dto/ident-result.dto';
-import { IdentUserDataDto } from './dto/ident-user-data.dto';
-
-export interface KycResult {
-  status: KycStatus;
-  identUrl?: string;
-  setupUrl?: string;
-}
+import { KycProcessService } from '../kyc/kyc-process.service';
 
 @Injectable()
 export class IdentService {
-  constructor(
-    private readonly userDataRepo: UserDataRepository,
-    private readonly userDataService: UserDataService,
-    private readonly kycService: KycService,
-    private readonly countryService: CountryService,
-    private readonly kycScheduler: KycSchedulerService,
-  ) {}
-
-  // --- NAME CHECK --- //
-  async doNameCheck(userDataId: number): Promise<string> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
-    if (!userData) throw new NotFoundException('User data not found');
-
-    userData.riskState = await this.kycService.checkCustomer(userData.id);
-    if (!userData.riskState) throw new BadRequestException('User is not in Spider');
-
-    await this.userDataRepo.save(userData);
-
-    return userData.riskState;
-  }
-
-  // --- KYC --- //
-  async resyncIdentData(userId: number): Promise<void> {
-    await this.kycScheduler.syncKycUser(userId, true);
-  }
-
-  async updateIdentData(userId: number, data: IdentUserDataDto): Promise<void> {
-    const user = await this.userDataService.getUserDataByUser(userId);
-    if (!user) throw new NotFoundException(`User data not found`);
-
-    // check countries
-    const [country, organizationCountry] = await Promise.all([
-      this.countryService.getCountry(data.country.id),
-      this.countryService.getCountry(data.organizationCountry?.id),
-    ]);
-    if (!country || (data.accountType !== AccountType.PERSONAL && !organizationCountry))
-      throw new BadRequestException('Country not found');
-
-    if (data.accountType === AccountType.PERSONAL) {
-      data.organizationName = null;
-      data.organizationStreet = null;
-      data.organizationHouseNumber = null;
-      data.organizationLocation = null;
-      data.organizationZip = null;
-      data.organizationCountry = null;
-    }
-
-    await this.userDataRepo.save({ ...user, ...data });
-  }
-
-  async dataComplete(userId: number): Promise<boolean> {
-    const user = await this.userDataService.getUserDataByUser(userId);
-    return this.isDataComplete(user);
-  }
-
-  isDataComplete(user: UserData): boolean {
-    const requiredFields = [
-      'mail',
-      'phone',
-      'firstname',
-      'surname',
-      'street',
-      'houseNumber',
-      'location',
-      'zip',
-      'country',
-    ].concat(
-      user.accountType === AccountType.PERSONAL
-        ? []
-        : [
-            'organizationName',
-            'organizationStreet',
-            'organizationHouseNumber',
-            'organizationLocation',
-            'organizationZip',
-            'organizationCountry',
-          ],
-    );
-    return requiredFields.filter((f) => !user[f]).length === 0;
-  }
-
-  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const userData = await this.userDataService.getUserDataByUser(userId);
-    if (!userData) throw new NotFoundException(`User data not found`);
-
-    // create customer, if not existing
-    await this.kycService.createCustomer(userData.id, userData.surname);
-
-    const version = new Date().getTime().toString();
-    return await this.kycService.uploadDocument(
-      userData.id,
-      false,
-      kycDocument,
-      version,
-      document.originalname,
-      document.mimetype,
-      document.buffer,
-    );
-  }
-
-  async requestKyc(userId: number): Promise<string> {
-    let user = await this.userDataService.getUserDataByUser(userId);
-
-    // check if KYC already started
-    if (user.kycStatus !== KycStatus.NA) {
-      throw new BadRequestException('KYC already in progress/completed');
-    }
-
-    // check if user data complete
-    const dataComplete = await this.isDataComplete(user);
-    if (!dataComplete) throw new BadRequestException('Ident data incomplete');
-
-    // update
-    user = await this.startKyc(user);
-    await this.userDataRepo.save(user);
-
-    return user.kycHash;
-  }
-
-  private async startKyc(userData: UserData): Promise<UserData> {
-    // update customer
-    await this.kycService.initializeCustomer(userData);
-
-    // generate KYC hash
-    userData.kycHash = Util.createHash(userData.id.toString() + new Date().getDate()).slice(0, 12);
-    if ((await this.userDataRepo.findOne({ kycHash: userData.kycHash })) != null)
-      throw new InternalServerErrorException(`KYC hash ${userData.kycHash} already exists`);
-
-    // do name check
-    userData.riskState = await this.kycService.checkCustomer(userData.id);
-
-    // start KYC
-    return await this.kycService.goToStatus(userData, KycStatus.CHATBOT);
-  }
-
-  async getKycProgress(kycHash: string): Promise<KycResult> {
-    let userData = await this.userDataRepo.findOne({ where: { kycHash }, relations: ['spiderData'] });
-    if (!userData) throw new NotFoundException('User not found');
-
-    if (!KycInProgress(userData.kycStatus)) throw new BadRequestException('KYC not in progress');
-
-    // update
-    userData = await this.checkKycProgress(userData);
-    await this.userDataRepo.save(userData);
-
-    const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
-    return {
-      status: userData.kycStatus,
-      identUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
-      setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
-    };
-  }
-
-  private async checkKycProgress(userData: UserData): Promise<UserData> {
-    // check if chatbot already finished
-    if (userData.kycStatus === KycStatus.CHATBOT) {
-      const chatbotProgress = await this.kycService.getKycProgress(userData.id, userData.kycStatus);
-      if (chatbotProgress === KycProgress.COMPLETED) {
-        return await this.kycService.chatbotCompleted(userData);
-      }
-    }
-
-    // retrigger, if failed
-    if (userData.kycState === KycState.FAILED) {
-      return await this.kycService.goToStatus(userData, userData.kycStatus);
-    }
-
-    return userData;
-  }
+  constructor(private readonly userDataRepo: UserDataRepository, private readonly kycProcess: KycProcessService) {}
 
   // --- WEBHOOK UPDATES --- //
   async identUpdate(result: IdentResultDto): Promise<void> {
@@ -201,7 +20,7 @@ export class IdentService {
       return;
     }
 
-    if (![KycStatus.ONLINE_ID, KycStatus.VIDEO_ID].includes(user.kycStatus)) {
+    if (!IdentInProgress(user.kycStatus)) {
       console.error(`Received webhook call for user ${user.id} in invalid KYC status ${user.kycStatus}:`, result);
       return;
     }
@@ -209,11 +28,11 @@ export class IdentService {
     console.log(`Received webhook call for user ${user.id}:`, result);
 
     if (IdentSucceeded(result)) {
-      user = await this.kycService.identCompleted(user, result);
+      user = await this.kycProcess.identCompleted(user, result);
     } else if (IdentPending(result)) {
-      user = await this.kycService.identInReview(user, result);
+      user = await this.kycProcess.identInReview(user, result);
     } else if (IdentFailed(result)) {
-      user = await this.kycService.identFailed(user, result);
+      user = await this.kycProcess.identFailed(user, result);
     } else {
       console.error(`Unknown ident result ${result.identificationprocess.result}`);
     }

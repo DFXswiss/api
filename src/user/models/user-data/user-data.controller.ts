@@ -9,7 +9,7 @@ import { UserData } from './user-data.entity';
 import { UserDataRepository } from './user-data.repository';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
-import { IdentService } from '../ident/ident.service';
+import { KycService } from '../kyc/kyc.service';
 
 @ApiTags('userData')
 @Controller('userData')
@@ -18,7 +18,7 @@ export class UserDataController {
     private readonly userDataService: UserDataService,
     private readonly bankDataService: BankDataService,
     private readonly userDataRepo: UserDataRepository,
-    private readonly identService: IdentService,
+    private readonly kycService: KycService,
   ) {}
 
   @Get()
@@ -71,7 +71,7 @@ export class UserDataController {
     const user = userData.users[0];
     if (!user) throw new BadRequestException('User not found');
 
-    return this.identService.requestKyc(user.id);
+    return this.kycService.requestKyc(user.id);
   }
 
   @Get(':id/nameCheck')
@@ -79,14 +79,14 @@ export class UserDataController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getNameCheck(@Param('id') id: string): Promise<string> {
-    return this.identService.doNameCheck(+id);
+    return this.kycService.doNameCheck(+id);
   }
 
   @Put(':id/resync')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async resyncIdentData(@Param('id') id: string): Promise<void> {
-    return this.identService.resyncIdentData(+id);
+  async resyncKycData(@Param('id') id: string): Promise<void> {
+    return this.kycService.resyncKycData(+id);
   }
 }

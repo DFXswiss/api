@@ -74,6 +74,7 @@ export class CryptoInputService {
         // get receive history
         .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
         .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
+        .then((i) => i.filter((h) => h.blockHeight > lastHeight))
         // map to entities
         .then((i) => this.createEntities(i))
         .then((i) => i.filter((h) => h != null));

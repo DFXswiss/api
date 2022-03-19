@@ -22,11 +22,11 @@ export class RefService {
     try {
       return await this.refRepo.addOrUpdate(ip, ref, origin);
     } catch (e) {
-      console.error('Exception during ref update:', e);
+      console.log('Exception during ref update:', e);
     }
   }
 
-  async get(ip: string): Promise<Ref | undefined> {
+  async get(ip: string): Promise<Ref | undefined> {
     return await this.refRepo.getAndRemove(ip);
   }
 }

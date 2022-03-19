@@ -58,7 +58,7 @@ export class RefRewardService {
 
   async getUserRewards(
     userId: number,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<RefReward[]> {
     return await this.rewardRepo.find({
@@ -96,7 +96,7 @@ export class RefRewardService {
   }
 
   async getTransactions(
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
     const refRewards = await this.rewardRepo.find({

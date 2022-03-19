@@ -1,7 +1,7 @@
 import { IsEnum, IsNotEmpty, IsNumber } from 'class-validator';
-import { KycDocument } from 'src/user/services/kyc/dto/kyc.dto';
+import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 
-export class UpdateFileDto {
+export class UploadFileDto {
   @IsNotEmpty()
   @IsNumber()
   userDataId: number;
