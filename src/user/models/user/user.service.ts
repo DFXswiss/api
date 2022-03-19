@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { User, UserStatus } from './user.entity';
 import { UserRepository } from './user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -14,6 +20,7 @@ import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
+import { ApiKey } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
 
 @Injectable()
@@ -191,6 +198,42 @@ export class UserService {
     return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
   }
 
+  // --- API KEY --- //
+  async createApiKey(userId: number): Promise<ApiKey> {
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new BadRequestException('User not found');
+    if (user.apiKeyCT) throw new ConflictException('API key already exists');
+
+    user.apiKeyCT = Util.createHash(Util.createHash(user.address + new Date().toISOString(), 'sha256'), 'md5');
+
+    await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT });
+
+    const secret = await this.getApiSecret(user);
+    return { key: user.apiKeyCT, secret: secret };
+  }
+
+  async deleteApiKey(userId: number): Promise<void> {
+    await this.userRepo.update(userId, { apiKeyCT: null });
+  }
+
+  async checkApiKey(key: string, sign: string, timestamp: string): Promise<User> {
+    const user = await this.userRepo.findOne({ apiKeyCT: key });
+    if (!user || sign.toUpperCase() != (await this.getApiSign(user, timestamp)))
+      throw new ForbiddenException('Invalid API key/sign');
+
+    return user;
+  }
+
+  async getApiSign(user: User, timestamp: string): Promise<string> {
+    const secret = await this.getApiSecret(user);
+    return Util.createHash(secret + timestamp, 'sha256');
+  }
+
+  async getApiSecret(user: User): Promise<string> {
+    if (!user.apiKeyCT) throw new BadRequestException('API key is null');
+    return Util.createHash(user.apiKeyCT + user.created, 'sha256');
+  }
+
   // --- DTO --- //
   private async toDto(user: User, detailed: boolean): Promise<UserDetailDto> {
     return {
@@ -220,6 +263,7 @@ export class UserService {
       kycHash: user.userData?.kycHash,
       depositLimit: user.userData?.depositLimit,
       kycDataComplete: this.kycService.isDataComplete(user.userData),
+      apiKeyCT: user.apiKeyCT,
     };
   }
 
