@@ -36,18 +36,17 @@ export class HistoryController {
     @GetJwt() jwt: JwtPayload,
     @Query() query: HistoryQuery,
   ): Promise<HistoryDto[] | CoinTrackingHistoryDto[]> {
-    const tx = await this.historyService.getHistory(jwt.id, jwt.address, query);
-    return tx;
+    return await this.historyService.getHistory(jwt.id, jwt.address, query);
   }
 
   @Get('CT')
   async getCoinTrackingApiHistory(
     @Query() query: HistoryQuery,
-    @Headers('DFX-ACCESS-KEY') apiKey: string,
-    @Headers('DFX-ACCESS-SIGN') apiSign: string,
+    @Headers('DFX-ACCESS-KEY') key: string,
+    @Headers('DFX-ACCESS-SIGN') sign: string,
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
   ): Promise<CoinTrackingHistoryDto[]> {
-    const user = await this.userService.checkApiSign(apiKey, apiSign, timestamp);
+    const user = await this.userService.checkApiKey(key, sign, timestamp);
     const tx = await this.historyService.getHistory(user.id, user.address, query);
     return tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } }));
   }

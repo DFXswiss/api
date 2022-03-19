@@ -21,7 +21,6 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
 import { ApiKey } from './dto/api-key.dto';
-import { time } from 'console';
 import { KycService } from '../kyc/kyc.service';
 
 @Injectable()
@@ -167,39 +166,6 @@ export class UserService {
     await this.userRepo.update(id, { stakingStart: new Date() });
   }
 
-  async createApiKey(userId: number, userAddress: string): Promise<ApiKey> {
-    let user = await this.userRepo.findOne({ id: userId });
-    if (user.apiKeyCT) throw new ConflictException('Already existing API-Key');
-
-    const apiKey = Util.createHash(Util.createHash(userAddress + new Date().toISOString(), 'sha256'), 'md5');
-
-    user = Object.assign(user, await this.userRepo.save({ id: userId, apiKeyCT: apiKey }));
-
-    const apiSecret = await this.getApiSecretInternal(user);
-
-    return { key: apiKey, secret: apiSecret };
-  }
-
-  async deleteApiKey(userId: number): Promise<void> {
-    await this.userRepo.update(userId, { apiKeyCT: null });
-  }
-
-  async getApiSecretInternal(user: User): Promise<string> {
-    if (!user.apiKeyCT) throw new ConflictException('apiKey is null');
-    return Util.createHash(user.apiKeyCT + user.created, 'sha256');
-  }
-
-  async checkApiSign(apiKey: string, apiSign: string, timestamp: string): Promise<User> {
-    const user = await this.userRepo.findOne({ apiKeyCT: apiKey });
-    if (
-      !user ||
-      apiSign.toLocaleUpperCase() != Util.createHash((await this.getApiSecretInternal(user)) + timestamp, 'sha256')
-    )
-      throw new ForbiddenException('Invalid Api Key/Sign');
-
-    return user;
-  }
-
   private async checkRef(user: User, usedRef: string): Promise<string> {
     const refUser = await this.userRepo.findOne({ where: { ref: usedRef }, relations: ['userData'] });
     return usedRef === null ||
@@ -230,6 +196,42 @@ export class UserService {
 
     const ref = nextRef.toString().padStart(6, '0');
     return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
+  }
+
+  // --- API KEY --- //
+  async createApiKey(userId: number): Promise<ApiKey> {
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new BadRequestException('User not found');
+    if (user.apiKeyCT) throw new ConflictException('API key already exists');
+
+    user.apiKeyCT = Util.createHash(Util.createHash(user.address + new Date().toISOString(), 'sha256'), 'md5');
+
+    await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT });
+
+    const secret = await this.getApiSecret(user);
+    return { key: user.apiKeyCT, secret: secret };
+  }
+
+  async deleteApiKey(userId: number): Promise<void> {
+    await this.userRepo.update(userId, { apiKeyCT: null });
+  }
+
+  async checkApiKey(key: string, sign: string, timestamp: string): Promise<User> {
+    const user = await this.userRepo.findOne({ apiKeyCT: key });
+    if (!user || sign.toUpperCase() != (await this.getApiSign(user, timestamp)))
+      throw new ForbiddenException('Invalid API key/sign');
+
+    return user;
+  }
+
+  async getApiSign(user: User, timestamp: string): Promise<string> {
+    const secret = await this.getApiSecret(user);
+    return Util.createHash(secret + timestamp, 'sha256');
+  }
+
+  async getApiSecret(user: User): Promise<string> {
+    if (!user.apiKeyCT) throw new BadRequestException('API key is null');
+    return Util.createHash(user.apiKeyCT + user.created, 'sha256');
   }
 
   // --- DTO --- //

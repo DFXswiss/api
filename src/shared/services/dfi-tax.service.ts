@@ -45,7 +45,7 @@ export class DfiTaxService {
   async getRewards(
     address: string,
     interval: string,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<DfiTaxReward[]> {
     const url = `${this.baseUrl}/p01/rwd/${address}/${interval}/EUR`;
@@ -53,18 +53,18 @@ export class DfiTaxService {
     try {
       const rewards = await this.http.get<DfiTaxReward[]>(url, { timeout: 15000, tryCount: 3 });
 
-      return rewards.filter((item: DfiTaxReward) => {
+      return rewards.filter((item) => {
         return new Date(item.date).getTime() >= dateFrom.getTime() && new Date(item.date).getTime() <= dateTo.getTime();
       });
-    } catch (error) {
-      throw new ServiceUnavailableException(error);
+    } catch (e) {
+      throw new ServiceUnavailableException(e);
     }
   }
 
   async getTransactions(
     address: string,
     interval: string,
-    dateFrom: Date = new Date('15 Aug 2021 00:00:00 GMT'),
+    dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<DfiTaxTransaction[]> {
     const url = `${this.baseUrl}/v01/hst/${address}/${interval}/EUR`;
@@ -75,8 +75,8 @@ export class DfiTaxService {
       return rewards.filter((item: any) => {
         return item.date.getTime() >= dateFrom.getTime() && item.date.getTime() <= dateTo.getTime();
       });
-    } catch (error) {
-      throw new ServiceUnavailableException(error);
+    } catch (e) {
+      throw new ServiceUnavailableException(e);
     }
   }
 }

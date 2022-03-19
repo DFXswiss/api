@@ -40,11 +40,12 @@ export class UserController {
     return this.userService.updateUser(jwt.id, newUser);
   }
 
+  // --- API KEYS --- //
   @Post('apiKey/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async createApiKey(@GetJwt() jwt: JwtPayload): Promise<ApiKey> {
-    return this.userService.createApiKey(jwt.id, jwt.address);
+    return this.userService.createApiKey(jwt.id);
   }
 
   @Delete('apiKey/CT')
