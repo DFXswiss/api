@@ -7,7 +7,6 @@ import {
   Post,
   Query,
   NotFoundException,
-  Header,
   Headers,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
