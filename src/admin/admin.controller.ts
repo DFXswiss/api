@@ -38,18 +38,14 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @UseInterceptors(FilesInterceptor('files'))
-  async uploadFile(
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body() updateFileDto: UploadFileDto,
-  ): Promise<boolean> {
+  async uploadFile(@Body() updateFileDto: UploadFileDto): Promise<boolean> {
     return await this.spiderService.uploadDocument(
       updateFileDto.userDataId,
       false,
       updateFileDto.documentType,
-      files[0].originalname,
-      files[0].mimetype,
-      files[0].buffer,
+      updateFileDto.originalName,
+      updateFileDto.contentType,
+      updateFileDto.data,
     );
   }
 
