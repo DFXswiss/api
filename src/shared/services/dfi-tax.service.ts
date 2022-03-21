@@ -47,7 +47,7 @@ export class DfiTaxService {
     interval: string,
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
-    timeout: number = 15000,
+    timeout = 15000,
   ): Promise<DfiTaxReward[]> {
     const url = `${this.baseUrl}/p01/rwd/${address}/${interval}/EUR`;
 
