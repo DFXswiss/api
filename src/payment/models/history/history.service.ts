@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Readable } from 'stream';
-import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
+import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
