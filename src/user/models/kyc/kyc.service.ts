@@ -87,7 +87,7 @@ export class KycService {
       'zip',
       'country',
     ].concat(
-      user.accountType === AccountType.PERSONAL
+      user?.accountType === AccountType.PERSONAL
         ? []
         : [
             'organizationName',
