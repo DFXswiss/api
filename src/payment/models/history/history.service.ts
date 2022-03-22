@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Readable } from 'stream';
-import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
+import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
@@ -20,7 +20,7 @@ export class HistoryService {
     private readonly dfiTaxService: DfiTaxService,
   ) {}
 
-  async getHistory(userId: number, userAddress: string, query: HistoryQuery): Promise<HistoryDto[]> {
+  async getHistory(userId: number, userAddress: string, query: HistoryQuery, timeout?: number): Promise<HistoryDto[]> {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
@@ -30,7 +30,7 @@ export class HistoryService {
       all || query.staking != null ? await this.getStakingRewards(userId, query.from, query.to) : Promise.resolve([]),
       all || query.ref != null ? await this.getRefRewards(userId, query.from, query.to) : Promise.resolve([]),
       all || query.lm != null
-        ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to)
+        ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout)
         : Promise.resolve([]),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
@@ -177,8 +177,9 @@ export class HistoryService {
     interval: string,
     dateFrom?: Date,
     dateTo?: Date,
+    timeout?: number,
   ): Promise<HistoryDto[]> {
-    const rewards = await this.dfiTaxService.getRewards(userAddress, interval, dateFrom, dateTo);
+    const rewards = await this.dfiTaxService.getRewards(userAddress, interval, dateFrom, dateTo, timeout);
     return rewards.map((reward) => ({
       type: 'Mining',
       buyAmount: Util.round(reward.qty, 8),
