@@ -11,7 +11,6 @@ import { AccountType } from '../user-data/account-type.enum';
 import { User } from './user.entity';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { TestUtil } from 'src/shared/test.util';
-import { Configuration } from 'src/config/config';
 
 describe('UserService', () => {
   let service: UserService;
@@ -47,7 +46,7 @@ describe('UserService', () => {
         { provide: WalletService, useValue: walletService },
         { provide: SettingService, useValue: settingService },
         { provide: DfiTaxService, useValue: dfiTaxService },
-        TestUtil.provideConfig(new Configuration()),
+        TestUtil.provideConfig(),
       ],
     }).compile();
 
