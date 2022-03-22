@@ -68,17 +68,11 @@ export class NodeClient {
     return tx;
   }
 
-  async getAddressesWithFunds(): Promise<string[]> {
-    const [utxo, token] = await Promise.all([
-      this.getUtxo().then((i) =>
-        i.filter((u) => u.amount.toNumber() >= Config.node.minDfiDeposit).map((u) => u.address),
-      ),
-      this.getToken().then((i) => i.map((u) => u.owner)),
-    ]);
-    return [...new Set(utxo.concat(token))];
+  // UTXO
+  get utxoFee(): number {
+    return this.chain === Chain.MAIN ? 0.00000132 : 0.0000222;
   }
 
-  // UTXO
   async getUtxo(): Promise<UTXO[]> {
     return this.callNode((c) => c.wallet.listUnspent());
   }
@@ -86,6 +80,13 @@ export class NodeClient {
   async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
     return this.callNode(
       (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee)], 'number'),
+      true,
+    );
+  }
+
+  async sendCompleteUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
+    return this.callNode(
+      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount / 2), addressTo], 'number'),
       true,
     );
   }
@@ -116,6 +117,30 @@ export class NodeClient {
     ).then((r: string) => this.parseAmount(r).amount);
   }
 
+  async compositeSwap(
+    addressFrom: string,
+    tokenFrom: string,
+    addressTo: string,
+    tokenTo: string,
+    amount: number,
+    utxos?: SpendUTXO[],
+  ): Promise<string> {
+    return this.callNode(
+      (c) =>
+        c.poolpair.compositeSwap(
+          {
+            from: addressFrom,
+            tokenFrom: tokenFrom,
+            amountFrom: this.roundAmount(amount),
+            to: addressTo,
+            tokenTo: tokenTo,
+          },
+          utxos,
+        ),
+      true,
+    );
+  }
+
   async sendToken(
     addressFrom: string,
     addressTo: string,
@@ -123,12 +148,20 @@ export class NodeClient {
     amount: number,
     utxos?: SpendUTXO[],
   ): Promise<string> {
-    return token === 'DFI-Token'
-      ? this.callNode((c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${amount}@DFI` }, { utxos }), true)
+    return token === 'DFI'
+      ? this.toUtxo(addressFrom, addressTo, amount, utxos)
       : this.callNode(
-          (c) => c.account.accountToAccount(addressFrom, { [addressTo]: `${amount}@${token}` }, { utxos }),
+          (c) =>
+            c.account.accountToAccount(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@${token}` }, { utxos }),
           true,
         );
+  }
+
+  async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
+    return this.callNode(
+      (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
+      true,
+    );
   }
 
   async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
@@ -191,10 +224,6 @@ export class NodeClient {
 
   private async getChain(): Promise<Chain> {
     return this.callNode((c) => c.blockchain.getBlockchainInfo()).then((i) => i.chain as Chain);
-  }
-
-  private get utxoFee(): number {
-    return this.chain === Chain.MAIN ? 0.00000132 : 0.0000222;
   }
 
   private roundAmount(amount: number): number {
