@@ -95,12 +95,12 @@ export class Configuration {
 
   mail: MailerOptions = {
     transport: {
-      host: 'smtp.sendgrid.net',
+      host: 'gateway.dfx.swiss',
       secure: true,
       port: 465,
       auth: {
-        user: process.env.MAIL_SEND_GRID_USER,
-        pass: process.env.MAIL_SEND_GRID_PASS,
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
       },
       tls: {
         rejectUnauthorized: false,
