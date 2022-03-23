@@ -1,7 +1,7 @@
 import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression, Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
@@ -14,6 +14,8 @@ import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { Not } from 'typeorm';
+import { Sell } from '../sell/sell.entity';
+import { Staking } from '../staking/staking.entity';
 
 interface HistoryAmount {
   amount: number;
@@ -36,25 +38,62 @@ export class CryptoInputService {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
 
+  // --- TOKEN CONVERSION --- //
   @Interval(900000)
-  async removePoolLiquidities(): Promise<void> {
+  async convertTokens(): Promise<void> {
     try {
       await this.checkNodeInSync();
 
       const tokens = await this.client.getToken();
-      for (const token of tokens) {
-        const { asset } = this.client.parseAmount(token.amount);
-        const assetEntity = await this.assetService.getAssetByDexName(asset);
 
-        if (assetEntity?.isLP) {
-          this.removePoolLiquidity(token); // no waiting
+      for (const token of tokens) {
+        try {
+          const { amount, asset } = this.client.parseAmount(token.amount);
+          const assetEntity = await this.assetService.getAssetByDexName(asset, true);
+          const route = await this.getDepositRoute(token.owner);
+
+          if (assetEntity?.isLP) {
+            console.log('Removing pool liquidity:', token);
+
+            // remove pool liquidity
+            await this.doTokenTx(token.owner, (utxo) =>
+              this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
+            );
+
+            // send UTXO (for second token)
+            const additionalFeeUtxo = await this.getFeeUtxo(token.owner);
+            if (!additionalFeeUtxo) {
+              await this.sendFeeUtxo(token.owner);
+            }
+          } else if (route?.type === RouteType.STAKING) {
+            // check for min. deposit
+            const usdtAmount = await this.client.testCompositeSwap(token.owner, asset, 'USDT', amount);
+            if (usdtAmount >= Config.node.minTokenDeposit) {
+              console.log('Doing token conversion:', token);
+
+              if (asset === 'DFI') {
+                // to UTXO
+                await this.doTokenTx(token.owner, async (utxo) =>
+                  this.client.toUtxo(token.owner, token.owner, amount, [utxo]),
+                );
+              } else {
+                // to DFI
+                await this.doTokenTx(token.owner, async (utxo) =>
+                  this.client.compositeSwap(token.owner, asset, token.owner, 'DFI', amount, [utxo]),
+                );
+              }
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
         }
       }
     } catch (e) {
-      console.error('Exception during liquidity pool removal:', e);
+      console.error('Exception during token conversion:', e);
     }
   }
 
+  // --- INPUT HANDLING --- //
   @Interval(300000)
   async checkInputs(): Promise<void> {
     // avoid overlaps
@@ -68,8 +107,10 @@ export class CryptoInputService {
         .findOne({ order: { blockHeight: 'DESC' } })
         .then((input) => input?.blockHeight ?? 0);
 
-      const newInputs = await this.client
-        .getAddressesWithFunds()
+      const utxos = await this.client.getUtxo();
+      const tokens = await this.client.getToken();
+
+      const newInputs = await this.getAddressesWithFunds(utxos, tokens)
         .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
         // get receive history
         .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
@@ -77,7 +118,9 @@ export class CryptoInputService {
         .then((i) => i.filter((h) => h.blockHeight > lastHeight))
         // map to entities
         .then((i) => this.createEntities(i))
-        .then((i) => i.filter((h) => h != null));
+        .then((i) => i.filter((h) => h != null))
+        // check required balance
+        .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
 
       // save and forward
       if (newInputs.length > 0) {
@@ -94,6 +137,7 @@ export class CryptoInputService {
     this.lock.release();
   }
 
+  // --- CONFIRMATION HANDLING --- //
   @Interval(300000)
   async checkConfirmations(): Promise<void> {
     try {
@@ -119,12 +163,44 @@ export class CryptoInputService {
     }
   }
 
+  // --- FEE UTXO RETRIEVAL --- //
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async retrieveFeeUtxos(): Promise<void> {
+    try {
+      const utxos = await this.client.getUtxo();
+
+      for (const utxo of utxos) {
+        try {
+          if (
+            utxo.address != Config.node.utxoSpenderAddress &&
+            utxo.amount.toNumber() < Config.node.minDfiDeposit &&
+            utxo.amount.toNumber() - this.client.utxoFee >= Config.node.minTxAmount &&
+            !utxos.find((u) => u.address === utxo.address && u.amount.toNumber() >= Config.node.minDfiDeposit)
+          ) {
+            await this.client.sendCompleteUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
+          }
+        } catch (e) {
+          console.log('Failed to retrieve fee UTXO:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Exception during fee UTXO retrieval:', e);
+    }
+  }
+
   // --- HELPER METHODS --- //
   private async checkNodeInSync(): Promise<{ headers: number; blocks: number }> {
     const { blocks, headers } = await this.client.getInfo();
     if (blocks < headers) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
 
     return { headers, blocks };
+  }
+
+  async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
+    const utxoAddresses = utxo.filter((u) => u.amount.toNumber() >= Config.node.minDfiDeposit).map((u) => u.address);
+    const tokenAddresses = token.map((t) => t.owner);
+
+    return [...new Set(utxoAddresses.concat(tokenAddresses))];
   }
 
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
@@ -184,9 +260,7 @@ export class CryptoInputService {
     }
 
     // get deposit route
-    const route =
-      (await this.sellService.getSellByAddress(history.owner)) ??
-      (await this.stakingService.getStakingByAddress(history.owner));
+    const route = await this.getDepositRoute(history.owner);
     if (!route) {
       console.error(
         `Failed to process crypto input. No matching route for ${history.owner} found. History entry:`,
@@ -233,9 +307,9 @@ export class CryptoInputService {
         input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
       input.asset.type === AssetType.COIN
         ? await this.forwardUtxo(input, targetAddress)
-        : this.forwardToken(input, targetAddress); // no waiting
+        : await this.forwardToken(input, targetAddress);
     } catch (e) {
-      console.error(`Failed to process crypto input:`, e);
+      console.error(`Failed to process crypto input ${input.id}:`, e);
     }
   }
 
@@ -245,55 +319,77 @@ export class CryptoInputService {
   }
 
   private async forwardToken(input: CryptoInput, address: string): Promise<void> {
-    try {
-      await this.doTokenTx(input.route.deposit.address, async (utxo) => {
-        const outTxId = await this.client.sendToken(
-          input.route.deposit.address,
-          address,
-          input.asset.dexName,
-          input.amount,
-          [utxo],
-        );
-        await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+    await this.doTokenTx(input.route.deposit.address, async (utxo) => {
+      const outTxId = await this.client.sendToken(
+        input.route.deposit.address,
+        address,
+        input.asset.dexName.replace('-Token', ''),
+        input.amount,
+        [utxo],
+      );
+      await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
 
-        return outTxId;
-      });
+      return outTxId;
+    });
+  }
+
+  private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
+    const feeUtxo = await this.getFeeUtxo(addressFrom);
+    feeUtxo ? await this.tokenTx(addressFrom, tx, feeUtxo) : this.tokenTx(addressFrom, tx); // no waiting;
+  }
+
+  private async tokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>, feeUtxo?: UTXO): Promise<void> {
+    try {
+      // get UTXO
+      if (!feeUtxo) {
+        const utxoTx = await this.sendFeeUtxo(addressFrom);
+        await this.client.waitForTx(utxoTx);
+        feeUtxo = await this.client
+          .getUtxo()
+          .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address === addressFrom));
+      }
+
+      // do TX
+      await tx(feeUtxo);
     } catch (e) {
-      console.error(`Failed to forward token input:`, e);
+      console.error('Failed to do token TX:', e);
     }
   }
 
-  private async removePoolLiquidity(token: AccountResult<string, string>): Promise<void> {
-    try {
-      console.log('Removing pool liquidity:', token);
-      await this.doTokenTx(token.owner, (utxo) => this.client.removePoolLiquidity(token.owner, token.amount, [utxo]));
-    } catch (e) {
-      console.error('Failed to remove pool liquidity', e);
-    }
-  }
-
-  private async doTokenTx(address: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
-    // get UTXO
-    const utxoTx = await this.client.sendUtxo(Config.node.utxoSpenderAddress, address, Config.node.minDfiDeposit / 2);
-
-    await this.client.waitForTx(utxoTx);
-
-    // get UTXO vout
-    const sendUtxo = await this.client
+  private async getFeeUtxo(address: string): Promise<UTXO | undefined> {
+    return await this.client
       .getUtxo()
-      .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address == address));
+      .then((utxos) =>
+        utxos.find(
+          (u) =>
+            u.address === address &&
+            u.amount.toNumber() < Config.node.minDfiDeposit &&
+            u.amount.toNumber() > Config.node.minDfiDeposit / 4,
+        ),
+      );
+  }
 
-    // do TX
-    const outTxId = await tx(sendUtxo);
+  private async sendFeeUtxo(address: string): Promise<string> {
+    return await this.client.sendUtxo(Config.node.utxoSpenderAddress, address, Config.node.minDfiDeposit / 2);
+  }
 
-    await this.client.waitForTx(outTxId);
+  private async getDepositRoute(address: string): Promise<Sell | Staking> {
+    return (
+      (await this.sellService.getSellByAddress(address)) ?? (await this.stakingService.getStakingByAddress(address))
+    );
+  }
 
-    // retrieve remaining UTXO
-    const utxo = await this.client.getUtxo().then((utxo) => utxo.find((u) => u.txid === outTxId));
-    if (utxo) {
-      await this.client.sendUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
-    } else {
-      console.error(`Could not retrieve UTXO: UTXO ${outTxId} not found`);
+  private hasMatchingBalance(input: CryptoInput, utxo: UTXO[], token: AccountResult<string, string>[]): boolean {
+    const fund =
+      input.asset.type === AssetType.COIN
+        ? utxo.find((u) => u.address === input.route.deposit.address && u.amount.toNumber() >= input.amount)
+        : token.find(
+            (t) => t.owner === input.route.deposit.address && this.client.parseAmount(t.amount).amount >= input.amount,
+          );
+    if (!fund) {
+      console.error('Ignoring input due to too low balance:', input);
     }
+
+    return fund != null;
   }
 }

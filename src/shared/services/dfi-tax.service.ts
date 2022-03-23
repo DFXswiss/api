@@ -39,7 +39,9 @@ export class DfiTaxService {
   constructor(private readonly http: HttpService) {}
 
   activateAddress(address: string): void {
-    this.getRewards(address, DfiTaxInterval.YEAR);
+    this.getRewards(address, DfiTaxInterval.YEAR, null, null, 600000).catch((e) =>
+      console.error(`Failed to activate address ${address} for DFI.tax:`, e),
+    );
   }
 
   async getRewards(
@@ -58,7 +60,7 @@ export class DfiTaxService {
         return new Date(item.date).getTime() >= dateFrom.getTime() && new Date(item.date).getTime() <= dateTo.getTime();
       });
     } catch {
-      throw new ServiceUnavailableException('dfi.tax Service timeout: ' + timeout);
+      throw new ServiceUnavailableException(`DFI.tax timeout (${timeout}ms)`);
     }
   }
 

@@ -95,19 +95,16 @@ export class Configuration {
 
   mail: MailerOptions = {
     transport: {
-      host: 'smtp.sendgrid.net',
+      host: 'gateway.dfx.swiss',
       secure: true,
       port: 465,
       auth: {
-        user: process.env.MAIL_SEND_GRID_USER,
-        pass: process.env.MAIL_SEND_GRID_PASS,
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
       },
       tls: {
         rejectUnauthorized: false,
       },
-    },
-    defaults: {
-      from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
     },
     template: {
       dir: path.join(__dirname, '../shared/assets/mails'),
@@ -141,6 +138,7 @@ export class Configuration {
     utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
+    minTxAmount: 0.00000297,
     minDfiDeposit: 0.01,
     minTokenDeposit: 0.4, // USDT
   };
