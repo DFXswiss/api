@@ -61,9 +61,9 @@ export class UserService {
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
+    user.userData = await this.userDataService.createUserData();
 
     user = await this.userRepo.save(user);
-    await this.userDataService.createUserData(user);
 
     this.dfiTaxService.activateAddress(user.address);
 
