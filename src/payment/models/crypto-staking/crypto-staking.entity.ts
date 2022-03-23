@@ -1,4 +1,3 @@
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DepositRoute } from 'src/payment/models/route/deposit-route.entity';
 import { Staking } from 'src/payment/models/staking/staking.entity';
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
@@ -8,13 +7,46 @@ import { CryptoInput } from '../crypto-input/crypto-input.entity';
 
 @Entity()
 export class CryptoStaking extends IEntity {
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'datetime2', nullable: false })
   inputDate: Date;
 
-  @Column({ type: 'datetime2' })
+  @Column({ length: 256, nullable: false })
+  inTxId: string;
+
+  @Column({ type: 'float', nullable: false })
+  inputAmountInChf: number;
+
+  @Column({ type: 'float', nullable: false })
+  inputAmountInEur: number;
+
+  @Column({ type: 'float', nullable: false })
+  inputAmount: number;
+
+  @Column({ nullable: false })
+  inputAsset: string;
+
+  @Column({ type: 'float', nullable: true })
+  inputMailSendDate: number;
+
+  @Column({ type: 'float', nullable: true })
+  outputAmountInChf: number;
+
+  @Column({ type: 'float', nullable: true })
+  outputAmountInEur: number;
+
+  @Column({ type: 'float', nullable: false })
+  outputAmount: number;
+
+  @Column({ nullable: false })
+  outputAsset: string;
+
+  @Column({ type: 'float', nullable: true })
+  outputMailSendDate: number;
+
+  @Column({ type: 'datetime2', nullable: false })
   outputDate: Date;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   outTxId: string;
 
   @Column({ length: 256, nullable: false })
@@ -23,12 +55,6 @@ export class CryptoStaking extends IEntity {
   @OneToOne(() => CryptoInput, { nullable: false })
   @JoinColumn()
   cryptoInput: CryptoInput;
-
-  @Column({ type: 'float', nullable: true })
-  usdtAmount?: number;
-
-  @ManyToOne(() => Asset, { nullable: false, eager: true })
-  asset: Asset;
 
   @ManyToOne(() => DepositRoute, { nullable: false })
   stakingRoute: Staking;
