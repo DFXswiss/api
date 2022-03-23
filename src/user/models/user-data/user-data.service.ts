@@ -3,7 +3,6 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
-import { User } from '../user/user.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
@@ -37,9 +36,8 @@ export class UserDataService {
       .getOne();
   }
 
-  async createUserData(user: User): Promise<UserData> {
+  async createUserData(): Promise<UserData> {
     return await this.userDataRepo.save({
-      users: [user],
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
       currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
     });
