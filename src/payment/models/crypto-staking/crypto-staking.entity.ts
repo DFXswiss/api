@@ -34,10 +34,10 @@ export class CryptoStaking extends IEntity {
   @Column({ type: 'float', nullable: true })
   outputAmountInEur: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
-  @Column({ nullable: false })
+  @Column({ nullable: true })
   outputAsset: string;
 
   @Column({ type: 'float', nullable: true })
@@ -58,4 +58,7 @@ export class CryptoStaking extends IEntity {
 
   @ManyToOne(() => DepositRoute, { nullable: false })
   stakingRoute: Staking;
+
+  @Column({ default: false })
+  isReinvest: boolean;
 }
