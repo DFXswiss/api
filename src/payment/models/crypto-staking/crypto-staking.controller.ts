@@ -9,7 +9,7 @@ import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
 
 @ApiTags('cryptoStaking')
 @Controller('cryptoStaking')
-export class CryptoSellController {
+export class CryptoStakingController {
   constructor(private readonly cryptoStakingService: CryptoStakingService) {}
 
   @Put(':id')
