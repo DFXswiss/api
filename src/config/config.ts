@@ -106,9 +106,6 @@ export class Configuration {
         rejectUnauthorized: false,
       },
     },
-    defaults: {
-      from: '"DFX.swiss" <' + process.env.MAIL_USER + '>',
-    },
     template: {
       dir: path.join(__dirname, '../shared/assets/mails'),
       adapter: new HandlebarsAdapter(),

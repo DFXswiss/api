@@ -49,7 +49,7 @@ export class CryptoInputService {
       for (const token of tokens) {
         try {
           const { amount, asset } = this.client.parseAmount(token.amount);
-          const assetEntity = await this.assetService.getAssetByDexName(asset);
+          const assetEntity = await this.assetService.getAssetByDexName(asset, true);
           const route = await this.getDepositRoute(token.owner);
 
           if (assetEntity?.isLP) {

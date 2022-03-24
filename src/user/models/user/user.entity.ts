@@ -71,7 +71,7 @@ export class User extends IEntity {
   @OneToMany(() => Staking, (staking) => staking.user)
   stakingRoutes: Staking[];
 
-  @ManyToOne(() => UserData)
+  @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 
   @OneToMany(() => Log, (logs) => logs.user)
