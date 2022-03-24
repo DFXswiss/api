@@ -61,4 +61,7 @@ export class CryptoStaking extends IEntity {
 
   @Column({ default: false })
   isReinvest: boolean;
+
+  @Column({ default: false })
+  readyToPayout: boolean;
 }
