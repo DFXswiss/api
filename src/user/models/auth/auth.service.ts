@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -21,6 +27,11 @@ export class AuthService {
   ) {}
 
   async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
+    const existingUser = await this.userService.getUserByAddress(dto.address);
+    if (existingUser) {
+      throw new ConflictException('User already exists');
+    }
+
     if (!this.verifySignature(dto.address, dto.signature)) {
       throw new BadRequestException('Invalid signature');
     }
