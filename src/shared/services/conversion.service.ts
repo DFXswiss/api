@@ -20,7 +20,9 @@ export class ConversionService {
 
   private async getFiatRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
     const dateString = this.isToday(date) ? 'latest' : date.toISOString().split('T')[0];
-    const url = `${this.fiatUrl}/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;
+    const url = `${
+      this.fiatUrl
+    }/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;
 
     const result = await this.callApi<{ [currency: string]: number }>(url);
     return result[toCurrency.toLowerCase()];

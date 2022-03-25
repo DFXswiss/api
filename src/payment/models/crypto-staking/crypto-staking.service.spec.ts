@@ -4,20 +4,36 @@ import { CryptoStakingService } from './crypto-staking.service';
 import { createMock } from '@golevelup/ts-jest';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { TestUtil } from 'src/shared/test.util';
+import { ConversionService } from 'src/shared/services/conversion.service';
+import { NodeService } from 'src/ain/node/node.service';
+import { StakingService } from '../staking/staking.service';
+import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 
-describe('CryptoInputService', () => {
+describe('CryptoStakingService', () => {
   let service: CryptoStakingService;
 
   let cryptoStakingRepo: CryptoStakingRepository;
+  let stakingRewardRepo: StakingRewardRepository;
+  let conversionService: ConversionService;
+  let stakingService: StakingService;
+  let nodeService: NodeService;
 
   beforeEach(async () => {
     cryptoStakingRepo = createMock<CryptoStakingRepository>();
+    stakingRewardRepo = createMock<StakingRewardRepository>();
+    conversionService = createMock<ConversionService>();
+    stakingService = createMock<StakingService>();
+    nodeService = createMock<NodeService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
         CryptoStakingService,
         { provide: CryptoStakingRepository, useValue: cryptoStakingRepo },
+        { provide: StakingRewardRepository, useValue: stakingRewardRepo },
+        { provide: ConversionService, useValue: conversionService },
+        { provide: StakingService, useValue: stakingService },
+        { provide: NodeService, useValue: nodeService },
         TestUtil.provideConfig(),
       ],
     }).compile();

@@ -170,7 +170,7 @@ export class StakingService {
   }
 
   private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
-    const dateFrom = Util.daysBefore(Config.staking.period, dateTo);
+    const dateFrom = Util.daysBefore(365, dateTo); // TODO: use cryptoStaking table
 
     return this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
@@ -232,7 +232,7 @@ export class StakingService {
       .filter((id) => id);
   }
 
-  private getPayoutType(typeDepositId: number | undefined, depositId: number): PayoutType {
+  public getPayoutType(typeDepositId: number | undefined, depositId: number): PayoutType {
     return typeDepositId
       ? typeDepositId === depositId
         ? PayoutType.REINVEST
