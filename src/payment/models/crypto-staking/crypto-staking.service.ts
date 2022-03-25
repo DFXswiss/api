@@ -35,7 +35,7 @@ export class CryptoStakingService {
     entity.cryptoInput = cryptoInput;
     entity.inTxId = cryptoInput.inTxId;
     entity.inputDate = cryptoInput.created;
-    entity.inputAsset = cryptoInput.asset.name;
+    entity.inputAsset = cryptoInput.asset.dexName;
     entity.inputAmount = cryptoInput.amount;
     entity.inputAmountInEur = await this.conversionService.convertFiat(
       cryptoInput.usdtAmount,
@@ -146,7 +146,7 @@ export class CryptoStakingService {
     return cryptoStakingList.map((e) => ({
       id: e.id,
       address: e.stakingRoute.paybackDeposit?.address ?? e.stakingRoute.user.address,
-      outputAsset: e.stakingRoute.paybackAsset?.name,
+      outputAsset: e.stakingRoute.paybackAsset?.dexName,
       amount: e.inputAmount,
       payoutType: this.stakingService.getPayoutType(e.stakingRoute.paybackDeposit?.id, e.stakingRoute.deposit.id),
     }));

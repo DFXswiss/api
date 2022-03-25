@@ -71,7 +71,7 @@ export class HistoryService {
         {
           type: 'Trade',
           buyAmount: c.outputAmount,
-          buyAsset: c.buy?.deposit ? 'DFI' : this.getAssetSymbol(c.buy?.asset?.name),
+          buyAsset: c.buy?.deposit ? 'DFI' : this.getAssetSymbol(c.buy?.asset?.dexName),
           sellAmount: c.bankTx?.txAmount,
           sellAsset: c.bankTx?.txCurrency,
           fee: c.fee ? c.fee * c.bankTx?.txAmount : null,
@@ -97,9 +97,9 @@ export class HistoryService {
           buyAmount: c.outputAmount,
           buyAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
           sellAmount: c.cryptoInput.amount,
-          sellAsset: this.getAssetSymbol(c.cryptoInput.asset?.name),
+          sellAsset: this.getAssetSymbol(c.cryptoInput.asset?.dexName),
           fee: c.fee ? c.fee * c.cryptoInput.amount : null,
-          feeAsset: c.fee ? this.getAssetSymbol(c.cryptoInput.asset?.name) : null,
+          feeAsset: c.fee ? this.getAssetSymbol(c.cryptoInput.asset?.dexName) : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.cryptoInput.route.user.address,
@@ -319,10 +319,12 @@ export class HistoryService {
     return new Date(outputDate.getTime() + (offset - (amount % 10)) * 60 * 1000);
   }
 
-  private getAssetSymbol(name: string): string {
+  private getAssetSymbol(dexName: string): string {
     // TODO: new col in asset table to differentiate stocks and crypto token?
-    name = name.split('-Token').join('');
+    dexName = dexName.split('-Token').join('');
 
-    return ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(name) ? name : `d${name}`;
+    return ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
+      ? dexName
+      : `d${dexName}`;
   }
 }
