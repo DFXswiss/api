@@ -3,7 +3,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 import { CryptoStaking } from './crypto-staking.entity';
 import { CryptoStakingService } from './crypto-staking.service';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
@@ -14,10 +13,7 @@ import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
 @ApiTags('cryptoStaking')
 @Controller('cryptoStaking')
 export class CryptoStakingController {
-  constructor(
-    private readonly cryptoStakingService: CryptoStakingService,
-    private readonly cryptoInputRepo: CryptoInputRepository,
-  ) {}
+  constructor(private readonly cryptoStakingService: CryptoStakingService) {}
 
   // --- MASTERNODE OPERATOR --- //
   @Get('ready')
