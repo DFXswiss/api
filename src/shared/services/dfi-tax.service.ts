@@ -39,7 +39,7 @@ export class DfiTaxService {
   constructor(private readonly http: HttpService) {}
 
   activateAddress(address: string): void {
-    this.getRewards(address, DfiTaxInterval.YEAR, null, null, 600000).catch((e) =>
+    this.getRewards(address, DfiTaxInterval.YEAR, null, null, 1200000).catch((e) =>
       console.error(`Failed to activate address ${address} for DFI.tax:`, e),
     );
   }
