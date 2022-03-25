@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
@@ -35,7 +35,7 @@ export class CryptoStakingService {
     entity.cryptoInput = cryptoInput;
     entity.inTxId = cryptoInput.inTxId;
     entity.inputDate = cryptoInput.created;
-    entity.inputAsset = cryptoInput.asset.dexName;
+    entity.inputAsset = cryptoInput.asset.name;
     entity.inputAmount = cryptoInput.amount;
     entity.inputAmountInEur = await this.conversionService.convertFiat(
       cryptoInput.usdtAmount,
@@ -68,6 +68,8 @@ export class CryptoStakingService {
   async update(id: number, dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
     const entity = await this.cryptoStakingRepo.findOne(id);
     if (!entity) throw new NotFoundException('Crypto staking not found');
+    if (entity.outTxId && dto.outputDate)
+      throw new ForbiddenException('Cannot update outputDate if outTxId already set');
 
     return await this.cryptoStakingRepo.save({ ...entity, ...dto });
   }
@@ -144,7 +146,7 @@ export class CryptoStakingService {
     return cryptoStakingList.map((e) => ({
       id: e.id,
       address: e.stakingRoute.paybackDeposit?.address ?? e.stakingRoute.user.address,
-      outputAsset: e.stakingRoute.paybackAsset?.dexName,
+      outputAsset: e.stakingRoute.paybackAsset?.name,
       amount: e.inputAmount,
       payoutType: this.stakingService.getPayoutType(e.stakingRoute.paybackDeposit?.id, e.stakingRoute.deposit.id),
     }));
