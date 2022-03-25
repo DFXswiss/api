@@ -1,10 +1,9 @@
-import { Controller, UseGuards, Put, Body, Param, Get, Query, Post } from '@nestjs/common';
+import { Controller, UseGuards, Put, Body, Param, Get, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
-import { RouteType } from '../route/deposit-route.entity';
 import { CryptoStaking } from './crypto-staking.entity';
 import { CryptoStakingService } from './crypto-staking.service';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
