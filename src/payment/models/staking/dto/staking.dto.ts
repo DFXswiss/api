@@ -17,4 +17,5 @@ export class StakingDto {
   rewardVolume: number;
   isInUse: boolean;
   fee: number;
+  period: number;
 }
