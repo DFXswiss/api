@@ -143,11 +143,10 @@ export class StakingRewardService {
       })
       .getRawOne<{ rewardVolume: number }>();
 
-    const masternodeCount = await this.masternodeService.getCount();
-    const masternodeCountLastWeek = await this.masternodeService.getCount(Util.daysBefore(7, new Date()));
-    const collateral = ((masternodeCount + masternodeCountLastWeek) / 2) * 20000;
-
-    const apr = await this.getWeeklyApr(rewardVolume, collateral);
+    const collateralLastWeek = await this.stakingService.getTotalStakingBalance(this.getLastWeekDate());
+    const collateralToday = await this.stakingService.getTotalStakingBalance();
+    const meanCollateral = (collateralLastWeek + collateralToday) / 2;
+    const apr = await this.getWeeklyApr(rewardVolume, meanCollateral);
     return {
       apr: Util.round(apr, 2),
       apy: Util.round(this.getApy(apr), 2),
