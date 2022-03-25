@@ -1,16 +1,5 @@
-import {
-  Controller,
-  Post,
-  UseGuards,
-  Body,
-  Get,
-  Query,
-  BadRequestException,
-  UseInterceptors,
-  UploadedFiles,
-} from '@nestjs/common';
+import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -38,18 +27,22 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  @UseInterceptors(FilesInterceptor('files'))
-  async uploadFile(
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body() updateFileDto: UploadFileDto,
-  ): Promise<boolean> {
+  async uploadFile(@Body() updateFileDto: UploadFileDto): Promise<boolean> {
+    const byteSplit = updateFileDto.data.split(',');
+
+    const buffer = new Uint8Array(byteSplit.length);
+
+    for (let a = 0; a < byteSplit.length; a++) {
+      buffer[a] = Number.parseInt(byteSplit[a]);
+    }
+
     return await this.spiderService.uploadDocument(
       updateFileDto.userDataId,
       false,
       updateFileDto.documentType,
-      files[0].originalname,
-      files[0].mimetype,
-      files[0].buffer,
+      updateFileDto.originalName,
+      updateFileDto.contentType,
+      buffer,
     );
   }
 
