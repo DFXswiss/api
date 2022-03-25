@@ -44,6 +44,9 @@ import { StakingRewardController } from './models/staking-reward/staking-reward.
 import { RefRewardController } from './models/ref-reward/ref-reward.controller';
 import { StakingRewardService } from './models/staking-reward/staking-reward.service';
 import { RefRewardService } from './models/ref-reward/ref-reward.service';
+import { CryptoStakingService } from './models/crypto-staking/crypto-staking.service';
+import { CryptoStakingRepository } from './models/crypto-staking/crypto-staking.repository';
+import { CryptoStakingController } from './models/crypto-staking/crypto-staking.controller';
 
 @Module({
   imports: [
@@ -60,6 +63,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
       MasternodeRepository,
       StakingRewardRepository,
       RefRewardRepository,
+      CryptoStakingRepository,
     ]),
     SharedModule,
     AinModule,
@@ -79,6 +83,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     MasternodeController,
     StakingRewardController,
     RefRewardController,
+    CryptoStakingController,
   ],
   providers: [
     CryptoInputService,
@@ -100,6 +105,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     StakingController,
     StakingRewardService,
     RefRewardService,
+    CryptoStakingService,
   ],
   exports: [
     BuyService,
@@ -110,6 +116,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
     StakingService,
     CryptoBuyService,
     CryptoSellService,
+    CryptoStakingService,
   ],
 })
 export class PaymentModule {}

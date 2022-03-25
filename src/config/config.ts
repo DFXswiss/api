@@ -161,7 +161,7 @@ export class Configuration {
 
   staking = {
     fee: 0.125,
-    period: 365, // TODO: 28; // days
+    period: 28, // days
     minInvestment: 100, // DFI
     freeDays: 365, // TODO: 31?
   };

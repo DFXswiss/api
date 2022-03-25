@@ -5,8 +5,9 @@ import { HttpService } from './http.service';
 @Injectable()
 export class ConversionService {
   private readonly fiatUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
-
-  constructor(private readonly http: HttpService) {}
+  private readonly dfiUrl = 'https://ocean.defichain.com/v0/mainnet/stats';
+  constructor(private readonly http: HttpService) {
+  }
 
   public async convertFiat(
     amount: number,
@@ -20,7 +21,9 @@ export class ConversionService {
 
   private async getFiatRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
     const dateString = this.isToday(date) ? 'latest' : date.toISOString().split('T')[0];
-    const url = `${this.fiatUrl}/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;
+    const url = `${
+      this.fiatUrl
+    }/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;
 
     const result = await this.callApi<{ [currency: string]: number }>(url);
     return result[toCurrency.toLowerCase()];
@@ -33,6 +36,18 @@ export class ConversionService {
       date.getUTCMonth() == today.getUTCMonth() &&
       date.getUTCFullYear() == today.getUTCFullYear()
     );
+  }
+
+  private async getDfiEurPrice(): Promise<number> {
+    const result = await this.http.get(`${this.dfiUrl}`);
+    const priceDollar = result['data']['price']['usd'];
+    return await this.convertFiat(priceDollar, 'usd', 'eur');
+  }
+
+  private async getDfiChfPrice(): Promise<number> {
+    const result = await this.http.get(`${this.dfiUrl}`);
+    const priceDollar = result['data']['price']['usd'];
+    return await this.convertFiat(priceDollar, 'usd', 'eur');
   }
 
   private async callApi<T>(url: string): Promise<T> {

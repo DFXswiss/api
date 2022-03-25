@@ -16,6 +16,7 @@ import { Lock } from 'src/shared/lock';
 import { Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
+import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 
 interface HistoryAmount {
   amount: number;
@@ -34,6 +35,7 @@ export class CryptoInputService {
     private readonly assetService: AssetService,
     private readonly sellService: SellService,
     private readonly stakingService: StakingService,
+    private readonly cryptoStakingService: CryptoStakingService,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
@@ -300,6 +302,7 @@ export class CryptoInputService {
       await this.cryptoInputRepo.save(input);
       if (input.route.type === RouteType.STAKING) {
         await this.stakingService.updateBalance(input.route.id);
+        await this.cryptoStakingService.create(input);
       }
 
       // forward (only await UTXO)
