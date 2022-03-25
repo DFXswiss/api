@@ -14,6 +14,7 @@ import { TestUtil } from 'src/shared/test.util';
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import BigNumber from 'bignumber.js';
+import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
@@ -21,6 +22,7 @@ describe('CryptoInputService', () => {
   let nodeClient: NodeClient;
   let nodeService: NodeService;
   let cryptoInputRepo: CryptoInputRepository;
+  let cryptoStakingService: CryptoStakingService;
   let assetService: AssetService;
   let sellService: SellService;
   let stakingService: StakingService;
@@ -42,7 +44,7 @@ describe('CryptoInputService', () => {
     assetService = createMock<AssetService>();
     sellService = createMock<SellService>();
     stakingService = createMock<StakingService>();
-
+    cryptoStakingService = createMock<CryptoStakingService>();
     jest.spyOn(nodeService, 'getClient').mockImplementation(() => nodeClient);
     jest.spyOn(nodeClient, 'parseAmount').mockImplementation((a) => ({
       amount: +a.split('@')[0],
@@ -58,6 +60,7 @@ describe('CryptoInputService', () => {
         { provide: AssetService, useValue: assetService },
         { provide: SellService, useValue: sellService },
         { provide: StakingService, useValue: stakingService },
+        { provide: CryptoStakingService, useValue: cryptoStakingService },
         TestUtil.provideConfig({ node: { minDfiDeposit: 0.01, utxoSpenderAddress: 'addr2' } }),
       ],
     }).compile();
