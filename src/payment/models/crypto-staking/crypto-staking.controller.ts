@@ -61,23 +61,4 @@ export class CryptoStakingController {
   async update(@Param('id') id: string, @Body() dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
     return this.cryptoStakingService.update(+id, dto);
   }
-
-  @Post()
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateTable(): Promise<void> {
-    const allStaking = await this.cryptoInputRepo.find({
-      where: { route: { type: RouteType.STAKING } },
-      relations: ['route'],
-    });
-
-    for (const cryptoInput of allStaking) {
-      try {
-        await this.cryptoStakingService.create(cryptoInput);
-      } catch (e) {
-        console.log('Error during crypto staking creation:', e);
-      }
-    }
-  }
 }
