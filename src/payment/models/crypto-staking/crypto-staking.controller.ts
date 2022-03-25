@@ -1,10 +1,8 @@
-import { Controller, UseGuards, Put, Body, Param, Get, Query, Post } from '@nestjs/common';
+import { Controller, UseGuards, Put, Body, Param, Get, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
-import { RouteType } from '../route/deposit-route.entity';
 import { CryptoStaking } from './crypto-staking.entity';
 import { CryptoStakingService } from './crypto-staking.service';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
@@ -15,10 +13,7 @@ import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
 @ApiTags('cryptoStaking')
 @Controller('cryptoStaking')
 export class CryptoStakingController {
-  constructor(
-    private readonly cryptoStakingService: CryptoStakingService,
-    private readonly cryptoInputRepo: CryptoInputRepository,
-  ) {}
+  constructor(private readonly cryptoStakingService: CryptoStakingService) {}
 
   // --- MASTERNODE OPERATOR --- //
   @Get('ready')
@@ -60,24 +55,5 @@ export class CryptoStakingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async update(@Param('id') id: string, @Body() dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
     return this.cryptoStakingService.update(+id, dto);
-  }
-
-  @Post()
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async updateTable(): Promise<void> {
-    const allStaking = await this.cryptoInputRepo.find({
-      where: { route: { type: RouteType.STAKING } },
-      relations: ['route'],
-    });
-
-    for (const cryptoInput of allStaking) {
-      try {
-        await this.cryptoStakingService.create(cryptoInput);
-      } catch (e) {
-        console.log('Error during crypto staking creation:', e);
-      }
-    }
   }
 }
