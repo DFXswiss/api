@@ -321,7 +321,7 @@ export class HistoryService {
 
   private getAssetSymbol(dexName: string): string {
     // TODO: new col in asset table to differentiate stocks and crypto token?
-    dexName = dexName.split('-Token').join('');
+    dexName = dexName.replace('-Token', '');
 
     return ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
       ? dexName

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
@@ -14,6 +14,7 @@ import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
 import { Between, IsNull, LessThan } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
+
 @Injectable()
 export class CryptoStakingService {
   private readonly client: NodeClient;
@@ -67,8 +68,9 @@ export class CryptoStakingService {
   async update(id: number, dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
     const entity = await this.cryptoStakingRepo.findOne(id);
     if (!entity) throw new NotFoundException('Crypto staking not found');
+    
     if (entity.outTxId && dto.outputDate != entity.outputDate)
-      throw new ForbiddenException('Cannot update outputDate if outTxId already set');
+      throw new BadRequestException('Cannot update outputDate if outTxId already set');
 
     return await this.cryptoStakingRepo.save({ ...entity, ...dto });
   }
