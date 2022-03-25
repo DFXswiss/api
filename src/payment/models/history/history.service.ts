@@ -71,7 +71,7 @@ export class HistoryService {
         {
           type: 'Trade',
           buyAmount: c.outputAmount,
-          buyAsset: c.buy?.deposit ? 'DFI' : c.buy?.asset?.name,
+          buyAsset: c.buy?.deposit ? 'DFI' : this.getAssetSymbol(c.buy?.asset?.dexName),
           sellAmount: c.bankTx?.txAmount,
           sellAsset: c.bankTx?.txCurrency,
           fee: c.fee ? c.fee * c.bankTx?.txAmount : null,
@@ -97,9 +97,9 @@ export class HistoryService {
           buyAmount: c.outputAmount,
           buyAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
           sellAmount: c.cryptoInput.amount,
-          sellAsset: c.cryptoInput.asset?.name,
+          sellAsset: this.getAssetSymbol(c.cryptoInput.asset?.dexName),
           fee: c.fee ? c.fee * c.cryptoInput.amount : null,
-          feeAsset: c.fee ? c.cryptoInput.asset?.name : null,
+          feeAsset: c.fee ? this.getAssetSymbol(c.cryptoInput.asset?.dexName) : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: c.cryptoInput.route.user.address,
@@ -135,11 +135,11 @@ export class HistoryService {
         {
           type: 'Staking',
           buyAmount: c.outputAmount,
-          buyAsset: c.outputAsset,
+          buyAsset: this.getAssetSymbol(c.outputAsset),
           sellAmount: null,
           sellAsset: null,
           fee: c.fee ? c.fee * c.inputAmount : null,
-          feeAsset: c.fee ? c.inputAsset : null,
+          feeAsset: c.fee ? this.getAssetSymbol(c.inputAsset) : null,
           exchange: c.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
           tradeGroup: c.payoutType === PayoutType.REINVEST ? 'Staking' : null,
           comment: 'DFX Staking Reward',
@@ -164,7 +164,7 @@ export class HistoryService {
         {
           type: 'Deposit',
           buyAmount: c.inputAmount,
-          buyAsset: c.inputAsset,
+          buyAsset: this.getAssetSymbol(c.inputAsset),
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -182,7 +182,7 @@ export class HistoryService {
           buyAmount: null,
           buyAsset: null,
           sellAmount: c.inputAmount,
-          sellAsset: c.inputAsset,
+          sellAsset: this.getAssetSymbol(c.inputAsset),
           fee: null,
           feeAsset: null,
           exchange: 'DFX',
@@ -205,7 +205,7 @@ export class HistoryService {
           buyAmount: null,
           buyAsset: null,
           sellAmount: c.outputAmount,
-          sellAsset: c.outputAsset,
+          sellAsset: this.getAssetSymbol(c.outputAsset),
           fee: null,
           feeAsset: null,
           exchange: 'DFX Staking',
@@ -219,7 +219,7 @@ export class HistoryService {
         {
           type: 'Deposit',
           buyAmount: c.outputAmount,
-          buyAsset: c.outputAsset,
+          buyAsset: this.getAssetSymbol(c.outputAsset),
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -236,9 +236,9 @@ export class HistoryService {
           ? {
               type: 'Trade',
               buyAmount: c.outputAmount,
-              buyAsset: c.outputAsset,
+              buyAsset: this.getAssetSymbol(c.outputAsset),
               sellAmount: c.inputAmount,
-              sellAsset: c.inputAsset,
+              sellAsset: this.getAssetSymbol(c.inputAsset),
               fee: null,
               feeAsset: null,
               exchange: 'DFX Staking',
@@ -290,10 +290,7 @@ export class HistoryService {
     return rewards.map((reward) => ({
       type: 'Mining',
       buyAmount: Util.round(reward.qty, 8),
-      // TODO: new col in asset table to differentiate stocks and crypto token
-      buyAsset: ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(reward.token)
-        ? reward.token
-        : `d${reward.token}`,
+      buyAsset: this.getAssetSymbol(reward.token),
       sellAmount: null,
       sellAsset: null,
       fee: null,
@@ -320,5 +317,14 @@ export class HistoryService {
 
   private createRandomDate(outputDate: Date, offset: number, amount: number): Date {
     return new Date(outputDate.getTime() + (offset - (amount % 10)) * 60 * 1000);
+  }
+
+  private getAssetSymbol(dexName: string): string {
+    // TODO: new col in asset table to differentiate stocks and crypto token?
+    dexName = dexName.split('-Token').join('');
+
+    return ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
+      ? dexName
+      : `d${dexName}`;
   }
 }
