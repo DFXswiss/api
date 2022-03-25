@@ -31,14 +31,15 @@ export class StakingRewardService {
 
     entity = await this.createEntity(dto);
 
+    // check if reinvest
     const cryptoStaking = await this.cryptoStakingRepo.findOne({
       inTxId: entity.txId,
       stakingRoute: { id: entity.staking.id },
     });
     if (cryptoStaking) {
-      cryptoStaking.isReinvest = true;
-      await this.cryptoStakingRepo.save(cryptoStaking);
+      await this.cryptoStakingRepo.update(cryptoStaking.id, { isReinvest: true });
     }
+
     entity = await this.rewardRepo.save(entity);
 
     await this.updateRewardVolume([entity.staking.id]);

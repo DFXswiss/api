@@ -170,7 +170,7 @@ export class StakingService {
   }
 
   private getInputsForStakingPeriod(dateTo: Date): SelectQueryBuilder<CryptoInput> {
-    const dateFrom = Util.daysBefore(365, dateTo); //TODO Delete
+    const dateFrom = Util.daysBefore(365, dateTo); // TODO: use cryptoStaking table
 
     return this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')

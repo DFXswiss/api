@@ -155,12 +155,10 @@ export class HistoryService {
   private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
     const { deposits, withdrawals } = await this.cryptoStakingService.getUserInvests(userId, dateFrom, dateTo);
 
-    return await Promise.all([this.getStakingDeposits(deposits), this.getStakingWithdrawals(withdrawals)]).then((tx) =>
-      tx.reduce((prev, curr) => prev.concat(curr), []),
-    );
+    return [...this.getStakingDeposits(deposits), ...this.getStakingWithdrawals(withdrawals)];
   }
 
-  private async getStakingDeposits(deposits: CryptoStaking[]): Promise<HistoryDto[]> {
+  private getStakingDeposits(deposits: CryptoStaking[]): HistoryDto[] {
     return deposits
       .map((c) => [
         {
@@ -199,7 +197,7 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private async getStakingWithdrawals(withdrawals: CryptoStaking[]): Promise<HistoryDto[]> {
+  private getStakingWithdrawals(withdrawals: CryptoStaking[]): HistoryDto[] {
     return withdrawals
       .map((c) => [
         {

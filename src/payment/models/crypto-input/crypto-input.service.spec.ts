@@ -45,6 +45,7 @@ describe('CryptoInputService', () => {
     sellService = createMock<SellService>();
     stakingService = createMock<StakingService>();
     cryptoStakingService = createMock<CryptoStakingService>();
+
     jest.spyOn(nodeService, 'getClient').mockImplementation(() => nodeClient);
     jest.spyOn(nodeClient, 'parseAmount').mockImplementation((a) => ({
       amount: +a.split('@')[0],

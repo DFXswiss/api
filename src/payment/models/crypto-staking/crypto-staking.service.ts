@@ -10,7 +10,7 @@ import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
-import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto copy';
+import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
 import { Between, IsNull, LessThan } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
@@ -18,6 +18,7 @@ import { StakingRewardRepository } from '../staking-reward/staking-reward.respos
 @Injectable()
 export class CryptoStakingService {
   private readonly client: NodeClient;
+
   constructor(
     nodeService: NodeService,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
@@ -36,13 +37,26 @@ export class CryptoStakingService {
     entity.inputDate = cryptoInput.created;
     entity.inputAsset = cryptoInput.asset.dexName;
     entity.inputAmount = cryptoInput.amount;
-    entity.inputAmountInEur = await this.conversionService.convertFiat(cryptoInput.usdtAmount, 'usd', 'eur');
-    entity.inputAmountInChf = await this.conversionService.convertFiat(cryptoInput.usdtAmount, 'usd', 'chf');
+    entity.inputAmountInEur = await this.conversionService.convertFiat(
+      cryptoInput.usdtAmount,
+      'usd',
+      'eur',
+      cryptoInput.created,
+    );
+    entity.inputAmountInChf = await this.conversionService.convertFiat(
+      cryptoInput.usdtAmount,
+      'usd',
+      'chf',
+      cryptoInput.created,
+    );
 
-    const route = cryptoInput.route as Staking;
-    entity.stakingRoute = route;
-    entity.payoutType = this.stakingService.getPayoutType(route.paybackDeposit?.id, route.deposit.id);
+    entity.stakingRoute = cryptoInput.route as Staking;
+    entity.payoutType = this.stakingService.getPayoutType(
+      entity.stakingRoute.paybackDeposit?.id,
+      entity.stakingRoute.deposit.id,
+    );
 
+    // TODO: uncomment
     //entity.outputDate = new Date(cryptoInput.created);
     //entity.outputDate.setDate(entity.outputDate.getDate() + Config.staking.period);
     entity.outputDate = new Date('2022-03-31');
@@ -52,11 +66,10 @@ export class CryptoStakingService {
   }
 
   async update(id: number, dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
-    let entity = await this.cryptoStakingRepo.findOne(id);
+    const entity = await this.cryptoStakingRepo.findOne(id);
     if (!entity) throw new NotFoundException('Crypto staking not found');
-    const update = this.cryptoStakingRepo.create(dto);
-    entity = await this.cryptoStakingRepo.save({ ...entity, ...update });
-    return entity;
+
+    return await this.cryptoStakingRepo.save({ ...entity, ...dto });
   }
 
   async getUserInvests(
@@ -73,23 +86,23 @@ export class CryptoStakingService {
     });
 
     return {
-      deposits: cryptoStaking.filter((entry) => entry.inputDate > dateFrom && entry.inputDate < dateTo),
+      deposits: cryptoStaking.filter((entry) => entry.inputDate >= dateFrom && entry.inputDate <= dateTo),
       withdrawals: cryptoStaking.filter(
-        (entry) => entry.outTxId && entry.outputDate > dateFrom && entry.outputDate < dateTo,
+        (entry) => entry.outTxId && entry.outputDate >= dateFrom && entry.outputDate <= dateTo,
       ),
     };
   }
 
-  async payout(dto: PayoutCryptoStakingDto[]): Promise<void> {
-    for (const payoutCryptoStaking of dto) {
-      const entity = await this.cryptoStakingRepo.findOne(payoutCryptoStaking.id, { relations: ['stakingRoute'] });
+  async payout(dtoList: PayoutCryptoStakingDto[]): Promise<void> {
+    for (const dto of dtoList) {
+      const entity = await this.cryptoStakingRepo.findOne(dto.id, { relations: ['stakingRoute'] });
       if (!entity) throw new NotFoundException('Crypto staking not found');
-      const update = this.cryptoStakingRepo.create(payoutCryptoStaking);
+
       const outputAmountInUsd = await this.client.testCompositeSwap(
         Config.node.utxoSpenderAddress,
-        update.outputAsset,
+        dto.outputAsset,
         'USDT',
-        update.outputAmount,
+        dto.outputAmount,
       );
       [entity.outputAmountInEur, entity.outputAmountInChf] = await Promise.all([
         this.conversionService.convertFiat(outputAmountInUsd, 'usd', 'eur'),
@@ -98,10 +111,11 @@ export class CryptoStakingService {
 
       entity.isReinvest =
         (await this.cryptoStakingRepo.findOne({
-          inTxId: update.outTxId,
+          inTxId: dto.outTxId,
           stakingRoute: { id: entity.stakingRoute.id },
         })) != null;
-      await this.cryptoStakingRepo.save({ ...entity, ...update });
+
+      await this.cryptoStakingRepo.save({ ...entity, ...dto });
     }
   }
 

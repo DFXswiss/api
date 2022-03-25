@@ -116,7 +116,6 @@ import { CryptoStakingController } from './models/crypto-staking/crypto-staking.
     StakingService,
     CryptoBuyService,
     CryptoSellService,
-    CryptoStakingService,
   ],
 })
 export class PaymentModule {}

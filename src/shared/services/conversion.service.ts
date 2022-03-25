@@ -5,9 +5,8 @@ import { HttpService } from './http.service';
 @Injectable()
 export class ConversionService {
   private readonly fiatUrl = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1';
-  private readonly dfiUrl = 'https://ocean.defichain.com/v0/mainnet/stats';
-  constructor(private readonly http: HttpService) {
-  }
+
+  constructor(private readonly http: HttpService) {}
 
   public async convertFiat(
     amount: number,
@@ -36,18 +35,6 @@ export class ConversionService {
       date.getUTCMonth() == today.getUTCMonth() &&
       date.getUTCFullYear() == today.getUTCFullYear()
     );
-  }
-
-  private async getDfiEurPrice(): Promise<number> {
-    const result = await this.http.get(`${this.dfiUrl}`);
-    const priceDollar = result['data']['price']['usd'];
-    return await this.convertFiat(priceDollar, 'usd', 'eur');
-  }
-
-  private async getDfiChfPrice(): Promise<number> {
-    const result = await this.http.get(`${this.dfiUrl}`);
-    const priceDollar = result['data']['price']['usd'];
-    return await this.convertFiat(priceDollar, 'usd', 'eur');
   }
 
   private async callApi<T>(url: string): Promise<T> {
