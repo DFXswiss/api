@@ -221,7 +221,7 @@ export class StakingService {
       rewardVolume: staking.rewardVolume ?? 0,
       isInUse: balance > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
       fee: fee,
-      period: Config.staking.period
+      period: Config.staking.period,
     };
   }
 
