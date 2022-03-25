@@ -12,7 +12,7 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto copy';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
-import { IsNull, LessThan } from 'typeorm';
+import { Between, IsNull, LessThan } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 
 @Injectable()
@@ -57,6 +57,27 @@ export class CryptoStakingService {
     const update = this.cryptoStakingRepo.create(dto);
     entity = await this.cryptoStakingRepo.save({ ...entity, ...update });
     return entity;
+  }
+
+  async getUserInvests(
+    userId: number,
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<{ deposits: CryptoStaking[]; withdrawals: CryptoStaking[] }> {
+    const cryptoStaking = await this.cryptoStakingRepo.find({
+      where: [
+        { stakingRoute: { user: { id: userId } }, inputDate: Between(dateFrom, dateTo), isReinvest: false },
+        { stakingRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo), isReinvest: false },
+      ],
+      relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
+    });
+
+    return {
+      deposits: cryptoStaking.filter((entry) => entry.inputDate > dateFrom && entry.inputDate < dateTo),
+      withdrawals: cryptoStaking.filter(
+        (entry) => entry.outTxId && entry.outputDate > dateFrom && entry.outputDate < dateTo,
+      ),
+    };
   }
 
   async payout(dto: PayoutCryptoStakingDto[]): Promise<void> {
