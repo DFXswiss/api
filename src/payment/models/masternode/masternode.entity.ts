@@ -20,4 +20,10 @@ export class Masternode extends IEntity {
 
   @Column()
   enabled: boolean;
+
+  @Column({ type: 'datetime2', nullable: true })
+  resignDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  resignHash: string;
 }

@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateMasternodeDto } from './dto/create-masternode.dto';
-import { UpdateMasternodeDto } from './dto/update-masternode.dto';
+import { ResignMasternodeDto } from './dto/resign-masternode.dto';
 import { Masternode } from './masternode.entity';
 import { MasternodeService } from './masternode.service';
 
@@ -25,7 +25,7 @@ export class MasternodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.MASTERNODE_OPERATOR))
-  async updateMasternodeRoute(@Param('hash') hash: string, @Body() dto: UpdateMasternodeDto): Promise<Masternode> {
-    return this.masternodeService.update(hash, dto);
+  async resignMasternode(@Param('hash') hash: string, @Body() dto: ResignMasternodeDto): Promise<Masternode> {
+    return this.masternodeService.resign(hash, dto);
   }
 }
