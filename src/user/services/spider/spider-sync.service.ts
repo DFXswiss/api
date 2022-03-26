@@ -110,9 +110,12 @@ export class SpiderSyncService {
       this.spiderApi.getCheckResult(userData.id),
       this.spiderApi.getCustomer(userData.id),
     ]);
-    userData.riskState = checkResult[0].categoryKey;
-    userData.riskRoots = JSON.stringify(checkResult);
-    userData.kycCustomerId = customer?.id;
+
+    if (checkResult && customer) {
+      userData.riskState = checkResult[0]?.categoryKey;
+      userData.riskRoots = JSON.stringify(checkResult);
+      userData.kycCustomerId = customer?.id;
+    }
 
     // check KYC progress
     if (KycInProgress(userData.kycStatus)) {
