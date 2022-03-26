@@ -95,6 +95,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   riskState: RiskState;
 
+  @Column({ length: 'MAX', nullable: true })
+  riskRoots: string;
+
   @Column({ length: 256, default: KycStatus.NA })
   kycStatus: KycStatus;
 

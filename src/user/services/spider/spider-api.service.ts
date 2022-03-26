@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
-import { RiskState, UserData } from 'src/user/models/user-data/user-data.entity';
+import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -20,6 +20,7 @@ import {
   Organization,
   SubmitResponse,
   DocumentVersionPart,
+  Risk,
 } from './dto/spider.dto';
 
 @Injectable()
@@ -151,17 +152,18 @@ export class SpiderApiService {
     return this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
   }
 
-  async getCheckResult(id: number): Promise<RiskState> {
+  async getCheckResult(id: number): Promise<Risk[]> {
     const customerInfo = await this.getCustomerInfo(id);
     if (!customerInfo || customerInfo.lastCheckId < 0) return undefined;
 
     const customerCheckResult =
       customerInfo.lastCheckVerificationId < 0
-        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`)
+        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result/?detailed=true`)
         : await this.callApi<CheckResult>(
-            `customers/checks/verifications/${customerInfo.lastCheckVerificationId}/result`,
+            `customers/checks/verifications/${customerInfo.lastCheckVerificationId}/result?detailed=true`,
           );
-    return customerCheckResult.risks[0].categoryKey;
+
+    return customerCheckResult.risks;
   }
 
   // --- DOCUMENTS --- //
