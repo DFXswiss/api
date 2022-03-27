@@ -112,7 +112,7 @@ export class SpiderSyncService {
     ]);
     userData.kycCustomerId = customer?.id;
     userData.riskState = result;
-    userData.riskRoots = JSON.stringify(risks);
+    userData.riskRoots = result === 'c' ? null : JSON.stringify(risks);
 
     // check KYC progress
     if (KycInProgress(userData.kycStatus)) {
