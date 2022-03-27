@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
-import { UserData } from 'src/user/models/user-data/user-data.entity';
+import { RiskState, UserData } from 'src/user/models/user-data/user-data.entity';
 import { HttpError, HttpService } from '../../../shared/services/http.service';
 import {
   Challenge,
@@ -152,9 +152,9 @@ export class SpiderApiService {
     return this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
   }
 
-  async getCheckResult(id: number): Promise<Risk[]> {
+  async getCheckResult(id: number): Promise<{ result: RiskState | undefined; risks: Risk[] }> {
     const customerInfo = await this.getCustomerInfo(id);
-    if (!customerInfo || customerInfo.lastCheckId < 0) return undefined;
+    if (!customerInfo || customerInfo.lastCheckId < 0) return { result: undefined, risks: [] };
 
     const customerCheckResult =
       customerInfo.lastCheckVerificationId < 0
@@ -163,7 +163,7 @@ export class SpiderApiService {
             `customers/checks/verifications/${customerInfo.lastCheckVerificationId}/result?detailed=true`,
           );
 
-    return customerCheckResult.risks;
+    return { result: customerCheckResult.risks[0].categoryKey, risks: customerCheckResult.risks };
   }
 
   // --- DOCUMENTS --- //
