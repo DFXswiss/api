@@ -20,6 +20,7 @@ import {
   Organization,
   SubmitResponse,
   DocumentVersionPart,
+  Risk,
 } from './dto/spider.dto';
 
 @Injectable()
@@ -151,17 +152,18 @@ export class SpiderApiService {
     return this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
   }
 
-  async getCheckResult(id: number): Promise<RiskState> {
+  async getCheckResult(id: number): Promise<{ result: RiskState | undefined; risks: Risk[] }> {
     const customerInfo = await this.getCustomerInfo(id);
-    if (!customerInfo || customerInfo.lastCheckId < 0) return undefined;
+    if (!customerInfo || customerInfo.lastCheckId < 0) return { result: undefined, risks: [] };
 
     const customerCheckResult =
       customerInfo.lastCheckVerificationId < 0
-        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result`)
+        ? await this.callApi<CheckResult>(`customers/checks/${customerInfo.lastCheckId}/result/?detailed=true`)
         : await this.callApi<CheckResult>(
-            `customers/checks/verifications/${customerInfo.lastCheckVerificationId}/result`,
+            `customers/checks/verifications/${customerInfo.lastCheckVerificationId}/result?detailed=true`,
           );
-    return customerCheckResult.risks[0].categoryKey;
+
+    return { result: customerCheckResult.risks[0].categoryKey, risks: customerCheckResult.risks };
   }
 
   // --- DOCUMENTS --- //

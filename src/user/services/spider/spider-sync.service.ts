@@ -106,12 +106,13 @@ export class SpiderSyncService {
     if (!userData) return;
 
     // update KYC data
-    const [checkResult, customer] = await Promise.all([
-      this.spiderApi.getCheckResult(userData.id),
+    const [customer, { result, risks }] = await Promise.all([
       this.spiderApi.getCustomer(userData.id),
+      this.spiderApi.getCheckResult(userData.id),
     ]);
-    userData.riskState = checkResult;
     userData.kycCustomerId = customer?.id;
+    userData.riskState = result;
+    userData.riskRoots = result === 'c' ? null : JSON.stringify(risks);
 
     // check KYC progress
     if (KycInProgress(userData.kycStatus)) {
