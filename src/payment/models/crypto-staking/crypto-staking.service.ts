@@ -56,10 +56,8 @@ export class CryptoStakingService {
       entity.stakingRoute.deposit.id,
     );
 
-    // TODO: uncomment
-    //entity.outputDate = new Date(cryptoInput.created);
-    //entity.outputDate.setDate(entity.outputDate.getDate() + Config.staking.period);
-    entity.outputDate = new Date('2022-03-31');
+    entity.outputDate = new Date(cryptoInput.created);
+    entity.outputDate.setDate(entity.outputDate.getDate() + Config.staking.period);
     entity.isReinvest = await this.isReinvest(cryptoInput);
 
     await this.cryptoStakingRepo.save(entity);
