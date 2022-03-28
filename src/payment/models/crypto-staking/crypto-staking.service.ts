@@ -66,7 +66,7 @@ export class CryptoStakingService {
   async update(id: number, dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
     const entity = await this.cryptoStakingRepo.findOne(id);
     if (!entity) throw new NotFoundException('Crypto staking not found');
-    
+
     if (entity.outTxId && dto.outputDate != entity.outputDate)
       throw new BadRequestException('Cannot update outputDate if outTxId already set');
 
@@ -147,7 +147,7 @@ export class CryptoStakingService {
       address: e.stakingRoute.paybackDeposit?.address ?? e.stakingRoute.user.address,
       outputAsset: e.stakingRoute.paybackAsset?.dexName,
       amount: e.inputAmount,
-      payoutType: this.stakingService.getPayoutType(e.stakingRoute.paybackDeposit?.id, e.stakingRoute.deposit.id),
+      payoutType: e.payoutType,
     }));
   }
 
