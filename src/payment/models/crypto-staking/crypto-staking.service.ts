@@ -55,6 +55,7 @@ export class CryptoStakingService {
       entity.stakingRoute.paybackDeposit?.id,
       entity.stakingRoute.deposit.id,
     );
+    entity.paybackDeposit = entity.stakingRoute.paybackDeposit;
 
     entity.outputDate = new Date(cryptoInput.created);
     entity.outputDate.setDate(entity.outputDate.getDate() + Config.staking.period);
@@ -110,11 +111,8 @@ export class CryptoStakingService {
         this.conversionService.convertFiat(outputAmountInUsd, 'usd', 'chf'),
       ]);
 
-      entity.isReinvest =
-        (await this.cryptoStakingRepo.findOne({
-          inTxId: dto.outTxId,
-          stakingRoute: { id: entity.stakingRoute.id },
-        })) != null;
+      // check if reinvested
+      await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId);
 
       await this.cryptoStakingRepo.save({ ...entity, ...dto });
     }
@@ -127,7 +125,7 @@ export class CryptoStakingService {
   async getReadyPayouts(): Promise<GetPayoutsCryptoStakingDto[]> {
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: { readyToPayout: true, outTxId: IsNull() },
-      relations: ['stakingRoute', 'stakingRoute.paybackDeposit', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
+      relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
     return this.toDtoList(cryptoStakingList);
   }
@@ -136,7 +134,7 @@ export class CryptoStakingService {
     date.setHours(date.getHours() + 1, 0, 0, 0);
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: { readyToPayout: false, outputDate: LessThan(date) },
-      relations: ['stakingRoute', 'stakingRoute.paybackDeposit', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
+      relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
     return this.toDtoList(cryptoStakingList);
   }
@@ -144,7 +142,7 @@ export class CryptoStakingService {
   private toDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
     return cryptoStakingList.map((e) => ({
       id: e.id,
-      address: e.stakingRoute.paybackDeposit?.address ?? e.stakingRoute.user.address,
+      address: e.paybackDeposit?.address ?? e.stakingRoute.user.address,
       outputAsset: e.stakingRoute.paybackAsset?.dexName,
       amount: e.inputAmount,
       payoutType: e.payoutType,
@@ -160,5 +158,15 @@ export class CryptoStakingService {
       (await this.stakingRewardRepo.findOne({ txId: cryptoInput.inTxId, staking: { id: cryptoInput.route.id } })) !=
         null
     );
+  }
+
+  async checkIfReinvested(stakingId: number, txId: string): Promise<void> {
+    const reinvest = await this.cryptoStakingRepo.findOne({
+      inTxId: txId,
+      stakingRoute: { id: stakingId },
+    });
+    if (reinvest) {
+      await this.cryptoStakingRepo.update(reinvest.id, { isReinvest: true });
+    }
   }
 }

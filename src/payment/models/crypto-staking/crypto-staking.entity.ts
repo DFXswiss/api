@@ -4,6 +4,7 @@ import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
+import { Deposit } from '../deposit/deposit.entity';
 
 @Entity()
 export class CryptoStaking extends IEntity {
@@ -51,6 +52,9 @@ export class CryptoStaking extends IEntity {
 
   @Column({ length: 256, nullable: false })
   payoutType: PayoutType;
+
+  @ManyToOne(() => Deposit, { eager: true, nullable: true })
+  paybackDeposit: Deposit;
 
   @OneToOne(() => CryptoInput, { nullable: false })
   @JoinColumn()
