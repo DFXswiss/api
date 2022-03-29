@@ -125,7 +125,7 @@ export class CryptoStakingService {
   async getReadyPayouts(): Promise<GetPayoutsCryptoStakingDto[]> {
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: { readyToPayout: true, outTxId: IsNull() },
-      relations: ['stakingRoute', 'stakingRoute.paybackDeposit', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
+      relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
     return this.toDtoList(cryptoStakingList);
   }
@@ -134,7 +134,7 @@ export class CryptoStakingService {
     date.setHours(date.getHours() + 1, 0, 0, 0);
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: { readyToPayout: false, outputDate: LessThan(date) },
-      relations: ['stakingRoute', 'stakingRoute.paybackDeposit', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
+      relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
     return this.toDtoList(cryptoStakingList);
   }
@@ -142,7 +142,7 @@ export class CryptoStakingService {
   private toDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
     return cryptoStakingList.map((e) => ({
       id: e.id,
-      address: e.stakingRoute.paybackDeposit?.address ?? e.stakingRoute.user.address,
+      address: e.paybackDeposit?.address ?? e.stakingRoute.user.address,
       outputAsset: e.stakingRoute.paybackAsset?.dexName,
       amount: e.inputAmount,
       payoutType: e.payoutType,
