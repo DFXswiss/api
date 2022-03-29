@@ -55,6 +55,7 @@ export class CryptoStakingService {
       entity.stakingRoute.paybackDeposit?.id,
       entity.stakingRoute.deposit.id,
     );
+    entity.paybackDeposit = entity.stakingRoute.paybackDeposit;
 
     entity.outputDate = new Date(cryptoInput.created);
     entity.outputDate.setDate(entity.outputDate.getDate() + Config.staking.period);
