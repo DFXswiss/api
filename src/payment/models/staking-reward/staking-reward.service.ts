@@ -7,8 +7,7 @@ import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
-import { MasternodeService } from '../masternode/masternode.service';
-import { CryptoStakingRepository } from '../crypto-staking/crypto-staking.repository';
+import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 
 @Injectable()
 export class StakingRewardService {
@@ -16,8 +15,7 @@ export class StakingRewardService {
     private readonly rewardRepo: StakingRewardRepository,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
-    private readonly masternodeService: MasternodeService,
-    private readonly cryptoStakingRepo: CryptoStakingRepository,
+    private readonly cryptoStakingService: CryptoStakingService,
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
@@ -31,14 +29,8 @@ export class StakingRewardService {
 
     entity = await this.createEntity(dto);
 
-    // check if reinvest
-    const cryptoStaking = await this.cryptoStakingRepo.findOne({
-      inTxId: entity.txId,
-      stakingRoute: { id: entity.staking.id },
-    });
-    if (cryptoStaking) {
-      await this.cryptoStakingRepo.update(cryptoStaking.id, { isReinvest: true });
-    }
+    // check if reinvested
+    await this.cryptoStakingService.checkIfReinvested(entity.staking.id, entity.txId);
 
     entity = await this.rewardRepo.save(entity);
 
