@@ -27,6 +27,28 @@ export class BankTxService {
     return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
+  async updateProblemEntries(): Promise<void> {
+    const wrongEntries = await this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .leftJoinAndSelect('bankTx.cryptoSell', 'cryptoSell')
+      .leftJoinAndSelect('bankTx.cryptoBuy', 'cryptoBuy')
+      .where(
+        'bankTx.txType IS NULL AND (cryptoSell.id IS NOT NULL OR cryptoBuy.id IS NOT NULL OR bankTx.name LIKE :dfx OR bankTx.name LIKE :payward)',
+        { dfx: '%DFX AG%', payward: '%Payward Ltd.%' },
+      )
+      .getMany();
+
+    for (const entry of wrongEntries) {
+      await this.update(entry.id, {
+        txType: !entry.cryptoBuy
+          ? !entry.cryptoSell
+            ? BankTxType.INTERNAL
+            : BankTxType.CRYPTO_SELL
+          : BankTxType.CRYPTO_BUY,
+      });
+    }
+  }
+
   async getProblems(): Promise<BankTx[]> {
     return await this.bankTxRepo.find({ where: { txType: null } });
   }

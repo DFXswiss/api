@@ -9,6 +9,7 @@ import {
   Param,
   Body,
   Get,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -29,13 +30,15 @@ export class BankTxController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getBalance(): Promise<{
+  async getBalance(@Query('autoUpdate') autoUpdate): Promise<{
     problem: BankTx[];
     buy: BankTx[];
     sell: BankTx[];
     payback: BankTx[];
     repeat: BankTx[];
   }> {
+    if (autoUpdate) await this.bankTxService.updateProblemEntries();
+
     return {
       problem: await this.bankTxService.getProblems(),
       buy: await this.bankTxService.get(BankTxType.CRYPTO_BUY),
