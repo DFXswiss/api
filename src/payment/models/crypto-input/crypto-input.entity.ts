@@ -34,4 +34,7 @@ export class CryptoInput extends IEntity {
 
   @Column({ default: false })
   isConfirmed: boolean;
+
+  @Column({ default: false })
+  isPayback: boolean;
 }

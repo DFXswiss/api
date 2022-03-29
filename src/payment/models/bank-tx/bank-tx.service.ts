@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { BankTxRepository } from './bank-tx.repository';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
+import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
+import { BankTx, BankTxType } from './bank-tx.entity';
 
 @Injectable()
 export class BankTxService {
@@ -16,6 +18,38 @@ export class BankTxService {
 
   async storeSepaFiles(files: string[]): Promise<(BankTxBatch | Error)[]> {
     return Promise.all(files.map((f) => this.storeSepaFile(f).catch((e: Error) => e)));
+  }
+
+  async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
+    const bankTx = await this.bankTxRepo.findOne({ id: bankTxId });
+
+    if (!bankTx) throw new NotFoundException('BankTx not found');
+
+    return Object.assign(bankTx, await this.bankTxRepo.update(bankTxId, dto));
+  }
+
+  async getProblems(): Promise<BankTx[]> {
+    return await this.bankTxRepo.find({ where: { txType: null } });
+  }
+
+  async getInternal(): Promise<BankTx[]> {
+    return await this.bankTxRepo.find({ where: { txType: BankTxType.INTERNAL } });
+  }
+
+  async getCryptoBuy(): Promise<BankTx[]> {
+    return await this.bankTxRepo.find({ where: { txType: BankTxType.CRYPTOBUY } });
+  }
+
+  async getCryptoSell(): Promise<BankTx[]> {
+    return await this.bankTxRepo.find({ where: { txType: BankTxType.CRYPTOSELL } });
+  }
+
+  async getPayback(): Promise<BankTx[]> {
+    return await this.bankTxRepo.find({ where: { txType: BankTxType.PAYBACK } });
+  }
+
+  async getRepeat(): Promise<BankTx[]> {
+    return await this.bankTxRepo.find({ where: { txType: BankTxType.REPEAT } });
   }
 
   // --- HELPER METHODS --- //

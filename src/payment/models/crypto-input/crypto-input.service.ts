@@ -1,6 +1,6 @@
 import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression, Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
@@ -17,6 +17,7 @@ import { Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
+import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 
 interface HistoryAmount {
   amount: number;
@@ -294,6 +295,36 @@ export class CryptoInputService {
       usdtAmount: usdtAmount,
       isConfirmed: false,
     });
+  }
+
+  async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
+    const bankTx = await this.cryptoInputRepo.findOne({ id: cryptoInputId });
+
+    if (!bankTx) throw new NotFoundException('CryptoInputId not found');
+
+    return await this.cryptoInputRepo.save({ ...bankTx, ...dto });
+  }
+
+  async getProblems(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({ where: [{ route: null }, { isPayback: false }], relations: ['route'] });
+  }
+
+  async getAllSellInputs(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({
+      where: { route: { type: RouteType.SELL }, isPayback: false },
+      relations: ['route'],
+    });
+  }
+
+  async getAllStakingInputs(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({
+      where: { route: { type: RouteType.STAKING }, isPayback: false },
+      relations: ['route'],
+    });
+  }
+
+  async getAllPaybackInputs(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({ where: { isPayback: true } });
   }
 
   private async saveAndForward(input: CryptoInput): Promise<void> {

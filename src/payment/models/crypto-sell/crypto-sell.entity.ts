@@ -48,6 +48,9 @@ export class CryptoSell extends IEntity {
   @Column({ length: 256, nullable: true })
   bankUsage: string;
 
+  @Column({ default: false, nullable: false })
+  isReturned: boolean;
+
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 

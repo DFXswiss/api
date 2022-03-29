@@ -65,6 +65,9 @@ export class CryptoBuy extends IEntity {
   @Column({ type: 'float', nullable: true })
   refProvision: number;
 
+  @Column({ default: false, nullable: false })
+  isReturned: boolean;
+
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 

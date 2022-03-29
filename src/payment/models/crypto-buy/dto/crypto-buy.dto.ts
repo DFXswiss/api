@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
+import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum, IsBoolean } from 'class-validator';
 import { AmlCheck } from '../crypto-buy.entity';
 
 export abstract class CryptoBuyDto {
@@ -89,6 +89,11 @@ export abstract class CryptoBuyDto {
   @IsOptional()
   @IsNumber()
   refFactor: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isReturned: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()

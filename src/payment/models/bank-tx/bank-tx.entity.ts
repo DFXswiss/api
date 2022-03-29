@@ -2,6 +2,14 @@ import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column, ManyToOne } from 'typeorm';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
+export enum BankTxType {
+  INTERNAL = 'Internal',
+  PAYBACK = 'Payback',
+  REPEAT = 'Repeat',
+  CRYPTOBUY = 'CryptoBuy',
+  CRYPTOSELL = 'CryptoSell',
+}
+
 @Entity()
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
@@ -105,6 +113,9 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   txInfo?: string;
+
+  @Column({ length: 256, nullable: true })
+  txType: BankTxType;
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: false })
   batch: BankTxBatch;
