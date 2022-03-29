@@ -41,6 +41,41 @@ export class CryptoInputService {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
 
+  async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
+    const cryptoInput = await this.cryptoInputRepo.findOne(cryptoInputId);
+    if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
+
+    return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
+  }
+
+  async getProblems(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .leftJoinAndSelect('cryptoInput.route', 'route')
+      .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
+      .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
+      .where('cryptoInput.isReturned = 0 AND cryptoSell.id IS NULL AND cryptoStaking.id IS NULL')
+      .getMany();
+  }
+
+  async getAllSellInputs(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({
+      where: { route: { type: RouteType.SELL }, isReturned: false },
+      relations: ['route'],
+    });
+  }
+
+  async getAllStakingInputs(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({
+      where: { route: { type: RouteType.STAKING }, isReturned: false },
+      relations: ['route'],
+    });
+  }
+
+  async getAllPaybackInputs(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({ where: { isReturned: true } });
+  }
+
   // --- TOKEN CONVERSION --- //
   @Interval(900000)
   async convertTokens(): Promise<void> {
@@ -140,6 +175,122 @@ export class CryptoInputService {
     this.lock.release();
   }
 
+  private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
+    const inputs = [];
+    for (const history of histories) {
+      try {
+        const amounts = this.getAmounts(history);
+        for (const amount of amounts) {
+          inputs.push(await this.createEntity(history, amount));
+        }
+      } catch (e) {
+        console.error(`Failed to process crypto input ${history.txid}:`, e);
+      }
+    }
+    return inputs;
+  }
+
+  private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
+    // get asset
+    const assetEntity = await this.assetService.getAssetByDexName(asset, isToken);
+    if (!assetEntity) {
+      console.error(`Failed to process crypto input. No asset ${asset} found. History entry:`, history);
+      return null;
+    }
+
+    // only sellable
+    if (!assetEntity.sellable) {
+      console.log(`Ignoring unsellable crypto input (${amount} ${asset}). History entry:`, history);
+      return null;
+    }
+
+    const btcAmount = await this.client.testCompositeSwap(history.owner, asset, 'BTC', amount);
+    const usdtAmount = await this.client.testCompositeSwap(history.owner, asset, 'USDT', amount);
+
+    // min. deposit
+    if (
+      (asset === 'DFI' && amount < Config.node.minDfiDeposit) ||
+      (asset !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
+    ) {
+      console.log(`Ignoring too small crypto input (${amount} ${asset}). History entry:`, history);
+      return null;
+    }
+
+    // get deposit route
+    const route = await this.getDepositRoute(history.owner);
+    if (!route) {
+      console.error(
+        `Failed to process crypto input. No matching route for ${history.owner} found. History entry:`,
+        history,
+      );
+      return null;
+    }
+
+    // ignore AccountToUtxos for sell
+    if (route.type === RouteType.SELL && history.type === 'AccountToUtxos') {
+      console.log('Ignoring AccountToUtxos crypto input on sell route. History entry:', history);
+      return null;
+    }
+
+    // only DFI for staking
+    if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
+      console.log(`Ignoring non-DFI crypto input (${amount} ${asset}) on staking route. History entry:`, history);
+      return null;
+    }
+
+    return this.cryptoInputRepo.create({
+      inTxId: history.txid,
+      outTxId: '', // will be set after crypto forward
+      blockHeight: history.blockHeight,
+      amount: amount,
+      asset: assetEntity,
+      route: route,
+      btcAmount: btcAmount,
+      usdtAmount: usdtAmount,
+      isConfirmed: false,
+    });
+  }
+
+  private async saveAndForward(input: CryptoInput): Promise<void> {
+    try {
+      // save
+      await this.cryptoInputRepo.save(input);
+      if (input.route.type === RouteType.STAKING) {
+        await this.stakingService.updateBalance(input.route.id);
+        await this.cryptoStakingService.create(input);
+      }
+
+      // forward (only await UTXO)
+      const targetAddress =
+        input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+      input.asset.type === AssetType.COIN
+        ? await this.forwardUtxo(input, targetAddress)
+        : await this.forwardToken(input, targetAddress);
+    } catch (e) {
+      console.error(`Failed to process crypto input ${input.id}:`, e);
+    }
+  }
+
+  private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
+    const outTxId = await this.client.sendUtxo(input.route.deposit.address, address, input.amount);
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+  }
+
+  private async forwardToken(input: CryptoInput, address: string): Promise<void> {
+    await this.doTokenTx(input.route.deposit.address, async (utxo) => {
+      const outTxId = await this.client.sendToken(
+        input.route.deposit.address,
+        address,
+        input.asset.dexName.replace('-Token', ''),
+        input.amount,
+        [utxo],
+      );
+      await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+
+      return outTxId;
+    });
+  }
+
   // --- CONFIRMATION HANDLING --- //
   @Interval(300000)
   async checkConfirmations(): Promise<void> {
@@ -206,21 +357,6 @@ export class CryptoInputService {
     return [...new Set(utxoAddresses.concat(tokenAddresses))];
   }
 
-  private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
-    const inputs = [];
-    for (const history of histories) {
-      try {
-        const amounts = this.getAmounts(history);
-        for (const amount of amounts) {
-          inputs.push(await this.createEntity(history, amount));
-        }
-      } catch (e) {
-        console.error(`Failed to process crypto input ${history.txid}:`, e);
-      }
-    }
-    return inputs;
-  }
-
   private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
   private readonly tokenTxTypes = ['AccountToAccount', 'WithdrawFromVault', 'PoolSwap', 'RemovePoolLiquidity'];
 
@@ -234,137 +370,6 @@ export class CryptoInputService {
 
   private parseAmount(amount: string, isToken: boolean): HistoryAmount {
     return { ...this.client.parseAmount(amount), isToken };
-  }
-
-  private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
-    // get asset
-    const assetEntity = await this.assetService.getAssetByDexName(asset, isToken);
-    if (!assetEntity) {
-      console.error(`Failed to process crypto input. No asset ${asset} found. History entry:`, history);
-      return null;
-    }
-
-    // only sellable
-    if (!assetEntity.sellable) {
-      console.log(`Ignoring unsellable crypto input (${amount} ${asset}). History entry:`, history);
-      return null;
-    }
-
-    const btcAmount = await this.client.testCompositeSwap(history.owner, asset, 'BTC', amount);
-    const usdtAmount = await this.client.testCompositeSwap(history.owner, asset, 'USDT', amount);
-
-    // min. deposit
-    if (
-      (asset === 'DFI' && amount < Config.node.minDfiDeposit) ||
-      (asset !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
-    ) {
-      console.log(`Ignoring too small crypto input (${amount} ${asset}). History entry:`, history);
-      return null;
-    }
-
-    // get deposit route
-    const route = await this.getDepositRoute(history.owner);
-    if (!route) {
-      console.error(
-        `Failed to process crypto input. No matching route for ${history.owner} found. History entry:`,
-        history,
-      );
-      return null;
-    }
-
-    // ignore AccountToUtxos for sell
-    if (route.type === RouteType.SELL && history.type === 'AccountToUtxos') {
-      console.log('Ignoring AccountToUtxos crypto input on sell route. History entry:', history);
-      return null;
-    }
-
-    // only DFI for staking
-    if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
-      console.log(`Ignoring non-DFI crypto input (${amount} ${asset}) on staking route. History entry:`, history);
-      return null;
-    }
-
-    return this.cryptoInputRepo.create({
-      inTxId: history.txid,
-      outTxId: '', // will be set after crypto forward
-      blockHeight: history.blockHeight,
-      amount: amount,
-      asset: assetEntity,
-      route: route,
-      btcAmount: btcAmount,
-      usdtAmount: usdtAmount,
-      isConfirmed: false,
-    });
-  }
-
-  async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
-    const bankTx = await this.cryptoInputRepo.findOne({ id: cryptoInputId });
-
-    if (!bankTx) throw new NotFoundException('CryptoInputId not found');
-
-    return await this.cryptoInputRepo.save({ ...bankTx, ...dto });
-  }
-
-  async getProblems(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo.find({ where: [{ route: null }, { isPayback: false }], relations: ['route'] });
-  }
-
-  async getAllSellInputs(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo.find({
-      where: { route: { type: RouteType.SELL }, isPayback: false },
-      relations: ['route'],
-    });
-  }
-
-  async getAllStakingInputs(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo.find({
-      where: { route: { type: RouteType.STAKING }, isPayback: false },
-      relations: ['route'],
-    });
-  }
-
-  async getAllPaybackInputs(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo.find({ where: { isPayback: true } });
-  }
-
-  private async saveAndForward(input: CryptoInput): Promise<void> {
-    try {
-      // save
-      await this.cryptoInputRepo.save(input);
-      if (input.route.type === RouteType.STAKING) {
-        await this.stakingService.updateBalance(input.route.id);
-        await this.cryptoStakingService.create(input);
-      }
-
-      // forward (only await UTXO)
-      const targetAddress =
-        input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
-      input.asset.type === AssetType.COIN
-        ? await this.forwardUtxo(input, targetAddress)
-        : await this.forwardToken(input, targetAddress);
-    } catch (e) {
-      console.error(`Failed to process crypto input ${input.id}:`, e);
-    }
-  }
-
-  private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
-    const outTxId = await this.client.sendUtxo(input.route.deposit.address, address, input.amount);
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
-  }
-
-  private async forwardToken(input: CryptoInput, address: string): Promise<void> {
-    await this.doTokenTx(input.route.deposit.address, async (utxo) => {
-      const outTxId = await this.client.sendToken(
-        input.route.deposit.address,
-        address,
-        input.asset.dexName.replace('-Token', ''),
-        input.amount,
-        [utxo],
-      );
-      await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
-
-      return outTxId;
-    });
   }
 
   private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {

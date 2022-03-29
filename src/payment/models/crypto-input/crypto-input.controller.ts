@@ -1,4 +1,4 @@
-import { Controller, UseGuards, Put, Body, Param, Post, Get } from '@nestjs/common';
+import { Controller, UseGuards, Put, Body, Param, Get } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -16,7 +16,7 @@ export class CryptoInputController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getProblems(): Promise<{
+  async getBalance(): Promise<{
     problem: CryptoInput[];
     sell: CryptoInput[];
     staking: CryptoInput[];

@@ -6,8 +6,8 @@ export enum BankTxType {
   INTERNAL = 'Internal',
   PAYBACK = 'Payback',
   REPEAT = 'Repeat',
-  CRYPTOBUY = 'CryptoBuy',
-  CRYPTOSELL = 'CryptoSell',
+  CRYPTO_BUY = 'CryptoBuy',
+  CRYPTO_SELL = 'CryptoSell',
 }
 
 @Entity()

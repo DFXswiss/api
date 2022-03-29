@@ -21,35 +21,18 @@ export class BankTxService {
   }
 
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
-    const bankTx = await this.bankTxRepo.findOne({ id: bankTxId });
-
+    const bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
 
-    return Object.assign(bankTx, await this.bankTxRepo.update(bankTxId, dto));
+    return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
   async getProblems(): Promise<BankTx[]> {
     return await this.bankTxRepo.find({ where: { txType: null } });
   }
 
-  async getInternal(): Promise<BankTx[]> {
-    return await this.bankTxRepo.find({ where: { txType: BankTxType.INTERNAL } });
-  }
-
-  async getCryptoBuy(): Promise<BankTx[]> {
-    return await this.bankTxRepo.find({ where: { txType: BankTxType.CRYPTOBUY } });
-  }
-
-  async getCryptoSell(): Promise<BankTx[]> {
-    return await this.bankTxRepo.find({ where: { txType: BankTxType.CRYPTOSELL } });
-  }
-
-  async getPayback(): Promise<BankTx[]> {
-    return await this.bankTxRepo.find({ where: { txType: BankTxType.PAYBACK } });
-  }
-
-  async getRepeat(): Promise<BankTx[]> {
-    return await this.bankTxRepo.find({ where: { txType: BankTxType.REPEAT } });
+  async get(txType: BankTxType): Promise<BankTx[]> {
+    return await this.bankTxRepo.find({ where: { txType } });
   }
 
   // --- HELPER METHODS --- //
@@ -77,7 +60,7 @@ export class BankTxService {
     const newTxs = txList
       .filter((i) => !duplicates.includes(i.accountServiceRef))
       .map((tx) => ({ batch: batch, ...tx }));
-    await this.bankTxRepo.save(newTxs);
+    await this.bankTxRepo.saveMany(newTxs);
 
     batch.transactions = txList;
     return batch;

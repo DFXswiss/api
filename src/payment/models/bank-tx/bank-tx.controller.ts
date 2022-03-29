@@ -16,7 +16,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankTxBatch } from './bank-tx-batch.entity';
-import { BankTx } from './bank-tx.entity';
+import { BankTx, BankTxType } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 
@@ -29,7 +29,7 @@ export class BankTxController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getProblems(): Promise<{
+  async getBalance(): Promise<{
     problem: BankTx[];
     buy: BankTx[];
     sell: BankTx[];
@@ -38,10 +38,10 @@ export class BankTxController {
   }> {
     return {
       problem: await this.bankTxService.getProblems(),
-      buy: await this.bankTxService.getCryptoBuy(),
-      sell: await this.bankTxService.getCryptoSell(),
-      payback: await this.bankTxService.getPayback(),
-      repeat: await this.bankTxService.getRepeat(),
+      buy: await this.bankTxService.get(BankTxType.CRYPTO_BUY),
+      sell: await this.bankTxService.get(BankTxType.CRYPTO_SELL),
+      payback: await this.bankTxService.get(BankTxType.PAYBACK),
+      repeat: await this.bankTxService.get(BankTxType.REPEAT),
     };
   }
 
