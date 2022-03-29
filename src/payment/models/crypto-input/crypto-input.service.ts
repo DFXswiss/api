@@ -59,10 +59,14 @@ export class CryptoInputService {
   }
 
   async getAllSellInputs(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo.find({
-      where: { route: { type: RouteType.SELL }, isReturned: false },
-      relations: ['route'],
-    });
+    return await this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .leftJoinAndSelect('cryptoInput.route', 'route')
+      .leftJoinAndSelect('cryptoInput.cryptoSell', 'cryptoSell')
+      .where('cryptoInput.isReturned = 0 AND cryptoSell.id IS NOT NULL AND route.type = :routeType', {
+        routeType: RouteType.SELL,
+      })
+      .getMany();
   }
 
   async getAllStakingInputs(): Promise<CryptoInput[]> {
