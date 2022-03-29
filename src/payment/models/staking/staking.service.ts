@@ -144,7 +144,7 @@ export class StakingService {
   }
 
   async getStakingBalance(stakingId: number, date: Date): Promise<number> {
-    const { balance } = await this.getInputsForStakingPeriod(date)
+    const { balance } = await this.cryptoStakingRepo.getActiveEntries(date)
       .select('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId = :stakingId', { stakingId })
       .getRawOne<{ balance: number }>();
@@ -161,7 +161,7 @@ export class StakingService {
   }
 
   async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
-    return await this.getInputsForStakingPeriod(date)
+    return await this.cryptoStakingRepo.getActiveEntries(date)
       .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId IN (:...stakingIds)', { stakingIds })
@@ -170,16 +170,10 @@ export class StakingService {
   }
 
   async getTotalStakingBalance(date: Date = new Date()): Promise<number> {
-    return await this.getInputsForStakingPeriod(date)
+    return await this.cryptoStakingRepo.getActiveEntries(date)
       .select('SUM(inputAmount)', 'balance')
       .getRawOne<{ balance: number }>()
       .then((b) => b.balance);
-  }
-
-  private getInputsForStakingPeriod(date: Date): SelectQueryBuilder<CryptoStaking> {
-    return this.cryptoStakingRepo
-      .createQueryBuilder('cryptoStaking')
-      .where('cryptoStaking.inputDate <= :date AND cryptoStaking.outputDate >= :date', { date });
   }
 
   // --- DTO --- //

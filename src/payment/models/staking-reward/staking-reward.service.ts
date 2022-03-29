@@ -145,7 +145,7 @@ export class StakingRewardService {
 
     const collateralLastWeek = await this.stakingService.getTotalStakingBalance(this.getLastWeekDate());
     const collateralToday = await this.stakingService.getTotalStakingBalance();
-    const meanCollateral = (collateralLastWeek + collateralToday) / 2;
+    const meanCollateral = Util.avg([collateralLastWeek, collateralToday]);
     const apr = await this.getWeeklyApr(rewardVolume, meanCollateral);
     return {
       apr: Util.round(apr, 2),
