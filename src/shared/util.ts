@@ -24,7 +24,7 @@ export class Util {
     return this.sum(list) / list.length;
   }
 
-  static aggregate<T, U>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
+  static aggregate<T>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
     return list.reduce((prev, curr) => {
       const keyValue = curr[key] as unknown as string;
       if (prev[keyValue]) {
