@@ -12,22 +12,20 @@ import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 export class CryptoInputController {
   constructor(private readonly cryptoInputService: CryptoInputService) {}
 
-  @Get('balance')
+  @Get('mapping/unmapped')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getBalance(): Promise<{
-    problem: CryptoInput[];
-    sell: CryptoInput[];
-    staking: CryptoInput[];
-    payback: CryptoInput[];
-  }> {
-    return {
-      problem: await this.cryptoInputService.getProblems(),
-      sell: await this.cryptoInputService.getAllSellInputs(),
-      staking: await this.cryptoInputService.getAllStakingInputs(),
-      payback: await this.cryptoInputService.getAllPaybackInputs(),
-    };
+  async getUnmapped(): Promise<CryptoInput[]> {
+    return await this.cryptoInputService.getUnmapped();
+  }
+
+  @Get('mapping')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getEntriesWithMapping(): Promise<CryptoInput[]> {
+    return await this.cryptoInputService.getEntriesWithMapping();
   }
 
   @Put(':id')

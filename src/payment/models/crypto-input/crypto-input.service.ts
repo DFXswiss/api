@@ -13,7 +13,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { Not } from 'typeorm';
+import { Brackets, Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -48,47 +48,37 @@ export class CryptoInputService {
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
   }
 
-  async getProblems(): Promise<CryptoInput[]> {
+  async getUnmapped(): Promise<CryptoInput[]> {
     return await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
-      .addSelect('route.id')
       .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
-      .where('cryptoInput.isReturned = 0 AND cryptoSell.id IS NULL AND cryptoStaking.id IS NULL')
+      .where('cryptoInput.returnTxId IS NULL')
+      .andWhere('cryptoSell.id IS NULL')
+      .andWhere('cryptoStaking.id IS NULL')
       .getMany();
   }
 
-  async getAllSellInputs(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo
+  async getEntriesWithMapping(): Promise<CryptoInput[]> {
+    const entries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
-      .addSelect('route.id')
       .addSelect('cryptoSell.id')
-      .leftJoin('cryptoInput.route', 'route')
+      .addSelect('cryptoStaking.id')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
-      .where('cryptoInput.isReturned = 0 AND cryptoSell.id IS NOT NULL AND route.type = :routeType', {
-        routeType: RouteType.SELL,
-      })
-      .getMany();
-  }
-
-  async getAllStakingInputs(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo
-      .createQueryBuilder('cryptoInput')
-      .select('cryptoInput')
-      .addSelect('route.id')
-      .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
-      .where('cryptoInput.isReturned = 0 AND cryptoStaking.id IS NOT NULL AND route.type = :routeType', {
-        routeType: RouteType.STAKING,
-      })
+      .where(
+        new Brackets((b) => {
+          b.where('cryptoSell.id IS NOT NULL')
+            .orWhere('cryptoStaking.id IS NOT NULL')
+            .orWhere('cryptoInput.returnTxId IS NOT NULL');
+        }),
+      )
       .getMany();
-  }
 
-  async getAllPaybackInputs(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo.find({ where: { isReturned: true } });
+    return entries;
   }
 
   // --- TOKEN CONVERSION --- //

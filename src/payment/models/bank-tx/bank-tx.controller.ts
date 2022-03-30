@@ -26,26 +26,20 @@ import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 export class BankTxController {
   constructor(private readonly bankTxService: BankTxService) {}
 
-  @Get('balance')
+  @Get('mapping/unmapped')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getBalance(@Query('autoUpdate') autoUpdate): Promise<{
-    problem: BankTx[];
-    buy: BankTx[];
-    sell: BankTx[];
-    payback: BankTx[];
-    repeat: BankTx[];
-  }> {
-    if (autoUpdate) await this.bankTxService.updateTxTypes();
+  async getUnmapped(): Promise<BankTx[]> {
+    return await this.bankTxService.getUnmapped();
+  }
 
-    return {
-      problem: await this.bankTxService.getProblems(),
-      buy: await this.bankTxService.get(BankTxType.CRYPTO_BUY),
-      sell: await this.bankTxService.get(BankTxType.CRYPTO_SELL),
-      payback: await this.bankTxService.get(BankTxType.PAYBACK),
-      repeat: await this.bankTxService.get(BankTxType.REPEAT),
-    };
+  @Get('mapping')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getEntriesWithMapping(): Promise<BankTx[]> {
+    return await this.bankTxService.getEntriesWithMapping();
   }
 
   @Post()

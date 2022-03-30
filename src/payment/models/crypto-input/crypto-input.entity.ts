@@ -7,6 +7,14 @@ import { IEntity } from 'src/shared/models/entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 
+export enum BankTxType {
+  RETURN = 'Return',
+  CRYPTO_STAKING = 'CryptoStaking',
+  CRYPTO_SELL = 'CryptoSell',
+  CRYPTO_CRYPTO = 'CryptoCrypto',
+  UNKNOWN = 'Unknown',
+}
+
 @Entity()
 @Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route], { unique: true })
 export class CryptoInput extends IEntity {
@@ -15,6 +23,9 @@ export class CryptoInput extends IEntity {
 
   @Column({ length: 256 })
   outTxId: string;
+
+  @Column({ length: 256, nullable: true, default: null })
+  returnTxId: string;
 
   @Column({ type: 'integer' })
   blockHeight: number;
@@ -36,9 +47,6 @@ export class CryptoInput extends IEntity {
 
   @Column({ default: false })
   isConfirmed: boolean;
-
-  @Column({ default: false })
-  isReturned: boolean;
 
   @OneToOne(() => CryptoSell, (sell) => sell.cryptoInput, { nullable: true })
   cryptoSell?: CryptoSell;

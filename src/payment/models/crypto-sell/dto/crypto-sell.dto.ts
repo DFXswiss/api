@@ -76,11 +76,6 @@ export abstract class CryptoSellDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsBoolean()
-  isReturned: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsDate()
   @Type(() => Date)
   outputDate: Date;

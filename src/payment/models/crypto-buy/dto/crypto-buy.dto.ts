@@ -92,11 +92,6 @@ export abstract class CryptoBuyDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsBoolean()
-  isReturned: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsDate()
   @Type(() => Date)
   outputDate: Date;

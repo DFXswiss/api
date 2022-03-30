@@ -27,50 +27,52 @@ export class BankTxService {
     return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
-  async updateTxTypes(): Promise<void> {
+  async getUnmapped(): Promise<BankTx[]> {
     const unmappedEntries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
-      .leftJoinAndSelect('bankTx.cryptoSell', 'cryptoSell')
-      .leftJoinAndSelect('bankTx.cryptoBuy', 'cryptoBuy')
-      .where('bankTx.txType IS NULL')
-      .andWhere(
+      .select('bankTx')
+      .leftJoin('bankTx.cryptoSell', 'cryptoSell')
+      .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
+      .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
+      .leftJoin('bankTx.outReturnBankTx', 'outReturnBankTx')
+      .where('bankTx.inReturnBankTx IS NULL')
+      .andWhere('outReturnBankTx.id IS NULL')
+      .andWhere('bankTx.nextRepeatBankTx IS NULL')
+      .andWhere('previousRepeatBankTx.id IS NULL')
+      .andWhere('cryptoSell.id IS NULL')
+      .andWhere('cryptoBuy.id IS NULL')
+      .andWhere("bankTx.name NOT LIKE '%DFX AG%' OR bankTx.name NOT LIKE '%Payward Ltd.%'")
+      .getMany();
+
+    return unmappedEntries;
+  }
+
+  async getEntriesWithMapping(): Promise<BankTx[]> {
+    const entries = await this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx')
+      .addSelect('cryptoSell.id')
+      .addSelect('cryptoBuy.id')
+      .addSelect('previousRepeatBankTx.id')
+      .addSelect('outReturnBankTx.id')
+      .leftJoin('bankTx.cryptoSell', 'cryptoSell')
+      .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
+      .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
+      .leftJoin('bankTx.outReturnBankTx', 'outReturnBankTx')
+      .where(
         new Brackets((b) => {
           b.where('cryptoSell.id IS NOT NULL')
             .orWhere('cryptoBuy.id IS NOT NULL')
-            .orWhere("bankTx.name LIKE '%DFX AG%' OR bankTx.name LIKE '%Payward Ltd.%'");
+            .orWhere("bankTx.name LIKE '%DFX AG%' OR bankTx.name LIKE '%Payward Ltd.%'")
+            .orWhere('bankTx.inReturnBankTx IS NOT NULL')
+            .orWhere('outReturnBankTx.id IS NOT NULL')
+            .orWhere('bankTx.nextRepeatBankTx IS NOT NULL')
+            .orWhere('previousRepeatBankTx.id IS NOT NULL');
         }),
       )
       .getMany();
 
-    await this.setType(
-      unmappedEntries.filter((e) => e.cryptoBuy),
-      BankTxType.CRYPTO_BUY,
-    );
-    await this.setType(
-      unmappedEntries.filter((e) => e.cryptoSell),
-      BankTxType.CRYPTO_SELL,
-    );
-    await this.setType(
-      unmappedEntries.filter((e) => !e.cryptoBuy && !e.cryptoSell),
-      BankTxType.INTERNAL,
-    );
-  }
-
-  private async setType(bankTx: BankTx[], txType: BankTxType): Promise<void> {
-    if (bankTx.length > 0) {
-      await this.bankTxRepo.update(
-        bankTx.map((e) => e.id),
-        { txType },
-      );
-    }
-  }
-
-  async getProblems(): Promise<BankTx[]> {
-    return await this.bankTxRepo.find({ where: { txType: null } });
-  }
-
-  async get(txType: BankTxType): Promise<BankTx[]> {
-    return await this.bankTxRepo.find({ where: { txType } });
+    return entries;
   }
 
   // --- HELPER METHODS --- //
