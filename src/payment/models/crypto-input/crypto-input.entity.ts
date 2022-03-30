@@ -7,7 +7,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 
-export enum BankTxType {
+export enum CryptoInputType {
   RETURN = 'Return',
   CRYPTO_STAKING = 'CryptoStaking',
   CRYPTO_SELL = 'CryptoSell',
@@ -24,7 +24,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256 })
   outTxId: string;
 
-  @Column({ length: 256, nullable: true, default: null })
+  @Column({ length: 256, nullable: true })
   returnTxId: string;
 
   @Column({ type: 'integer' })

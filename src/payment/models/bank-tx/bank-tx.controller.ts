@@ -9,7 +9,6 @@ import {
   Param,
   Body,
   Get,
-  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -17,7 +16,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankTxBatch } from './bank-tx-batch.entity';
-import { BankTx, BankTxType } from './bank-tx.entity';
+import { BankTx } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 

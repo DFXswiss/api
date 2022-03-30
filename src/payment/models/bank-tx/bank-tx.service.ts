@@ -6,7 +6,7 @@ import { SepaParser } from './sepa-parser.service';
 import { Brackets, In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType } from './bank-tx.entity';
+import { BankTx } from './bank-tx.entity';
 
 @Injectable()
 export class BankTxService {
