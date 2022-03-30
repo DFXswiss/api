@@ -3,7 +3,7 @@ import { BankTxRepository } from './bank-tx.repository';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
-import { In } from 'typeorm';
+import { Brackets, In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType } from './bank-tx.entity';
@@ -27,25 +27,41 @@ export class BankTxService {
     return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
-  async updateProblemEntries(): Promise<void> {
-    const wrongEntries = await this.bankTxRepo
+  async updateTxTypes(): Promise<void> {
+    const unmappedEntries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .leftJoinAndSelect('bankTx.cryptoSell', 'cryptoSell')
       .leftJoinAndSelect('bankTx.cryptoBuy', 'cryptoBuy')
-      .where(
-        'bankTx.txType IS NULL AND (cryptoSell.id IS NOT NULL OR cryptoBuy.id IS NOT NULL OR bankTx.name LIKE :dfx OR bankTx.name LIKE :payward)',
-        { dfx: '%DFX AG%', payward: '%Payward Ltd.%' },
+      .where('bankTx.txType IS NULL')
+      .andWhere(
+        new Brackets((b) => {
+          b.where('cryptoSell.id IS NOT NULL')
+            .orWhere('cryptoBuy.id IS NOT NULL')
+            .orWhere("bankTx.name LIKE '%DFX AG%' OR bankTx.name LIKE '%Payward Ltd.%'");
+        }),
       )
       .getMany();
 
-    for (const entry of wrongEntries) {
-      await this.update(entry.id, {
-        txType: !entry.cryptoBuy
-          ? !entry.cryptoSell
-            ? BankTxType.INTERNAL
-            : BankTxType.CRYPTO_SELL
-          : BankTxType.CRYPTO_BUY,
-      });
+    await this.setType(
+      unmappedEntries.filter((e) => e.cryptoBuy),
+      BankTxType.CRYPTO_BUY,
+    );
+    await this.setType(
+      unmappedEntries.filter((e) => e.cryptoSell),
+      BankTxType.CRYPTO_SELL,
+    );
+    await this.setType(
+      unmappedEntries.filter((e) => !e.cryptoBuy && !e.cryptoSell),
+      BankTxType.INTERNAL,
+    );
+  }
+
+  private async setType(bankTx: BankTx[], txType: BankTxType): Promise<void> {
+    if (bankTx.length > 0) {
+      await this.bankTxRepo.update(
+        bankTx.map((e) => e.id),
+        { txType },
+      );
     }
   }
 

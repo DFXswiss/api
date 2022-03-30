@@ -37,7 +37,7 @@ export class BankTxController {
     payback: BankTx[];
     repeat: BankTx[];
   }> {
-    if (autoUpdate) await this.bankTxService.updateProblemEntries();
+    if (autoUpdate) await this.bankTxService.updateTxTypes();
 
     return {
       problem: await this.bankTxService.getProblems(),
