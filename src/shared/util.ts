@@ -74,6 +74,14 @@ export class Util {
     );
   }
 
+  static avg(list: number[]): number {
+    return this.sum(list) / list.length;
+  }
+
+  static sum(list: number[]): number {
+    return list.reduce((prev, curr) => prev + curr, 0);
+  }
+
   static async poll<T>(
     action: () => Promise<T | undefined>,
     verify: (result: T | undefined) => boolean,
