@@ -13,7 +13,7 @@ export enum BankTxType {
   UNKNOWN = 'Unknown',
 }
 
-export type MappedBankTx = BankTx & { type: BankTxType };
+export type TypedBankTx = BankTx & { type: BankTxType };
 
 @Entity()
 export class BankTx extends IEntity {

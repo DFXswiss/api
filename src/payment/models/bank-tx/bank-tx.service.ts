@@ -6,7 +6,7 @@ import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType, MappedBankTx } from './bank-tx.entity';
+import { BankTx, BankTxType, TypedBankTx } from './bank-tx.entity';
 
 @Injectable()
 export class BankTxService {
@@ -33,6 +33,7 @@ export class BankTxService {
 
       bankTx.nextRepeatBankTx = referencedBankTx;
     }
+
     if (dto.returnBankTxId) {
       const referencedBankTx = await this.bankTxRepo.findOne({ id: dto.returnBankTxId });
       if (!referencedBankTx) throw new NotFoundException('Return bankTx not found');
@@ -46,7 +47,7 @@ export class BankTxService {
     return await this.bankTxRepo.save(bankTx);
   }
 
-  async getUnmapped(): Promise<MappedBankTx[]> {
+  async getUntyped(): Promise<TypedBankTx[]> {
     const unmappedEntries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
@@ -68,7 +69,7 @@ export class BankTxService {
     return unmappedEntries.map((e) => ({ ...e, type: BankTxType.UNKNOWN }));
   }
 
-  async getAll(): Promise<MappedBankTx[]> {
+  async getWithType(): Promise<TypedBankTx[]> {
     const entries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')

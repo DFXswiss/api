@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CryptoInput, MappedCryptoInput } from './crypto-input.entity';
+import { CryptoInput, TypedCryptoInput } from './crypto-input.entity';
 import { CryptoInputService } from './crypto-input.service';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 
@@ -16,16 +16,16 @@ export class CryptoInputController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUnmapped(): Promise<MappedCryptoInput[]> {
-    return await this.cryptoInputService.getUnmapped();
+  async getUntyped(): Promise<TypedCryptoInput[]> {
+    return await this.cryptoInputService.getUntyped();
   }
 
   @Get('mapping')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getEntriesWithMapping(): Promise<MappedCryptoInput[]> {
-    return await this.cryptoInputService.getAll();
+  async getWithType(): Promise<TypedCryptoInput[]> {
+    return await this.cryptoInputService.getWithType();
   }
 
   @Put(':id')
