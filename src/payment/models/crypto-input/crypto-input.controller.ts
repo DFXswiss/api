@@ -12,7 +12,7 @@ import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 export class CryptoInputController {
   constructor(private readonly cryptoInputService: CryptoInputService) {}
 
-  @Get('mapping/unmapped')
+  @Get('untyped')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
@@ -20,7 +20,7 @@ export class CryptoInputController {
     return await this.cryptoInputService.getUntyped();
   }
 
-  @Get('mapping')
+  @Get('typed')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))

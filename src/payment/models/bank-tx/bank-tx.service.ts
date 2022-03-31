@@ -92,9 +92,9 @@ export class BankTxService {
 
   // --- HELPER METHODS --- //
   private getBankTxType(tx: BankTx): BankTxType {
+    if (tx.returnBankTx || tx.returnSourceBankTx) return BankTxType.RETURN;
     if (tx.cryptoSell) return BankTxType.CRYPTO_SELL;
     if (tx.cryptoBuy) return BankTxType.CRYPTO_BUY;
-    if (tx.returnBankTx || tx.returnSourceBankTx) return BankTxType.RETURN;
     if (tx.nextRepeatBankTx || tx.previousRepeatBankTx) return BankTxType.REPEAT;
     if (tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.')) return BankTxType.INTERNAL;
 

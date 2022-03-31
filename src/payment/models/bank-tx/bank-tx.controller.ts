@@ -25,7 +25,7 @@ import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 export class BankTxController {
   constructor(private readonly bankTxService: BankTxService) {}
 
-  @Get('mapping/unmapped')
+  @Get('untyped')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
@@ -33,7 +33,7 @@ export class BankTxController {
     return await this.bankTxService.getUntyped();
   }
 
-  @Get('mapping')
+  @Get('typed')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
