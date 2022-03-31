@@ -11,6 +11,7 @@ import { CryptoBuyService } from '../crypto-buy/crypto-buy.service';
 import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
+import { OceanService, OceanTransaction } from 'src/shared/services/ocean.service';
 
 @Injectable()
 export class HistoryService {
@@ -21,6 +22,7 @@ export class HistoryService {
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
+    private readonly oceanService: OceanService,
   ) {}
 
   async getHistory(userId: number, userAddress: string, query: HistoryQuery, timeout?: number): Promise<HistoryDto[]> {
@@ -305,6 +307,88 @@ export class HistoryService {
     }));
   }
 
+  private async getOceanTransactions(
+    userAddress: string,
+    dateFrom?: Date,
+    dateTo?: Date,
+    timeout?: number,
+  ): Promise<HistoryDto[]> {
+    const tx = await this.oceanService.getTransactions(userAddress, dateFrom, dateTo, timeout);
+
+    //TODO
+
+    // return tx
+    //   .map((e) =>
+    //     e.type === OceanTxType.POOL_SWAP
+    //       ? this.getOceanPoolSwapTx(e)
+    //       : e.type === OceanTxType.ADD_POOL_LIQUIDITY
+    //       ? this.getAddPoolLiquidityTx(e)
+    //       : null,
+    //   )
+    //   .reduce((prev, curr) => prev.concat(curr), [])
+    //   .filter((invests) => invests != null);
+
+    return this.getOceanPoolSwapTx(tx);
+  }
+
+  private getOceanPoolSwapTx(poolSwapTransaction: OceanTransaction[]): HistoryDto[] {
+    return poolSwapTransaction.map((reward) => ({
+      type: 'Trade',
+      buyAmount: Util.round(Number.parseFloat(reward.amounts[1].split('@')[0]), 8),
+      buyAsset: this.getAssetSymbol(reward.amounts[1].split('@')[1]),
+      sellAmount: Util.round(Number.parseFloat(reward.amounts[0].split('@')[0].split('-')[1]), 8),
+      sellAsset: this.getAssetSymbol(reward.amounts[0].split('@')[1]),
+      fee: null,
+      feeAsset: null,
+      exchange: 'DFX',
+      tradeGroup: null,
+      comment: `Pool Swap`,
+      date: new Date(reward.block.time),
+      txid: reward.txid,
+      buyValueInEur: null,
+      sellValueInEur: null,
+    }));
+  }
+
+  private getAddPoolLiquidityTx(poolLiquidityTransaction: OceanTransaction[]): HistoryDto[] {
+    return poolLiquidityTransaction
+      .map((transaction) => [
+        {
+          type: 'Trade',
+          buyAmount: Number.parseFloat(transaction.amounts[2].split('@')[0]) / 2,
+          buyAsset: this.getLiquidityAssetSymbol(transaction.amounts[2].split('@')[1]),
+          sellAmount: Number.parseFloat(transaction.amounts[0].split('@')[0].split('-')[1]),
+          sellAsset: this.getAssetSymbol(transaction.amounts[0].split('@')[1]),
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: 'Staking',
+          comment: `Add Liquidity 1`,
+          date: new Date(transaction.block.time),
+          txid: transaction.txid,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+        {
+          type: 'Trade',
+          buyAmount: Number.parseFloat(transaction.amounts[2].split('@')[0]) / 2,
+          buyAsset: this.getLiquidityAssetSymbol(transaction.amounts[2].split('@')[1]),
+          sellAmount: Number.parseFloat(transaction.amounts[1].split('@')[0].split('-')[1]),
+          sellAsset: this.getAssetSymbol(transaction.amounts[1].split('@')[1]),
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: 'Staking',
+          comment: `Add Liquidity 2`,
+          date: new Date(transaction.block.time),
+          txid: transaction.txid,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
   private toCsv(list: any[], separator = ','): string {
     const headers = Object.keys(list[0]).join(separator);
     const values = list.map((t) =>
@@ -326,5 +410,9 @@ export class HistoryService {
     return ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
       ? dexName
       : `d${dexName}`;
+  }
+
+  private getLiquidityAssetSymbol(liquidityName: string): string {
+    return this.getAssetSymbol(liquidityName.split('-')[0] + '-' + this.getAssetSymbol(liquidityName.split('-')[1]));
   }
 }
