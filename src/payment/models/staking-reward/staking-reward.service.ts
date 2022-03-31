@@ -8,6 +8,7 @@ import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class StakingRewardService {
@@ -130,28 +131,28 @@ export class StakingRewardService {
       .createQueryBuilder('stakingReward')
       .select('SUM(outputAmount)', 'rewardVolume')
       .where('stakingReward.outputDate BETWEEN :dateFrom AND :dateTo', {
-        dateFrom: this.getLastWeekDate(),
+        dateFrom: this.getLastPeriodDate(),
         dateTo: new Date(),
       })
       .getRawOne<{ rewardVolume: number }>();
 
-    const collateralLastWeek = await this.stakingService.getTotalStakingBalance(this.getLastWeekDate());
+    const collateralLastPeriod = await this.stakingService.getTotalStakingBalance(this.getLastPeriodDate());
     const collateralToday = await this.stakingService.getTotalStakingBalance();
-    const meanCollateral = (collateralLastWeek + collateralToday) / 2;
-    const apr = await this.getWeeklyApr(rewardVolume, meanCollateral);
+    const meanCollateral = Util.avg([collateralLastPeriod, collateralToday]);
+    const apr = await this.getPeriodApr(rewardVolume, meanCollateral);
     return {
       apr: Util.round(apr, 2),
       apy: Util.round(this.getApy(apr), 2),
     };
   }
 
-  private getLastWeekDate(): Date {
+  private getLastPeriodDate(): Date {
     const date = new Date();
-    date.setDate(date.getDate() - 7);
+    date.setDate(date.getDate() - Config.staking.period);
     return date;
   }
-  private async getWeeklyApr(weeklyInterest: number, collateral: number): Promise<number> {
-    return (weeklyInterest / collateral) * (365 / 7);
+  private async getPeriodApr(periodInterest: number, collateral: number): Promise<number> {
+    return (periodInterest / collateral) * (365 / Config.staking.period);
   }
 
   private getApy(apr: number): number {
