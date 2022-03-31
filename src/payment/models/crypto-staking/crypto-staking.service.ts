@@ -112,20 +112,24 @@ export class CryptoStakingService {
 
   // --- MASTERNODE OPERATOR --- //
   async payout(dtoList: PayoutCryptoStakingDto[]): Promise<void> {
+    const [eurRate, chfRate] = await Promise.all([
+      this.conversionService.getFiatRate('usd', 'eur'),
+      this.conversionService.getFiatRate('usd', 'chf'),
+    ]);
+
     for (const dto of dtoList) {
       const entity = await this.cryptoStakingRepo.findOne(dto.id, { relations: ['stakingRoute'] });
       if (!entity) throw new NotFoundException('Crypto staking not found');
 
+      // amount in fiat
       const outputAmountInUsd = await this.client.testCompositeSwap(
         Config.node.utxoSpenderAddress,
         dto.outputAsset,
         'USDT',
         dto.outputAmount,
       );
-      [entity.outputAmountInEur, entity.outputAmountInChf] = await Promise.all([
-        this.conversionService.convertFiat(outputAmountInUsd, 'usd', 'eur'),
-        this.conversionService.convertFiat(outputAmountInUsd, 'usd', 'chf'),
-      ]);
+      entity.outputAmountInEur = outputAmountInUsd * eurRate;
+      entity.outputAmountInChf = outputAmountInUsd * chfRate;
 
       // check if reinvested
       await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId);
