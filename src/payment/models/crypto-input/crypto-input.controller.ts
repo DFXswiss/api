@@ -25,7 +25,7 @@ export class CryptoInputController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getEntriesWithMapping(): Promise<CryptoInput[]> {
-    return await this.cryptoInputService.getEntriesWithMapping();
+    return await this.cryptoInputService.getAllEntriesWithMapping();
   }
 
   @Put(':id')

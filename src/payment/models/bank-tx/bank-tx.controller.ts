@@ -38,7 +38,7 @@ export class BankTxController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getEntriesWithMapping(): Promise<BankTx[]> {
-    return await this.bankTxService.getEntriesWithMapping();
+    return await this.bankTxService.getAllEntriesWithMapping();
   }
 
   @Post()

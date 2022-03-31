@@ -3,7 +3,7 @@ import { BankTxRepository } from './bank-tx.repository';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
-import { Brackets, In } from 'typeorm';
+import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx } from './bank-tx.entity';
@@ -34,9 +34,9 @@ export class BankTxService {
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
       .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
       .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
-      .leftJoin('bankTx.outReturnBankTx', 'outReturnBankTx')
-      .where('bankTx.inReturnBankTx IS NULL')
-      .andWhere('outReturnBankTx.id IS NULL')
+      .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
+      .where('bankTx.returnBankTx IS NULL')
+      .andWhere('returnSourceBankTx.id IS NULL')
       .andWhere('bankTx.nextRepeatBankTx IS NULL')
       .andWhere('previousRepeatBankTx.id IS NULL')
       .andWhere('cryptoSell.id IS NULL')
@@ -47,29 +47,18 @@ export class BankTxService {
     return unmappedEntries;
   }
 
-  async getEntriesWithMapping(): Promise<BankTx[]> {
+  async getAllEntriesWithMapping(): Promise<BankTx[]> {
     const entries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
       .addSelect('cryptoSell.id')
       .addSelect('cryptoBuy.id')
       .addSelect('previousRepeatBankTx.id')
-      .addSelect('outReturnBankTx.id')
+      .addSelect('returnSourceBankTx.id')
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
       .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
+      .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
       .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
-      .leftJoin('bankTx.outReturnBankTx', 'outReturnBankTx')
-      .where(
-        new Brackets((b) => {
-          b.where('cryptoSell.id IS NOT NULL')
-            .orWhere('cryptoBuy.id IS NOT NULL')
-            .orWhere("bankTx.name LIKE '%DFX AG%' OR bankTx.name LIKE '%Payward Ltd.%'")
-            .orWhere('bankTx.inReturnBankTx IS NOT NULL')
-            .orWhere('outReturnBankTx.id IS NOT NULL')
-            .orWhere('bankTx.nextRepeatBankTx IS NOT NULL')
-            .orWhere('previousRepeatBankTx.id IS NOT NULL');
-        }),
-      )
       .getMany();
 
     return entries;

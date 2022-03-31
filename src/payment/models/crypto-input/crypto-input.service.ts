@@ -52,6 +52,7 @@ export class CryptoInputService {
     return await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
+      .addSelect('route.id')
       .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
@@ -61,24 +62,17 @@ export class CryptoInputService {
       .getMany();
   }
 
-  async getEntriesWithMapping(): Promise<CryptoInput[]> {
-    const entries = await this.cryptoInputRepo
+  async getAllEntriesWithMapping(): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
       .addSelect('cryptoSell.id')
       .addSelect('cryptoStaking.id')
+      .addSelect('route.id')
+      .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
-      .where(
-        new Brackets((b) => {
-          b.where('cryptoSell.id IS NOT NULL')
-            .orWhere('cryptoStaking.id IS NOT NULL')
-            .orWhere('cryptoInput.returnTxId IS NOT NULL');
-        }),
-      )
       .getMany();
-
-    return entries;
   }
 
   // --- TOKEN CONVERSION --- //
