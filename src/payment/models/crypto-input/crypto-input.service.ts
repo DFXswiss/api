@@ -10,7 +10,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
-import { CryptoInput } from './crypto-input.entity';
+import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { Brackets, Not } from 'typeorm';
@@ -49,7 +49,7 @@ export class CryptoInputService {
   }
 
   async getUnmapped(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo
+    const unmappedEntries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
       .addSelect('route.id')
@@ -60,10 +60,12 @@ export class CryptoInputService {
       .andWhere('cryptoSell.id IS NULL')
       .andWhere('cryptoStaking.id IS NULL')
       .getMany();
+
+    return unmappedEntries.map((e) => ({ ...e, type: CryptoInputType.UNKNOWN }));
   }
 
   async getAllEntriesWithMapping(): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo
+    const mappedEntries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
       .addSelect('cryptoSell.id')
@@ -73,6 +75,18 @@ export class CryptoInputService {
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
       .getMany();
+
+    return mappedEntries.map((e) =>
+      !e.returnTxId
+        ? !e.cryptoSell
+          ? !e.cryptoStaking
+            ? { ...e, type: CryptoInputType.UNKNOWN }
+            : { ...e, type: CryptoInputType.CRYPTO_STAKING }
+          : e.route.id == 933
+          ? { ...e, type: CryptoInputType.CRYPTO_CRYPTO }
+          : { ...e, type: CryptoInputType.CRYPTO_SELL }
+        : { ...e, type: CryptoInputType.RETURN },
+    );
   }
 
   // --- TOKEN CONVERSION --- //

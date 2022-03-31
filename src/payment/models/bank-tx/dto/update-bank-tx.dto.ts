@@ -1,8 +1,11 @@
-import { IsEnum, IsNotEmpty } from 'class-validator';
-import { BankTxType } from '../bank-tx.entity';
+import { IsInt, IsOptional } from 'class-validator';
 
 export class UpdateBankTxDto {
-  @IsNotEmpty()
-  @IsEnum(BankTxType)
-  txType: BankTxType;
+  @IsOptional()
+  @IsInt()
+  returnBankTxId: number;
+
+  @IsOptional()
+  @IsInt()
+  nextRepeatBankTxId: number;
 }
