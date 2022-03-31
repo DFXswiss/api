@@ -10,10 +10,10 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
-import { CryptoInput, CryptoInputType } from './crypto-input.entity';
+import { CryptoInput, CryptoInputType, MappedCryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { Brackets, Not } from 'typeorm';
+import { Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -27,6 +27,8 @@ interface HistoryAmount {
 
 @Injectable()
 export class CryptoInputService {
+  private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
+
   private readonly client: NodeClient;
   private readonly lock = new Lock(1800);
 
@@ -48,7 +50,7 @@ export class CryptoInputService {
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
   }
 
-  async getUnmapped(): Promise<CryptoInput[]> {
+  async getUnmapped(): Promise<MappedCryptoInput[]> {
     const unmappedEntries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
@@ -59,13 +61,14 @@ export class CryptoInputService {
       .where('cryptoInput.returnTxId IS NULL')
       .andWhere('cryptoSell.id IS NULL')
       .andWhere('cryptoStaking.id IS NULL')
+      .andWhere('route.id != :id', { id: this.cryptoCryptoRouteId })
       .getMany();
 
     return unmappedEntries.map((e) => ({ ...e, type: CryptoInputType.UNKNOWN }));
   }
 
-  async getAllEntriesWithMapping(): Promise<CryptoInput[]> {
-    const mappedEntries = await this.cryptoInputRepo
+  async getAll(): Promise<MappedCryptoInput[]> {
+    const entries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
       .addSelect('cryptoSell.id')
@@ -76,17 +79,16 @@ export class CryptoInputService {
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
       .getMany();
 
-    return mappedEntries.map((e) =>
-      !e.returnTxId
-        ? !e.cryptoSell
-          ? !e.cryptoStaking
-            ? { ...e, type: CryptoInputType.UNKNOWN }
-            : { ...e, type: CryptoInputType.CRYPTO_STAKING }
-          : e.route.id == 933
-          ? { ...e, type: CryptoInputType.CRYPTO_CRYPTO }
-          : { ...e, type: CryptoInputType.CRYPTO_SELL }
-        : { ...e, type: CryptoInputType.RETURN },
-    );
+    return entries.map((e) => ({ ...e, type: this.getCryptoInputType(e) }));
+  }
+
+  private getCryptoInputType(input: CryptoInput): CryptoInputType {
+    if (input.returnTxId) return CryptoInputType.RETURN;
+    if (input.cryptoSell) return CryptoInputType.CRYPTO_SELL;
+    if (input.cryptoStaking) return CryptoInputType.CRYPTO_STAKING;
+    if (input.route.id === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
+
+    return CryptoInputType.UNKNOWN;
   }
 
   // --- TOKEN CONVERSION --- //

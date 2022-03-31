@@ -15,6 +15,8 @@ export enum CryptoInputType {
   UNKNOWN = 'Unknown',
 }
 
+export type MappedCryptoInput = CryptoInput & { type: CryptoInputType };
+
 @Entity()
 @Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route], { unique: true })
 export class CryptoInput extends IEntity {

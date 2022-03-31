@@ -13,6 +13,8 @@ export enum BankTxType {
   UNKNOWN = 'Unknown',
 }
 
+export type MappedBankTx = BankTx & { type: BankTxType };
+
 @Entity()
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })

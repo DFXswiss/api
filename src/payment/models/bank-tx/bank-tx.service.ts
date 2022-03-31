@@ -6,7 +6,7 @@ import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType } from './bank-tx.entity';
+import { BankTx, BankTxType, MappedBankTx } from './bank-tx.entity';
 
 @Injectable()
 export class BankTxService {
@@ -26,84 +26,80 @@ export class BankTxService {
 
     if (dto.nextRepeatBankTxId) {
       const referencedBankTx = await this.bankTxRepo.findOne({ id: dto.nextRepeatBankTxId });
-      if (!referencedBankTx) throw new NotFoundException('Referenced bankTx not found');
+      if (!referencedBankTx) throw new NotFoundException('Repeat bankTx not found');
+
       const duplicateReference = await this.bankTxRepo.findOne({ nextRepeatBankTx: { id: dto.nextRepeatBankTxId } });
-      if (duplicateReference) throw new ConflictException('nextRepeat bankTx already used');
+      if (duplicateReference) throw new ConflictException('Repeat bankTx already used');
+
       bankTx.nextRepeatBankTx = referencedBankTx;
     }
     if (dto.returnBankTxId) {
       const referencedBankTx = await this.bankTxRepo.findOne({ id: dto.returnBankTxId });
-      if (!referencedBankTx) throw new NotFoundException('Referenced bankTx not found');
+      if (!referencedBankTx) throw new NotFoundException('Return bankTx not found');
+
       const duplicateReference = await this.bankTxRepo.findOne({ returnBankTx: { id: dto.returnBankTxId } });
       if (duplicateReference) throw new ConflictException('Return bankTx already used');
+
       bankTx.returnBankTx = referencedBankTx;
     }
 
-    return await this.bankTxRepo.save({ ...bankTx });
+    return await this.bankTxRepo.save(bankTx);
   }
 
-  async getUnmapped(): Promise<BankTx[]> {
+  async getUnmapped(): Promise<MappedBankTx[]> {
     const unmappedEntries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
-      .addSelect('cryptoSell.id')
-      .addSelect('cryptoBuy.id')
-      .addSelect('previousRepeatBankTx.id')
-      .addSelect('returnSourceBankTx.id')
-      .addSelect('returnBankTx.id')
-      .addSelect('nextRepeatBankTx.id')
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
       .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
-      .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
-      .leftJoin('bankTx.nextRepeatBankTx', 'nextRepeatBankTx')
-      .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
       .leftJoin('bankTx.returnBankTx', 'returnBankTx')
-      .where('returnBankTx.id IS NULL')
+      .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
+      .leftJoin('bankTx.nextRepeatBankTx', 'nextRepeatBankTx')
+      .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
+      .where('cryptoSell.id IS NULL')
+      .andWhere('cryptoBuy.id IS NULL')
+      .andWhere('returnBankTx.id IS NULL')
       .andWhere('returnSourceBankTx.id IS NULL')
       .andWhere('nextRepeatBankTx.id IS NULL')
       .andWhere('previousRepeatBankTx.id IS NULL')
-      .andWhere('cryptoSell.id IS NULL')
-      .andWhere('cryptoBuy.id IS NULL')
-      .andWhere("(bankTx.name NOT LIKE '%DFX AG%' OR bankTx.name NOT LIKE '%Payward Ltd.%')")
+      .andWhere("(bankTx.name NOT LIKE '%DFX AG%' AND bankTx.name NOT LIKE '%Payward Ltd.%')")
       .getMany();
 
     return unmappedEntries.map((e) => ({ ...e, type: BankTxType.UNKNOWN }));
   }
 
-  async getAllEntriesWithMapping(): Promise<BankTx[]> {
+  async getAll(): Promise<MappedBankTx[]> {
     const entries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
       .addSelect('cryptoSell.id')
       .addSelect('cryptoBuy.id')
-      .addSelect('previousRepeatBankTx.id')
-      .addSelect('returnSourceBankTx.id')
       .addSelect('returnBankTx.id')
+      .addSelect('returnSourceBankTx.id')
       .addSelect('nextRepeatBankTx.id')
+      .addSelect('previousRepeatBankTx.id')
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
       .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
-      .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
       .leftJoin('bankTx.returnBankTx', 'returnBankTx')
-      .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
+      .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
       .leftJoin('bankTx.nextRepeatBankTx', 'nextRepeatBankTx')
+      .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
       .getMany();
 
-    return entries.map((e) =>
-      !e.returnBankTx && !e.returnSourceBankTx
-        ? !e.nextRepeatBankTx && !e.previousRepeatBankTx
-          ? !e.cryptoSell
-            ? !e.cryptoBuy
-              ? !e.name?.includes('DFX AG') && !e.name?.includes('Payward Ltd.')
-                ? { ...e, type: BankTxType.UNKNOWN }
-                : { ...e, type: BankTxType.INTERNAL }
-              : { ...e, type: BankTxType.CRYPTO_BUY }
-            : { ...e, type: BankTxType.CRYPTO_SELL }
-          : { ...e, type: BankTxType.REPEAT }
-        : { ...e, type: BankTxType.RETURN },
-    );
+    return entries.map((e) => ({ ...e, type: this.getBankTxType(e) }));
   }
 
   // --- HELPER METHODS --- //
+  private getBankTxType(tx: BankTx): BankTxType {
+    if (tx.cryptoSell) return BankTxType.CRYPTO_SELL;
+    if (tx.cryptoBuy) return BankTxType.CRYPTO_BUY;
+    if (tx.returnBankTx || tx.returnSourceBankTx) return BankTxType.RETURN;
+    if (tx.nextRepeatBankTx || tx.previousRepeatBankTx) return BankTxType.REPEAT;
+    if (tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.')) return BankTxType.INTERNAL;
+
+    return BankTxType.UNKNOWN;
+  }
+
   private async storeSepaFile(xmlFile: string): Promise<BankTxBatch> {
     const sepaFile = SepaParser.parseSepaFile(xmlFile);
 
