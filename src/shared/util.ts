@@ -2,15 +2,45 @@ import { BinaryLike, createHash } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
 
+type KeyType<T, U> = {
+  [K in keyof T]: T[K] extends U ? K : never;
+}[keyof T];
+
 export class Util {
+  // --- MATH --- //
   static round(amount: number, decimals: number): number {
     return Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  }
+
+  static sum(list: number[]): number {
+    return list.reduce((prev, curr) => prev + curr, 0);
+  }
+
+  static sumObj<T>(list: T[], key: KeyType<T, number>): number {
+    return this.sum(list.map((i) => i[key] as unknown as number));
+  }
+
+  static avg(list: number[]): number {
+    return this.sum(list) / list.length;
+  }
+
+  static aggregate<T>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
+    return list.reduce((prev, curr) => {
+      const keyValue = curr[key] as unknown as string;
+      if (prev[keyValue]) {
+        prev[keyValue] += curr[value] as unknown as number;
+      } else {
+        prev[keyValue] = curr[value] as unknown as number;
+      }
+      return prev;
+    }, {} as { [key: string]: number });
   }
 
   static randomId(): number {
     return Math.round(Math.random() * 1000000000);
   }
 
+  // --- DATES --- //
   static secondsDiff(from?: Date, to?: Date): number {
     return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
   }
@@ -25,6 +55,13 @@ export class Util {
     return date;
   }
 
+  static getUtcDay(date: Date): Date {
+    const copy = new Date(date);
+    copy.setUTCHours(0, 0, 0, 0);
+    return copy;
+  }
+
+  // --- MISC --- //
   static async readFileFromDisk(fileName: string): Promise<string> {
     return new Promise((resolve, reject) =>
       readFile(fileName, (err, data) => {
@@ -35,14 +72,6 @@ export class Util {
         }
       }),
     );
-  }
-
-  static avg(list: number[]): number {
-    return this.sum(list) / list.length;
-  }
-
-  static sum(list: number[]): number {
-    return list.reduce((prev, curr) => prev + curr, 0);
   }
 
   static async poll<T>(

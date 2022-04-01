@@ -1,6 +1,6 @@
 import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression, Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
@@ -10,13 +10,14 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
-import { CryptoInput } from './crypto-input.entity';
+import { CryptoInput, CryptoInputType, TypedCryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
+import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 
 interface HistoryAmount {
   amount: number;
@@ -26,6 +27,8 @@ interface HistoryAmount {
 
 @Injectable()
 export class CryptoInputService {
+  private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
+
   private readonly client: NodeClient;
   private readonly lock = new Lock(1800);
 
@@ -38,6 +41,54 @@ export class CryptoInputService {
     private readonly cryptoStakingService: CryptoStakingService,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
+  }
+
+  async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
+    const cryptoInput = await this.cryptoInputRepo.findOne(cryptoInputId);
+    if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
+
+    return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
+  }
+
+  async getUntyped(): Promise<TypedCryptoInput[]> {
+    const unmappedEntries = await this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .select('cryptoInput')
+      .addSelect('route.id')
+      .leftJoin('cryptoInput.route', 'route')
+      .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
+      .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
+      .where('cryptoInput.returnTxId IS NULL')
+      .andWhere('cryptoSell.id IS NULL')
+      .andWhere('cryptoStaking.id IS NULL')
+      .andWhere('route.id != :id', { id: this.cryptoCryptoRouteId })
+      .getMany();
+
+    return unmappedEntries.map((e) => ({ ...e, type: CryptoInputType.UNKNOWN }));
+  }
+
+  async getWithType(): Promise<TypedCryptoInput[]> {
+    const entries = await this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .select('cryptoInput')
+      .addSelect('cryptoSell.id')
+      .addSelect('cryptoStaking.id')
+      .addSelect('route.id')
+      .leftJoin('cryptoInput.route', 'route')
+      .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
+      .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
+      .getMany();
+
+    return entries.map((e) => ({ ...e, type: this.getCryptoInputType(e) }));
+  }
+
+  private getCryptoInputType(input: CryptoInput): CryptoInputType {
+    if (input.returnTxId) return CryptoInputType.RETURN;
+    if (input.cryptoSell) return CryptoInputType.CRYPTO_SELL;
+    if (input.cryptoStaking) return CryptoInputType.CRYPTO_STAKING;
+    if (input.route.id === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
+
+    return CryptoInputType.UNKNOWN;
   }
 
   // --- TOKEN CONVERSION --- //
@@ -139,72 +190,6 @@ export class CryptoInputService {
     this.lock.release();
   }
 
-  // --- CONFIRMATION HANDLING --- //
-  @Interval(300000)
-  async checkConfirmations(): Promise<void> {
-    try {
-      await this.checkNodeInSync();
-
-      const unconfirmedInputs = await this.cryptoInputRepo.find({
-        select: ['id', 'outTxId', 'isConfirmed'],
-        where: { isConfirmed: false, outTxId: Not('') },
-      });
-
-      for (const input of unconfirmedInputs) {
-        try {
-          const { confirmations } = await this.client.waitForTx(input.outTxId);
-          if (confirmations > 60) {
-            await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
-          }
-        } catch (e) {
-          console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
-        }
-      }
-    } catch (e) {
-      console.error('Exception during crypto confirmations checks:', e);
-    }
-  }
-
-  // --- FEE UTXO RETRIEVAL --- //
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
-  async retrieveFeeUtxos(): Promise<void> {
-    try {
-      const utxos = await this.client.getUtxo();
-
-      for (const utxo of utxos) {
-        try {
-          if (
-            utxo.address != Config.node.utxoSpenderAddress &&
-            utxo.amount.toNumber() < Config.node.minDfiDeposit &&
-            utxo.amount.toNumber() - this.client.utxoFee >= Config.node.minTxAmount &&
-            !utxos.find((u) => u.address === utxo.address && u.amount.toNumber() >= Config.node.minDfiDeposit)
-          ) {
-            await this.client.sendCompleteUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
-          }
-        } catch (e) {
-          console.log('Failed to retrieve fee UTXO:', e);
-        }
-      }
-    } catch (e) {
-      console.error('Exception during fee UTXO retrieval:', e);
-    }
-  }
-
-  // --- HELPER METHODS --- //
-  private async checkNodeInSync(): Promise<{ headers: number; blocks: number }> {
-    const { blocks, headers } = await this.client.getInfo();
-    if (blocks < headers) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
-
-    return { headers, blocks };
-  }
-
-  async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
-    const utxoAddresses = utxo.filter((u) => u.amount.toNumber() >= Config.node.minDfiDeposit).map((u) => u.address);
-    const tokenAddresses = token.map((t) => t.owner);
-
-    return [...new Set(utxoAddresses.concat(tokenAddresses))];
-  }
-
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
     const inputs = [];
     for (const history of histories) {
@@ -218,21 +203,6 @@ export class CryptoInputService {
       }
     }
     return inputs;
-  }
-
-  private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
-  private readonly tokenTxTypes = ['AccountToAccount', 'WithdrawFromVault', 'PoolSwap', 'RemovePoolLiquidity'];
-
-  getAmounts(history: AccountHistory): HistoryAmount[] {
-    const amounts = this.utxoTxTypes.includes(history.type)
-      ? history.amounts.map((a) => this.parseAmount(a, false))
-      : history.amounts.map((a) => this.parseAmount(a, true)).filter((a) => a.amount > 0);
-
-    return amounts.map((a) => ({ ...a, amount: Math.abs(a.amount) }));
-  }
-
-  private parseAmount(amount: string, isToken: boolean): HistoryAmount {
-    return { ...this.client.parseAmount(amount), isToken };
   }
 
   private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
@@ -334,6 +304,87 @@ export class CryptoInputService {
 
       return outTxId;
     });
+  }
+
+  // --- CONFIRMATION HANDLING --- //
+  @Interval(300000)
+  async checkConfirmations(): Promise<void> {
+    try {
+      await this.checkNodeInSync();
+
+      const unconfirmedInputs = await this.cryptoInputRepo.find({
+        select: ['id', 'outTxId', 'isConfirmed'],
+        where: { isConfirmed: false, outTxId: Not('') },
+      });
+
+      for (const input of unconfirmedInputs) {
+        try {
+          const { confirmations } = await this.client.waitForTx(input.outTxId);
+          if (confirmations > 60) {
+            await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
+          }
+        } catch (e) {
+          console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
+        }
+      }
+    } catch (e) {
+      console.error('Exception during crypto confirmations checks:', e);
+    }
+  }
+
+  // --- FEE UTXO RETRIEVAL --- //
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async retrieveFeeUtxos(): Promise<void> {
+    try {
+      const utxos = await this.client.getUtxo();
+
+      for (const utxo of utxos) {
+        try {
+          if (
+            utxo.address != Config.node.utxoSpenderAddress &&
+            utxo.amount.toNumber() < Config.node.minDfiDeposit &&
+            utxo.amount.toNumber() - this.client.utxoFee >= Config.node.minTxAmount &&
+            !utxos.find((u) => u.address === utxo.address && u.amount.toNumber() >= Config.node.minDfiDeposit)
+          ) {
+            await this.client.sendCompleteUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
+          }
+        } catch (e) {
+          console.log('Failed to retrieve fee UTXO:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Exception during fee UTXO retrieval:', e);
+    }
+  }
+
+  // --- HELPER METHODS --- //
+  private async checkNodeInSync(): Promise<{ headers: number; blocks: number }> {
+    const { blocks, headers } = await this.client.getInfo();
+    if (blocks < headers - 1) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
+
+    return { headers, blocks };
+  }
+
+  async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
+    const utxoAddresses = utxo.filter((u) => u.amount.toNumber() >= Config.node.minDfiDeposit).map((u) => u.address);
+    const tokenAddresses = token.map((t) => t.owner);
+
+    return [...new Set(utxoAddresses.concat(tokenAddresses))];
+  }
+
+  private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
+  private readonly tokenTxTypes = ['AccountToAccount', 'WithdrawFromVault', 'PoolSwap', 'RemovePoolLiquidity'];
+
+  getAmounts(history: AccountHistory): HistoryAmount[] {
+    const amounts = this.utxoTxTypes.includes(history.type)
+      ? history.amounts.map((a) => this.parseAmount(a, false))
+      : history.amounts.map((a) => this.parseAmount(a, true)).filter((a) => a.amount > 0);
+
+    return amounts.map((a) => ({ ...a, amount: Math.abs(a.amount) }));
+  }
+
+  private parseAmount(amount: string, isToken: boolean): HistoryAmount {
+    return { ...this.client.parseAmount(amount), isToken };
   }
 
   private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {

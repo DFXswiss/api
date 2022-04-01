@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { GetConfig } from 'src/config/config';
 
 export class CreateUserDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(/^(8\w{33}|d\w{33}|d\w{41})$/)
+  @Matches(GetConfig().addressFormat)
   address: string;
 
   @ApiProperty()

@@ -47,6 +47,7 @@ import { RefRewardService } from './models/ref-reward/ref-reward.service';
 import { CryptoStakingService } from './models/crypto-staking/crypto-staking.service';
 import { CryptoStakingRepository } from './models/crypto-staking/crypto-staking.repository';
 import { CryptoStakingController } from './models/crypto-staking/crypto-staking.controller';
+import { CryptoInputController } from './models/crypto-input/crypto-input.controller';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { CryptoStakingController } from './models/crypto-staking/crypto-staking.
     StakingRewardController,
     RefRewardController,
     CryptoStakingController,
+    CryptoInputController,
   ],
   providers: [
     CryptoInputService,

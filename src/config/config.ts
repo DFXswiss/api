@@ -194,6 +194,10 @@ export class Configuration {
       ...this.exchange,
     };
   }
+
+  get addressFormat(): RegExp {
+    return this.environment === 'prd' ? /^(8\w{33}|d\w{33}|d\w{41})$/ : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41})$/;
+  }
 }
 
 @Injectable()

@@ -14,6 +14,9 @@ import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
 import { Between, IsNull, LessThan } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
+import { StakingBatchDto } from './dto/staking-batch.dto';
+import { PayoutType } from '../staking-reward/staking-reward.entity';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class CryptoStakingService {
@@ -29,6 +32,7 @@ export class CryptoStakingService {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
 
+  // --- CRUD --- //
   async create(cryptoInput: CryptoInput): Promise<void> {
     const entity = this.cryptoStakingRepo.create();
 
@@ -74,6 +78,7 @@ export class CryptoStakingService {
     return await this.cryptoStakingRepo.save({ ...entity, ...dto });
   }
 
+  // --- USER --- //
   async getUserInvests(
     userId: number,
     dateFrom: Date = new Date(0),
@@ -95,21 +100,36 @@ export class CryptoStakingService {
     };
   }
 
+  async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {
+    return await this.cryptoStakingRepo
+      .getActiveEntries(new Date())
+      .leftJoin('cryptoStaking.stakingRoute', 'stakingRoute')
+      .andWhere('cryptoStaking.stakingRouteId = :stakingId', { stakingId })
+      .andWhere('stakingRoute.userId = :userId', { userId })
+      .getMany()
+      .then(this.toBatchDtoList);
+  }
+
+  // --- MASTERNODE OPERATOR --- //
   async payout(dtoList: PayoutCryptoStakingDto[]): Promise<void> {
+    const [eurRate, chfRate] = await Promise.all([
+      this.conversionService.getFiatRate('usd', 'eur'),
+      this.conversionService.getFiatRate('usd', 'chf'),
+    ]);
+
     for (const dto of dtoList) {
       const entity = await this.cryptoStakingRepo.findOne(dto.id, { relations: ['stakingRoute'] });
       if (!entity) throw new NotFoundException('Crypto staking not found');
 
+      // amount in fiat
       const outputAmountInUsd = await this.client.testCompositeSwap(
         Config.node.utxoSpenderAddress,
         dto.outputAsset,
         'USDT',
         dto.outputAmount,
       );
-      [entity.outputAmountInEur, entity.outputAmountInChf] = await Promise.all([
-        this.conversionService.convertFiat(outputAmountInUsd, 'usd', 'eur'),
-        this.conversionService.convertFiat(outputAmountInUsd, 'usd', 'chf'),
-      ]);
+      entity.outputAmountInEur = outputAmountInUsd * eurRate;
+      entity.outputAmountInChf = outputAmountInUsd * chfRate;
 
       // check if reinvested
       await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId);
@@ -127,7 +147,7 @@ export class CryptoStakingService {
       where: { readyToPayout: true, outTxId: IsNull() },
       relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
-    return this.toDtoList(cryptoStakingList);
+    return this.toPayoutDtoList(cryptoStakingList);
   }
 
   async getPendingPayouts(date: Date): Promise<GetPayoutsCryptoStakingDto[]> {
@@ -136,10 +156,11 @@ export class CryptoStakingService {
       where: { readyToPayout: false, outputDate: LessThan(date) },
       relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
-    return this.toDtoList(cryptoStakingList);
+    return this.toPayoutDtoList(cryptoStakingList);
   }
 
-  private toDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
+  // --- DTO --- //
+  private toPayoutDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
     return cryptoStakingList.map((e) => ({
       id: e.id,
       address: e.paybackDeposit?.address ?? e.stakingRoute.user.address,
@@ -149,6 +170,37 @@ export class CryptoStakingService {
     }));
   }
 
+  private toBatchDtoList(cryptoStakingList: CryptoStaking[]): StakingBatchDto[] {
+    const batches = cryptoStakingList.map((c) => ({
+      amount: c.inputAmount,
+      outputDate: Util.getUtcDay(c.outputDate).toISOString(),
+      payoutType: c.payoutType,
+    }));
+
+    const aggregateBatches = Object.values(PayoutType).reduce(
+      (prev, curr) => ({
+        ...prev,
+        [curr]: Util.aggregate(
+          batches.filter((c) => c.payoutType === curr),
+          'outputDate',
+          'amount',
+        ),
+      }),
+      {},
+    );
+
+    return Object.entries(aggregateBatches)
+      .map(([type, batch]) =>
+        Object.entries(batch).map(([date, amount]) => ({
+          amount,
+          outputDate: new Date(date),
+          payoutType: type as PayoutType,
+        })),
+      )
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  // --- HELPER METHODS --- //
   private async isReinvest(cryptoInput: CryptoInput): Promise<boolean> {
     return (
       (await this.cryptoStakingRepo.findOne({

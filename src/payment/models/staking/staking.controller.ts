@@ -10,17 +10,29 @@ import { CreateStakingDto } from './dto/create-staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { StakingDto } from './dto/staking.dto';
 import { Util } from 'src/shared/util';
+import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
+import { StakingBatchDto } from '../crypto-staking/dto/staking-batch.dto';
 
 @ApiTags('staking')
 @Controller('staking')
 export class StakingController {
-  constructor(private readonly stakingService: StakingService) {}
+  constructor(
+    private readonly stakingService: StakingService,
+    private readonly cryptoStakingService: CryptoStakingService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllStaking(@GetJwt() jwt: JwtPayload): Promise<StakingDto[]> {
     return this.stakingService.getUserStaking(jwt.id).then((l) => this.stakingService.toDtoList(jwt.id, l));
+  }
+
+  @Get(':id/batches')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getActiveBatches(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<StakingBatchDto[]> {
+    return this.cryptoStakingService.getActiveBatches(jwt.id, +id);
   }
 
   @Post()
@@ -68,6 +80,6 @@ export class StakingController {
       stakingRoutes.map((u) => u.id),
       new Date(),
     );
-    return Util.round(stakingBalances.reduce((sum, current) => sum + current.balance, 0), 8);
+    return Util.round(Util.sumObj(stakingBalances, 'balance'), 8);
   }
 }

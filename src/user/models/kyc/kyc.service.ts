@@ -128,7 +128,7 @@ export class KycService {
     }
 
     // check if user data complete
-    const dataComplete = await this.isDataComplete(user);
+    const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
     // update

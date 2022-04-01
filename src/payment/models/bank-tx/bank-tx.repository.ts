@@ -3,7 +3,7 @@ import { BankTx } from './bank-tx.entity';
 
 @EntityRepository(BankTx)
 export class BankTxRepository extends Repository<BankTx> {
-  async save(entities: BankTx[], options?: SaveOptions): Promise<BankTx[]> {
+  async saveMany(entities: BankTx[], options?: SaveOptions): Promise<BankTx[]> {
     const results = [];
 
     // store in batches

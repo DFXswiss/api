@@ -18,7 +18,7 @@ export class ConversionService {
     return Util.round(amount * rate, 2);
   }
 
-  private async getFiatRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
+  async getFiatRate(fromCurrency: string, toCurrency: string, date: Date = new Date()): Promise<number> {
     const dateString = this.isToday(date) ? 'latest' : date.toISOString().split('T')[0];
     const url = `${
       this.fiatUrl

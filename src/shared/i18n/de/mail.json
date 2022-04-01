@@ -11,9 +11,9 @@
       "title": "Chatbot abgeschlossen"
     },
     "ident": {
-      "salutation": "Deine Verifizierung ist abgeschlossen",
-      "body": "<p>Wir freuen uns, mitteilen zu können, dass deine Verifizierung erfolgreich abgeschlossen wurde.<br>Von deiner Seite sind keine weiteren Schritte mehr nötig.</p><p>Viel Erfolg beim Traden!</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
-      "title": "Verifizierung abgeschlossen"
+      "salutation": "Identifikation abgeschlossen - deine Daten werden überprüft",
+      "body": "<p>Deine Identifikation ist erfolgreich abgeschlossen und die Daten werden nun geprüft.<br>Die Überprüfung kann in Einzelfällen bis zu 24 Stunden dauern.</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "title": "Identifikation abgeschlossen"
     },
     "failed": {
       "salutation": "Deine Online-Identifikation ist fehlgeschlagen",

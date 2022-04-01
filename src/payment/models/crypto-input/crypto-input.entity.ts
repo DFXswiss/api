@@ -2,8 +2,20 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DepositRoute } from 'src/payment/models/route/deposit-route.entity';
 import { Sell } from 'src/payment/models/sell/sell.entity';
 import { Staking } from 'src/payment/models/staking/staking.entity';
-import { Entity, Column, ManyToOne, Index } from 'typeorm';
+import { Entity, Column, ManyToOne, Index, OneToOne } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
+import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
+import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
+
+export enum CryptoInputType {
+  RETURN = 'Return',
+  CRYPTO_STAKING = 'CryptoStaking',
+  CRYPTO_SELL = 'CryptoSell',
+  CRYPTO_CRYPTO = 'CryptoCrypto',
+  UNKNOWN = 'Unknown',
+}
+
+export type TypedCryptoInput = CryptoInput & { type: CryptoInputType };
 
 @Entity()
 @Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route], { unique: true })
@@ -13,6 +25,9 @@ export class CryptoInput extends IEntity {
 
   @Column({ length: 256 })
   outTxId: string;
+
+  @Column({ length: 256, nullable: true })
+  returnTxId: string;
 
   @Column({ type: 'integer' })
   blockHeight: number;
@@ -34,4 +49,10 @@ export class CryptoInput extends IEntity {
 
   @Column({ default: false })
   isConfirmed: boolean;
+
+  @OneToOne(() => CryptoSell, (sell) => sell.cryptoInput, { nullable: true })
+  cryptoSell?: CryptoSell;
+
+  @OneToOne(() => CryptoStaking, (staking) => staking.cryptoInput, { nullable: true })
+  cryptoStaking?: CryptoStaking;
 }
