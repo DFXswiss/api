@@ -77,9 +77,11 @@ export class SpiderService {
       nickName: user.firstname,
       onlyOwner: 'YES',
       authorisesConversationPartner: 'YES',
+      contribution: '0',
       businessActivity: {
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
-        employer: { address: 'TOKEN_PURCHASE' },
+        employer: { address: 'n.a.' },
+        jobFunction: 'n.a.',
       },
       financialBackground: {
         liabilities: 'LESS_THAN_10000',
