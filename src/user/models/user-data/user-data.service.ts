@@ -28,7 +28,7 @@ export class UserDataService {
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
-      .innerJoinAndSelect('userData.users', 'user')
+      .innerJoin('userData.users', 'user')
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
       .leftJoinAndSelect('userData.language', 'language')
