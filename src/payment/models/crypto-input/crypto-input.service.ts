@@ -62,8 +62,8 @@ export class CryptoInputService {
       .andWhere('cryptoSell.id IS NULL')
       .andWhere('cryptoStaking.id IS NULL')
       .andWhere('route.id != :id', { id: this.cryptoCryptoRouteId })
-      .andWhere('bankTx.id >= :minId', { minId: minId })
-      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
+      .andWhere('cryptoInput.id >= :minId', { minId })
+      .andWhere('cryptoInput.updated >= :startDate', { startDate })
       .getMany();
 
     return unmappedEntries.map((e) => ({ ...e, type: CryptoInputType.UNKNOWN }));
@@ -79,8 +79,8 @@ export class CryptoInputService {
       .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
-      .where('bankTx.id >= :minId', { minId: minId })
-      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
+      .where('cryptoInput.id >= :minId', { minId })
+      .andWhere('cryptoInput.updated >= :startDate', { startDate })
       .getMany();
 
     return entries.map((e) => ({ ...e, type: this.getCryptoInputType(e) }));

@@ -64,8 +64,8 @@ export class BankTxService {
       .andWhere('nextRepeatBankTx.id IS NULL')
       .andWhere('previousRepeatBankTx.id IS NULL')
       .andWhere("(bankTx.name NOT LIKE '%DFX AG%' AND bankTx.name NOT LIKE '%Payward Ltd.%')")
-      .andWhere('bankTx.id >= :minId', { minId: minId })
-      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
+      .andWhere('bankTx.id >= :minId', { minId })
+      .andWhere('bankTx.updated >= :startDate', { startDate })
       .getMany();
 
     return unmappedEntries.map((e) => ({ ...e, type: BankTxType.UNKNOWN }));
@@ -87,15 +87,15 @@ export class BankTxService {
       .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
       .leftJoin('bankTx.nextRepeatBankTx', 'nextRepeatBankTx')
       .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
-      .where('bankTx.id >= :minId', { minId: minId })
-      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
+      .where('bankTx.id >= :minId', { minId })
+      .andWhere('bankTx.updated >= :startDate', { startDate })
       .getMany();
 
     return entries.map((e) => ({ ...e, type: this.getBankTxType(e) }));
   }
 
   // --- HELPER METHODS --- //
-  public getBankTxType(tx: BankTx): BankTxType {
+  private getBankTxType(tx: BankTx): BankTxType {
     if (tx.returnBankTx || tx.returnSourceBankTx) return BankTxType.RETURN;
     if (tx.cryptoSell) return BankTxType.CRYPTO_SELL;
     if (tx.cryptoBuy) return BankTxType.CRYPTO_BUY;
