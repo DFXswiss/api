@@ -50,7 +50,7 @@ export class CryptoInputService {
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
   }
 
-  async getUntyped(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
+  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
     const unmappedEntries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
@@ -69,7 +69,7 @@ export class CryptoInputService {
     return unmappedEntries.map((e) => ({ ...e, type: CryptoInputType.UNKNOWN }));
   }
 
-  async getWithType(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
+  async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
     const entries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')

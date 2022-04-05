@@ -47,7 +47,7 @@ export class BankTxService {
     return await this.bankTxRepo.save(bankTx);
   }
 
-  async getUntyped(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
+  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
     const unmappedEntries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
@@ -71,7 +71,7 @@ export class BankTxService {
     return unmappedEntries.map((e) => ({ ...e, type: BankTxType.UNKNOWN }));
   }
 
-  async getWithType(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
+  async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
     const entries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
