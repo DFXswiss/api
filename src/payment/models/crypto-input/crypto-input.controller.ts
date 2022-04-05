@@ -1,4 +1,4 @@
-import { Controller, UseGuards, Put, Body, Param, Get } from '@nestjs/common';
+import { Controller, UseGuards, Put, Body, Param, Get, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -16,16 +16,18 @@ export class CryptoInputController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUntyped(): Promise<TypedCryptoInput[]> {
-    return await this.cryptoInputService.getUntyped();
+  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<TypedCryptoInput[]> {
+    return await this.cryptoInputService.getUntyped(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 
   @Get('typed')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getWithType(): Promise<TypedCryptoInput[]> {
-    return await this.cryptoInputService.getWithType();
+  async getWithType(
+    @Query() { minId, startDate }: { minId?: string; startDate?: string },
+  ): Promise<TypedCryptoInput[]> {
+    return await this.cryptoInputService.getWithType(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 
   @Put(':id')

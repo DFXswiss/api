@@ -118,6 +118,8 @@ import { CryptoInputController } from './models/crypto-input/crypto-input.contro
     StakingService,
     CryptoBuyService,
     CryptoSellService,
+    BankTxService,
+    CryptoInputService,
   ],
 })
 export class PaymentModule {}

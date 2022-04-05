@@ -1,6 +1,8 @@
 import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
+import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MailService } from 'src/shared/services/mail.service';
@@ -11,7 +13,12 @@ import { UploadFileDto } from './dto/upload-file.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly mailService: MailService, private readonly spiderService: SpiderService) {}
+  constructor(
+    private readonly mailService: MailService,
+    private readonly spiderService: SpiderService,
+    private readonly bankTxService: BankTxService,
+    private readonly cryptoInputService: CryptoInputService,
+  ) {}
 
   @Post('mail')
   @ApiBearerAuth()
@@ -53,17 +60,18 @@ export class AdminController {
   async getRawData(
     @Query() { table, min, updatedSince }: { table: string; min?: string; updatedSince?: string },
   ): Promise<any> {
-    let query = getConnection().createQueryBuilder().from(table, table);
+    const id = min ? +min : 1;
+    const updated = updatedSince ? new Date(updatedSince) : new Date(0);
 
-    if (min != null) {
-      query = query.where('id >= :id', { id: +min });
-    } else if (updatedSince != null) {
-      query = query.where('updated >= :updated', { updated: new Date(updatedSince) });
-    }
-
-    const data = await query.getRawMany().catch((e: Error) => {
-      throw new BadRequestException(e.message);
-    });
+    const data = await getConnection()
+      .createQueryBuilder()
+      .from(table, table)
+      .where('id >= :id', { id })
+      .andWhere('updated >= :updated', { updated })
+      .getRawMany()
+      .catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      });
 
     // transform to array
     const arrayData =
@@ -74,22 +82,40 @@ export class AdminController {
           }
         : undefined;
 
-    //workaround for GS's TODO: Remove
-    if (arrayData && table === 'buy') {
-      const userTable = await getConnection()
-        .createQueryBuilder()
-        .from('user', 'user')
-        .getRawMany()
-        .catch((e: Error) => {
-          throw new BadRequestException(e.message);
-        });
+    // workarounds for GS's
+    if (arrayData) {
+      switch (table) {
+        case 'buy':
+          const userTable = await getConnection().createQueryBuilder().from('user', 'user').getRawMany();
 
-      const userIdIndex = arrayData.keys.findIndex((k) => k === 'userId');
+          const userIdIndex = arrayData.keys.findIndex((k) => k === 'userId');
 
-      // insert user address at position 2
-      arrayData.keys.splice(1, 0, 'address');
-      for (const buy of arrayData.values) {
-        buy.splice(1, 0, userTable.find((u) => u.id === buy[userIdIndex]).address);
+          // insert user address at position 2
+          arrayData.keys.splice(1, 0, 'address');
+          for (const buy of arrayData.values) {
+            buy.splice(1, 0, userTable.find((u) => u.id === buy[userIdIndex]).address);
+          }
+          break;
+
+        case 'bank_tx':
+          const bankTxsWithType = await this.bankTxService.getWithType(id, updated);
+
+          // add type
+          arrayData.keys.push('type');
+          for (const bankTx of arrayData.values) {
+            bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f.id).type);
+          }
+          break;
+
+        case 'crypto_input':
+          const cryptoInputsWithType = await this.cryptoInputService.getWithType(id, updated);
+
+          // add type
+          arrayData.keys.push('type');
+          for (const cryptoInput of arrayData.values) {
+            cryptoInput.push(cryptoInputsWithType.find((f) => cryptoInput[0] === f.id).type);
+          }
+          break;
       }
     }
 

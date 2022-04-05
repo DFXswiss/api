@@ -5,7 +5,7 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { User } from '../../../user/models/user/user.entity';
 import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
@@ -66,8 +66,7 @@ export class BuyService {
     const existing = await this.buyRepo.findOne({
       where: {
         iban: dto.iban,
-        ...(dto.type === BuyType.WALLET ? { asset: asset } : { deposit: staking?.deposit }),
-        user: { id: userId },
+        ...(dto.type === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
       },
       relations: ['deposit'],
     });

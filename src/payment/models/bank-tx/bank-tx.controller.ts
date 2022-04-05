@@ -9,6 +9,7 @@ import {
   Param,
   Body,
   Get,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
@@ -29,16 +30,16 @@ export class BankTxController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUntyped(): Promise<TypedBankTx[]> {
-    return await this.bankTxService.getUntyped();
+  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<TypedBankTx[]> {
+    return await this.bankTxService.getUntyped(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 
   @Get('typed')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getWithType(): Promise<TypedBankTx[]> {
-    return await this.bankTxService.getWithType();
+  async getWithType(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<TypedBankTx[]> {
+    return await this.bankTxService.getWithType(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 
   @Post()
