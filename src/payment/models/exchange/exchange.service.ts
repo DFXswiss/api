@@ -30,7 +30,7 @@ export class ExchangeService {
 
   async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
     const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
-    const price = await this.fetchOrderPrice(pair, direction);
+    const price = await Util.retry(() => this.fetchOrderPrice(pair, direction), 3);
     return {
       currencyPair: pair,
       orderSide: direction,

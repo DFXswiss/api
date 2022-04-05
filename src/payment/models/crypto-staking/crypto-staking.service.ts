@@ -197,7 +197,8 @@ export class CryptoStakingService {
           payoutType: type as PayoutType,
         })),
       )
-      .reduce((prev, curr) => prev.concat(curr), []);
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .sort((a, b) => (a.outputDate > b.outputDate ? 1 : -1));
   }
 
   // --- HELPER METHODS --- //
