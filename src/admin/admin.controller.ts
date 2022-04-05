@@ -67,7 +67,7 @@ export class AdminController {
       .createQueryBuilder()
       .from(table, table)
       .where('id >= :id', { id })
-      .where('updated >= :updated', { updated })
+      .andWhere('updated >= :updated', { updated })
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
