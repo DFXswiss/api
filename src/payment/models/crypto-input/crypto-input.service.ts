@@ -50,7 +50,7 @@ export class CryptoInputService {
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
   }
 
-  async getUntyped(): Promise<TypedCryptoInput[]> {
+  async getUntyped(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
     const unmappedEntries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
@@ -62,12 +62,14 @@ export class CryptoInputService {
       .andWhere('cryptoSell.id IS NULL')
       .andWhere('cryptoStaking.id IS NULL')
       .andWhere('route.id != :id', { id: this.cryptoCryptoRouteId })
+      .andWhere('bankTx.id >= :minId', { minId: minId })
+      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
       .getMany();
 
     return unmappedEntries.map((e) => ({ ...e, type: CryptoInputType.UNKNOWN }));
   }
 
-  async getWithType(): Promise<TypedCryptoInput[]> {
+  async getWithType(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
     const entries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
@@ -77,6 +79,8 @@ export class CryptoInputService {
       .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
+      .where('bankTx.id >= :minId', { minId: minId })
+      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
       .getMany();
 
     return entries.map((e) => ({ ...e, type: this.getCryptoInputType(e) }));

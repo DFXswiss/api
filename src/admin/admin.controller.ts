@@ -1,6 +1,8 @@
 import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
+import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MailService } from 'src/shared/services/mail.service';
@@ -11,7 +13,12 @@ import { UploadFileDto } from './dto/upload-file.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly mailService: MailService, private readonly spiderService: SpiderService) {}
+  constructor(
+    private readonly mailService: MailService,
+    private readonly spiderService: SpiderService,
+    private readonly bankTxService: BankTxService,
+    private readonly cryptoImportService: CryptoInputService,
+  ) {}
 
   @Post('mail')
   @ApiBearerAuth()
@@ -90,6 +97,20 @@ export class AdminController {
       arrayData.keys.splice(1, 0, 'address');
       for (const buy of arrayData.values) {
         buy.splice(1, 0, userTable.find((u) => u.id === buy[userIdIndex]).address);
+      }
+    } else if (arrayData && table === 'bank_tx') {
+      const bankTxType = await this.bankTxService.getWithType(+min, new Date(updatedSince));
+
+      arrayData.keys.push('type');
+      for (const bankTx of arrayData.values) {
+        bankTx.push(bankTxType.find((f) => bankTx[0] === f.id).type);
+      }
+    } else if (arrayData && table === 'crypto_input') {
+      const cryptoInputType = await this.cryptoImportService.getWithType(+min, new Date(updatedSince));
+
+      arrayData.keys.push('type');
+      for (const cryptoInput of arrayData.values) {
+        cryptoInput.push(cryptoInputType.find((f) => cryptoInput[0] === f.id).type);
       }
     }
 

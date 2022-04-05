@@ -47,7 +47,7 @@ export class BankTxService {
     return await this.bankTxRepo.save(bankTx);
   }
 
-  async getUntyped(): Promise<TypedBankTx[]> {
+  async getUntyped(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
     const unmappedEntries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
@@ -64,12 +64,14 @@ export class BankTxService {
       .andWhere('nextRepeatBankTx.id IS NULL')
       .andWhere('previousRepeatBankTx.id IS NULL')
       .andWhere("(bankTx.name NOT LIKE '%DFX AG%' AND bankTx.name NOT LIKE '%Payward Ltd.%')")
+      .andWhere('bankTx.id >= :minId', { minId: minId })
+      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
       .getMany();
 
     return unmappedEntries.map((e) => ({ ...e, type: BankTxType.UNKNOWN }));
   }
 
-  async getWithType(): Promise<TypedBankTx[]> {
+  async getWithType(minId: number = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
     const entries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
@@ -85,13 +87,15 @@ export class BankTxService {
       .leftJoin('bankTx.returnSourceBankTx', 'returnSourceBankTx')
       .leftJoin('bankTx.nextRepeatBankTx', 'nextRepeatBankTx')
       .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
+      .where('bankTx.id >= :minId', { minId: minId })
+      .andWhere('bankTx.updated >= :startDate', { startDate: startDate })
       .getMany();
 
     return entries.map((e) => ({ ...e, type: this.getBankTxType(e) }));
   }
 
   // --- HELPER METHODS --- //
-  private getBankTxType(tx: BankTx): BankTxType {
+  public getBankTxType(tx: BankTx): BankTxType {
     if (tx.returnBankTx || tx.returnSourceBankTx) return BankTxType.RETURN;
     if (tx.cryptoSell) return BankTxType.CRYPTO_SELL;
     if (tx.cryptoBuy) return BankTxType.CRYPTO_BUY;
