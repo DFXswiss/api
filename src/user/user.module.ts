@@ -74,6 +74,6 @@ import { KycController } from './models/kyc/kyc.controller';
     LimitRequestService,
     IdentService,
   ],
-  exports: [UserService, UserDataService, RefService, KycService, SpiderService],
+  exports: [UserService, UserDataService, RefService, KycService, SpiderService, SpiderApiService],
 })
 export class UserModule {}

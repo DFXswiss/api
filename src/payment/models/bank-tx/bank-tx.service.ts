@@ -74,13 +74,14 @@ export class BankTxService {
   async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
     const entries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
-      .select('bankTx')
-      .addSelect('cryptoSell.id')
-      .addSelect('cryptoBuy.id')
-      .addSelect('returnBankTx.id')
-      .addSelect('returnSourceBankTx.id')
-      .addSelect('nextRepeatBankTx.id')
-      .addSelect('previousRepeatBankTx.id')
+      .select('bankTx.id', 'id')
+      .addSelect('bankTx.name', 'name')
+      .addSelect('cryptoSell.id', 'cryptoSell')
+      .addSelect('cryptoBuy.id', 'cryptoBuy')
+      .addSelect('returnBankTx.id', 'returnBankTx')
+      .addSelect('returnSourceBankTx.id', 'returnSourceBankTx')
+      .addSelect('nextRepeatBankTx.id', 'nextRepeatBankTx')
+      .addSelect('previousRepeatBankTx.id', 'previousRepeatBankTx')
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
       .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
       .leftJoin('bankTx.returnBankTx', 'returnBankTx')
@@ -89,7 +90,7 @@ export class BankTxService {
       .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
       .where('bankTx.id >= :minId', { minId })
       .andWhere('bankTx.updated >= :startDate', { startDate })
-      .getMany();
+      .getRawMany();
 
     return entries.map((e) => ({ ...e, type: this.getBankTxType(e) }));
   }

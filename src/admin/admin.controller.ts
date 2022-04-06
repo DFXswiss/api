@@ -6,6 +6,8 @@ import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MailService } from 'src/shared/services/mail.service';
+import { Customer } from 'src/user/services/spider/dto/spider.dto';
+import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { SendMailDto } from './dto/send-mail.dto';
@@ -16,6 +18,7 @@ export class AdminController {
   constructor(
     private readonly mailService: MailService,
     private readonly spiderService: SpiderService,
+    private readonly spiderApiService: SpiderApiService,
     private readonly bankTxService: BankTxService,
     private readonly cryptoInputService: CryptoInputService,
   ) {}
@@ -28,6 +31,18 @@ export class AdminController {
     for (const dto of dtoList) {
       await this.mailService.sendMail(dto);
     }
+  }
+
+  @Get('spider')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getSpiderData(@Query('min') min: number, @Query('max') max: number): Promise<Customer[]> {
+    const customerList = [];
+    for (let id = min; id <= max; id++) {
+      customerList.push(await this.spiderApiService.getCustomer(id));
+    }
+    return customerList;
   }
 
   @Post('upload')
