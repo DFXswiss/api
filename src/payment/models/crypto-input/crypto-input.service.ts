@@ -10,7 +10,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
-import { CryptoInput, CryptoInputType, TypedCryptoInput } from './crypto-input.entity';
+import { CryptoInput, CryptoInputType, TypedCryptoInput, UntypedCryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { Not } from 'typeorm';
@@ -50,7 +50,7 @@ export class CryptoInputService {
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
   }
 
-  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
+  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<UntypedCryptoInput[]> {
     const unmappedEntries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')

@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CryptoInput, TypedCryptoInput } from './crypto-input.entity';
+import { CryptoInput, TypedCryptoInput, UntypedCryptoInput } from './crypto-input.entity';
 import { CryptoInputService } from './crypto-input.service';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 
@@ -16,7 +16,9 @@ export class CryptoInputController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<TypedCryptoInput[]> {
+  async getUntyped(
+    @Query() { minId, startDate }: { minId?: string; startDate?: string },
+  ): Promise<UntypedCryptoInput[]> {
     return await this.cryptoInputService.getUntyped(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 

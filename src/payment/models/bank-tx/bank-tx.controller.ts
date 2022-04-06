@@ -17,7 +17,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankTxBatch } from './bank-tx-batch.entity';
-import { BankTx, TypedBankTx } from './bank-tx.entity';
+import { BankTx, TypedBankTx, UntypedBankTx } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 
@@ -30,7 +30,7 @@ export class BankTxController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<TypedBankTx[]> {
+  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<UntypedBankTx[]> {
     return await this.bankTxService.getUntyped(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 

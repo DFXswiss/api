@@ -116,9 +116,18 @@ export class AdminController {
           const bankTxsWithType = await this.bankTxService.getWithType(id, updated);
 
           // add type
+          arrayData.keys.push('cryptoBuyId');
+          arrayData.keys.push('cryptoSellId');
+          arrayData.keys.push('returnSourceBankTxId');
+          arrayData.keys.push('previousRepeatBankTxId');
           arrayData.keys.push('type');
           for (const bankTx of arrayData.values) {
-            bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f.id)?.type);
+            const bankTxTemp = bankTxsWithType.find((f) => bankTx[0] === f.id);
+            bankTx.push(bankTxTemp?.cryptoBuy);
+            bankTx.push(bankTxTemp?.cryptoSell);
+            bankTx.push(bankTxTemp?.returnSourceBankTx);
+            bankTx.push(bankTxTemp?.previousRepeatBankTx);
+            bankTx.push(bankTxTemp?.type);
           }
           break;
 
@@ -126,9 +135,14 @@ export class AdminController {
           const cryptoInputsWithType = await this.cryptoInputService.getWithType(id, updated);
 
           // add type
+          arrayData.keys.push('cryptoSellId');
+          arrayData.keys.push('cryptoStakingId');
           arrayData.keys.push('type');
           for (const cryptoInput of arrayData.values) {
-            cryptoInput.push(cryptoInputsWithType.find((f) => cryptoInput[0] === f.id)?.type);
+            const cryptoInputTemp = cryptoInputsWithType.find((f) => cryptoInput[0] === f.id);
+            cryptoInput.push(cryptoInputTemp?.cryptoSell);
+            cryptoInput.push(cryptoInputTemp?.cryptoStaking);
+            cryptoInput.push(cryptoInputTemp?.type);
           }
           break;
       }

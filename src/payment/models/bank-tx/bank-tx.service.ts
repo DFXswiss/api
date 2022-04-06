@@ -6,7 +6,7 @@ import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType, TypedBankTx } from './bank-tx.entity';
+import { BankTx, BankTxType, TypedBankTx, UntypedBankTx } from './bank-tx.entity';
 
 @Injectable()
 export class BankTxService {
@@ -47,7 +47,7 @@ export class BankTxService {
     return await this.bankTxRepo.save(bankTx);
   }
 
-  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
+  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<UntypedBankTx[]> {
     const unmappedEntries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
