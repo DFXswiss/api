@@ -112,15 +112,15 @@ export class AdminController {
           }
           break;
 
-        // case 'bank_tx':
-        //   const bankTxsWithType = await this.bankTxService.getWithType(id, updated);
+        case 'bank_tx':
+          const bankTxsWithType = await this.bankTxService.getWithType(id, updated);
 
-        //   // add type
-        //   arrayData.keys.push('type');
-        //   for (const bankTx of arrayData.values) {
-        //     bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f.id).type);
-        //   }
-        //   break;
+          // add type
+          arrayData.keys.push('type');
+          for (const bankTx of arrayData.values) {
+            bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f.id)?.type);
+          }
+          break;
 
         case 'crypto_input':
           const cryptoInputsWithType = await this.cryptoInputService.getWithType(id, updated);
@@ -128,7 +128,7 @@ export class AdminController {
           // add type
           arrayData.keys.push('type');
           for (const cryptoInput of arrayData.values) {
-            cryptoInput.push(cryptoInputsWithType.find((f) => cryptoInput[0] === f.id).type);
+            cryptoInput.push(cryptoInputsWithType.find((f) => cryptoInput[0] === f.id)?.type);
           }
           break;
       }
