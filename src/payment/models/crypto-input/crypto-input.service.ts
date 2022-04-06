@@ -72,16 +72,17 @@ export class CryptoInputService {
   async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
     const entries = await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
-      .select('cryptoInput')
-      .addSelect('cryptoSell.id')
-      .addSelect('cryptoStaking.id')
-      .addSelect('route.id')
+      .select('cryptoInput.id', 'id')
+      .addSelect('cryptoInput.returnTxId', 'returnTxId')
+      .addSelect('cryptoSell.id', 'cryptoSell')
+      .addSelect('cryptoStaking.id', 'cryptoStaking')
+      .addSelect('route.id', 'routeId')
       .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
       .where('cryptoInput.id >= :minId', { minId })
       .andWhere('cryptoInput.updated >= :startDate', { startDate })
-      .getMany();
+      .getRawMany();
 
     return entries.map((e) => ({ ...e, type: this.getCryptoInputType(e) }));
   }
@@ -90,7 +91,7 @@ export class CryptoInputService {
     if (input.returnTxId) return CryptoInputType.RETURN;
     if (input.cryptoSell) return CryptoInputType.CRYPTO_SELL;
     if (input.cryptoStaking) return CryptoInputType.CRYPTO_STAKING;
-    if (input.route.id === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
+    if (input['routeId'] === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
 
     return CryptoInputType.UNKNOWN;
   }
