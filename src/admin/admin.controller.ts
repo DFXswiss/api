@@ -118,7 +118,7 @@ export class AdminController {
           // add type
           arrayData.keys.push('type');
           for (const bankTx of arrayData.values) {
-            bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f.id).type);
+            bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f.id)?.type);
           }
           break;
 
@@ -128,7 +128,7 @@ export class AdminController {
           // add type
           arrayData.keys.push('type');
           for (const cryptoInput of arrayData.values) {
-            cryptoInput.push(cryptoInputsWithType.find((f) => cryptoInput[0] === f.id).type);
+            cryptoInput.push(cryptoInputsWithType.find((f) => cryptoInput[0] === f.id)?.type);
           }
           break;
       }
