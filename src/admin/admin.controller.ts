@@ -118,7 +118,7 @@ export class AdminController {
         //   // add type
         //   arrayData.keys.push('type');
         //   for (const bankTx of arrayData.values) {
-        //     bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f['bankTx_id']).type);
+        //     bankTx.push(bankTxsWithType.find((f) => bankTx[0] === f.id).type);
         //   }
         //   break;
 
