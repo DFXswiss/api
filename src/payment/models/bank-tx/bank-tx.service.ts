@@ -74,7 +74,8 @@ export class BankTxService {
   async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
     const entries = await this.bankTxRepo
       .createQueryBuilder('bankTx')
-      .select('bankTx')
+      .select('bankTx.id')
+      .addSelect('bankTx.name')
       .addSelect('cryptoSell.id')
       .addSelect('cryptoBuy.id')
       .addSelect('returnBankTx.id')
@@ -89,7 +90,7 @@ export class BankTxService {
       .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
       .where('bankTx.id >= :minId', { minId })
       .andWhere('bankTx.updated >= :startDate', { startDate })
-      .getMany();
+      .getRawMany();
 
     return entries.map((e) => ({ ...e, type: this.getBankTxType(e) }));
   }
