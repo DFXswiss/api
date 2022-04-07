@@ -16,6 +16,7 @@ import { Between, IsNull, LessThan } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class CryptoStakingService {
@@ -60,8 +61,7 @@ export class CryptoStakingService {
     );
     entity.paybackDeposit = entity.stakingRoute.paybackDeposit;
 
-    entity.outputDate = new Date(cryptoInput.created);
-    entity.outputDate.setDate(entity.outputDate.getDate() + Config.staking.period);
+    entity.outputDate = Util.daysAfter(Config.staking.period, cryptoInput.created);
     entity.isReinvest = await this.isReinvest(cryptoInput);
 
     await this.cryptoStakingRepo.save(entity);
@@ -101,7 +101,7 @@ export class CryptoStakingService {
 
   async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {
     return await this.cryptoStakingRepo
-      .getActiveEntries(new Date())
+      .getCurrentActiveEntries()
       .select('SUM(cryptoStaking.inputAmount)', 'amount')
       .addSelect('dateadd(DAY, 0, datediff(DAY, 0, cryptoStaking.outputDate))', 'outputDate')
       .addSelect('cryptoStaking.payoutType', 'payoutType')

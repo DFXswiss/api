@@ -49,10 +49,14 @@ export class Util {
     return this.secondsDiff(from, to) / (3600 * 24);
   }
 
-  static daysBefore(days: number, from?: Date): Date {
+  static daysAfter(days: number, from?: Date): Date {
     const date = from ? new Date(from) : new Date();
-    date.setDate(date.getDate() - days);
+    date.setDate(date.getDate() + days);
     return date;
+  }
+
+  static daysBefore(days: number, from?: Date): Date {
+    return this.daysAfter(-days, from);
   }
 
   // --- MISC --- //
