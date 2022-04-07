@@ -16,7 +16,6 @@ import { Between, IsNull, LessThan } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
-import { Util } from 'src/shared/util';
 
 @Injectable()
 export class CryptoStakingService {
