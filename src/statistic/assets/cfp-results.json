@@ -1,364 +1,362 @@
 {
   "2203": [
-    [
-      {
-        "title": "CFP-2203-10: Masternode Monitor 2.0 (12 500 DFI)",
-        "number": 137,
-        "type": "cfp",
-        "dfiAmount": 12500,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/137",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 233,
-          "possible": 10875,
-          "turnout": 2.16,
-          "yes": 204,
-          "neutral": 3,
-          "no": 26
-        },
-        "cakeVotes": {
-          "total": 100,
-          "yes": 84,
-          "neutral": 3,
-          "no": 13
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+    {
+      "title": "CFP-2203-10: Masternode Monitor 2.0 (12 500 DFI)",
+      "number": 137,
+      "type": "cfp",
+      "dfiAmount": 12500,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/137",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 233,
+        "possible": 10875,
+        "turnout": 2.16,
+        "yes": 204,
+        "neutral": 3,
+        "no": 26
       },
-      {
-        "title": "CFP-2203-09: Extending Dobby with phone notifications (30 000 DFI)",
-        "number": 136,
-        "type": "cfp",
-        "dfiAmount": 30000,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/136",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 218,
-          "possible": 10875,
-          "turnout": 2.02,
-          "yes": 156,
-          "neutral": 8,
-          "no": 54
-        },
-        "cakeVotes": {
-          "total": 101,
-          "yes": 58,
-          "neutral": 8,
-          "no": 35
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "cakeVotes": {
+        "total": 100,
+        "yes": 84,
+        "neutral": 3,
+        "no": 13
       },
-      {
-        "title": "CFP-2203-08: Defichain-Ecosystem (2 000 DFI)",
-        "number": 134,
-        "type": "cfp",
-        "dfiAmount": 2000,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/134",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 225,
-          "possible": 10875,
-          "turnout": 2.09,
-          "yes": 202,
-          "neutral": 20,
-          "no": 3
-        },
-        "cakeVotes": {
-          "total": 102,
-          "yes": 89,
-          "neutral": 11,
-          "no": 2
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
       },
-      {
-        "title": "CFP-2203-07: DeFiChain Python Library (1 800 DFI)",
-        "number": 133,
-        "type": "cfp",
-        "dfiAmount": 1800,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/133",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 221,
-          "possible": 10875,
-          "turnout": 2.05,
-          "yes": 192,
-          "neutral": 1,
-          "no": 28
-        },
-        "cakeVotes": {
-          "total": 101,
-          "yes": 85,
-          "neutral": 0,
-          "no": 16
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-09: Extending Dobby with phone notifications (30 000 DFI)",
+      "number": 136,
+      "type": "cfp",
+      "dfiAmount": 30000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/136",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 218,
+        "possible": 10875,
+        "turnout": 2.02,
+        "yes": 156,
+        "neutral": 8,
+        "no": 54
       },
-      {
-        "title": "CFP-2203-06: DefiChain Sports App (189'500 DFI)",
-        "number": 132,
-        "type": "cfp",
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/132",
-        "currentResult": "Not approved",
-        "totalVotes": {
-          "total": 226,
-          "possible": 10875,
-          "turnout": 2.1,
-          "yes": 31,
-          "neutral": 6,
-          "no": 189
-        },
-        "cakeVotes": {
-          "total": 105,
-          "yes": 18,
-          "neutral": 6,
-          "no": 81
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 0,
-          "neutral": 0,
-          "no": 60
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "cakeVotes": {
+        "total": 101,
+        "yes": 58,
+        "neutral": 8,
+        "no": 35
       },
-      {
-        "title": "CFP-2203-05: DeFiChain Captain - New features + ongoing maintenance (4 500 DFI)",
-        "number": 131,
-        "type": "cfp",
-        "dfiAmount": 4500,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/131",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 221,
-          "possible": 10875,
-          "turnout": 2.05,
-          "yes": 155,
-          "neutral": 12,
-          "no": 54
-        },
-        "cakeVotes": {
-          "total": 101,
-          "yes": 51,
-          "neutral": 11,
-          "no": 39
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
       },
-      {
-        "title": "CFP-2203-04: DeFiChain Community Blog (650 DFI)",
-        "number": 130,
-        "type": "cfp",
-        "dfiAmount": 650,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/130",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 216,
-          "possible": 10875,
-          "turnout": 2,
-          "yes": 176,
-          "neutral": 0,
-          "no": 40
-        },
-        "cakeVotes": {
-          "total": 97,
-          "yes": 71,
-          "neutral": 0,
-          "no": 26
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-08: Defichain-Ecosystem (2 000 DFI)",
+      "number": 134,
+      "type": "cfp",
+      "dfiAmount": 2000,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/134",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 225,
+        "possible": 10875,
+        "turnout": 2.09,
+        "yes": 202,
+        "neutral": 20,
+        "no": 3
       },
-      {
-        "title": "CFP-2203-03: AlkCoin for DefiChain (0 DFI)",
-        "number": 129,
-        "type": "cfp",
-        "dfiAmount": 0,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/129",
-        "currentResult": "Not approved",
-        "totalVotes": {
-          "total": 221,
-          "possible": 10875,
-          "turnout": 2.05,
-          "yes": 36,
-          "neutral": 3,
-          "no": 182
-        },
-        "cakeVotes": {
-          "total": 94,
-          "yes": 11,
-          "neutral": 2,
-          "no": 81
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 0,
-          "neutral": 0,
-          "no": 60
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "cakeVotes": {
+        "total": 102,
+        "yes": 89,
+        "neutral": 11,
+        "no": 2
       },
-      {
-        "title": "DFIP-2203-B: Vault | Adding Ethereum as collateral for vaults",
-        "number": 128,
-        "type": "dfip",
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/128",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 235,
-          "possible": 10875,
-          "turnout": 2.18,
-          "yes": 212,
-          "neutral": 1,
-          "no": 22
-        },
-        "cakeVotes": {
-          "total": 101,
-          "yes": 88,
-          "neutral": 1,
-          "no": 12
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
       },
-      {
-        "title": "DFIP-2203-A: Solving dToken premium via future contracts",
-        "number": 127,
-        "type": "dfip",
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/127",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 235,
-          "possible": 10875,
-          "turnout": 2.18,
-          "yes": 235,
-          "neutral": 0,
-          "no": 0
-        },
-        "cakeVotes": {
-          "total": 101,
-          "yes": 101,
-          "neutral": 0,
-          "no": 0
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-07: DeFiChain Python Library (1 800 DFI)",
+      "number": 133,
+      "type": "cfp",
+      "dfiAmount": 1800,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/133",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 221,
+        "possible": 10875,
+        "turnout": 2.05,
+        "yes": 192,
+        "neutral": 1,
+        "no": 28
       },
-      {
-        "title": "CFP-2203-02: For moderation concerning the Telegram group: Crypto Steuern DACH (ENG/DE) (1 510 DFI)",
-        "number": 126,
-        "type": "cfp",
-        "dfiAmount": 1510,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/126",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 214,
-          "possible": 10875,
-          "turnout": 1.99,
-          "yes": 194,
-          "neutral": 13,
-          "no": 7
-        },
-        "cakeVotes": {
-          "total": 96,
-          "yes": 87,
-          "neutral": 5,
-          "no": 4
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
+      "cakeVotes": {
+        "total": 101,
+        "yes": 85,
+        "neutral": 0,
+        "no": 16
       },
-      {
-        "title": "CFP-2203-01: Public REST API For Historical DEX Prices (2 600 DFI)",
-        "number": 125,
-        "type": "cfp",
-        "dfiAmount": 2600,
-        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/125",
-        "currentResult": "Approved",
-        "totalVotes": {
-          "total": 232,
-          "possible": 10875,
-          "turnout": 2.15,
-          "yes": 208,
-          "neutral": 4,
-          "no": 20
-        },
-        "cakeVotes": {
-          "total": 102,
-          "yes": 89,
-          "neutral": 2,
-          "no": 11
-        },
-        "dfxVotes": {
-          "total": 60,
-          "yes": 60,
-          "neutral": 0,
-          "no": 0
-        },
-        "startDate": "2022-03-21T23:59:59.000Z",
-        "endDate": "2022-03-28T23:59:59.000Z"
-      }
-    ]
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-06: DefiChain Sports App (189'500 DFI)",
+      "number": 132,
+      "type": "cfp",
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/132",
+      "currentResult": "Not approved",
+      "totalVotes": {
+        "total": 226,
+        "possible": 10875,
+        "turnout": 2.1,
+        "yes": 31,
+        "neutral": 6,
+        "no": 189
+      },
+      "cakeVotes": {
+        "total": 105,
+        "yes": 18,
+        "neutral": 6,
+        "no": 81
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 0,
+        "neutral": 0,
+        "no": 60
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-05: DeFiChain Captain - New features + ongoing maintenance (4 500 DFI)",
+      "number": 131,
+      "type": "cfp",
+      "dfiAmount": 4500,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/131",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 221,
+        "possible": 10875,
+        "turnout": 2.05,
+        "yes": 155,
+        "neutral": 12,
+        "no": 54
+      },
+      "cakeVotes": {
+        "total": 101,
+        "yes": 51,
+        "neutral": 11,
+        "no": 39
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-04: DeFiChain Community Blog (650 DFI)",
+      "number": 130,
+      "type": "cfp",
+      "dfiAmount": 650,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/130",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 216,
+        "possible": 10875,
+        "turnout": 2,
+        "yes": 176,
+        "neutral": 0,
+        "no": 40
+      },
+      "cakeVotes": {
+        "total": 97,
+        "yes": 71,
+        "neutral": 0,
+        "no": 26
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-03: AlkCoin for DefiChain (0 DFI)",
+      "number": 129,
+      "type": "cfp",
+      "dfiAmount": 0,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/129",
+      "currentResult": "Not approved",
+      "totalVotes": {
+        "total": 221,
+        "possible": 10875,
+        "turnout": 2.05,
+        "yes": 36,
+        "neutral": 3,
+        "no": 182
+      },
+      "cakeVotes": {
+        "total": 94,
+        "yes": 11,
+        "neutral": 2,
+        "no": 81
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 0,
+        "neutral": 0,
+        "no": 60
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "DFIP-2203-B: Vault | Adding Ethereum as collateral for vaults",
+      "number": 128,
+      "type": "dfip",
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/128",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 235,
+        "possible": 10875,
+        "turnout": 2.18,
+        "yes": 212,
+        "neutral": 1,
+        "no": 22
+      },
+      "cakeVotes": {
+        "total": 101,
+        "yes": 88,
+        "neutral": 1,
+        "no": 12
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "DFIP-2203-A: Solving dToken premium via future contracts",
+      "number": 127,
+      "type": "dfip",
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/127",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 235,
+        "possible": 10875,
+        "turnout": 2.18,
+        "yes": 235,
+        "neutral": 0,
+        "no": 0
+      },
+      "cakeVotes": {
+        "total": 101,
+        "yes": 101,
+        "neutral": 0,
+        "no": 0
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-02: For moderation concerning the Telegram group: Crypto Steuern DACH (ENG/DE) (1 510 DFI)",
+      "number": 126,
+      "type": "cfp",
+      "dfiAmount": 1510,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/126",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 214,
+        "possible": 10875,
+        "turnout": 1.99,
+        "yes": 194,
+        "neutral": 13,
+        "no": 7
+      },
+      "cakeVotes": {
+        "total": 96,
+        "yes": 87,
+        "neutral": 5,
+        "no": 4
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    },
+    {
+      "title": "CFP-2203-01: Public REST API For Historical DEX Prices (2 600 DFI)",
+      "number": 125,
+      "type": "cfp",
+      "dfiAmount": 2600,
+      "htmlUrl": "https://github.com/DeFiCh/dfips/issues/125",
+      "currentResult": "Approved",
+      "totalVotes": {
+        "total": 232,
+        "possible": 10875,
+        "turnout": 2.15,
+        "yes": 208,
+        "neutral": 4,
+        "no": 20
+      },
+      "cakeVotes": {
+        "total": 102,
+        "yes": 89,
+        "neutral": 2,
+        "no": 11
+      },
+      "dfxVotes": {
+        "total": 60,
+        "yes": 60,
+        "neutral": 0,
+        "no": 0
+      },
+      "startDate": "2022-03-21T23:59:59.000Z",
+      "endDate": "2022-03-28T23:59:59.000Z"
+    }
   ],
   "2202": [
     {
