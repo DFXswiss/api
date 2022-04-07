@@ -103,11 +103,14 @@ export class CryptoStakingService {
   async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {
     return await this.cryptoStakingRepo
       .getActiveEntries(new Date())
+      .select('SUM(cryptoStaking.inputAmount)', 'amount')
+      .addSelect('dateadd(DAY, 0, datediff(DAY, 0, cryptoStaking.outputDate))', 'outputDate')
+      .addSelect('cryptoStaking.payoutType', 'payoutType')
       .leftJoin('cryptoStaking.stakingRoute', 'stakingRoute')
-      .andWhere('cryptoStaking.stakingRouteId = :stakingId', { stakingId })
+      .andWhere('stakingRoute.id = :stakingId', { stakingId })
       .andWhere('stakingRoute.userId = :userId', { userId })
-      .getMany()
-      .then(this.toBatchDtoList);
+      .groupBy('dateadd(DAY, 0, datediff(DAY, 0, cryptoStaking.outputDate)), cryptoStaking.payoutType')
+      .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>();
   }
 
   // --- MASTERNODE OPERATOR --- //
@@ -147,7 +150,7 @@ export class CryptoStakingService {
       where: { readyToPayout: true, outTxId: IsNull() },
       relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
-    return this.toPayoutDtoList(cryptoStakingList);
+    return this.toDtoList(cryptoStakingList);
   }
 
   async getPendingPayouts(date: Date): Promise<GetPayoutsCryptoStakingDto[]> {
@@ -156,11 +159,11 @@ export class CryptoStakingService {
       where: { readyToPayout: false, outputDate: LessThan(date) },
       relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
-    return this.toPayoutDtoList(cryptoStakingList);
+    return this.toDtoList(cryptoStakingList);
   }
 
   // --- DTO --- //
-  private toPayoutDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
+  private toDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
     return cryptoStakingList.map((e) => ({
       id: e.id,
       address: e.paybackDeposit?.address ?? e.stakingRoute.user.address,
@@ -168,37 +171,6 @@ export class CryptoStakingService {
       amount: e.inputAmount,
       payoutType: e.payoutType,
     }));
-  }
-
-  private toBatchDtoList(cryptoStakingList: CryptoStaking[]): StakingBatchDto[] {
-    const batches = cryptoStakingList.map((c) => ({
-      amount: c.inputAmount,
-      outputDate: Util.getUtcDay(c.outputDate).toISOString(),
-      payoutType: c.payoutType,
-    }));
-
-    const aggregateBatches = Object.values(PayoutType).reduce(
-      (prev, curr) => ({
-        ...prev,
-        [curr]: Util.aggregate(
-          batches.filter((c) => c.payoutType === curr),
-          'outputDate',
-          'amount',
-        ),
-      }),
-      {},
-    );
-
-    return Object.entries(aggregateBatches)
-      .map(([type, batch]) =>
-        Object.entries(batch).map(([date, amount]) => ({
-          amount,
-          outputDate: new Date(date),
-          payoutType: type as PayoutType,
-        })),
-      )
-      .reduce((prev, curr) => prev.concat(curr), [])
-      .sort((a, b) => (a.outputDate > b.outputDate ? 1 : -1));
   }
 
   // --- HELPER METHODS --- //
