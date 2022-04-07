@@ -67,6 +67,7 @@ export class BuyService {
       where: {
         iban: dto.iban,
         ...(dto.type === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
+        user: { id: userId },
       },
       relations: ['deposit'],
     });
