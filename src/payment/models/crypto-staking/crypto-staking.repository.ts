@@ -9,4 +9,8 @@ export class CryptoStakingRepository extends Repository<CryptoStaking> {
       { date },
     );
   }
+
+  getCurrentActiveEntries(): SelectQueryBuilder<CryptoStaking> {
+    return this.createQueryBuilder('cryptoStaking').where('cryptoStaking.outTxId IS NULL');
+  }
 }

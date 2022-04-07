@@ -135,16 +135,16 @@ export class StakingService {
   async updateBalance(stakingId: number): Promise<void> {
     const staking = await this.stakingRepo.findOne({ where: { id: stakingId }, relations: ['user'] });
     if (staking.user.stakingStart == null) {
-      const balance = await this.getStakingBalance(stakingId, new Date());
+      const balance = await this.getCurrentStakingBalance(stakingId);
       if (balance >= Config.staking.minInvestment) {
         this.userService.activateStaking(staking.user.id);
       }
     }
   }
 
-  async getStakingBalance(stakingId: number, date: Date): Promise<number> {
+  async getCurrentStakingBalance(stakingId: number): Promise<number> {
     const { balance } = await this.cryptoStakingRepo
-      .getActiveEntries(date)
+      .getCurrentActiveEntries()
       .select('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId = :stakingId', { stakingId })
       .getRawOne<{ balance: number }>();
@@ -160,9 +160,11 @@ export class StakingService {
       .then((r) => r.rewardVolume);
   }
 
-  async getAllStakingBalance(stakingIds: number[], date: Date): Promise<{ id: number; balance: number }[]> {
-    return await this.cryptoStakingRepo
-      .getActiveEntries(date)
+  async getAllStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
+    return await (date != null
+      ? this.cryptoStakingRepo.getActiveEntries(date)
+      : this.cryptoStakingRepo.getCurrentActiveEntries()
+    )
       .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId IN (:...stakingIds)', { stakingIds })
@@ -170,7 +172,7 @@ export class StakingService {
       .getRawMany<{ id: number; balance: number }>();
   }
 
-  async getTotalStakingBalance(date: Date = new Date()): Promise<number> {
+  async getTotalStakingBalance(date: Date): Promise<number> {
     return await this.cryptoStakingRepo
       .getActiveEntries(date)
       .select('SUM(inputAmount)', 'balance')
@@ -201,7 +203,7 @@ export class StakingService {
   ): Promise<StakingDto> {
     const rewardType = this.getPayoutType(staking.rewardDeposit?.id, staking.deposit.id);
     const paybackType = this.getPayoutType(staking.paybackDeposit?.id, staking.deposit.id);
-    const balance = await this.getStakingBalance(staking.id, new Date());
+    const balance = await this.getCurrentStakingBalance(staking.id);
 
     stakingDepositsInUse ??= await this.getUserStakingDepositsInUse(userId);
     fee ??= await this.userService.getUserStakingFee(userId);
