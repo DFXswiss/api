@@ -6,7 +6,7 @@ import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType, RawBankTx, TypedBankTx, UntypedBankTx } from './bank-tx.entity';
+import { BankTx, BankTxType, RawBankTx, TypedBankTx } from './bank-tx.entity';
 
 @Injectable()
 export class BankTxService {
@@ -47,8 +47,8 @@ export class BankTxService {
     return await this.bankTxRepo.save(bankTx);
   }
 
-  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<UntypedBankTx[]> {
-    const unmappedEntries = await this.bankTxRepo
+  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<BankTx[]> {
+    return await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
@@ -67,8 +67,6 @@ export class BankTxService {
       .andWhere('bankTx.id >= :minId', { minId })
       .andWhere('bankTx.updated >= :startDate', { startDate })
       .getMany();
-
-    return unmappedEntries.map((e) => ({ ...e, type: BankTxType.UNKNOWN }));
   }
 
   async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {

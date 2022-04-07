@@ -13,8 +13,6 @@ export enum BankTxType {
   UNKNOWN = 'Unknown',
 }
 
-export type UntypedBankTx = BankTx & { type: BankTxType };
-
 export interface RawBankTx {
   id: number;
   name: string;

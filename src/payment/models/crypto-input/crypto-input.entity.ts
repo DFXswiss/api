@@ -15,8 +15,6 @@ export enum CryptoInputType {
   UNKNOWN = 'Unknown',
 }
 
-export type UntypedCryptoInput = CryptoInput & { type: CryptoInputType };
-
 export interface RawCryptoInput {
   id: number;
   returnTxId: string;
