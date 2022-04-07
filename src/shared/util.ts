@@ -55,12 +55,6 @@ export class Util {
     return date;
   }
 
-  static getUtcDay(date: Date): Date {
-    const copy = new Date(date);
-    copy.setUTCHours(0, 0, 0, 0);
-    return copy;
-  }
-
   // --- MISC --- //
   static async readFileFromDisk(fileName: string): Promise<string> {
     return new Promise((resolve, reject) =>

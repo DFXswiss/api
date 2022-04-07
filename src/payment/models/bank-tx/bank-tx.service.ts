@@ -6,7 +6,7 @@ import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType, TypedBankTx } from './bank-tx.entity';
+import { BankTx, BankTxType, RawBankTx, TypedBankTx } from './bank-tx.entity';
 
 @Injectable()
 export class BankTxService {
@@ -47,8 +47,8 @@ export class BankTxService {
     return await this.bankTxRepo.save(bankTx);
   }
 
-  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
-    const unmappedEntries = await this.bankTxRepo
+  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<BankTx[]> {
+    return await this.bankTxRepo
       .createQueryBuilder('bankTx')
       .select('bankTx')
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
@@ -67,8 +67,6 @@ export class BankTxService {
       .andWhere('bankTx.id >= :minId', { minId })
       .andWhere('bankTx.updated >= :startDate', { startDate })
       .getMany();
-
-    return unmappedEntries.map((e) => ({ ...e, type: BankTxType.UNKNOWN }));
   }
 
   async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedBankTx[]> {
@@ -76,12 +74,12 @@ export class BankTxService {
       .createQueryBuilder('bankTx')
       .select('bankTx.id', 'id')
       .addSelect('bankTx.name', 'name')
-      .addSelect('cryptoSell.id', 'cryptoSell')
-      .addSelect('cryptoBuy.id', 'cryptoBuy')
-      .addSelect('returnBankTx.id', 'returnBankTx')
-      .addSelect('returnSourceBankTx.id', 'returnSourceBankTx')
-      .addSelect('nextRepeatBankTx.id', 'nextRepeatBankTx')
-      .addSelect('previousRepeatBankTx.id', 'previousRepeatBankTx')
+      .addSelect('cryptoSell.id', 'cryptoSellId')
+      .addSelect('cryptoBuy.id', 'cryptoBuyId')
+      .addSelect('returnBankTx.id', 'returnBankTxId')
+      .addSelect('returnSourceBankTx.id', 'returnSourceBankTxId')
+      .addSelect('nextRepeatBankTx.id', 'nextRepeatBankTxId')
+      .addSelect('previousRepeatBankTx.id', 'previousRepeatBankTxId')
       .leftJoin('bankTx.cryptoSell', 'cryptoSell')
       .leftJoin('bankTx.cryptoBuy', 'cryptoBuy')
       .leftJoin('bankTx.returnBankTx', 'returnBankTx')
@@ -90,17 +88,17 @@ export class BankTxService {
       .leftJoin('bankTx.previousRepeatBankTx', 'previousRepeatBankTx')
       .where('bankTx.id >= :minId', { minId })
       .andWhere('bankTx.updated >= :startDate', { startDate })
-      .getRawMany();
+      .getRawMany<RawBankTx>();
 
     return entries.map((e) => ({ ...e, type: this.getBankTxType(e) }));
   }
 
   // --- HELPER METHODS --- //
-  private getBankTxType(tx: BankTx): BankTxType {
-    if (tx.returnBankTx || tx.returnSourceBankTx) return BankTxType.RETURN;
-    if (tx.cryptoSell) return BankTxType.CRYPTO_SELL;
-    if (tx.cryptoBuy) return BankTxType.CRYPTO_BUY;
-    if (tx.nextRepeatBankTx || tx.previousRepeatBankTx) return BankTxType.REPEAT;
+  private getBankTxType(tx: RawBankTx): BankTxType {
+    if (tx.returnBankTxId || tx.returnSourceBankTxId) return BankTxType.RETURN;
+    if (tx.cryptoSellId) return BankTxType.CRYPTO_SELL;
+    if (tx.cryptoBuyId) return BankTxType.CRYPTO_BUY;
+    if (tx.nextRepeatBankTxId || tx.previousRepeatBankTxId) return BankTxType.REPEAT;
     if (tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.')) return BankTxType.INTERNAL;
 
     return BankTxType.UNKNOWN;

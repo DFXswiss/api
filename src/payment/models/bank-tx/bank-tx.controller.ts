@@ -30,7 +30,7 @@ export class BankTxController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<TypedBankTx[]> {
+  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<BankTx[]> {
     return await this.bankTxService.getUntyped(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 

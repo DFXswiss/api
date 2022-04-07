@@ -16,7 +16,7 @@ export class CryptoInputController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<TypedCryptoInput[]> {
+  async getUntyped(@Query() { minId, startDate }: { minId?: string; startDate?: string }): Promise<CryptoInput[]> {
     return await this.cryptoInputService.getUntyped(minId ? +minId : 1, startDate ? new Date(startDate) : new Date(0));
   }
 

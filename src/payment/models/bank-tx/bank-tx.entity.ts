@@ -13,7 +13,20 @@ export enum BankTxType {
   UNKNOWN = 'Unknown',
 }
 
-export type TypedBankTx = BankTx & { type: BankTxType };
+export interface RawBankTx {
+  id: number;
+  name: string;
+  cryptoSellId: number;
+  cryptoBuyId: number;
+  returnBankTxId: number;
+  returnSourceBankTxId: number;
+  nextRepeatBankTxId: number;
+  previousRepeatBankTxId: number;
+}
+
+export interface TypedBankTx extends RawBankTx {
+  type: BankTxType;
+}
 
 @Entity()
 export class BankTx extends IEntity {
