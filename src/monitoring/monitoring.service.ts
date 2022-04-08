@@ -21,7 +21,7 @@ export class MonitoringService {
       actualBalance += +(await whaleClient.address.getBalance(masterNode.owner));
     }
     actualBalance += +(await whaleClient.address.getBalance(Config.node.stakingWalletAddress));
-    const shouldBalance = await this.stakingService.getTotalStakingBalance();
+    const shouldBalance = await this.stakingService.getTotalStakingBalance(new Date());
 
     return { actualBalance, shouldBalance };
   }
