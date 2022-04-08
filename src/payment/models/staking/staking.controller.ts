@@ -62,7 +62,7 @@ export class StakingController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getAllStakingBalance(@Query('date') date: Date = new Date()): Promise<{ id: number; balance: number }[]> {
+  async getAllStakingBalance(@Query('date') date?: Date): Promise<{ id: number; balance: number }[]> {
     const stakingIds = await this.stakingService.getAllIds();
     const balances = await this.stakingService.getAllStakingBalance(stakingIds, date);
     return stakingIds.map((id) => ({ id, balance: balances.find((b) => b.id === id)?.balance ?? 0 }));
@@ -76,10 +76,7 @@ export class StakingController {
     const stakingRoutes = await this.stakingService.getUserStakingByAddress(address);
     if (stakingRoutes.length === 0) return 0;
 
-    const stakingBalances = await this.stakingService.getAllStakingBalance(
-      stakingRoutes.map((u) => u.id),
-      new Date(),
-    );
+    const stakingBalances = await this.stakingService.getAllStakingBalance(stakingRoutes.map((u) => u.id));
     return Util.round(Util.sumObj(stakingBalances, 'balance'), 8);
   }
 }

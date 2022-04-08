@@ -15,15 +15,17 @@ export enum CryptoInputType {
   UNKNOWN = 'Unknown',
 }
 
-export type UntypedCryptoInput = CryptoInput & { type: CryptoInputType };
-export type TypedCryptoInput = {
+export interface RawCryptoInput {
   id: number;
   returnTxId: string;
-  cryptoSell: number;
-  cryptoStaking: number;
+  cryptoSellId: number;
+  cryptoStakingId: number;
   routeId: number;
+}
+
+export interface TypedCryptoInput extends RawCryptoInput {
   type: CryptoInputType;
-};
+}
 
 @Entity()
 @Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route], { unique: true })

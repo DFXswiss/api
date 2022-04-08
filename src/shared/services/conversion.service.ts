@@ -38,6 +38,6 @@ export class ConversionService {
   }
 
   private async callApi<T>(url: string): Promise<T> {
-    return this.http.get<T>(url);
+    return this.http.get<T>(url, { tryCount: 3 });
   }
 }

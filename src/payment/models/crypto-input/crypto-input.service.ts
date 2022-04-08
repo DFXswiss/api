@@ -10,7 +10,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
-import { CryptoInput, CryptoInputType, TypedCryptoInput, UntypedCryptoInput } from './crypto-input.entity';
+import { CryptoInput, CryptoInputType, RawCryptoInput, TypedCryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { Not } from 'typeorm';
@@ -50,8 +50,8 @@ export class CryptoInputService {
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
   }
 
-  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<UntypedCryptoInput[]> {
-    const unmappedEntries = await this.cryptoInputRepo
+  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput')
       .addSelect('route.id')
@@ -65,8 +65,6 @@ export class CryptoInputService {
       .andWhere('cryptoInput.id >= :minId', { minId })
       .andWhere('cryptoInput.updated >= :startDate', { startDate })
       .getMany();
-
-    return unmappedEntries.map((e) => ({ ...e, type: CryptoInputType.UNKNOWN }));
   }
 
   async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
@@ -74,24 +72,24 @@ export class CryptoInputService {
       .createQueryBuilder('cryptoInput')
       .select('cryptoInput.id', 'id')
       .addSelect('cryptoInput.returnTxId', 'returnTxId')
-      .addSelect('cryptoSell.id', 'cryptoSell')
-      .addSelect('cryptoStaking.id', 'cryptoStaking')
+      .addSelect('cryptoSell.id', 'cryptoSellId')
+      .addSelect('cryptoStaking.id', 'cryptoStakingId')
       .addSelect('route.id', 'routeId')
       .leftJoin('cryptoInput.route', 'route')
       .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
       .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
       .where('cryptoInput.id >= :minId', { minId })
       .andWhere('cryptoInput.updated >= :startDate', { startDate })
-      .getRawMany();
+      .getRawMany<RawCryptoInput>();
 
     return entries.map((e) => ({ ...e, type: this.getCryptoInputType(e) }));
   }
 
-  private getCryptoInputType(input: CryptoInput): CryptoInputType {
+  private getCryptoInputType(input: RawCryptoInput): CryptoInputType {
     if (input.returnTxId) return CryptoInputType.RETURN;
-    if (input.cryptoSell) return CryptoInputType.CRYPTO_SELL;
-    if (input.cryptoStaking) return CryptoInputType.CRYPTO_STAKING;
-    if (input['routeId'] === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
+    if (input.cryptoSellId) return CryptoInputType.CRYPTO_SELL;
+    if (input.cryptoStakingId) return CryptoInputType.CRYPTO_STAKING;
+    if (input.routeId === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
 
     return CryptoInputType.UNKNOWN;
   }
