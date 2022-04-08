@@ -1,14 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
+import { Config } from 'src/config/config';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
+import { StakingService } from 'src/payment/models/staking/staking.service';
+import { WhaleService } from 'src/shared/services/whale.service';
 
 @Injectable()
 export class MonitoringService {
-  constructor(private cryptoStakingService: CryptoStakingService, private masternodeService: MasternodeService) {}
+  constructor(
+    private stakingService: StakingService,
+    private masternodeService: MasternodeService,
+    private whaleService: WhaleService,
+  ) {}
   // --- VOLUMES --- //
-  @Cron('0****')
-  async checkBalance(): Promise<void> {
-    this.cryptoStakingService.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+  async checkBalance(): Promise<any> {
+    const whaleClient = this.whaleService.getClient();
+    const activeMasternodes = await this.masternodeService.getActiveMasternodes();
+
+    let actualBalance = 0;
+    for (const masterNode of activeMasternodes) {
+      actualBalance += +(await whaleClient.address.getBalance(masterNode.owner));
+    }
+    actualBalance += +(await whaleClient.address.getBalance(Config.node.stakingWalletAddress));
+    const shouldBalance = await this.stakingService.getTotalStakingBalance();
+
+    return { actualBalance, shouldBalance };
   }
 }
