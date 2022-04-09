@@ -56,7 +56,8 @@ export class SepaParser {
 
     return entries.map((entry) => {
       const accountServiceRef =
-        entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ?? `CUSTOM/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
+        entry?.NtryDtls?.TxDtls?.Refs?.AcctSvcrRef ??
+        `CUSTOM/${file.BkToCstmrStmt.Stmt?.Acct?.Id?.IBAN}/${entry.BookgDt.Dt}/${entry.AddtlNtryInf}`;
 
       let data: Partial<BankTx> = {};
       try {
