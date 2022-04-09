@@ -34,12 +34,12 @@ export class AdminController {
     }
   }
 
-  @Put('rename')
+  @Put('renameSpiderRef')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async renameReference(@Body() renameRefDto: RenameRefDto): Promise<void> {
-    await this.spiderService.renameReference(
+  async renameReference(@Body() renameRefDto: RenameRefDto): Promise<boolean> {
+    return await this.spiderService.renameReference(
       renameRefDto.oldReference,
       renameRefDto.newReference,
       renameRefDto.referenceType,

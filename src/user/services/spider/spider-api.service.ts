@@ -147,12 +147,14 @@ export class SpiderApiService {
     };
   }
 
-  async renameCustomerReference(oldReference: string, newReference: string): Promise<Customer> {
-    return this.callApi<Customer>(`customers/${oldReference}/rename?newReference=${newReference}`);
+  async renameCustomerReference(oldReference: string, newReference: string): Promise<boolean> {
+    const result = await this.callApi<string>(`customers/${oldReference}/rename?newReference=${newReference}`);
+    return result === 'done';
   }
 
-  async renameContractReference(oldReference: string, newReference: string): Promise<Customer> {
-    return this.callApi<Customer>(`contracts/${oldReference}/rename?newReference=${newReference}`);
+  async renameContractReference(oldReference: string, newReference: string): Promise<boolean> {
+    const result = await this.callApi<string>(`contracts/${oldReference}/rename?newReference=${newReference}`);
+    return result === 'done';
   }
 
   // --- NAME CHECK --- //

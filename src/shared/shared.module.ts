@@ -28,7 +28,7 @@ import { ConfigModule } from 'src/config/config.module';
 import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { DfiTaxService } from './services/dfi-tax.service';
-import { WhaleService } from './services/whale.service';
+import { WhaleService } from '../ain/whale/whale.service';
 
 @Module({
   imports: [

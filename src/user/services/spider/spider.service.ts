@@ -59,8 +59,8 @@ export class SpiderService {
     oldReference: string,
     newReference: string,
     referenceType: ReferenceType,
-  ): Promise<void> {
-    referenceType == ReferenceType.CONTRACT
+  ): Promise<boolean> {
+    return referenceType == ReferenceType.CONTRACT
       ? await this.spiderApi.renameContractReference(oldReference, newReference)
       : await this.spiderApi.renameCustomerReference(oldReference, newReference);
   }
