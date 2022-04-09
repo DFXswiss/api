@@ -147,6 +147,16 @@ export class SpiderApiService {
     };
   }
 
+  async renameCustomerReference(oldReference: string, newReference: string): Promise<boolean> {
+    const result = await this.callApi<string>(`customers/${oldReference}/rename?newReference=${newReference}`);
+    return result === 'done';
+  }
+
+  async renameContractReference(oldReference: string, newReference: string): Promise<boolean> {
+    const result = await this.callApi<string>(`contracts/${oldReference}/rename?newReference=${newReference}`);
+    return result === 'done';
+  }
+
   // --- NAME CHECK --- //
   async checkCustomer(id: number): Promise<CheckResponse[]> {
     return this.callApi<CheckResponse[]>('customers/check', 'POST', [this.reference(id)]);
@@ -332,7 +342,7 @@ export class SpiderApiService {
   ): Promise<T> {
     try {
       if (getNewKey) this.sessionKey = await this.getNewSessionKey();
-      const version = url.includes('initiate') ? '3.0.0' : this.baseVersion;
+      const version = url.includes('initiate') || url.includes('rename') ? '3.0.0' : this.baseVersion;
       return await this.http.request<T>({
         url: `${this.baseUrl}/${version}/${url}`,
         method: method,

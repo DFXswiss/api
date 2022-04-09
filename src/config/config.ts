@@ -115,6 +115,12 @@ export class Configuration {
     },
   };
 
+  whale = {
+    version: 'v0',
+    network: process.env.NETWORK,
+    url: 'https://ocean.defichain.com',
+  };
+
   node = {
     user: process.env.NODE_USER,
     password: process.env.NODE_PASSWORD,
