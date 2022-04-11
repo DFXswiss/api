@@ -55,8 +55,7 @@ export class StakingService {
   }
 
   async getUserStakingByAddresses(addresses: string[]): Promise<Staking[]> {
-    const test = await this.stakingRepo.find({ where: { user: { address: In(addresses) } }, relations: ['user'] });
-    return test;
+    return await this.stakingRepo.find({ where: { user: { address: In(addresses) } }, relations: ['user'] });
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
