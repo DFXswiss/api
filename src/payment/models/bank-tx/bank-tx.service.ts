@@ -21,7 +21,7 @@ export class BankTxService {
   }
 
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
-    const bankTx = await this.bankTxRepo.findOne(bankTxId);
+    let bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
 
     if (dto.nextRepeatBankTxId) {
@@ -44,7 +44,13 @@ export class BankTxService {
       bankTx.returnBankTx = referencedBankTx;
     }
 
-    return await this.bankTxRepo.save(bankTx);
+    bankTx = await this.bankTxRepo.save(bankTx);
+
+    await this.bankTxRepo.setNewUpdateTime(
+      bankTx.nextRepeatBankTx ? bankTx.nextRepeatBankTx.id : bankTx.returnBankTx.id,
+    );
+
+    return bankTx;
   }
 
   async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<BankTx[]> {
