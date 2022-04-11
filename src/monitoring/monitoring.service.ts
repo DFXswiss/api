@@ -13,24 +13,26 @@ export class MonitoringService {
     private masternodeService: MasternodeService,
     private whaleService: WhaleService,
   ) {}
+
   async getBalanceStatus(): Promise<BalanceStatus> {
     const client = this.whaleService.getClient();
 
-    //calculate actual balance
-    const activeMasternodes = await this.masternodeService.getActiveMasternodes();
+    // calculate actual balance
+    const activeMasternodes = await this.masternodeService.getActive();
     const addresses = [...activeMasternodes.map((m) => m.owner), Config.node.stakingWalletAddress];
     const balance = await Promise.all(addresses.map((a) => client.getBalance(a).then((b) => +b)));
     const actual = Util.sum(balance);
 
-    //calculate should balance
-    const stakingBalance = await this.stakingService.getTotalStakingBalance(new Date());
-    const should = stakingBalance - 20000 - activeMasternodes.length * 10;
+    // calculate should balance
+    const stakingBalance = await this.stakingService.getTotalStakingBalance();
+    const masternodeCount = await this.masternodeService.getCount();
+    const should = stakingBalance + 20000 - masternodeCount * 10;
 
-    //calculate difference
+    // calculate difference
     const difference = Util.round(actual - should, 2);
 
-    //set balance status
-    const status = -1 < difference && difference < 1 ? MonitoringStatus.OK : MonitoringStatus.WARNING;
+    // set balance status
+    const status = Math.abs(difference) < 1 ? MonitoringStatus.OK : MonitoringStatus.WARNING;
     return { actual, should, difference, status };
   }
 }

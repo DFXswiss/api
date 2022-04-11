@@ -43,7 +43,7 @@ export class StatisticController {
 
   @Get('masternodes')
   async getMasternodes(): Promise<string[]> {
-    const masternodes = await this.masternodeService.getActiveMasternodes();
+    const masternodes = await this.masternodeService.getActive();
     return masternodes.map((a) => a.owner);
   }
 

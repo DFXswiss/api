@@ -37,7 +37,7 @@ export class StatisticService {
           ref: await this.userService.getTotalRefRewards(),
         },
         staking: {
-          masternodes: await this.masternodeService.getCount(),
+          masternodes: await this.masternodeService.getActiveCount(),
           yield: await this.stakingRewardService.getYield(),
         },
         status: await this.getStatus(),
