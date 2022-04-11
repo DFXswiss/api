@@ -57,6 +57,19 @@ export class StakingController {
       .then((s) => this.stakingService.toDto(jwt.id, s));
   }
 
+  // --- DEFICHAIN INCOME --- //
+  @Get('income')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.DEFICHAIN_INCOME))
+  async getStakingBalance(@Query('addresses') addresses: string): Promise<number> {
+    const stakingRoutes = await this.stakingService.getUserStakingByAddress(addresses.split(','));
+    if (stakingRoutes.length === 0) return 0;
+
+    const stakingBalances = await this.stakingService.getAllStakingBalance(stakingRoutes.map((u) => u.id));
+    return Util.round(Util.sumObj(stakingBalances, 'balance'), 8);
+  }
+
   // --- ADMIN --- //
   @Get('balance')
   @ApiBearerAuth()
@@ -66,17 +79,5 @@ export class StakingController {
     const stakingIds = await this.stakingService.getAllIds();
     const balances = await this.stakingService.getAllStakingBalance(stakingIds, date);
     return stakingIds.map((id) => ({ id, balance: balances.find((b) => b.id === id)?.balance ?? 0 }));
-  }
-
-  @Get('balance/:address')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.DEFICHAIN_INCOME))
-  async getStakingBalance(@Param('address') address: string): Promise<number> {
-    const stakingRoutes = await this.stakingService.getUserStakingByAddress(address);
-    if (stakingRoutes.length === 0) return 0;
-
-    const stakingBalances = await this.stakingService.getAllStakingBalance(stakingRoutes.map((u) => u.id));
-    return Util.round(Util.sumObj(stakingBalances, 'balance'), 8);
   }
 }
