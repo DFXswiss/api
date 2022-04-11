@@ -1,5 +1,5 @@
 import { WhaleApiClient } from '@defichain/whale-api-client';
-import { Config } from 'src/config/config';
+import { GetConfig } from 'src/config/config';
 
 export class WhaleClient {
   private readonly client: WhaleApiClient;
@@ -9,7 +9,7 @@ export class WhaleClient {
   }
 
   private createWhaleClient(): WhaleApiClient {
-    return new WhaleApiClient(Config?.whale);
+    return new WhaleApiClient(GetConfig().whale);
   }
 
   async getBalance(address: string): Promise<string> {

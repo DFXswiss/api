@@ -12,6 +12,7 @@ export function GetConfig(): Configuration {
 
 export class Configuration {
   environment = process.env.ENVIRONMENT;
+  network = process.env.NETWORK;
   githubToken = process.env.GH_TOKEN;
   defaultLanguage = 'de';
   defaultCountry = 'DE';
@@ -117,7 +118,7 @@ export class Configuration {
 
   whale = {
     version: 'v0',
-    network: process.env.NETWORK,
+    network: this.network,
     url: 'https://ocean.defichain.com',
   };
 
