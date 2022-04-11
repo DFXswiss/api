@@ -1,11 +1,13 @@
-import { IsInt, IsOptional } from 'class-validator';
+import { IsInt, IsNotEmpty, ValidateIf } from 'class-validator';
 
 export class UpdateBankTxDto {
-  @IsOptional()
+  @IsNotEmpty()
   @IsInt()
+  @ValidateIf((o) => !o.nextRepeatBankTxId || o.returnBankTxId)
   returnBankTxId: number;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsInt()
+  @ValidateIf((o) => !o.returnBankTxId || o.nextRepeatBankTxId)
   nextRepeatBankTxId: number;
 }
