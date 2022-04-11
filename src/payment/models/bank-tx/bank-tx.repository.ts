@@ -17,4 +17,8 @@ export class BankTxRepository extends Repository<BankTx> {
 
     return results;
   }
+
+  async setNewUpdateTime(bankTxId: number): Promise<void> {
+    await this.update(bankTxId, { updated: new Date() });
+  }
 }

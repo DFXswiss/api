@@ -3,14 +3,12 @@ import { CryptoStaking } from './crypto-staking.entity';
 
 @EntityRepository(CryptoStaking)
 export class CryptoStakingRepository extends Repository<CryptoStaking> {
-  getActiveEntries(date: Date): SelectQueryBuilder<CryptoStaking> {
-    return this.createQueryBuilder('cryptoStaking').where(
-      'cryptoStaking.inputDate <= :date AND cryptoStaking.outputDate >= :date',
-      { date },
-    );
-  }
-
-  getCurrentActiveEntries(): SelectQueryBuilder<CryptoStaking> {
-    return this.createQueryBuilder('cryptoStaking').where('cryptoStaking.outTxId IS NULL');
+  getActiveEntries(date?: Date): SelectQueryBuilder<CryptoStaking> {
+    return date != null
+      ? this.createQueryBuilder('cryptoStaking').where(
+          'cryptoStaking.inputDate <= :date AND cryptoStaking.outputDate >= :date',
+          { date },
+        )
+      : this.createQueryBuilder('cryptoStaking').where('cryptoStaking.outTxId IS NULL');
   }
 }

@@ -132,7 +132,7 @@ export class CfpService {
 
       // update cfp results
       if (this.settings.inProgress) {
-        this.dfxMasternodes = await this.masterNodeService.getActiveMasternodes();
+        this.dfxMasternodes = await this.masterNodeService.getActive();
 
         let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
         allCfp = allCfp.filter(

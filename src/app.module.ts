@@ -11,9 +11,17 @@ import { UserModule } from './user/user.module';
 import { AdminController } from './admin/admin.controller';
 import { GetConfig } from './config/config';
 import { SeedService } from './shared/seed/seed.service';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 @Module({
-  imports: [TypeOrmModule.forRoot(GetConfig().database), SharedModule, AinModule, PaymentModule, UserModule],
+  imports: [
+    TypeOrmModule.forRoot(GetConfig().database),
+    SharedModule,
+    AinModule,
+    PaymentModule,
+    UserModule,
+    MonitoringModule,
+  ],
   controllers: [AppController, StatisticController, AdminController],
   providers: [StatisticService, CfpService, SeedService],
   exports: [],

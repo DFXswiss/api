@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { MasternodeRepository } from 'src/payment/models/masternode/masternode.repository';
-import { LessThan } from 'typeorm';
+import { LessThan, MoreThan } from 'typeorm';
 import { CreateMasternodeDto } from './dto/create-masternode.dto';
 import { ResignMasternodeDto } from './dto/resign-masternode.dto';
 import { Masternode } from './masternode.entity';
@@ -27,11 +27,15 @@ export class MasternodeService {
     return await this.masternodeRepo.save({ ...masternode, ...dto });
   }
 
-  async getCount(date: Date = new Date()): Promise<number> {
-    return this.masternodeRepo.count({ where: { enabled: true, created: LessThan(date) } });
+  async getCount(): Promise<number> {
+    return this.masternodeRepo.count();
   }
 
-  async getActiveMasternodes(): Promise<Masternode[]> {
+  async getActiveCount(date: Date = new Date()): Promise<number> {
+    return this.masternodeRepo.count({ where: { created: LessThan(date), resignDate: MoreThan(date) } });
+  }
+
+  async getActive(): Promise<Masternode[]> {
     return this.masternodeRepo.find({ where: { enabled: true } });
   }
 }

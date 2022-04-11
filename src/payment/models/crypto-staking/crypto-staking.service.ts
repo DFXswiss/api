@@ -101,7 +101,7 @@ export class CryptoStakingService {
 
   async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {
     return await this.cryptoStakingRepo
-      .getCurrentActiveEntries()
+      .getActiveEntries()
       .select('SUM(cryptoStaking.inputAmount)', 'amount')
       .addSelect('dateadd(DAY, 0, datediff(DAY, 0, cryptoStaking.outputDate))', 'outputDate')
       .addSelect('cryptoStaking.payoutType', 'payoutType')

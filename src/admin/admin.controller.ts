@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException, Put } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
@@ -10,6 +10,7 @@ import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
+import { RenameRefDto } from './dto/rename-ref.dto';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
 
@@ -31,6 +32,18 @@ export class AdminController {
     for (const dto of dtoList) {
       await this.mailService.sendMail(dto);
     }
+  }
+
+  @Put('renameSpiderRef')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async renameReference(@Body() renameRefDto: RenameRefDto): Promise<boolean> {
+    return await this.spiderService.renameReference(
+      renameRefDto.oldReference,
+      renameRefDto.newReference,
+      renameRefDto.referenceType,
+    );
   }
 
   @Get('spider')

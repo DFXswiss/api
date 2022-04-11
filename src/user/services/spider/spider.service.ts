@@ -25,6 +25,11 @@ export enum DocumentState {
   EXPIRING = 'Expiring',
 }
 
+export enum ReferenceType {
+  CUSTOMER = 'customer',
+  CONTRACT = 'contract',
+}
+
 @Injectable()
 export class SpiderService {
   private readonly defaultDocumentPart = 'content';
@@ -48,6 +53,16 @@ export class SpiderService {
       Util.removeNullFields(update);
       await this.spiderApi.updateCustomer({ ...customer, ...update });
     }
+  }
+
+  public async renameReference(
+    oldReference: string,
+    newReference: string,
+    referenceType: ReferenceType,
+  ): Promise<boolean> {
+    return referenceType == ReferenceType.CONTRACT
+      ? await this.spiderApi.renameContractReference(oldReference, newReference)
+      : await this.spiderApi.renameCustomerReference(oldReference, newReference);
   }
 
   async initializeCustomer(user: UserData): Promise<void> {

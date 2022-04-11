@@ -54,8 +54,8 @@ export class StakingService {
     return this.stakingRepo.find({ user: { id: userId } });
   }
 
-  async getUserStakingByAddress(address: string): Promise<Staking[]> {
-    return await this.stakingRepo.find({ where: { user: { address: address } }, relations: ['user'] });
+  async getUserStakingByAddresses(addresses: string[]): Promise<Staking[]> {
+    return await this.stakingRepo.find({ where: { user: { address: In(addresses) } }, relations: ['user'] });
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
@@ -144,7 +144,7 @@ export class StakingService {
 
   async getCurrentStakingBalance(stakingId: number): Promise<number> {
     const { balance } = await this.cryptoStakingRepo
-      .getCurrentActiveEntries()
+      .getActiveEntries()
       .select('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId = :stakingId', { stakingId })
       .getRawOne<{ balance: number }>();
@@ -161,10 +161,8 @@ export class StakingService {
   }
 
   async getAllStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
-    return await (date != null
-      ? this.cryptoStakingRepo.getActiveEntries(date)
-      : this.cryptoStakingRepo.getCurrentActiveEntries()
-    )
+    return await this.cryptoStakingRepo
+      .getActiveEntries(date)
       .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId IN (:...stakingIds)', { stakingIds })
@@ -172,7 +170,7 @@ export class StakingService {
       .getRawMany<{ id: number; balance: number }>();
   }
 
-  async getTotalStakingBalance(date: Date): Promise<number> {
+  async getTotalStakingBalance(date?: Date): Promise<number> {
     return await this.cryptoStakingRepo
       .getActiveEntries(date)
       .select('SUM(inputAmount)', 'balance')
