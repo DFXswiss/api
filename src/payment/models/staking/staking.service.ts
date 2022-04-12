@@ -65,7 +65,7 @@ export class StakingService {
     if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
 
     const { status } = await this.userService.getUser(userId);
-    if (status === UserStatus.NA) throw new BadRequestException('Missing bank transaction');
+    if (status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
 
     // max. 10 routes
     const routeCount = await this.stakingRepo.count({ user: { id: userId } });

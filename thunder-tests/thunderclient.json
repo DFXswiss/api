@@ -848,5 +848,33 @@
       }
     ],
     "tests": []
+  },
+  {
+    "_id": "1a9ca935-04c8-4df2-a1ac-65285d9060d8",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fd2e8b01-0e57-4f22-bbb5-226617dc19db",
+    "name": "Get Staking Balance Status",
+    "url": "{{url}}/v1/monitoring/balanceStatus",
+    "method": "GET",
+    "sortNum": 330000,
+    "created": "2022-04-12T13:02:46.352Z",
+    "modified": "2022-04-12T13:03:10.476Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "dea11939-638e-4a1a-9010-924edea26199",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "70021591-4ac2-4ec2-a400-0f7923d201b5",
+    "name": "Get Forecast",
+    "url": "{{url}}/v1/cryptoStaking/forecast",
+    "method": "GET",
+    "sortNum": 305000,
+    "created": "2022-04-12T15:03:32.748Z",
+    "modified": "2022-04-12T15:04:18.957Z",
+    "headers": [],
+    "params": [],
+    "tests": []
   }
 ]

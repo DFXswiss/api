@@ -103,12 +103,12 @@ export class CryptoStakingService {
     return await this.cryptoStakingRepo
       .getActiveEntries()
       .select('SUM(cryptoStaking.inputAmount)', 'amount')
-      .addSelect('dateadd(DAY, 0, datediff(DAY, 0, cryptoStaking.outputDate))', 'outputDate')
+      .addSelect('dateadd(DAY, datediff(DAY, 0, cryptoStaking.outputDate), 0)', 'outputDate')
       .addSelect('cryptoStaking.payoutType', 'payoutType')
       .leftJoin('cryptoStaking.stakingRoute', 'stakingRoute')
       .andWhere('stakingRoute.id = :stakingId', { stakingId })
       .andWhere('stakingRoute.userId = :userId', { userId })
-      .groupBy('dateadd(DAY, 0, datediff(DAY, 0, cryptoStaking.outputDate)), cryptoStaking.payoutType')
+      .groupBy('dateadd(DAY, datediff(DAY, 0, cryptoStaking.outputDate), 0), cryptoStaking.payoutType')
       .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>()
       .then((l) => l.map((b) => ({ ...b, amount: Util.round(b.amount, 2) })));
   }
@@ -160,6 +160,22 @@ export class CryptoStakingService {
       relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
     return this.toDtoList(cryptoStakingList);
+  }
+
+  async getPayoutForecast(): Promise<{ batches: StakingBatchDto[]; avgInflow: number }> {
+    const batches = await this.cryptoStakingRepo
+      .getActiveEntries()
+      .select('SUM(cryptoStaking.inputAmount)', 'amount')
+      .addSelect('dateadd(HOUR, datediff(HOUR, 0, cryptoStaking.outputDate), 0)', 'outputDate')
+      .addSelect('cryptoStaking.payoutType', 'payoutType')
+      .orderBy('dateadd(HOUR, datediff(HOUR, 0, cryptoStaking.outputDate), 0)', 'ASC')
+      .groupBy('dateadd(HOUR, datediff(HOUR, 0, cryptoStaking.outputDate), 0), cryptoStaking.payoutType')
+      .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>();
+
+    const balanceToday = await this.stakingService.getTotalStakingBalance();
+    const balanceLastWeek = await this.stakingService.getTotalStakingBalance(Util.daysBefore(7));
+
+    return { batches, avgInflow: (balanceToday - balanceLastWeek) / 7 };
   }
 
   async rearrangeOutputDates(date: Date): Promise<void> {
