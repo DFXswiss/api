@@ -1,0 +1,852 @@
+[
+  {
+    "_id": "f337f821-c494-4e57-8475-81ccfa14af12",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Trade Result",
+    "url": "{{url}}/v1/exchange/trade/674787848",
+    "method": "GET",
+    "sortNum": 10000,
+    "created": "2022-01-15T13:17:03.626Z",
+    "modified": "2022-01-15T13:40:00.275Z",
+    "headers": [],
+    "params": [],
+    "auth": {
+      "type": "inherit"
+    },
+    "tests": []
+  },
+  {
+    "_id": "a5ba0403-3e1d-4cab-a819-773fc6de2787",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Trade",
+    "url": "{{url}}/v1/exchange/kraken/trade",
+    "method": "POST",
+    "sortNum": 20000,
+    "created": "2022-01-15T13:35:02.988Z",
+    "modified": "2022-01-15T13:40:03.207Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"from\": \"eur\",\n    \"to\": \"btc\",\n    \"amount\": 100,\n    \"withdrawal\": {\n        \"address\": \"38w2xMqoGX2JxQJkqxr7ei7Ck2A3eEPUy8\",\n        \"key\": \"CAKE DFX Account\",\n        \"withdrawAll\": false\n    }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "2dde8f12-d0ae-4a9e-8748-950518cc2fdb",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Balances",
+    "url": "{{url}}/v1/exchange/kraken/balances",
+    "method": "GET",
+    "sortNum": 30000,
+    "created": "2022-01-15T13:38:35.636Z",
+    "modified": "2022-01-15T13:40:04.335Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "4b0f55e8-0dd2-4756-a8dc-42ab530944ec",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Withdraw",
+    "url": "{{url}}/v1/exchange/kraken/withdraw",
+    "method": "POST",
+    "sortNum": 50000,
+    "created": "2022-01-15T13:40:21.733Z",
+    "modified": "2022-01-15T13:55:09.320Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"token\": \"BTC\",\n    \"amount\": null,\n    \"address\": \"38w2xMqoGX2JxQJkqxr7ei7Ck2A3eEPUy8\",\n    \"key\": \"CAKE DFX Account\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "545f3505-50fe-40fb-bd7e-6a0822e43693",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Price",
+    "url": "{{url}}/v1/exchange/kraken/price?from=eur&to=btc",
+    "method": "GET",
+    "sortNum": 60000,
+    "created": "2022-01-15T13:40:30.820Z",
+    "modified": "2022-01-15T13:55:38.520Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "from",
+        "value": "eur",
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "btc",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "39f53e71-a4af-4ee3-9c91-1bfbc185c117",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "bb196338-ee45-4c59-ad65-68bd4a3b2fdd",
+    "name": "Command Int Active",
+    "url": "{{url}}/v1/node/dex/active/cmd",
+    "method": "POST",
+    "sortNum": 70000,
+    "created": "2022-01-15T13:40:57.248Z",
+    "modified": "2022-03-10T21:46:41.555Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\"command\": \"listunspent\", \"noAutoUnlock\": false}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "3f259b6e-3d5e-46e6-a47f-7a9472bc454c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Sign In",
+    "url": "{{url}}/v1/auth/signin",
+    "method": "POST",
+    "sortNum": 80000,
+    "created": "2022-01-15T13:41:33.269Z",
+    "modified": "2022-04-07T11:56:26.698Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"address\": \"8bmnAbfiq9zMYcZmiRAxcKnVxspPbXyUm6\",\n    \"signature\": \"H4tBL3fiQGFnT99D/QOi56TBW2zpUrR9NmyYW4xMPcf7E3f59CRIxW//3RYyWijg/FGaECqGvT9JM3+MAbPhdi4=\"\n}",
+      "form": []
+    },
+    "auth": {
+      "type": "none"
+    },
+    "tests": []
+  },
+  {
+    "_id": "2d6d21c3-7818-4db9-b338-d419451c3261",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Sign Up",
+    "url": "{{url}}/v1/auth/signUp",
+    "method": "POST",
+    "sortNum": 90000,
+    "created": "2022-01-15T13:41:39.116Z",
+    "modified": "2022-03-24T18:20:25.937Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"address\": \"df1qcvzphmq0qaahnjy6qs6jcljrp8nz4dxefr7ytg\",\n  \"signature\": \"H2GHd71xqGqTj1hGpZE51KyGzqaxsC1aSNL0M9eCuwxNF6KAFsJQjHdIToVF/R4USXAzfJ0Cpsre5rM1B9ExjnQ=\",\n  \"usedRef\": null,\n  \"walletId\": 1\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "bcee7a58-c8a8-4b66-8e69-20256b881f9a",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "37c18902-ffd3-446a-acc7-461024d278b8",
+    "name": "Merge",
+    "url": "{{url}}/v1/userData/175/merge?id=224",
+    "method": "PUT",
+    "sortNum": 100000,
+    "created": "2022-01-15T13:42:21.785Z",
+    "modified": "2022-03-23T11:13:45.273Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "id",
+        "value": "224",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "d911836a-6a24-49d4-af66-4a8813aaa0e4",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "37c18902-ffd3-446a-acc7-461024d278b8",
+    "name": "Bank Data",
+    "url": "{{url}}/v1/userData/1/bankdatas",
+    "method": "PUT",
+    "sortNum": 110000,
+    "created": "2022-01-15T13:42:46.445Z",
+    "modified": "2022-01-15T13:58:31.461Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"name\": \"string\",\n  \"country\": \"string\",\n  \"iban\": \"string\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "dba07707-cd93-4ad7-955b-04e1d6df674c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "37c18902-ffd3-446a-acc7-461024d278b8",
+    "name": "User Data",
+    "url": "{{url}}/v1/userData/203",
+    "method": "PUT",
+    "sortNum": 120000,
+    "created": "2022-01-15T13:47:31.522Z",
+    "modified": "2022-02-15T21:30:30.025Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"NA\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "d0f8196e-3949-4b9f-b5d2-264e215ce31a",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
+    "name": "Update Ref Volumes",
+    "url": "{{url}}/v1/cryptoBuy/refVolumes",
+    "method": "PUT",
+    "sortNum": 130000,
+    "created": "2022-01-15T13:53:12.691Z",
+    "modified": "2022-01-15T14:00:12.127Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "f72e06bf-c00d-4353-8ec4-cde1cf460fd3",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
+    "name": "Update Volumes",
+    "url": "{{url}}/v1/cryptoBuy/volumes",
+    "method": "PUT",
+    "sortNum": 65000,
+    "created": "2022-01-15T13:59:41.347Z",
+    "modified": "2022-01-15T14:00:31.637Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "17248925-a46a-4a6e-a162-43c10f93935f",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
+    "name": "Get Raw Data",
+    "url": "{{url}}/v1/admin/db?table=bank_tx&min=20000",
+    "method": "GET",
+    "sortNum": 140000,
+    "created": "2022-01-18T09:59:23.104Z",
+    "modified": "2022-04-05T22:46:47.265Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "table",
+        "value": "bank_tx",
+        "isPath": false
+      },
+      {
+        "name": "min",
+        "value": "20000",
+        "isPath": false
+      },
+      {
+        "name": "updatedSince",
+        "value": "2022-01-24T10:00:00Z",
+        "isDisabled": true,
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "7d95c6d9-2da8-4742-9291-97850a5bd04e",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
+    "name": "Get History",
+    "url": "{{url}}/v1/history?sell=asdf&staking=false&ref",
+    "method": "GET",
+    "sortNum": 150000,
+    "created": "2022-01-18T14:02:11.871Z",
+    "modified": "2022-03-03T21:43:21.341Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "buy",
+        "value": "",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "sell",
+        "value": "asdf",
+        "isPath": false
+      },
+      {
+        "name": "staking",
+        "value": "false",
+        "isPath": false
+      },
+      {
+        "name": "from",
+        "value": "2021-08-18",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "lm",
+        "value": "false",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "ref",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "2021-08-19",
+        "isDisabled": true,
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "cf29e7dd-ef64-4a5d-a41c-6ed2b90cc803",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0ce2fd7c-db24-4b1d-a413-ad04a98c72e9",
+    "name": "Create Staking",
+    "url": "{{url}}/v1/staking",
+    "method": "POST",
+    "sortNum": 160000,
+    "created": "2022-01-19T10:53:00.679Z",
+    "modified": "2022-01-19T12:45:33.685Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"rewardType\": \"Payout\",\n  \"rewardSell\": {\n      \"id\": 1\n  },\n  \"paybackType\": \"Payout\",\n  \"paybackSell\": {\n      \"id\": 3\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "43c17a5b-dc4e-464d-809f-9376d2897108",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0ce2fd7c-db24-4b1d-a413-ad04a98c72e9",
+    "name": "Get My Staking",
+    "url": "{{url}}/v1/staking",
+    "method": "GET",
+    "sortNum": 170000,
+    "created": "2022-01-19T12:30:43.076Z",
+    "modified": "2022-01-19T12:30:50.199Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "c298cfe7-72e0-4c3e-af93-cc21a7f366a7",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0ce2fd7c-db24-4b1d-a413-ad04a98c72e9",
+    "name": "Update Staking",
+    "url": "{{url}}/v1/staking",
+    "method": "PUT",
+    "sortNum": 165000,
+    "created": "2022-01-19T12:46:18.745Z",
+    "modified": "2022-01-19T12:47:52.902Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"id\": 8,\n  \"active\": false\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "402ba00c-db6c-4473-9586-0af485594f42",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Binance Balances",
+    "url": "{{url}}/v1/exchange/binance/balances",
+    "method": "GET",
+    "sortNum": 40000,
+    "created": "2022-01-19T16:15:38.155Z",
+    "modified": "2022-01-19T16:15:52.437Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "5f056d98-221b-4958-bb4a-f7c764b6ee67",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Binance Withdraw",
+    "url": "{{url}}/v1/exchange/binance/withdraw",
+    "method": "POST",
+    "sortNum": 25000,
+    "created": "2022-01-19T16:17:47.911Z",
+    "modified": "2022-01-21T15:31:45.983Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"token\": \"USDT\",\n    \"amount\": 10,\n    \"address\": \"TEbQC8RtmbUVUaedG856rxi1vwoHAhb56X\",\n    \"key\": \"DFXUSDTTRC20\",\n    \"network\": \"TRC20\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "6064f22c-dd95-4228-a505-22075e9e733d",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Binance Withdraw",
+    "url": "{{url}}/v1/exchange/binance/withdraw/8f3aca157939423da60ee29361b417f8?token=USDT",
+    "method": "GET",
+    "sortNum": 27500,
+    "created": "2022-01-21T13:44:15.450Z",
+    "modified": "2022-01-21T15:32:22.837Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "token",
+        "value": "USDT",
+        "isPath": false
+      }
+    ],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"token\": \"USDT\",\n    \"amount\": 0.00000001,\n    \"address\": \"0x154dffe7d154d3b6fb6845f50e27c7031bbc94ad\",\n    \"key\": \"DFXUSDTERC20\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "7788a4dc-d079-45e9-9ace-1ac47182dd2a",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0ce2fd7c-db24-4b1d-a413-ad04a98c72e9",
+    "name": "Get All Balance",
+    "url": "{{url}}/v1/staking/balance?date=2022-03-27T00:00:00",
+    "method": "GET",
+    "sortNum": 180000,
+    "created": "2022-01-24T22:53:25.982Z",
+    "modified": "2022-04-07T13:05:33.828Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "date",
+        "value": "2022-03-27T00:00:00",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "e8912b0f-1acd-4cb2-9285-43c2c30a872c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Bitstamp Price",
+    "url": "{{url}}/v1/exchange/bitstamp/price?from=eur&to=usdc",
+    "method": "GET",
+    "sortNum": 70000,
+    "created": "2022-01-25T23:39:07.737Z",
+    "modified": "2022-01-25T23:39:54.722Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "from",
+        "value": "eur",
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "usdc",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "6c386354-15d8-4b59-a357-56dbe1901d14",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "bfbadd95-efc2-467d-9c06-404b766ef1cf",
+    "name": "Get My Route",
+    "url": "{{url}}/v1/route",
+    "method": "GET",
+    "sortNum": 180000,
+    "created": "2022-01-26T11:14:03.846Z",
+    "modified": "2022-01-26T11:15:11.417Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "be2ef579-62c9-4c1c-a574-35c58e025b36",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
+    "name": "Create Masternode",
+    "url": "{{url}}/v1/masternode",
+    "method": "POST",
+    "sortNum": 190000,
+    "created": "2022-02-01T17:41:08.086Z",
+    "modified": "2022-03-26T14:44:56.016Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"hash\": \"string5\",\n  \"owner\": \"string;\",\n  \"operator\": \"string;\",\n  \"server\": \"string;\",\n  \"timelock\": 0\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "ae412440-58fa-4623-9601-58249b354157",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "abff3bcc-baef-471c-bd79-bd812dd74e47",
+    "name": "Get Flags",
+    "url": "{{url}}/v1/app/settings/flags",
+    "method": "GET",
+    "sortNum": 200000,
+    "created": "2022-02-02T15:05:56.308Z",
+    "modified": "2022-02-02T15:06:53.954Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "5cb75317-cc9c-415d-b7b5-cc99403b65fc",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0ce2fd7c-db24-4b1d-a413-ad04a98c72e9",
+    "name": "Get Address Balance",
+    "url": "{{url}}/v1/staking/balance/df1qdttysqaw5dn7dzy2dvukl86v6etqftskwacdn",
+    "method": "GET",
+    "sortNum": 190000,
+    "created": "2022-02-03T00:01:44.413Z",
+    "modified": "2022-02-03T00:14:20.674Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "cbf54e66-34ec-45ef-a970-fc050601ec08",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
+    "name": "Create",
+    "url": "{{url}}/v1/cryptoBuy",
+    "method": "POST",
+    "sortNum": 32500,
+    "created": "2022-02-07T01:02:59.725Z",
+    "modified": "2022-02-07T01:19:00.830Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"bankTxId\": 36,\n    \"buyId\": 42,\n    \"amlCheck\": \"Pass\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "601b39c4-6586-4566-b9cd-c85bede66892",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
+    "name": "Update",
+    "url": "{{url}}/v1/cryptoBuy/31",
+    "method": "PUT",
+    "sortNum": 48750,
+    "created": "2022-02-07T01:19:48.434Z",
+    "modified": "2022-02-07T01:21:18.419Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"bankTxId\": 36,\n    \"buyId\": 42,\n    \"amlCheck\": \"Pass\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "c8e1cdfc-ecc8-4009-ae9e-0e605ec124f8",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "39c67052-c784-4068-b744-5971d536436f",
+    "name": "Create",
+    "url": "{{url}}/v1/cryptoSell",
+    "method": "POST",
+    "sortNum": 210000,
+    "created": "2022-02-07T01:30:53.307Z",
+    "modified": "2022-02-07T01:33:52.436Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"cryptoInputId\": 22,\n    \"amlCheck\": \"Pass\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "1c09d1d9-1952-4b6f-9dcf-eb23e1d750f3",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Update Status",
+    "url": "{{url}}/v1/user/1/status",
+    "method": "PUT",
+    "sortNum": 220000,
+    "created": "2022-02-07T09:59:27.369Z",
+    "modified": "2022-02-07T10:01:59.030Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"status\": \"Active\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "52780088-74a0-4568-9dc6-fd9a1cfddcb8",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
+    "name": "Send Mail",
+    "url": "{{url}}/v1/admin/mail",
+    "method": "POST",
+    "sortNum": 230000,
+    "created": "2022-02-14T22:25:02.514Z",
+    "modified": "2022-03-18T10:38:15.203Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "[\n    {\n      \"to\": \"cto@dfx.swiss\",\n      \"displayName\": \"DFX API\",\n      \"from\": \"noreply@dfx.swiss\",\n      \"x_cc\": \"cto@dfx.swiss\",\n      \"x_bcc\": \"cto@dfx.swiss\",\n      \"salutation\": \"Hallo Duda\",\n      \"subject\": \"Test Message\",\n      \"body\": \"<table><tr><td colspan=\\\"2\\\">Wie sieht das so aus?</td></tr><tr><td>Links</td><td>Rechts</td></tr></table>\",\n      \"template\": \"default\"\n    }\n]",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "b811eff1-cbb7-4d5d-a6e2-ecff661cfda7",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "758940ba-6463-42d7-b4e4-fd12e8a5b6d9",
+    "name": "Online Webhook",
+    "url": "{{url}}/v1/ident/online",
+    "method": "POST",
+    "sortNum": 240000,
+    "created": "2022-02-19T00:18:55.079Z",
+    "modified": "2022-03-08T14:19:08.817Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"msg\": \"test\",\n    \"identificationprocess\": {\n        \"transactionnumber\": \"dfx_test_175_1772690642\"\n    }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "1d07374d-bbc5-4a75-b4b7-542c6e8cee40",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "abff3bcc-baef-471c-bd79-bd812dd74e47",
+    "name": "Get Announcements",
+    "url": "{{url}}/v1/app/announcements",
+    "method": "GET",
+    "sortNum": 210000,
+    "created": "2022-03-01T10:12:09.438Z",
+    "modified": "2022-03-01T10:12:26.414Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "2b3b2559-e048-460e-8c0a-99bbe75f48fb",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "abff3bcc-baef-471c-bd79-bd812dd74e47",
+    "name": "Get Advertisements",
+    "url": "{{url}}/v1/app/advertisements",
+    "method": "GET",
+    "sortNum": 220000,
+    "created": "2022-03-04T12:52:46.540Z",
+    "modified": "2022-03-04T12:56:05.439Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "5641a9bf-5029-4b89-8e19-13f0adbee3cf",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f04deafd-9d6a-4130-a73e-3ed1b7ae8a46",
+    "name": "Put Setting",
+    "url": "{{url}}/v1/setting/buyStatus",
+    "method": "PUT",
+    "sortNum": 250000,
+    "created": "2022-03-10T11:33:24.773Z",
+    "modified": "2022-03-10T11:39:49.866Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\"value\": \"ONLINE\"}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "0540751b-1aaf-45ed-90fe-9f6e24923a13",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f04deafd-9d6a-4130-a73e-3ed1b7ae8a46",
+    "name": "Get Settings",
+    "url": "{{url}}/v1/setting",
+    "method": "GET",
+    "sortNum": 260000,
+    "created": "2022-03-10T11:35:40.388Z",
+    "modified": "2022-03-10T11:35:40.388Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "7a062e93-adc3-452f-9c79-ec211fb17f31",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "37c18902-ffd3-446a-acc7-461024d278b8",
+    "name": "Resync",
+    "url": "{{url}}/v1/userData/4357/resync",
+    "method": "PUT",
+    "sortNum": 270000,
+    "created": "2022-03-16T10:10:08.405Z",
+    "modified": "2022-04-05T15:15:17.723Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "51d50ce0-cbb7-43f2-97ae-641e3eaeab14",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Create CT API Key",
+    "url": "{{url}}/v1/user/apiKey/CT",
+    "method": "POST",
+    "sortNum": 280000,
+    "created": "2022-03-19T19:53:52.315Z",
+    "modified": "2022-03-19T19:54:11.710Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "e8d756d2-127c-4bba-8610-f478ed7df16a",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Delete CT API Key",
+    "url": "{{url}}/v1/user/apiKey/CT",
+    "method": "DELETE",
+    "sortNum": 290000,
+    "created": "2022-03-19T19:55:53.752Z",
+    "modified": "2022-03-19T19:56:19.434Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "339c57ca-faeb-4445-b41a-9789f700155d",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
+    "name": "Resign Masternode",
+    "url": "{{url}}/v1/masternode/string4",
+    "method": "PUT",
+    "sortNum": 200000,
+    "created": "2022-03-26T14:41:22.341Z",
+    "modified": "2022-03-26T14:43:26.438Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"resignDate\": \"2022-04-01\",\n  \"resignHash\": \"resign4\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "77000fcc-17cf-4b7f-845e-b241b6a97f5a",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0ce2fd7c-db24-4b1d-a413-ad04a98c72e9",
+    "name": "Get Active Staking Batches",
+    "url": "{{url}}/v1/staking/1440/batches",
+    "method": "GET",
+    "sortNum": 175000,
+    "created": "2022-03-29T16:50:23.017Z",
+    "modified": "2022-04-07T11:55:03.861Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "6e10b30e-816b-41a4-9cf6-59422452c36e",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "70021591-4ac2-4ec2-a400-0f7923d201b5",
+    "name": "Get Pending",
+    "url": "{{url}}/v1/cryptoStaking/pending?date=2022-03-29T23:43:00.000Z",
+    "method": "GET",
+    "sortNum": 300000,
+    "created": "2022-03-29T22:42:34.760Z",
+    "modified": "2022-03-29T22:43:38.180Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "date",
+        "value": "2022-03-29T23:43:00.000Z",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "0490566a-ff4c-422b-9405-32ff30c331c1",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "70021591-4ac2-4ec2-a400-0f7923d201b5",
+    "name": "Payout",
+    "url": "{{url}}/v1/cryptoStaking/payout",
+    "method": "PUT",
+    "sortNum": 310000,
+    "created": "2022-03-31T23:05:23.528Z",
+    "modified": "2022-03-31T23:07:56.565Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "[\n    {\n        \"id\": 3,\n        \"outputAmount\": 5,\n        \"outputAsset\": \"USDT\",\n        \"outTxId\": \"test\"\n    }\n]",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "e20a2d48-0752-42ed-8f26-169d0d0efaf8",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "70021591-4ac2-4ec2-a400-0f7923d201b5",
+    "name": "Rearrange Output Dates",
+    "url": "{{url}}/v1/cryptoStaking/outputDates?date=2022-04-30 10:00:00.000",
+    "method": "PUT",
+    "sortNum": 320000,
+    "created": "2022-04-12T12:43:46.379Z",
+    "modified": "2022-04-12T12:44:19.605Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "date",
+        "value": "2022-04-30 10:00:00.000",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  }
+]
