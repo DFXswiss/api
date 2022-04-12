@@ -19,6 +19,7 @@ import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
 import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingRepository } from '../crypto-staking/crypto-staking.repository';
+import { UserStatus } from 'src/user/models/user/user.entity';
 
 @Injectable()
 export class StakingService {
@@ -62,6 +63,9 @@ export class StakingService {
     // KYC check
     const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
     if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
+
+    const { status } = await this.userService.getUser(userId);
+    if (status === UserStatus.NA) throw new BadRequestException('Missing bank transaction');
 
     // max. 10 routes
     const routeCount = await this.stakingRepo.count({ user: { id: userId } });
