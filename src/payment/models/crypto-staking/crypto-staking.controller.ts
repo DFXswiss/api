@@ -49,6 +49,14 @@ export class CryptoStakingController {
   }
 
   // --- ADMIN --- //
+  @Put('outputDates')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async rearrangeOutputDates(@Query('date') date: string): Promise<void> {
+    await this.cryptoStakingService.rearrangeOutputDates(new Date(date));
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

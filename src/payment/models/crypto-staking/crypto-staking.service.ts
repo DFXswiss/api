@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
@@ -12,7 +12,7 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
-import { Between, IsNull, LessThan } from 'typeorm';
+import { Between, IsNull, LessThan, Raw } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
@@ -160,6 +160,45 @@ export class CryptoStakingService {
       relations: ['stakingRoute', 'stakingRoute.paybackAsset', 'stakingRoute.user'],
     });
     return this.toDtoList(cryptoStakingList);
+  }
+
+  async rearrangeOutputDates(date: Date): Promise<void> {
+    date.setUTCHours(0, 0, 0, 0);
+    const dateTo = Util.daysAfter(1, date);
+
+    // all reinvests of that day
+    const cryptoStakingList = await this.cryptoStakingRepo.find({
+      where: {
+        outputDate: Raw((d) => `${d} >= :from AND ${d} < :to`, { from: date, to: dateTo }),
+        outTxId: IsNull(),
+        payoutType: PayoutType.REINVEST,
+      },
+      order: { stakingRoute: 'ASC' },
+    });
+
+    const payoutDate = new Date(date);
+    while (cryptoStakingList.length > 0) {
+      if (payoutDate >= dateTo) throw new InternalServerErrorException('Not enough time to payback staking reinvests');
+
+      // aggregate to batches
+      const batch: CryptoStaking[] = [];
+      let batchAmount = 0;
+
+      while (
+        cryptoStakingList.length > 0 &&
+        (batchAmount === 0 || batchAmount + cryptoStakingList[0].inputAmount <= Config.staking.payoutBatchSize)
+      ) {
+        batchAmount += cryptoStakingList[0].inputAmount;
+        batch.push(cryptoStakingList.shift());
+      }
+
+      // update output date
+      await this.cryptoStakingRepo.update(
+        batch.map((c) => c.id),
+        { outputDate: payoutDate },
+      );
+      payoutDate.setHours(payoutDate.getHours() + 1);
+    }
   }
 
   // --- DTO --- //
