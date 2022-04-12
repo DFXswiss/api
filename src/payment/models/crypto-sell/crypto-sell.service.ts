@@ -61,6 +61,9 @@ export class CryptoSellService {
     entity = await this.cryptoSellRepo.save({ ...update, ...entity });
 
     await this.updateSellVolume([sellIdBefore, entity.cryptoInput.route.id]);
+
+    if (dto.bankTxId) await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
+
     return entity;
   }
 
