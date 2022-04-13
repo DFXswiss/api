@@ -1,0 +1,56 @@
+[
+  {
+    "_id": "f21f80e0-3018-4635-8a99-dca01a3c685d",
+    "name": "loc",
+    "default": true,
+    "sortNum": 5000,
+    "created": "2022-01-15T13:20:53.555Z",
+    "modified": "2022-04-12T12:52:49.912Z",
+    "data": [
+      {
+        "name": "url",
+        "value": "http://localhost:3000"
+      },
+      {
+        "name": "token",
+        "value": "ChangeMe"
+      }
+    ]
+  },
+  {
+    "_id": "874013f0-8e0a-4772-b771-62714a53d181",
+    "name": "dev",
+    "default": false,
+    "sortNum": 20000,
+    "created": "2022-01-15T13:31:56.319Z",
+    "modified": "2022-04-12T12:52:54.084Z",
+    "data": [
+      {
+        "name": "url",
+        "value": "https://app-dfx-api-dev.azurewebsites.net"
+      },
+      {
+        "name": "token",
+        "value": "ChangeMe"
+      }
+    ]
+  },
+  {
+    "_id": "183e3383-d717-44b0-b059-7c96907d1ea4",
+    "name": "prd",
+    "default": false,
+    "sortNum": 30000,
+    "created": "2022-01-15T14:00:52.937Z",
+    "modified": "2022-04-12T12:52:56.718Z",
+    "data": [
+      {
+        "name": "url",
+        "value": "api.dfx.swiss"
+      },
+      {
+        "name": "token",
+        "value": "ChangeMe"
+      }
+    ]
+  }
+]

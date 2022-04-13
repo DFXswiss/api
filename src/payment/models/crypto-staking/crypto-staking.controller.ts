@@ -8,6 +8,7 @@ import { CryptoStakingService } from './crypto-staking.service';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
+import { StakingBatchDto } from './dto/staking-batch.dto';
 import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
 
 @ApiTags('cryptoStaking')
@@ -16,6 +17,14 @@ export class CryptoStakingController {
   constructor(private readonly cryptoStakingService: CryptoStakingService) {}
 
   // --- MASTERNODE OPERATOR --- //
+  @Get('forecast')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.MASTERNODE_OPERATOR))
+  async getPayoutForecast(): Promise<{ batches: StakingBatchDto[]; avgInflow: number }> {
+    return this.cryptoStakingService.getPayoutForecast();
+  }
+
   @Get('ready')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -49,6 +58,14 @@ export class CryptoStakingController {
   }
 
   // --- ADMIN --- //
+  @Put('outputDates')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async rearrangeOutputDates(@Query('date') date: string): Promise<void> {
+    await this.cryptoStakingService.rearrangeOutputDates(new Date(date));
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

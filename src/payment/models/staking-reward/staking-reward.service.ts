@@ -127,8 +127,9 @@ export class StakingRewardService {
   }
 
   public async getYield(): Promise<{ apr: number; apy: number }> {
-    const dateFrom = Util.daysBefore(Config.staking.period);
     const dateTo = new Date();
+    dateTo.setUTCHours(0, 0, 0, 0);
+    const dateFrom = Util.daysBefore(Config.staking.period, dateTo);
 
     const { rewardVolume } = await this.rewardRepo
       .createQueryBuilder('stakingReward')
@@ -136,20 +137,24 @@ export class StakingRewardService {
       .where('stakingReward.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
       .getRawOne<{ rewardVolume: number }>();
 
-    const collateral = Util.avg([
-      await this.stakingService.getTotalStakingBalance(dateFrom),
-      await this.stakingService.getTotalStakingBalance(dateTo),
-    ]);
+    const balances: number[] = [];
+    for (
+      const dateIterator = new Date(dateFrom);
+      dateIterator < dateTo;
+      dateIterator.setDate(dateIterator.getDate() + 1)
+    ) {
+      balances.push(await this.stakingService.getTotalStakingBalance(dateIterator));
+    }
 
-    const apr = await this.getPeriodApr(rewardVolume, collateral);
+    const apr = await this.getApr(rewardVolume / Config.staking.period, Util.avg(balances));
     return {
       apr: Util.round(apr, 2),
       apy: Util.round(this.getApy(apr), 2),
     };
   }
 
-  private async getPeriodApr(periodInterest: number, collateral: number): Promise<number> {
-    return (periodInterest / collateral) * (365 / Config.staking.period);
+  private async getApr(interest: number, collateral: number): Promise<number> {
+    return (interest / collateral) * 365;
   }
 
   private getApy(apr: number): number {
