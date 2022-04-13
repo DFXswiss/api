@@ -376,7 +376,7 @@ export class CryptoInputService {
   }
 
   private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
-  private readonly tokenTxTypes = ['AccountToAccount', 'WithdrawFromVault', 'PoolSwap', 'RemovePoolLiquidity'];
+  private readonly tokenTxTypes = ['AccountToAccount', 'AnyAccountsToAccounts', 'WithdrawFromVault', 'PoolSwap', 'RemovePoolLiquidity'];
 
   getAmounts(history: AccountHistory): HistoryAmount[] {
     const amounts = this.utxoTxTypes.includes(history.type)
