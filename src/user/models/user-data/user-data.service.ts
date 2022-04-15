@@ -9,9 +9,10 @@ import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Config } from 'src/config/config';
-import { SpiderService } from 'src/user/services/spider/spider.service';
+import { ReferenceType, SpiderService } from 'src/user/services/spider/spider.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserRepository } from '../user/user.repository';
+import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 
 @Injectable()
 export class UserDataService {
@@ -23,6 +24,7 @@ export class UserDataService {
     private readonly languageService: LanguageService,
     private readonly fiatService: FiatService,
     private readonly spiderService: SpiderService,
+    private readonly spiderApiService: SpiderApiService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -73,6 +75,13 @@ export class UserDataService {
         where: { id: Not(userDataId), kycFileId: dto.kycFileId },
       });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+      const customerInfo = await this.spiderApiService.getCustomerInfo(userDataId);
+      if (customerInfo && customerInfo.contractReference != dto.kycFileId.toString())
+        await this.spiderService.renameReference(
+          customerInfo.contractReference,
+          dto.kycFileId.toString(),
+          ReferenceType.CONTRACT,
+        );
     }
 
     return await this.userDataRepo.save({ ...userData, ...dto });
