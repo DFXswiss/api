@@ -86,15 +86,30 @@ export class CryptoStakingService {
     const cryptoStaking = await this.cryptoStakingRepo.find({
       where: [
         { stakingRoute: { user: { id: userId } }, inputDate: Between(dateFrom, dateTo), isReinvest: false },
-        { stakingRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo), isReinvest: false },
+        {
+          stakingRoute: { user: { id: userId } },
+          outputDate: Between(dateFrom, dateTo),
+          payoutType: PayoutType.BANK_ACCOUNT,
+        },
+        {
+          stakingRoute: { user: { id: userId } },
+          outputDate: Between(dateFrom, dateTo),
+          payoutType: PayoutType.WALLET,
+        },
       ],
       relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
     });
 
     return {
-      deposits: cryptoStaking.filter((entry) => entry.inputDate >= dateFrom && entry.inputDate <= dateTo),
+      deposits: cryptoStaking.filter(
+        (entry) => entry.inputDate >= dateFrom && entry.inputDate <= dateTo && !entry.isReinvest,
+      ),
       withdrawals: cryptoStaking.filter(
-        (entry) => entry.outTxId && entry.outputDate >= dateFrom && entry.outputDate <= dateTo,
+        (entry) =>
+          entry.outTxId &&
+          entry.outputDate >= dateFrom &&
+          entry.outputDate <= dateTo &&
+          (entry.payoutType === PayoutType.BANK_ACCOUNT || entry.payoutType === PayoutType.WALLET),
       ),
     };
   }
