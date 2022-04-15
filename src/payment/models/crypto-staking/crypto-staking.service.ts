@@ -12,7 +12,7 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
-import { Between, IsNull, LessThan, Raw } from 'typeorm';
+import { Between, IsNull, LessThan, Not, Raw } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
@@ -89,12 +89,7 @@ export class CryptoStakingService {
         {
           stakingRoute: { user: { id: userId } },
           outputDate: Between(dateFrom, dateTo),
-          payoutType: PayoutType.BANK_ACCOUNT,
-        },
-        {
-          stakingRoute: { user: { id: userId } },
-          outputDate: Between(dateFrom, dateTo),
-          payoutType: PayoutType.WALLET,
+          payoutType: Not(PayoutType.REINVEST),
         },
       ],
       relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
