@@ -85,10 +85,14 @@ export class AppController {
   async getAds(@Query() { id, date, lang }: AdvertisementDto): Promise<AdDto> {
     const adSettings = await this.settingService.getObj<AdSettings>('advertisements');
 
-    const nextAdIndex = (adSettings.ads.findIndex((ad) => ad.id === id) + 1) % adSettings.ads.length;
-    const nextAd = adSettings.ads[nextAdIndex];
+    let nextAd = this.getSpecialAd(id, adSettings);
+    if (!nextAd) {
+      // standard ad
+      const nextAdIndex = (adSettings.ads.findIndex((ad) => ad.id === id) + 1) % adSettings.ads.length;
+      nextAd = adSettings.ads[nextAdIndex];
 
-    if (Util.daysDiff(date, new Date()) < adSettings.displayInterval || !nextAd) return undefined;
+      if (Util.daysDiff(date, new Date()) < adSettings.displayInterval || !nextAd) return undefined;
+    }
 
     return {
       id: nextAd.id,
@@ -112,6 +116,16 @@ export class AppController {
       .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
       .then((r) => r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null))
       .catch(() => []);
+  }
+
+  private getSpecialAd(id: string, settings: AdSettings): { id: string; url: string } {
+    const isSpecialAd =
+      settings.specialAd &&
+      new Date().getTime() > new Date(settings.specialAd.from).getTime() &&
+      new Date().getTime() < new Date(settings.specialAd.to).getTime() &&
+      id !== settings.specialAd.id;
+
+    return isSpecialAd ? settings.specialAd : undefined;
   }
 
   private getAdLanguage(lang?: string): string {
