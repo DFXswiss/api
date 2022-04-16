@@ -114,13 +114,9 @@ export class KycProcessService {
               : await this.spiderService.getChatbotResult(userData.id, true),
         };
 
-        const chatbotExport = {
-          person: JSON.parse((await this.spiderService.getChatbotExport(userData.id, false)).attributes?.form)?.items,
-          organization:
-            userData.accountType === AccountType.PERSONAL
-              ? undefined
-              : JSON.parse((await this.spiderService.getChatbotExport(userData.id, true)).attributes?.form)?.items,
-        };
+        const chatbotExport = JSON.parse(
+          (await this.spiderService.getChatbotExport(userData.id, false)).attributes?.form,
+        )?.items;
 
         spiderData.chatbotResult = JSON.stringify(chatbotResult);
         spiderData.chatbotExport = JSON.stringify(chatbotExport);

@@ -216,7 +216,7 @@ export interface ChatbotResult {
 }
 
 export interface ChatbotExport {
-  attributes: { form };
+  attributes: { form: string };
 }
 
 export interface IdentificationLog {
