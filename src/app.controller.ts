@@ -132,6 +132,12 @@ export class AppController {
     switch (lang?.slice(0, 2)) {
       case 'de':
         return 'DE';
+      case 'es':
+        return 'ES';
+      case 'fr':
+        return 'FR';
+      case 'it':
+        return 'IT';
       default:
         return 'EN';
     }
