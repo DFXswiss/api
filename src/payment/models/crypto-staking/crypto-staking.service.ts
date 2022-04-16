@@ -104,7 +104,7 @@ export class CryptoStakingService {
           entry.outTxId &&
           entry.outputDate >= dateFrom &&
           entry.outputDate <= dateTo &&
-          (entry.payoutType === PayoutType.BANK_ACCOUNT || entry.payoutType === PayoutType.WALLET),
+          entry.payoutType !== PayoutType.REINVEST,
       ),
     };
   }
