@@ -20,6 +20,7 @@ export interface AdSettings {
   displayInterval: number;
   displayTime: number;
   ads: { id: string; url: string }[];
+  specialAd: { id: string; from: string; to: string; url: string };
 }
 
 export interface AdDto {

@@ -12,7 +12,7 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
-import { Between, IsNull, LessThan, Raw } from 'typeorm';
+import { Between, IsNull, LessThan, Not, Raw } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
@@ -86,15 +86,25 @@ export class CryptoStakingService {
     const cryptoStaking = await this.cryptoStakingRepo.find({
       where: [
         { stakingRoute: { user: { id: userId } }, inputDate: Between(dateFrom, dateTo), isReinvest: false },
-        { stakingRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo), isReinvest: false },
+        {
+          stakingRoute: { user: { id: userId } },
+          outputDate: Between(dateFrom, dateTo),
+          payoutType: Not(PayoutType.REINVEST),
+        },
       ],
       relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
     });
 
     return {
-      deposits: cryptoStaking.filter((entry) => entry.inputDate >= dateFrom && entry.inputDate <= dateTo),
+      deposits: cryptoStaking.filter(
+        (entry) => entry.inputDate >= dateFrom && entry.inputDate <= dateTo && !entry.isReinvest,
+      ),
       withdrawals: cryptoStaking.filter(
-        (entry) => entry.outTxId && entry.outputDate >= dateFrom && entry.outputDate <= dateTo,
+        (entry) =>
+          entry.outTxId &&
+          entry.outputDate >= dateFrom &&
+          entry.outputDate <= dateTo &&
+          entry.payoutType !== PayoutType.REINVEST,
       ),
     };
   }
