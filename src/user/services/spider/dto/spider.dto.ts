@@ -215,6 +215,10 @@ export interface ChatbotResult {
   plannedDevelopmentOfAssets: string;
 }
 
+export interface ChatbotExport {
+  attributes: { form };
+}
+
 export interface IdentificationLog {
   transactionId: string;
   identificationId: string;
