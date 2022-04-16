@@ -114,7 +114,12 @@ export class KycProcessService {
               : await this.spiderService.getChatbotResult(userData.id, true),
         };
 
+        const chatbotExport = JSON.parse(
+          (await this.spiderService.getChatbotExport(userData.id, false)).attributes?.form,
+        )?.items;
+
         spiderData.chatbotResult = JSON.stringify(chatbotResult);
+        spiderData.chatbotExport = JSON.stringify(chatbotExport);
         userData.spiderData = await this.spiderDataRepo.save(spiderData);
 
         // update user data

@@ -12,6 +12,7 @@ import {
   IdentificationLog,
   DocumentVersion,
   InitiateResponse,
+  ChatbotExport,
 } from './dto/spider.dto';
 import { SpiderApiService } from './spider-api.service';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
@@ -232,6 +233,23 @@ export class SpiderService {
       KycDocument.ADDITIONAL_INFORMATION,
       completedVersion?.name,
       this.defaultDocumentPart,
+    );
+  }
+
+  async getChatbotExport(userDataId: number, isOrganization: boolean): Promise<ChatbotExport> {
+    const completedVersion = await this.spiderApi.getDocumentVersion(
+      userDataId,
+      isOrganization,
+      KycDocument.CHATBOT_ONBOARDING,
+      KycDocumentState.COMPLETED,
+    );
+
+    return this.spiderApi.getDocument<ChatbotExport>(
+      userDataId,
+      isOrganization,
+      KycDocument.CHATBOT_ONBOARDING,
+      completedVersion?.name,
+      'export',
     );
   }
 
