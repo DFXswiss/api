@@ -7,12 +7,15 @@ import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType, RawBankTx, TypedBankTx } from './bank-tx.entity';
+import { BuyCryptoService } from '../buy-crypto/buy-crypto.service';
+import { BuyCryptoSource } from '../buy-crypto/buy-crypto.entity';
 
 @Injectable()
 export class BankTxService {
   constructor(
     private readonly bankTxRepo: BankTxRepository,
     private readonly bankTxBatchRepo: BankTxBatchRepository,
+    private readonly buyCryptoService: BuyCryptoService,
     private readonly mailService: MailService,
   ) {}
 
@@ -24,31 +27,19 @@ export class BankTxService {
     let bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
 
-    if (dto.nextRepeatBankTxId) {
-      const referencedBankTx = await this.bankTxRepo.findOne({ id: dto.nextRepeatBankTxId });
-      if (!referencedBankTx) throw new NotFoundException('Repeat bankTx not found');
+    bankTx.type = dto.type;
 
-      const duplicateReference = await this.bankTxRepo.findOne({ nextRepeatBankTx: { id: dto.nextRepeatBankTxId } });
-      if (duplicateReference) throw new ConflictException('Repeat bankTx already used');
-
-      bankTx.nextRepeatBankTx = referencedBankTx;
-    }
-
-    if (dto.returnBankTxId) {
-      const referencedBankTx = await this.bankTxRepo.findOne({ id: dto.returnBankTxId });
-      if (!referencedBankTx) throw new NotFoundException('Return bankTx not found');
-
-      const duplicateReference = await this.bankTxRepo.findOne({ returnBankTx: { id: dto.returnBankTxId } });
-      if (duplicateReference) throw new ConflictException('Return bankTx already used');
-
-      bankTx.returnBankTx = referencedBankTx;
-    }
+    // TODO create buy_crypto
+    await this.buyCryptoService.create({
+      source: BuyCryptoSource.BANK_TX,
+      bankTxId: bankTxId,
+      cryptoInputId: null,
+      inputAmount: bankTx.instructedAmount,
+      inputAsset: bankTx.instructedCurrency,
+      buyId: dto.buyId,
+    });
 
     bankTx = await this.bankTxRepo.save(bankTx);
-
-    await this.bankTxRepo.setNewUpdateTime(
-      bankTx.nextRepeatBankTx ? bankTx.nextRepeatBankTx.id : bankTx.returnBankTx.id,
-    );
 
     return bankTx;
   }

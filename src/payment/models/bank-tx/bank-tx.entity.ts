@@ -132,6 +132,9 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   txInfo?: string;
 
+  @Column({ length: 256, nullable: true })
+  type: BankTxType;
+
   @OneToOne(() => BankTx, (bankTx) => bankTx.returnBankTx, { nullable: true })
   returnSourceBankTx?: BankTx;
 
