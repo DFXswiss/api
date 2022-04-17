@@ -28,6 +28,9 @@ export class BankDataService {
     const bankData = this.bankDataRepo.create({ ...dto, userData });
     await this.bankDataRepo.save(bankData);
 
+    // Update updated time in userData
+    await this.userDataRepo.setNewUpdateTime(userDataId);
+
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, bankData.name);
 
