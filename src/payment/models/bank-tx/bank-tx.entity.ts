@@ -132,22 +132,8 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   txInfo?: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: true, default: BankTxType.UNKNOWN })
   type: BankTxType;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.returnBankTx, { nullable: true })
-  returnSourceBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.returnSourceBankTx, { nullable: true })
-  @JoinColumn()
-  returnBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.previousRepeatBankTx, { nullable: true })
-  @JoinColumn()
-  nextRepeatBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.nextRepeatBankTx, { nullable: true })
-  previousRepeatBankTx?: BankTx;
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: false })
   batch: BankTxBatch;
