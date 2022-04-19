@@ -3,7 +3,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { Between, Not } from 'typeorm';
+import { Between, Brackets, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { Util } from 'src/shared/util';
@@ -24,7 +24,7 @@ export class BuyCryptoService {
 
   async create(dto: CreateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne({ bankTx: { id: dto.bankTxId } });
-    if (entity) throw new ConflictException('There is already a crypto buy for the specified bank TX');
+    if (entity) throw new ConflictException('There is already a buy crypto for the specified bank TX');
 
     entity = await this.createEntity(dto);
     entity = await this.buyCryptoRepo.save(entity);
@@ -39,12 +39,12 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, { relations: ['buy'] });
-    if (!entity) throw new NotFoundException('Crypto buy not found');
+    if (!entity) throw new NotFoundException('Buy crypto not found');
 
     const bankTxWithOtherBuy = dto.bankTxId
       ? await this.buyCryptoRepo.findOne({ id: Not(id), bankTx: { id: dto.bankTxId } })
       : null;
-    if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
+    if (bankTxWithOtherBuy) throw new ConflictException('There is already a buy crypto for the specified bank Tx');
 
     const buyIdBefore = entity.buy?.id;
     const usedRefBefore = entity.usedRef;
@@ -56,6 +56,7 @@ export class BuyCryptoService {
     entity = await this.buyCryptoRepo.save({ ...update, ...entity });
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    // TODO Ref auch für CryptoCrypto später?
     await this.updateRefVolume([usedRefBefore, entity.usedRef]);
     return entity;
   }
@@ -67,7 +68,7 @@ export class BuyCryptoService {
 
   async updateRefVolumes(): Promise<void> {
     const refs = await this.buyCryptoRepo
-      .createQueryBuilder('cryptoBuy')
+      .createQueryBuilder('buyCrypto')
       .select('usedRef')
       .groupBy('usedRef')
       .getRawMany<{ usedRef: string }>();
@@ -87,31 +88,31 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateBuyCryptoDto | UpdateBuyCryptoDto): Promise<BuyCrypto> {
-    const cryptoBuy = this.buyCryptoRepo.create(dto);
+    const buyCrypto = this.buyCryptoRepo.create(dto);
 
     // bank tx
     if (dto.bankTxId) {
-      cryptoBuy.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-      if (!cryptoBuy.bankTx) throw new BadRequestException('Bank TX not found');
+      buyCrypto.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
+      if (!buyCrypto.bankTx) throw new BadRequestException('Bank TX not found');
     }
 
     // crypto Input
     if (dto.cryptoInputId) {
-      cryptoBuy.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-      if (!cryptoBuy.bankTx) throw new BadRequestException('Bank TX not found');
+      buyCrypto.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
+      if (!buyCrypto.bankTx) throw new BadRequestException('Bank TX not found');
     }
 
     // buy
     if (dto.buyId) {
-      cryptoBuy.buy = await this.buyRepo.findOne({ where: { id: dto.buyId }, relations: ['user'] });
-      if (!cryptoBuy.buy) throw new BadRequestException('Buy route not found');
+      buyCrypto.buy = await this.buyRepo.findOne({ where: { id: dto.buyId }, relations: ['user'] });
+      if (!buyCrypto.buy) throw new BadRequestException('Buy route not found');
     }
 
-    if (cryptoBuy.amlCheck === AmlCheck.PASS && cryptoBuy.buy?.user?.status === UserStatus.NA) {
-      await this.userService.updateUserInternal(cryptoBuy.buy.user.id, { status: UserStatus.ACTIVE });
+    if (buyCrypto.amlCheck === AmlCheck.PASS && buyCrypto.buy?.user?.status === UserStatus.NA) {
+      await this.userService.updateUserInternal(buyCrypto.buy.user.id, { status: UserStatus.ACTIVE });
     }
 
-    return cryptoBuy;
+    return buyCrypto;
   }
 
   private async updateBuyVolume(buyIds: number[]): Promise<void> {
@@ -119,7 +120,7 @@ export class BuyCryptoService {
 
     for (const id of buyIds) {
       const { volume } = await this.buyCryptoRepo
-        .createQueryBuilder('cryptoBuy')
+        .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'volume')
         .where('buyId = :id', { id: id })
         .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
@@ -127,11 +128,21 @@ export class BuyCryptoService {
 
       const newYear = new Date(new Date().getFullYear(), 0, 1);
       const { annualVolume } = await this.buyCryptoRepo
-        .createQueryBuilder('cryptoBuy')
+        .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'annualVolume')
-        .where('buyId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
-        .andWhere('inputDate >= :year', { year: newYear })
+        .leftJoin('buyCrypto.bankTx', 'bankTx')
+        .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
+        .where('buyCrypto.buyId = :id', { id: id })
+        .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere(
+          new Brackets((qb) => {
+            qb.where('bankTx.bookingDate >= :year', { year: newYear }).orWhere('cryptoInput.created >= :year', {
+              year: newYear,
+            });
+          }),
+        )
+        //TODO kein Input Date mehr vorhanden
+        //.andWhere('inputDate >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
       await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
@@ -143,7 +154,7 @@ export class BuyCryptoService {
 
     for (const ref of refs) {
       const { volume, credit } = await this.buyCryptoRepo
-        .createQueryBuilder('cryptoBuy')
+        .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur * refFactor)', 'volume')
         .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
         .where('usedRef = :ref', { ref })
@@ -158,12 +169,12 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
-    const cryptoBuys = await this.buyCryptoRepo.find({
+    const buyCryptos = await this.buyCryptoRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
       relations: ['buy'],
     });
 
-    return cryptoBuys.map((v) => ({
+    return buyCryptos.map((v) => ({
       id: v.id,
       fiatAmount: v.amountInEur,
       fiatCurrency: 'EUR',
