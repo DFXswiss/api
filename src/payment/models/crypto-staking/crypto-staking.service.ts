@@ -192,17 +192,22 @@ export class CryptoStakingService {
     date.setUTCHours(0, 0, 0, 0);
     const dateTo = Util.daysAfter(1, date);
 
+    await this.rearrangeReinvests(date, dateTo);
+    await this.rearrangePaybacks(date, dateTo);
+  }
+
+  private async rearrangeReinvests(dateFrom: Date, dateTo: Date): Promise<void> {
     // all reinvests of that day
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: {
-        outputDate: Raw((d) => `${d} >= :from AND ${d} < :to`, { from: date, to: dateTo }),
+        outputDate: Raw((d) => `${d} >= :from AND ${d} < :to`, { from: dateFrom, to: dateTo }),
         outTxId: IsNull(),
         payoutType: PayoutType.REINVEST,
       },
       order: { stakingRoute: 'ASC' },
     });
 
-    const payoutDate = new Date(date);
+    const payoutDate = new Date(dateFrom);
     while (cryptoStakingList.length > 0) {
       if (payoutDate >= dateTo) throw new InternalServerErrorException('Not enough time to payback staking reinvests');
 
@@ -225,6 +230,26 @@ export class CryptoStakingService {
       );
       payoutDate.setHours(payoutDate.getHours() + 1);
     }
+  }
+
+  private async rearrangePaybacks(dateFrom: Date, dateTo: Date): Promise<void> {
+    const deadline = new Date(dateFrom);
+    deadline.setUTCHours(10);
+
+    // all paybacks after the deadline
+    const cryptoStakingList = await this.cryptoStakingRepo.find({
+      where: {
+        outputDate: Raw((d) => `${d} >= :from AND ${d} < :to`, { from: deadline, to: dateTo }),
+        outTxId: IsNull(),
+        payoutType: Not(PayoutType.REINVEST),
+      },
+    });
+
+    // update output date
+    await this.cryptoStakingRepo.update(
+      cryptoStakingList.map((c) => c.id),
+      { outputDate: deadline },
+    );
   }
 
   // --- DTO --- //
