@@ -246,10 +246,12 @@ export class CryptoStakingService {
     });
 
     // update output date
-    await this.cryptoStakingRepo.update(
-      cryptoStakingList.map((c) => c.id),
-      { outputDate: deadline },
-    );
+    if (cryptoStakingList.length > 0) {
+      await this.cryptoStakingRepo.update(
+        cryptoStakingList.map((c) => c.id),
+        { outputDate: deadline },
+      );
+    }
   }
 
   // --- DTO --- //
