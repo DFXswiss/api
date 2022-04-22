@@ -259,6 +259,26 @@ resource sqlDb 'Microsoft.Sql/servers/databases@2021-02-01-preview' = {
   }
 }
 
+resource sqlDbStrPolicy 'Microsoft.Sql/servers/databases/backupShortTermRetentionPolicies@2021-08-01-preview' = {
+  parent: sqlDb
+  name: 'default'
+  properties: {
+    retentionDays: dbTier == 'Basic' ? 7 : 35
+    diffBackupIntervalInHours: 24
+  }
+}
+
+resource sqlDbLtrPolicy 'Microsoft.Sql/servers/databases/backupLongTermRetentionPolicies@2021-08-01-preview' = {
+  parent: sqlDb
+  name: 'default'
+  properties: {
+    weeklyRetention: 'P5W'
+    monthlyRetention: 'P12M'
+    yearlyRetention: 'P10Y'
+    weekOfYear: 1
+  }
+}
+
 
 // API App Service
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
