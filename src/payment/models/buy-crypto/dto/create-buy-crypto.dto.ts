@@ -1,21 +1,21 @@
-import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
-import { BuyCryptoSource } from '../buy-crypto.entity';
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateBuyCryptoDto {
-  @IsNotEmpty()
-  @IsEnum(BuyCryptoSource)
-  source: BuyCryptoSource;
+  // @IsNotEmpty()
+  // @IsEnum(BuyCryptoSource)
+  // source: BuyCryptoSource;
 
   @IsNotEmpty()
   @IsInt()
-  @ValidateIf((o) => !o.cryptoInputId || o.bankTxId)
+  // @ValidateIf((o) => !o.cryptoInputId || o.bankTxId)
   bankTxId: number;
 
-  @IsNotEmpty()
-  @IsInt()
-  @ValidateIf((o) => !o.bankTxId || o.cryptoInputId)
-  cryptoInputId: number;
+  // @IsNotEmpty()
+  // @IsInt()
+  // @ValidateIf((o) => !o.bankTxId || o.cryptoInputId)
+  // cryptoInputId: number;
 
+  //TODO input hier schon rein?
   @IsOptional()
   @IsNumber()
   inputAmount: number;

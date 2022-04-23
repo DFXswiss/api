@@ -1,40 +1,38 @@
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { CryptoInput } from '../crypto-input/crypto-input.entity';
 
 export enum AmlCheck {
   PASS = 'Pass',
   FAIL = 'Fail',
 }
 
-export enum BuyCryptoSource {
-  BANK_TX = 'BankTx',
-  CRYPTO_INPUT = 'CryptoInput',
-}
+// export enum BuyCryptoSource {
+//   BANK_TX = 'BankTx',
+//   CRYPTO_INPUT = 'CryptoInput',
+// }
 
 @Entity()
 export class BuyCrypto extends IEntity {
-  @Column({ length: 256, nullable: true })
-  source: BuyCryptoSource;
+  // @Column({ length: 256, nullable: false })
+  // source: BuyCryptoSource;
 
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx: BankTx;
 
-  @OneToOne(() => CryptoInput, { nullable: true })
-  @JoinColumn()
-  cryptoInput: CryptoInput;
+  // @OneToOne(() => CryptoInput, { nullable: true })
+  // @JoinColumn()
+  // cryptoInput: CryptoInput;
 
   @ManyToOne(() => Buy, (buy) => buy.cryptoBuys, { nullable: true })
   buy: Buy;
 
-  @Column({ type: 'float', nullable: true })
+  @Column({ type: 'float', nullable: false })
   inputAmount: number;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   inputAsset: string;
 
   @Column({ type: 'float', nullable: true })

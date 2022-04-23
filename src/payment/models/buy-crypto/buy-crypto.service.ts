@@ -1,9 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { Between, Brackets, Not } from 'typeorm';
+import { Between, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { Util } from 'src/shared/util';
@@ -97,10 +96,10 @@ export class BuyCryptoService {
     }
 
     // crypto Input
-    if (dto.cryptoInputId) {
-      buyCrypto.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-      if (!buyCrypto.bankTx) throw new BadRequestException('Bank TX not found');
-    }
+    // if (dto.cryptoInputId) {
+    //   buyCrypto.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
+    //   if (!buyCrypto.bankTx) throw new BadRequestException('Bank TX not found');
+    // }
 
     // buy
     if (dto.buyId) {
@@ -131,16 +130,17 @@ export class BuyCryptoService {
         .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'annualVolume')
         .leftJoin('buyCrypto.bankTx', 'bankTx')
-        .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
+        // .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
         .where('buyCrypto.buyId = :id', { id: id })
         .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
-        .andWhere(
-          new Brackets((qb) => {
-            qb.where('bankTx.bookingDate >= :year', { year: newYear }).orWhere('cryptoInput.created >= :year', {
-              year: newYear,
-            });
-          }),
-        )
+        .andWhere('bankTx.bookingDate >= :year', { year: newYear })
+        // .andWhere(
+        //   new Brackets((qb) => {
+        //     qb.where('bankTx.bookingDate >= :year', { year: newYear }).orWhere('cryptoInput.created >= :year', {
+        //       year: newYear,
+        //     });
+        //   }),
+        // )
         //TODO kein Input Date mehr vorhanden
         //.andWhere('inputDate >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
@@ -152,6 +152,7 @@ export class BuyCryptoService {
   private async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
+    // TODO wird es bei crypto2crypto auch ref geben?
     for (const ref of refs) {
       const { volume, credit } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')

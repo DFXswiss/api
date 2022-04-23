@@ -8,7 +8,6 @@ import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType, RawBankTx, TypedBankTx } from './bank-tx.entity';
 import { BuyCryptoService } from '../buy-crypto/buy-crypto.service';
-import { BuyCryptoSource } from '../buy-crypto/buy-crypto.entity';
 
 @Injectable()
 export class BankTxService {
@@ -26,18 +25,18 @@ export class BankTxService {
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
     let bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
+    if (bankTx.type && bankTx.type != BankTxType.UNKNOWN) throw new ConflictException('BankTx Type already set');
 
     bankTx.type = dto.type;
 
     // TODO create buy_crypto
-    await this.buyCryptoService.create({
-      source: BuyCryptoSource.BANK_TX,
-      bankTxId: bankTxId,
-      cryptoInputId: null,
-      inputAmount: bankTx.instructedAmount,
-      inputAsset: bankTx.instructedCurrency,
-      buyId: dto.buyId,
-    });
+    if (bankTx.type === BankTxType.CRYPTO_BUY)
+      await this.buyCryptoService.create({
+        bankTxId: bankTxId,
+        inputAmount: bankTx.instructedAmount,
+        inputAsset: bankTx.instructedCurrency,
+        buyId: dto.buyId,
+      });
 
     bankTx = await this.bankTxRepo.save(bankTx);
 
