@@ -28,10 +28,10 @@ export class BuyCryptoService {
     entity = await this.createEntity(dto);
     entity = await this.buyCryptoRepo.save(entity);
 
-    await this.updateBuyVolume([entity.buy?.id]);
-    await this.updateRefVolume([entity.usedRef]);
+    // await this.updateBuyVolume([entity.buy?.id]);
+    // await this.updateRefVolume([entity.usedRef]);
 
-    await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
+    // await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
 
     return entity;
   }
