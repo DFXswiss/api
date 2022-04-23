@@ -78,14 +78,15 @@ export class StakingController {
   async getAllStakingBalance(@Query('date') date?: Date): Promise<{ id: number; balance: number }[]> {
     const stakingIds = await this.stakingService.getAllIds();
 
-    let balances = [];
+    const balances = [];
 
     for (let a = 0; a < stakingIds.length / 2000; a++) {
-      let balancesTemp = await this.stakingService.getAllStakingBalance(
-        stakingIds.slice(a * 2000, (a + 1) * 2000 >= stakingIds.length ? stakingIds.length : (a + 1) * 2000),
-        date,
-      );
-      balances.push(balancesTemp);
+      this.stakingService
+        .getAllStakingBalance(
+          stakingIds.slice(a * 2000, (a + 1) * 2000 >= stakingIds.length ? stakingIds.length : (a + 1) * 2000),
+          date,
+        )
+        .then((balance) => balances.push(balance));
     }
 
     return stakingIds.map((id) => ({ id, balance: balances.find((b) => b.id === id)?.balance ?? 0 }));
