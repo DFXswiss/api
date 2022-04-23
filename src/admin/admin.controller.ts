@@ -5,12 +5,14 @@ import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
 import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { LetterService } from 'src/shared/services/letter.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { RenameRefDto } from './dto/rename-ref.dto';
+import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
 
@@ -22,6 +24,7 @@ export class AdminController {
     private readonly spiderApiService: SpiderApiService,
     private readonly bankTxService: BankTxService,
     private readonly cryptoInputService: CryptoInputService,
+    private readonly letterService: LetterService,
   ) {}
 
   @Post('mail')
@@ -79,6 +82,39 @@ export class AdminController {
       updateFileDto.contentType,
       buffer,
     );
+  }
+
+  @Post('sendLetter')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async sendLetter(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
+    const byteSplit = sendLetterDto.data.split(',');
+
+    const buffer = new Uint8Array(byteSplit.length);
+
+    for (let a = 0; a < byteSplit.length; a++) {
+      buffer[a] = Number.parseInt(byteSplit[a]);
+    }
+
+    const uploadSpider = await this.spiderService.uploadDocument(
+      sendLetterDto.userDataId,
+      false,
+      sendLetterDto.documentType,
+      sendLetterDto.originalName,
+      sendLetterDto.contentType,
+      buffer,
+    );
+
+    return uploadSpider;
+  }
+
+  @Post('testSendLetter')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async sendLetterTest(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
+    return this.letterService.uploadLetter(sendLetterDto);
   }
 
   @Get('db')

@@ -12,11 +12,16 @@ import { LimitRequest } from '../limit-request/limit-request.entity';
 import { LimitRequestService } from '../limit-request/limit-request.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycInfo, KycService } from './kyc.service';
+import { LetterService } from 'src/shared/services/letter.service';
 
 @ApiTags('kyc')
 @Controller('kyc')
 export class KycController {
-  constructor(private readonly kycService: KycService, private readonly limitRequestService: LimitRequestService) {}
+  constructor(
+    private readonly kycService: KycService,
+    private readonly limitRequestService: LimitRequestService,
+    private readonly letterService: LetterService,
+  ) {}
 
   @Get()
   async getKycProgress(@Query('code') code: string): Promise<KycInfo> {
@@ -53,6 +58,13 @@ export class KycController {
     @GetJwt() jwt: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
+    const test = await this.letterService.uploadLetter({
+      userDataId: 1,
+      originalName: 'asd',
+      documentType: KycDocument.ADDRESS_CHECK,
+      data: files[0].buffer,
+      contentType: '',
+    });
     return this.kycService.uploadDocument(jwt.id, files[0], KycDocument.INCORPORATION_CERTIFICATE);
   }
 }

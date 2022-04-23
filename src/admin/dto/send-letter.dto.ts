@@ -1,7 +1,7 @@
 import { IsEnum, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 
-export class UploadFileDto {
+export class SendLetterDto {
   @IsNotEmpty()
   @IsNumber()
   userDataId: number;
@@ -19,7 +19,5 @@ export class UploadFileDto {
   contentType: string;
 
   @IsNotEmpty()
-  @IsString()
-  data: string;
-
+  data: any;
 }

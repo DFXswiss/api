@@ -94,6 +94,12 @@ export class Configuration {
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
+  letter = {
+    userName: process.env.LETTER_USER,
+    apiKey: process.env.LETTER_AUTH,
+    url: process.env.LETTER_URL,
+  };
+
   mail: MailerOptions = {
     transport: {
       host: 'gateway.dfx.swiss',
