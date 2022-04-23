@@ -164,12 +164,21 @@ export class StakingService {
       .then((r) => r.rewardVolume);
   }
 
-  async getAllStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
+  async getStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
     return await this.cryptoStakingRepo
       .getActiveEntries(date)
       .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId IN (:...stakingIds)', { stakingIds })
+      .groupBy('cryptoStaking.stakingRouteId')
+      .getRawMany<{ id: number; balance: number }>();
+  }
+
+  async getAllStakingBalance(date?: Date): Promise<{ id: number; balance: number }[]> {
+    return await this.cryptoStakingRepo
+      .getActiveEntries(date)
+      .select('cryptoStaking.stakingRouteId', 'id')
+      .addSelect('SUM(inputAmount)', 'balance')
       .groupBy('cryptoStaking.stakingRouteId')
       .getRawMany<{ id: number; balance: number }>();
   }
