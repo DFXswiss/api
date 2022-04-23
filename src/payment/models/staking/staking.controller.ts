@@ -66,7 +66,7 @@ export class StakingController {
     const stakingRoutes = await this.stakingService.getUserStakingByAddresses(addresses.split(','));
     if (stakingRoutes.length === 0) return { totalAmount: 0 };
 
-    const stakingBalances = await this.stakingService.getAllStakingBalance(stakingRoutes.map((u) => u.id));
+    const stakingBalances = await this.stakingService.getStakingBalance(stakingRoutes.map((u) => u.id));
     return { totalAmount: Util.round(Util.sumObj(stakingBalances, 'balance'), 8) };
   }
 
@@ -77,18 +77,7 @@ export class StakingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllStakingBalance(@Query('date') date?: Date): Promise<{ id: number; balance: number }[]> {
     const stakingIds = await this.stakingService.getAllIds();
-
-    const balances = [];
-
-    for (let a = 0; a < stakingIds.length / 2000; a++) {
-      this.stakingService
-        .getAllStakingBalance(
-          stakingIds.slice(a * 2000, (a + 1) * 2000 >= stakingIds.length ? stakingIds.length : (a + 1) * 2000),
-          date,
-        )
-        .then((balance) => balances.push(balance));
-    }
-
+    const balances = await this.stakingService.getAllStakingBalance(date);
     return stakingIds.map((id) => ({ id, balance: balances.find((b) => b.id === id)?.balance ?? 0 }));
   }
 }
