@@ -28,11 +28,6 @@ export class BuyCryptoService {
     entity = await this.createEntity(dto);
     entity = await this.buyCryptoRepo.save(entity);
 
-    // await this.updateBuyVolume([entity.buy?.id]);
-    // await this.updateRefVolume([entity.usedRef]);
-
-    // await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
-
     return entity;
   }
 
@@ -55,7 +50,7 @@ export class BuyCryptoService {
     entity = await this.buyCryptoRepo.save({ ...update, ...entity });
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    // TODO Ref auch für CryptoCrypto später?
+
     await this.updateRefVolume([usedRefBefore, entity.usedRef]);
     return entity;
   }
@@ -95,12 +90,6 @@ export class BuyCryptoService {
       if (!buyCrypto.bankTx) throw new BadRequestException('Bank TX not found');
     }
 
-    // crypto Input
-    // if (dto.cryptoInputId) {
-    //   buyCrypto.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-    //   if (!buyCrypto.bankTx) throw new BadRequestException('Bank TX not found');
-    // }
-
     // buy
     if (dto.buyId) {
       buyCrypto.buy = await this.buyRepo.findOne({ where: { id: dto.buyId }, relations: ['user'] });
@@ -130,19 +119,9 @@ export class BuyCryptoService {
         .createQueryBuilder('buyCrypto')
         .select('SUM(amountInEur)', 'annualVolume')
         .leftJoin('buyCrypto.bankTx', 'bankTx')
-        // .leftJoin('buyCrypto.cryptoInput', 'cryptoInput')
         .where('buyCrypto.buyId = :id', { id: id })
         .andWhere('buyCrypto.amlCheck = :check', { check: AmlCheck.PASS })
         .andWhere('bankTx.bookingDate >= :year', { year: newYear })
-        // .andWhere(
-        //   new Brackets((qb) => {
-        //     qb.where('bankTx.bookingDate >= :year', { year: newYear }).orWhere('cryptoInput.created >= :year', {
-        //       year: newYear,
-        //     });
-        //   }),
-        // )
-        //TODO kein Input Date mehr vorhanden
-        //.andWhere('inputDate >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
       await this.buyService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
@@ -152,7 +131,6 @@ export class BuyCryptoService {
   private async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
-    // TODO wird es bei crypto2crypto auch ref geben?
     for (const ref of refs) {
       const { volume, credit } = await this.buyCryptoRepo
         .createQueryBuilder('buyCrypto')

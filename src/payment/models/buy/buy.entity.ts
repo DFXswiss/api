@@ -4,6 +4,7 @@ import { User } from 'src/user/models/user/user.entity';
 import { CryptoBuy } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { Deposit } from '../deposit/deposit.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { BuyCrypto } from '../buy-crypto/buy-crypto.entity';
 
 @Entity()
 @Index('ibanAssetDepositUser', (buy: Buy) => [buy.iban, buy.asset, buy.deposit, buy.user], { unique: true })
@@ -34,4 +35,7 @@ export class Buy extends IEntity {
 
   @OneToMany(() => CryptoBuy, (cryptoBuy) => cryptoBuy.buy)
   cryptoBuys: CryptoBuy[];
+
+  @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.buy)
+  buyCryptos: BuyCrypto[];
 }

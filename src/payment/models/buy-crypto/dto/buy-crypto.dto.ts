@@ -9,6 +9,14 @@ export abstract class BuyCryptoDto {
 
   @IsOptional()
   @IsNumber()
+  inputAmount: number;
+
+  @IsOptional()
+  @IsString()
+  inputAsset: string;
+
+  @IsOptional()
+  @IsNumber()
   inputReferenceAmount: number;
 
   @IsOptional()

@@ -25,7 +25,7 @@ export class BankTxService {
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
     let bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
-    if (bankTx.type && bankTx.type != BankTxType.UNKNOWN) throw new ConflictException('BankTx Type already set');
+    // if (bankTx.type && bankTx.type != BankTxType.UNKNOWN) throw new ConflictException('BankTx Type already set');
 
     bankTx.type = dto.type;
 
@@ -33,9 +33,9 @@ export class BankTxService {
     if (bankTx.type === BankTxType.CRYPTO_BUY)
       await this.buyCryptoService.create({
         bankTxId: bankTxId,
-        inputAmount: bankTx.instructedAmount,
-        inputAsset: bankTx.instructedCurrency,
         buyId: dto.buyId,
+        inputAmount: null,
+        inputAsset: null,
       });
 
     bankTx = await this.bankTxRepo.save(bankTx);

@@ -8,31 +8,19 @@ export enum AmlCheck {
   FAIL = 'Fail',
 }
 
-// export enum BuyCryptoSource {
-//   BANK_TX = 'BankTx',
-//   CRYPTO_INPUT = 'CryptoInput',
-// }
-
 @Entity()
 export class BuyCrypto extends IEntity {
-  // @Column({ length: 256, nullable: false })
-  // source: BuyCryptoSource;
-
-  @OneToOne(() => BankTx, { nullable: true })
+  @OneToOne(() => BankTx, { nullable: false })
   @JoinColumn()
   bankTx: BankTx;
-
-  // @OneToOne(() => CryptoInput, { nullable: true })
-  // @JoinColumn()
-  // cryptoInput: CryptoInput;
 
   @ManyToOne(() => Buy, (buy) => buy.cryptoBuys, { nullable: true })
   buy: Buy;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float', nullable: true })
   inputAmount: number;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256, nullable: true })
   inputAsset: string;
 
   @Column({ type: 'float', nullable: true })

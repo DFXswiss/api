@@ -5,8 +5,4 @@ export class UpdateBuyCryptoDto extends BuyCryptoDto {
   @IsOptional()
   @IsInt()
   bankTxId: number;
-
-  @IsOptional()
-  @IsInt()
-  cryptoInputId: number;
 }
