@@ -1,4 +1,4 @@
-import { IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional } from 'class-validator';
 import { BankTxType } from '../bank-tx.entity';
 
 export class UpdateBankTxDto {

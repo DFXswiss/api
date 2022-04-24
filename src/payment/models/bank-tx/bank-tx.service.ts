@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { BankTxRepository } from './bank-tx.repository';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
