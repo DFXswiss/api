@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Like, Not } from 'typeorm';
+import { Between, Brackets, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -22,6 +22,8 @@ import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
 import { ApiKey } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
+import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
+import { ActiveRefUserQuery } from './dto/active-ref-user-query.dto';
 
 @Injectable()
 export class UserService {
@@ -102,6 +104,42 @@ export class UserService {
     if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
     await this.userRepo.update({ id: userId }, { refFeePercent: provision });
     return provision;
+  }
+
+  async getActiveRefUser(
+    query: ActiveRefUserQuery,
+  ): Promise<{ activeUser: number; cryptoBuyVolume?: number; buyCryptoVolume?: number }> {
+    const refUser = await this.userRepo.find({
+      select: ['id'],
+      where: {
+        created: Between(query.from, query.to),
+        status: UserStatus.ACTIVE,
+        usedRef: query.refCode,
+        origin: query.origin,
+      },
+    });
+
+    const { cryptoBuyVolume, buyCryptoVolume } = await this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(cryptoBuys.amountInEur)', 'cryptoBuyVolume')
+      .addSelect('SUM(buyCryptos.amountInEur)', 'buyCryptoVolume')
+      .leftJoin('user.buys', 'buys')
+      .leftJoin('buys.cryptoBuys', 'cryptoBuys')
+      .leftJoin('buys.buyCryptos', 'buyCryptos')
+      .where('user.created >= :from', { from: query.from })
+      .andWhere('user.created <= :to', { to: query.to })
+      .andWhere('user.usedRef = :ref', { ref: query.refCode })
+      // .andWhere('user.origin = :origin', { origin: query.origin })
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS }).orWhere('buyCryptos.amlCheck = :check', {
+            check: AmlCheck.PASS,
+          });
+        }),
+      )
+      .getRawOne<{ cryptoBuyVolume: number; buyCryptoVolume: number }>();
+
+    return { activeUser: refUser.length, cryptoBuyVolume: cryptoBuyVolume, buyCryptoVolume: buyCryptoVolume };
   }
 
   async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
