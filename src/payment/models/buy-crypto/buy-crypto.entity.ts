@@ -10,7 +10,7 @@ export enum AmlCheck {
 
 @Entity()
 export class BuyCrypto extends IEntity {
-  @OneToOne(() => BankTx, { nullable: false })
+  @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx: BankTx;
 
