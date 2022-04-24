@@ -48,12 +48,16 @@ import { CryptoStakingService } from './models/crypto-staking/crypto-staking.ser
 import { CryptoStakingRepository } from './models/crypto-staking/crypto-staking.repository';
 import { CryptoStakingController } from './models/crypto-staking/crypto-staking.controller';
 import { CryptoInputController } from './models/crypto-input/crypto-input.controller';
+import { BuyCryptoRepository } from './models/buy-crypto/buy-crypto.repository';
+import { BuyCryptoController } from './models/buy-crypto/buy-crypto.controller';
+import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       CryptoInputRepository,
       CryptoBuyRepository,
+      BuyCryptoRepository,
       CryptoSellRepository,
       BankTxRepository,
       BankTxBatchRepository,
@@ -75,6 +79,7 @@ import { CryptoInputController } from './models/crypto-input/crypto-input.contro
     BankController,
     ExchangeController,
     CryptoBuyController,
+    BuyCryptoController,
     CryptoSellController,
     HistoryController,
     RouteController,
@@ -91,6 +96,7 @@ import { CryptoInputController } from './models/crypto-input/crypto-input.contro
     CryptoInputService,
     CryptoBuyService,
     CryptoSellService,
+    BuyCryptoService,
     BankTxService,
     BankService,
     KrakenService,
@@ -117,6 +123,7 @@ import { CryptoInputController } from './models/crypto-input/crypto-input.contro
     MasternodeService,
     StakingService,
     CryptoBuyService,
+    BuyCryptoService,
     CryptoSellService,
     BankTxService,
     CryptoInputService,
