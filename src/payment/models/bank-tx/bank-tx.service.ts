@@ -25,6 +25,7 @@ export class BankTxService {
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
     let bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
+    // TODO später auskommentieren
     // if (bankTx.type && bankTx.type != BankTxType.UNKNOWN) throw new ConflictException('BankTx Type already set');
 
     bankTx.type = dto.type;

@@ -12,7 +12,7 @@ import { UserDetailDto, UserDto } from './dto/user.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { ApiKey } from './dto/api-key.dto';
-import { ActiveRefUserQuery } from './dto/active-ref-user-query.dto';
+import { ActiveRefUserQuery as RefInfoQuery } from './dto/active-ref-user-query.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -37,8 +37,8 @@ export class UserController {
   @Get('ref')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getActiveRefUser(@Query() query: ActiveRefUserQuery): Promise<{ activeUser: number; volume?: number }> {
-    return this.userService.getActiveRefUser(query);
+  async getRefInfo(@Query() query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
+    return this.userService.getRefInfo(query);
   }
 
   @Put()

@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, Brackets, Like, Not } from 'typeorm';
+import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -106,7 +106,7 @@ export class UserService {
     return provision;
   }
 
-  async getActiveRefUser(query: ActiveRefUserQuery): Promise<{ activeUser: number; volume?: number }> {
+  async getRefInfo(query: ActiveRefUserQuery): Promise<{ activeUser: number; volume?: number }> {
     const refUser = await this.userRepo.find({
       select: ['id'],
       where: {

@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { Between, Not } from 'typeorm';
+import { Between } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { Util } from 'src/shared/util';
@@ -34,11 +34,6 @@ export class BuyCryptoService {
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
 
-    // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
-      await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
-    }
-
     entity = await this.buyCryptoRepo.save(entity);
 
     return entity;
@@ -60,6 +55,11 @@ export class BuyCryptoService {
 
     entity = await this.buyCryptoRepo.save({ ...update, ...entity });
 
+    // activate user
+    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
+      await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
+    }
+
     // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
     // await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
     // await this.updateRefVolume([usedRefBefore, entity.usedRef]);
@@ -68,17 +68,17 @@ export class BuyCryptoService {
   }
 
   async updateVolumes(): Promise<void> {
-    const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
+    // const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
     // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
     // await this.updateBuyVolume(buyIds);
   }
 
   async updateRefVolumes(): Promise<void> {
-    const refs = await this.buyCryptoRepo
-      .createQueryBuilder('buyCrypto')
-      .select('usedRef')
-      .groupBy('usedRef')
-      .getRawMany<{ usedRef: string }>();
+    // const refs = await this.buyCryptoRepo
+    //   .createQueryBuilder('buyCrypto')
+    //   .select('usedRef')
+    //   .groupBy('usedRef')
+    //   .getRawMany<{ usedRef: string }>();
     // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
     // await this.updateRefVolume(refs.map((r) => r.usedRef));
   }

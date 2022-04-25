@@ -14,7 +14,7 @@ export class ActiveRefUserQuery {
 
   @IsNotEmpty()
   @IsString()
-  @ValidateIf((o) => !o.origin && o.refCode)
+  @ValidateIf((o) => !o.origin || o.refCode)
   refCode: string;
 
   @IsNotEmpty()
