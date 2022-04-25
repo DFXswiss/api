@@ -8,8 +8,8 @@ import { BuyRepository } from '../buy/buy.repository';
 import { Util } from 'src/shared/util';
 import { AmlCheck, BuyCrypto } from './buy-crypto.entity';
 import { BuyCryptoRepository } from './buy-crypto.repository';
-import { CreateBuyCryptoDto } from './dto/create-buy-crypto.dto';
 import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
+import { Buy } from '../buy/buy.entity';
 
 @Injectable()
 export class BuyCryptoService {
@@ -21,11 +21,24 @@ export class BuyCryptoService {
     private readonly userService: UserService,
   ) {}
 
-  async create(dto: CreateBuyCryptoDto): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOne({ bankTx: { id: dto.bankTxId } });
+  async create(bankTxId: number, buyId: number): Promise<BuyCrypto> {
+    let entity = await this.buyCryptoRepo.findOne({ bankTx: { id: bankTxId } });
     if (entity) throw new ConflictException('There is already a buy crypto for the specified bank TX');
 
-    entity = await this.createEntity(dto);
+    entity = this.buyCryptoRepo.create();
+
+    // bank tx
+    entity.bankTx = await this.bankTxRepo.findOne(bankTxId);
+    if (!entity.bankTx) throw new BadRequestException('Bank TX not found');
+
+    // buy
+    if (buyId) entity.buy = await this.getBuy(buyId);
+
+    // activate user
+    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
+      await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
+    }
+
     entity = await this.buyCryptoRepo.save(entity);
 
     return entity;
@@ -35,29 +48,29 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
-    const bankTxWithOtherBuy = dto.bankTxId
-      ? await this.buyCryptoRepo.findOne({ id: Not(id), bankTx: { id: dto.bankTxId } })
-      : null;
-    if (bankTxWithOtherBuy) throw new ConflictException('There is already a buy crypto for the specified bank Tx');
+    // const buyIdBefore = entity.buy?.id;
+    // const usedRefBefore = entity.usedRef;
 
-    const buyIdBefore = entity.buy?.id;
-    const usedRefBefore = entity.usedRef;
+    const update = this.buyCryptoRepo.create(dto);
 
-    const update = await this.createEntity(dto);
+    // buy
+    if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
 
     Util.removeNullFields(entity);
 
     entity = await this.buyCryptoRepo.save({ ...update, ...entity });
 
-    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
+    // await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    // await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
     return entity;
   }
 
   async updateVolumes(): Promise<void> {
     const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
-    await this.updateBuyVolume(buyIds);
+    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
+    // await this.updateBuyVolume(buyIds);
   }
 
   async updateRefVolumes(): Promise<void> {
@@ -66,7 +79,8 @@ export class BuyCryptoService {
       .select('usedRef')
       .groupBy('usedRef')
       .getRawMany<{ usedRef: string }>();
-    await this.updateRefVolume(refs.map((r) => r.usedRef));
+    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
+    // await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
   async getUserTransactions(
@@ -74,6 +88,7 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
+    // TODO aktivieren in history nach Umstellung cryptoBuy -> buyCrypto
     return await this.buyCryptoRepo.find({
       where: { buy: { user: { id: userId } }, amlCheck: AmlCheck.PASS, outputDate: Between(dateFrom, dateTo) },
       relations: ['bankTx', 'buy', 'buy.user'],
@@ -81,26 +96,12 @@ export class BuyCryptoService {
   }
 
   // --- HELPER METHODS --- //
-  private async createEntity(dto: CreateBuyCryptoDto | UpdateBuyCryptoDto): Promise<BuyCrypto> {
-    const buyCrypto = this.buyCryptoRepo.create(dto);
-
-    // bank tx
-    if (dto.bankTxId) {
-      buyCrypto.bankTx = await this.bankTxRepo.findOne(dto.bankTxId);
-      if (!buyCrypto.bankTx) throw new BadRequestException('Bank TX not found');
-    }
-
+  private async getBuy(buyId: number): Promise<Buy> {
     // buy
-    if (dto.buyId) {
-      buyCrypto.buy = await this.buyRepo.findOne({ where: { id: dto.buyId }, relations: ['user'] });
-      if (!buyCrypto.buy) throw new BadRequestException('Buy route not found');
-    }
+    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user'] });
+    if (!buy) throw new BadRequestException('Buy route not found');
 
-    if (buyCrypto.amlCheck === AmlCheck.PASS && buyCrypto.buy?.user?.status === UserStatus.NA) {
-      await this.userService.updateUserInternal(buyCrypto.buy.user.id, { status: UserStatus.ACTIVE });
-    }
-
-    return buyCrypto;
+    return buy;
   }
 
   private async updateBuyVolume(buyIds: number[]): Promise<void> {

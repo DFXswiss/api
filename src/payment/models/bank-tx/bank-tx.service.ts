@@ -30,13 +30,7 @@ export class BankTxService {
     bankTx.type = dto.type;
 
     // TODO create buy_crypto
-    if (bankTx.type === BankTxType.CRYPTO_BUY)
-      await this.buyCryptoService.create({
-        bankTxId: bankTxId,
-        buyId: dto.buyId,
-        inputAmount: null,
-        inputAsset: null,
-      });
+    if (bankTx.type === BankTxType.CRYPTO_BUY) await this.buyCryptoService.create(bankTxId, dto.buyId);
 
     bankTx = await this.bankTxRepo.save(bankTx);
 

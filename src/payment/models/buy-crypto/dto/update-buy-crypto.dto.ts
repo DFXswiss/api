@@ -1,8 +1,90 @@
-import { IsInt, IsOptional } from 'class-validator';
-import { BuyCryptoDto } from './buy-crypto.dto';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
+import { AmlCheck } from '../buy-crypto.entity';
 
-export class UpdateBuyCryptoDto extends BuyCryptoDto {
+export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsInt()
-  bankTxId: number;
+  buyId: number;
+
+  @IsOptional()
+  @IsNumber()
+  inputAmount: number;
+
+  @IsOptional()
+  @IsString()
+  inputAsset: string;
+
+  @IsOptional()
+  @IsNumber()
+  inputReferenceAmount: number;
+
+  @IsOptional()
+  @IsString()
+  inputReferenceAsset: string;
+
+  @IsOptional()
+  @IsNumber()
+  amountInChf: number;
+
+  @IsOptional()
+  @IsNumber()
+  amountInEur: number;
+
+  @IsOptional()
+  @IsEnum(AmlCheck)
+  amlCheck: AmlCheck;
+
+  @IsOptional()
+  @IsNumber()
+  fee: number;
+
+  @IsOptional()
+  @IsNumber()
+  inputReferenceAmountMinusFee: number;
+
+  @IsOptional()
+  @IsNumber()
+  outputReferenceAmount: number;
+
+  @IsOptional()
+  @IsString()
+  outputReferenceAsset: string;
+
+  @IsOptional()
+  @IsNumber()
+  outputAmount: number;
+
+  @IsOptional()
+  @IsString()
+  outputAsset: string;
+
+  @IsOptional()
+  @IsString()
+  txId: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  outputDate: Date;
+
+  @IsOptional()
+  @IsString()
+  recipientMail: string;
+
+  @IsOptional()
+  @IsNumber()
+  mailSendDate: number;
+
+  @IsOptional()
+  @IsString()
+  usedRef: string;
+
+  @IsOptional()
+  @IsNumber()
+  refProvision: number;
+
+  @IsOptional()
+  @IsNumber()
+  refFactor: number;
 }
