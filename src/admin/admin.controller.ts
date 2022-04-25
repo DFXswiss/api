@@ -84,12 +84,12 @@ export class AdminController {
     );
   }
 
-  @Post('sendLetter')
+  @Post('uploadAddress')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async sendLetter(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
-    const byteSplit = sendLetterDto.data.split(',');
+  async uploadAddress(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
+    const byteSplit = uploadFileDto.data.split(',');
 
     const buffer = new Uint8Array(byteSplit.length);
 
@@ -98,23 +98,17 @@ export class AdminController {
     }
 
     const uploadSpider = await this.spiderService.uploadDocument(
-      sendLetterDto.userDataId,
+      uploadFileDto.userDataId,
       false,
-      sendLetterDto.documentType,
-      sendLetterDto.originalName,
-      sendLetterDto.contentType,
+      uploadFileDto.documentType,
+      uploadFileDto.originalName,
+      uploadFileDto.contentType,
       buffer,
     );
 
-    return uploadSpider;
-  }
+    const sendLetter = await this.letterService.uploadLetter(buffer);
 
-  @Post('testSendLetter')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async sendLetterTest(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
-    return this.letterService.uploadLetter(sendLetterDto);
+    return uploadSpider && sendLetter;
   }
 
   @Get('db')
