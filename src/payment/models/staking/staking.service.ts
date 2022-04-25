@@ -171,7 +171,7 @@ export class StakingService {
   async getStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
     return await this.cryptoStakingRepo
       .getActiveEntries(date)
-      .select('cryptoStaking.stakingRouteId', 'address')
+      .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId IN (:...stakingIds)', { stakingIds })
       .groupBy('cryptoStaking.stakingRouteId')
