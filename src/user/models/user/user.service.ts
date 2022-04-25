@@ -117,21 +117,18 @@ export class UserService {
       },
     });
 
-    const whereQuery = query.refCode
-      ? query.origin
-        ? "user.usedRef = '" + query.refCode + "' AND user.origin = '" + query.origin + "'"
-        : "user.usedRef = '" + query.refCode + "'"
-      : "user.origin = '" + query.origin + "'";
-
-    const { volume } = await this.userRepo
+    let dbQuery = this.userRepo
       .createQueryBuilder('user')
       .select('SUM(cryptoBuys.amountInEur)', 'volume')
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.cryptoBuys', 'cryptoBuys')
       .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere(whereQuery)
-      .andWhere('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS })
-      .getRawOne<{ volume: number }>();
+      .andWhere('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS });
+
+    if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
+    if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
+
+    const { volume } = await dbQuery.getRawOne<{ volume: number }>();
 
     // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
 
