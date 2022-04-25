@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -12,6 +12,7 @@ import { UserDetailDto, UserDto } from './dto/user.dto';
 import { CfpVotes } from './dto/cfp-votes.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { ApiKey } from './dto/api-key.dto';
+import { ActiveRefUserQuery as RefInfoQuery } from './dto/active-ref-user-query.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -31,6 +32,13 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getUserDetail(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
     return this.userService.getUserDto(jwt.id, true);
+  }
+
+  @Get('ref')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getRefInfo(@Query() query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
+    return this.userService.getRefInfo(query);
   }
 
   @Put()

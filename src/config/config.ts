@@ -177,7 +177,6 @@ export class Configuration {
     period: 28, // days
     minInvestment: 100, // DFI
     freeDays: 365, // TODO: 31?
-    payoutBatchSize: 20000, // DFI
   };
 
   ftp = {

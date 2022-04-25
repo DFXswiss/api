@@ -55,8 +55,12 @@ export class StakingService {
     return this.stakingRepo.find({ user: { id: userId } });
   }
 
-  async getUserStakingByAddresses(addresses: string[]): Promise<Staking[]> {
+  async getStakingByUserAddresses(addresses: string[]): Promise<Staking[]> {
     return await this.stakingRepo.find({ where: { user: { address: In(addresses) } }, relations: ['user'] });
+  }
+
+  async getStakingByDepositAddresses(addresses: string[]): Promise<Staking[]> {
+    return await this.stakingRepo.find({ where: { deposit: { address: In(addresses) } }, relations: ['deposit'] });
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
@@ -164,12 +168,21 @@ export class StakingService {
       .then((r) => r.rewardVolume);
   }
 
-  async getAllStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
+  async getStakingBalance(stakingIds: number[], date?: Date): Promise<{ id: number; balance: number }[]> {
     return await this.cryptoStakingRepo
       .getActiveEntries(date)
       .select('cryptoStaking.stakingRouteId', 'id')
       .addSelect('SUM(inputAmount)', 'balance')
       .andWhere('cryptoStaking.stakingRouteId IN (:...stakingIds)', { stakingIds })
+      .groupBy('cryptoStaking.stakingRouteId')
+      .getRawMany<{ id: number; balance: number }>();
+  }
+
+  async getAllStakingBalance(date?: Date): Promise<{ id: number; balance: number }[]> {
+    return await this.cryptoStakingRepo
+      .getActiveEntries(date)
+      .select('cryptoStaking.stakingRouteId', 'id')
+      .addSelect('SUM(inputAmount)', 'balance')
       .groupBy('cryptoStaking.stakingRouteId')
       .getRawMany<{ id: number; balance: number }>();
   }

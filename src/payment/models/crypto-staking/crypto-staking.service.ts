@@ -188,15 +188,15 @@ export class CryptoStakingService {
     return { batches, avgInflow: (balanceToday - balanceLastWeek) / 7 };
   }
 
-  async rearrangeOutputDates(date: Date): Promise<void> {
+  async rearrangeOutputDates(date: Date, maxBatchSize: number): Promise<void> {
     date.setUTCHours(0, 0, 0, 0);
     const dateTo = Util.daysAfter(1, date);
 
-    await this.rearrangeReinvests(date, dateTo);
+    await this.rearrangeReinvests(date, dateTo, maxBatchSize);
     await this.rearrangePaybacks(date, dateTo);
   }
 
-  private async rearrangeReinvests(dateFrom: Date, dateTo: Date): Promise<void> {
+  private async rearrangeReinvests(dateFrom: Date, dateTo: Date, maxBatchSize: number): Promise<void> {
     // all reinvests of that day
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: {
@@ -217,7 +217,7 @@ export class CryptoStakingService {
 
       while (
         cryptoStakingList.length > 0 &&
-        (batchAmount === 0 || batchAmount + cryptoStakingList[0].inputAmount <= Config.staking.payoutBatchSize)
+        (batchAmount === 0 || batchAmount + cryptoStakingList[0].inputAmount <= maxBatchSize)
       ) {
         batchAmount += cryptoStakingList[0].inputAmount;
         batch.push(cryptoStakingList.shift());

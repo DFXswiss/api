@@ -62,11 +62,21 @@ export class StakingController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.DEFICHAIN_INCOME))
-  async getStakingBalance(@Query('addresses') addresses: string): Promise<{ totalAmount: number }> {
-    const stakingRoutes = await this.stakingService.getUserStakingByAddresses(addresses.split(','));
+  async getStakingBalances(@Query('addresses') addresses: string): Promise<{ totalAmount: number }> {
+    const stakingRoutes = await this.stakingService.getStakingByUserAddresses(addresses.split(','));
     if (stakingRoutes.length === 0) return { totalAmount: 0 };
 
-    const stakingBalances = await this.stakingService.getAllStakingBalance(stakingRoutes.map((u) => u.id));
+    const stakingBalances = await this.stakingService.getStakingBalance(stakingRoutes.map((u) => u.id));
+    return { totalAmount: Util.round(Util.sumObj(stakingBalances, 'balance'), 8) };
+  }
+
+  // --- STAKING ROUTE --- //
+  @Get('routeBalance')
+  async getStakingBalance(@Query('addresses') addresses: string): Promise<{ totalAmount: number }> {
+    const stakingRoutes = await this.stakingService.getStakingByDepositAddresses(addresses.split(','));
+    if (stakingRoutes.length === 0) return { totalAmount: 0 };
+
+    const stakingBalances = await this.stakingService.getStakingBalance(stakingRoutes.map((u) => u.id));
     return { totalAmount: Util.round(Util.sumObj(stakingBalances, 'balance'), 8) };
   }
 
@@ -77,7 +87,7 @@ export class StakingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getAllStakingBalance(@Query('date') date?: Date): Promise<{ id: number; balance: number }[]> {
     const stakingIds = await this.stakingService.getAllIds();
-    const balances = await this.stakingService.getAllStakingBalance(stakingIds, date);
+    const balances = await this.stakingService.getAllStakingBalance(date);
     return stakingIds.map((id) => ({ id, balance: balances.find((b) => b.id === id)?.balance ?? 0 }));
   }
 }

@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Like, Not } from 'typeorm';
+import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -22,6 +22,8 @@ import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
 import { ApiKey } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
+import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
+import { ActiveRefUserQuery } from './dto/active-ref-user-query.dto';
 
 @Injectable()
 export class UserService {
@@ -102,6 +104,35 @@ export class UserService {
     if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
     await this.userRepo.update({ id: userId }, { refFeePercent: provision });
     return provision;
+  }
+
+  async getRefInfo(query: ActiveRefUserQuery): Promise<{ activeUser: number; volume?: number }> {
+    const refUser = await this.userRepo.find({
+      select: ['id'],
+      where: {
+        created: Between(query.from, query.to),
+        status: UserStatus.ACTIVE,
+        ...(query.refCode ? { usedRef: query.refCode } : {}),
+        ...(query.origin ? { origin: query.origin } : {}),
+      },
+    });
+
+    let dbQuery = this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(cryptoBuys.amountInEur)', 'volume')
+      .leftJoin('user.buys', 'buys')
+      .leftJoin('buys.cryptoBuys', 'cryptoBuys')
+      .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS });
+
+    if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
+    if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
+
+    const { volume } = await dbQuery.getRawOne<{ volume: number }>();
+
+    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
+
+    return { activeUser: refUser.length, volume: volume };
   }
 
   async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {

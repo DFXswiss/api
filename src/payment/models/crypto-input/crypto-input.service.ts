@@ -266,6 +266,14 @@ export class CryptoInputService {
       btcAmount: btcAmount,
       usdtAmount: usdtAmount,
       isConfirmed: false,
+      type:
+        route.type === RouteType.SELL
+          ? route.id == this.cryptoCryptoRouteId
+            ? CryptoInputType.CRYPTO_CRYPTO
+            : CryptoInputType.CRYPTO_SELL
+          : route.type === RouteType.STAKING
+          ? CryptoInputType.CRYPTO_STAKING
+          : CryptoInputType.UNKNOWN,
     });
   }
 
@@ -376,7 +384,13 @@ export class CryptoInputService {
   }
 
   private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
-  private readonly tokenTxTypes = ['AccountToAccount', 'AnyAccountsToAccounts', 'WithdrawFromVault', 'PoolSwap', 'RemovePoolLiquidity'];
+  private readonly tokenTxTypes = [
+    'AccountToAccount',
+    'AnyAccountsToAccounts',
+    'WithdrawFromVault',
+    'PoolSwap',
+    'RemovePoolLiquidity',
+  ];
 
   getAmounts(history: AccountHistory): HistoryAmount[] {
     const amounts = this.utxoTxTypes.includes(history.type)
