@@ -15,10 +15,10 @@ export class ActiveRefUserQuery {
   @IsNotEmpty()
   @IsString()
   @ValidateIf((o) => !o.origin && o.refCode)
-  refCode: string = null;
+  refCode: string;
 
   @IsNotEmpty()
   @IsString()
   @ValidateIf((o) => !o.refCode || o.origin)
-  origin: string = null;
+  origin: string;
 }

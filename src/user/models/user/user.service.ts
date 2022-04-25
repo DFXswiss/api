@@ -106,40 +106,36 @@ export class UserService {
     return provision;
   }
 
-  async getActiveRefUser(
-    query: ActiveRefUserQuery,
-  ): Promise<{ activeUser: number; cryptoBuyVolume?: number; buyCryptoVolume?: number }> {
+  async getActiveRefUser(query: ActiveRefUserQuery): Promise<{ activeUser: number; volume?: number }> {
     const refUser = await this.userRepo.find({
       select: ['id'],
       where: {
         created: Between(query.from, query.to),
         status: UserStatus.ACTIVE,
-        usedRef: query.refCode,
-        origin: query.origin,
+        ...(query.refCode ? { usedRef: query.refCode } : {}),
+        ...(query.origin ? { origin: query.origin } : {}),
       },
     });
 
-    const { cryptoBuyVolume, buyCryptoVolume } = await this.userRepo
+    const whereQuery = query.refCode
+      ? query.origin
+        ? "user.usedRef = '" + query.refCode + "' AND user.origin = '" + query.origin + "'"
+        : "user.usedRef = '" + query.refCode + "'"
+      : "user.origin = '" + query.origin + "'";
+
+    const { volume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(cryptoBuys.amountInEur)', 'cryptoBuyVolume')
-      .addSelect('SUM(buyCryptos.amountInEur)', 'buyCryptoVolume')
+      .select('SUM(cryptoBuys.amountInEur)', 'volume')
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.cryptoBuys', 'cryptoBuys')
-      .leftJoin('buys.buyCryptos', 'buyCryptos')
-      .where('user.created >= :from', { from: query.from })
-      .andWhere('user.created <= :to', { to: query.to })
-      .andWhere('user.usedRef = :ref', { ref: query.refCode })
-      // .andWhere('user.origin = :origin', { origin: query.origin })
-      .andWhere(
-        new Brackets((qb) => {
-          qb.where('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS }).orWhere('buyCryptos.amlCheck = :check', {
-            check: AmlCheck.PASS,
-          });
-        }),
-      )
-      .getRawOne<{ cryptoBuyVolume: number; buyCryptoVolume: number }>();
+      .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere(whereQuery)
+      .andWhere('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS })
+      .getRawOne<{ volume: number }>();
 
-    return { activeUser: refUser.length, cryptoBuyVolume: cryptoBuyVolume, buyCryptoVolume: buyCryptoVolume };
+    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
+
+    return { activeUser: refUser.length, volume: volume };
   }
 
   async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
