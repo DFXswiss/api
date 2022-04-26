@@ -1,31 +1,18 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToOne } from 'typeorm';
+import { BuyCrypto } from '../buy-crypto/buy-crypto.entity';
 import { CryptoBuy } from '../crypto-buy/crypto-buy.entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { BankTxBatch } from './bank-tx-batch.entity';
 
 export enum BankTxType {
   INTERNAL = 'Internal',
-  RETURN = 'Return',
+  BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
+  BANK_TX_RETURN = 'BankTxReturn',
   REPEAT = 'Repeat',
-  CRYPTO_BUY = 'CryptoBuy',
-  CRYPTO_SELL = 'CryptoSell',
+  BUY_CRYPTO = 'BuyCrypto',
+  BUY_FIAT = 'BuyFiat',
   UNKNOWN = 'Unknown',
-}
-
-export interface RawBankTx {
-  id: number;
-  name: string;
-  cryptoSellId: number;
-  cryptoBuyId: number;
-  returnBankTxId: number;
-  returnSourceBankTxId: number;
-  nextRepeatBankTxId: number;
-  previousRepeatBankTxId: number;
-}
-
-export interface TypedBankTx extends RawBankTx {
-  type: BankTxType;
 }
 
 @Entity()
@@ -132,19 +119,8 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   txInfo?: string;
 
-  @OneToOne(() => BankTx, (bankTx) => bankTx.returnBankTx, { nullable: true })
-  returnSourceBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.returnSourceBankTx, { nullable: true })
-  @JoinColumn()
-  returnBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.previousRepeatBankTx, { nullable: true })
-  @JoinColumn()
-  nextRepeatBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.nextRepeatBankTx, { nullable: true })
-  previousRepeatBankTx?: BankTx;
+  @Column({ length: 256, nullable: true })
+  type: BankTxType;
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: false })
   batch: BankTxBatch;
@@ -154,4 +130,7 @@ export class BankTx extends IEntity {
 
   @OneToOne(() => CryptoBuy, (buy) => buy.bankTx, { nullable: true })
   cryptoBuy?: CryptoBuy;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
+  buyCrypto?: BuyCrypto;
 }

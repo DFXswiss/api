@@ -220,35 +220,19 @@ export class SpiderService {
   }
 
   async getChatbotResult(userDataId: number, isOrganization: boolean): Promise<ChatbotResult> {
-    const completedVersion = await this.spiderApi.getDocumentVersion(
+    return this.spiderApi.getCompletedDocument<ChatbotResult>(
       userDataId,
       isOrganization,
       KycDocument.ADDITIONAL_INFORMATION,
-      KycDocumentState.COMPLETED,
-    );
-
-    return this.spiderApi.getDocument<ChatbotResult>(
-      userDataId,
-      isOrganization,
-      KycDocument.ADDITIONAL_INFORMATION,
-      completedVersion?.name,
       this.defaultDocumentPart,
     );
   }
 
   async getChatbotExport(userDataId: number, isOrganization: boolean): Promise<ChatbotExport> {
-    const completedVersion = await this.spiderApi.getDocumentVersion(
+    return this.spiderApi.getCompletedDocument<ChatbotExport>(
       userDataId,
       isOrganization,
       KycDocument.CHATBOT_ONBOARDING,
-      KycDocumentState.COMPLETED,
-    );
-
-    return this.spiderApi.getDocument<ChatbotExport>(
-      userDataId,
-      isOrganization,
-      KycDocument.CHATBOT_ONBOARDING,
-      completedVersion?.name,
       'export',
     );
   }

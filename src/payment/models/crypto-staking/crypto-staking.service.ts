@@ -146,6 +146,7 @@ export class CryptoStakingService {
 
       // check if reinvested
       await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId);
+      if (dto.outTxId2) await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId2);
 
       await this.cryptoStakingRepo.save({ ...entity, ...dto });
     }
@@ -188,15 +189,15 @@ export class CryptoStakingService {
     return { batches, avgInflow: (balanceToday - balanceLastWeek) / 7 };
   }
 
-  async rearrangeOutputDates(date: Date): Promise<void> {
+  async rearrangeOutputDates(date: Date, maxBatchSize: number): Promise<void> {
     date.setUTCHours(0, 0, 0, 0);
     const dateTo = Util.daysAfter(1, date);
 
-    await this.rearrangeReinvests(date, dateTo);
+    await this.rearrangeReinvests(date, dateTo, maxBatchSize);
     await this.rearrangePaybacks(date, dateTo);
   }
 
-  private async rearrangeReinvests(dateFrom: Date, dateTo: Date): Promise<void> {
+  private async rearrangeReinvests(dateFrom: Date, dateTo: Date, maxBatchSize: number): Promise<void> {
     // all reinvests of that day
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: {
@@ -217,7 +218,7 @@ export class CryptoStakingService {
 
       while (
         cryptoStakingList.length > 0 &&
-        (batchAmount === 0 || batchAmount + cryptoStakingList[0].inputAmount <= Config.staking.payoutBatchSize)
+        (batchAmount === 0 || batchAmount + cryptoStakingList[0].inputAmount <= maxBatchSize)
       ) {
         batchAmount += cryptoStakingList[0].inputAmount;
         batch.push(cryptoStakingList.shift());
@@ -241,15 +242,17 @@ export class CryptoStakingService {
       where: {
         outputDate: Raw((d) => `${d} >= :from AND ${d} < :to`, { from: deadline, to: dateTo }),
         outTxId: IsNull(),
-        payoutType: Not(PayoutType.REINVEST),
+        payoutType: PayoutType.WALLET,
       },
     });
 
     // update output date
-    await this.cryptoStakingRepo.update(
-      cryptoStakingList.map((c) => c.id),
-      { outputDate: deadline },
-    );
+    if (cryptoStakingList.length > 0) {
+      await this.cryptoStakingRepo.update(
+        cryptoStakingList.map((c) => c.id),
+        { outputDate: deadline },
+      );
+    }
   }
 
   // --- DTO --- //
@@ -267,8 +270,10 @@ export class CryptoStakingService {
   private async isReinvest(cryptoInput: CryptoInput): Promise<boolean> {
     return (
       (await this.cryptoStakingRepo.findOne({
-        outTxId: cryptoInput.inTxId,
-        stakingRoute: { id: cryptoInput.route.id },
+        where: [
+          { outTxId: cryptoInput.inTxId, stakingRoute: { id: cryptoInput.route.id } },
+          { outTxId2: cryptoInput.inTxId, stakingRoute: { id: cryptoInput.route.id } },
+        ],
       })) != null ||
       (await this.stakingRewardRepo.findOne({ txId: cryptoInput.inTxId, staking: { id: cryptoInput.route.id } })) !=
         null

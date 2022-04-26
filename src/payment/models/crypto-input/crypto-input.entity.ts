@@ -10,21 +10,9 @@ import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 export enum CryptoInputType {
   RETURN = 'Return',
   CRYPTO_STAKING = 'CryptoStaking',
-  CRYPTO_SELL = 'CryptoSell',
+  BUY_FIAT = 'BuyFiat',
   CRYPTO_CRYPTO = 'CryptoCrypto',
   UNKNOWN = 'Unknown',
-}
-
-export interface RawCryptoInput {
-  id: number;
-  returnTxId: string;
-  cryptoSellId: number;
-  cryptoStakingId: number;
-  routeId: number;
-}
-
-export interface TypedCryptoInput extends RawCryptoInput {
-  type: CryptoInputType;
 }
 
 @Entity()
@@ -53,6 +41,9 @@ export class CryptoInput extends IEntity {
 
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   asset: Asset;
+
+  @Column({ length: 256, nullable: true })
+  type: CryptoInputType;
 
   @ManyToOne(() => DepositRoute, { nullable: false })
   route: Sell | Staking;

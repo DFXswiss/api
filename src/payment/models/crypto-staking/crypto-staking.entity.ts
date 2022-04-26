@@ -50,6 +50,9 @@ export class CryptoStaking extends IEntity {
   @Column({ length: 256, nullable: true })
   outTxId: string;
 
+  @Column({ length: 256, nullable: true })
+  outTxId2: string;
+
   @Column({ length: 256, nullable: false })
   payoutType: PayoutType;
 
