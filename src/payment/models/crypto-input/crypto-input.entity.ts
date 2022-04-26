@@ -10,7 +10,7 @@ import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 export enum CryptoInputType {
   RETURN = 'Return',
   CRYPTO_STAKING = 'CryptoStaking',
-  CRYPTO_SELL = 'CryptoSell',
+  BUY_FIAT = 'BuyFiat',
   CRYPTO_CRYPTO = 'CryptoCrypto',
   UNKNOWN = 'Unknown',
 }

@@ -9,8 +9,8 @@ export enum BankTxType {
   INTERNAL = 'Internal',
   RETURN = 'Return',
   REPEAT = 'Repeat',
-  CRYPTO_BUY = 'CryptoBuy',
-  CRYPTO_SELL = 'CryptoSell',
+  BUY_CRYPTO = 'BuyCrypto',
+  BUY_FIAT = 'BuyFiat',
   UNKNOWN = 'Unknown',
 }
 

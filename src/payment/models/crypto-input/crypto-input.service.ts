@@ -87,7 +87,7 @@ export class CryptoInputService {
 
   private getCryptoInputType(input: RawCryptoInput): CryptoInputType {
     if (input.returnTxId) return CryptoInputType.RETURN;
-    if (input.cryptoSellId) return CryptoInputType.CRYPTO_SELL;
+    if (input.cryptoSellId) return CryptoInputType.BUY_FIAT;
     if (input.cryptoStakingId) return CryptoInputType.CRYPTO_STAKING;
     if (input.routeId === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
 
@@ -270,7 +270,7 @@ export class CryptoInputService {
         route.type === RouteType.SELL
           ? route.id == this.cryptoCryptoRouteId
             ? CryptoInputType.CRYPTO_CRYPTO
-            : CryptoInputType.CRYPTO_SELL
+            : CryptoInputType.BUY_FIAT
           : route.type === RouteType.STAKING
           ? CryptoInputType.CRYPTO_STAKING
           : CryptoInputType.UNKNOWN,

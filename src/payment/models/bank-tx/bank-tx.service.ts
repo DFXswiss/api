@@ -30,7 +30,7 @@ export class BankTxService {
 
     bankTx.type = dto.type;
 
-    if (bankTx.type === BankTxType.CRYPTO_BUY) await this.buyCryptoService.create(bankTxId, dto.buyId);
+    if (bankTx.type === BankTxType.BUY_CRYPTO) await this.buyCryptoService.create(bankTxId, dto.buyId);
 
     return await this.bankTxRepo.save(bankTx);
   }
@@ -84,8 +84,8 @@ export class BankTxService {
   // --- HELPER METHODS --- //
   private getBankTxType(tx: RawBankTx): BankTxType {
     if (tx.returnBankTxId || tx.returnSourceBankTxId) return BankTxType.RETURN;
-    if (tx.cryptoSellId) return BankTxType.CRYPTO_SELL;
-    if (tx.cryptoBuyId) return BankTxType.CRYPTO_BUY;
+    if (tx.cryptoSellId) return BankTxType.BUY_FIAT;
+    if (tx.cryptoBuyId) return BankTxType.BUY_CRYPTO;
     if (tx.nextRepeatBankTxId || tx.previousRepeatBankTxId) return BankTxType.REPEAT;
     if (tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.')) return BankTxType.INTERNAL;
 
