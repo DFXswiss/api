@@ -189,6 +189,22 @@ export class SpiderApiService {
     );
   }
 
+  async getCompletedDocument<T>(
+    customerId: number,
+    isOrganization: boolean,
+    document: KycDocument,
+    part: string,
+  ): Promise<T> {
+    const completedVersion = await this.getDocumentVersion(
+      customerId,
+      isOrganization,
+      document,
+      KycDocumentState.COMPLETED,
+    );
+
+    return this.getDocument(customerId, isOrganization, document, completedVersion?.name, part);
+  }
+
   async changeDocumentState(
     customerId: number,
     isOrganization: boolean,
