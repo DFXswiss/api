@@ -10,7 +10,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
-import { CryptoInput, CryptoInputType, RawCryptoInput, TypedCryptoInput } from './crypto-input.entity';
+import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { Not } from 'typeorm';
@@ -48,50 +48,6 @@ export class CryptoInputService {
     if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
 
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
-  }
-
-  async getUntyped(minId = 1, startDate: Date = new Date(0)): Promise<CryptoInput[]> {
-    return await this.cryptoInputRepo
-      .createQueryBuilder('cryptoInput')
-      .select('cryptoInput')
-      .addSelect('route.id')
-      .leftJoin('cryptoInput.route', 'route')
-      .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
-      .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
-      .where('cryptoInput.returnTxId IS NULL')
-      .andWhere('cryptoSell.id IS NULL')
-      .andWhere('cryptoStaking.id IS NULL')
-      .andWhere('route.id != :id', { id: this.cryptoCryptoRouteId })
-      .andWhere('cryptoInput.id >= :minId', { minId })
-      .andWhere('cryptoInput.updated >= :startDate', { startDate })
-      .getMany();
-  }
-
-  async getWithType(minId = 1, startDate: Date = new Date(0)): Promise<TypedCryptoInput[]> {
-    const entries = await this.cryptoInputRepo
-      .createQueryBuilder('cryptoInput')
-      .select('cryptoInput.id', 'id')
-      .addSelect('cryptoInput.returnTxId', 'returnTxId')
-      .addSelect('cryptoSell.id', 'cryptoSellId')
-      .addSelect('cryptoStaking.id', 'cryptoStakingId')
-      .addSelect('route.id', 'routeId')
-      .leftJoin('cryptoInput.route', 'route')
-      .leftJoin('cryptoInput.cryptoSell', 'cryptoSell')
-      .leftJoin('cryptoInput.cryptoStaking', 'cryptoStaking')
-      .where('cryptoInput.id >= :minId', { minId })
-      .andWhere('cryptoInput.updated >= :startDate', { startDate })
-      .getRawMany<RawCryptoInput>();
-
-    return entries.map((e) => ({ ...e, type: this.getCryptoInputType(e) }));
-  }
-
-  private getCryptoInputType(input: RawCryptoInput): CryptoInputType {
-    if (input.returnTxId) return CryptoInputType.RETURN;
-    if (input.cryptoSellId) return CryptoInputType.BUY_FIAT;
-    if (input.cryptoStakingId) return CryptoInputType.CRYPTO_STAKING;
-    if (input.routeId === this.cryptoCryptoRouteId) return CryptoInputType.CRYPTO_CRYPTO;
-
-    return CryptoInputType.UNKNOWN;
   }
 
   // --- TOKEN CONVERSION --- //

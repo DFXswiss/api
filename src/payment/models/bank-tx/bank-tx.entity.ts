@@ -7,26 +7,12 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 
 export enum BankTxType {
   INTERNAL = 'Internal',
-  RETURN = 'Return',
+  BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
+  BANKTX_RETURN = 'BankTxReturn',
   REPEAT = 'Repeat',
   BUY_CRYPTO = 'BuyCrypto',
   BUY_FIAT = 'BuyFiat',
   UNKNOWN = 'Unknown',
-}
-
-export interface RawBankTx {
-  id: number;
-  name: string;
-  cryptoSellId: number;
-  cryptoBuyId: number;
-  returnBankTxId: number;
-  returnSourceBankTxId: number;
-  nextRepeatBankTxId: number;
-  previousRepeatBankTxId: number;
-}
-
-export interface TypedBankTx extends RawBankTx {
-  type: BankTxType;
 }
 
 @Entity()
@@ -135,20 +121,6 @@ export class BankTx extends IEntity {
 
   @Column({ length: 256, nullable: true })
   type: BankTxType;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.returnBankTx, { nullable: true })
-  returnSourceBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.returnSourceBankTx, { nullable: true })
-  @JoinColumn()
-  returnBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.previousRepeatBankTx, { nullable: true })
-  @JoinColumn()
-  nextRepeatBankTx?: BankTx;
-
-  @OneToOne(() => BankTx, (bankTx) => bankTx.nextRepeatBankTx, { nullable: true })
-  previousRepeatBankTx?: BankTx;
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: false })
   batch: BankTxBatch;
