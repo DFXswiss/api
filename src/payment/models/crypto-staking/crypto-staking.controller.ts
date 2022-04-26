@@ -62,8 +62,8 @@ export class CryptoStakingController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async rearrangeOutputDates(@Query('date') date: string, @Query('maxBatchSize') maxBatchSize: string): Promise<void> {
-    await this.cryptoStakingService.rearrangeOutputDates(new Date(date), +maxBatchSize);
+  async rearrangeOutputDates(@Query('date') date: string, @Query('maxBatchSize') maxBatchSize?: string): Promise<void> {
+    await this.cryptoStakingService.rearrangeOutputDates(new Date(date), maxBatchSize ? +maxBatchSize : undefined);
   }
 
   @Put(':id')

@@ -201,7 +201,7 @@ export class CryptoStakingService {
     await this.rearrangePaybacks(date, dateTo);
   }
 
-  private async rearrangeReinvests(dateFrom: Date, dateTo: Date, maxBatchSize: number): Promise<void> {
+  private async rearrangeReinvests(dateFrom: Date, dateTo: Date, maxBatchSize?: number): Promise<void> {
     // all reinvests of that day
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: {
@@ -211,6 +211,14 @@ export class CryptoStakingService {
       },
       order: { stakingRoute: 'ASC' },
     });
+
+    if (!maxBatchSize) {
+      // find optimal batch size
+      const totalVolume = Util.sumObj(cryptoStakingList, 'inputAmount');
+      const maxVolume = Math.max(...cryptoStakingList.map((c) => c.inputAmount));
+
+      maxBatchSize = Math.min(Math.max(totalVolume / 20, maxVolume), 20000);
+    }
 
     const payoutDate = new Date(dateFrom);
     while (cryptoStakingList.length > 0) {
