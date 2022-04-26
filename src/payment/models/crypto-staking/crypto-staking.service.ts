@@ -120,7 +120,11 @@ export class CryptoStakingService {
       .andWhere('stakingRoute.userId = :userId', { userId })
       .groupBy('dateadd(DAY, datediff(DAY, 0, cryptoStaking.outputDate), 0), cryptoStaking.payoutType')
       .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>()
-      .then((l) => l.map((b) => ({ ...b, amount: Util.round(b.amount, 2) })));
+      .then((l) =>
+        l
+          .map((b) => ({ ...b, amount: Util.round(b.amount, 2) }))
+          .sort((a, b) => (a.outputDate > b.outputDate ? 1 : -1)),
+      );
   }
 
   // --- MASTERNODE OPERATOR --- //
@@ -146,6 +150,7 @@ export class CryptoStakingService {
 
       // check if reinvested
       await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId);
+      if (dto.outTxId2) await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId2);
 
       await this.cryptoStakingRepo.save({ ...entity, ...dto });
     }
@@ -196,7 +201,7 @@ export class CryptoStakingService {
     await this.rearrangePaybacks(date, dateTo);
   }
 
-  private async rearrangeReinvests(dateFrom: Date, dateTo: Date, maxBatchSize: number): Promise<void> {
+  private async rearrangeReinvests(dateFrom: Date, dateTo: Date, maxBatchSize?: number): Promise<void> {
     // all reinvests of that day
     const cryptoStakingList = await this.cryptoStakingRepo.find({
       where: {
@@ -206,6 +211,14 @@ export class CryptoStakingService {
       },
       order: { stakingRoute: 'ASC' },
     });
+
+    if (!maxBatchSize) {
+      // find optimal batch size
+      const totalVolume = Util.sumObj(cryptoStakingList, 'inputAmount');
+      const maxVolume = Math.max(...cryptoStakingList.map((c) => c.inputAmount));
+
+      maxBatchSize = Math.min(Math.max(totalVolume / 20, maxVolume), 20000);
+    }
 
     const payoutDate = new Date(dateFrom);
     while (cryptoStakingList.length > 0) {
@@ -241,7 +254,7 @@ export class CryptoStakingService {
       where: {
         outputDate: Raw((d) => `${d} >= :from AND ${d} < :to`, { from: deadline, to: dateTo }),
         outTxId: IsNull(),
-        payoutType: Not(PayoutType.REINVEST),
+        payoutType: PayoutType.WALLET,
       },
     });
 
@@ -269,8 +282,10 @@ export class CryptoStakingService {
   private async isReinvest(cryptoInput: CryptoInput): Promise<boolean> {
     return (
       (await this.cryptoStakingRepo.findOne({
-        outTxId: cryptoInput.inTxId,
-        stakingRoute: { id: cryptoInput.route.id },
+        where: [
+          { outTxId: cryptoInput.inTxId, stakingRoute: { id: cryptoInput.route.id } },
+          { outTxId2: cryptoInput.inTxId, stakingRoute: { id: cryptoInput.route.id } },
+        ],
       })) != null ||
       (await this.stakingRewardRepo.findOne({ txId: cryptoInput.inTxId, staking: { id: cryptoInput.route.id } })) !=
         null

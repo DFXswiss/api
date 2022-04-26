@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsDate, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
-export class ActiveRefUserQuery {
+export class RefInfoQuery {
   @IsOptional()
   @IsDate()
   @Type(() => Date)

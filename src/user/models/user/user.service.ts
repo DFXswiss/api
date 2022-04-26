@@ -23,7 +23,7 @@ import { Config } from 'src/config/config';
 import { ApiKey } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
 import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
-import { ActiveRefUserQuery } from './dto/active-ref-user-query.dto';
+import { RefInfoQuery } from './dto/ref-info-query.dto';
 
 @Injectable()
 export class UserService {
@@ -106,7 +106,8 @@ export class UserService {
     return provision;
   }
 
-  async getRefInfo(query: ActiveRefUserQuery): Promise<{ activeUser: number; volume?: number }> {
+  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
+    // get ref users
     const refUser = await this.userRepo.find({
       select: ['id'],
       where: {
@@ -117,6 +118,8 @@ export class UserService {
       },
     });
 
+    // get ref volume
+    // TODO cryptoBuy -> buyCrypto umstellen
     let dbQuery = this.userRepo
       .createQueryBuilder('user')
       .select('SUM(cryptoBuys.amountInEur)', 'volume')
@@ -129,8 +132,6 @@ export class UserService {
     if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
 
     const { volume } = await dbQuery.getRawOne<{ volume: number }>();
-
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
 
     return { activeUser: refUser.length, volume: volume };
   }

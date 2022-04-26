@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class PayoutCryptoStakingDto {
   @IsNotEmpty()
@@ -16,4 +16,8 @@ export class PayoutCryptoStakingDto {
   @IsNotEmpty()
   @IsString()
   outTxId: string;
+
+  @IsOptional()
+  @IsString()
+  outTxId2?: string;
 }
