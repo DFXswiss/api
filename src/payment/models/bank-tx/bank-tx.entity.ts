@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../buy-crypto/buy-crypto.entity';
 import { CryptoBuy } from '../crypto-buy/crypto-buy.entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';

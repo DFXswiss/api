@@ -8,8 +8,6 @@ import {
   Put,
   Param,
   Body,
-  Get,
-  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
