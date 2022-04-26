@@ -34,9 +34,7 @@ export class BuyCryptoService {
     // buy
     if (buyId) entity.buy = await this.getBuy(buyId);
 
-    entity = await this.buyCryptoRepo.save(entity);
-
-    return entity;
+    return await this.buyCryptoRepo.save(entity);
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
@@ -68,18 +66,18 @@ export class BuyCryptoService {
   }
 
   async updateVolumes(): Promise<void> {
-    // const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
     // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
+    // const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
     // await this.updateBuyVolume(buyIds);
   }
 
   async updateRefVolumes(): Promise<void> {
+    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
     // const refs = await this.buyCryptoRepo
     //   .createQueryBuilder('buyCrypto')
     //   .select('usedRef')
     //   .groupBy('usedRef')
     //   .getRawMany<{ usedRef: string }>();
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
     // await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
