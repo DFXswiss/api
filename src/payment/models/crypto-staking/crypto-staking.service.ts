@@ -120,7 +120,11 @@ export class CryptoStakingService {
       .andWhere('stakingRoute.userId = :userId', { userId })
       .groupBy('dateadd(DAY, datediff(DAY, 0, cryptoStaking.outputDate), 0), cryptoStaking.payoutType')
       .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>()
-      .then((l) => l.map((b) => ({ ...b, amount: Util.round(b.amount, 2) })));
+      .then((l) =>
+        l
+          .map((b) => ({ ...b, amount: Util.round(b.amount, 2) }))
+          .sort((a, b) => (a.outputDate > b.outputDate ? 1 : -1)),
+      );
   }
 
   // --- MASTERNODE OPERATOR --- //
