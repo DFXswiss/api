@@ -8,7 +8,7 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 export enum BankTxType {
   INTERNAL = 'Internal',
   BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
-  BANKTX_RETURN = 'BankTxReturn',
+  BANK_TX_RETURN = 'BankTxReturn',
   REPEAT = 'Repeat',
   BUY_CRYPTO = 'BuyCrypto',
   BUY_FIAT = 'BuyFiat',

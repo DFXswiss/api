@@ -819,12 +819,12 @@
     "method": "PUT",
     "sortNum": 310000,
     "created": "2022-03-31T23:05:23.528Z",
-    "modified": "2022-03-31T23:07:56.565Z",
+    "modified": "2022-04-26T14:57:23.892Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "[\n    {\n        \"id\": 3,\n        \"outputAmount\": 5,\n        \"outputAsset\": \"USDT\",\n        \"outTxId\": \"test\"\n    }\n]",
+      "raw": "[\n    {\n        \"id\": 3,\n        \"outputAmount\": 5,\n        \"outputAsset\": \"USDT\",\n        \"outTxId\": \"test1\",\n        \"outTxId2\": null\n    }\n]",
       "form": []
     },
     "tests": []
