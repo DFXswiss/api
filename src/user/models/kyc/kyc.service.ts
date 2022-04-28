@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { KycInProgress, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
+import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { KycDocument } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { SpiderService } from 'src/user/services/spider/spider.service';
@@ -12,7 +12,9 @@ import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service'
 import { KycProcessService } from './kyc-process.service';
 
 export interface KycInfo {
-  status: KycStatus;
+  kycStatus: KycStatus;
+  kycState: KycState;
+  depositLimit: number;
   sessionUrl?: string;
   setupUrl?: string;
 }
@@ -158,15 +160,17 @@ export class KycService {
     let userData = await this.userDataRepo.findOne({ where: { kycHash }, relations: ['spiderData'] });
     if (!userData) throw new NotFoundException('User not found');
 
-    if (!KycInProgress(userData.kycStatus)) throw new BadRequestException('KYC not in progress');
-
-    // update
-    userData = await this.kycProcess.checkKycProcess(userData);
-    await this.userDataRepo.save(userData);
+    if (KycInProgress(userData.kycStatus)) {
+      // update
+      userData = await this.kycProcess.checkKycProcess(userData);
+      await this.userDataRepo.save(userData);
+    }
 
     const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
     return {
-      status: userData.kycStatus,
+      kycStatus: userData.kycStatus,
+      kycState: userData.kycState,
+      depositLimit: userData.depositLimit,
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
     };
