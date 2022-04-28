@@ -178,8 +178,9 @@ export class CryptoStakingService {
   }
 
   async getPayoutForecast(): Promise<{ batches: StakingBatchDto[]; avgInflow: number }> {
+    // get future batches
     const batches = await this.cryptoStakingRepo
-      .getActiveEntries()
+      .getActiveEntries(new Date())
       .select('SUM(cryptoStaking.inputAmount)', 'amount')
       .addSelect('dateadd(HOUR, datediff(HOUR, 0, cryptoStaking.outputDate), 0)', 'outputDate')
       .addSelect('cryptoStaking.payoutType', 'payoutType')
@@ -187,10 +188,21 @@ export class CryptoStakingService {
       .groupBy('dateadd(HOUR, datediff(HOUR, 0, cryptoStaking.outputDate), 0), cryptoStaking.payoutType')
       .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>();
 
-    const balanceToday = await this.stakingService.getTotalStakingBalance();
-    const balanceLastWeek = await this.stakingService.getTotalStakingBalance(Util.daysBefore(7));
+    // get average inflow
+    const inflowAvgDays = 7;
+    const { inputVolume } = await this.cryptoStakingRepo
+      .createQueryBuilder('cryptoStaking')
+      .select('SUM(cryptoStaking.inputAmount)', 'inputVolume')
+      .where('cryptoStaking.inputDate BETWEEN :from AND :to', { from: Util.daysBefore(inflowAvgDays), to: new Date() })
+      .getRawOne<{ inputVolume: number }>();
+    const { reinvestVolume } = await this.cryptoStakingRepo
+      .createQueryBuilder('cryptoStaking')
+      .select('SUM(cryptoStaking.outputAmount)', 'reinvestVolume')
+      .where('cryptoStaking.outputDate BETWEEN :from AND :to', { from: Util.daysBefore(inflowAvgDays), to: new Date() })
+      .andWhere('cryptoStaking.payoutType = :type', { type: PayoutType.REINVEST })
+      .getRawOne<{ reinvestVolume: number }>();
 
-    return { batches, avgInflow: (balanceToday - balanceLastWeek) / 7 };
+    return { batches, avgInflow: (inputVolume - reinvestVolume) / inflowAvgDays };
   }
 
   async rearrangeOutputDates(date: Date, maxBatchSize: number): Promise<void> {
@@ -215,9 +227,7 @@ export class CryptoStakingService {
     if (!maxBatchSize) {
       // find optimal batch size
       const totalVolume = Util.sumObj(cryptoStakingList, 'inputAmount');
-      const maxVolume = Math.max(...cryptoStakingList.map((c) => c.inputAmount));
-
-      maxBatchSize = Math.min(Math.max(totalVolume / 20, maxVolume), 20000);
+      maxBatchSize = Math.min(totalVolume / 20, 20000);
     }
 
     const payoutDate = new Date(dateFrom);
