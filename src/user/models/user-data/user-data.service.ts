@@ -38,6 +38,10 @@ export class UserDataService {
       .getOne();
   }
 
+  async getUserDataByKycHash(kycHash: string): Promise<UserData | undefined> {
+    return this.userDataRepo.findOne({ kycHash });
+  }
+
   async createUserData(): Promise<UserData> {
     return await this.userDataRepo.save({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
