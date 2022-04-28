@@ -227,9 +227,7 @@ export class CryptoStakingService {
     if (!maxBatchSize) {
       // find optimal batch size
       const totalVolume = Util.sumObj(cryptoStakingList, 'inputAmount');
-      const maxVolume = Math.max(...cryptoStakingList.map((c) => c.inputAmount));
-
-      maxBatchSize = Math.min(Math.max(totalVolume / 20, maxVolume), 20000);
+      maxBatchSize = Math.min(totalVolume / 20, 20000);
     }
 
     const payoutDate = new Date(dateFrom);
