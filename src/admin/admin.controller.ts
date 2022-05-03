@@ -1,8 +1,6 @@
 import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException, Put } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
-import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
-import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/shared/services/letter.service';
@@ -12,7 +10,6 @@ import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { RenameRefDto } from './dto/rename-ref.dto';
-import { UploadAddressDto } from './dto/upload-address.dto';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
 
@@ -22,8 +19,6 @@ export class AdminController {
     private readonly mailService: MailService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
-    private readonly bankTxService: BankTxService,
-    private readonly cryptoInputService: CryptoInputService,
     private readonly letterService: LetterService,
   ) {}
 
