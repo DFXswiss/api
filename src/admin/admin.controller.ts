@@ -96,7 +96,7 @@ export class AdminController {
     for (let a = 0; a < byteSplit.length; a++) {
       buffer[a] = Number.parseInt(byteSplit[a]);
     }
-
+    console.log(buffer);
     const uploadSpider = await this.spiderService.uploadDocument(
       uploadFileDto.userDataId,
       false,
@@ -108,7 +108,7 @@ export class AdminController {
 
     const sendLetter = await this.letterService.uploadLetter(buffer);
 
-    return uploadSpider && sendLetter;
+    return  sendLetter;
   }
 
   @Get('db')

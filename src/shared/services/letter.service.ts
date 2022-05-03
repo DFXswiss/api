@@ -27,7 +27,7 @@ interface LetterResponse {
 export class LetterService {
   constructor(private readonly http: HttpService) {}
 
-  async uploadLetter(data: any): Promise<boolean> {
+  async uploadLetter(data: any): Promise<any> {
     const sendLetter = await this.http.post<LetterResponse>(`${Config.letter.url}setJob`, {
       auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
       letter: {
@@ -41,6 +41,6 @@ export class LetterService {
         },
       },
     });
-    return sendLetter.status == 200;
+    return sendLetter.status;
   }
 }
