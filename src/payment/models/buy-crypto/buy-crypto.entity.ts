@@ -39,7 +39,13 @@ export class BuyCrypto extends IEntity {
   amlCheck: AmlCheck;
 
   @Column({ type: 'float', nullable: true })
-  fee: number;
+  percentFee: number;
+
+  @Column({ type: 'float', nullable: true })
+  percentFeeAmount: number;
+
+  @Column({ type: 'float', nullable: true })
+  absoluteFeeAmount: number;
 
   @Column({ type: 'float', nullable: true })
   inputReferenceAmountMinusFee: number;

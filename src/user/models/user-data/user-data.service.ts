@@ -77,7 +77,10 @@ export class UserDataService {
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
       const customerInfo = await this.spiderApiService.getCustomerInfo(userDataId);
-      if (customerInfo && customerInfo.contractReference !== dto.kycFileId.toString())
+
+      if (!customerInfo || !customerInfo.contractReference)
+        throw new BadRequestException('Spider KYC File Reference is null');
+      if (customerInfo.contractReference !== dto.kycFileId.toString())
         await this.spiderService.renameReference(
           customerInfo.contractReference,
           dto.kycFileId.toString(),
