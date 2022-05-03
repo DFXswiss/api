@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from './http.service';
 import { Config } from 'src/config/config';
-import { SendLetterDto } from 'src/admin/dto/send-letter.dto';
+import { SendLetterDto } from 'src/admin/dto/upload-address.dto';
 import md5 = require('md5');
 
 interface LetterResponse {
@@ -27,7 +27,7 @@ interface LetterResponse {
 export class LetterService {
   constructor(private readonly http: HttpService) {}
 
-  async uploadLetter(data: any): Promise<any> {
+  async uploadLetter(data: any): Promise<boolean> {
     const sendLetter = await this.http.post<LetterResponse>(`${Config.letter.url}setJob`, {
       auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
       letter: {
@@ -41,6 +41,6 @@ export class LetterService {
         },
       },
     });
-    return sendLetter.status;
+    return sendLetter.status == 200;
   }
 }

@@ -12,7 +12,7 @@ import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { RenameRefDto } from './dto/rename-ref.dto';
-import { SendLetterDto } from './dto/send-letter.dto';
+import { UploadAddressDto } from './dto/upload-address.dto';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
 
@@ -88,27 +88,27 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async uploadAddress(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
-    const byteSplit = uploadFileDto.data.split(',');
+  async uploadAddress(@Body() uploadFileDto: UploadAddressDto): Promise<boolean> {
+    const byteSplit = uploadFileDto.spiderData.split(',');
 
     const buffer = new Uint8Array(byteSplit.length);
 
     for (let a = 0; a < byteSplit.length; a++) {
       buffer[a] = Number.parseInt(byteSplit[a]);
     }
-    console.log(uploadFileDto.data);
-    //const uploadSpider = await this.spiderService.uploadDocument(
-      //uploadFileDto.userDataId,
-     // false,
-     // uploadFileDto.documentType,
-     // uploadFileDto.originalName,
-     // uploadFileDto.contentType,
-     // buffer,
-    //);
 
-    const sendLetter = await this.letterService.uploadLetter(uploadFileDto.data);
+    const uploadSpider = await this.spiderService.uploadDocument(
+      uploadFileDto.userDataId,
+      false,
+      uploadFileDto.documentType,
+      uploadFileDto.originalName,
+      uploadFileDto.contentType,
+      buffer,
+    );
 
-    return  sendLetter;
+    const sendLetter = await this.letterService.uploadLetter(uploadFileDto.letterData);
+
+    return sendLetter && uploadSpider;
   }
 
   @Get('db')
