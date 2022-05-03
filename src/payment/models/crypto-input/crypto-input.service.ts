@@ -18,6 +18,8 @@ import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
+import { KycStatus } from 'src/user/models/user-data/user-data.entity';
+import { AmlCheck } from '../buy-crypto/buy-crypto.entity';
 
 interface HistoryAmount {
   amount: number;
@@ -222,6 +224,7 @@ export class CryptoInputService {
       btcAmount: btcAmount,
       usdtAmount: usdtAmount,
       isConfirmed: false,
+      amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
       type:
         route.type === RouteType.SELL
           ? route.id == this.cryptoCryptoRouteId
@@ -237,6 +240,8 @@ export class CryptoInputService {
     try {
       // save
       await this.cryptoInputRepo.save(input);
+      if (input.amlCheck === AmlCheck.FAIL) return;
+
       if (input.route.type === RouteType.STAKING) {
         await this.stakingService.updateBalance(input.route.id);
         await this.cryptoStakingService.create(input);

@@ -6,6 +6,7 @@ import { Entity, Column, ManyToOne, Index, OneToOne } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
+import { AmlCheck } from '../buy-crypto/buy-crypto.entity';
 
 export enum CryptoInputType {
   RETURN = 'Return',
@@ -50,6 +51,9 @@ export class CryptoInput extends IEntity {
 
   @Column({ default: false })
   isConfirmed: boolean;
+
+  @Column({ length: 256, default: AmlCheck.FAIL })
+  amlCheck: AmlCheck;
 
   @OneToOne(() => CryptoSell, (sell) => sell.cryptoInput, { nullable: true })
   cryptoSell?: CryptoSell;
