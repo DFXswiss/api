@@ -191,13 +191,20 @@ export class KycProcessService {
 
         spiderData.url = initiateData.sessionUrl;
         spiderData.secondUrl = log ? this.spiderService.getOnlineIdUrl(log.identificationId) : null;
-        spiderData.identTransactionId = log ? log.transactionId : null;
+        if (log) {
+          spiderData.identTransactionId = spiderData.identTransactionId
+            ? spiderData.identTransactionId + ',' + log.transactionId
+            : log.transactionId;
+        }
         break;
 
       case KycDocument.VIDEO_IDENTIFICATION:
         spiderData.url = initiateData.sessionUrl;
         spiderData.secondUrl = null;
-        spiderData.identTransactionId = await this.spiderService.getVideoTransactionId(initiateData.sessionUrl);
+        const videoTransactionId = await this.spiderService.getVideoTransactionId(initiateData.sessionUrl);
+        spiderData.identTransactionId = spiderData.identTransactionId
+          ? spiderData.identTransactionId + ',' + videoTransactionId
+          : videoTransactionId;
         break;
     }
 

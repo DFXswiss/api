@@ -3,6 +3,7 @@ import { IdentInProgress } from 'src/user/models/user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { IdentFailed, IdentPending, IdentResultDto, IdentSucceeded } from './dto/ident-result.dto';
 import { KycProcessService } from '../kyc/kyc-process.service';
+import { Like } from 'typeorm';
 
 @Injectable()
 export class IdentService {
@@ -11,7 +12,7 @@ export class IdentService {
   // --- WEBHOOK UPDATES --- //
   async identUpdate(result: IdentResultDto): Promise<void> {
     let user = await this.userDataRepo.findOne({
-      where: { spiderData: { identTransactionId: result?.identificationprocess?.transactionnumber } },
+      where: { spiderData: { identTransactionId: Like(`%${result?.identificationprocess?.transactionnumber}%`) } },
       relations: ['spiderData'],
     });
 

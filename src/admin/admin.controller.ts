@@ -1,10 +1,9 @@
 import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException, Put } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
-import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
-import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { LetterService } from 'src/shared/services/letter.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
@@ -20,8 +19,7 @@ export class AdminController {
     private readonly mailService: MailService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
-    private readonly bankTxService: BankTxService,
-    private readonly cryptoInputService: CryptoInputService,
+    private readonly letterService: LetterService,
   ) {}
 
   @Post('mail')
@@ -62,23 +60,34 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async uploadFile(@Body() updateFileDto: UploadFileDto): Promise<boolean> {
-    const byteSplit = updateFileDto.data.split(',');
-
-    const buffer = new Uint8Array(byteSplit.length);
-
-    for (let a = 0; a < byteSplit.length; a++) {
-      buffer[a] = Number.parseInt(byteSplit[a]);
-    }
-
+  async uploadFile(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
     return await this.spiderService.uploadDocument(
-      updateFileDto.userDataId,
+      uploadFileDto.userDataId,
       false,
-      updateFileDto.documentType,
-      updateFileDto.originalName,
-      updateFileDto.contentType,
-      buffer,
+      uploadFileDto.documentType,
+      uploadFileDto.originalName,
+      uploadFileDto.contentType,
+      Buffer.from(uploadFileDto.data, 'base64'),
     );
+  }
+
+  @Post('uploadAddress')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async uploadAddress(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
+    const uploadSpider = await this.spiderService.uploadDocument(
+      uploadFileDto.userDataId,
+      false,
+      uploadFileDto.documentType,
+      uploadFileDto.originalName,
+      uploadFileDto.contentType,
+      Buffer.from(uploadFileDto.data, 'base64'),
+    );
+
+    const sendLetter = await this.letterService.uploadLetter(uploadFileDto.data);
+
+    return sendLetter && uploadSpider;
   }
 
   @Get('db')
