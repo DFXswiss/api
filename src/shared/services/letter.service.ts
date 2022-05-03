@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from './http.service';
 import { Config } from 'src/config/config';
-import { SendLetterDto } from 'src/admin/dto/upload-address.dto';
 import md5 = require('md5');
 
 interface LetterResponse {

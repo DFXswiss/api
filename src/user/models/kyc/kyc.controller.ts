@@ -58,13 +58,6 @@ export class KycController {
     @GetJwt() jwt: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
-    const test = await this.letterService.uploadLetter({
-      userDataId: 1,
-      originalName: 'asd',
-      documentType: KycDocument.ADDRESS_CHECK,
-      data: files[0].buffer,
-      contentType: '',
-    });
     return this.kycService.uploadDocument(jwt.id, files[0], KycDocument.INCORPORATION_CERTIFICATE);
   }
 }
