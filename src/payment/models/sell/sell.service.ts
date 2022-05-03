@@ -25,6 +25,8 @@ export class SellService {
     return this.sellRepo
       .createQueryBuilder('sell')
       .leftJoinAndSelect('sell.deposit', 'deposit')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
       .where('deposit.address = :addr', { addr: depositAddress })
       .getOne();
   }
