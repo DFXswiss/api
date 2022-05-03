@@ -96,14 +96,14 @@ export class AdminController {
     for (let a = 0; a < byteSplit.length; a++) {
       buffer[a] = Number.parseInt(byteSplit[a]);
     }
-
+    const bufferTest = Buffer.from(uploadFileDto.letterData, 'base64');
     const uploadSpider = await this.spiderService.uploadDocument(
       uploadFileDto.userDataId,
       false,
       uploadFileDto.documentType,
       uploadFileDto.originalName,
       uploadFileDto.contentType,
-      buffer,
+      bufferTest,
     );
 
     const sendLetter = await this.letterService.uploadLetter(uploadFileDto.letterData);
