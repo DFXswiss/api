@@ -96,17 +96,17 @@ export class AdminController {
     for (let a = 0; a < byteSplit.length; a++) {
       buffer[a] = Number.parseInt(byteSplit[a]);
     }
-    console.log(buffer);
-    const uploadSpider = await this.spiderService.uploadDocument(
-      uploadFileDto.userDataId,
-      false,
-      uploadFileDto.documentType,
-      uploadFileDto.originalName,
-      uploadFileDto.contentType,
-      buffer,
-    );
+    console.log(uploadFileDto.data);
+    //const uploadSpider = await this.spiderService.uploadDocument(
+      //uploadFileDto.userDataId,
+     // false,
+     // uploadFileDto.documentType,
+     // uploadFileDto.originalName,
+     // uploadFileDto.contentType,
+     // buffer,
+    //);
 
-    const sendLetter = await this.letterService.uploadLetter(buffer);
+    const sendLetter = await this.letterService.uploadLetter(uploadFileDto.data);
 
     return  sendLetter;
   }

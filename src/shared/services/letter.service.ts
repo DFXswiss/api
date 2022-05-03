@@ -31,8 +31,8 @@ export class LetterService {
     const sendLetter = await this.http.post<LetterResponse>(`${Config.letter.url}setJob`, {
       auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
       letter: {
-        base64_file: data.toString('base64'),
-        base64_checksum: md5(data.toString('base64')),
+        base64_file: data,
+        base64_checksum: md5(data),
         specification: {
           page: 1,
           color: '4',
