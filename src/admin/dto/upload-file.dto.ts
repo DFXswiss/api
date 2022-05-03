@@ -21,5 +21,4 @@ export class UploadFileDto {
   @IsNotEmpty()
   @IsString()
   data: string;
-
 }

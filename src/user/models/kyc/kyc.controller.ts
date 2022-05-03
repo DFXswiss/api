@@ -12,16 +12,11 @@ import { LimitRequest } from '../limit-request/limit-request.entity';
 import { LimitRequestService } from '../limit-request/limit-request.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycInfo, KycService } from './kyc.service';
-import { LetterService } from 'src/shared/services/letter.service';
 
 @ApiTags('kyc')
 @Controller('kyc')
 export class KycController {
-  constructor(
-    private readonly kycService: KycService,
-    private readonly limitRequestService: LimitRequestService,
-    private readonly letterService: LetterService,
-  ) {}
+  constructor(private readonly kycService: KycService, private readonly limitRequestService: LimitRequestService) {}
 
   @Get()
   async getKycProgress(@Query('code') code: string): Promise<KycInfo> {
