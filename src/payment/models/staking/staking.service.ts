@@ -40,6 +40,8 @@ export class StakingService {
       .createQueryBuilder('staking')
       .leftJoinAndSelect('staking.deposit', 'deposit')
       .leftJoinAndSelect('staking.paybackDeposit', 'paybackDeposit')
+      .leftJoinAndSelect('staking.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
       .where('deposit.address = :addr', { addr: depositAddress })
       .getOne();
   }

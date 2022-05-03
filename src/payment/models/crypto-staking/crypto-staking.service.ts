@@ -177,10 +177,10 @@ export class CryptoStakingService {
     return this.toDtoList(cryptoStakingList);
   }
 
-  async getPayoutForecast(): Promise<{ batches: StakingBatchDto[]; avgInflow: number }> {
+  async getPayoutForecast(date: Date): Promise<{ batches: StakingBatchDto[]; avgInflow: number }> {
     // get future batches
     const batches = await this.cryptoStakingRepo
-      .getActiveEntries(new Date())
+      .getActiveEntries(date)
       .select('SUM(cryptoStaking.inputAmount)', 'amount')
       .addSelect('dateadd(HOUR, datediff(HOUR, 0, cryptoStaking.outputDate), 0)', 'outputDate')
       .addSelect('cryptoStaking.payoutType', 'payoutType')
