@@ -65,22 +65,14 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async uploadFile(@Body() updateFileDto: UploadFileDto): Promise<boolean> {
-    const byteSplit = updateFileDto.data.split(',');
-
-    const buffer = new Uint8Array(byteSplit.length);
-
-    for (let a = 0; a < byteSplit.length; a++) {
-      buffer[a] = Number.parseInt(byteSplit[a]);
-    }
-
+  async uploadFile(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
     return await this.spiderService.uploadDocument(
-      updateFileDto.userDataId,
+      uploadFileDto.userDataId,
       false,
-      updateFileDto.documentType,
-      updateFileDto.originalName,
-      updateFileDto.contentType,
-      buffer,
+      uploadFileDto.documentType,
+      uploadFileDto.originalName,
+      uploadFileDto.contentType,
+      Buffer.from(uploadFileDto.data, 'base64'),
     );
   }
 
@@ -88,25 +80,17 @@ export class AdminController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async uploadAddress(@Body() uploadFileDto: UploadAddressDto): Promise<boolean> {
-    const byteSplit = uploadFileDto.spiderData.split(',');
-
-    const buffer = new Uint8Array(byteSplit.length);
-
-    for (let a = 0; a < byteSplit.length; a++) {
-      buffer[a] = Number.parseInt(byteSplit[a]);
-    }
-    const bufferTest = Buffer.from(uploadFileDto.letterData, 'base64');
+  async uploadAddress(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
     const uploadSpider = await this.spiderService.uploadDocument(
       uploadFileDto.userDataId,
       false,
       uploadFileDto.documentType,
       uploadFileDto.originalName,
       uploadFileDto.contentType,
-      bufferTest,
+      Buffer.from(uploadFileDto.data, 'base64'),
     );
 
-    const sendLetter = await this.letterService.uploadLetter(uploadFileDto.letterData);
+    const sendLetter = await this.letterService.uploadLetter(uploadFileDto.data);
 
     return sendLetter && uploadSpider;
   }
