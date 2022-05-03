@@ -21,8 +21,8 @@ export class CryptoStakingController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.MASTERNODE_OPERATOR))
-  async getPayoutForecast(): Promise<{ batches: StakingBatchDto[]; avgInflow: number }> {
-    return this.cryptoStakingService.getPayoutForecast();
+  async getPayoutForecast(@Query('date') date: string): Promise<{ batches: StakingBatchDto[]; avgInflow: number }> {
+    return this.cryptoStakingService.getPayoutForecast(new Date(date));
   }
 
   @Get('ready')
