@@ -37,7 +37,15 @@ export class UpdateBuyCryptoDto {
 
   @IsOptional()
   @IsNumber()
-  fee: number;
+  percentFee: number;
+
+  @IsOptional()
+  @IsNumber()
+  percentFeeAmount: number;
+
+  @IsOptional()
+  @IsNumber()
+  absoluteFeeAmount: number;
 
   @IsOptional()
   @IsNumber()
