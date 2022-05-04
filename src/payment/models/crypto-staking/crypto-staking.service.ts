@@ -65,6 +65,9 @@ export class CryptoStakingService {
     entity.isReinvest = await this.isReinvest(cryptoInput);
 
     await this.cryptoStakingRepo.save(entity);
+
+    // update staking balance
+    await this.stakingService.updateBalance(entity.stakingRoute.id);
   }
 
   async update(id: number, dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
