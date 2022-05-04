@@ -10,6 +10,7 @@ import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
 import { RenameRefDto } from './dto/rename-ref.dto';
+import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
 
@@ -71,23 +72,12 @@ export class AdminController {
     );
   }
 
-  @Post('uploadAddress')
+  @Post('sendLetter')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async uploadAddress(@Body() uploadFileDto: UploadFileDto): Promise<boolean> {
-    const uploadSpider = await this.spiderService.uploadDocument(
-      uploadFileDto.userDataId,
-      false,
-      uploadFileDto.documentType,
-      uploadFileDto.originalName,
-      uploadFileDto.contentType,
-      Buffer.from(uploadFileDto.data, 'base64'),
-    );
-
-    const sendLetter = await this.letterService.uploadLetter(uploadFileDto.data);
-
-    return sendLetter && uploadSpider;
+  async sendLetter(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
+    return await this.letterService.uploadLetter(sendLetterDto);
   }
 
   @Get('db')
