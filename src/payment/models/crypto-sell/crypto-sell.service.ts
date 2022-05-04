@@ -124,7 +124,7 @@ export class CryptoSellService {
         .select('SUM(amountInEur)', 'volume')
         .innerJoin('cryptoSell.cryptoInput', 'cryptoInput')
         .where('cryptoInput.routeId = :id', { id: id })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('cryptoSell.amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();
 
       await this.sellService.updateVolume(id, volume ?? 0);
