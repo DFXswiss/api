@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from './http.service';
 import { Config } from 'src/config/config';
-import md5 = require('md5');
+import { Util } from 'src/shared/util';
 
 interface LetterResponse {
   notice: {
@@ -31,7 +31,7 @@ export class LetterService {
       auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
       letter: {
         base64_file: data,
-        base64_checksum: md5(data),
+        base64_checksum: Util.createHash(data, 'md5'),
         specification: {
           page: 1,
           color: '4',
