@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { KycDocument } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
@@ -10,6 +10,7 @@ import { Util } from 'src/shared/util';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
+import { IsNull } from 'typeorm';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -28,7 +29,22 @@ export class KycService {
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
-  ) {}
+  ) {
+    // TODO: temporary code to generate KYC hashes
+    this.generateKycHashes();
+  }
+
+  private async generateKycHashes(): Promise<void> {
+    const usersWithMissingHash = await this.userDataRepo.find({ kycHash: IsNull() });
+    for (const user of usersWithMissingHash) {
+      const kycHash = Util.createHash(user.id.toString() + new Date().getDate()).slice(0, 12);
+      if ((await this.userDataRepo.findOne({ kycHash })) != null) {
+        console.error(`KYC hash ${kycHash} already exists`);
+      } else {
+        this.userDataRepo.update(user.id, { kycHash });
+      }
+    }
+  }
 
   // --- NAME CHECK --- //
   async doNameCheck(userDataId: number): Promise<string> {
@@ -143,11 +159,6 @@ export class KycService {
   private async startKyc(userData: UserData): Promise<UserData> {
     // update customer
     await this.spiderService.initializeCustomer(userData);
-
-    // generate KYC hash
-    userData.kycHash = Util.createHash(userData.id.toString() + new Date().getDate()).slice(0, 12);
-    if ((await this.userDataRepo.findOne({ kycHash: userData.kycHash })) != null)
-      throw new InternalServerErrorException(`KYC hash ${userData.kycHash} already exists`);
 
     // do name check
     userData.riskState = await this.spiderService.checkCustomer(userData.id);
