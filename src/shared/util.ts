@@ -117,12 +117,6 @@ export class Util {
   static createHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5' = 'sha256'): string {
     const hash = createHash(hashAlgo);
     hash.update(data);
-    return hash.digest('hex').toUpperCase();
-  }
-
-  static createRawHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5' = 'sha256'): string {
-    const hash = createHash(hashAlgo);
-    hash.update(data);
     return hash.digest('hex');
   }
 

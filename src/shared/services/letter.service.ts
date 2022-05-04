@@ -31,7 +31,7 @@ export class LetterService {
       auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
       letter: {
         base64_file: data,
-        base64_checksum: Util.createRawHash(data, 'md5'),
+        base64_checksum: Util.createHash(data, 'md5'),
         specification: {
           page: 1,
           color: '4',
