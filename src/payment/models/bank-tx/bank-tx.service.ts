@@ -62,7 +62,7 @@ export class BankTxService {
       .filter((i) => !duplicates.includes(i.accountServiceRef))
       .map((tx) => ({
         batch: batch,
-        type: tx.name.includes('DFX AG') || tx.name.includes('Payward Ltd.') ? BankTxType.INTERNAL : null,
+        type: tx.name?.includes('DFX AG') || tx.name?.includes('Payward Ltd.') ? BankTxType.INTERNAL : null,
         ...tx,
       }));
     await this.bankTxRepo.saveMany(newTxs);
