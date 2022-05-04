@@ -120,10 +120,10 @@ export class Util {
     return hash.digest('hex').toUpperCase();
   }
 
-  static createRawHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5' = 'sha256'): Buffer {
+  static createRawHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5' = 'sha256'): string {
     const hash = createHash(hashAlgo);
     hash.update(data);
-    return hash.digest();
+    return hash.digest('hex');
   }
 
   static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {
