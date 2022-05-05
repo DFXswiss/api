@@ -13,9 +13,6 @@ import { BankDataController } from './models/bank-data/bank-data.controller';
 import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
 import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
-import { LogController } from './models/log/log.controller';
-import { LogRepository } from './models/log/log.repository';
-import { LogService } from './models/log/log.service';
 import { RefController } from './models/referral/ref.controller';
 import { RefRepository } from './models/referral/ref.repository';
 import { RefService } from './models/referral/ref.service';
@@ -39,7 +36,6 @@ import { KycController } from './models/kyc/kyc.controller';
       UserRepository,
       UserDataRepository,
       SpiderDataRepository,
-      LogRepository,
       WalletRepository,
       BankDataRepository,
       RefRepository,
@@ -50,7 +46,6 @@ import { KycController } from './models/kyc/kyc.controller';
   ],
   controllers: [
     UserController,
-    LogController,
     UserDataController,
     BankDataController,
     RefController,
@@ -60,7 +55,6 @@ import { KycController } from './models/kyc/kyc.controller';
   ],
   providers: [
     UserService,
-    LogService,
     WalletService,
     UserDataService,
     BankDataService,

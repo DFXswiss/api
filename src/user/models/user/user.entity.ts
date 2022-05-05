@@ -1,7 +1,6 @@
 import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Language } from 'src/shared/models/language/language.entity';
-import { Log } from 'src/user/models/log/log.entity';
 import { Sell } from 'src/payment/models/sell/sell.entity';
 import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
@@ -73,9 +72,6 @@ export class User extends IEntity {
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
-
-  @OneToMany(() => Log, (logs) => logs.user)
-  logs: Log[];
 
   // --- REF --- //
   @Column({ length: 256, unique: true })
