@@ -1,4 +1,5 @@
 import { IsEnum, IsNotEmpty, IsNumber, IsString, Max, Min } from 'class-validator';
+
 export enum LetterColor {
   COLOR = '4',
   NO_COLOR = '1',

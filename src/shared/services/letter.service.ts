@@ -27,20 +27,21 @@ interface LetterResponse {
 export class LetterService {
   constructor(private readonly http: HttpService) {}
 
-  async uploadLetter(sendLetterDTO: SendLetterDto): Promise<boolean> {
-    const sendLetter = await this.http.post<LetterResponse>(`${Config.letter.url}setJob`, {
-      auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
-      letter: {
-        base64_file: sendLetterDTO.data,
-        base64_checksum: Util.createHash(sendLetterDTO.data, 'md5'),
-        specification: {
-          page: sendLetterDTO.page,
-          color: sendLetterDTO.color,
-          mode: sendLetterDTO.mode,
-          ship: sendLetterDTO.ship,
+  async sendLetter(sendLetterDTO: SendLetterDto): Promise<boolean> {
+    return await this.http
+      .post<LetterResponse>(`${Config.letter.url}/setJob`, {
+        auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
+        letter: {
+          base64_file: sendLetterDTO.data,
+          base64_checksum: Util.createHash(sendLetterDTO.data, 'md5'),
+          specification: {
+            page: sendLetterDTO.page,
+            color: sendLetterDTO.color,
+            mode: sendLetterDTO.mode,
+            ship: sendLetterDTO.ship,
+          },
         },
-      },
-    });
-    return sendLetter.status == 200;
+      })
+      .then((r) => r.status == 200);
   }
 }

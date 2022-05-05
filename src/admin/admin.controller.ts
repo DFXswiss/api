@@ -94,7 +94,7 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendLetter(@Body() sendLetterDto: SendLetterDto): Promise<boolean> {
-    return await this.letterService.uploadLetter(sendLetterDto);
+    return await this.letterService.sendLetter(sendLetterDto);
   }
 
   @Get('db')
