@@ -242,7 +242,10 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
-    user.apiKeyCT = Util.createHash(Util.createHash(user.address + new Date().toISOString(), 'sha256'), 'md5');
+    user.apiKeyCT = Util.createHash(
+      Util.createHash(user.address + new Date().toISOString(), 'sha256'),
+      'md5',
+    ).toUpperCase();
 
     await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT });
 
@@ -264,12 +267,12 @@ export class UserService {
 
   async getApiSign(user: User, timestamp: string): Promise<string> {
     const secret = await this.getApiSecret(user);
-    return Util.createHash(secret + timestamp, 'sha256');
+    return Util.createHash(secret + timestamp, 'sha256').toUpperCase();
   }
 
   async getApiSecret(user: User): Promise<string> {
     if (!user.apiKeyCT) throw new BadRequestException('API key is null');
-    return Util.createHash(user.apiKeyCT + user.created, 'sha256');
+    return Util.createHash(user.apiKeyCT + user.created, 'sha256').toUpperCase();
   }
 
   // --- DTO --- //
