@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
-import { KycDocument, KycDocuments, InitiateResponse, InitiateLocator } from '../../services/spider/dto/spider.dto';
+import { KycDocument, KycDocuments, InitiateResponse } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { MailService } from 'src/shared/services/mail.service';
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';

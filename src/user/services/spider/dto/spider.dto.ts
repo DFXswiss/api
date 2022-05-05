@@ -108,12 +108,12 @@ export interface InitiateResponse {
   reference: string;
   sessionUrl: string;
 
-  locators: InitiateLocator[];
-}
-
-export interface InitiateLocator {
-  document: KycDocument;
-  version: string;
+  locators: [
+    {
+      document: KycDocument;
+      version: string;
+    },
+  ];
 }
 
 export interface SubmitResponse {
