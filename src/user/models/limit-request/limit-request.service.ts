@@ -15,10 +15,10 @@ export class LimitRequestService {
     private readonly spiderService: SpiderService,
   ) {}
 
-  async increaseLimit(userId: number, dto: LimitRequestDto): Promise<LimitRequest> {
+  async increaseLimit(kycHash: string, dto: LimitRequestDto): Promise<LimitRequest> {
     // get user data
-    const user = await this.userDataService.getUserDataByUser(userId);
-    if (!KycCompleted(user.kycStatus)) throw new BadRequestException('KYC not yet completed');
+    const user = await this.userDataService.getUserDataByKycHash(kycHash);
+    if (!KycCompleted(user?.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity
     const entity = this.limitRequestRepo.create(dto);

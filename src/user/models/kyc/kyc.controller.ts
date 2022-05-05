@@ -39,10 +39,8 @@ export class KycController {
   }
 
   @Post('limit')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async increaseLimit(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<LimitRequest> {
-    return await this.limitRequestService.increaseLimit(jwt.id, request);
+  async increaseLimit(@Query('code') code: string, @Body() request: LimitRequestDto): Promise<LimitRequest> {
+    return await this.limitRequestService.increaseLimit(code, request);
   }
 
   @Post('incorporationCertificate')
