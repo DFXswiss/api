@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Between, Not } from 'typeorm';
+import { Between, In, Not } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
 import { StakingReward } from './staking-reward.entity';
 import { StakingRewardRepository } from './staking-reward.respository';
@@ -69,12 +69,12 @@ export class StakingRewardService {
   }
 
   async getUserRewards(
-    userId: number,
+    userIds: number[],
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<StakingReward[]> {
     return await this.rewardRepo.find({
-      where: { staking: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+      where: { staking: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
       relations: ['staking', 'staking.user'],
     });
   }

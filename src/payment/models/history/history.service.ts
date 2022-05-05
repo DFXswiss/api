@@ -11,6 +11,7 @@ import { CryptoBuyService } from '../crypto-buy/crypto-buy.service';
 import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
+import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 
 @Injectable()
 export class HistoryService {
@@ -51,6 +52,7 @@ export class HistoryService {
   private async getBuyTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
     const cryptoBuys = await this.cryptoBuyService.getUserTransactions(userId, dateFrom, dateTo);
     return cryptoBuys
+      .filter((c) => c.amlCheck === AmlCheck.PASS)
       .map((c) => [
         {
           type: 'Deposit',
@@ -89,8 +91,9 @@ export class HistoryService {
   }
 
   private async getSellTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const cryptoSells = await this.cryptoSellService.getUserTransactions(userId, dateFrom, dateTo);
+    const cryptoSells = await this.cryptoSellService.getUserTransactions([userId], dateFrom, dateTo);
     return cryptoSells
+      .filter((c) => c.amlCheck === AmlCheck.PASS)
       .map((c) => [
         {
           type: 'Trade',
@@ -129,7 +132,7 @@ export class HistoryService {
   }
 
   private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const stakingRewards = await this.stakingRewardService.getUserRewards(userId, dateFrom, dateTo);
+    const stakingRewards = await this.stakingRewardService.getUserRewards([userId], dateFrom, dateTo);
     return stakingRewards
       .map((c) => [
         {
@@ -256,7 +259,7 @@ export class HistoryService {
   }
 
   private async getRefRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const refRewards = await this.refRewardService.getUserRewards(userId, dateFrom, dateTo);
+    const refRewards = await this.refRewardService.getUserRewards([userId], dateFrom, dateTo);
     return refRewards
       .map((c) => [
         {

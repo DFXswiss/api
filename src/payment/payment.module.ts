@@ -127,6 +127,7 @@ import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
     CryptoSellService,
     BankTxService,
     CryptoInputService,
+    CryptoStakingService,
   ],
 })
 export class PaymentModule {}

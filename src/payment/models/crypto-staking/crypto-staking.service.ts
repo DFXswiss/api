@@ -12,7 +12,7 @@ import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
-import { Between, IsNull, LessThan, Not, Raw } from 'typeorm';
+import { Between, In, IsNull, LessThan, Not, Raw } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
@@ -110,6 +110,13 @@ export class CryptoStakingService {
           entry.payoutType !== PayoutType.REINVEST,
       ),
     };
+  }
+
+  async getUserTransactions(userIds: number[]): Promise<CryptoStaking[]> {
+    return await this.cryptoStakingRepo.find({
+      where: { stakingRoute: { user: { id: In(userIds) } } },
+      relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
+    });
   }
 
   async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {

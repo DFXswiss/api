@@ -1,10 +1,21 @@
 import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException, Put } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { BuyCrypto } from 'src/payment/models/buy-crypto/buy-crypto.entity';
+import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
+import { CryptoSell } from 'src/payment/models/crypto-sell/crypto-sell.entity';
+import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
+import { CryptoStaking } from 'src/payment/models/crypto-staking/crypto-staking.entity';
+import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
+import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
+import { RefRewardService } from 'src/payment/models/ref-reward/ref-reward.service';
+import { StakingReward } from 'src/payment/models/staking-reward/staking-reward.entity';
+import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/shared/services/letter.service';
 import { MailService } from 'src/shared/services/mail.service';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
@@ -21,6 +32,12 @@ export class AdminController {
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly letterService: LetterService,
+    private readonly userDataService: UserDataService,
+    private readonly buyCryptoService: BuyCryptoService,
+    private readonly cryptoSellService: CryptoSellService,
+    private readonly cryptoStakingService: CryptoStakingService,
+    private readonly refRewardService: RefRewardService,
+    private readonly stakingRewardService: StakingRewardService,
   ) {}
 
   @Post('mail')
@@ -127,5 +144,31 @@ export class AdminController {
     }
 
     return arrayData;
+  }
+
+  @Get('support')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getSupportData(@Query('id') id: string): Promise<{
+    buy: BuyCrypto[];
+    sell: CryptoSell[];
+    ref: BuyCrypto[];
+    refReward: RefReward[];
+    staking: CryptoStaking[];
+    stakingReward: StakingReward[];
+  }> {
+    const userData = await this.userDataService.getUserData(+id);
+    const userIds = userData.users.map((u) => u.id);
+    const refCodes = userData.users.map((u) => u.ref);
+
+    return {
+      buy: await this.buyCryptoService.getUserTransactions(userIds),
+      sell: await this.cryptoSellService.getUserTransactions(userIds),
+      ref: await this.buyCryptoService.getRefTransactions(refCodes),
+      refReward: await this.refRewardService.getUserRewards(userIds),
+      staking: await this.cryptoStakingService.getUserTransactions(userIds),
+      stakingReward: await this.stakingRewardService.getUserRewards(userIds),
+    };
   }
 }
