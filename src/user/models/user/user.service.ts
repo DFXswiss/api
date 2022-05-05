@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, Like, Not } from 'typeorm';
+import { Between, IsNull, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -35,6 +35,11 @@ export class UserService {
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
   ) {}
+
+  // TODO: remove temporary code
+  async getUsersWithoutStakingStart(): Promise<User[]> {
+    return await this.userRepo.find({ where: { stakingStart: IsNull() }, relations: ['stakingRoutes'] });
+  }
 
   async getAllUser(): Promise<User[]> {
     return await this.userRepo.find();
@@ -194,8 +199,9 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
   }
 
-  async activateStaking(id: number): Promise<void> {
-    await this.userRepo.update(id, { stakingStart: new Date() });
+  // TODO: remove temporary param
+  async activateStaking(id: number, startDate: Date = new Date()): Promise<void> {
+    await this.userRepo.update(id, { stakingStart: startDate });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
@@ -236,7 +242,10 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
-    user.apiKeyCT = Util.createHash(Util.createHash(user.address + new Date().toISOString(), 'sha256'), 'md5');
+    user.apiKeyCT = Util.createHash(
+      Util.createHash(user.address + new Date().toISOString(), 'sha256'),
+      'md5',
+    ).toUpperCase();
 
     await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT });
 
@@ -258,12 +267,12 @@ export class UserService {
 
   async getApiSign(user: User, timestamp: string): Promise<string> {
     const secret = await this.getApiSecret(user);
-    return Util.createHash(secret + timestamp, 'sha256');
+    return Util.createHash(secret + timestamp, 'sha256').toUpperCase();
   }
 
   async getApiSecret(user: User): Promise<string> {
     if (!user.apiKeyCT) throw new BadRequestException('API key is null');
-    return Util.createHash(user.apiKeyCT + user.created, 'sha256');
+    return Util.createHash(user.apiKeyCT + user.created, 'sha256').toUpperCase();
   }
 
   // --- DTO --- //

@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { Between } from 'typeorm';
+import { Between, In } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { Util } from 'src/shared/util';
@@ -82,13 +82,24 @@ export class BuyCryptoService {
   }
 
   async getUserTransactions(
-    userId: number,
+    userIds: number[],
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
     // TODO aktivieren in history nach Umstellung cryptoBuy -> buyCrypto
     return await this.buyCryptoRepo.find({
-      where: { buy: { user: { id: userId } }, amlCheck: AmlCheck.PASS, outputDate: Between(dateFrom, dateTo) },
+      where: { buy: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
+      relations: ['bankTx', 'buy', 'buy.user'],
+    });
+  }
+
+  async getRefTransactions(
+    refCodes: string[],
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<BuyCrypto[]> {
+    return await this.buyCryptoRepo.find({
+      where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
       relations: ['bankTx', 'buy', 'buy.user'],
     });
   }

@@ -38,6 +38,10 @@ export class UserDataService {
       .getOne();
   }
 
+  async getUserData(userDataId: number): Promise<UserData> {
+    return this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users'] });
+  }
+
   async createUserData(): Promise<UserData> {
     return await this.userDataRepo.save({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),

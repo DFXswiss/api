@@ -80,7 +80,7 @@ export class BuyService {
     buy.deposit = staking?.deposit ?? null;
 
     // create hash
-    const hash = Util.createHash(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban);
+    const hash = Util.createHash(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save

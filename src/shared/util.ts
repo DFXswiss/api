@@ -117,7 +117,7 @@ export class Util {
   static createHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5' = 'sha256'): string {
     const hash = createHash(hashAlgo);
     hash.update(data);
-    return hash.digest('hex').toUpperCase();
+    return hash.digest('hex');
   }
 
   static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {

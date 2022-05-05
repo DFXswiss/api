@@ -9,7 +9,7 @@ import { SellService } from '../sell/sell.service';
 import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
-import { Between, Not } from 'typeorm';
+import { Between, In, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { Util } from 'src/shared/util';
@@ -73,14 +73,13 @@ export class CryptoSellService {
   }
 
   async getUserTransactions(
-    userId: number,
+    userIds: number[],
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<CryptoSell[]> {
     return await this.cryptoSellRepo.find({
       where: {
-        cryptoInput: { route: { user: { id: userId } } },
-        amlCheck: AmlCheck.PASS,
+        cryptoInput: { route: { user: { id: In(userIds) } } },
         outputDate: Between(dateFrom, dateTo),
       },
       relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],

@@ -243,7 +243,6 @@ export class CryptoInputService {
       if (input.amlCheck === AmlCheck.FAIL) return;
 
       if (input.route.type === RouteType.STAKING) {
-        await this.stakingService.updateBalance(input.route.id);
         await this.cryptoStakingService.create(input);
       }
 

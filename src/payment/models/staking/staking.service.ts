@@ -32,7 +32,42 @@ export class StakingService {
     private readonly assetService: AssetService,
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
-  ) {}
+  ) {
+    this.fillStakingStarts();
+  }
+
+  // TODO: remove temporary code
+  async fillStakingStarts() {
+    const users = await this.userService.getUsersWithoutStakingStart();
+    for (const user of users) {
+      try {
+        const stakingIds = user.stakingRoutes.map((r) => r.id);
+        const startDates = await Promise.all(stakingIds.map((id) => this.getStartDate(id)));
+
+        if (startDates.find((d) => d)) {
+          const date = new Date(Math.min(...startDates.filter((d) => d)));
+          this.userService.activateStaking(user.id, date);
+        }
+      } catch (e) {
+        console.error(`Failed to calculate staking start date of user ${user.id}:`, e);
+      }
+    }
+  }
+
+  private async getStartDate(stakingId: number): Promise<number | undefined> {
+    const stakingList = await this.cryptoStakingRepo.find({
+      where: { stakingRoute: { id: stakingId } },
+      order: { inputDate: 'ASC' },
+    });
+
+    let balance = 0;
+    for (const staking of stakingList) {
+      balance += staking.inputAmount;
+      if (balance >= Config.staking.minInvestment) return staking.inputDate.getTime();
+    }
+
+    return undefined;
+  }
 
   async getStakingByAddress(depositAddress: string): Promise<Staking> {
     // does not work with find options

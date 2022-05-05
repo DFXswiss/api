@@ -1,8 +1,8 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class PayoutCryptoStakingDto {
   @IsNotEmpty()
-  @IsNumber()
+  @IsInt()
   id: number;
 
   @IsNotEmpty()

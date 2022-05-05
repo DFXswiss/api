@@ -907,5 +907,44 @@
       }
     ],
     "tests": []
+  },
+  {
+    "_id": "e916158c-398b-495b-bfa4-9a07f399e648",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
+    "name": "Get Support Data",
+    "url": "{{url}}/v1/admin/support?id=175",
+    "method": "GET",
+    "sortNum": 350000,
+    "created": "2022-05-05T09:22:28.387Z",
+    "modified": "2022-05-05T09:22:54.119Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "id",
+        "value": "175",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "fc223009-4d9f-45e5-9c7c-1f1f1fcc7aca",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
+    "name": "Send Letter",
+    "url": "{{url}}/v1/admin/sendLetter",
+    "method": "POST",
+    "sortNum": 290000,
+    "created": "2022-05-05T09:59:12.674Z",
+    "modified": "2022-05-05T10:01:22.124Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"data\": \"abc\",\n  \"page\": 5,\n  \"color\": \"1\",\n  \"mode\": \"simplex\",\n  \"ship\": \"national\"\n}",
+      "form": []
+    },
+    "tests": []
   }
 ]
