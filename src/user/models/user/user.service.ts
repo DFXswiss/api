@@ -36,11 +36,6 @@ export class UserService {
     private readonly dfiTaxService: DfiTaxService,
   ) {}
 
-  // TODO: remove temporary code
-  async getUsersWithoutStakingStart(): Promise<User[]> {
-    return await this.userRepo.find({ where: { stakingStart: IsNull() }, relations: ['stakingRoutes'] });
-  }
-
   async getAllUser(): Promise<User[]> {
     return await this.userRepo.find();
   }
@@ -199,9 +194,8 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
   }
 
-  // TODO: remove temporary param
-  async activateStaking(id: number, startDate: Date = new Date()): Promise<void> {
-    await this.userRepo.update(id, { stakingStart: startDate });
+  async activateStaking(id: number): Promise<void> {
+    await this.userRepo.update(id, { stakingStart: new Date() });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
