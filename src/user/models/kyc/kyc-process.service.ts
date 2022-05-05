@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
-import { KycDocument, KycDocuments, InitiateResponse } from '../../services/spider/dto/spider.dto';
+import { KycDocument, KycDocuments, InitiateResponse, InitiateLocator } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { MailService } from 'src/shared/services/mail.service';
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
@@ -171,10 +171,27 @@ export class KycProcessService {
 
   // --- HELPER METHODS --- //
   private async updateSpiderData(userData: UserData, initiateData: InitiateResponse) {
+    const sessionData = await this.getSessionData(userData, initiateData);
+
     const spiderData =
       (await this.spiderDataRepo.findOne({ userData: { id: userData.id } })) ??
       this.spiderDataRepo.create({ userData: userData });
 
+    spiderData.url = sessionData.url;
+    spiderData.secondUrl = sessionData.secondUrl;
+    if (sessionData.identTransactionId) {
+      spiderData.identTransactionId = spiderData.identTransactionId
+        ? `${spiderData.identTransactionId},${sessionData.identTransactionId}`
+        : sessionData.identTransactionId;
+    }
+
+    return await this.spiderDataRepo.save(spiderData);
+  }
+
+  private async getSessionData(
+    userData: UserData,
+    initiateData: InitiateResponse,
+  ): Promise<{ url: string; secondUrl?: string; identTransactionId?: string }> {
     const locator = initiateData.locators?.[0];
     if (!locator) {
       console.error(`Failed to initiate identification. Initiate result:`, initiateData);
@@ -183,31 +200,23 @@ export class KycProcessService {
 
     switch (locator.document) {
       case KycDocument.CHATBOT:
-        spiderData.url = initiateData.sessionUrl + '&nc=true';
-        break;
+        return { url: initiateData.sessionUrl + '&nc=true', secondUrl: null };
 
       case KycDocument.ONLINE_IDENTIFICATION:
         const log = await this.spiderService.getOnlineIdLog(userData, locator.version);
 
-        spiderData.url = initiateData.sessionUrl;
-        spiderData.secondUrl = log ? this.spiderService.getOnlineIdUrl(log.identificationId) : null;
-        if (log) {
-          spiderData.identTransactionId = spiderData.identTransactionId
-            ? spiderData.identTransactionId + ',' + log.transactionId
-            : log.transactionId;
-        }
-        break;
+        return {
+          url: initiateData.sessionUrl,
+          secondUrl: log ? this.spiderService.getOnlineIdUrl(log.identificationId) : null,
+          identTransactionId: log ? log.transactionId : null,
+        };
 
       case KycDocument.VIDEO_IDENTIFICATION:
-        spiderData.url = initiateData.sessionUrl;
-        spiderData.secondUrl = null;
-        const videoTransactionId = await this.spiderService.getVideoTransactionId(initiateData.sessionUrl);
-        spiderData.identTransactionId = spiderData.identTransactionId
-          ? spiderData.identTransactionId + ',' + videoTransactionId
-          : videoTransactionId;
-        break;
+        return {
+          url: initiateData.sessionUrl,
+          secondUrl: null,
+          identTransactionId: await this.spiderService.getVideoTransactionId(initiateData.sessionUrl),
+        };
     }
-
-    return await this.spiderDataRepo.save(spiderData);
   }
 }
