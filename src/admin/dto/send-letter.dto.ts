@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsString, Max, Min } from 'class-validator';
 
 export enum LetterColor {
   COLOR = '4',
@@ -21,7 +21,7 @@ export class SendLetterDto {
   data: string;
 
   @IsNotEmpty()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @Max(9)
   page: number;

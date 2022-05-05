@@ -1,8 +1,8 @@
-import { IsEnum, IsNumber, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsString } from 'class-validator';
 import { PayoutType } from '../../staking-reward/staking-reward.entity';
 
 export class GetPayoutsCryptoStakingDto {
-  @IsNumber()
+  @IsInt()
   id: number;
 
   @IsString()
