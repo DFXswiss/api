@@ -1,4 +1,14 @@
-import { Controller, Post, UseGuards, Body, Get, Query, BadRequestException, Put } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  UseGuards,
+  Body,
+  Get,
+  Query,
+  BadRequestException,
+  Put,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/buy-crypto.entity';
@@ -159,6 +169,8 @@ export class AdminController {
     stakingReward: StakingReward[];
   }> {
     const userData = await this.userDataService.getUserData(+id);
+    if (!userData) throw new NotFoundException('User data not found');
+
     const userIds = userData.users.map((u) => u.id);
     const refCodes = userData.users.map((u) => u.ref);
 
