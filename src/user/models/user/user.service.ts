@@ -24,6 +24,7 @@ import { ApiKey } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
 import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { GeoLocationService } from 'src/user/services/geo-location.service';
 
 @Injectable()
 export class UserService {
@@ -34,6 +35,7 @@ export class UserService {
     private readonly walletService: WalletService,
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
+    private readonly geoLocationService: GeoLocationService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -60,6 +62,8 @@ export class UserService {
 
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ip = userIp;
+    const geoLocation = await this.geoLocationService.getCountry(userIp);
+    user.ipCountry = geoLocation.country;
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;

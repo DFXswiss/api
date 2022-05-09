@@ -29,6 +29,7 @@ import { IdentService } from './models/ident/ident.service';
 import { SpiderService } from './services/spider/spider.service';
 import { KycProcessService } from './models/kyc/kyc-process.service';
 import { KycController } from './models/kyc/kyc.controller';
+import { GeoLocationService } from './services/geo-location.service';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { KycController } from './models/kyc/kyc.controller';
     AuthService,
     LimitRequestService,
     IdentService,
+    GeoLocationService,
   ],
   exports: [UserService, UserDataService, RefService, KycService, SpiderService, SpiderApiService],
 })

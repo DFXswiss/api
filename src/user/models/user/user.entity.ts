@@ -40,6 +40,9 @@ export class User extends IEntity {
   @Column({ length: 256, default: '0.0.0.0' })
   ip: string;
 
+  @Column({ length: 256, nullable: true })
+  ipCountry: string;
+
   @Column({ length: 'MAX', nullable: true })
   cfpVotes: string;
 
