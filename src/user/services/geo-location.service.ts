@@ -12,9 +12,11 @@ export interface ipInfo {
   metro: number;
   area: number;
 }
+
 @Injectable()
 export class GeoLocationService {
-  async getCountry(ip: string): Promise<ipInfo> {
-    return await GeoIp.lookup(ip);
+  async getCountry(ip: string): Promise<string> {
+    const geoLocation = await GeoIp.lookup(ip);
+    return geoLocation?.country;
   }
 }
