@@ -63,7 +63,7 @@ export class UserService {
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ip = userIp;
     const geoLocation = await this.geoLocationService.getCountry(userIp);
-    user.ipCountry = geoLocation.country;
+    user.ipCountry = geoLocation?.country;
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
