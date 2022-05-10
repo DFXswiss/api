@@ -8,7 +8,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 import { LimitRequestDto } from '../limit-request/dto/limit-request.dto';
-import { LimitRequest } from '../limit-request/limit-request.entity';
 import { LimitRequestService } from '../limit-request/limit-request.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycInfo, KycService } from './kyc.service';
