@@ -39,7 +39,7 @@ export class KycController {
   }
 
   @Post('limit')
-  async increaseLimit(@Query('code') code: string, @Body() request: LimitRequestDto): Promise<LimitRequest> {
+  async increaseLimit(@Query('code') code: string, @Body() request: LimitRequestDto): Promise<void> {
     return await this.limitRequestService.increaseLimit(code, request);
   }
 
