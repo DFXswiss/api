@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import GeoIp = require('fast-geoip');
+import * as GeoIp from 'fast-geoip';
 
 @Injectable()
 export class GeoLocationService {
