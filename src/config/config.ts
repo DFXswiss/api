@@ -176,7 +176,7 @@ export class Configuration {
     fee: 0.125,
     period: 28, // days
     minInvestment: 100, // DFI
-    freeDays: 365, // TODO: 31?
+    freeDays: 28,
   };
 
   ftp = {
