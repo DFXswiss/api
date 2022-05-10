@@ -50,6 +50,7 @@
     "class-validator": "^0.13.2",
     "cors": "^2.8.5",
     "express-useragent": "^1.0.15",
+    "fast-geoip": "^1.1.70",
     "fast-xml-parser": "^4.0.3",
     "handlebars": "^4.7.7",
     "helmet": "^5.0.2",

@@ -3,7 +3,6 @@ import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 import { KycCompleted } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LimitRequestDto } from './dto/limit-request.dto';
-import { LimitRequest } from './limit-request.entity';
 import { LimitRequestRepository } from './limit-request.repository';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 
@@ -15,10 +14,10 @@ export class LimitRequestService {
     private readonly spiderService: SpiderService,
   ) {}
 
-  async increaseLimit(userId: number, dto: LimitRequestDto): Promise<LimitRequest> {
+  async increaseLimit(kycHash: string, dto: LimitRequestDto): Promise<void> {
     // get user data
-    const user = await this.userDataService.getUserDataByUser(userId);
-    if (!KycCompleted(user.kycStatus)) throw new BadRequestException('KYC not yet completed');
+    const user = await this.userDataService.getUserDataByKycHash(kycHash);
+    if (!KycCompleted(user?.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity
     const entity = this.limitRequestRepo.create(dto);
@@ -46,7 +45,7 @@ export class LimitRequestService {
     }
 
     // save
-    return await this.limitRequestRepo.save(entity);
+    await this.limitRequestRepo.save(entity);
   }
 
   private fromBase64(file: string): { contentType: string; buffer: Buffer } {

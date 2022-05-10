@@ -8,7 +8,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 import { LimitRequestDto } from '../limit-request/dto/limit-request.dto';
-import { LimitRequest } from '../limit-request/limit-request.entity';
 import { LimitRequestService } from '../limit-request/limit-request.service';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { KycInfo, KycService } from './kyc.service';
@@ -39,10 +38,8 @@ export class KycController {
   }
 
   @Post('limit')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async increaseLimit(@GetJwt() jwt: JwtPayload, @Body() request: LimitRequestDto): Promise<LimitRequest> {
-    return await this.limitRequestService.increaseLimit(jwt.id, request);
+  async increaseLimit(@Query('code') code: string, @Body() request: LimitRequestDto): Promise<void> {
+    return await this.limitRequestService.increaseLimit(code, request);
   }
 
   @Post('incorporationCertificate')

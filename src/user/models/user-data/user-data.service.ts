@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, UserData } from './user-data.entity';
@@ -13,6 +19,7 @@ import { ReferenceType, SpiderService } from 'src/user/services/spider/spider.se
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class UserDataService {
@@ -42,11 +49,30 @@ export class UserDataService {
     return this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users'] });
   }
 
+  async getUserDataByKycHash(kycHash: string): Promise<UserData | undefined> {
+    return this.userDataRepo.findOne({ kycHash });
+  }
+
   async createUserData(): Promise<UserData> {
-    return await this.userDataRepo.save({
+    const userData = await this.userDataRepo.save({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
       currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
     });
+
+    // generate KYC hash
+    userData.kycHash = await this.generateKycHash(userData.id);
+    await this.userDataRepo.update(userData.id, { kycHash: userData.kycHash });
+
+    return userData;
+  }
+
+  private async generateKycHash(id: number): Promise<string> {
+    for (let i = 0; i < 3; i++) {
+      const kycHash = Util.createHash(id.toString() + new Date().getDate()).slice(0, 12);
+      if ((await this.getUserDataByKycHash(kycHash)) == null) return kycHash;
+    }
+
+    throw new InternalServerErrorException(`Failed to generate KYC hash`);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {

@@ -24,6 +24,7 @@ import { ApiKey } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
 import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { GeoLocationService } from 'src/user/services/geo-location.service';
 
 @Injectable()
 export class UserService {
@@ -34,11 +35,18 @@ export class UserService {
     private readonly walletService: WalletService,
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
-  ) {}
+    private readonly geoLocationService: GeoLocationService,
+  ) {
+    //TODO delete temp code for filling ip country column
+    this.fillIpCountry();
+  }
 
-  // TODO: remove temporary code
-  async getUsersWithoutStakingStart(): Promise<User[]> {
-    return await this.userRepo.find({ where: { stakingStart: IsNull() }, relations: ['stakingRoutes'] });
+  private async fillIpCountry(): Promise<void> {
+    const userList = await this.userRepo.find({ ipCountry: IsNull() });
+    for (const user of userList) {
+      const ipCountry = await this.geoLocationService.getCountry(user.ip);
+      if (ipCountry) this.userRepo.update(user.id, { ipCountry });
+    }
   }
 
   async getAllUser(): Promise<User[]> {
@@ -65,6 +73,7 @@ export class UserService {
 
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ip = userIp;
+    user.ipCountry = await this.geoLocationService.getCountry(userIp);
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
@@ -199,9 +208,8 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
   }
 
-  // TODO: remove temporary param
-  async activateStaking(id: number, startDate: Date = new Date()): Promise<void> {
-    await this.userRepo.update(id, { stakingStart: startDate });
+  async activateStaking(id: number): Promise<void> {
+    await this.userRepo.update(id, { stakingStart: new Date() });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
