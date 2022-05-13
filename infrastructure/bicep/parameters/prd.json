@@ -38,6 +38,9 @@
     "kycWebhookIps": {
       "value": "193.169.187.168"
     },
+    "kycPrefix": {
+      "value": ""
+    },
     "githubToken": {
       "value": "xxx"
     },

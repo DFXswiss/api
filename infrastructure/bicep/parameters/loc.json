@@ -38,6 +38,9 @@
     "kycWebhookIps": {
       "value": "*"
     },
+    "kycPrefix": {
+      "value": "test."
+    },
     "githubToken": {
       "value": "xxx"
     },

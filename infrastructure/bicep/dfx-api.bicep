@@ -14,7 +14,7 @@ param jwtSecret string = newGuid()
 
 param mailUser string
 @secure()
-param mailPassword string
+param mailPass string
 
 param kycMandator string
 @secure()
@@ -364,7 +364,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'MAIL_SEND_GRID_PASS'
-          value: mailPassword
+          value: mailPass
         }
         {
           name: 'KYC_MANDATOR'
