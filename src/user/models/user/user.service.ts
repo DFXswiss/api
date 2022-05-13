@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, IsNull, Like, Not } from 'typeorm';
+import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -36,18 +36,7 @@ export class UserService {
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly geoLocationService: GeoLocationService,
-  ) {
-    //TODO delete temp code for filling ip country column
-    this.fillIpCountry();
-  }
-
-  private async fillIpCountry(): Promise<void> {
-    const userList = await this.userRepo.find({ ipCountry: IsNull() });
-    for (const user of userList) {
-      const ipCountry = await this.geoLocationService.getCountry(user.ip);
-      if (ipCountry) this.userRepo.update(user.id, { ipCountry });
-    }
-  }
+  ) {}
 
   async getAllUser(): Promise<User[]> {
     return await this.userRepo.find();

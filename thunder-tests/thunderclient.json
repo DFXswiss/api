@@ -834,16 +834,16 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "70021591-4ac2-4ec2-a400-0f7923d201b5",
     "name": "Rearrange Output Dates",
-    "url": "{{url}}/v1/cryptoStaking/outputDates?date=2022-05-27",
+    "url": "{{url}}/v1/cryptoStaking/outputDates?date=2022-06-08",
     "method": "PUT",
     "sortNum": 320000,
     "created": "2022-04-12T12:43:46.379Z",
-    "modified": "2022-04-28T15:06:21.147Z",
+    "modified": "2022-05-12T15:10:40.466Z",
     "headers": [],
     "params": [
       {
         "name": "date",
-        "value": "2022-05-27",
+        "value": "2022-06-08",
         "isPath": false
       },
       {
@@ -913,16 +913,16 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
     "name": "Get Support Data",
-    "url": "{{url}}/v1/admin/support?id=175",
+    "url": "{{url}}/v1/admin/support?id=1460",
     "method": "GET",
     "sortNum": 350000,
     "created": "2022-05-05T09:22:28.387Z",
-    "modified": "2022-05-05T09:22:54.119Z",
+    "modified": "2022-05-05T12:56:38.281Z",
     "headers": [],
     "params": [
       {
         "name": "id",
-        "value": "175",
+        "value": "1460",
         "isPath": false
       }
     ],
@@ -943,6 +943,31 @@
     "body": {
       "type": "json",
       "raw": "{\n  \"data\": \"abc\",\n  \"page\": 5,\n  \"color\": \"1\",\n  \"mode\": \"simplex\",\n  \"ship\": \"national\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "702ada41-505e-47ab-872c-980bd35aa730",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "2810d09a-5150-4925-96be-15684f45ad20",
+    "name": "Increase Limit",
+    "url": "{{url}}/v1/kyc/limit?code=1234",
+    "method": "POST",
+    "sortNum": 360000,
+    "created": "2022-05-05T13:29:01.377Z",
+    "modified": "2022-05-05T13:31:09.881Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "code",
+        "value": "1234",
+        "isPath": false
+      }
+    ],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"limit\": 10000,\n  \"investmentDate\": \"Now\",\n  \"fundOrigin\": \"Savings\",\n  \"fundOriginText\": null,\n  \"documentProof\": null,\n  \"documentProofName\": null\n}",
       "form": []
     },
     "tests": []
