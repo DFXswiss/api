@@ -86,6 +86,15 @@ export class CryptoSellService {
     });
   }
 
+  async getAllUserTransactions(userIds: number[]): Promise<CryptoSell[]> {
+    return await this.cryptoSellRepo.find({
+      where: {
+        cryptoInput: { route: { user: { id: In(userIds) } } },
+      },
+      relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'bankTx'],
+    });
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateCryptoSellDto | UpdateCryptoSellDto): Promise<CryptoSell> {
     const cryptoSell = this.cryptoSellRepo.create(dto);

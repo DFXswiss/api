@@ -79,6 +79,13 @@ export class StakingRewardService {
     });
   }
 
+  async getAllUserRewards(userIds: number[]): Promise<StakingReward[]> {
+    return await this.rewardRepo.find({
+      where: { staking: { user: { id: In(userIds) } } },
+      relations: ['staking', 'staking.user'],
+    });
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateStakingRewardDto | UpdateStakingRewardDto): Promise<StakingReward> {
     const reward = this.rewardRepo.create(dto);
