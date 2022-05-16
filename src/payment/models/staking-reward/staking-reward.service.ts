@@ -155,8 +155,8 @@ export class StakingRewardService {
 
     const apr = await this.getApr(rewardVolume / Config.staking.period, Util.avg(balances));
     return {
-      apr: Util.round(apr, 2),
-      apy: Util.round(this.getApy(apr), 2),
+      apr: Util.round(apr, 3),
+      apy: Util.round(this.getApy(apr), 3),
     };
   }
 
