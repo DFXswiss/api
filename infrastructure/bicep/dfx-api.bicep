@@ -71,6 +71,8 @@ var nodeOutFileShareNameA = 'node-out-data-a'
 var nodeOutFileShareNameB = 'node-out-data-b'
 var nodeIntFileShareNameA = 'node-int-data-a'
 var nodeIntFileShareNameB = 'node-int-data-b'
+var nodeRefFileShareNameA = 'node-ref-data-a'
+var nodeRefFileShareNameB = 'node-ref-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -87,6 +89,8 @@ var nodeOutServicePlanName = 'plan-${compName}-${nodeName}-out-${env}'
 var nodeOutAppName = 'app-${compName}-${nodeName}-out-${env}'
 var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
 var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
+var nodeRefServicePlanName = 'plan-${compName}-${nodeName}-ref-${env}'
+var nodeRefAppName = 'app-${compName}-${nodeName}-ref-${env}'
 
 var nodeProps = [
   {
@@ -116,6 +120,13 @@ var nodeProps = [
     appName: nodeIntAppName
     fileShareNameA: nodeIntFileShareNameA
     fileShareNameB: nodeIntFileShareNameB
+  }
+  {
+    name: 'nodes-ref-${env}'
+    servicePlanName: nodeRefServicePlanName
+    appName: nodeRefAppName
+    fileShareNameA: nodeRefFileShareNameA
+    fileShareNameB: nodeRefFileShareNameB
   }
 ]
 
@@ -218,6 +229,14 @@ resource nodeIntFileShareA 'Microsoft.Storage/storageAccounts/fileServices/share
 
 resource nodeIntFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
   name: '${storageAccount.name}/default/${nodeIntFileShareNameB}'
+}
+
+resource nodeRefFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeRefFileShareNameA}'
+}
+
+resource nodeRefFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeRefFileShareNameB}'
 }
 
 
@@ -434,6 +453,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'NODE_INT_URL_PASSIVE'
           value: nodes[3].outputs.urlStg
+        }
+        {
+          name: 'NODE_REF_URL_ACTIVE'
+          value: nodes[4].outputs.url
+        }
+        {
+          name: 'NODE_REF_URL_PASSIVE'
+          value: nodes[4].outputs.urlStg
         }
         {
           name: 'DEX_WALLET_ADDRESS'
