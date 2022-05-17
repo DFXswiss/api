@@ -52,6 +52,11 @@ param binanceKey string
 @secure()
 param binanceSecret string
 
+param letterUrl string
+param letterUser string
+@secure()
+param letterAuth string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -375,14 +380,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'MAIL_USER'
-          value: 'noreply@dfx.swiss'
-        }
-        {
-          name: 'MAIL_SEND_GRID_USER'
           value: mailUser
         }
         {
-          name: 'MAIL_SEND_GRID_PASS'
+          name: 'MAIL_PASS'
           value: mailPass
         }
         {
@@ -505,6 +506,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_SECRET'
           value: binanceSecret
+        }
+        {
+          name: 'LETTER_URL'
+          value: letterUrl
+        }
+        {
+          name: 'LETTER_USER'
+          value: letterUser
+        }
+        {
+          name: 'LETTER_AUTH'
+          value: letterAuth
         }
       ]
     }
