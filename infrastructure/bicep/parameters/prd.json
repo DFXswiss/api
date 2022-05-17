@@ -38,6 +38,9 @@
     "kycWebhookIps": {
       "value": "193.169.187.168"
     },
+    "kycPrefix": {
+      "value": ""
+    },
     "githubToken": {
       "value": "xxx"
     },
@@ -84,6 +87,15 @@
       "value": "xxx"
     },
     "binanceSecret": {
+      "value": "xxx"
+    },
+    "letterUrl": {
+      "value": "https://api.letterxpress.de/v1"
+    },
+    "letterUser": {
+      "value": "xxx"
+    },
+    "letterAuth": {
       "value": "xxx"
     }
   }

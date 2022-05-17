@@ -6,11 +6,9 @@ import { SpiderService } from 'src/user/services/spider/spider.service';
 import { UserDataService } from '../user-data/user-data.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
-import { Util } from 'src/shared/util';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
-import { IsNull } from 'typeorm';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -29,22 +27,7 @@ export class KycService {
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
-  ) {
-    // TODO: temporary code to generate KYC hashes
-    this.generateKycHashes();
-  }
-
-  private async generateKycHashes(): Promise<void> {
-    const usersWithMissingHash = await this.userDataRepo.find({ kycHash: IsNull() });
-    for (const user of usersWithMissingHash) {
-      const kycHash = Util.createHash(user.id.toString() + new Date().getDate()).slice(0, 12);
-      if ((await this.userDataRepo.findOne({ kycHash })) != null) {
-        console.error(`KYC hash ${kycHash} already exists`);
-      } else {
-        this.userDataRepo.update(user.id, { kycHash });
-      }
-    }
-  }
+  ) {}
 
   // --- NAME CHECK --- //
   async doNameCheck(userDataId: number): Promise<string> {

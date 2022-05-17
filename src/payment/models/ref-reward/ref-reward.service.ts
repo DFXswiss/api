@@ -67,6 +67,13 @@ export class RefRewardService {
     });
   }
 
+  async getAllUserRewards(userIds: number[]): Promise<RefReward[]> {
+    return await this.rewardRepo.find({
+      where: { user: { id: In(userIds) } },
+      relations: ['user'],
+    });
+  }
+
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateRefRewardDto | UpdateRefRewardDto): Promise<RefReward> {
     const reward = this.rewardRepo.create(dto);

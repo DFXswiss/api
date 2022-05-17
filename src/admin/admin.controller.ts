@@ -175,12 +175,12 @@ export class AdminController {
     const refCodes = userData.users.map((u) => u.ref);
 
     return {
-      buy: await this.buyCryptoService.getUserTransactions(userIds),
-      sell: await this.cryptoSellService.getUserTransactions(userIds),
-      ref: await this.buyCryptoService.getRefTransactions(refCodes),
-      refReward: await this.refRewardService.getUserRewards(userIds),
+      buy: await this.buyCryptoService.getAllUserTransactions(userIds),
+      sell: await this.cryptoSellService.getAllUserTransactions(userIds),
+      ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
+      refReward: await this.refRewardService.getAllUserRewards(userIds),
       staking: await this.cryptoStakingService.getUserTransactions(userIds),
-      stakingReward: await this.stakingRewardService.getUserRewards(userIds),
+      stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
     };
   }
 }

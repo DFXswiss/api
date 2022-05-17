@@ -38,6 +38,9 @@
     "kycWebhookIps": {
       "value": "52.30.27.5,52.48.216.0"
     },
+    "kycPrefix": {
+      "value": "test."
+    },
     "githubToken": {
       "value": "xxx"
     },
@@ -84,6 +87,15 @@
       "value": "xxx"
     },
     "binanceSecret": {
+      "value": "xxx"
+    },
+    "letterUrl": {
+      "value": "https://sandbox.letterxpress.de/v1"
+    },
+    "letterUser": {
+      "value": "xxx"
+    },
+    "letterAuth": {
       "value": "xxx"
     }
   }

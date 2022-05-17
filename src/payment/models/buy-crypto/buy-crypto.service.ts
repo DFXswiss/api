@@ -93,6 +93,13 @@ export class BuyCryptoService {
     });
   }
 
+  async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
+    return await this.buyCryptoRepo.find({
+      where: { buy: { user: { id: In(userIds) } } },
+      relations: ['bankTx', 'buy', 'buy.user'],
+    });
+  }
+
   async getRefTransactions(
     refCodes: string[],
     dateFrom: Date = new Date(0),
@@ -100,6 +107,13 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return await this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
+      relations: ['bankTx', 'buy', 'buy.user'],
+    });
+  }
+
+  async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
+    return await this.buyCryptoRepo.find({
+      where: { usedRef: In(refCodes) },
       relations: ['bankTx', 'buy', 'buy.user'],
     });
   }
