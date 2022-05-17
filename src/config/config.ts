@@ -181,6 +181,7 @@ export class Configuration {
     period: 28, // days
     minInvestment: 100, // DFI
     freeDays: 28,
+    refSystemStart: new Date('2022-05-23'),
   };
 
   ftp = {

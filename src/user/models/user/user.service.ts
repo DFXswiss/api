@@ -197,8 +197,19 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
   }
 
-  async activateStaking(id: number): Promise<void> {
-    await this.userRepo.update(id, { stakingStart: new Date() });
+  // returns true, if is new staking user
+  async activateStaking(id: number): Promise<boolean> {
+    const { userData } = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+
+    const currentDate = new Date();
+    const startDate = new Date(Math.min(...userData.users.map((u) => (u.stakingStart ?? currentDate).getTime())));
+
+    await this.userRepo.update(
+      userData.users.map((u) => u.id),
+      { stakingStart: startDate },
+    );
+
+    return startDate.getTime() === currentDate.getTime();
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
