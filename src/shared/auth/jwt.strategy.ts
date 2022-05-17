@@ -18,8 +18,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const token = request.headers.authorization.replace('Bearer ', '');
     const payload: JwtPayload = this.jwtService.decode(token) as JwtPayload;
 
-    const user = await this.userRepo.findOne(payload.id);
-    if (!user || user.address !== payload.address) throw new UnauthorizedException();
+    const user = await this.userRepo.findOne(payload?.id);
+    if (!payload?.id || !user || user.address !== payload.address) throw new UnauthorizedException();
 
     if (![UserRole.USER, UserRole.BETA, UserRole.VIP].includes(payload.role)) {
       await this.jwtService.verifyAsync(token, { secret: GetConfig().auth.jwt.secret }).catch(() => {
