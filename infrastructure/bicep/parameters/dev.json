@@ -8,6 +8,9 @@
     "env": {
       "value": "dev"
     },
+    "network": {
+      "value": "testnet"
+    },
     "dbAllowAllIps": {
       "value": true
     },
