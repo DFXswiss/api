@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { BankTx } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/buy-crypto.entity';
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
 import { CryptoSell } from 'src/payment/models/crypto-sell/crypto-sell.entity';
@@ -25,6 +26,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/shared/services/letter.service';
 import { MailService } from 'src/shared/services/mail.service';
+import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
@@ -112,26 +114,55 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawData(
-    @Query() { table, min, updatedSince }: { table: string; min?: string; updatedSince?: string },
+    @Query()
+    { table, min, updatedSince, extended }: { table: string; min?: string; updatedSince?: string; extended?: string },
   ): Promise<any> {
     const id = min ? +min : 1;
     const updated = updatedSince ? new Date(updatedSince) : new Date(0);
 
-    const data = await getConnection()
-      .createQueryBuilder()
-      .from(table, table)
-      .where('id >= :id', { id })
-      .andWhere('updated >= :updated', { updated })
-      .getRawMany()
-      .catch((e: Error) => {
+    let query = getConnection().createQueryBuilder().from(table, table);
+
+    let data;
+
+    if (extended && table === 'bank_tx') {
+      query.select('bank_tx', 'bankTx');
+      query.addSelect('userData.id', 'userDataId');
+      query.addSelect('userData.accountType', 'accountType');
+      query.addSelect('userData.firstname', 'firstname');
+      query.addSelect('userData.surname', 'surname');
+      query.addSelect('userData.organizationName', 'organizationName');
+      query.innerJoin('bank_tx.buyCrypto', 'buyCrypto');
+      query.innerJoin('buyCrypto.buy', 'buy');
+      query.innerJoin('buy.user', 'user');
+      query.innerJoin('user.userData', 'userData');
+      query.where('bank_tx.id >= :id', { id });
+      query.andWhere('bank_tx.updated >= :updated', { updated });
+
+      data = await query
+        .getRawMany<{
+          bankTx: BankTx[];
+          userDataId: number[];
+          accountType: AccountType[];
+          firstname: string[];
+          surname: string[];
+          organizationName: string[];
+        }>()
+        .catch((e: Error) => {
+          throw new BadRequestException(e.message);
+        });
+    } else {
+      query.where('id >= :id', { id });
+      query.andWhere('updated >= :updated', { updated });
+      data = await query.getRawMany().catch((e: Error) => {
         throw new BadRequestException(e.message);
       });
+    }
 
     // transform to array
     const arrayData =
       data.length > 0
         ? {
-            keys: Object.keys(data[0]),
+            keys: Object.keys(data[0]).map((e) => e.split('bank_tx_').join('')),
             values: data.map((e) => Object.values(e)),
           }
         : undefined;
