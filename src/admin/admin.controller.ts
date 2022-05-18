@@ -14,6 +14,8 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { BankTx } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/buy-crypto.entity';
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
+import { CryptoInput } from 'src/payment/models/crypto-input/crypto-input.entity';
+import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { CryptoSell } from 'src/payment/models/crypto-sell/crypto-sell.entity';
 import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
 import { CryptoStaking } from 'src/payment/models/crypto-staking/crypto-staking.entity';
@@ -50,6 +52,7 @@ export class AdminController {
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
     private readonly stakingRewardService: StakingRewardService,
+    private readonly cryptoInputService: CryptoInputService,
   ) {}
 
   @Post('mail')
@@ -122,8 +125,6 @@ export class AdminController {
 
     const query = getConnection().createQueryBuilder().from(table, table);
 
-    let data;
-
     if (extended && table === 'bank_tx') {
       query.select('bank_tx', 'bankTx');
       query.addSelect('userData.id', 'userDataId');
@@ -137,26 +138,14 @@ export class AdminController {
       query.innerJoin('user.userData', 'userData');
       query.where('bank_tx.id >= :id', { id });
       query.andWhere('bank_tx.updated >= :updated', { updated });
-
-      data = await query
-        .getRawMany<{
-          bankTx: BankTx[];
-          userDataId: number[];
-          accountType: AccountType[];
-          firstname: string[];
-          surname: string[];
-          organizationName: string[];
-        }>()
-        .catch((e: Error) => {
-          throw new BadRequestException(e.message);
-        });
     } else {
       query.where('id >= :id', { id });
       query.andWhere('updated >= :updated', { updated });
-      data = await query.getRawMany().catch((e: Error) => {
-        throw new BadRequestException(e.message);
-      });
     }
+
+    const data = await query.getRawMany().catch((e: Error) => {
+      throw new BadRequestException(e.message);
+    });
 
     // transform to array
     const arrayData =
@@ -198,6 +187,7 @@ export class AdminController {
     refReward: RefReward[];
     staking: CryptoStaking[];
     stakingReward: StakingReward[];
+    cryptoInput: CryptoInput[];
   }> {
     const userData = await this.userDataService.getUserData(+id);
     if (!userData) throw new NotFoundException('User data not found');
@@ -212,6 +202,7 @@ export class AdminController {
       refReward: await this.refRewardService.getAllUserRewards(userIds),
       staking: await this.cryptoStakingService.getUserTransactions(userIds),
       stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
+      cryptoInput: await this.cryptoInputService.getAllUserTransactions(userIds),
     };
   }
 }
