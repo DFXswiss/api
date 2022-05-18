@@ -120,7 +120,7 @@ export class AdminController {
     const id = min ? +min : 1;
     const updated = updatedSince ? new Date(updatedSince) : new Date(0);
 
-    let query = getConnection().createQueryBuilder().from(table, table);
+    const query = getConnection().createQueryBuilder().from(table, table);
 
     let data;
 
