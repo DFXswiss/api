@@ -197,6 +197,10 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
   }
 
+  async updatePaidStakingRefCredit(id: number, volume: number): Promise<void> {
+    await this.userRepo.update(id, { paidStakingRefCredit: Util.round(volume, 0) });
+  }
+
   // returns true, if is new staking user
   async activateStaking(id: number): Promise<boolean> {
     const { userData } = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });

@@ -92,6 +92,9 @@ export class User extends IEntity {
   @Column({ type: 'float', nullable: false, default: 0 })
   paidRefCredit: number;
 
+  @Column({ type: 'float', nullable: false, default: 0 })
+  paidStakingRefCredit: number;
+
   @OneToMany(() => RefReward, (reward) => reward.user)
   refRewards: RefReward[];
 

@@ -1,5 +1,5 @@
 import { User } from 'src/user/models/user/user.entity';
-import { Entity, Index, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { Reward } from '../reward/reward.entity';
 
 @Entity()
@@ -7,4 +7,7 @@ import { Reward } from '../reward/reward.entity';
 export class RefReward extends Reward {
   @ManyToOne(() => User, { nullable: false })
   user: User;
+
+  @Column({ length: 256, nullable: false, unique: true })
+  internalId: string;
 }

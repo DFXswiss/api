@@ -3,7 +3,7 @@ import { Between, In, Not } from 'typeorm';
 import { RefRewardRepository } from './ref-reward.repository';
 import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
-import { UpdateRefRewardDto } from './dto/update.ref-reward.dto';
+import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { UserService } from 'src/user/models/user/user.service';
 import { Util } from 'src/shared/util';
 
