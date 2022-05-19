@@ -150,7 +150,7 @@ export class StakingService {
       const balance = await this.getCurrentStakingBalance(stakingId);
       if (balance >= Config.staking.minInvestment) {
         const isNewUser = await this.userService.activateStaking(user.id);
-        if (isNewUser && user.created > Config.staking.refSystemStart) {
+        if (isNewUser && user.created > Config.staking.refSystemStart && user.usedRef !== '000-000') {
           // TODO: payout staking ref rewards
         }
       }

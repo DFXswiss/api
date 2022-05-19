@@ -13,7 +13,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -50,6 +50,13 @@ export class CryptoInputService {
     if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
 
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
+  }
+
+  async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({
+      where: { route: { user: { id: In(userIds) } } },
+      relations: ['cryptoSell', 'cryptoStaking', 'route', 'route.user'],
+    });
   }
 
   // --- TOKEN CONVERSION --- //

@@ -8,6 +8,9 @@
     "env": {
       "value": "prd"
     },
+    "network": {
+      "value": "mainnet"
+    },
     "dbAllowAllIps": {
       "value": false
     },

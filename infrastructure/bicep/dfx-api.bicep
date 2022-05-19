@@ -1,6 +1,7 @@
 // --- PARAMETERS --- //
 param location string
 param env string
+param network string
 
 param dbAllowAllIps bool
 param dbAdminLogin string
@@ -345,6 +346,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ENVIRONMENT'
           value: env
+        }
+        {
+          name: 'NETWORK'
+          value: network
         }
         {
           name: 'SQL_HOST'

@@ -8,6 +8,9 @@
     "env": {
       "value": "loc"
     },
+    "network": {
+      "value": "testnet"
+    },
     "dbAllowAllIps": {
       "value": true
     },

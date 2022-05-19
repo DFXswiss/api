@@ -15,7 +15,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(request: Request): Promise<any> {
-    const token = request.headers.authorization.replace('Bearer ', '');
+    const token = request.headers.authorization?.replace('Bearer ', '');
     const payload: JwtPayload = this.jwtService.decode(token) as JwtPayload;
 
     const user = await this.userRepo.findOne(payload?.id);
