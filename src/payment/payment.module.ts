@@ -72,6 +72,7 @@ import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-
       StakingRefRewardRepository,
       RefRewardRepository,
       CryptoStakingRepository,
+      StakingRefRewardRepository,
     ]),
     SharedModule,
     AinModule,
@@ -118,6 +119,7 @@ import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-
     StakingRefRewardService,
     RefRewardService,
     CryptoStakingService,
+    StakingRefRewardService,
   ],
   exports: [
     BuyService,
@@ -132,6 +134,7 @@ import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-
     BankTxService,
     CryptoInputService,
     CryptoStakingService,
+    StakingRefRewardService,
   ],
 })
 export class PaymentModule {}
