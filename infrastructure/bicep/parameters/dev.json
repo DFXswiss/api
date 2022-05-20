@@ -65,9 +65,6 @@
     "utxoSpenderAddress": {
       "value": "xxx"
     },
-    "rewardWalletAddress": {
-      "value": "xxx"
-    },
     "nodeServicePlanSkuName": {
       "value": "P1v2"
     },
