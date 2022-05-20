@@ -119,11 +119,9 @@ export class StakingRefRewardService {
     const rewardInBtc = reward.inputReferenceAmount / btcPrice;
     const rewardInDfi = await this.client.testCompositeSwap('BTC', 'DFI', rewardInBtc);
 
-    const txId = await this.client.sendUtxo(
-      Config.node.rewardWalletAddress,
-      reward.stakingRefType === StakingRefType.REFERRED ? reward.staking.deposit.address : reward.user.address,
-      rewardInDfi,
-    );
+    const address =
+      reward.stakingRefType === StakingRefType.REFERRED ? reward.staking.deposit.address : reward.user.address;
+    const txId = await this.client.sendMany({ [address]: rewardInDfi });
 
     const update = {
       outputReferenceAmount: rewardInBtc,

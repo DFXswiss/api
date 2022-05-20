@@ -91,6 +91,10 @@ export class NodeClient {
     );
   }
 
+  async sendMany(amounts: Record<string, number>): Promise<string> {
+    return this.callNode((c) => c.wallet.sendMany(amounts), true);
+  }
+
   // token
   async getToken(): Promise<AccountResult<string, string>[]> {
     return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));

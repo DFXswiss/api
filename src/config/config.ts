@@ -155,7 +155,6 @@ export class Configuration {
     utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
-    rewardWalletAddress: process.env.REWARD_WALLET_ADDRESS,
     minTxAmount: 0.00000297,
     minDfiDeposit: 0.01,
     minTokenDeposit: 0.4, // USDT
