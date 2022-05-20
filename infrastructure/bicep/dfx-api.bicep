@@ -34,6 +34,7 @@ param nodeWalletPassword string
 param dexWalletAddress string
 param stakingWalletAddress string
 param utxoSpenderAddress string
+param rewardWalletAddress string
 
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
@@ -479,6 +480,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'UTXO_SPENDER_ADDRESS'
           value: utxoSpenderAddress
+        }
+        {
+          name: 'REWARD_WALLET_ADDRESS'
+          value: rewardWalletAddress
         }
         {
           name: 'FTP_HOST'
