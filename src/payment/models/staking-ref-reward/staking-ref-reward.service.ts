@@ -29,25 +29,6 @@ export class StakingRefRewardService {
   ) {
     this.client = nodeService.getClient(NodeType.REF, NodeMode.ACTIVE);
   }
-  @Interval(900000)
-  async sendMails(): Promise<void> {
-    const openStakingRefMails = await this.stakingRefRewardRepo.find({
-      where: { txId: Not(IsNull()), mailSendDate: IsNull() },
-      relations: ['user', 'user.userData', 'user.userData.location'],
-    });
-    for (const stakingRef of openStakingRefMails) {
-      await this.mailService.sendStakingRefMail(
-        stakingRef.user.userData.mail,
-        stakingRef.user.userData.language.symbol,
-        stakingRef.stakingRefType,
-      );
-      const update = {
-        mailSendDate: new Date().getTime(),
-        recipientMail: stakingRef.user.userData.mail,
-      };
-      await this.stakingRefRewardRepo.update(stakingRef.id, update);
-    }
-  }
 
   async create(staking: Staking): Promise<void> {
     if (!staking.user) throw new Error('User is null');
@@ -103,7 +84,12 @@ export class StakingRefRewardService {
 
   // --- Tasks --- //
   @Interval(900000)
-  async sendRewards() {
+  async doTasks(): Promise<void> {
+    await this.sendRewards();
+    await this.sendMails();
+  }
+
+  private async sendRewards(): Promise<void> {
     try {
       const openRewards = await this.stakingRefRewardRepo.find({
         where: { txId: IsNull() },
@@ -125,7 +111,7 @@ export class StakingRefRewardService {
         }
       }
     } catch (e) {
-      console.error('Exception during reward send:', e);
+      console.error('Exception during staking ref reward send:', e);
     }
   }
 
@@ -149,6 +135,35 @@ export class StakingRefRewardService {
     };
     await this.stakingRefRewardRepo.update(reward.id, update);
     await this.updatePaidStakingRefCredit([reward.user.id]);
+  }
+
+  private async sendMails(): Promise<void> {
+    try {
+      const openRewardMails = await this.stakingRefRewardRepo.find({
+        where: { txId: Not(IsNull()), mailSendDate: IsNull() },
+        relations: ['user', 'user.userData', 'user.userData.language'],
+      });
+
+      for (const reward of openRewardMails) {
+        try {
+          await this.mailService.sendStakingRefMail(
+            reward.user.userData.mail,
+            reward.user.userData.language.symbol,
+            reward.stakingRefType,
+          );
+
+          const update = {
+            mailSendDate: new Date().getTime(),
+            recipientMail: reward.user.userData.mail,
+          };
+          await this.stakingRefRewardRepo.update(reward.id, update);
+        } catch (e) {
+          console.error(`Failed to send staking ref reward mail ${reward.id}:`, e);
+        }
+      }
+    } catch (e) {
+      console.error('Exception during staking ref reward mail send:', e);
+    }
   }
 
   // --- HELPER METHODS --- //
