@@ -244,11 +244,11 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
     "name": "Get Raw Data",
-    "url": "{{url}}/v1/admin/db?table=bank_tx&min=20000",
+    "url": "{{url}}/v1/admin/db?table=bank_tx&extended=true",
     "method": "GET",
     "sortNum": 140000,
     "created": "2022-01-18T09:59:23.104Z",
-    "modified": "2022-04-05T22:46:47.265Z",
+    "modified": "2022-05-19T15:47:00.031Z",
     "headers": [],
     "params": [
       {
@@ -258,13 +258,19 @@
       },
       {
         "name": "min",
-        "value": "20000",
+        "value": "2120",
+        "isDisabled": true,
         "isPath": false
       },
       {
         "name": "updatedSince",
         "value": "2022-01-24T10:00:00Z",
         "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "extended",
+        "value": "true",
         "isPath": false
       }
     ],

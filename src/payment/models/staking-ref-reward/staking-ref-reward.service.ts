@@ -1,9 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Between, In } from 'typeorm';
 import { StakingRefRewardRepository } from './staking-ref-reward.repository';
 import { StakingRefReward, StakingRefType } from './staking-ref-reward.entity';
 import { UserService } from 'src/user/models/user/user.service';
-import { Util } from 'src/shared/util';
+import { User } from 'src/user/models/user/user.entity';
+import { Config } from 'src/config/config';
+import { Staking } from '../staking/staking.entity';
+import { ConversionService } from 'src/shared/services/conversion.service';
 
 export interface CreateStakingRefReward {
   txId: string;
@@ -26,41 +29,36 @@ export class StakingRefRewardService {
   constructor(
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
+    private readonly conversionService: ConversionService,
   ) {}
 
-  async create(dto: CreateStakingRefReward): Promise<StakingRefReward> {
-    let entity = await this.stakingRefRewardRepo.findOne({
-      where: [{ user: { id: dto.userId }, txId: dto.txId, staking: { id: dto.stakingId } }],
-    });
-    if (entity)
-      throw new ConflictException(
-        'There is already a ref reward for the specified user and txId or staking id is already used',
-      );
+  async create(staking: Staking): Promise<void> {
+    if (!staking.user) throw new Error('User is null');
+    if (staking.user.created < Config.staking.refSystemStart || staking.user.usedRef === '000-000') return;
 
-    entity = await this.createEntity(dto);
-    entity = await this.stakingRefRewardRepo.save(entity);
+    const refUser = await this.userService.getRefUser(staking.user.usedRef);
+    if (!refUser) return;
 
-    await this.updatePaidStakingRefCredit([entity.user.id]);
-
-    return entity;
+    const entities = [await this.createEntity(staking.user, staking), await this.createEntity(refUser)];
+    await this.stakingRefRewardRepo.save(entities);
   }
 
-  async update(id: number, dto: UpdateStakingRefReward): Promise<StakingRefReward> {
-    let entity = await this.stakingRefRewardRepo.findOne(id, { relations: ['user', 'staking', 'staking.user'] });
-    if (!entity) throw new NotFoundException('Ref reward not found');
+  // async update(id: number, dto: UpdateStakingRefReward): Promise<StakingRefReward> {
+  //   let entity = await this.stakingRefRewardRepo.findOne(id, { relations: ['user', 'staking', 'staking.user'] });
+  //   if (!entity) throw new NotFoundException('Ref reward not found');
 
-    const userIdBefore = entity.user?.id;
+  //   const userIdBefore = entity.user?.id;
 
-    const update = await this.createEntity(dto);
+  //   const update = await this.createEntity(dto);
 
-    Util.removeNullFields(entity);
+  //   Util.removeNullFields(entity);
 
-    entity = await this.stakingRefRewardRepo.save({ ...update, ...entity });
+  //   entity = await this.stakingRefRewardRepo.save({ ...update, ...entity });
 
-    await this.updatePaidStakingRefCredit([userIdBefore, entity.user?.id]);
+  //   await this.updatePaidStakingRefCredit([userIdBefore, entity.user?.id]);
 
-    return entity;
-  }
+  //   return entity;
+  // }
 
   async updateVolumes(): Promise<void> {
     const userIds = await this.userService.getAllUser().then((l) => l.map((b) => b.id));
@@ -85,34 +83,6 @@ export class StakingRefRewardService {
     });
   }
 
-  // --- HELPER METHODS --- //
-  private async createEntity(dto: CreateStakingRefReward | UpdateStakingRefReward): Promise<StakingRefReward> {
-    const reward = this.stakingRefRewardRepo.create(dto);
-
-    // route
-    if (dto.userId) {
-      reward.user = await this.userService.getUser(dto.userId);
-      if (!reward.user) throw new BadRequestException('User not found');
-    }
-
-    return reward;
-  }
-
-  private async updatePaidStakingRefCredit(userIds: number[]): Promise<void> {
-    userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
-
-    for (const id of userIds) {
-      const { volume } = await this.stakingRefRewardRepo
-        .createQueryBuilder('stakingRefReward')
-        .select('SUM(amountInEur)', 'volume')
-        .innerJoin('stakingRefReward.user', 'user')
-        .where('user.id = :id', { id })
-        .getRawOne<{ volume: number }>();
-
-      await this.userService.updatePaidStakingRefCredit(id, volume ?? 0);
-    }
-  }
-
   async getTransactions(
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
@@ -129,5 +99,36 @@ export class StakingRefRewardService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.outputAsset,
     }));
+  }
+
+  // --- HELPER METHODS --- //
+  private async createEntity(user: User, staking?: Staking): Promise<StakingRefReward> {
+    return this.stakingRefRewardRepo.create({
+      user: user,
+      staking: staking,
+      stakingRefType: staking ? StakingRefType.REFERRED : StakingRefType.REFERRER,
+      inputAmount: Config.staking.refReward,
+      inputAsset: 'EUR',
+      inputReferenceAmount: Config.staking.refReward,
+      inputReferenceAsset: 'EUR',
+      amountInChf: await this.conversionService.convertFiat(Config.staking.refReward, 'EUR', 'CHF'),
+      amountInEur: Config.staking.refReward,
+    });
+  }
+
+  private async updatePaidStakingRefCredit(userIds: number[]): Promise<void> {
+    userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
+
+    for (const id of userIds) {
+      const { volume } = await this.stakingRefRewardRepo
+        .createQueryBuilder('stakingRefReward')
+        .select('SUM(amountInEur)', 'volume')
+        .innerJoin('stakingRefReward.user', 'user')
+        .where('user.id = :id', { id })
+        .andWhere('txId IS NOT NULL')
+        .getRawOne<{ volume: number }>();
+
+      await this.userService.updatePaidStakingRefCredit(id, volume ?? 0);
+    }
   }
 }
