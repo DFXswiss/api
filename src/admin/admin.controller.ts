@@ -132,7 +132,7 @@ export class AdminController {
       query.addSelect('userData.firstname', 'firstname');
       query.addSelect('userData.surname', 'surname');
       query.addSelect('userData.organizationName', 'organizationName');
-      query.innerJoin('bank_tx.buyCrypto', 'buyCrypto');
+      query.leftJoin('bank_tx.buyCrypto', 'buyCrypto');
       query.innerJoin('buyCrypto.buy', 'buy');
       query.innerJoin('buy.user', 'user');
       query.innerJoin('user.userData', 'userData');
