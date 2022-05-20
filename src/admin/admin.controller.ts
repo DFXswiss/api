@@ -133,9 +133,9 @@ export class AdminController {
       query.addSelect('userData.surname', 'surname');
       query.addSelect('userData.organizationName', 'organizationName');
       query.leftJoin('bank_tx.buyCrypto', 'buyCrypto');
-      query.innerJoin('buyCrypto.buy', 'buy');
-      query.innerJoin('buy.user', 'user');
-      query.innerJoin('user.userData', 'userData');
+      query.leftJoin('buyCrypto.buy', 'buy');
+      query.leftJoin('buy.user', 'user');
+      query.leftJoin('user.userData', 'userData');
       query.where('bank_tx.id >= :id', { id });
       query.andWhere('bank_tx.updated >= :updated', { updated });
     } else {
