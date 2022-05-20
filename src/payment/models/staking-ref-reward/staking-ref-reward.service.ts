@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Between, In, Not } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { StakingRefRewardRepository } from './staking-ref-reward.repository';
 import { StakingRefReward, StakingRefType } from './staking-ref-reward.entity';
 import { UserService } from 'src/user/models/user/user.service';
@@ -7,30 +7,26 @@ import { User } from 'src/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
-
-export interface CreateStakingRefReward {
-  txId: string;
-  outputDate: Date;
-  stakingId?: number;
-  userId: number;
-  stakingRefType: StakingRefType;
-}
-
-export interface UpdateStakingRefReward {
-  txId: string;
-  outputDate?: Date;
-  stakingId?: number;
-  userId?: number;
-  stakingRefType?: StakingRefType;
-}
+import { Interval } from '@nestjs/schedule';
+import { KrakenService } from '../exchange/kraken.service';
+import { BinanceService } from '../exchange/binance.service';
+import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeClient } from 'src/ain/node/node-client';
 
 @Injectable()
 export class StakingRefRewardService {
+  private readonly client: NodeClient;
+
   constructor(
+    nodeService: NodeService,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
     private readonly conversionService: ConversionService,
-  ) {}
+    private readonly krakenService: KrakenService,
+    private readonly binanceService: BinanceService,
+  ) {
+    this.client = nodeService.getClient(NodeType.REF, NodeMode.ACTIVE);
+  }
 
   async create(staking: Staking): Promise<void> {
     if (!staking.user) throw new Error('User is null');
@@ -43,23 +39,6 @@ export class StakingRefRewardService {
     await this.stakingRefRewardRepo.save(entities);
   }
 
-  // async update(id: number, dto: UpdateStakingRefReward): Promise<StakingRefReward> {
-  //   let entity = await this.stakingRefRewardRepo.findOne(id, { relations: ['user', 'staking', 'staking.user'] });
-  //   if (!entity) throw new NotFoundException('Ref reward not found');
-
-  //   const userIdBefore = entity.user?.id;
-
-  //   const update = await this.createEntity(dto);
-
-  //   Util.removeNullFields(entity);
-
-  //   entity = await this.stakingRefRewardRepo.save({ ...update, ...entity });
-
-  //   await this.updatePaidStakingRefCredit([userIdBefore, entity.user?.id]);
-
-  //   return entity;
-  // }
-
   async updateVolumes(): Promise<void> {
     const userIds = await this.userService.getAllUser().then((l) => l.map((b) => b.id));
     await this.updatePaidStakingRefCredit(userIds);
@@ -71,7 +50,7 @@ export class StakingRefRewardService {
     dateTo: Date = new Date(),
   ): Promise<StakingRefReward[]> {
     return await this.stakingRefRewardRepo.find({
-      where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(null) },
+      where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
       relations: ['user'],
     });
   }
@@ -99,6 +78,56 @@ export class StakingRefRewardService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.outputAsset,
     }));
+  }
+
+  // --- Tasks --- //
+  @Interval(900000)
+  async sendRewards() {
+    try {
+      const openRewards = await this.stakingRefRewardRepo.find({
+        where: { txId: IsNull() },
+        relations: ['user', 'staking', 'staking.deposit'],
+      });
+
+      if (openRewards.length > 0) {
+        const { price: krakenPrice } = await this.krakenService.getPrice('EUR', 'BTC');
+        const { price: binancePrice } = await this.binanceService.getPrice('EUR', 'BTC');
+        if (Math.abs(binancePrice - krakenPrice) / krakenPrice > 0.02)
+          throw new Error(`BTC price mismatch (kraken: ${krakenPrice}, binance: ${binancePrice})`);
+
+        for (const reward of openRewards) {
+          try {
+            await this.sendReward(reward, krakenPrice);
+          } catch (e) {
+            console.error(`Failed to send staking ref reward ${reward.id}:`, e);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Exception during reward send:', e);
+    }
+  }
+
+  private async sendReward(reward: StakingRefReward, btcPrice: number): Promise<void> {
+    const rewardInBtc = reward.inputReferenceAmount / btcPrice;
+    const rewardInDfi = await this.client.testCompositeSwap('BTC', 'DFI', rewardInBtc);
+
+    const txId = await this.client.sendUtxo(
+      Config.node.rewardWalletAddress,
+      reward.stakingRefType === StakingRefType.REFERRED ? reward.staking.deposit.address : reward.user.address,
+      rewardInDfi,
+    );
+
+    const update = {
+      outputReferenceAmount: rewardInBtc,
+      outputReferenceAsset: 'BTC',
+      outputAmount: rewardInDfi,
+      outputAsset: 'DFI',
+      txId: txId,
+      outputDate: new Date(),
+    };
+    await this.stakingRefRewardRepo.update(reward.id, update);
+    await this.updatePaidStakingRefCredit([reward.user.id]);
   }
 
   // --- HELPER METHODS --- //

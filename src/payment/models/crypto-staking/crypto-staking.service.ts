@@ -149,12 +149,7 @@ export class CryptoStakingService {
       if (!entity) throw new NotFoundException('Crypto staking not found');
 
       // amount in fiat
-      const outputAmountInUsd = await this.client.testCompositeSwap(
-        Config.node.utxoSpenderAddress,
-        dto.outputAsset,
-        'USDT',
-        dto.outputAmount,
-      );
+      const outputAmountInUsd = await this.client.testCompositeSwap(dto.outputAsset, 'USDT', dto.outputAmount);
       entity.outputAmountInEur = outputAmountInUsd * eurRate;
       entity.outputAmountInChf = outputAmountInUsd * chfRate;
 

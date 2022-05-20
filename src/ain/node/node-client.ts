@@ -96,7 +96,7 @@ export class NodeClient {
     return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
   }
 
-  async testCompositeSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
+  async testCompositeSwap(tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
     if (tokenFrom === tokenTo) return amount;
 
     return this.callNode((c) =>
@@ -104,10 +104,10 @@ export class NodeClient {
         'testpoolswap',
         [
           {
-            from: address,
+            from: undefined,
             tokenFrom: tokenFrom,
             amountFrom: this.roundAmount(amount),
-            to: address,
+            to: undefined,
             tokenTo: tokenTo,
           },
           'auto',
