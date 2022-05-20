@@ -94,11 +94,8 @@ export class MailService {
   }
 
   // --- PAYMENT PROCESSING --- //
-  async sendStakingRefMail(to: string, language: string, stakingRefType: StakingRefType): Promise<void> {
-    const { salutation, body, subject } = await this.t(
-      `mail.stakingRef.${stakingRefType.toString().toLowerCase()}`,
-      language,
-    );
+  async sendStakingRefMail(to: string, language: string, stakingRefType: string): Promise<void> {
+    const { salutation, body, subject } = await this.t(`mail.stakingRef.${stakingRefType}`, language);
     await this.sendMail({ to, salutation, subject, body, template: 'default' });
   }
 

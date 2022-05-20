@@ -146,8 +146,8 @@ export class StakingRefRewardService {
         try {
           await this.mailService.sendStakingRefMail(
             reward.user.userData.mail,
-            reward.user.userData.language.symbol,
-            reward.stakingRefType,
+            reward.user.userData.language?.symbol.toLowerCase(),
+            reward.stakingRefType.toString().toLowerCase(),
           );
 
           const update = {
