@@ -88,7 +88,7 @@ export class CryptoInputService {
             }
           } else if (route?.type === RouteType.STAKING) {
             // check for min. deposit
-            const usdtAmount = await this.client.testCompositeSwap(token.owner, asset, 'USDT', amount);
+            const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
             if (usdtAmount >= Config.node.minTokenDeposit) {
               console.log('Doing token conversion:', token);
 
@@ -187,8 +187,8 @@ export class CryptoInputService {
       return null;
     }
 
-    const btcAmount = await this.client.testCompositeSwap(history.owner, asset, 'BTC', amount);
-    const usdtAmount = await this.client.testCompositeSwap(history.owner, asset, 'USDT', amount);
+    const btcAmount = await this.client.testCompositeSwap(asset, 'BTC', amount);
+    const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
 
     // min. deposit
     if (

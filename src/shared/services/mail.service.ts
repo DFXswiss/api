@@ -4,6 +4,7 @@ import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity'
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
+import { StakingRefType } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 
 interface SendMailOptions {
   to: string;
@@ -40,6 +41,7 @@ export class MailService {
 
   constructor(private readonly mailerService: MailerService, private readonly i18n: I18nService) {}
 
+  // --- KYC --- //
   async sendKycReminderMail(to: string, kycStatus: KycStatus, language: string, url: string): Promise<void> {
     const { salutation, body, subject } = await this.t('mail.kyc.reminder', language, {
       status: this.kycStatus[kycStatus],
@@ -91,6 +93,16 @@ export class MailService {
     });
   }
 
+  // --- PAYMENT PROCESSING --- //
+  async sendStakingRefMail(to: string, language: string, stakingRefType: StakingRefType): Promise<void> {
+    const { salutation, body, subject } = await this.t(
+      `mail.stakingRef.${stakingRefType.toString().toLowerCase()}`,
+      language,
+    );
+    await this.sendMail({ to, salutation, subject, body, template: 'default' });
+  }
+
+  // --- OTHER --- //
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
     const env = Config.environment.toUpperCase();
 

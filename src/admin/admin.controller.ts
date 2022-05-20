@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
-import { BankTx } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/buy-crypto.entity';
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
 import { CryptoInput } from 'src/payment/models/crypto-input/crypto-input.entity';
@@ -22,13 +21,14 @@ import { CryptoStaking } from 'src/payment/models/crypto-staking/crypto-staking.
 import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
 import { RefRewardService } from 'src/payment/models/ref-reward/ref-reward.service';
+import { StakingRefReward } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
+import { StakingRefRewardService } from 'src/payment/models/staking-ref-reward/staking-ref-reward.service';
 import { StakingReward } from 'src/payment/models/staking-reward/staking-reward.entity';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/shared/services/letter.service';
 import { MailService } from 'src/shared/services/mail.service';
-import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
@@ -52,6 +52,7 @@ export class AdminController {
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
     private readonly stakingRewardService: StakingRewardService,
+    private readonly stakingRefRewardService: StakingRefRewardService,
     private readonly cryptoInputService: CryptoInputService,
   ) {}
 
@@ -151,7 +152,7 @@ export class AdminController {
     const arrayData =
       data.length > 0
         ? {
-            keys: Object.keys(data[0]).map((e) => e.split('bank_tx_').join('')),
+            keys: Object.keys(data[0]).map((e) => e.replace('bank_tx_', '')),
             values: data.map((e) => Object.values(e)),
           }
         : undefined;
@@ -187,6 +188,7 @@ export class AdminController {
     refReward: RefReward[];
     staking: CryptoStaking[];
     stakingReward: StakingReward[];
+    stakingRefReward: StakingRefReward[];
     cryptoInput: CryptoInput[];
   }> {
     const userData = await this.userDataService.getUserData(+id);
@@ -202,6 +204,7 @@ export class AdminController {
       refReward: await this.refRewardService.getAllUserRewards(userIds),
       staking: await this.cryptoStakingService.getUserTransactions(userIds),
       stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
+      stakingRefReward: await this.stakingRefRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.cryptoInputService.getAllUserTransactions(userIds),
     };
   }

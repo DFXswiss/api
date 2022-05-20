@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
-import { UpdateRefRewardDto } from './dto/update.ref-reward.dto';
+import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
 import { RefRewardService } from './ref-reward.service';
 
