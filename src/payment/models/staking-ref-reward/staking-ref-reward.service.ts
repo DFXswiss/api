@@ -94,7 +94,7 @@ export class StakingRefRewardService {
     dateTo: Date = new Date(),
   ): Promise<StakingRefReward[]> {
     return await this.stakingRefRewardRepo.find({
-      where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(null) },
+      where: { user: { id: In(userIds) }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
       relations: ['user'],
     });
   }
