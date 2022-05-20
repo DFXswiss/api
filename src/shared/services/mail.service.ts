@@ -4,7 +4,6 @@ import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity'
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
-import { StakingRefType } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 
 interface SendMailOptions {
   to: string;
