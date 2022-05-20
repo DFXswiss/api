@@ -1,9 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Between, In, Not } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { StakingRefRewardRepository } from './staking-ref-reward.repository';
 import { StakingRefReward, StakingRefType } from './staking-ref-reward.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { Util } from 'src/shared/util';
+import { Interval } from '@nestjs/schedule';
+import { MailService } from 'src/shared/services/mail.service';
 
 export interface CreateStakingRefReward {
   txId: string;
@@ -26,7 +28,25 @@ export class StakingRefRewardService {
   constructor(
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
+    private readonly mailService: MailService,
   ) {}
+
+  @Interval(900000)
+  async sendMails(): Promise<void> {
+    const openStakingRefMails = await this.stakingRefRewardRepo.find({
+      where: { txId: Not(IsNull()), mailSendDate: IsNull() },
+      relations: ['user', 'user.language'],
+    });
+    for (const stakingRef of openStakingRefMails) {
+      await this.mailService.sendStakingRefMail(
+        stakingRef.user.mail,
+        stakingRef.user.language.symbol,
+        stakingRef.stakingRefType,
+      );
+      stakingRef.mailSendDate = new Date().getTime();
+      await this.update(stakingRef.id, stakingRef);
+    }
+  }
 
   async create(dto: CreateStakingRefReward): Promise<StakingRefReward> {
     let entity = await this.stakingRefRewardRepo.findOne({
@@ -111,23 +131,5 @@ export class StakingRefRewardService {
 
       await this.userService.updatePaidStakingRefCredit(id, volume ?? 0);
     }
-  }
-
-  async getTransactions(
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
-    const refRewards = await this.stakingRefRewardRepo.find({
-      where: { outputDate: Between(dateFrom, dateTo) },
-    });
-
-    return refRewards.map((v) => ({
-      id: v.id,
-      fiatAmount: v.amountInEur,
-      fiatCurrency: 'EUR',
-      date: v.outputDate,
-      cryptoAmount: v.outputAmount,
-      cryptoCurrency: v.outputAsset,
-    }));
   }
 }

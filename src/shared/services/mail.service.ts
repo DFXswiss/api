@@ -4,6 +4,7 @@ import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity'
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
+import { StakingRefType } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 
 interface SendMailOptions {
   to: string;
@@ -53,6 +54,14 @@ export class MailService {
     const { salutation, body, subject } = await this.t('mail.kyc.chatbot', language, {
       url: url,
     });
+    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
+  }
+
+  async sendStakingRefMail(to: string, language: string, stakingRefType: StakingRefType): Promise<void> {
+    const { salutation, body, subject } = await this.t(
+      `mail.stakingRef.${stakingRefType.toString().toLowerCase()}`,
+      language,
+    );
     await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
   }
 

@@ -11,6 +11,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { AccountType } from '../user-data/account-type.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
+import { StakingRefReward } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -97,6 +98,9 @@ export class User extends IEntity {
 
   @OneToMany(() => RefReward, (reward) => reward.user)
   refRewards: RefReward[];
+
+  @OneToMany(() => StakingRefReward, (reward) => reward.user)
+  stakingRefRewards: StakingRefReward[];
 
   // --- TO REMOVE --- //
   @Column({ default: AccountType.PERSONAL, length: 256 })
