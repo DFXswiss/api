@@ -20,5 +20,17 @@
       "body": "<p>Wir haben festgestellt, dass die Online-Identifizierung fehlgeschlagen ist. Wir haben jedoch bereits die Video-Identifikation freigeschaltet.<br>Weiter geht es, indem man auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) klickt oder <a href=\"{url}\"  style=\"color:#FFFFFF\">hier</a>.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Online Identifikation fehlgeschlagen"
     }
+  },
+  "stakingRef": {
+    "referrer": {
+      "salutation": "You are a DFX Ambassador - successful referral",
+      "body": "<p>Uns ist aufgefallen, dass {status} noch nicht vollständig abgeschlossen wurde.</p><p>Weiter geht es, indem man auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a> klickt.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "title": "Vervollständige die Verifizierung"
+    },
+    "referred": {
+      "salutation": "You are a DFX Ambassador - successful referral",
+      "body": "<p>Uns ist aufgefallen, dass {status} noch nicht vollständig abgeschlossen wurde.</p><p>Weiter geht es, indem man auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a> klickt.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "title": "Vervollständige die Verifizierung"
+    }
   }
 }

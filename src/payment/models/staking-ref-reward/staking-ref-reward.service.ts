@@ -3,11 +3,12 @@ import { Between, In, IsNull, Not } from 'typeorm';
 import { StakingRefRewardRepository } from './staking-ref-reward.repository';
 import { StakingRefReward, StakingRefType } from './staking-ref-reward.entity';
 import { UserService } from 'src/user/models/user/user.service';
+import { Interval } from '@nestjs/schedule';
+import { MailService } from 'src/shared/services/mail.service';
 import { User } from 'src/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import { Interval } from '@nestjs/schedule';
 import { KrakenService } from '../exchange/kraken.service';
 import { BinanceService } from '../exchange/binance.service';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
@@ -24,8 +25,28 @@ export class StakingRefRewardService {
     private readonly conversionService: ConversionService,
     private readonly krakenService: KrakenService,
     private readonly binanceService: BinanceService,
+    private readonly mailService: MailService,
   ) {
     this.client = nodeService.getClient(NodeType.REF, NodeMode.ACTIVE);
+  }
+  @Interval(900000)
+  async sendMails(): Promise<void> {
+    const openStakingRefMails = await this.stakingRefRewardRepo.find({
+      where: { txId: Not(IsNull()), mailSendDate: IsNull() },
+      relations: ['user', 'user.userData', 'user.userData.location'],
+    });
+    for (const stakingRef of openStakingRefMails) {
+      await this.mailService.sendStakingRefMail(
+        stakingRef.user.userData.mail,
+        stakingRef.user.userData.language.symbol,
+        stakingRef.stakingRefType,
+      );
+      const update = {
+        mailSendDate: new Date().getTime(),
+        recipientMail: stakingRef.user.userData.mail,
+      };
+      await this.stakingRefRewardRepo.update(stakingRef.id, update);
+    }
   }
 
   async create(staking: Staking): Promise<void> {
