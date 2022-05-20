@@ -4,7 +4,7 @@ import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
-import { PayoutType } from '../staking-reward/staking-reward.entity';
+import { PayoutType, StakingReward } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CryptoBuyService } from '../crypto-buy/crypto-buy.service';
@@ -12,6 +12,9 @@ import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
+import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
+import { RefReward } from '../ref-reward/ref-reward.entity';
+import { StakingRefReward, StakingRefType } from '../staking-ref-reward/staking-ref-reward.entity';
 
 @Injectable()
 export class HistoryService {
@@ -22,6 +25,7 @@ export class HistoryService {
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
+    private readonly stakingRefReward: StakingRefRewardService,
   ) {}
 
   async getHistory(userId: number, userAddress: string, query: HistoryQuery, timeout?: number): Promise<HistoryDto[]> {
@@ -33,7 +37,7 @@ export class HistoryService {
       all || query.sell != null ? await this.getSellTransactions(userId, query.from, query.to) : Promise.resolve([]),
       all || query.staking != null ? await this.getStakingRewards(userId, query.from, query.to) : Promise.resolve([]),
       all || query.staking != null ? await this.getStakingInvests(userId, query.from, query.to) : Promise.resolve([]),
-      all || query.ref != null ? await this.getRefRewards(userId, query.from, query.to) : Promise.resolve([]),
+      all || query.ref != null ? await this.getAllRefRewards(userId, query.from, query.to) : Promise.resolve([]),
       all || query.lm != null
         ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout)
         : Promise.resolve([]),
@@ -258,8 +262,14 @@ export class HistoryService {
       .filter((invests) => invests != null);
   }
 
-  private async getRefRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
+  private async getAllRefRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
     const refRewards = await this.refRewardService.getUserRewards([userId], dateFrom, dateTo);
+    const refStakingReward = await this.stakingRefReward.getUserRewards([userId], dateFrom, dateTo);
+
+    return [...this.getRefRewards(refRewards), ...this.getStakingRefRewards(refStakingReward)];
+  }
+
+  private getRefRewards(refRewards: RefReward[]): HistoryDto[] {
     return refRewards
       .map((c) => [
         {
@@ -271,6 +281,29 @@ export class HistoryService {
           fee: null,
           feeAsset: null,
           exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Referral Reward',
+          date: c.outputDate,
+          txid: c.txId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private getStakingRefRewards(stakingRefRewards: StakingRefReward[]): HistoryDto[] {
+    return stakingRefRewards
+      .map((c) => [
+        {
+          type: 'Reward / Bonus',
+          buyAmount: c.outputAmount,
+          buyAsset: c.outputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: c.stakingRefType === StakingRefType.REFERRER ? 'DFX' : 'DFX Staking',
           tradeGroup: null,
           comment: 'DFX Referral Reward',
           date: c.outputDate,

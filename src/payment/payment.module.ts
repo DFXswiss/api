@@ -51,6 +51,8 @@ import { CryptoInputController } from './models/crypto-input/crypto-input.contro
 import { BuyCryptoRepository } from './models/buy-crypto/buy-crypto.repository';
 import { BuyCryptoController } from './models/buy-crypto/buy-crypto.controller';
 import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
+import { StakingRefRewardService } from './models/staking-ref-reward/staking-ref-reward.service';
+import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-ref-reward.repository';
 
 @Module({
   imports: [
@@ -69,6 +71,7 @@ import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
       StakingRewardRepository,
       RefRewardRepository,
       CryptoStakingRepository,
+      StakingRefRewardRepository,
     ]),
     SharedModule,
     AinModule,
@@ -114,6 +117,7 @@ import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
     StakingRewardService,
     RefRewardService,
     CryptoStakingService,
+    StakingRefRewardService,
   ],
   exports: [
     BuyService,
@@ -128,6 +132,7 @@ import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
     BankTxService,
     CryptoInputService,
     CryptoStakingService,
+    StakingRefRewardService,
   ],
 })
 export class PaymentModule {}
