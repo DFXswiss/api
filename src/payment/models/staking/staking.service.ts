@@ -145,13 +145,13 @@ export class StakingService {
 
   // --- BALANCE --- //
   async updateBalance(stakingId: number): Promise<void> {
-    const { user } = await this.stakingRepo.findOne({ where: { id: stakingId }, relations: ['user'] });
-    if (user.stakingStart == null) {
+    const staking = await this.stakingRepo.findOne({ where: { id: stakingId }, relations: ['user'] });
+    if (staking.user.stakingStart == null) {
       const balance = await this.getCurrentStakingBalance(stakingId);
       if (balance >= Config.staking.minInvestment) {
-        const isNewUser = await this.userService.activateStaking(user.id);
-        if (isNewUser && user.created > Config.staking.refSystemStart && user.usedRef !== '000-000') {
-          // TODO: payout staking ref rewards
+        const isNewUser = await this.userService.activateStaking(staking.user.id);
+        if (isNewUser) {
+          this.stakingRefRewardService.create(staking);
         }
       }
     }

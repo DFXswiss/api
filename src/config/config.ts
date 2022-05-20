@@ -182,6 +182,7 @@ export class Configuration {
     minInvestment: 100, // DFI
     freeDays: 28,
     refSystemStart: new Date('2022-05-22T16:00:00.000Z'),
+    refReward: 20, // EUR
   };
 
   ftp = {
