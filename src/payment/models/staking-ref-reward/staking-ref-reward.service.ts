@@ -39,16 +39,19 @@ export class StakingRefRewardService {
   async sendMails(): Promise<void> {
     const openStakingRefMails = await this.stakingRefRewardRepo.find({
       where: { txId: Not(IsNull()), mailSendDate: IsNull() },
-      relations: ['user', 'user.language'],
+      relations: ['user', 'user.userData', 'user.userData.location'],
     });
     for (const stakingRef of openStakingRefMails) {
       await this.mailService.sendStakingRefMail(
-        stakingRef.user.mail,
-        stakingRef.user.language.symbol,
+        stakingRef.user.userData.mail,
+        stakingRef.user.userData.language.symbol,
         stakingRef.stakingRefType,
       );
-      stakingRef.mailSendDate = new Date().getTime();
-      // await this.update(stakingRef.id, stakingRef);
+      const update = {
+        mailSendDate: new Date().getTime(),
+        recipientMail: stakingRef.user.userData.mail,
+      };
+      await this.stakingRefRewardRepo.update(stakingRef.id, update);
     }
   }
 
