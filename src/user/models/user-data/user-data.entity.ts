@@ -125,6 +125,18 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   plannedContribution: string;
 
+  @Column({ type: 'float', default: 0 })
+  annualBuyVolume: number;
+
+  @Column({ type: 'float', default: 0 })
+  buyVolume: number;
+
+  @Column({ type: 'float', default: 0 })
+  annualSellVolume: number;
+
+  @Column({ type: 'float', default: 0 })
+  sellVolume: number;
+
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
 

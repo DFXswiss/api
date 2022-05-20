@@ -135,7 +135,17 @@ export class CryptoSellService {
         .andWhere('cryptoSell.amlCheck = :check', { check: AmlCheck.PASS })
         .getRawOne<{ volume: number }>();
 
-      await this.sellService.updateVolume(id, volume ?? 0);
+      const newYear = new Date(new Date().getFullYear(), 0, 1);
+      const { annualVolume } = await this.cryptoSellRepo
+        .createQueryBuilder('cryptoSell')
+        .select('SUM(amountInEur)', 'annualVolume')
+        .innerJoin('cryptoSell.cryptoInput', 'cryptoInput')
+        .where('cryptoInput.routeId = :id', { id: id })
+        .andWhere('cryptoSell.amlCheck = :check', { check: AmlCheck.PASS })
+        .andWhere('inputDate >= :year', { year: newYear })
+        .getRawOne<{ annualVolume: number }>();
+
+      await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
     }
   }
 
