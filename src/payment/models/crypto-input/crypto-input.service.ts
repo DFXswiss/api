@@ -13,7 +13,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -52,6 +52,13 @@ export class CryptoInputService {
     return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
   }
 
+  async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
+    return await this.cryptoInputRepo.find({
+      where: { route: { user: { id: In(userIds) } } },
+      relations: ['cryptoSell', 'cryptoStaking', 'route', 'route.user'],
+    });
+  }
+
   // --- TOKEN CONVERSION --- //
   @Interval(900000)
   async convertTokens(): Promise<void> {
@@ -81,7 +88,7 @@ export class CryptoInputService {
             }
           } else if (route?.type === RouteType.STAKING) {
             // check for min. deposit
-            const usdtAmount = await this.client.testCompositeSwap(token.owner, asset, 'USDT', amount);
+            const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
             if (usdtAmount >= Config.node.minTokenDeposit) {
               console.log('Doing token conversion:', token);
 
@@ -180,8 +187,8 @@ export class CryptoInputService {
       return null;
     }
 
-    const btcAmount = await this.client.testCompositeSwap(history.owner, asset, 'BTC', amount);
-    const usdtAmount = await this.client.testCompositeSwap(history.owner, asset, 'USDT', amount);
+    const btcAmount = await this.client.testCompositeSwap(asset, 'BTC', amount);
+    const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
 
     // min. deposit
     if (

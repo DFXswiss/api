@@ -5,7 +5,7 @@ import { Staking } from '../staking/staking.entity';
 export enum PayoutType {
   REINVEST = 'Reinvest',
   WALLET = 'Wallet',
-  BANK_ACCOUNT = 'BankAccount'
+  BANK_ACCOUNT = 'BankAccount',
 }
 
 @Entity()
@@ -22,4 +22,7 @@ export class StakingReward extends Reward {
 
   @ManyToOne(() => Staking, (staking) => staking.rewards, { nullable: false })
   staking: Staking;
+
+  @Column({ length: 256, nullable: false, unique: true })
+  internalId: string;
 }

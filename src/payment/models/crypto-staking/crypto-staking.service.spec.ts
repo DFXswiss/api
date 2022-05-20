@@ -8,12 +8,14 @@ import { ConversionService } from 'src/shared/services/conversion.service';
 import { NodeService } from 'src/ain/node/node.service';
 import { StakingService } from '../staking/staking.service';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
+import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 
 describe('CryptoStakingService', () => {
   let service: CryptoStakingService;
 
   let cryptoStakingRepo: CryptoStakingRepository;
   let stakingRewardRepo: StakingRewardRepository;
+  let stakingRefRewardRepo: StakingRefRewardRepository;
   let conversionService: ConversionService;
   let stakingService: StakingService;
   let nodeService: NodeService;
@@ -21,6 +23,7 @@ describe('CryptoStakingService', () => {
   beforeEach(async () => {
     cryptoStakingRepo = createMock<CryptoStakingRepository>();
     stakingRewardRepo = createMock<StakingRewardRepository>();
+    stakingRefRewardRepo = createMock<StakingRefRewardRepository>();
     conversionService = createMock<ConversionService>();
     stakingService = createMock<StakingService>();
     nodeService = createMock<NodeService>();
@@ -31,6 +34,7 @@ describe('CryptoStakingService', () => {
         CryptoStakingService,
         { provide: CryptoStakingRepository, useValue: cryptoStakingRepo },
         { provide: StakingRewardRepository, useValue: stakingRewardRepo },
+        { provide: StakingRefRewardRepository, useValue: stakingRefRewardRepo },
         { provide: ConversionService, useValue: conversionService },
         { provide: StakingService, useValue: stakingService },
         { provide: NodeService, useValue: nodeService },

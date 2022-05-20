@@ -11,6 +11,7 @@ export enum NodeType {
   DEX = 'dex',
   OUTPUT = 'out',
   INT = 'int',
+  REF = 'ref',
 }
 
 export enum NodeMode {
@@ -45,6 +46,10 @@ export class NodeService {
         [NodeMode.ACTIVE]: Config.node.int.active,
         [NodeMode.PASSIVE]: Config.node.int.passive,
       },
+      [NodeType.REF]: {
+        [NodeMode.ACTIVE]: Config.node.ref.active,
+        [NodeMode.PASSIVE]: Config.node.ref.passive,
+      },
     };
 
     this.clients = {
@@ -64,6 +69,10 @@ export class NodeService {
         [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INT, NodeMode.ACTIVE, scheduler),
         [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INT, NodeMode.PASSIVE, scheduler),
       },
+      [NodeType.REF]: {
+        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.REF, NodeMode.ACTIVE, scheduler),
+        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.REF, NodeMode.PASSIVE, scheduler),
+      },
     };
   }
 
@@ -74,6 +83,7 @@ export class NodeService {
       this.checkNode(NodeType.DEX),
       this.checkNode(NodeType.OUTPUT),
       this.checkNode(NodeType.INT),
+      this.checkNode(NodeType.REF),
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
 
     if (errors.length > 0) {

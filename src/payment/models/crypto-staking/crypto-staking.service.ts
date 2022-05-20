@@ -17,6 +17,7 @@ import { StakingRewardRepository } from '../staking-reward/staking-reward.respos
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { Util } from 'src/shared/util';
+import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 
 @Injectable()
 export class CryptoStakingService {
@@ -28,6 +29,7 @@ export class CryptoStakingService {
     private readonly conversionService: ConversionService,
     private readonly stakingService: StakingService,
     private readonly stakingRewardRepo: StakingRewardRepository,
+    private readonly stakingRefRewardRepo: StakingRefRewardRepository,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
@@ -149,12 +151,7 @@ export class CryptoStakingService {
       if (!entity) throw new NotFoundException('Crypto staking not found');
 
       // amount in fiat
-      const outputAmountInUsd = await this.client.testCompositeSwap(
-        Config.node.utxoSpenderAddress,
-        dto.outputAsset,
-        'USDT',
-        dto.outputAmount,
-      );
+      const outputAmountInUsd = await this.client.testCompositeSwap(dto.outputAsset, 'USDT', dto.outputAmount);
       entity.outputAmountInEur = outputAmountInUsd * eurRate;
       entity.outputAmountInChf = outputAmountInUsd * chfRate;
 
@@ -308,6 +305,8 @@ export class CryptoStakingService {
         ],
       })) != null ||
       (await this.stakingRewardRepo.findOne({ txId: cryptoInput.inTxId, staking: { id: cryptoInput.route.id } })) !=
+        null ||
+      (await this.stakingRefRewardRepo.findOne({ txId: cryptoInput.inTxId, staking: { id: cryptoInput.route.id } })) !=
         null
     );
   }

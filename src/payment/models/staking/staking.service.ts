@@ -20,6 +20,7 @@ import { Config } from 'src/config/config';
 import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingRepository } from '../crypto-staking/crypto-staking.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
+import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
 
 @Injectable()
 export class StakingService {
@@ -32,6 +33,7 @@ export class StakingService {
     private readonly assetService: AssetService,
     private readonly buyRepo: BuyRepository,
     private readonly userService: UserService,
+    private readonly stakingRefRewardService: StakingRefRewardService,
   ) {}
 
   async getStakingByAddress(depositAddress: string): Promise<Staking> {
@@ -147,7 +149,10 @@ export class StakingService {
     if (staking.user.stakingStart == null) {
       const balance = await this.getCurrentStakingBalance(stakingId);
       if (balance >= Config.staking.minInvestment) {
-        this.userService.activateStaking(staking.user.id);
+        const isNewUser = await this.userService.activateStaking(staking.user.id);
+        if (isNewUser) {
+          this.stakingRefRewardService.create(staking);
+        }
       }
     }
   }

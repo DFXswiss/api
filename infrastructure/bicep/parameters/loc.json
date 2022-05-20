@@ -8,6 +8,9 @@
     "env": {
       "value": "loc"
     },
+    "network": {
+      "value": "testnet"
+    },
     "dbAllowAllIps": {
       "value": true
     },
@@ -87,6 +90,15 @@
       "value": "xxx"
     },
     "binanceSecret": {
+      "value": "xxx"
+    },
+    "letterUrl": {
+      "value": "https://sandbox.letterxpress.de/v1"
+    },
+    "letterUser": {
+      "value": "xxx"
+    },
+    "letterAuth": {
       "value": "xxx"
     }
   }

@@ -58,6 +58,10 @@ export class UserService {
     return this.userRepo.findOne({ address });
   }
 
+  async getRefUser(ref: string): Promise<User> {
+    return await this.userRepo.findOne({ where: { ref }, relations: ['userData'] });
+  }
+
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string): Promise<User> {
     let user = this.userRepo.create(dto);
 
@@ -250,12 +254,27 @@ export class UserService {
     await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
   }
 
-  async activateStaking(id: number): Promise<void> {
-    await this.userRepo.update(id, { stakingStart: new Date() });
+  async updatePaidStakingRefCredit(id: number, volume: number): Promise<void> {
+    await this.userRepo.update(id, { paidStakingRefCredit: Util.round(volume, 0) });
+  }
+
+  // returns true, if is new staking user
+  async activateStaking(id: number): Promise<boolean> {
+    const { userData } = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
+
+    const currentDate = new Date();
+    const startDate = new Date(Math.min(...userData.users.map((u) => (u.stakingStart ?? currentDate).getTime())));
+
+    await this.userRepo.update(
+      userData.users.map((u) => u.id),
+      { stakingStart: startDate },
+    );
+
+    return startDate.getTime() === currentDate.getTime();
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
-    const refUser = await this.userRepo.findOne({ where: { ref: usedRef }, relations: ['userData'] });
+    const refUser = await this.getRefUser(usedRef);
     return usedRef === null ||
       usedRef === user.ref ||
       (usedRef && !refUser) ||

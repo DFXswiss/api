@@ -1,6 +1,7 @@
 // --- PARAMETERS --- //
 param location string
 param env string
+param network string
 
 param dbAllowAllIps bool
 param dbAdminLogin string
@@ -52,6 +53,11 @@ param binanceKey string
 @secure()
 param binanceSecret string
 
+param letterUrl string
+param letterUser string
+@secure()
+param letterAuth string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -71,6 +77,8 @@ var nodeOutFileShareNameA = 'node-out-data-a'
 var nodeOutFileShareNameB = 'node-out-data-b'
 var nodeIntFileShareNameA = 'node-int-data-a'
 var nodeIntFileShareNameB = 'node-int-data-b'
+var nodeRefFileShareNameA = 'node-ref-data-a'
+var nodeRefFileShareNameB = 'node-ref-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -87,6 +95,8 @@ var nodeOutServicePlanName = 'plan-${compName}-${nodeName}-out-${env}'
 var nodeOutAppName = 'app-${compName}-${nodeName}-out-${env}'
 var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
 var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
+var nodeRefServicePlanName = 'plan-${compName}-${nodeName}-ref-${env}'
+var nodeRefAppName = 'app-${compName}-${nodeName}-ref-${env}'
 
 var nodeProps = [
   {
@@ -116,6 +126,13 @@ var nodeProps = [
     appName: nodeIntAppName
     fileShareNameA: nodeIntFileShareNameA
     fileShareNameB: nodeIntFileShareNameB
+  }
+  {
+    name: 'nodes-ref-${env}'
+    servicePlanName: nodeRefServicePlanName
+    appName: nodeRefAppName
+    fileShareNameA: nodeRefFileShareNameA
+    fileShareNameB: nodeRefFileShareNameB
   }
 ]
 
@@ -218,6 +235,14 @@ resource nodeIntFileShareA 'Microsoft.Storage/storageAccounts/fileServices/share
 
 resource nodeIntFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
   name: '${storageAccount.name}/default/${nodeIntFileShareNameB}'
+}
+
+resource nodeRefFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeRefFileShareNameA}'
+}
+
+resource nodeRefFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeRefFileShareNameB}'
 }
 
 
@@ -323,6 +348,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: env
         }
         {
+          name: 'NETWORK'
+          value: network
+        }
+        {
           name: 'SQL_HOST'
           value: sqlServer.properties.fullyQualifiedDomainName
         }
@@ -356,14 +385,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'MAIL_USER'
-          value: 'noreply@dfx.swiss'
-        }
-        {
-          name: 'MAIL_SEND_GRID_USER'
           value: mailUser
         }
         {
-          name: 'MAIL_SEND_GRID_PASS'
+          name: 'MAIL_PASS'
           value: mailPass
         }
         {
@@ -436,6 +461,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: nodes[3].outputs.urlStg
         }
         {
+          name: 'NODE_REF_URL_ACTIVE'
+          value: nodes[4].outputs.url
+        }
+        {
+          name: 'NODE_REF_URL_PASSIVE'
+          value: nodes[4].outputs.urlStg
+        }
+        {
           name: 'DEX_WALLET_ADDRESS'
           value: dexWalletAddress
         }
@@ -478,6 +511,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BINANCE_SECRET'
           value: binanceSecret
+        }
+        {
+          name: 'LETTER_URL'
+          value: letterUrl
+        }
+        {
+          name: 'LETTER_USER'
+          value: letterUser
+        }
+        {
+          name: 'LETTER_AUTH'
+          value: letterAuth
         }
       ]
     }
