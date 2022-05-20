@@ -4,7 +4,7 @@ import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
 import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
-import { PayoutType, StakingReward } from '../staking-reward/staking-reward.entity';
+import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CryptoBuyService } from '../crypto-buy/crypto-buy.service';
