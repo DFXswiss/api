@@ -148,6 +148,9 @@ export class StakingRefRewardService {
             reward.user.userData.mail,
             reward.user.userData.language?.symbol.toLowerCase(),
             reward.stakingRefType.toString().toLowerCase(),
+            reward.txId,
+            reward.outputAmount,
+            reward.outputAsset,
           );
 
           const update = {
