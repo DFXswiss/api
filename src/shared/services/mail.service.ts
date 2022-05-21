@@ -40,6 +40,7 @@ export class MailService {
 
   constructor(private readonly mailerService: MailerService, private readonly i18n: I18nService) {}
 
+  // --- KYC --- //
   async sendKycReminderMail(to: string, kycStatus: KycStatus, language: string, url: string): Promise<void> {
     const { salutation, body, subject } = await this.t('mail.kyc.reminder', language, {
       status: this.kycStatus[kycStatus],
@@ -91,6 +92,24 @@ export class MailService {
     });
   }
 
+  // --- PAYMENT PROCESSING --- //
+  async sendStakingRefMail(
+    to: string,
+    language: string,
+    stakingRefType: string,
+    txId: string,
+    outputAmount: number,
+    outputAsset: string,
+  ): Promise<void> {
+    const { salutation, body, subject } = await this.t(`mail.stakingRef.${stakingRefType}`, language, {
+      txId,
+      outputAmount,
+      outputAsset,
+    });
+    await this.sendMail({ to, salutation, subject, body, template: 'default' });
+  }
+
+  // --- OTHER --- //
   async sendErrorMail(subject: string, errors: string[]): Promise<void> {
     const env = Config.environment.toUpperCase();
 

@@ -8,6 +8,7 @@ export class ConversionService {
 
   constructor(private readonly http: HttpService) {}
 
+  // --- FIAT --- //
   public async convertFiat(
     amount: number,
     fromCurrency: string,
@@ -28,6 +29,7 @@ export class ConversionService {
     return result[toCurrency.toLowerCase()];
   }
 
+  // --- HELPERS --- //
   private isToday(date: Date): boolean {
     const today = new Date();
     return (

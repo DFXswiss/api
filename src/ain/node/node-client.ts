@@ -91,12 +91,16 @@ export class NodeClient {
     );
   }
 
+  async sendMany(amounts: Record<string, number>): Promise<string> {
+    return this.callNode((c) => c.wallet.sendMany(amounts), true);
+  }
+
   // token
   async getToken(): Promise<AccountResult<string, string>[]> {
     return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
   }
 
-  async testCompositeSwap(address: string, tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
+  async testCompositeSwap(tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
     if (tokenFrom === tokenTo) return amount;
 
     return this.callNode((c) =>
@@ -104,10 +108,10 @@ export class NodeClient {
         'testpoolswap',
         [
           {
-            from: address,
+            from: undefined,
             tokenFrom: tokenFrom,
             amountFrom: this.roundAmount(amount),
-            to: address,
+            to: undefined,
             tokenTo: tokenTo,
           },
           'auto',
