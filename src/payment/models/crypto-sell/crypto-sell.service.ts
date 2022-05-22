@@ -142,7 +142,7 @@ export class CryptoSellService {
         .innerJoin('cryptoSell.cryptoInput', 'cryptoInput')
         .where('cryptoInput.routeId = :id', { id: id })
         .andWhere('cryptoSell.amlCheck = :check', { check: AmlCheck.PASS })
-        .andWhere('inputDate >= :year', { year: newYear })
+        .andWhere('cryptoInput.created >= :year', { year: newYear })
         .getRawOne<{ annualVolume: number }>();
 
       await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0);

@@ -28,14 +28,13 @@ export class BuyService {
   }
 
   async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
-    const user = await this.buyRepo.findOne({
+    const buy = await this.buyRepo.findOne({
       where: { id: buyId },
       relations: ['user'],
-      select: ['user'],
     });
     await this.buyRepo.update(buyId, { volume: Util.round(volume, 0), annualVolume: Util.round(annualVolume, 0) });
-    const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateBuyVolume(user.id, userVolume.volume, userVolume.annualVolume);
+    const userVolume = await this.getUserVolume(buy.user.id);
+    await this.userService.updateBuyVolume(buy.user.id, userVolume.volume, userVolume.annualVolume);
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {

@@ -112,32 +112,30 @@ export class UserService {
   }
 
   async updateBuyVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
-    const userData = await this.userRepo.findOne({
+    const user = await this.userRepo.findOne({
       where: { id: userId },
       relations: ['userData'],
-      select: ['userData'],
     });
     await this.userRepo.update(userId, {
       buyVolume: Util.round(volume, 0),
       annualBuyVolume: Util.round(annualVolume, 0),
     });
-    const userDataVolume = await this.getUserDataVolume(userData.id);
-    await this.userDataService.updateBuyVolume(userData.id, userDataVolume.buyVolume, userDataVolume.annualBuyVolume);
+    const userDataVolume = await this.getUserDataVolume(user.userData.id);
+    await this.userDataService.updateBuyVolume(user.userData.id, userDataVolume.buyVolume, userDataVolume.annualBuyVolume);
   }
 
   async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
-    const userData = await this.userRepo.findOne({
+    const user = await this.userRepo.findOne({
       where: { id: userId },
       relations: ['userData'],
-      select: ['userData'],
     });
     await this.userRepo.update(userId, {
       sellVolume: Util.round(volume, 0),
       annualSellVolume: Util.round(annualVolume, 0),
     });
-    const userDataVolume = await this.getUserDataVolume(userData.id);
+    const userDataVolume = await this.getUserDataVolume(user.userData.id);
     await this.userDataService.updateSellVolume(
-      userData.id,
+      user.userData.id,
       userDataVolume.sellVolume,
       userDataVolume.annualSellVolume,
     );

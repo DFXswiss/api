@@ -157,14 +157,14 @@ export class UserDataService {
   }
 
   async updateBuyVolume(userDataId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.userRepo.update(userDataId, {
+    await this.userDataRepo.update(userDataId, {
       buyVolume: Util.round(volume, 0),
       annualBuyVolume: Util.round(annualVolume, 0),
     });
   }
 
   async updateSellVolume(userDataId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.userRepo.update(userDataId, {
+    await this.userDataRepo.update(userDataId, {
       sellVolume: Util.round(volume, 0),
       annualSellVolume: Util.round(annualVolume, 0),
     });

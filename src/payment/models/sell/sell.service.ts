@@ -81,14 +81,13 @@ export class SellService {
   }
 
   async updateVolume(sellId: number, volume: number, annualVolume: number): Promise<void> {
-    const user = await this.sellRepo.findOne({
+    const sell = await this.sellRepo.findOne({
       where: { id: sellId },
       relations: ['user'],
-      select: ['user'],
     });
     await this.sellRepo.update(sellId, { volume: Util.round(volume, 0), annualVolume: Util.round(annualVolume, 0) });
-    const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateSellVolume(user.id, userVolume.volume, userVolume.annualVolume);
+    const userVolume = await this.getUserVolume(sell.user.id);
+    await this.userService.updateSellVolume(sell.user.id, userVolume.volume, userVolume.annualVolume);
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
@@ -99,10 +98,6 @@ export class SellService {
       .where('userId = :id', { id: userId })
       .getRawOne<{ volume: number; annualVolume: number }>();
   }
-
-  // async updateVolume(sellId: number, volume: number): Promise<void> {
-  //   await this.sellRepo.update(sellId, { volume: Util.round(volume, 0) });
-  // }
 
   async getTotalVolume(): Promise<number> {
     return this.sellRepo
