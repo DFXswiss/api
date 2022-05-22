@@ -77,6 +77,9 @@ export class User extends IEntity {
   @Column({ type: 'float', default: 0 })
   sellVolume: number;
 
+  @Column({ type: 'float', default: 0 })
+  stakingBalance: number;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 

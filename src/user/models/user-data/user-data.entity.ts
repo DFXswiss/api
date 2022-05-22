@@ -137,6 +137,9 @@ export class UserData extends IEntity {
   @Column({ type: 'float', default: 0 })
   sellVolume: number;
 
+  @Column({ type: 'float', default: 0 })
+  stakingBalance: number;
+
   @OneToMany(() => BankData, (bankData) => bankData.userData)
   bankDatas: BankData[];
 

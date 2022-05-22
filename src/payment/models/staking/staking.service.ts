@@ -130,6 +130,24 @@ export class StakingService {
     await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
   }
 
+  async updateBalanceVolume(stakingId: number, volume: number): Promise<void> {
+    const staking = await this.stakingRepo.findOne({
+      where: { id: stakingId },
+      relations: ['user'],
+    });
+    await this.stakingRepo.update(stakingId, { balanceVolume: Util.round(volume, 0) });
+    const userVolume = await this.getUserVolume(staking.user.id);
+    await this.userService.updateStakingBalance(staking.user.id, userVolume.balanceVolume);
+  }
+
+  async getUserVolume(userId: number): Promise<{ balanceVolume: number }> {
+    return this.stakingRepo
+      .createQueryBuilder('staking')
+      .select('SUM(balanceVolume)', 'balanceVolume')
+      .where('userId = :id', { id: userId })
+      .getRawOne<{ balanceVolume: number }>();
+  }
+
   // --- HELPER METHODS --- //
   private async getDepositId(userId: number, sellId?: number): Promise<number> {
     const sell = await this.sellRepo.findOne({ where: { id: sellId, user: { id: userId } }, relations: ['deposit'] });

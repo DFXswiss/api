@@ -121,7 +121,11 @@ export class UserService {
       annualBuyVolume: Util.round(annualVolume, 0),
     });
     const userDataVolume = await this.getUserDataVolume(user.userData.id);
-    await this.userDataService.updateBuyVolume(user.userData.id, userDataVolume.buyVolume, userDataVolume.annualBuyVolume);
+    await this.userDataService.updateBuyVolume(
+      user.userData.id,
+      userDataVolume.buyVolume,
+      userDataVolume.annualBuyVolume,
+    );
   }
 
   async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
@@ -141,17 +145,40 @@ export class UserService {
     );
   }
 
-  private async getUserDataVolume(
-    userDataId: number,
-  ): Promise<{ buyVolume: number; annualBuyVolume: number; sellVolume: number; annualSellVolume: number }> {
+  async updateStakingBalance(userId: number, balance: number): Promise<void> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData'],
+    });
+    await this.userRepo.update(userId, {
+      stakingBalance: Util.round(balance, 0),
+    });
+    const userDataVolume = await this.getUserDataVolume(user.userData.id);
+    await this.userDataService.updateStakingBalance(user.userData.id, userDataVolume.stakingBalance);
+  }
+
+  private async getUserDataVolume(userDataId: number): Promise<{
+    buyVolume: number;
+    annualBuyVolume: number;
+    sellVolume: number;
+    annualSellVolume: number;
+    stakingBalance: number;
+  }> {
     return this.userRepo
       .createQueryBuilder('user')
       .select('SUM(buyVolume)', 'buyVolume')
       .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
       .addSelect('SUM(sellVolume)', 'sellVolume')
       .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(stakingBalance)', 'stakingBalance')
       .where('userDataId = :id', { id: userDataId })
-      .getRawOne<{ buyVolume: number; annualBuyVolume: number; sellVolume: number; annualSellVolume: number }>();
+      .getRawOne<{
+        buyVolume: number;
+        annualBuyVolume: number;
+        sellVolume: number;
+        annualSellVolume: number;
+        stakingBalance: number;
+      }>();
   }
 
   // --- REF --- //

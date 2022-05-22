@@ -70,6 +70,7 @@ export class CryptoStakingService {
 
     // update staking balance
     await this.stakingService.updateBalance(entity.stakingRoute.id);
+    await this.updateStakingBalance([entity.stakingRoute?.id]);
   }
 
   async update(id: number, dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
@@ -80,6 +81,29 @@ export class CryptoStakingService {
       throw new BadRequestException('Cannot update outputDate if outTxId already set');
 
     return await this.cryptoStakingRepo.save({ ...entity, ...dto });
+  }
+
+  public async updateStakingBalance(stakingIds: number[]): Promise<void> {
+    stakingIds = stakingIds.filter((u, j) => stakingIds.indexOf(u) === j).filter((i) => i); // distinct, not null
+
+    for (const id of stakingIds) {
+      const { inVolume } = await this.cryptoStakingRepo
+        .createQueryBuilder('crypto_staking')
+        .select('SUM(inputAmountInEur)', 'inVolume')
+        .where('stakingRouteId = :id', { id: id })
+        .getRawOne<{ inVolume: number }>();
+
+      const { outVolume } = await this.cryptoStakingRepo
+        .createQueryBuilder('crypto_staking')
+        .select('SUM(outputAmountInEur)', 'outVolume')
+        .where('stakingRouteId = :id', { id: id })
+        .andWhere('outputAmount IS NOT NULL')
+        .getRawOne<{ outVolume: number }>();
+
+      const balance = outVolume && inVolume ? inVolume - outVolume : 0;
+
+      await this.stakingService.updateBalanceVolume(id, balance ?? 0);
+    }
   }
 
   // --- USER --- //
@@ -119,6 +143,23 @@ export class CryptoStakingService {
       where: { stakingRoute: { user: { id: In(userIds) } } },
       relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
     });
+  }
+
+  async getRouteVolume(routeId: number): Promise<{ inVolume: any; outVolume: any }> {
+    return {
+      inVolume: this.cryptoStakingRepo
+        .createQueryBuilder('staking')
+        .select('SUM(amountInEur)', 'inVolume')
+        .where('stakingRouteId = :id', { id: routeId })
+        .andWhere('outputAmount IS NULL')
+        .getRawOne<{ inVolume: number }>(),
+      outVolume: this.cryptoStakingRepo
+        .createQueryBuilder('staking')
+        .select('SUM(amountInEur)', 'outVolume')
+        .where('stakingRouteId = :id', { id: routeId })
+        .andWhere('outputAmount IS NOT NULL')
+        .getRawOne<{ outVolume: number }>(),
+    };
   }
 
   async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {

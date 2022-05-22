@@ -170,6 +170,12 @@ export class UserDataService {
     });
   }
 
+  async updateStakingBalance(userDataId: number, balance: number): Promise<void> {
+    await this.userDataRepo.update(userDataId, {
+      stakingBalance: Util.round(balance, 0),
+    });
+  }
+
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'bankDatas'] }),
