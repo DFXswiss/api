@@ -25,9 +25,6 @@ export class Staking extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   rewardVolume: number;
 
-  @Column({ type: 'float', default: 0 })
-  balanceVolume: number;
-
   @OneToMany(() => StakingReward, (reward) => reward.staking)
   rewards: StakingReward[];
 }

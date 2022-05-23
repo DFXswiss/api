@@ -18,6 +18,7 @@ import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { Util } from 'src/shared/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
+import { StakingRepository } from '../staking/staking.repository';
 
 @Injectable()
 export class CryptoStakingService {
@@ -30,6 +31,7 @@ export class CryptoStakingService {
     private readonly stakingService: StakingService,
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
+    private readonly stakingRepo: StakingRepository,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
@@ -70,7 +72,6 @@ export class CryptoStakingService {
 
     // update staking balance
     await this.stakingService.updateBalance(entity.stakingRoute.id);
-    await this.updateStakingBalance([entity.stakingRoute?.id]);
   }
 
   async update(id: number, dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
@@ -83,26 +84,11 @@ export class CryptoStakingService {
     return await this.cryptoStakingRepo.save({ ...entity, ...dto });
   }
 
-  public async updateStakingBalance(stakingIds: number[]): Promise<void> {
-    stakingIds = stakingIds.filter((u, j) => stakingIds.indexOf(u) === j).filter((i) => i); // distinct, not null
+  async updateVolumes(): Promise<void> {
+    let stakingIds = await this.stakingRepo.find().then((l) => l.map((b) => b.id));
 
     for (const id of stakingIds) {
-      const { inVolume } = await this.cryptoStakingRepo
-        .createQueryBuilder('crypto_staking')
-        .select('SUM(inputAmountInEur)', 'inVolume')
-        .where('stakingRouteId = :id', { id: id })
-        .getRawOne<{ inVolume: number }>();
-
-      const { outVolume } = await this.cryptoStakingRepo
-        .createQueryBuilder('crypto_staking')
-        .select('SUM(outputAmountInEur)', 'outVolume')
-        .where('stakingRouteId = :id', { id: id })
-        .andWhere('outputAmount IS NOT NULL')
-        .getRawOne<{ outVolume: number }>();
-
-      const balance = outVolume && inVolume ? inVolume - outVolume : 0;
-
-      await this.stakingService.updateBalanceVolume(id, balance ?? 0);
+      await this.stakingService.updateBalance(id);
     }
   }
 
@@ -145,23 +131,6 @@ export class CryptoStakingService {
     });
   }
 
-  async getRouteVolume(routeId: number): Promise<{ inVolume: any; outVolume: any }> {
-    return {
-      inVolume: this.cryptoStakingRepo
-        .createQueryBuilder('staking')
-        .select('SUM(amountInEur)', 'inVolume')
-        .where('stakingRouteId = :id', { id: routeId })
-        .andWhere('outputAmount IS NULL')
-        .getRawOne<{ inVolume: number }>(),
-      outVolume: this.cryptoStakingRepo
-        .createQueryBuilder('staking')
-        .select('SUM(amountInEur)', 'outVolume')
-        .where('stakingRouteId = :id', { id: routeId })
-        .andWhere('outputAmount IS NOT NULL')
-        .getRawOne<{ outVolume: number }>(),
-    };
-  }
-
   async getActiveBatches(userId: number, stakingId: number): Promise<StakingBatchDto[]> {
     return await this.cryptoStakingRepo
       .getActiveEntries()
@@ -201,6 +170,9 @@ export class CryptoStakingService {
       if (dto.outTxId2) await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId2);
 
       await this.cryptoStakingRepo.save({ ...entity, ...dto });
+
+      // update staking balance
+      await this.stakingService.updateBalance(entity.stakingRoute.id);
     }
   }
 

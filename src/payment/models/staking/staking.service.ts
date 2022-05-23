@@ -131,19 +131,23 @@ export class StakingService {
   }
 
   async updateBalanceVolume(stakingId: number, volume: number): Promise<void> {
-    const staking = await this.stakingRepo.findOne({
+    await this.stakingRepo.update(stakingId, { volume: Util.round(volume, 0) });
+
+    //update user balance
+    const { user } = await this.stakingRepo.findOne({
       where: { id: stakingId },
       relations: ['user'],
+      select: ['id', 'user'],
     });
-    await this.stakingRepo.update(stakingId, { balanceVolume: Util.round(volume, 0) });
-    const userVolume = await this.getUserVolume(staking.user.id);
-    await this.userService.updateStakingBalance(staking.user.id, userVolume.balanceVolume);
+
+    const userVolume = await this.getUserVolume(user.id);
+    await this.userService.updateStakingBalance(user.id, userVolume.balanceVolume);
   }
 
   async getUserVolume(userId: number): Promise<{ balanceVolume: number }> {
     return this.stakingRepo
       .createQueryBuilder('staking')
-      .select('SUM(balanceVolume)', 'balanceVolume')
+      .select('SUM(volume)', 'balanceVolume')
       .where('userId = :id', { id: userId })
       .getRawOne<{ balanceVolume: number }>();
   }
@@ -173,6 +177,7 @@ export class StakingService {
         }
       }
     }
+    await this.updateBalanceVolume(stakingId, await this.getCurrentStakingBalance(stakingId));
   }
 
   async getCurrentStakingBalance(stakingId: number): Promise<number> {

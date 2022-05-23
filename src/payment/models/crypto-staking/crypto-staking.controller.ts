@@ -66,6 +66,14 @@ export class CryptoStakingController {
     await this.cryptoStakingService.rearrangeOutputDates(new Date(date), maxBatchSize ? +maxBatchSize : undefined);
   }
 
+  @Put('volumes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateVolumes(): Promise<void> {
+    return this.cryptoStakingService.updateVolumes();
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
