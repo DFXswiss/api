@@ -130,28 +130,6 @@ export class StakingService {
     await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
   }
 
-  async updateBalanceVolume(stakingId: number, volume: number): Promise<void> {
-    await this.stakingRepo.update(stakingId, { volume: Util.round(volume, 0) });
-
-    //update user balance
-    const { user } = await this.stakingRepo.findOne({
-      where: { id: stakingId },
-      relations: ['user'],
-      select: ['id', 'user'],
-    });
-
-    const userVolume = await this.getUserVolume(user.id);
-    await this.userService.updateStakingBalance(user.id, userVolume.balanceVolume);
-  }
-
-  async getUserVolume(userId: number): Promise<{ balanceVolume: number }> {
-    return this.stakingRepo
-      .createQueryBuilder('staking')
-      .select('SUM(volume)', 'balanceVolume')
-      .where('userId = :id', { id: userId })
-      .getRawOne<{ balanceVolume: number }>();
-  }
-
   // --- HELPER METHODS --- //
   private async getDepositId(userId: number, sellId?: number): Promise<number> {
     const sell = await this.sellRepo.findOne({ where: { id: sellId, user: { id: userId } }, relations: ['deposit'] });
@@ -168,16 +146,28 @@ export class StakingService {
   // --- BALANCE --- //
   async updateBalance(stakingId: number): Promise<void> {
     const staking = await this.stakingRepo.findOne({ where: { id: stakingId }, relations: ['user'] });
-    if (staking.user.stakingStart == null) {
-      const balance = await this.getCurrentStakingBalance(stakingId);
-      if (balance >= Config.staking.minInvestment) {
-        const isNewUser = await this.userService.activateStaking(staking.user.id);
-        if (isNewUser) {
-          this.stakingRefRewardService.create(staking);
-        }
+
+    // update balance
+    const balance = await this.getCurrentStakingBalance(stakingId);
+    await this.stakingRepo.update(stakingId, { volume: Util.round(balance, 0) });
+    await this.updateUserBalance(staking.user.id);
+
+    // set staking start
+    if (staking.user.stakingStart == null && balance >= Config.staking.minInvestment) {
+      const isNewUser = await this.userService.activateStaking(staking.user.id);
+      if (isNewUser) {
+        this.stakingRefRewardService.create(staking);
       }
     }
-    await this.updateBalanceVolume(stakingId, await this.getCurrentStakingBalance(stakingId));
+  }
+
+  async updateUserBalance(userId: number): Promise<void> {
+    const { userBalance } = await this.stakingRepo
+      .createQueryBuilder('staking')
+      .select('SUM(volume)', 'userBalance')
+      .where('userId = :id', { id: userId })
+      .getRawOne<{ userBalance: number }>();
+    await this.userService.updateStakingBalance(userId, userBalance);
   }
 
   async getCurrentStakingBalance(stakingId: number): Promise<number> {
