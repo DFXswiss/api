@@ -10,6 +10,7 @@ import { User } from '../../../user/models/user/user.entity';
 import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
 import { BuyType } from './dto/buy-type.enum';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class BuyService {
@@ -17,6 +18,7 @@ export class BuyService {
     private readonly buyRepo: BuyRepository,
     private readonly assetService: AssetService,
     private readonly stakingService: StakingService,
+    private readonly userService: UserService,
   ) {}
 
   // --- VOLUMES --- //
@@ -27,6 +29,15 @@ export class BuyService {
 
   async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
     await this.buyRepo.update(buyId, { volume: Util.round(volume, 0), annualVolume: Util.round(annualVolume, 0) });
+
+    // update user volume
+    const { user } = await this.buyRepo.findOne({
+      where: { id: buyId },
+      relations: ['user'],
+      select: ['id', 'user'],
+    });
+    const userVolume = await this.getUserVolume(user.id);
+    await this.userService.updateBuyVolume(user.id, userVolume.volume, userVolume.annualVolume);
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
@@ -80,7 +91,9 @@ export class BuyService {
     buy.deposit = staking?.deposit ?? null;
 
     // create hash
-    const hash = Util.createHash(userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban).toUpperCase();
+    const hash = Util.createHash(
+      userAddress + (dto.type === BuyType.WALLET ? asset.name : staking.deposit.address) + buy.iban,
+    ).toUpperCase();
     buy.bankUsage = `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 
     // save

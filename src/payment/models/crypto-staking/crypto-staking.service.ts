@@ -18,6 +18,7 @@ import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { Util } from 'src/shared/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
+import { StakingRepository } from '../staking/staking.repository';
 
 @Injectable()
 export class CryptoStakingService {
@@ -30,6 +31,7 @@ export class CryptoStakingService {
     private readonly stakingService: StakingService,
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
+    private readonly stakingRepo: StakingRepository,
   ) {
     this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
   }
@@ -80,6 +82,14 @@ export class CryptoStakingService {
       throw new BadRequestException('Cannot update outputDate if outTxId already set');
 
     return await this.cryptoStakingRepo.save({ ...entity, ...dto });
+  }
+
+  async updateVolumes(): Promise<void> {
+    let stakingIds = await this.stakingRepo.find().then((l) => l.map((b) => b.id));
+
+    for (const id of stakingIds) {
+      await this.stakingService.updateBalance(id);
+    }
   }
 
   // --- USER --- //
@@ -160,6 +170,9 @@ export class CryptoStakingService {
       if (dto.outTxId2) await this.checkIfReinvested(entity.stakingRoute.id, dto.outTxId2);
 
       await this.cryptoStakingRepo.save({ ...entity, ...dto });
+
+      // update staking balance
+      await this.stakingService.updateBalance(entity.stakingRoute.id);
     }
   }
 

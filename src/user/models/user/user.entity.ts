@@ -65,6 +65,21 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   apiKeyCT: string;
 
+  @Column({ type: 'float', default: 0 })
+  annualBuyVolume: number;
+
+  @Column({ type: 'float', default: 0 })
+  buyVolume: number;
+
+  @Column({ type: 'float', default: 0 })
+  annualSellVolume: number;
+
+  @Column({ type: 'float', default: 0 })
+  sellVolume: number;
+
+  @Column({ type: 'float', default: 0 })
+  stakingBalance: number;
+
   @OneToMany(() => Buy, (buy) => buy.user)
   buys: Buy[];
 

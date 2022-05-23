@@ -25,6 +25,7 @@ import { KycService } from '../kyc/kyc.service';
 import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { GeoLocationService } from 'src/user/services/geo-location.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class UserService {
@@ -101,6 +102,83 @@ export class UserService {
     if (!user) throw new NotFoundException('User not found');
 
     return await this.userRepo.save({ ...user, ...update });
+  }
+
+  // --- VOLUMES --- //
+  @Cron(CronExpression.EVERY_YEAR)
+  async resetAnnualVolumes(): Promise<void> {
+    await this.userRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
+    await this.userRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
+  }
+
+  async updateBuyVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData'],
+    });
+    await this.userRepo.update(userId, {
+      buyVolume: Util.round(volume, 0),
+      annualBuyVolume: Util.round(annualVolume, 0),
+    });
+    const userDataVolume = await this.getUserDataVolume(user.userData.id);
+    await this.userDataService.updateBuyVolume(
+      user.userData.id,
+      userDataVolume.buyVolume,
+      userDataVolume.annualBuyVolume,
+    );
+  }
+
+  async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData'],
+    });
+    await this.userRepo.update(userId, {
+      sellVolume: Util.round(volume, 0),
+      annualSellVolume: Util.round(annualVolume, 0),
+    });
+    const userDataVolume = await this.getUserDataVolume(user.userData.id);
+    await this.userDataService.updateSellVolume(
+      user.userData.id,
+      userDataVolume.sellVolume,
+      userDataVolume.annualSellVolume,
+    );
+  }
+
+  async updateStakingBalance(userId: number, balance: number): Promise<void> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData'],
+    });
+    await this.userRepo.update(userId, {
+      stakingBalance: Util.round(balance, 0),
+    });
+    const userDataVolume = await this.getUserDataVolume(user.userData.id);
+    await this.userDataService.updateStakingBalance(user.userData.id, userDataVolume.stakingBalance);
+  }
+
+  private async getUserDataVolume(userDataId: number): Promise<{
+    buyVolume: number;
+    annualBuyVolume: number;
+    sellVolume: number;
+    annualSellVolume: number;
+    stakingBalance: number;
+  }> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(buyVolume)', 'buyVolume')
+      .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
+      .addSelect('SUM(sellVolume)', 'sellVolume')
+      .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(stakingBalance)', 'stakingBalance')
+      .where('userDataId = :id', { id: userDataId })
+      .getRawOne<{
+        buyVolume: number;
+        annualBuyVolume: number;
+        sellVolume: number;
+        annualSellVolume: number;
+        stakingBalance: number;
+      }>();
   }
 
   // --- REF --- //
