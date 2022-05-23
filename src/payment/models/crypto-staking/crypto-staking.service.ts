@@ -85,7 +85,7 @@ export class CryptoStakingService {
   }
 
   async updateVolumes(): Promise<void> {
-    let stakingIds = await this.stakingRepo.find().then((l) => l.map((b) => b.id));
+    const stakingIds = await this.stakingRepo.find().then((l) => l.map((b) => b.id));
 
     for (const id of stakingIds) {
       await this.stakingService.updateBalance(id);
