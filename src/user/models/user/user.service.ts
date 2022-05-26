@@ -118,13 +118,9 @@ export class UserService {
     });
 
     // update user data volume
-    const { userData } = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData'],
-      select: ['id', 'userData'],
-    });
-    const { buyVolume, annualBuyVolume } = await this.getUserDataVolume(userData.id);
-    await this.userDataService.updateBuyVolume(userData.id, buyVolume, annualBuyVolume);
+    const userDataId = await this.getUserDataId(userId);
+    const { buyVolume, annualBuyVolume } = await this.getUserDataVolume(userDataId);
+    await this.userDataService.updateBuyVolume(userDataId, buyVolume, annualBuyVolume);
   }
 
   async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
@@ -134,13 +130,9 @@ export class UserService {
     });
 
     // update user data volume
-    const { userData } = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData'],
-      select: ['id', 'userData'],
-    });
-    const { sellVolume, annualSellVolume } = await this.getUserDataVolume(userData.id);
-    await this.userDataService.updateSellVolume(userData.id, sellVolume, annualSellVolume);
+    const userDataId = await this.getUserDataId(userId);
+    const { sellVolume, annualSellVolume } = await this.getUserDataVolume(userDataId);
+    await this.userDataService.updateSellVolume(userDataId, sellVolume, annualSellVolume);
   }
 
   async updateStakingBalance(userId: number, balance: number): Promise<void> {
@@ -149,13 +141,9 @@ export class UserService {
     });
 
     // update user data balance
-    const { userData } = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['userData'],
-      select: ['id', 'userData'],
-    });
-    const { stakingBalance } = await this.getUserDataVolume(userData.id);
-    await this.userDataService.updateStakingBalance(userData.id, stakingBalance);
+    const userDataId = await this.getUserDataId(userId);
+    const { stakingBalance } = await this.getUserDataVolume(userDataId);
+    await this.userDataService.updateStakingBalance(userDataId, stakingBalance);
   }
 
   private async getUserDataVolume(userDataId: number): Promise<{
@@ -180,6 +168,15 @@ export class UserService {
         annualSellVolume: number;
         stakingBalance: number;
       }>();
+  }
+
+  private async getUserDataId(userId: number): Promise<number> {
+    const { userData } = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['userData'],
+      select: ['id', 'userData'],
+    });
+    return userData.id;
   }
 
   // --- REF --- //
