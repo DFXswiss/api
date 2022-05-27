@@ -118,6 +118,10 @@ export class UserDataService {
         );
     }
 
+    if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
+      userData.kycStatusChangeDate = new Date();
+    }
+
     return await this.userDataRepo.save({ ...userData, ...dto });
   }
 
@@ -196,11 +200,10 @@ export class UserDataService {
   async getKycStatusData(kycStatusChangeDate: Date = new Date()): Promise<any> {
     const kycStatusData = {};
     for (const kycStatus of Object.values(KycStatus)) {
-      kycStatusData[kycStatus] = (
-        await this.userDataRepo.find({
-          where: { kycStatus: kycStatus, kycStatusChangeDate: LessThan(kycStatusChangeDate) },
-        })
-      ).length;
+      kycStatusData[kycStatus] = await this.userDataRepo.count({
+        kycStatus,
+        kycStatusChangeDate: LessThan(kycStatusChangeDate),
+      });
     }
     return kycStatusData;
   }
