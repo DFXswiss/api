@@ -22,6 +22,9 @@ export class SpiderData extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   identResult: string;
 
+  @Column({ length: 256, nullable: true })
+  identPdf: string;
+
   @OneToOne(() => UserData, (u) => u.spiderData, { nullable: false })
   @JoinColumn()
   userData: UserData;

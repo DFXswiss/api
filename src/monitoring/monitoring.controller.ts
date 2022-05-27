@@ -18,4 +18,15 @@ export class MonitoringController {
   async getBalanceStatus(): Promise<BalanceStatus> {
     return this.monitoringService.getBalanceStatus();
   }
+
+  @Get('data')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getMonitoringData(): Promise<any> {
+    return {
+      kycStatus: await this.monitoringService.getKycStatusData(),
+      bankTxWithoutType: await this.monitoringService.getBankTxWithoutType(),
+    };
+  }
 }
