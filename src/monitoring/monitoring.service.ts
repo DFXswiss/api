@@ -35,4 +35,8 @@ export class MonitoringService {
     const status = Math.abs(difference) < 1 ? MonitoringStatus.OK : MonitoringStatus.WARNING;
     return { actual, should, difference, status };
   }
+
+  async getData(): Promise<any> {
+    return {};
+  }
 }
