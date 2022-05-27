@@ -20,6 +20,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { Util } from 'src/shared/util';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class UserDataService {
@@ -148,6 +149,33 @@ export class UserDataService {
     }
 
     return this.userDataRepo.save({ ...user, ...dto });
+  }
+
+  // --- VOLUMES --- //
+  @Cron(CronExpression.EVERY_YEAR)
+  async resetAnnualVolumes(): Promise<void> {
+    await this.userDataRepo.update({ annualBuyVolume: Not(0) }, { annualBuyVolume: 0 });
+    await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
+  }
+
+  async updateBuyVolume(userDataId: number, volume: number, annualVolume: number): Promise<void> {
+    await this.userDataRepo.update(userDataId, {
+      buyVolume: Util.round(volume, 0),
+      annualBuyVolume: Util.round(annualVolume, 0),
+    });
+  }
+
+  async updateSellVolume(userDataId: number, volume: number, annualVolume: number): Promise<void> {
+    await this.userDataRepo.update(userDataId, {
+      sellVolume: Util.round(volume, 0),
+      annualSellVolume: Util.round(annualVolume, 0),
+    });
+  }
+
+  async updateStakingBalance(userDataId: number, balance: number): Promise<void> {
+    await this.userDataRepo.update(userDataId, {
+      stakingBalance: Util.round(balance, 0),
+    });
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {

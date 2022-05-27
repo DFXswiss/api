@@ -146,15 +146,28 @@ export class StakingService {
   // --- BALANCE --- //
   async updateBalance(stakingId: number): Promise<void> {
     const staking = await this.stakingRepo.findOne({ where: { id: stakingId }, relations: ['user'] });
-    if (staking.user.stakingStart == null) {
-      const balance = await this.getCurrentStakingBalance(stakingId);
-      if (balance >= Config.staking.minInvestment) {
-        const isNewUser = await this.userService.activateStaking(staking.user.id);
-        if (isNewUser) {
-          this.stakingRefRewardService.create(staking);
-        }
+
+    // update balance
+    const balance = await this.getCurrentStakingBalance(stakingId);
+    await this.stakingRepo.update(stakingId, { volume: Util.round(balance, 0) });
+    await this.updateUserBalance(staking.user.id);
+
+    // set staking start
+    if (staking.user.stakingStart == null && balance >= Config.staking.minInvestment) {
+      const isNewUser = await this.userService.activateStaking(staking.user.id);
+      if (isNewUser) {
+        this.stakingRefRewardService.create(staking);
       }
     }
+  }
+
+  async updateUserBalance(userId: number): Promise<void> {
+    const { userBalance } = await this.stakingRepo
+      .createQueryBuilder('staking')
+      .select('SUM(volume)', 'userBalance')
+      .where('userId = :id', { id: userId })
+      .getRawOne<{ userBalance: number }>();
+    await this.userService.updateStakingBalance(userId, userBalance);
   }
 
   async getCurrentStakingBalance(stakingId: number): Promise<number> {
@@ -240,7 +253,7 @@ export class StakingService {
       paybackType,
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
       paybackAsset: staking.paybackAsset ?? undefined,
-      balance: Util.round(balance, 2),
+      balance: Util.round(balance, 2), // TODO: switch to DB balance
       rewardVolume: staking.rewardVolume ?? 0,
       isInUse: balance > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
       fee: fee,

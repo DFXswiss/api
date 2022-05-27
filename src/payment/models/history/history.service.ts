@@ -359,7 +359,9 @@ export class HistoryService {
     // TODO: new col in asset table to differentiate stocks and crypto token?
     dexName = dexName.replace('-Token', '');
 
-    return ['DUSD', 'DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
+    return dexName === 'DUSD'
+      ? 'DUSD4'
+      : ['DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
       ? dexName
       : `d${dexName}`;
   }

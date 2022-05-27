@@ -16,6 +16,9 @@ export class DepositRoute extends IEntity {
   @Column({ default: true })
   active: boolean;
 
+  @Column({ type: 'float', default: 0 })
+  volume: number;
+
   @OneToOne(() => Deposit, (deposit) => deposit.route, { eager: true, nullable: false })
   @JoinColumn()
   deposit: Deposit;
