@@ -45,6 +45,7 @@ export class Configuration {
       migrationsDir: 'migration',
     },
     connectionTimeout: 30000,
+    requestTimeout: 30000,
   };
 
   i18n: I18nOptions = {
