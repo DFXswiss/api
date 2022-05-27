@@ -5,6 +5,8 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Util } from 'src/shared/util';
 import { MonitoringStatus, BalanceStatus } from './dto/monitoring.dto';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
+import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
 
 @Injectable()
 export class MonitoringService {
@@ -12,6 +14,8 @@ export class MonitoringService {
     private stakingService: StakingService,
     private masternodeService: MasternodeService,
     private whaleService: WhaleService,
+    private userDataService: UserDataService,
+    private bankTxService: BankTxService,
   ) {}
 
   async getBalanceStatus(): Promise<BalanceStatus> {
@@ -34,5 +38,16 @@ export class MonitoringService {
     // set balance status
     const status = Math.abs(difference) < 1 ? MonitoringStatus.OK : MonitoringStatus.WARNING;
     return { actual, should, difference, status };
+  }
+
+  async getKycStatusData(): Promise<any> {
+    return {
+      current: await this.userDataService.getKycStatusData(),
+      longer24h: await this.userDataService.getKycStatusData(Util.daysBefore(1, new Date())),
+    };
+  }
+
+  async getBankTxWithoutType(): Promise<number> {
+    return this.bankTxService.getBankTxWithoutType();
   }
 }

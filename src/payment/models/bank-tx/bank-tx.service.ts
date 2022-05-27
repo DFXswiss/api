@@ -3,7 +3,7 @@ import { BankTxRepository } from './bank-tx.repository';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
-import { In } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType } from './bank-tx.entity';
@@ -69,5 +69,11 @@ export class BankTxService {
 
     batch.transactions = txList;
     return batch;
+  }
+
+  // Monitoring
+
+  async getBankTxWithoutType(): Promise<number> {
+    return await this.bankTxRepo.count({ type: IsNull() });
   }
 }
