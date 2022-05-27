@@ -10,7 +10,7 @@ import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, KycStatus, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { LessThan, Not } from 'typeorm';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -201,8 +201,16 @@ export class UserDataService {
     const kycStatusData = {};
     for (const kycStatus of Object.values(KycStatus)) {
       kycStatusData[kycStatus] = await this.userDataRepo.count({
-        kycStatus,
-        kycStatusChangeDate: LessThan(kycStatusChangeDate),
+        where: [
+          {
+            kycStatus,
+            kycStatusChangeDate: LessThan(kycStatusChangeDate),
+          },
+          {
+            kycStatus,
+            kycStatusChangeDate: IsNull(),
+          },
+        ],
       });
     }
     return kycStatusData;
