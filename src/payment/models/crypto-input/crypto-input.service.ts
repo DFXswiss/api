@@ -71,7 +71,6 @@ export class CryptoInputService {
         try {
           const { amount, asset } = this.client.parseAmount(token.amount);
           const assetEntity = await this.assetService.getAssetByDexName(asset, true);
-          const route = await this.getDepositRoute(token.owner);
 
           if (assetEntity?.isLP) {
             console.log('Removing pool liquidity:', token);
@@ -86,22 +85,33 @@ export class CryptoInputService {
             if (!additionalFeeUtxo) {
               await this.sendFeeUtxo(token.owner);
             }
-          } else if (route?.type === RouteType.STAKING) {
+          } else {
             // check for min. deposit
             const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
-            if (usdtAmount >= Config.node.minTokenDeposit) {
-              console.log('Doing token conversion:', token);
+            if (usdtAmount < Config.node.minTokenDeposit) {
+              console.log('Retrieving small token:', token);
 
-              if (asset === 'DFI') {
-                // to UTXO
-                await this.doTokenTx(token.owner, async (utxo) =>
-                  this.client.toUtxo(token.owner, token.owner, amount, [utxo]),
-                );
-              } else {
-                // to DFI
-                await this.doTokenTx(token.owner, async (utxo) =>
-                  this.client.compositeSwap(token.owner, asset, token.owner, 'DFI', amount, [utxo]),
-                );
+              await this.doTokenTx(
+                token.owner,
+                async (utxo) =>
+                  await this.client.sendToken(token.owner, Config.node.dexWalletAddress, asset, amount, [utxo]),
+              );
+            } else {
+              const route = await this.getDepositRoute(token.owner);
+              if (route?.type === RouteType.STAKING) {
+                console.log('Doing token conversion:', token);
+
+                if (asset === 'DFI') {
+                  // to UTXO
+                  await this.doTokenTx(token.owner, async (utxo) =>
+                    this.client.toUtxo(token.owner, token.owner, amount, [utxo]),
+                  );
+                } else {
+                  // to DFI
+                  await this.doTokenTx(token.owner, async (utxo) =>
+                    this.client.compositeSwap(token.owner, asset, token.owner, 'DFI', amount, [utxo]),
+                  );
+                }
               }
             }
           }

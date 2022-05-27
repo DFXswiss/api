@@ -9,6 +9,9 @@ import { User } from '../../../user/models/user/user.entity';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
 import { KycService } from 'src/user/models/kyc/kyc.service';
+import { Not } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
 export class SellService {
@@ -18,6 +21,7 @@ export class SellService {
     private readonly depositService: DepositService,
     private readonly stakingService: StakingService,
     private readonly kycService: KycService,
+    private readonly userService: UserService,
   ) {}
 
   async getSellByAddress(depositAddress: string): Promise<Sell> {
@@ -70,8 +74,32 @@ export class SellService {
     return this.sellRepo.count();
   }
 
-  async updateVolume(sellId: number, volume: number): Promise<void> {
-    await this.sellRepo.update(sellId, { volume: Util.round(volume, 0) });
+  // --- VOLUMES --- //
+  @Cron(CronExpression.EVERY_YEAR)
+  async resetAnnualVolumes(): Promise<void> {
+    this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+  }
+
+  async updateVolume(sellId: number, volume: number, annualVolume: number): Promise<void> {
+    await this.sellRepo.update(sellId, { volume: Util.round(volume, 0), annualVolume: Util.round(annualVolume, 0) });
+
+    // update user volume
+    const { user } = await this.sellRepo.findOne({
+      where: { id: sellId },
+      relations: ['user'],
+      select: ['id', 'user'],
+    });
+    const userVolume = await this.getUserVolume(user.id);
+    await this.userService.updateSellVolume(user.id, userVolume.volume, userVolume.annualVolume);
+  }
+
+  async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .select('SUM(volume)', 'volume')
+      .addSelect('SUM(annualVolume)', 'annualVolume')
+      .where('userId = :id', { id: userId })
+      .getRawOne<{ volume: number; annualVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
