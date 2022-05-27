@@ -23,7 +23,7 @@ export class MonitoringController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getData(): Promise<BalanceStatus> {
-    return this.monitoringService.getData();
+  async getMonitoringData(): Promise<any> {
+    return { kycStatus: await this.monitoringService.getKycStatusData() };
   }
 }

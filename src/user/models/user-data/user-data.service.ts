@@ -33,9 +33,7 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
-  ) {
-    this.getKycStatusData(Util.daysBefore(1, new Date()));
-  }
+  ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo

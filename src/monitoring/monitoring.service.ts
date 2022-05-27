@@ -5,6 +5,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Util } from 'src/shared/util';
 import { MonitoringStatus, BalanceStatus } from './dto/monitoring.dto';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 
 @Injectable()
 export class MonitoringService {
@@ -12,6 +13,7 @@ export class MonitoringService {
     private stakingService: StakingService,
     private masternodeService: MasternodeService,
     private whaleService: WhaleService,
+    private userDataService: UserDataService,
   ) {}
 
   async getBalanceStatus(): Promise<BalanceStatus> {
@@ -36,7 +38,10 @@ export class MonitoringService {
     return { actual, should, difference, status };
   }
 
-  async getData(): Promise<any> {
-    return {};
+  async getKycStatusData(): Promise<any> {
+    return {
+      current: await this.userDataService.getKycStatusData(),
+      longer24h: await this.userDataService.getKycStatusData(Util.daysBefore(1, new Date())),
+    };
   }
 }
