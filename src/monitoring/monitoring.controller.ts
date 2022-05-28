@@ -27,6 +27,9 @@ export class MonitoringController {
     return {
       kycStatus: await this.monitoringService.getKycStatusData(),
       bankTxWithoutType: await this.monitoringService.getBankTxWithoutType(),
+      incompleteTransactions: await this.monitoringService.getIncompleteTransactions(),
+      lastOutputDates: await this.monitoringService.getLastOutputDates(),
+      nodeBalances: await this.monitoringService.getNodeBalances(),
     };
   }
 }

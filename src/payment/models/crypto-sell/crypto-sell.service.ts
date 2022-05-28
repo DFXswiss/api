@@ -9,7 +9,7 @@ import { SellService } from '../sell/sell.service';
 import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
 import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
-import { Between, In, Not } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { Util } from 'src/shared/util';
@@ -166,5 +166,21 @@ export class CryptoSellService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.cryptoInput?.asset?.name,
     }));
+  }
+
+  // Monitoring
+
+  async getIncompleteTransactions(): Promise<number> {
+    return await this.cryptoSellRepo.count({ mail3SendDate: IsNull() });
+  }
+
+  async getLastOutputDate(): Promise<any> {
+    const latestPayout = await this.cryptoSellRepo.find({
+      skip: 0,
+      take: 1,
+      order: { outputDate: 'DESC' },
+    });
+
+    return latestPayout[0].outputDate;
   }
 }
