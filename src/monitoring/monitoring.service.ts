@@ -71,9 +71,9 @@ export class MonitoringService {
 
   async getLastOutputDates(): Promise<any> {
     return {
-      lastStakingReward: await this.stakingRewardService.getLastOutputDate(),
-      lastCryptoSell: await this.cryptoSellService.getLastOutputDate(),
-      lastBuyCrypto: await this.buyCryptoService.getLastOutputDate(),
+      buyCrypto: await this.buyCryptoService.getLastOutputDate(),
+      cryptoSell: await this.cryptoSellService.getLastOutputDate(),
+      stakingReward: await this.stakingRewardService.getLastOutputDate(),
     };
   }
 
