@@ -193,7 +193,7 @@ export class BuyCryptoService {
     return await this.buyCryptoRepo.count({ mailSendDate: IsNull() });
   }
 
-  async getLatestPayoutDate(): Promise<any> {
+  async getLastOutputDate(): Promise<any> {
     const latestPayout = await this.buyCryptoRepo.find({
       skip: 0,
       take: 1,

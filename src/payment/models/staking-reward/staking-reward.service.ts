@@ -170,7 +170,7 @@ export class StakingRewardService {
 
   // Monitoring
 
-  async getLatestPayoutDate(): Promise<Date> {
+  async getLastOutputDate(): Promise<Date> {
     const latestPayout = await this.stakingRewardRepo.find({
       skip: 0,
       take: 1,

@@ -11,7 +11,6 @@ import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.se
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
 import { StakingRefRewardService } from 'src/payment/models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
-import { NodeClient } from 'src/ain/node/node-client';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 
 @Injectable()
@@ -70,11 +69,11 @@ export class MonitoringService {
     };
   }
 
-  async getLatestPayoutDates(): Promise<any> {
+  async getLastOutputDates(): Promise<any> {
     return {
-      lastStakingReward: await this.stakingRewardService.getLatestPayoutDate(),
-      lastCryptoSell: await this.cryptoSellService.getLatestPayoutDate(),
-      lastBuyCrypto: await this.buyCryptoService.getLatestPayoutDate(),
+      lastStakingReward: await this.stakingRewardService.getLastOutputDate(),
+      lastCryptoSell: await this.cryptoSellService.getLastOutputDate(),
+      lastBuyCrypto: await this.buyCryptoService.getLastOutputDate(),
     };
   }
 
