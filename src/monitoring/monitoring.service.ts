@@ -80,11 +80,10 @@ export class MonitoringService {
 
   async getNodeBalances(): Promise<any> {
     return {
-      input: await this.nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE).getNodeBalance(),
-      output: await this.nodeService.getClient(NodeType.OUTPUT, NodeMode.ACTIVE).getNodeBalance(),
-      ref: await this.nodeService.getClient(NodeType.REF, NodeMode.ACTIVE).getNodeBalance(),
-      dex: await this.nodeService.getClient(NodeType.DEX, NodeMode.ACTIVE).getNodeBalance(),
-      //int: await this.nodeService.getClient(NodeType.INT, NodeMode.ACTIVE).getNodeBalance(),
+      defichain: {
+        input: await this.nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE).getNodeBalance(),
+        ref: await this.nodeService.getClient(NodeType.REF, NodeMode.ACTIVE).getNodeBalance(),
+      },
     };
   }
 }
