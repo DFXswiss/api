@@ -181,6 +181,6 @@ export class CryptoSellService {
       order: { outputDate: 'DESC' },
     });
 
-    return latestPayout[0].outputDate;
+    return latestPayout[0]?.outputDate;
   }
 }

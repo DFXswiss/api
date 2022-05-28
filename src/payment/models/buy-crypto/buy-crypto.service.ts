@@ -200,6 +200,6 @@ export class BuyCryptoService {
       order: { outputDate: 'DESC' },
     });
 
-    return latestPayout[0].outputDate;
+    return latestPayout[0]?.outputDate;
   }
 }
