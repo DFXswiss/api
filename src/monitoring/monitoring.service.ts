@@ -7,24 +7,35 @@ import { Util } from 'src/shared/util';
 import { MonitoringStatus, BalanceStatus } from './dto/monitoring.dto';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
+import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
+import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
+import { StakingRefRewardService } from 'src/payment/models/staking-ref-reward/staking-ref-reward.service';
+import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
+import { NodeClient } from 'src/ain/node/node-client';
+import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 
 @Injectable()
 export class MonitoringService {
   constructor(
+    private nodeService: NodeService,
     private stakingService: StakingService,
     private masternodeService: MasternodeService,
     private whaleService: WhaleService,
     private userDataService: UserDataService,
     private bankTxService: BankTxService,
+    private cryptoSellService: CryptoSellService,
+    private buyCryptoService: BuyCryptoService,
+    private stakingRefRewardService: StakingRefRewardService,
+    private stakingRewardService: StakingRewardService,
   ) {}
 
   async getBalanceStatus(): Promise<BalanceStatus> {
-    const client = this.whaleService.getClient();
+    const whaleClient = this.whaleService.getClient();
 
     // calculate actual balance
     const activeMasternodes = await this.masternodeService.getActive();
     const addresses = [...activeMasternodes.map((m) => m.owner), Config.node.stakingWalletAddress];
-    const balance = await Promise.all(addresses.map((a) => client.getBalance(a).then((b) => +b)));
+    const balance = await Promise.all(addresses.map((a) => whaleClient.getBalance(a).then((b) => +b)));
     const actual = Util.sum(balance);
 
     // calculate should balance
@@ -49,5 +60,31 @@ export class MonitoringService {
 
   async getBankTxWithoutType(): Promise<number> {
     return this.bankTxService.getBankTxWithoutType();
+  }
+
+  async getIncompleteTransactions(): Promise<any> {
+    return {
+      buyCrypto: await this.buyCryptoService.getIncompleteTransactions(),
+      cryptoSell: await this.cryptoSellService.getIncompleteTransactions(),
+      stakingRefRewards: await this.stakingRefRewardService.getIncompleteTransactions(),
+    };
+  }
+
+  async getLatestPayoutDates(): Promise<any> {
+    return {
+      lastStakingReward: await this.stakingRewardService.getLatestPayoutDate(),
+      lastCryptoSell: await this.cryptoSellService.getLatestPayoutDate(),
+      lastBuyCrypto: await this.buyCryptoService.getLatestPayoutDate(),
+    };
+  }
+
+  async getNodeBalances(): Promise<any> {
+    return {
+      input: await this.nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE).getNodeBalance(),
+      output: await this.nodeService.getClient(NodeType.OUTPUT, NodeMode.ACTIVE).getNodeBalance(),
+      ref: await this.nodeService.getClient(NodeType.REF, NodeMode.ACTIVE).getNodeBalance(),
+      dex: await this.nodeService.getClient(NodeType.DEX, NodeMode.ACTIVE).getNodeBalance(),
+      //int: await this.nodeService.getClient(NodeType.INT, NodeMode.ACTIVE).getNodeBalance(),
+    };
   }
 }

@@ -1,4 +1,4 @@
-import { ApiClient } from '@defichain/jellyfish-api-core';
+import { ApiClient, BigNumber } from '@defichain/jellyfish-api-core';
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
@@ -75,6 +75,14 @@ export class NodeClient {
 
   async getUtxo(): Promise<UTXO[]> {
     return this.callNode((c) => c.wallet.listUnspent());
+  }
+
+  async getBalance(): Promise<BigNumber> {
+    return this.callNode((c) => c.wallet.getBalance());
+  }
+
+  async getNodeBalance(): Promise<{ utxo; token }> {
+    return { utxo: await this.getBalance(), token: await this.getToken() };
   }
 
   async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
