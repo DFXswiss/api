@@ -81,7 +81,7 @@ export class NodeClient {
     return this.callNode((c) => c.wallet.getBalance());
   }
 
-  async getNodeBalance(): Promise<{ utxo; token }> {
+  async getNodeBalance(): Promise<{ utxo: BigNumber; token: AccountResult<string, string>[] }> {
     return { utxo: await this.getBalance(), token: await this.getToken() };
   }
 

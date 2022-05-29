@@ -174,13 +174,7 @@ export class CryptoSellService {
     return await this.cryptoSellRepo.count({ mail3SendDate: IsNull() });
   }
 
-  async getLastOutputDate(): Promise<any> {
-    const latestPayout = await this.cryptoSellRepo.find({
-      skip: 0,
-      take: 1,
-      order: { outputDate: 'DESC' },
-    });
-
-    return latestPayout[0]?.outputDate;
+  async getLastOutputDate(): Promise<Date> {
+    return await this.cryptoSellRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
   }
 }

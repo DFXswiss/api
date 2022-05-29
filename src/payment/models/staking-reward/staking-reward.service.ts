@@ -171,12 +171,6 @@ export class StakingRewardService {
   // Monitoring
 
   async getLastOutputDate(): Promise<Date> {
-    const latestPayout = await this.stakingRewardRepo.find({
-      skip: 0,
-      take: 1,
-      order: { outputDate: 'DESC' },
-    });
-
-    return latestPayout[0]?.outputDate;
+    return await this.stakingRewardRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
   }
 }
