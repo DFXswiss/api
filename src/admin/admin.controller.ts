@@ -139,6 +139,7 @@ export class AdminController {
       query.leftJoin('user.userData', 'userData');
       query.where('bank_tx.id >= :id', { id });
       query.andWhere('bank_tx.updated >= :updated', { updated });
+      query.orderBy('bank_tx.id', 'ASC');
     } else {
       query.where('id >= :id', { id });
       query.andWhere('updated >= :updated', { updated });
