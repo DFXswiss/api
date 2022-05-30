@@ -185,6 +185,9 @@ export class UserDataService {
       this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'bankDatas'] }),
       this.userDataRepo.findOne({ where: { id: slaveId }, relations: ['users', 'bankDatas'] }),
     ]);
+    console.log(
+      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas.join(', ')} and users ${slave.users.join(', ')}`,
+    );
 
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
