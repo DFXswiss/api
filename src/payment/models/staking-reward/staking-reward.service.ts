@@ -13,14 +13,14 @@ import { Config } from 'src/config/config';
 @Injectable()
 export class StakingRewardService {
   constructor(
-    private readonly rewardRepo: StakingRewardRepository,
+    private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
-    let entity = await this.rewardRepo.findOne({
+    let entity = await this.stakingRewardRepo.findOne({
       where: [{ staking: { id: dto.stakingId }, txId: dto.txId }, { internalId: dto.internalId }],
     });
     if (entity)
@@ -33,7 +33,7 @@ export class StakingRewardService {
     // check if reinvested
     await this.cryptoStakingService.checkIfReinvested(entity.staking.id, entity.txId);
 
-    entity = await this.rewardRepo.save(entity);
+    entity = await this.stakingRewardRepo.save(entity);
 
     await this.updateRewardVolume([entity.staking.id]);
 
@@ -41,11 +41,11 @@ export class StakingRewardService {
   }
 
   async update(id: number, dto: UpdateStakingRewardDto): Promise<StakingReward> {
-    let entity = await this.rewardRepo.findOne(id, { relations: ['staking', 'staking.user'] });
+    let entity = await this.stakingRewardRepo.findOne(id, { relations: ['staking', 'staking.user'] });
     if (!entity) throw new NotFoundException('Staking reward not found');
 
     const internalIdWithOtherReward = dto.internalId
-      ? await this.rewardRepo.findOne({ id: Not(id), internalId: dto.internalId })
+      ? await this.stakingRewardRepo.findOne({ id: Not(id), internalId: dto.internalId })
       : null;
     if (internalIdWithOtherReward)
       throw new ConflictException('There is already a reward for the specified internal id');
@@ -56,7 +56,7 @@ export class StakingRewardService {
 
     Util.removeNullFields(entity);
 
-    entity = await this.rewardRepo.save({ ...update, ...entity });
+    entity = await this.stakingRewardRepo.save({ ...update, ...entity });
 
     await this.updateRewardVolume([routeIdBefore, entity.staking?.id]);
 
@@ -73,14 +73,14 @@ export class StakingRewardService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<StakingReward[]> {
-    return await this.rewardRepo.find({
+    return await this.stakingRewardRepo.find({
       where: { staking: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
       relations: ['staking', 'staking.user'],
     });
   }
 
   async getAllUserRewards(userIds: number[]): Promise<StakingReward[]> {
-    return await this.rewardRepo.find({
+    return await this.stakingRewardRepo.find({
       where: { staking: { user: { id: In(userIds) } } },
       relations: ['staking', 'staking.user'],
     });
@@ -88,7 +88,7 @@ export class StakingRewardService {
 
   // --- HELPER METHODS --- //
   private async createEntity(dto: CreateStakingRewardDto | UpdateStakingRewardDto): Promise<StakingReward> {
-    const reward = this.rewardRepo.create(dto);
+    const reward = this.stakingRewardRepo.create(dto);
 
     // staking
     if (dto.stakingId) {
@@ -103,7 +103,7 @@ export class StakingRewardService {
     stakingIds = stakingIds.filter((u, j) => stakingIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const id of stakingIds) {
-      const { volume } = await this.rewardRepo
+      const { volume } = await this.stakingRewardRepo
         .createQueryBuilder('stakingReward')
         .select('SUM(amountInEur)', 'volume')
         .innerJoin('stakingReward.staking', 'stakingRoute')
@@ -118,7 +118,7 @@ export class StakingRewardService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
-    const stakingRewards = await this.rewardRepo.find({
+    const stakingRewards = await this.stakingRewardRepo.find({
       where: { outputDate: Between(dateFrom, dateTo) },
     });
 
@@ -138,7 +138,7 @@ export class StakingRewardService {
     dateTo.setUTCHours(0, 0, 0, 0);
     const dateFrom = Util.daysBefore(Config.staking.period, dateTo);
 
-    const { rewardVolume } = await this.rewardRepo
+    const { rewardVolume } = await this.stakingRewardRepo
       .createQueryBuilder('stakingReward')
       .select('SUM(outputAmount)', 'rewardVolume')
       .where('stakingReward.outputDate BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
@@ -166,5 +166,11 @@ export class StakingRewardService {
 
   private getApy(apr: number): number {
     return Math.pow(1 + apr / 365, 365) - 1;
+  }
+
+  // Monitoring
+
+  async getLastOutputDate(): Promise<Date> {
+    return await this.stakingRewardRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
   }
 }

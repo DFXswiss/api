@@ -197,4 +197,10 @@ export class StakingRefRewardService {
       await this.userService.updatePaidStakingRefCredit(id, volume ?? 0);
     }
   }
+
+  // Monitoring
+
+  async getIncompleteTransactions(): Promise<number> {
+    return await this.stakingRefRewardRepo.count({ mailSendDate: IsNull() });
+  }
 }

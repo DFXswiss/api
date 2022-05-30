@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { Between, In } from 'typeorm';
+import { Between, In, IsNull } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { Util } from 'src/shared/util';
@@ -185,5 +185,15 @@ export class BuyCryptoService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.buy?.asset?.name,
     }));
+  }
+
+  // Monitoring
+
+  async getIncompleteTransactions(): Promise<number> {
+    return await this.buyCryptoRepo.count({ mailSendDate: IsNull() });
+  }
+
+  async getLastOutputDate(): Promise<Date> {
+    return await this.buyCryptoRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
   }
 }
