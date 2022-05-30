@@ -103,10 +103,10 @@ export class AppController {
 
   // --- HELPER METHODS --- //
   private async getLightWalletAnnouncements(): Promise<AnnouncementDto[]> {
-    const ignoredAnnouncements = await this.settingService.getObj<string[]>('ignoredAnnouncements', []);
+    const allowedAnnouncements = await this.settingService.getObj<string[]>('allowedAnnouncements', []);
     return this.http
       .get<AnnouncementDto[]>(`${this.lightWalletUrl}/announcements`, { tryCount: 3 })
-      .then((r) => r.filter((a) => !ignoredAnnouncements.includes(a.id)))
+      .then((r) => r.filter((a) => allowedAnnouncements.includes(a.id)))
       .catch(() => []);
   }
 

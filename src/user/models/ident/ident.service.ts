@@ -26,7 +26,9 @@ export class IdentService {
       return;
     }
 
-    console.log(`Received webhook call for user ${user.id}:`, result);
+    console.log(
+      `Received webhook call for user ${user.id} (${result.identificationprocess.transactionnumber}): ${result.identificationprocess.result}`,
+    );
 
     if (IdentSucceeded(result)) {
       user = await this.kycProcess.identCompleted(user, result);
