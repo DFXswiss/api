@@ -201,6 +201,6 @@ export class StakingRefRewardService {
   // Monitoring
 
   async getIncompleteTransactions(): Promise<number> {
-    return await this.stakingRefRewardRepo.count({ outputDate: IsNull() });
+    return await this.stakingRefRewardRepo.count({ mailSendDate: IsNull() });
   }
 }
