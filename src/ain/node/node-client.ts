@@ -13,6 +13,7 @@ import { Util } from 'src/shared/util';
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
+  TEST_POOL_SWAP = 'testpoolswap',
 }
 
 enum Chain {
@@ -113,7 +114,7 @@ export class NodeClient {
 
     return this.callNode((c) =>
       c.call(
-        'testpoolswap',
+        NodeCommand.TEST_POOL_SWAP,
         [
           {
             from: undefined,

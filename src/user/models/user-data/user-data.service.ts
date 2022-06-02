@@ -195,11 +195,14 @@ export class UserDataService {
       `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas.join(', ')} and users ${slave.users.join(', ')}`,
     );
 
+    // reassign bank datas and users
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
 
+    // update volumes
     await this.updateVolumes(masterId);
+    await this.updateVolumes(slaveId);
   }
 
   async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
