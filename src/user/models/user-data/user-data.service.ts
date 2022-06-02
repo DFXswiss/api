@@ -160,23 +160,29 @@ export class UserDataService {
     await this.userDataRepo.update({ annualSellVolume: Not(0) }, { annualSellVolume: 0 });
   }
 
-  async updateBuyVolume(userDataId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.userDataRepo.update(userDataId, {
-      buyVolume: Util.round(volume, 0),
-      annualBuyVolume: Util.round(annualVolume, 0),
-    });
-  }
+  async updateVolumes(userDataId: number): Promise<void> {
+    const volumes = await this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(buyVolume)', 'buyVolume')
+      .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
+      .addSelect('SUM(sellVolume)', 'sellVolume')
+      .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(stakingBalance)', 'stakingBalance')
+      .where('userDataId = :id', { id: userDataId })
+      .getRawOne<{
+        buyVolume: number;
+        annualBuyVolume: number;
+        sellVolume: number;
+        annualSellVolume: number;
+        stakingBalance: number;
+      }>();
 
-  async updateSellVolume(userDataId: number, volume: number, annualVolume: number): Promise<void> {
     await this.userDataRepo.update(userDataId, {
-      sellVolume: Util.round(volume, 0),
-      annualSellVolume: Util.round(annualVolume, 0),
-    });
-  }
-
-  async updateStakingBalance(userDataId: number, balance: number): Promise<void> {
-    await this.userDataRepo.update(userDataId, {
-      stakingBalance: Util.round(balance, 0),
+      buyVolume: Util.round(volumes.buyVolume, 0),
+      annualBuyVolume: Util.round(volumes.annualBuyVolume, 0),
+      sellVolume: Util.round(volumes.sellVolume, 0),
+      annualSellVolume: Util.round(volumes.annualSellVolume, 0),
+      stakingBalance: Util.round(volumes.stakingBalance, 0),
     });
   }
 
@@ -189,9 +195,14 @@ export class UserDataService {
       `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas.join(', ')} and users ${slave.users.join(', ')}`,
     );
 
+    // reassign bank datas and users
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
+
+    // update volumes
+    await this.updateVolumes(masterId);
+    await this.updateVolumes(slaveId);
   }
 
   async hasRole(userDataId: number, role: UserRole): Promise<boolean> {

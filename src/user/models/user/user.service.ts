@@ -117,10 +117,7 @@ export class UserService {
       annualBuyVolume: Util.round(annualVolume, 0),
     });
 
-    // update user data volume
-    const userDataId = await this.getUserDataId(userId);
-    const { buyVolume, annualBuyVolume } = await this.getUserDataVolume(userDataId);
-    await this.userDataService.updateBuyVolume(userDataId, buyVolume, annualBuyVolume);
+    await this.updateUserDataVolume(userId);
   }
 
   async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
@@ -129,10 +126,7 @@ export class UserService {
       annualSellVolume: Util.round(annualVolume, 0),
     });
 
-    // update user data volume
-    const userDataId = await this.getUserDataId(userId);
-    const { sellVolume, annualSellVolume } = await this.getUserDataVolume(userDataId);
-    await this.userDataService.updateSellVolume(userDataId, sellVolume, annualSellVolume);
+    await this.updateUserDataVolume(userId);
   }
 
   async updateStakingBalance(userId: number, balance: number): Promise<void> {
@@ -140,43 +134,16 @@ export class UserService {
       stakingBalance: Util.round(balance, 0),
     });
 
-    // update user data balance
-    const userDataId = await this.getUserDataId(userId);
-    const { stakingBalance } = await this.getUserDataVolume(userDataId);
-    await this.userDataService.updateStakingBalance(userDataId, stakingBalance);
+    await this.updateUserDataVolume(userId);
   }
 
-  private async getUserDataVolume(userDataId: number): Promise<{
-    buyVolume: number;
-    annualBuyVolume: number;
-    sellVolume: number;
-    annualSellVolume: number;
-    stakingBalance: number;
-  }> {
-    return this.userRepo
-      .createQueryBuilder('user')
-      .select('SUM(buyVolume)', 'buyVolume')
-      .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
-      .addSelect('SUM(sellVolume)', 'sellVolume')
-      .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
-      .addSelect('SUM(stakingBalance)', 'stakingBalance')
-      .where('userDataId = :id', { id: userDataId })
-      .getRawOne<{
-        buyVolume: number;
-        annualBuyVolume: number;
-        sellVolume: number;
-        annualSellVolume: number;
-        stakingBalance: number;
-      }>();
-  }
-
-  private async getUserDataId(userId: number): Promise<number> {
+  private async updateUserDataVolume(userId: number): Promise<void> {
     const { userData } = await this.userRepo.findOne({
       where: { id: userId },
       relations: ['userData'],
       select: ['id', 'userData'],
     });
-    return userData.id;
+    await this.userDataService.updateVolumes(userData.id);
   }
 
   // --- REF --- //
