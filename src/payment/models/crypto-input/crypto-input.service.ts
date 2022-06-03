@@ -20,6 +20,7 @@ import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 import { AmlCheck } from '../buy-crypto/buy-crypto.entity';
+import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 
 interface HistoryAmount {
   amount: number;
@@ -219,8 +220,7 @@ export class CryptoInputService {
       } catch (e) {
         console.error(`Failed to process crypto input ${history.txid}:`, e);
 
-        // TODO - refactor to custom exception
-        if (e.message.includes('Node is not accessible')) {
+        if (e instanceof NodeNotAccessibleError) {
           throw e;
         }
       }
@@ -309,34 +309,31 @@ export class CryptoInputService {
 
       return { btcAmount, usdtAmount };
     } catch (e) {
-      // TODO - test if client throws in case when node is down or returns some rejection response
-      const nodeAlive = !!(await this.client.getInfo());
-
-      if (nodeAlive && allowRetry) {
-        // try once again
-        return await this.testCompositeSwaps(asset, amount, false);
-      } else if (nodeAlive && !allowRetry) {
-        // re-throwing  likely input related error
-        throw e;
+      try {
+        // poll the node
+        await this.client.getInfo();
+      } catch (nodeError) {
+        throw new NodeNotAccessibleError(NodeType.INPUT, nodeError);
       }
 
-      // TODO - throw custom exception here for case of node failure
-      console.error(`Node is not accessible. Type: ${NodeType.INPUT}`, e);
-      throw new Error(`Node is not accessible. Type: ${NodeType.INPUT}`);
+      if (allowRetry) {
+        // try once again
+        return await this.testCompositeSwaps(asset, amount, false);
+      }
+
+      // re-throw error, likely input related
+      throw e;
     }
   }
 
   private async forwardInputs(): Promise<void> {
-    // TODO Partial - amlCheck.PASS && w/o outItId && blockNumber >= lastHeight
-    // TODO - replace with const
+    // NOTE - 1687284 - last block that didn't have outTxId
     const inputs = await this.cryptoInputRepo.find({
       where: { outTxId: '', blockHeight: MoreThan(1687284), amlCheck: AmlCheck.PASS },
     });
 
     inputs.forEach(async (input) => {
       try {
-        // NOTE - double check the logic of fetching 1687284 - last block that didn't have outTxId
-
         if (input.route.type === RouteType.STAKING) {
           await this.cryptoStakingService.create(input);
         }
