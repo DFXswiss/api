@@ -209,7 +209,7 @@ export class CryptoStakingService {
       .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>();
 
     // get average inflow
-    const inflowAvgDays = 7;
+    const inflowAvgDays = 14;
     const { inputVolume } = await this.cryptoStakingRepo
       .createQueryBuilder('cryptoStaking')
       .select('SUM(cryptoStaking.inputAmount)', 'inputVolume')

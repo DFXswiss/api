@@ -29,7 +29,6 @@ import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { DfiTaxService } from './services/dfi-tax.service';
 import { LetterService } from './services/letter.service';
-import { UserRepository } from 'src/user/models/user/user.repository';
 
 @Module({
   imports: [
@@ -41,7 +40,6 @@ import { UserRepository } from 'src/user/models/user/user.repository';
       CountryRepository,
       LanguageRepository,
       SettingRepository,
-      UserRepository
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
