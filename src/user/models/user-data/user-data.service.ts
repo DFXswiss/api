@@ -192,7 +192,9 @@ export class UserDataService {
       this.userDataRepo.findOne({ where: { id: slaveId }, relations: ['users', 'bankDatas'] }),
     ]);
     console.log(
-      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas.join(', ')} and users ${slave.users.join(', ')}`,
+      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas
+        .map((b) => b.id)
+        .join(', ')} and users ${slave.users.map((u) => u.id).join(', ')}`,
     );
 
     // reassign bank datas and users
