@@ -16,11 +16,13 @@ export class MasternodeService {
   async create(dto: CreateMasternodeDto): Promise<Masternode> {
     const masternode = this.masternodeRepo.create(dto);
     masternode.enabled = true;
+    masternode.creationHash = dto.hash;
+    masternode.creationDate = new Date();
     return this.masternodeRepo.save(masternode);
   }
 
   async resign(hash: string, dto: ResignMasternodeDto): Promise<Masternode> {
-    const masternode = await this.masternodeRepo.findOne({ hash });
+    const masternode = await this.masternodeRepo.findOne({ creationHash: hash });
     if (!masternode) throw new NotFoundException('Masternode not found');
 
     masternode.enabled = false;
@@ -34,8 +36,8 @@ export class MasternodeService {
   async getActiveCount(date: Date = new Date()): Promise<number> {
     return this.masternodeRepo.count({
       where: [
-        { created: LessThan(date), resignDate: IsNull() },
-        { created: LessThan(date), resignDate: MoreThan(date) },
+        { creationDate: LessThan(date), resignDate: IsNull() },
+        { creationDate: LessThan(date), resignDate: MoreThan(date) },
       ],
     });
   }
