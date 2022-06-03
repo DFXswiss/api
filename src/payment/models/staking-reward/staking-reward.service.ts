@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { Between, In, IsNull, Not, MoreThan } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
-import { StakingReward } from './staking-reward.entity';
+import { PayoutType, StakingReward } from './staking-reward.entity';
 import { StakingRewardRepository } from './staking-reward.respository';
 import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
@@ -9,6 +9,7 @@ import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { Config } from 'src/config/config';
+import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 
 @Injectable()
 export class StakingRewardService {
@@ -17,6 +18,7 @@ export class StakingRewardService {
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
+    private readonly cryptoInputRepo: CryptoInputRepository,
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
