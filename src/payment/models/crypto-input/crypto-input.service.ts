@@ -13,7 +13,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { In, Not } from 'typeorm';
+import { In, MoreThan, Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -168,8 +168,48 @@ export class CryptoInputService {
     this.lock.release();
   }
 
+  // --- INPUT HANDLING --- //
+  @Interval(300000)
+  async checkInputsNew(): Promise<void> {
+    if (!this.lock.acquire()) return;
+
+    await this.saveInputs();
+    await this.forwardInputs();
+
+    this.lock.release();
+  }
+
+  private async saveInputs(): Promise<void> {
+    const { blocks: currentHeight } = await this.checkNodeInSync();
+
+    // get block heights
+    const lastHeight = await this.cryptoInputRepo
+      .findOne({ order: { blockHeight: 'DESC' } })
+      .then((input) => input?.blockHeight ?? 0);
+
+    const utxos = await this.client.getUtxo();
+    const tokens = await this.client.getToken();
+
+    const newInputs = await this.getAddressesWithFunds(utxos, tokens)
+      .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
+      // get receive history
+      .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
+      .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
+      .then((i) => i.filter((h) => h.blockHeight > lastHeight))
+      // map to entities
+      .then((i) => this.createEntities(i))
+      .then((i) => i.filter((h) => h != null))
+      // check required balance
+      .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
+
+    console.log('New crypto inputs:', newInputs);
+
+    if (newInputs.length > 0) await this.cryptoInputRepo.save(newInputs);
+  }
+
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
     const inputs = [];
+
     for (const history of histories) {
       try {
         const amounts = this.getAmounts(history);
@@ -178,8 +218,14 @@ export class CryptoInputService {
         }
       } catch (e) {
         console.error(`Failed to process crypto input ${history.txid}:`, e);
+
+        // TODO - refactor to custom exception
+        if (e.message.includes('Node is not accessible')) {
+          throw e;
+        }
       }
     }
+
     return inputs;
   }
 
@@ -197,8 +243,7 @@ export class CryptoInputService {
       return null;
     }
 
-    const btcAmount = await this.client.testCompositeSwap(asset, 'BTC', amount);
-    const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+    const { btcAmount, usdtAmount } = await this.testCompositeSwaps(asset, amount);
 
     // min. deposit
     if (
@@ -250,6 +295,62 @@ export class CryptoInputService {
           : route.type === RouteType.STAKING
           ? CryptoInputType.CRYPTO_STAKING
           : CryptoInputType.UNKNOWN,
+    });
+  }
+
+  private async testCompositeSwaps(
+    asset: string,
+    amount: number,
+    allowRetry = true,
+  ): Promise<{ btcAmount: number; usdtAmount: number }> {
+    try {
+      const btcAmount = await this.client.testCompositeSwap(asset, 'BTC', amount);
+      const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+
+      return { btcAmount, usdtAmount };
+    } catch (e) {
+      // TODO - test if client throws in case when node is down or returns some rejection response
+      const nodeAlive = !!(await this.client.getInfo());
+
+      if (nodeAlive && allowRetry) {
+        // try once again
+        return await this.testCompositeSwaps(asset, amount, false);
+      } else if (nodeAlive && !allowRetry) {
+        // re-throwing  likely input related error
+        throw e;
+      }
+
+      // TODO - throw custom exception here for case of node failure
+      console.error(`Node is not accessible. Type: ${NodeType.INPUT}`, e);
+      throw new Error(`Node is not accessible. Type: ${NodeType.INPUT}`);
+    }
+  }
+
+  private async forwardInputs(): Promise<void> {
+    // TODO Partial - amlCheck.PASS && w/o outItId && blockNumber >= lastHeight
+    // TODO - replace with const
+    const inputs = await this.cryptoInputRepo.find({
+      where: { outTxId: '', blockHeight: MoreThan(1687284), amlCheck: AmlCheck.PASS },
+    });
+
+    inputs.forEach(async (input) => {
+      try {
+        // NOTE - double check the logic of fetching 1687284 - last block that didn't have outTxId
+
+        if (input.route.type === RouteType.STAKING) {
+          await this.cryptoStakingService.create(input);
+        }
+
+        // forward (only await UTXO)
+        const targetAddress =
+          input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+
+        input.asset.type === AssetType.COIN
+          ? await this.forwardUtxo(input, targetAddress)
+          : await this.forwardToken(input, targetAddress);
+      } catch (e) {
+        console.error(`Failed to process crypto input ${input.id}:`, e);
+      }
     });
   }
 
