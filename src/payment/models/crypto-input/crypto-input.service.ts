@@ -163,7 +163,7 @@ export class CryptoInputService {
       // check required balance
       .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
 
-    console.log('New crypto inputs:', newInputs);
+    console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
 
     if (newInputs.length > 0) await this.cryptoInputRepo.save(newInputs);
   }
@@ -178,7 +178,7 @@ export class CryptoInputService {
           inputs.push(await this.createEntity(history, amount));
         }
       } catch (e) {
-        console.error(`Failed to process crypto input ${history.txid}:`, e);
+        console.error(`Failed to create crypto input ${history.txid}:`, e);
 
         if (e instanceof NodeNotAccessibleError) {
           // abort the process until next interval cycle
@@ -279,6 +279,7 @@ export class CryptoInputService {
 
       if (allowRetry) {
         // try once again
+        console.log('Retrying testCompositeSwaps after node poll success');
         return await this.testCompositeSwaps(asset, amount, false);
       }
 
@@ -290,9 +291,12 @@ export class CryptoInputService {
   private async forwardInputs(): Promise<void> {
     const inputs = await this.cryptoInputRepo.find({
       where: { outTxId: '', amlCheck: AmlCheck.PASS },
+      relations: ['route'],
     });
 
-    inputs.forEach(async (input) => {
+    console.log(`Forwarding inputs (${inputs.length})`);
+
+    for (const input of inputs) {
       try {
         if (input.route.type === RouteType.STAKING) {
           await this.cryptoStakingService.create(input);
@@ -306,9 +310,9 @@ export class CryptoInputService {
           ? await this.forwardUtxo(input, targetAddress)
           : await this.forwardToken(input, targetAddress);
       } catch (e) {
-        console.error(`Failed to process crypto input ${input.id}:`, e);
+        console.error(`Failed to forward crypto input ${input.id}:`, e);
       }
-    });
+    }
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
