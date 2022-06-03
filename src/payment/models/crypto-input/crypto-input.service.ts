@@ -13,7 +13,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { In, MoreThan, Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -128,56 +128,16 @@ export class CryptoInputService {
   // --- INPUT HANDLING --- //
   @Interval(300000)
   async checkInputs(): Promise<void> {
-    // avoid overlaps
     if (!this.lock.acquire()) return;
 
     try {
-      const { blocks: currentHeight } = await this.checkNodeInSync();
-
-      // get block heights
-      const lastHeight = await this.cryptoInputRepo
-        .findOne({ order: { blockHeight: 'DESC' } })
-        .then((input) => input?.blockHeight ?? 0);
-
-      const utxos = await this.client.getUtxo();
-      const tokens = await this.client.getToken();
-
-      const newInputs = await this.getAddressesWithFunds(utxos, tokens)
-        .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
-        // get receive history
-        .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
-        .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
-        .then((i) => i.filter((h) => h.blockHeight > lastHeight))
-        // map to entities
-        .then((i) => this.createEntities(i))
-        .then((i) => i.filter((h) => h != null))
-        // check required balance
-        .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
-
-      // save and forward
-      if (newInputs.length > 0) {
-        console.log('New crypto inputs:', newInputs);
-
-        for (const input of newInputs) {
-          await this.saveAndForward(input);
-        }
-      }
+      await this.saveInputs();
+      await this.forwardInputs();
     } catch (e) {
       console.error('Exception during crypto input checks:', e);
+    } finally {
+      this.lock.release();
     }
-
-    this.lock.release();
-  }
-
-  // --- INPUT HANDLING --- //
-  @Interval(300000)
-  async checkInputsNew(): Promise<void> {
-    if (!this.lock.acquire()) return;
-
-    await this.saveInputs();
-    await this.forwardInputs();
-
-    this.lock.release();
   }
 
   private async saveInputs(): Promise<void> {
@@ -221,6 +181,7 @@ export class CryptoInputService {
         console.error(`Failed to process crypto input ${history.txid}:`, e);
 
         if (e instanceof NodeNotAccessibleError) {
+          // abort the process until next interval cycle
           throw e;
         }
       }
@@ -327,9 +288,8 @@ export class CryptoInputService {
   }
 
   private async forwardInputs(): Promise<void> {
-    // NOTE - 1687284 - last block that didn't have outTxId
     const inputs = await this.cryptoInputRepo.find({
-      where: { outTxId: '', blockHeight: MoreThan(1687284), amlCheck: AmlCheck.PASS },
+      where: { outTxId: '', amlCheck: AmlCheck.PASS },
     });
 
     inputs.forEach(async (input) => {
@@ -349,27 +309,6 @@ export class CryptoInputService {
         console.error(`Failed to process crypto input ${input.id}:`, e);
       }
     });
-  }
-
-  private async saveAndForward(input: CryptoInput): Promise<void> {
-    try {
-      // save
-      await this.cryptoInputRepo.save(input);
-      if (input.amlCheck === AmlCheck.FAIL) return;
-
-      if (input.route.type === RouteType.STAKING) {
-        await this.cryptoStakingService.create(input);
-      }
-
-      // forward (only await UTXO)
-      const targetAddress =
-        input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
-      input.asset.type === AssetType.COIN
-        ? await this.forwardUtxo(input, targetAddress)
-        : await this.forwardToken(input, targetAddress);
-    } catch (e) {
-      console.error(`Failed to process crypto input ${input.id}:`, e);
-    }
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
