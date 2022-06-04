@@ -12,6 +12,7 @@ import { StakingRefRewardService } from 'src/payment/models/staking-ref-reward/s
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { UserService } from 'src/user/models/user/user.service';
+import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
 
 @Injectable()
 export class MonitoringService {
@@ -27,6 +28,7 @@ export class MonitoringService {
     private buyCryptoService: BuyCryptoService,
     private stakingRefRewardService: StakingRefRewardService,
     private stakingRewardService: StakingRewardService,
+    private cryptoStakingService: CryptoStakingService,
   ) {}
 
   async getStakingBalance(): Promise<{ actual: number; should: number; difference: number }> {
@@ -86,5 +88,13 @@ export class MonitoringService {
 
   async getUserWithoutIpCountry(): Promise<number> {
     return await this.userService.getUserWithoutIpCountry();
+  }
+
+  async getWrongCryptoStaking(): Promise<number> {
+    return await this.cryptoStakingService.getWrongCryptoStaking();
+  }
+
+  async getFreeOperators(): Promise<number> {
+    return await this.masternodeService.getFreeOperators();
   }
 }

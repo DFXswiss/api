@@ -9,6 +9,7 @@ import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { Config } from 'src/config/config';
+import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 
 @Injectable()
 export class StakingRewardService {
@@ -17,6 +18,7 @@ export class StakingRewardService {
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
+    private readonly cryptoInputRepo: CryptoInputRepository,
   ) {}
 
   async create(dto: CreateStakingRewardDto): Promise<StakingReward> {
