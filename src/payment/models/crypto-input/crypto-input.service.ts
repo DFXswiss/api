@@ -192,7 +192,7 @@ export class CryptoInputService {
     }
 
     // only sellable
-    if (!assetEntity.sellable) {
+    if (!assetEntity.sellable || assetEntity.isLP) {
       console.log(`Ignoring unsellable crypto input (${amount} ${asset}). History entry:`, history);
       return null;
     }
