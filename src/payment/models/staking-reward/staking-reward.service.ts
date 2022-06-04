@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Between, In, IsNull, Not, MoreThan } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
-import { PayoutType, StakingReward } from './staking-reward.entity';
+import { StakingReward } from './staking-reward.entity';
 import { StakingRewardRepository } from './staking-reward.respository';
 import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
