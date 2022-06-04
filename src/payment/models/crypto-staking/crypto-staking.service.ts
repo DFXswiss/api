@@ -336,13 +336,13 @@ export class CryptoStakingService {
 
   // Monitoring
 
-  async getWrongCryptoStaking(): Promise<any> {
+  async getWrongCryptoStaking(): Promise<number> {
     const cryptoStakingAndInput = await this.cryptoStakingRepo
       .createQueryBuilder('cryptoStaking')
       .where('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
       .innerJoinAndSelect(CryptoInput, 'cryptoInput', 'cryptoStaking.outTxId = cryptoInput.inTxId')
-      .getMany();
+      .getRawMany();
 
-    return cryptoStakingAndInput;
+    return cryptoStakingAndInput.filter((a) => a.cryptoStaking_outputAmount != a.cryptoInput_amount).length;
   }
 }

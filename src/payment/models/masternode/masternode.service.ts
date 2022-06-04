@@ -45,4 +45,8 @@ export class MasternodeService {
   async getActive(): Promise<Masternode[]> {
     return this.masternodeRepo.find({ where: { enabled: true } });
   }
+
+  async getFreeOperators(): Promise<number> {
+    return await this.masternodeRepo.count({ where: { creationHash: IsNull() } });
+  }
 }

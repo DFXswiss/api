@@ -90,7 +90,11 @@ export class MonitoringService {
     return await this.userService.getUserWithoutIpCountry();
   }
 
-  async getWrongCryptoStaking(): Promise<{ reinvest: number; bankAccount: number }> {
+  async getWrongCryptoStaking(): Promise<number> {
     return await this.cryptoStakingService.getWrongCryptoStaking();
+  }
+
+  async getFreeOperators(): Promise<number> {
+    return await this.masternodeService.getFreeOperators();
   }
 }
