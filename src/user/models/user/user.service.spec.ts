@@ -12,6 +12,7 @@ import { User } from './user.entity';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { TestUtil } from 'src/shared/test.util';
 import { GeoLocationService } from 'src/user/services/geo-location.service';
+import { CountryService } from 'src/shared/models/country/country.service';
 
 describe('UserService', () => {
   let service: UserService;
@@ -24,6 +25,7 @@ describe('UserService', () => {
   let settingService: SettingService;
   let dfiTaxService: DfiTaxService;
   let geoLocationService: GeoLocationService;
+  let countryService: CountryService;
 
   function setup(accountType: AccountType, refFeePercent?: number, buyFee?: number) {
     jest.spyOn(userRepo, 'findOne').mockResolvedValue({ accountType, refFeePercent, buyFee } as User);
@@ -38,6 +40,7 @@ describe('UserService', () => {
     settingService = createMock<SettingService>();
     dfiTaxService = createMock<DfiTaxService>();
     geoLocationService = createMock<GeoLocationService>();
+    countryService = createMock<CountryService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -50,6 +53,7 @@ describe('UserService', () => {
         { provide: SettingService, useValue: settingService },
         { provide: DfiTaxService, useValue: dfiTaxService },
         { provide: GeoLocationService, useValue: geoLocationService },
+        { provide: CountryService, useValue: countryService },
         TestUtil.provideConfig(),
       ],
     }).compile();
