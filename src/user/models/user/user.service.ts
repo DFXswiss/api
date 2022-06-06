@@ -26,6 +26,7 @@ import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { GeoLocationService } from 'src/user/services/geo-location.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { CountryService } from 'src/shared/models/country/country.service';
 
 @Injectable()
 export class UserService {
@@ -37,6 +38,7 @@ export class UserService {
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly geoLocationService: GeoLocationService,
+    private readonly countryService: CountryService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -65,9 +67,11 @@ export class UserService {
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string): Promise<User> {
     let user = this.userRepo.create(dto);
 
-    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
-    user.ip = userIp;
     user.ipCountry = await this.geoLocationService.getCountry(userIp);
+    const country = await this.countryService.getCountryWithSymbol(user.ipCountry);
+    if (!country.ipEnable) throw new ForbiddenException('IP country is not allowed');
+    user.ip = userIp;
+    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
