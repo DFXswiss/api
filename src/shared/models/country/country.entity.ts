@@ -11,4 +11,7 @@ export class Country extends IEntity {
 
   @Column({ default: true })
   enable: boolean;
+
+  @Column({ default: true })
+  ipEnable: boolean;
 }

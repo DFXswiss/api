@@ -130,6 +130,13 @@
         "containerId": "",
         "created": "2022-05-05T13:28:49.715Z",
         "sortNum": 180000
+      },
+      {
+        "_id": "4db44ba0-0e26-436f-871c-35ae2d76a700",
+        "name": "Statistic",
+        "containerId": "",
+        "created": "2022-06-07T21:46:13.991Z",
+        "sortNum": 190000
       }
     ],
     "settings": {

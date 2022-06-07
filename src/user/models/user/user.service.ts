@@ -26,6 +26,8 @@ import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { GeoLocationService } from 'src/user/services/geo-location.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { VolumeQuery } from './dto/volume-query.dto';
 
 @Injectable()
 export class UserService {
@@ -37,6 +39,7 @@ export class UserService {
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly geoLocationService: GeoLocationService,
+    private readonly countryService: CountryService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -65,9 +68,11 @@ export class UserService {
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string): Promise<User> {
     let user = this.userRepo.create(dto);
 
-    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
-    user.ip = userIp;
     user.ipCountry = await this.geoLocationService.getCountry(userIp);
+    const country = await this.countryService.getCountryWithSymbol(user.ipCountry);
+    if (!country.ipEnable) throw new ForbiddenException('IP country is not allowed');
+    user.ip = userIp;
+    user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
@@ -184,6 +189,33 @@ export class UserService {
     const { volume } = await dbQuery.getRawOne<{ volume: number }>();
 
     return { activeUser: refUser.length, volume: volume };
+  }
+
+  async getUserVolumes(query: VolumeQuery): Promise<{ buy: number; sell: number }> {
+    // TODO cryptoBuy -> buyCrypto
+    const { buyVolume } = await this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(cryptoBuys.amountInEur)', 'buyVolume')
+      .leftJoin('user.buys', 'buys')
+      .leftJoin('buys.cryptoBuys', 'cryptoBuys')
+      .where('cryptoBuys.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('user.id = :userId', { userId: query.userId })
+      .getRawOne<{ buyVolume: number }>();
+
+    // TODO cryptoSell -> buyFiat
+    const { sellVolume } = await this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(cryptoSell.amountInEur)', 'sellVolume')
+      .leftJoin('user.sells', 'sells')
+      .leftJoin('sells.cryptoInputs', 'cryptoInputs')
+      .leftJoin('cryptoInputs.cryptoSell', 'cryptoSell')
+      .where('cryptoSell.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('cryptoSell.amlCheck = :check', { check: AmlCheck.PASS })
+      .andWhere('user.id = :userId', { userId: query.userId })
+      .getRawOne<{ sellVolume: number }>();
+
+    return { buy: buyVolume ?? 0, sell: sellVolume ?? 0 };
   }
 
   async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {

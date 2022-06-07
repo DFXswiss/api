@@ -23,6 +23,8 @@ export class MonitoringController {
       nodeBalances: await this.monitoringService.getNodeBalances(),
       stakingBalance: await this.monitoringService.getStakingBalance(),
       userWithoutIpCountry: await this.monitoringService.getUserWithoutIpCountry(),
+      // TODO implement wrongCryptoStaking: await this.monitoringService.getWrongCryptoStaking(),
+      freeOperators: await this.monitoringService.getFreeOperators(),
     };
   }
 }
