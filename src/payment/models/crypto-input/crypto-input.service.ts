@@ -161,13 +161,14 @@ export class CryptoInputService {
       .then((i) => this.createEntities(i))
       .then((i) => i.filter((h) => h != null))
       // check required balance
-      .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)))
-      // create staking entities
-      .then((i) => this.createStaking(i));
+      .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
 
     console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
 
-    if (newInputs.length > 0) await this.cryptoInputRepo.save(newInputs);
+    const savedInputs = await this.cryptoInputRepo.save(newInputs);
+
+    // create staking entities
+    this.createStaking(savedInputs);
   }
 
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
