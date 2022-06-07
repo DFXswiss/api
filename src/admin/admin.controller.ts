@@ -34,7 +34,7 @@ import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
-import { getConnection, Not } from 'typeorm';
+import { getConnection } from 'typeorm';
 import { RenameRefDto } from './dto/rename-ref.dto';
 import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';

@@ -192,6 +192,7 @@ export class UserService {
   }
 
   async getUserVolumes(query: VolumeQuery): Promise<{ buy: number; sell: number }> {
+    // TODO cryptoBuy -> buyCrypto
     const { buyVolume } = await this.userRepo
       .createQueryBuilder('user')
       .select('SUM(cryptoBuys.amountInEur)', 'buyVolume')
@@ -202,6 +203,7 @@ export class UserService {
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ buyVolume: number }>();
 
+    // TODO cryptoSell -> buyFiat
     const { sellVolume } = await this.userRepo
       .createQueryBuilder('user')
       .select('SUM(cryptoSell.amountInEur)', 'sellVolume')
