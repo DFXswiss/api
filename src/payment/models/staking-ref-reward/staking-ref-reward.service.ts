@@ -144,14 +144,18 @@ export class StakingRefRewardService {
 
       for (const reward of openRewardMails) {
         try {
-          await this.mailService.sendStakingRefMail(
-            reward.user.userData.mail,
-            reward.user.userData.language?.symbol.toLowerCase(),
-            reward.stakingRefType.toString().toLowerCase(),
-            reward.txId,
-            reward.outputAmount,
-            reward.outputAsset,
-          );
+          if (reward.user.userData.mail) {
+            await this.mailService.sendStakingRefMail(
+              reward.user.userData.mail,
+              reward.user.userData.language?.symbol.toLowerCase(),
+              reward.stakingRefType.toString().toLowerCase(),
+              reward.txId,
+              reward.outputAmount,
+              reward.outputAsset,
+            );
+          } else {
+            console.error(`Failed to send staking ref reward mail ${reward.id}: user has no email`);
+          }
 
           const update = {
             mailSendDate: new Date().getTime(),
