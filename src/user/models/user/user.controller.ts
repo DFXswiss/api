@@ -13,6 +13,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { ApiKey } from './dto/api-key.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
+import { VolumeQuery } from './dto/volume-query.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -77,6 +78,13 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRefInfo(@Query() query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
     return this.userService.getRefInfo(query);
+  }
+
+  @Get('volumes')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getVolumes(@Query() query: VolumeQuery): Promise<{ buy: number; sell: number }> {
+    return this.userService.getUserVolumes(query);
   }
 
   @Put(':id')

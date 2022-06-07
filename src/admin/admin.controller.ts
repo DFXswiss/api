@@ -128,62 +128,7 @@ export class AdminController {
     let data: any[];
 
     if (extended && table === 'bank_tx') {
-      const buyCryptoData = await getConnection()
-        .createQueryBuilder()
-        .from(table, table)
-        .select('bank_tx', 'bankTx')
-        .addSelect('userData.id', 'userDataId')
-        .leftJoin('bank_tx.buyCrypto', 'buyCrypto')
-        .leftJoin('buyCrypto.buy', 'buy')
-        .leftJoin('buy.user', 'user')
-        .leftJoin('user.userData', 'userData')
-        .where('bank_tx.id >= :id', { id })
-        .andWhere('bank_tx.updated >= :updated', { updated })
-        .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_CRYPTO })
-        .getRawMany()
-        .catch((e: Error) => {
-          throw new BadRequestException(e.message);
-        });
-
-      //TODO cryptoSell -> buyFiat wechseln
-      const buyFiatData = await getConnection()
-        .createQueryBuilder()
-        .from(table, table)
-        .select('bank_tx', 'bankTx')
-        .addSelect('userData.id', 'userDataId')
-        .leftJoin('bank_tx.cryptoSell', 'cryptoSell')
-        .leftJoin('cryptoSell.cryptoInput', 'cryptoInput')
-        .leftJoin('cryptoInput.route', 'route')
-        .leftJoin('route.user', 'user')
-        .leftJoin('user.userData', 'userData')
-        .where('bank_tx.id >= :id', { id })
-        .andWhere('bank_tx.updated >= :updated', { updated })
-        .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_FIAT })
-        .getRawMany()
-        .catch((e: Error) => {
-          throw new BadRequestException(e.message);
-        });
-
-      const bankTxRestData = await getConnection()
-        .createQueryBuilder()
-        .from(table, table)
-        .select('bank_tx', 'bankTx')
-        .where('bank_tx.id >= :id', { id })
-        .andWhere('bank_tx.updated >= :updated', { updated })
-        .andWhere('bank_tx.type != :buyCryptoType', {
-          buyCryptoType: BankTxType.BUY_CRYPTO,
-        })
-        .andWhere('bank_tx.type != :buyFiatType', {
-          buyFiatType: BankTxType.BUY_FIAT,
-        })
-        .getRawMany()
-        .catch((e: Error) => {
-          throw new BadRequestException(e.message);
-        });
-
-      bankTxRestData.map((a) => (a.userDataId = null));
-
-      data = buyCryptoData.concat(buyFiatData, bankTxRestData).sort((a, b) => a.bank_tx_id - b.bank_tx_id);
+      data = await this.getExtendedBankTxData(table, id, updated);
     } else {
       data = await getConnection()
         .createQueryBuilder()
@@ -223,6 +168,65 @@ export class AdminController {
     }
 
     return arrayData;
+  }
+
+  private async getExtendedBankTxData(table, id, updated): Promise<any[]> {
+    const buyCryptoData = await getConnection()
+      .createQueryBuilder()
+      .from(table, table)
+      .select('bank_tx', 'bankTx')
+      .addSelect('userData.id', 'userDataId')
+      .leftJoin('bank_tx.buyCrypto', 'buyCrypto')
+      .leftJoin('buyCrypto.buy', 'buy')
+      .leftJoin('buy.user', 'user')
+      .leftJoin('user.userData', 'userData')
+      .where('bank_tx.id >= :id', { id })
+      .andWhere('bank_tx.updated >= :updated', { updated })
+      .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_CRYPTO })
+      .getRawMany()
+      .catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      });
+
+    //TODO cryptoSell -> buyFiat wechseln
+    const buyFiatData = await getConnection()
+      .createQueryBuilder()
+      .from(table, table)
+      .select('bank_tx', 'bankTx')
+      .addSelect('userData.id', 'userDataId')
+      .leftJoin('bank_tx.cryptoSell', 'cryptoSell')
+      .leftJoin('cryptoSell.cryptoInput', 'cryptoInput')
+      .leftJoin('cryptoInput.route', 'route')
+      .leftJoin('route.user', 'user')
+      .leftJoin('user.userData', 'userData')
+      .where('bank_tx.id >= :id', { id })
+      .andWhere('bank_tx.updated >= :updated', { updated })
+      .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_FIAT })
+      .getRawMany()
+      .catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      });
+
+    const bankTxRestData = await getConnection()
+      .createQueryBuilder()
+      .from(table, table)
+      .select('bank_tx', 'bankTx')
+      .where('bank_tx.id >= :id', { id })
+      .andWhere('bank_tx.updated >= :updated', { updated })
+      .andWhere('bank_tx.type != :buyCryptoType', {
+        buyCryptoType: BankTxType.BUY_CRYPTO,
+      })
+      .andWhere('bank_tx.type != :buyFiatType', {
+        buyFiatType: BankTxType.BUY_FIAT,
+      })
+      .getRawMany()
+      .catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      });
+
+    bankTxRestData.map((a) => (a.userDataId = null));
+
+    return buyCryptoData.concat(buyFiatData, bankTxRestData).sort((a, b) => a.bank_tx_id - b.bank_tx_id);
   }
 
   @Get('support')
