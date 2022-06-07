@@ -34,7 +34,7 @@ import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
-import { getConnection } from 'typeorm';
+import { getConnection, Not } from 'typeorm';
 import { RenameRefDto } from './dto/rename-ref.dto';
 import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';
@@ -170,16 +170,12 @@ export class AdminController {
         .select('bank_tx', 'bankTx')
         .where('bank_tx.id >= :id', { id })
         .andWhere('bank_tx.updated >= :updated', { updated })
-        .andWhere(
-          '(bank_tx.type = :returnType OR bank_tx.type = :buyCryptoReturnType OR bank_tx.type = :internalType OR bank_tx.type = :repeatType OR bank_tx.type = :unknownType)',
-          {
-            returnType: BankTxType.BANK_TX_RETURN,
-            buyCryptoReturnType: BankTxType.BUY_CRYPTO_RETURN,
-            internalType: BankTxType.INTERNAL,
-            repeatType: BankTxType.REPEAT,
-            unknownType: BankTxType.UNKNOWN,
-          },
-        )
+        .andWhere('bank_tx.type != :buyCryptoType', {
+          buyCryptoType: BankTxType.BUY_CRYPTO,
+        })
+        .andWhere('bank_tx.type != :buyFiatType', {
+          buyFiatType: BankTxType.BUY_FIAT,
+        })
         .getRawMany()
         .catch((e: Error) => {
           throw new BadRequestException(e.message);
