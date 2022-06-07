@@ -161,7 +161,9 @@ export class CryptoInputService {
       .then((i) => this.createEntities(i))
       .then((i) => i.filter((h) => h != null))
       // check required balance
-      .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
+      .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)))
+      // create staking entities
+      .then((i) => this.createStaking(i));
 
     console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
 
@@ -204,7 +206,7 @@ export class CryptoInputService {
       return null;
     }
 
-    const { btcAmount, usdtAmount } = await this.testCompositeSwaps(asset, amount);
+    const { btcAmount, usdtAmount } = await this.getReferenceAmounts(asset, amount);
 
     // min. deposit
     if (
@@ -259,7 +261,7 @@ export class CryptoInputService {
     });
   }
 
-  private async testCompositeSwaps(
+  private async getReferenceAmounts(
     asset: string,
     amount: number,
     allowRetry = true,
@@ -280,12 +282,23 @@ export class CryptoInputService {
       if (allowRetry) {
         // try once again
         console.log('Retrying testCompositeSwaps after node poll success');
-        return await this.testCompositeSwaps(asset, amount, false);
+        return await this.getReferenceAmounts(asset, amount, false);
       }
 
       // re-throw error, likely input related
       throw e;
     }
+  }
+
+  private async createStaking(inputs: CryptoInput[]): Promise<CryptoInput[]> {
+    // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
+    for (const input of inputs) {
+      if (input?.route.type === RouteType.STAKING) {
+        await this.cryptoStakingService.create(input);
+      }
+    }
+
+    return inputs;
   }
 
   private async forwardInputs(): Promise<void> {
@@ -298,11 +311,6 @@ export class CryptoInputService {
 
     for (const input of inputs) {
       try {
-        if (input.route.type === RouteType.STAKING) {
-          await this.cryptoStakingService.create(input);
-        }
-
-        // forward (only await UTXO)
         const targetAddress =
           input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
 
