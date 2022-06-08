@@ -163,7 +163,7 @@ export class CryptoInputService {
       // check required balance
       .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
 
-    console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
+    newInputs.length > 0 && console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
 
     const savedInputs = await this.cryptoInputRepo.save(newInputs);
 
@@ -308,7 +308,7 @@ export class CryptoInputService {
       relations: ['route'],
     });
 
-    console.log(`Forwarding inputs (${inputs.length})`);
+    inputs.length > 0 && console.log(`Forwarding inputs (${inputs.length})`);
 
     for (const input of inputs) {
       try {
