@@ -9,8 +9,7 @@ import { User } from 'src/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import { KrakenService } from '../exchange/kraken.service';
-import { BinanceService } from '../exchange/binance.service';
+import { ExchangeUtilityService } from '../exchange/exchange-utility.service';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { NodeClient } from 'src/ain/node/node-client';
 
@@ -23,8 +22,7 @@ export class StakingRefRewardService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
     private readonly conversionService: ConversionService,
-    private readonly krakenService: KrakenService,
-    private readonly binanceService: BinanceService,
+    private readonly exchangeUtilityService: ExchangeUtilityService,
     private readonly mailService: MailService,
   ) {
     this.client = nodeService.getClient(NodeType.REF, NodeMode.ACTIVE);
@@ -97,14 +95,11 @@ export class StakingRefRewardService {
       });
 
       if (openRewards.length > 0) {
-        const { price: krakenPrice } = await this.krakenService.getPrice('EUR', 'BTC');
-        const { price: binancePrice } = await this.binanceService.getPrice('EUR', 'BTC');
-        if (Math.abs(binancePrice - krakenPrice) / krakenPrice > 0.02)
-          throw new Error(`BTC price mismatch (kraken: ${krakenPrice}, binance: ${binancePrice})`);
+        const { price } = await this.exchangeUtilityService.getMatchingPrice('EUR', 'BTC');
 
         for (const reward of openRewards) {
           try {
-            await this.sendReward(reward, krakenPrice);
+            await this.sendReward(reward, price);
           } catch (e) {
             console.error(`Failed to send staking ref reward ${reward.id}:`, e);
           }
