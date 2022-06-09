@@ -18,7 +18,7 @@ export class NodeController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async rpc(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Body() command: string): Promise<any> {
     return this.nodeService
-      .getClient(node, mode)
+      .getNodeClientFromPool(node, mode)
       .sendRpcCommand(command)
       .catch((error: HttpError) => error.response?.data);
   }
@@ -28,7 +28,7 @@ export class NodeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async cmd(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Body() dto: CommandDto): Promise<any> {
-    const client = this.nodeService.getClient(node, mode);
+    const client = this.nodeService.getNodeClientFromPool(node, mode);
     try {
       return await client.sendCliCommand(dto.command, dto.noAutoUnlock);
     } catch (e) {
@@ -40,7 +40,11 @@ export class NodeController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async waitForTx(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Param('txId') txId: string): Promise<InWalletTransaction> {
-    return this.nodeService.getClient(node, mode).waitForTx(txId);
+  async waitForTx(
+    @Param('node') node: NodeType,
+    @Param('mode') mode: NodeMode,
+    @Param('txId') txId: string,
+  ): Promise<InWalletTransaction> {
+    return this.nodeService.getNodeClientFromPool(node, mode).waitForTx(txId);
   }
 }

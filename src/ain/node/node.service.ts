@@ -47,7 +47,7 @@ export class NodeService {
     this.initConnectedNodes();
   }
 
-  @Interval(900000)
+  @Interval(5000)
   async checkNodes(): Promise<void> {
     const errors = await Promise.all([
       this.checkNodePair(NodeType.INPUT),
@@ -60,7 +60,7 @@ export class NodeService {
     this.handleNodeErrors(errors);
   }
 
-  getNode(type: NodeType): Observable<Node> {
+  getConnectedNode(type: NodeType): Observable<Node> {
     const node = this.connectedNodes.get(type);
 
     if (node) {
@@ -70,7 +70,89 @@ export class NodeService {
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
+  getNodeClientFromPool(type: NodeType, mode: NodeMode): NodeClient {
+    const client = this.allNodes.get(type)[mode];
+
+    if (client) {
+      return client;
+    }
+
+    throw new BadRequestException(`No node for type '${type}'`);
+  }
+
+  // --- INIT METHODS --- //
+
+  private initAllNodes(scheduler: SchedulerRegistry): void {
+    this.allNodes.set(NodeType.INPUT, {
+      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.inp.active, scheduler),
+      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.inp.passive, scheduler),
+    });
+
+    this.allNodes.set(NodeType.DEX, {
+      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.dex.active, scheduler),
+      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.dex.passive, scheduler),
+    });
+
+    this.allNodes.set(NodeType.OUTPUT, {
+      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.out.active, scheduler),
+      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.out.passive, scheduler),
+    });
+
+    this.allNodes.set(NodeType.INT, {
+      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.int.active, scheduler),
+      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.int.passive, scheduler),
+    });
+
+    this.allNodes.set(NodeType.REF, {
+      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.ref.active, scheduler),
+      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.ref.passive, scheduler),
+    });
+  }
+
+  private initConnectedNodes(): void {
+    this.connectedNodes.set(
+      NodeType.INPUT,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.INPUT)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
+
+    this.connectedNodes.set(
+      NodeType.DEX,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.DEX)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
+
+    this.connectedNodes.set(
+      NodeType.OUTPUT,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.OUTPUT)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
+
+    this.connectedNodes.set(
+      NodeType.INT,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.INT)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
+
+    this.connectedNodes.set(
+      NodeType.REF,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.REF)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
+  }
+
   // --- HELPER METHODS --- //
+
   private async checkNodePair(node: NodeType): Promise<NodeError[]> {
     return Promise.all([this.checkNode(node, NodeMode.ACTIVE), this.checkNode(node, NodeMode.PASSIVE)]).then(
       ([{ errors: activeErrors, info: activeInfo }, { errors: passiveErrors, info: passiveInfo }]) => {
@@ -88,10 +170,10 @@ export class NodeService {
   }
 
   private async checkNode(
-    node: NodeType,
+    type: NodeType,
     mode: NodeMode,
   ): Promise<{ errors: NodeError[]; info: BlockchainInfo | undefined }> {
-    const client = this.allNodes[node][mode];
+    const client = this.allNodes.get(type)[mode];
 
     return client
       ? client
@@ -101,8 +183,8 @@ export class NodeService {
               info.blocks < info.headers - 10
                 ? [
                     {
-                      message: `${node} ${mode} node out of sync (blocks: ${info.blocks}, headers: ${info.headers})`,
-                      node,
+                      message: `${type} ${mode} node out of sync (blocks: ${info.blocks}, headers: ${info.headers})`,
+                      nodeType: type,
                       mode,
                     },
                   ]
@@ -110,7 +192,7 @@ export class NodeService {
             info,
           }))
           .catch(() => ({
-            errors: [{ message: `Failed to get ${node} ${mode} node infos`, node, mode }],
+            errors: [{ message: `Failed to get ${type} ${mode} node infos`, nodeType: type, mode }],
             info: undefined,
           }))
       : { errors: [], info: undefined };
@@ -129,79 +211,6 @@ export class NodeService {
     if (mailMessages.length > 0) {
       await this.mailService.sendErrorMail('Node Error', mailMessages);
     }
-  }
-
-  private initAllNodes(scheduler: SchedulerRegistry): void {
-    const { set } = this.allNodes;
-
-    set(NodeType.INPUT, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.inp.active, scheduler),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.inp.passive, scheduler),
-    });
-
-    set(NodeType.DEX, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.dex.active, scheduler),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.dex.passive, scheduler),
-    });
-
-    set(NodeType.OUTPUT, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.out.active, scheduler),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.out.passive, scheduler),
-    });
-
-    set(NodeType.INT, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.int.active, scheduler),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.int.passive, scheduler),
-    });
-
-    set(NodeType.REF, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.ref.active, scheduler),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.ref.passive, scheduler),
-    });
-  }
-
-  private initConnectedNodes(): void {
-    const { set } = this.connectedNodes;
-
-    set(
-      NodeType.INPUT,
-      new BehaviorSubject({
-        client: this.allNodes.get(NodeType.INPUT)[NodeMode.ACTIVE],
-        mode: NodeMode.ACTIVE,
-      }),
-    );
-
-    set(
-      NodeType.DEX,
-      new BehaviorSubject({
-        client: this.allNodes.get(NodeType.DEX)[NodeMode.ACTIVE],
-        mode: NodeMode.ACTIVE,
-      }),
-    );
-
-    set(
-      NodeType.OUTPUT,
-      new BehaviorSubject({
-        client: this.allNodes.get(NodeType.OUTPUT)[NodeMode.ACTIVE],
-        mode: NodeMode.ACTIVE,
-      }),
-    );
-
-    set(
-      NodeType.INT,
-      new BehaviorSubject({
-        client: this.allNodes.get(NodeType.INT)[NodeMode.ACTIVE],
-        mode: NodeMode.ACTIVE,
-      }),
-    );
-
-    set(
-      NodeType.REF,
-      new BehaviorSubject({
-        client: this.allNodes.get(NodeType.REF)[NodeMode.ACTIVE],
-        mode: NodeMode.ACTIVE,
-      }),
-    );
   }
 
   private validateConnectedNodes(errors: NodeError[] = []): MailMessage[] {
@@ -244,6 +253,12 @@ export class NodeService {
 
         return;
       }
+
+      if (passiveNodeError && connectedNode?.mode === NodeMode.ACTIVE) {
+        mailMessages.push(`WARN. Node '${type}' Passive mode is down. Active mode remains up.`);
+
+        return;
+      }
     });
 
     return mailMessages;
@@ -263,6 +278,6 @@ export class NodeService {
   }
 
   private swapNode(type: NodeType, mode: NodeMode) {
-    this.connectedNodes.get(type)?.next({ client: this.allNodes[type][mode], mode });
+    this.connectedNodes.get(type)?.next({ client: this.allNodes.get(type)[mode], mode });
   }
 }
