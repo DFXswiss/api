@@ -1,6 +1,7 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Interval, SchedulerRegistry } from '@nestjs/schedule';
+import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
@@ -19,15 +20,15 @@ export enum NodeMode {
   PASSIVE = 'passive',
 }
 
+export interface Node {
+  client: NodeClient;
+  mode: NodeMode;
+}
+
 interface NodeError {
   message: string;
   nodeType: NodeType;
   mode?: NodeMode;
-}
-
-interface Node {
-  client: NodeClient;
-  mode: NodeMode;
 }
 
 type MailMessage = string;
@@ -35,7 +36,7 @@ type MailMessage = string;
 @Injectable()
 export class NodeService {
   private readonly allNodes: Map<NodeType, Record<NodeMode, NodeClient>> = new Map();
-  private readonly connectedNodes: Map<NodeType, Node> = new Map();
+  private readonly connectedNodes: Map<NodeType, BehaviorSubject<Node>> = new Map();
 
   constructor(
     private readonly http: HttpService,
@@ -59,11 +60,11 @@ export class NodeService {
     this.handleNodeErrors(errors);
   }
 
-  getClient(type: NodeType): NodeClient {
+  getNode(type: NodeType): Observable<Node> {
     const node = this.connectedNodes.get(type);
 
-    if (node?.client) {
-      return node.client;
+    if (node) {
+      return node.asObservable();
     }
 
     throw new BadRequestException(`No node for type '${type}'`);
@@ -162,30 +163,45 @@ export class NodeService {
   private initConnectedNodes(): void {
     const { set } = this.connectedNodes;
 
-    set(NodeType.INPUT, {
-      client: this.allNodes.get(NodeType.INPUT)[NodeMode.ACTIVE],
-      mode: NodeMode.ACTIVE,
-    });
+    set(
+      NodeType.INPUT,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.INPUT)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
 
-    set(NodeType.DEX, {
-      client: this.allNodes.get(NodeType.DEX)[NodeMode.ACTIVE],
-      mode: NodeMode.ACTIVE,
-    });
+    set(
+      NodeType.DEX,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.DEX)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
 
-    set(NodeType.OUTPUT, {
-      client: this.allNodes.get(NodeType.OUTPUT)[NodeMode.ACTIVE],
-      mode: NodeMode.ACTIVE,
-    });
+    set(
+      NodeType.OUTPUT,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.OUTPUT)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
 
-    set(NodeType.INT, {
-      client: this.allNodes.get(NodeType.INT)[NodeMode.ACTIVE],
-      mode: NodeMode.ACTIVE,
-    });
+    set(
+      NodeType.INT,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.INT)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
 
-    set(NodeType.REF, {
-      client: this.allNodes.get(NodeType.REF)[NodeMode.ACTIVE],
-      mode: NodeMode.ACTIVE,
-    });
+    set(
+      NodeType.REF,
+      new BehaviorSubject({
+        client: this.allNodes.get(NodeType.REF)[NodeMode.ACTIVE],
+        mode: NodeMode.ACTIVE,
+      }),
+    );
   }
 
   private validateConnectedNodes(errors: NodeError[] = []): MailMessage[] {
@@ -193,7 +209,7 @@ export class NodeService {
     const errorsByNodes = this.batchErrorsByNodes(errors);
 
     errorsByNodes.forEach((errors: NodeError[] = [], type: NodeType) => {
-      const connectedNode = this.connectedNodes.get(type);
+      const { value: connectedNode } = this.connectedNodes.get(type);
 
       const activeNodeError = errors.find((e) => e.mode === NodeMode.ACTIVE);
       const passiveNodeError = errors.find((e) => e.mode === NodeMode.PASSIVE);
@@ -247,8 +263,6 @@ export class NodeService {
   }
 
   private swapNode(type: NodeType, mode: NodeMode) {
-    // rework to subscriptions to avoid silent exchange
-    this.connectedNodes[type].client = this.allNodes[type][mode];
-    this.connectedNodes[type].mode = mode;
+    this.connectedNodes.get(type)?.next({ client: this.allNodes[type][mode], mode });
   }
 }

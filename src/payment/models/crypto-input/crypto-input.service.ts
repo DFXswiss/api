@@ -31,9 +31,9 @@ interface HistoryAmount {
 @Injectable()
 export class CryptoInputService {
   private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
-
-  private readonly client: NodeClient;
   private readonly lock = new Lock(1800);
+
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -43,7 +43,13 @@ export class CryptoInputService {
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
   ) {
-    this.client = nodeService.getClient(NodeType.INPUT);
+    nodeService.getNode(NodeType.INPUT).subscribe((node) => {
+      if (this.client) {
+        console.log(`CryptoInputService received a new Node: ${NodeType.INPUT}, Mode: ${node.mode}`);
+      }
+
+      this.client = node.client;
+    });
   }
 
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {

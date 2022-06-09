@@ -16,7 +16,7 @@ import { NodeClient } from 'src/ain/node/node-client';
 
 @Injectable()
 export class StakingRefRewardService {
-  private readonly client: NodeClient;
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -27,7 +27,13 @@ export class StakingRefRewardService {
     private readonly binanceService: BinanceService,
     private readonly mailService: MailService,
   ) {
-    this.client = nodeService.getClient(NodeType.REF);
+    nodeService.getNode(NodeType.REF).subscribe((node) => {
+      if (this.client) {
+        console.log(`StakingRefRewardService received a new Node: ${NodeType.REF}, Mode: ${node.mode}`);
+      }
+
+      this.client = node.client;
+    });
   }
 
   async create(staking: Staking): Promise<void> {

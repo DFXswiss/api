@@ -22,7 +22,7 @@ import { StakingRepository } from '../staking/staking.repository';
 
 @Injectable()
 export class CryptoStakingService {
-  private readonly client: NodeClient;
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -33,7 +33,13 @@ export class CryptoStakingService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly stakingRepo: StakingRepository,
   ) {
-    this.client = nodeService.getClient(NodeType.INPUT);
+    nodeService.getNode(NodeType.INPUT).subscribe((node) => {
+      if (this.client) {
+        console.log(`CryptoStakingService received a new Node: ${NodeType.INPUT}, Mode: ${node.mode}`);
+      }
+
+      this.client = node.client;
+    });
   }
 
   // --- CRUD --- //
