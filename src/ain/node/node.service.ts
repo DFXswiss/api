@@ -31,68 +31,23 @@ interface NodeError {
   mode?: NodeMode;
 }
 
+interface Node {
+  client: NodeClient;
+  mode: NodeMode;
+}
+
 @Injectable()
 export class NodeService {
-  private readonly urls: Record<NodeType, Record<NodeMode, string>>;
-  private readonly clients: Record<NodeType, Record<NodeMode, NodeClient | undefined>>;
-
-  private readonly nodePool: Record<NodeType, Record<NodeMode, NodeClient | undefined>>;
-  private readonly activeNodes: Record<NodeType, { node: NodeClient; mode: NodeMode }>;
+  private readonly nodePool: Record<NodeType, Record<NodeMode, NodeClient>>;
+  private readonly clients: Record<NodeType, Node>;
 
   constructor(
     private readonly http: HttpService,
     private readonly mailService: MailService,
     scheduler: SchedulerRegistry,
   ) {
-    this.urls = this.defineUrls();
     this.nodePool = this.createNodePool(scheduler);
-    this.activeNodes = this.setDefaultActiveNodes();
-
-    this.urls = {
-      [NodeType.INPUT]: {
-        [NodeMode.ACTIVE]: Config.node.inp.active,
-        [NodeMode.PASSIVE]: Config.node.inp.passive,
-      },
-      [NodeType.DEX]: {
-        [NodeMode.ACTIVE]: Config.node.dex.active,
-        [NodeMode.PASSIVE]: Config.node.dex.passive,
-      },
-      [NodeType.OUTPUT]: {
-        [NodeMode.ACTIVE]: Config.node.out.active,
-        [NodeMode.PASSIVE]: Config.node.out.passive,
-      },
-      [NodeType.INT]: {
-        [NodeMode.ACTIVE]: Config.node.int.active,
-        [NodeMode.PASSIVE]: Config.node.int.passive,
-      },
-      [NodeType.REF]: {
-        [NodeMode.ACTIVE]: Config.node.ref.active,
-        [NodeMode.PASSIVE]: Config.node.ref.passive,
-      },
-    };
-
-    this.clients = {
-      [NodeType.INPUT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.DEX]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.DEX, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.DEX, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.OUTPUT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.INT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INT, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INT, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.REF]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.REF, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.REF, NodeMode.PASSIVE, scheduler),
-      },
-    };
+    this.clients = this.setDefaultClients();
   }
 
   @Interval(900000)
@@ -105,32 +60,20 @@ export class NodeService {
       this.checkNode(NodeType.REF),
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
 
-    if (errors.length > 0) {
-      console.error(`Node errors:`, errors);
-      this.resetActiveNodes(errors);
-      await this.mailService.sendErrorMail(
-        'Node Error',
-        errors.map((e) => e.message),
-      );
-    }
+    this.handleNodeErrors(errors);
   }
 
-  getClient(node: NodeType, mode: NodeMode): NodeClient {
-    const client = this.clients[node][mode];
-    if (client) {
-      return client;
+  getClient(type: NodeType): NodeClient {
+    const node = this.clients[type];
+
+    if (node?.client) {
+      return node.client;
     }
 
-    throw new BadRequestException(`No node for type '${node}' and mode '${mode}'`);
+    throw new BadRequestException(`No node for type '${type}'`);
   }
 
   // --- HELPER METHODS --- //
-
-  // utility
-  createNodeClient(node: NodeType, mode: NodeMode, scheduler: SchedulerRegistry): NodeClient | undefined {
-    return this.urls[node][mode] ? new NodeClient(this.http, this.urls[node][mode], scheduler) : undefined;
-  }
-
   // health checks
   private async checkNode(node: NodeType): Promise<NodeError[]> {
     return Promise.all([this.getNodeErrors(node, NodeMode.ACTIVE), this.getNodeErrors(node, NodeMode.PASSIVE)]).then(
@@ -153,7 +96,7 @@ export class NodeService {
     node: NodeType,
     mode: NodeMode,
   ): Promise<{ errors: NodeError[]; info: BlockchainInfo | undefined }> {
-    const client = this.clients[node][mode];
+    const client = this.nodePool[node][mode];
     return client
       ? client
           .getInfo()
@@ -178,82 +121,70 @@ export class NodeService {
       : { errors: [], info: undefined };
   }
 
-  private defineUrls(): Record<NodeType, Record<NodeMode, string>> {
+  private async handleNodeErrors(errors: NodeError[]) {
+    if (errors.length > 0) {
+      console.error(`Node errors:`, errors);
+
+      this.checkClients(errors);
+
+      await this.mailService.sendErrorMail(
+        'Node Error',
+        errors.map((e) => e.message),
+      );
+    }
+  }
+
+  private createNodePool(scheduler: SchedulerRegistry): Record<NodeType, Record<NodeMode, NodeClient>> {
     return {
       [NodeType.INPUT]: {
-        [NodeMode.ACTIVE]: Config.node.inp.active,
-        [NodeMode.PASSIVE]: Config.node.inp.passive,
+        [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.inp.active, scheduler),
+        [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.inp.passive, scheduler),
       },
       [NodeType.DEX]: {
-        [NodeMode.ACTIVE]: Config.node.dex.active,
-        [NodeMode.PASSIVE]: Config.node.dex.passive,
+        [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.dex.active, scheduler),
+        [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.dex.passive, scheduler),
       },
       [NodeType.OUTPUT]: {
-        [NodeMode.ACTIVE]: Config.node.out.active,
-        [NodeMode.PASSIVE]: Config.node.out.passive,
+        [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.out.active, scheduler),
+        [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.out.passive, scheduler),
       },
       [NodeType.INT]: {
-        [NodeMode.ACTIVE]: Config.node.int.active,
-        [NodeMode.PASSIVE]: Config.node.int.passive,
+        [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.int.active, scheduler),
+        [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.int.passive, scheduler),
       },
       [NodeType.REF]: {
-        [NodeMode.ACTIVE]: Config.node.ref.active,
-        [NodeMode.PASSIVE]: Config.node.ref.passive,
+        [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.ref.active, scheduler),
+        [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.ref.passive, scheduler),
       },
     };
   }
 
-  private createNodePool(scheduler: SchedulerRegistry): Record<NodeType, Record<NodeMode, NodeClient | undefined>> {
+  private setDefaultClients(): Record<NodeType, Node> {
     return {
       [NodeType.INPUT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INPUT, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.DEX]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.DEX, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.DEX, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.OUTPUT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.OUTPUT, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.INT]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.INT, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.INT, NodeMode.PASSIVE, scheduler),
-      },
-      [NodeType.REF]: {
-        [NodeMode.ACTIVE]: this.createNodeClient(NodeType.REF, NodeMode.ACTIVE, scheduler),
-        [NodeMode.PASSIVE]: this.createNodeClient(NodeType.REF, NodeMode.PASSIVE, scheduler),
-      },
-    };
-  }
-
-  private setDefaultActiveNodes(): Record<NodeType, { node: NodeClient; mode: NodeMode }> {
-    return {
-      [NodeType.INPUT]: {
-        node: this.nodePool.inp.active,
+        client: this.nodePool.inp.active,
         mode: NodeMode.ACTIVE,
       },
       [NodeType.DEX]: {
-        node: this.nodePool.dex.active,
+        client: this.nodePool.inp.active,
         mode: NodeMode.ACTIVE,
       },
       [NodeType.OUTPUT]: {
-        node: this.nodePool.out.active,
+        client: this.nodePool.inp.active,
         mode: NodeMode.ACTIVE,
       },
       [NodeType.INT]: {
-        node: this.nodePool.int.active,
+        client: this.nodePool.inp.active,
         mode: NodeMode.ACTIVE,
       },
       [NodeType.REF]: {
-        node: this.nodePool.ref.active,
+        client: this.nodePool.inp.active,
         mode: NodeMode.ACTIVE,
       },
     };
   }
 
-  private resetActiveNodes(errors: NodeError[] = []) {
+  private checkClients(errors: NodeError[] = []) {
     // if no errors, check if there are some passive nodes that need to be switched back to active
     // after check and if needed switch back to active (and sending mail) -> return
 
@@ -266,11 +197,9 @@ export class NodeService {
     // if only passive down && activeNode is set to passive - switch to active
 
     if (errors.length === 0) {
-      Object.keys(this.activeNodes).forEach((nodeType: NodeType) => {
-        if (this.activeNodes[nodeType].mode === NodeMode.PASSIVE) {
-          // extract to a function
-          this.activeNodes[nodeType].node = this.nodePool[nodeType][NodeMode.ACTIVE];
-          this.activeNodes[nodeType].mode = NodeMode.ACTIVE;
+      Object.keys(this.clients).forEach((nodeType: NodeType) => {
+        if (this.clients[nodeType].mode === NodeMode.PASSIVE) {
+          this.swapNode(nodeType, NodeMode.ACTIVE);
         }
 
         // append email message
@@ -285,7 +214,7 @@ export class NodeService {
         const activeNodeError = errors.find((e) => e.node === error.node && e.mode === NodeMode.ACTIVE);
         const passiveNodeError = errors.find((e) => e.node === error.node && e.mode === NodeMode.PASSIVE);
 
-        const currentActiveNode = this.activeNodes[error.node];
+        const currentActiveNode = this.clients[error.node];
 
         if (activeNodeError && passiveNodeError) {
           // warn - will be added twice in current setup
@@ -294,21 +223,22 @@ export class NodeService {
         }
 
         if (activeNodeError && currentActiveNode?.mode === NodeMode.ACTIVE) {
-          // extract to a function
-          currentActiveNode.node = this.nodePool[error.node][NodeMode.PASSIVE];
-          currentActiveNode.mode = NodeMode.PASSIVE;
+          this.swapNode(error.node, NodeMode.PASSIVE);
           // append email message - both are down - ALERT!
           return;
         }
 
         if (passiveNodeError && currentActiveNode?.mode === NodeMode.PASSIVE) {
-          // extract to a function
-          currentActiveNode.node = this.nodePool[error.node][NodeMode.ACTIVE];
-          currentActiveNode.mode = NodeMode.ACTIVE;
+          this.swapNode(error.node, NodeMode.ACTIVE);
           // append email message - both are down - ALERT!
           return;
         }
       }
     });
+  }
+
+  private swapNode(type: NodeType, mode: NodeMode) {
+    this.clients[type].client = this.nodePool[type][mode];
+    this.clients[type].mode = mode;
   }
 }
