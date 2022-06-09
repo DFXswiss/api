@@ -210,7 +210,7 @@ export class NodeService {
 
     // errors would be nice to have as a map I guess, otherwise need to pop second error if any which is ugly
     errors.forEach((error) => {
-      if (error.type === NodeErrorType.DOWN) {
+      if (error.type === NodeErrorType.DOWN && error.type === NodeErrorType.NOT_IN_SYNC) {
         const activeNodeError = errors.find((e) => e.node === error.node && e.mode === NodeMode.ACTIVE);
         const passiveNodeError = errors.find((e) => e.node === error.node && e.mode === NodeMode.PASSIVE);
 
