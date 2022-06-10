@@ -32,21 +32,21 @@ type MailMessage = string;
 export class NodeService {
   #allNodesUp = true;
 
-  private readonly allNodes: Map<NodeType, Record<NodeMode, NodeClient>> = new Map();
-  private readonly connectedNodes: Map<NodeType, BehaviorSubject<NodeClient>> = new Map();
+  private readonly allNodes: Map<NodeType, Record<NodeMode, NodeClient | null>> = new Map();
+  private readonly connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
 
   constructor(
     private readonly http: HttpService,
     private readonly mailService: MailService,
-    scheduler: SchedulerRegistry,
+    private readonly scheduler: SchedulerRegistry,
   ) {
-    this.initAllNodes(scheduler);
+    this.initAllNodes();
     this.initConnectedNodes();
   }
 
   // --- JOBS --- //
 
-  @Interval(60000)
+  @Interval(5000)
   async checkNodes(): Promise<void> {
     const errors = await Promise.all([
       this.checkNodePair(NodeType.INPUT),
@@ -62,10 +62,10 @@ export class NodeService {
   // --- PUBLIC API --- //
 
   getConnectedNode(type: NodeType): Observable<NodeClient> {
-    const node = this.connectedNodes.get(type);
+    const client = this.connectedNodes.get(type);
 
-    if (node) {
-      return node.asObservable();
+    if (client) {
+      return client.asObservable();
     }
 
     throw new BadRequestException(`No node for type '${type}'`);
@@ -83,39 +83,66 @@ export class NodeService {
 
   // --- INIT METHODS --- //
 
-  private initAllNodes(scheduler: SchedulerRegistry): void {
+  private initAllNodes(): void {
     this.allNodes.set(NodeType.INPUT, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.inp.active, scheduler, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.inp.passive, scheduler, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.inp.active, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.inp.passive, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.DEX, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.dex.active, scheduler, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.dex.passive, scheduler, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.dex.active, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.dex.passive, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.OUTPUT, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.out.active, scheduler, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.out.passive, scheduler, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.out.active, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.out.passive, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.INT, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.int.active, scheduler, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.int.passive, scheduler, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.int.active, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.int.passive, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.REF, {
-      [NodeMode.ACTIVE]: new NodeClient(this.http, Config.node.ref.active, scheduler, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: new NodeClient(this.http, Config.node.ref.passive, scheduler, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.ref.active, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.ref.passive, NodeMode.PASSIVE),
     });
   }
 
+  private createNodeClient(url: string | undefined, mode: NodeMode): NodeClient | null {
+    return url ? new NodeClient(this.http, url, this.scheduler, mode) : null;
+  }
+
   private initConnectedNodes(): void {
-    this.connectedNodes.set(NodeType.INPUT, new BehaviorSubject(this.allNodes.get(NodeType.INPUT)[NodeMode.ACTIVE]));
-    this.connectedNodes.set(NodeType.DEX, new BehaviorSubject(this.allNodes.get(NodeType.DEX)[NodeMode.ACTIVE]));
-    this.connectedNodes.set(NodeType.OUTPUT, new BehaviorSubject(this.allNodes.get(NodeType.OUTPUT)[NodeMode.ACTIVE]));
-    this.connectedNodes.set(NodeType.INT, new BehaviorSubject(this.allNodes.get(NodeType.INT)[NodeMode.ACTIVE]));
-    this.connectedNodes.set(NodeType.REF, new BehaviorSubject(this.allNodes.get(NodeType.REF)[NodeMode.ACTIVE]));
+    this.connectedNodes.set(NodeType.INPUT, this.setConnectedNode(NodeType.INPUT));
+    this.connectedNodes.set(NodeType.DEX, this.setConnectedNode(NodeType.DEX));
+    this.connectedNodes.set(NodeType.OUTPUT, this.setConnectedNode(NodeType.OUTPUT));
+    this.connectedNodes.set(NodeType.INT, this.setConnectedNode(NodeType.INT));
+    this.connectedNodes.set(NodeType.REF, this.setConnectedNode(NodeType.REF));
+  }
+
+  private setConnectedNode(type: NodeType): BehaviorSubject<NodeClient | null> {
+    const active = this.isNodeClientAvailable(type, NodeMode.ACTIVE);
+    const passive = this.isNodeClientAvailable(type, NodeMode.PASSIVE);
+
+    if (active) {
+      if (!passive) {
+        console.warn(`Warning. Node ${type} passive is not available in NodeClient pool`);
+      }
+
+      return new BehaviorSubject(this.allNodes.get(type)[NodeMode.ACTIVE]);
+    }
+
+    if (passive && !active) {
+      console.warn(`Warning. Node ${type} active is not available in NodeClient pool. Falling back to passive`);
+      return new BehaviorSubject(this.allNodes.get(type)[NodeMode.PASSIVE]);
+    }
+
+    if (!active && !passive) {
+      console.warn(`Warning. Node ${type} both active and passive are not available in NodeClient pool`);
+      return null;
+    }
   }
 
   // --- HELPER METHODS --- //
@@ -196,9 +223,9 @@ export class NodeService {
     }
   }
 
-  private validateConnectedNodes(errors: NodeError[] = []): MailMessage[] {
+  private validateConnectedNodes(_errors: NodeError[] = []): MailMessage[] {
     const mailMessages = [];
-    const errorsByNodes = this.batchErrorsByNodes(errors);
+    const errorsByNodes = this.batchErrorsByNodes(_errors);
 
     errorsByNodes.forEach((errors: NodeError[] = [], type: NodeType) => {
       const { value: connectedNode } = this.connectedNodes.get(type);
@@ -206,13 +233,18 @@ export class NodeService {
       const activeNodeError = errors.find((e) => e.mode === NodeMode.ACTIVE);
       const passiveNodeError = errors.find((e) => e.mode === NodeMode.PASSIVE);
 
-      if (errors.length === 0 && connectedNode.mode === NodeMode.ACTIVE) {
+      if (!connectedNode || (errors.length === 0 && connectedNode.mode === NodeMode.ACTIVE)) {
         return;
       }
 
-      if (errors.length === 0 && connectedNode.mode === NodeMode.PASSIVE) {
-        console.log(`Node ${type} active is back up and running!`);
+      if (
+        errors.length === 0 &&
+        connectedNode.mode === NodeMode.PASSIVE &&
+        this.isNodeClientAvailable(type, NodeMode.ACTIVE)
+      ) {
         this.swapNode(type, NodeMode.ACTIVE);
+
+        console.log(`Node ${type} active is back up and running!`);
         mailMessages.push(`OK. Node '${type}' switched back to Active, Passive remains up.`);
 
         return;
@@ -225,15 +257,27 @@ export class NodeService {
       }
 
       if (activeNodeError && connectedNode?.mode === NodeMode.ACTIVE) {
-        this.swapNode(type, NodeMode.PASSIVE);
-        mailMessages.push(`WARN. Node '${type}' switched to Passive, Active is down.`);
+        if (this.isNodeClientAvailable(type, NodeMode.PASSIVE)) {
+          this.swapNode(type, NodeMode.PASSIVE);
+          mailMessages.push(`WARN. Node '${type}' switched to Passive, Active is down.`);
+        } else {
+          mailMessages.push(
+            `ALERT!. Node '${type}' is fully down. Active is down, Passive is not available in the NodeClient pool`,
+          );
+        }
 
         return;
       }
 
       if (passiveNodeError && connectedNode?.mode === NodeMode.PASSIVE) {
-        this.swapNode(type, NodeMode.ACTIVE);
-        mailMessages.push(`WARN. Node '${type}' switched to Active, Passive is down.`);
+        if (this.isNodeClientAvailable(type, NodeMode.ACTIVE)) {
+          this.swapNode(type, NodeMode.ACTIVE);
+          mailMessages.push(`WARN. Node '${type}' switched to Active, Passive is down.`);
+        } else {
+          mailMessages.push(
+            `ALERT!. Node '${type}' is fully down. Passive is down, Active is not available in the NodeClient pool`,
+          );
+        }
 
         return;
       }
@@ -259,6 +303,10 @@ export class NodeService {
     });
 
     return batch;
+  }
+
+  private isNodeClientAvailable(type: NodeType, mode: NodeMode): boolean {
+    return !!this.allNodes.get(type)[mode];
   }
 
   private swapNode(type: NodeType, mode: NodeMode): void {
