@@ -165,10 +165,13 @@ export class CryptoInputService {
 
     newInputs.length > 0 && console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
 
-    const savedInputs = await this.cryptoInputRepo.save(newInputs);
-
-    // create staking entities
-    this.createStaking(savedInputs);
+    // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
+    for (const input of newInputs) {
+      await this.cryptoInputRepo.save(input);
+      if (input?.route.type === RouteType.STAKING) {
+        await this.cryptoStakingService.create(input);
+      }
+    }
   }
 
   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
@@ -289,17 +292,6 @@ export class CryptoInputService {
       // re-throw error, likely input related
       throw e;
     }
-  }
-
-  private async createStaking(inputs: CryptoInput[]): Promise<CryptoInput[]> {
-    // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
-    for (const input of inputs) {
-      if (input?.route.type === RouteType.STAKING) {
-        await this.cryptoStakingService.create(input);
-      }
-    }
-
-    return inputs;
   }
 
   private async forwardInputs(): Promise<void> {
