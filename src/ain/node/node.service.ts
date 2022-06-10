@@ -71,7 +71,7 @@ export class NodeService {
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
-  getNodeClientFromPool(type: NodeType, mode: NodeMode): NodeClient {
+  getNodeFromPool(type: NodeType, mode: NodeMode): NodeClient {
     const client = this.allNodes.get(type)[mode];
 
     if (client) {
@@ -167,7 +167,7 @@ export class NodeService {
     return result;
   }
 
-  private handleNodeCheckError(type: NodeType, mode: NodeMode) {
+  private handleNodeCheckError(type: NodeType, mode: NodeMode): NodeCheckResult {
     return {
       errors: [{ message: `Failed to get ${type} ${mode} node infos`, nodeType: type, mode }],
       info: undefined,
@@ -261,7 +261,7 @@ export class NodeService {
     return batch;
   }
 
-  private swapNode(type: NodeType, mode: NodeMode) {
+  private swapNode(type: NodeType, mode: NodeMode): void {
     console.log(`Swapped node ${type} to ${mode}`);
     this.connectedNodes.get(type)?.next(this.allNodes.get(type)[mode]);
   }
