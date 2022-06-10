@@ -46,7 +46,7 @@ export class NodeService {
 
   // --- JOBS --- //
 
-  @Interval(5000)
+  @Interval(60000)
   async checkNodes(): Promise<void> {
     const errors = await Promise.all([
       this.checkNodePair(NodeType.INPUT),
@@ -237,15 +237,13 @@ export class NodeService {
         return;
       }
 
-      if (
-        errors.length === 0 &&
-        connectedNode.mode === NodeMode.PASSIVE &&
-        this.isNodeClientAvailable(type, NodeMode.ACTIVE)
-      ) {
-        this.swapNode(type, NodeMode.ACTIVE);
+      if (errors.length === 0 && connectedNode.mode === NodeMode.PASSIVE) {
+        try {
+          this.swapNode(type, NodeMode.ACTIVE);
 
-        console.log(`Node ${type} active is back up and running!`);
-        mailMessages.push(`OK. Node '${type}' switched back to Active, Passive remains up.`);
+          console.log(`Node ${type} active is back up and running!`);
+          mailMessages.push(`OK. Node '${type}' switched back to Active, Passive remains up.`);
+        } catch {}
 
         return;
       }
@@ -257,10 +255,10 @@ export class NodeService {
       }
 
       if (activeNodeError && connectedNode?.mode === NodeMode.ACTIVE) {
-        if (this.isNodeClientAvailable(type, NodeMode.PASSIVE)) {
+        try {
           this.swapNode(type, NodeMode.PASSIVE);
           mailMessages.push(`WARN. Node '${type}' switched to Passive, Active is down.`);
-        } else {
+        } catch {
           mailMessages.push(
             `ALERT!. Node '${type}' is fully down. Active is down, Passive is not available in the NodeClient pool`,
           );
@@ -270,10 +268,10 @@ export class NodeService {
       }
 
       if (passiveNodeError && connectedNode?.mode === NodeMode.PASSIVE) {
-        if (this.isNodeClientAvailable(type, NodeMode.ACTIVE)) {
+        try {
           this.swapNode(type, NodeMode.ACTIVE);
           mailMessages.push(`WARN. Node '${type}' switched to Active, Passive is down.`);
-        } else {
+        } catch {
           mailMessages.push(
             `ALERT!. Node '${type}' is fully down. Passive is down, Active is not available in the NodeClient pool`,
           );
@@ -310,7 +308,11 @@ export class NodeService {
   }
 
   private swapNode(type: NodeType, mode: NodeMode): void {
-    console.log(`Swapped node ${type} to ${mode}`);
-    this.connectedNodes.get(type)?.next(this.allNodes.get(type)[mode]);
+    if (this.isNodeClientAvailable(type, mode)) {
+      console.log(`Swapped node ${type} to ${mode}`);
+      this.connectedNodes.get(type)?.next(this.allNodes.get(type)[mode]);
+    } else {
+      throw new Error(`Tried to swap to node ${type} to ${mode}, but NodeClient is not available in the pool`);
+    }
   }
 }
