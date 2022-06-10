@@ -6,7 +6,8 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HttpError } from 'src/shared/services/http.service';
 import { CommandDto } from './dto/command.dto';
-import { NodeMode, NodeService, NodeType } from './node.service';
+import { NodeMode } from './node-client';
+import { NodeService, NodeType } from './node.service';
 
 @Controller('node')
 export class NodeController {

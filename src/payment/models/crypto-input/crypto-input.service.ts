@@ -43,13 +43,7 @@ export class CryptoInputService {
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
   ) {
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((node) => {
-      if (this.client) {
-        console.log(`CryptoInputService received a new Node: ${NodeType.INPUT}, Mode: ${node.mode}`);
-      }
-
-      this.client = node.client;
-    });
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {

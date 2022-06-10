@@ -33,13 +33,7 @@ export class CryptoStakingService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly stakingRepo: StakingRepository,
   ) {
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((node) => {
-      if (this.client) {
-        console.log(`CryptoStakingService received a new Node: ${NodeType.INPUT}, Mode: ${node.mode}`);
-      }
-
-      this.client = node.client;
-    });
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
   // --- CRUD --- //

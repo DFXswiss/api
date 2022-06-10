@@ -16,6 +16,11 @@ export enum NodeCommand {
   TEST_POOL_SWAP = 'testpoolswap',
 }
 
+export enum NodeMode {
+  ACTIVE = 'active',
+  PASSIVE = 'passive',
+}
+
 enum Chain {
   TEST = 'test',
   MAIN = 'main',
@@ -26,9 +31,17 @@ export class NodeClient {
   private readonly client: ApiClient;
   private readonly queue: QueueHandler;
 
-  constructor(private readonly http: HttpService, private readonly url: string, scheduler: SchedulerRegistry) {
+  readonly #mode: NodeMode;
+
+  constructor(
+    private readonly http: HttpService,
+    private readonly url: string,
+    scheduler: SchedulerRegistry,
+    mode: NodeMode,
+  ) {
     this.client = this.createJellyfishClient();
     this.queue = new QueueHandler(scheduler, 65000);
+    this.#mode = mode;
 
     this.getChain()
       .then((c) => (this.chain = c))
@@ -241,5 +254,9 @@ export class NodeClient {
 
   private roundAmount(amount: number): number {
     return Util.round(amount, 8);
+  }
+
+  get mode(): NodeMode {
+    return this.#mode;
   }
 }

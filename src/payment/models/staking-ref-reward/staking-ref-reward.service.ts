@@ -27,13 +27,7 @@ export class StakingRefRewardService {
     private readonly binanceService: BinanceService,
     private readonly mailService: MailService,
   ) {
-    nodeService.getConnectedNode(NodeType.REF).subscribe((node) => {
-      if (this.client) {
-        console.log(`StakingRefRewardService received a new Node: ${NodeType.REF}, Mode: ${node.mode}`);
-      }
-
-      this.client = node.client;
-    });
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
   async create(staking: Staking): Promise<void> {

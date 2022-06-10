@@ -34,21 +34,8 @@ export class MonitoringService {
     private stakingRewardService: StakingRewardService,
     private cryptoStakingService: CryptoStakingService,
   ) {
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((node) => {
-      if (this.inpClient) {
-        console.log(`MonitoringService received a new Node: ${NodeType.INPUT}, Mode: ${node.mode}`);
-      }
-
-      this.inpClient = node.client;
-    });
-
-    nodeService.getConnectedNode(NodeType.REF).subscribe((node) => {
-      if (this.refClient) {
-        console.log(`MonitoringService received a new Node: ${NodeType.REF}, Mode: ${node.mode}`);
-      }
-
-      this.refClient = node.client;
-    });
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
   }
 
   async getStakingBalance(): Promise<{ actual: number; should: number; difference: number }> {
