@@ -141,7 +141,7 @@ export class NodeService {
 
     if (!active && !passive) {
       console.warn(`Warning. Node ${type} both active and passive are not available in NodeClient pool`);
-      return null;
+      return new BehaviorSubject(null);
     }
   }
 
