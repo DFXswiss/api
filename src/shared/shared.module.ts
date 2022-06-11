@@ -29,6 +29,7 @@ import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { DfiTaxService } from './services/dfi-tax.service';
 import { LetterService } from './services/letter.service';
+import { IbanService } from './services/iban.service';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { LetterService } from './services/letter.service';
     JwtStrategy,
     DfiTaxService,
     LetterService,
+    IbanService,
   ],
   exports: [
     PassportModule,
@@ -75,6 +77,7 @@ import { LetterService } from './services/letter.service';
     SettingService,
     DfiTaxService,
     LetterService,
+    IbanService,
   ],
 })
 export class SharedModule {}
