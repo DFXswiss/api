@@ -24,6 +24,9 @@ export class Buy extends IEntity {
   @Column({ default: true })
   active: boolean;
 
+  @Column({ nullable: true })
+  instantPayment: boolean;
+
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
 

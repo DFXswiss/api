@@ -12,6 +12,7 @@ import { StakingService } from '../staking/staking.service';
 import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
 import { Config } from 'src/config/config';
+import { IbanService } from 'src/shared/services/iban.service';
 
 @Injectable()
 export class BuyService {
@@ -20,6 +21,7 @@ export class BuyService {
     private readonly assetService: AssetService,
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
+    private readonly ibanService: IbanService,
   ) {}
 
   // --- VOLUMES --- //
@@ -84,6 +86,10 @@ export class BuyService {
       relations: ['deposit'],
     });
     if (existing) throw new ConflictException('Buy route already exists');
+
+    // get iban-info
+    const ibanDetails = await this.ibanService.getIbanInfos(dto.iban);
+    dto.instantPayment = ibanDetails.sct_inst == 'yes' ? true : ibanDetails.sct_inst == 'no' ? false : null;
 
     // create the entity
     const buy = this.buyRepo.create(dto);

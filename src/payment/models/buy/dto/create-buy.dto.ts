@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsObject, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsObject, IsOptional, ValidateIf } from 'class-validator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { StakingDto } from '../../staking/dto/staking.dto';
 import { BuyType } from './buy-type.enum';
@@ -26,4 +26,9 @@ export class CreateBuyDto {
   @IsNotEmpty()
   @IsObject()
   staking: StakingDto;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsBoolean()
+  instantPayment: boolean;
 }
