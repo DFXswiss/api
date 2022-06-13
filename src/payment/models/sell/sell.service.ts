@@ -12,6 +12,7 @@ import { KycService } from 'src/user/models/kyc/kyc.service';
 import { Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
+import { IbanService } from 'src/shared/services/iban.service';
 
 @Injectable()
 export class SellService {
@@ -22,6 +23,7 @@ export class SellService {
     private readonly stakingService: StakingService,
     private readonly kycService: KycService,
     private readonly userService: UserService,
+    private readonly ibanService: IbanService,
   ) {}
 
   async getSellByAddress(depositAddress: string): Promise<Sell> {
@@ -54,6 +56,10 @@ export class SellService {
     // check if exists
     const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
     if (existing) throw new ConflictException('Sell route already exists');
+
+    // get iban-info
+    const ibanDetails = await this.ibanService.getIbanInfos(dto.iban);
+    dto.instantPayment = ibanDetails.sct_inst == 'yes' ? true : ibanDetails.sct_inst == 'no' ? false : null;
 
     // create the entity
     const sell = this.sellRepo.create(dto);
