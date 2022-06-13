@@ -2,6 +2,7 @@ import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { Price } from '../exchange/dto/price.dto';
 
 export enum AmlCheck {
   PASS = 'Pass',
@@ -82,4 +83,19 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   refFactor: number;
+
+  defineAssetExchangePair(outputAsset: string): this {
+    // TODO - implement mapping rules
+    return this;
+  }
+
+  calculateOutputReferenceAmount(price: Price): this {
+    // TODO - implement calculation logic
+    return this;
+  }
+
+  calculateOutputAmount(price: Price): this {
+    // TODO - implement calculation logic
+    return this;
+  }
 }
