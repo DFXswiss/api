@@ -201,7 +201,7 @@ export class NodeService {
     };
   }
 
-  private async handleNodeErrors(errors: NodeError[]): Promise<void> {
+  private async handleNodeErrors(errors: NodeError[] = []): Promise<void> {
     if (errors.length > 0) {
       this.#allNodesUp = false;
 
@@ -211,7 +211,7 @@ export class NodeService {
     const mailMessages = this.validateConnectedNodes(errors);
 
     if (mailMessages.length > 0) {
-      await this.mailService.sendErrorMail('Node Error', mailMessages);
+      await this.mailService.sendErrorMail('Node Error', [...mailMessages, ...errors.map((e) => e.message)]);
     }
 
     if (errors.length === 0 && !this.#allNodesUp) {
