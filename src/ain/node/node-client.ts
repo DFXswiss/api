@@ -77,7 +77,7 @@ export class NodeClient {
 
   // UTXO
   get utxoFee(): number {
-    return this.chain === 'main' ? 0.00000132 : 0.0000222;
+    return this.chain === 'mainnet' ? 0.00000132 : 0.0000222;
   }
 
   async getUtxo(): Promise<UTXO[]> {
