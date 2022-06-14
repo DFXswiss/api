@@ -94,6 +94,25 @@
     "tests": []
   },
   {
+    "_id": "e0f8acd3-aeec-477b-98db-e7ebaa0e6460",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "bb196338-ee45-4c59-ad65-68bd4a3b2fdd",
+    "name": "Command Int Connected",
+    "url": "{{url}}/v1/node/dex/connected/cmd",
+    "method": "POST",
+    "sortNum": 80000,
+    "created": "2022-06-14T11:27:59.772Z",
+    "modified": "2022-06-14T11:28:14.580Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\"command\": \"listunspent\", \"noAutoUnlock\": false}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
     "_id": "39f53e71-a4af-4ee3-9c91-1bfbc185c117",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "bb196338-ee45-4c59-ad65-68bd4a3b2fdd",
