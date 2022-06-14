@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
-import { AmlCheck } from '../buy-crypto.entity';
+import { AmlCheck } from '../entities/buy-crypto.entity';
 
 export class UpdateBuyCryptoDto {
   @IsOptional()

@@ -1,8 +1,9 @@
 import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
-import { BankTx } from '../bank-tx/bank-tx.entity';
+import { BankTx } from '../../bank-tx/bank-tx.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Price } from '../exchange/dto/price.dto';
+import { Price } from '../../exchange/dto/price.dto';
+import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 
 export enum AmlCheck {
   PASS = 'Pass',
@@ -17,6 +18,9 @@ export class BuyCrypto extends IEntity {
 
   @ManyToOne(() => Buy, (buy) => buy.cryptoBuys, { nullable: false })
   buy: Buy;
+
+  @ManyToOne(() => BuyCryptoBatch, { nullable: true })
+  batch: BuyCryptoBatch;
 
   @Column({ type: 'float', nullable: true })
   inputAmount: number;

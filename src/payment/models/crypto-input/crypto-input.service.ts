@@ -19,7 +19,7 @@ import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 import { KycStatus } from 'src/user/models/user-data/user-data.entity';
-import { AmlCheck } from '../buy-crypto/buy-crypto.entity';
+import { AmlCheck } from '../buy-crypto/entities/buy-crypto.entity';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 
 interface HistoryAmount {
