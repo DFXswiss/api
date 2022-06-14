@@ -3,7 +3,7 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression, Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
-import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -31,9 +31,9 @@ interface HistoryAmount {
 @Injectable()
 export class CryptoInputService {
   private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
-
-  private readonly client: NodeClient;
   private readonly lock = new Lock(1800);
+
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -43,7 +43,7 @@ export class CryptoInputService {
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
   ) {
-    this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {

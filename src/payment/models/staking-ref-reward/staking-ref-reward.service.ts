@@ -11,12 +11,12 @@ import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { KrakenService } from '../exchange/kraken.service';
 import { BinanceService } from '../exchange/binance.service';
-import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { NodeClient } from 'src/ain/node/node-client';
 
 @Injectable()
 export class StakingRefRewardService {
-  private readonly client: NodeClient;
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -27,7 +27,7 @@ export class StakingRefRewardService {
     private readonly binanceService: BinanceService,
     private readonly mailService: MailService,
   ) {
-    this.client = nodeService.getClient(NodeType.REF, NodeMode.ACTIVE);
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
   async create(staking: Staking): Promise<void> {
