@@ -123,6 +123,12 @@ export class Configuration {
     },
   };
 
+  contact = {
+    supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
+    monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
+    noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
+  };
+
   whale = {
     version: 'v0',
     network: this.network,

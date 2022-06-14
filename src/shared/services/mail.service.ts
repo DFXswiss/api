@@ -29,9 +29,9 @@ interface KycMailContent {
 
 @Injectable()
 export class MailService {
-  private readonly supportMail = 'support@dfx.swiss';
-  private readonly monitoringMail = 'monitoring@dfx.swiss';
-  private readonly noReplyMail = 'noreply@dfx.swiss';
+  private readonly supportMail = Config.contact.supportMail;
+  private readonly monitoringMail = Config.contact.monitoringMail;
+  private readonly noReplyMail = Config.contact.noReplyMail;
   private readonly kycStatus = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
