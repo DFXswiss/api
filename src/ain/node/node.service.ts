@@ -71,6 +71,16 @@ export class NodeService {
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
+  getCurrentConnectedNode(type: NodeType): NodeClient {
+    const client = this.connectedNodes.get(type);
+
+    if (client) {
+      return client.getValue();
+    }
+
+    throw new BadRequestException(`No node for type '${type}'`);
+  }
+
   getNodeFromPool(type: NodeType, mode: NodeMode): NodeClient {
     const client = this.allNodes.get(type)[mode];
 
