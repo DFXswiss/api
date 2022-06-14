@@ -98,7 +98,7 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "bb196338-ee45-4c59-ad65-68bd4a3b2fdd",
     "name": "Command Int Connected",
-    "url": "{{url}}/v1/node/dex/connected/cmd",
+    "url": "{{url}}/v1/node/dex/cmd",
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-06-14T11:27:59.772Z",

@@ -13,22 +13,22 @@ import { NodeService, NodeType } from './node.service';
 export class NodeController {
   constructor(private readonly nodeService: NodeService) {}
 
-  @Post(':node/connected/rpc')
+  @Post(':node/rpc')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async rpc(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Body() command: string): Promise<any> {
+  async rpc(@Param('node') node: NodeType, @Body() command: string): Promise<any> {
     return this.nodeService
       .getCurrentConnectedNode(node)
       .sendRpcCommand(command)
       .catch((error: HttpError) => error.response?.data);
   }
 
-  @Post(':node/connected/cmd')
+  @Post(':node/cmd')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async cmd(@Param('node') node: NodeType, @Param('mode') mode: NodeMode, @Body() dto: CommandDto): Promise<any> {
+  async cmd(@Param('node') node: NodeType, @Body() dto: CommandDto): Promise<any> {
     const client = this.nodeService.getCurrentConnectedNode(node);
 
     try {
@@ -38,15 +38,11 @@ export class NodeController {
     }
   }
 
-  @Get(':node/connected/tx/:txId')
+  @Get(':node/tx/:txId')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async waitForTx(
-    @Param('node') node: NodeType,
-    @Param('mode') mode: NodeMode,
-    @Param('txId') txId: string,
-  ): Promise<InWalletTransaction> {
+  async waitForTx(@Param('node') node: NodeType, @Param('txId') txId: string): Promise<InWalletTransaction> {
     return this.nodeService.getCurrentConnectedNode(node).waitForTx(txId);
   }
 

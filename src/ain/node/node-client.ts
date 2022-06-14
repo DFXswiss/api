@@ -246,10 +246,6 @@ export class NodeClient {
     return { Authorization: 'Basic ' + passwordHash };
   }
 
-  private async getChain(): Promise<string> {
-    return this.callNode((c) => c.blockchain.getBlockchainInfo()).then((i) => i.chain);
-  }
-
   private roundAmount(amount: number): number {
     return Util.round(amount, 8);
   }
