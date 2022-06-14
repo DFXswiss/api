@@ -21,13 +21,8 @@ export enum NodeMode {
   PASSIVE = 'passive',
 }
 
-enum Chain {
-  TEST = 'test',
-  MAIN = 'main',
-}
-
 export class NodeClient {
-  private chain: Chain = Chain.MAIN;
+  private chain = Config.network;
   private readonly client: ApiClient;
   private readonly queue: QueueHandler;
 
@@ -43,9 +38,7 @@ export class NodeClient {
     this.queue = new QueueHandler(scheduler, 65000);
     this.#mode = mode;
 
-    this.getChain()
-      .then((c) => (this.chain = c))
-      .catch((e) => console.error('Failed to get chain, defaulting to MainNet:', e));
+    this.getInfo().catch((e) => console.error('Failed to get chain info: ', e));
   }
 
   // common
@@ -84,7 +77,7 @@ export class NodeClient {
 
   // UTXO
   get utxoFee(): number {
-    return this.chain === Chain.MAIN ? 0.00000132 : 0.0000222;
+    return this.chain === 'main' ? 0.00000132 : 0.0000222;
   }
 
   async getUtxo(): Promise<UTXO[]> {
@@ -101,7 +94,12 @@ export class NodeClient {
 
   async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
     return this.callNode(
-      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee), addressTo], 'number'),
+      (c) =>
+        c.call(
+          NodeCommand.SEND_UTXO,
+          [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee), addressTo],
+          'number',
+        ),
       true,
     );
   }
@@ -248,8 +246,8 @@ export class NodeClient {
     return { Authorization: 'Basic ' + passwordHash };
   }
 
-  private async getChain(): Promise<Chain> {
-    return this.callNode((c) => c.blockchain.getBlockchainInfo()).then((i) => i.chain as Chain);
+  private async getChain(): Promise<string> {
+    return this.callNode((c) => c.blockchain.getBlockchainInfo()).then((i) => i.chain);
   }
 
   private roundAmount(amount: number): number {
