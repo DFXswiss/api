@@ -523,16 +523,16 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
     "name": "Create Masternode",
-    "url": "{{url}}/v1/masternode",
-    "method": "POST",
+    "url": "{{url}}/v1/masternode/4/create",
+    "method": "PUT",
     "sortNum": 190000,
     "created": "2022-02-01T17:41:08.086Z",
-    "modified": "2022-03-26T14:44:56.016Z",
+    "modified": "2022-06-14T13:13:13.193Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"hash\": \"string5\",\n  \"owner\": \"string;\",\n  \"operator\": \"string;\",\n  \"server\": \"string;\",\n  \"timelock\": 0\n}",
+      "raw": "{\n  \"creationHash\": \"string5\",\n  \"creationDate\": \"2022-01-01\",\n  \"owner\": \"owner\",\n  \"timelock\": 0\n}",
       "form": []
     },
     "tests": []
@@ -787,16 +787,16 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
     "name": "Resign Masternode",
-    "url": "{{url}}/v1/masternode/string4",
+    "url": "{{url}}/v1/masternode/4/resign",
     "method": "PUT",
     "sortNum": 200000,
     "created": "2022-03-26T14:41:22.341Z",
-    "modified": "2022-03-26T14:43:26.438Z",
+    "modified": "2022-06-14T13:13:44.832Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"resignDate\": \"2022-04-01\",\n  \"resignHash\": \"resign4\"\n}",
+      "raw": "{\n  \"resignDate\": \"2022-04-01\",\n  \"resignHash\": \"resign 4\"\n}",
       "form": []
     },
     "tests": []
@@ -1012,6 +1012,20 @@
     "tests": []
   },
   {
+    "_id": "c56af162-5681-4d4c-8c8b-05de16534430",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
+    "name": "Get Masternodes",
+    "url": "{{url}}/v1/masternode",
+    "method": "GET",
+    "sortNum": 380000,
+    "created": "2022-06-08T10:26:56.667Z",
+    "modified": "2022-06-08T10:27:04.613Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
     "_id": "1d73b590-4edf-4e99-8dbb-e56d1a582631",
     "colId": "fe4684e3-a4f1-4bd6-8d2c-37af07de365b",
     "containerId": "",
@@ -1027,7 +1041,6 @@
       "type": "json",
       "raw": "{\"hex\":\"04000000000101b7280b37e1a7e66a3828e92137f1f319094fcbf1dd42e833b1deeb9de57a32170100000000ffffffff02081defa30b0000001600147713cba47625c239c09f36254d6bfd37a6b98bb10091949800000000001600141c5b16bc2dc3a9d87bd81b49a0e2f7f4bc6254290002473044022010ed907b9ffc22421a0918033de2e8acfdf1af45ecb549983b98c1bc5c9d79f9022076a307c35ef1a5894eb3502a3d3883e86f609f5e57c87379f6363e3abd39cf510121039a8c6ed7d007b1dbd3199ea1f62fc2c3229e93efaf4cb18200af793155fb4f2500000000\"}",
       "form": []
-    },
-    "tests": []
+    }
   }
 ]

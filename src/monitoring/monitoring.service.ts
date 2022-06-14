@@ -102,6 +102,6 @@ export class MonitoringService {
   }
 
   async getFreeOperators(): Promise<number> {
-    return await this.masternodeService.getFreeOperators();
+    return await this.masternodeService.getFreeOperatorCount();
   }
 }
