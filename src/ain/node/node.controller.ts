@@ -13,6 +13,50 @@ import { NodeService, NodeType } from './node.service';
 export class NodeController {
   constructor(private readonly nodeService: NodeService) {}
 
+  @Post(':node/connected/rpc')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async rpcConnected(
+    @Param('node') node: NodeType,
+    @Param('mode') mode: NodeMode,
+    @Body() command: string,
+  ): Promise<any> {
+    return this.nodeService
+      .getCurrentConnectedNode(node)
+      .sendRpcCommand(command)
+      .catch((error: HttpError) => error.response?.data);
+  }
+
+  @Post(':node/connected/cmd')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async cmdConnected(
+    @Param('node') node: NodeType,
+    @Param('mode') mode: NodeMode,
+    @Body() dto: CommandDto,
+  ): Promise<any> {
+    const client = this.nodeService.getCurrentConnectedNode(node);
+    try {
+      return await client.sendCliCommand(dto.command, dto.noAutoUnlock);
+    } catch (e) {
+      throw new BadRequestException(`Command failed: ${e.message}`);
+    }
+  }
+
+  @Get(':node/connected/tx/:txId')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async waitForTxConnected(
+    @Param('node') node: NodeType,
+    @Param('mode') mode: NodeMode,
+    @Param('txId') txId: string,
+  ): Promise<InWalletTransaction> {
+    return this.nodeService.getCurrentConnectedNode(node).waitForTx(txId);
+  }
+
   @Post(':node/:mode/rpc')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
