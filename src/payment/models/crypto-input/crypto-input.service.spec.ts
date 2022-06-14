@@ -15,6 +15,7 @@ import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/acco
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import BigNumber from 'bignumber.js';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
+import { BehaviorSubject } from 'rxjs';
 
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
@@ -46,7 +47,9 @@ describe('CryptoInputService', () => {
     stakingService = createMock<StakingService>();
     cryptoStakingService = createMock<CryptoStakingService>();
 
-    jest.spyOn(nodeService, 'getClient').mockImplementation(() => nodeClient);
+    jest
+      .spyOn(nodeService, 'getConnectedNode')
+      .mockImplementation(() => new BehaviorSubject(nodeClient).asObservable());
     jest.spyOn(nodeClient, 'parseAmount').mockImplementation((a) => ({
       amount: +a.split('@')[0],
       asset: a.split('@')[1],
