@@ -213,7 +213,7 @@ export class AdminController {
       .select('bank_tx', 'bankTx')
       .where('bank_tx.id >= :id', { id })
       .andWhere('bank_tx.updated >= :updated', { updated })
-      .andWhere('type IS NULL OR type NOT IN (:crypto, :fiat)', {
+      .andWhere('(type IS NULL OR type NOT IN (:crypto, :fiat))', {
         crypto: BankTxType.BUY_CRYPTO,
         fiat: BankTxType.BUY_FIAT,
       })
