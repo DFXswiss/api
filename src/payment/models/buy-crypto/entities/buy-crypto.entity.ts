@@ -4,6 +4,7 @@ import { BankTx } from '../../bank-tx/bank-tx.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Price } from '../../exchange/dto/price.dto';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
+import { Util } from 'src/shared/util';
 
 export enum AmlCheck {
   PASS = 'Pass',
@@ -89,17 +90,39 @@ export class BuyCrypto extends IEntity {
   refFactor: number;
 
   defineAssetExchangePair(outputAsset: string): this {
-    // TODO - implement mapping rules
+    this.outputAsset = outputAsset;
+
+    if (outputAsset === 'BTC' || outputAsset === 'USDC' || outputAsset === 'USDT') {
+      this.outputReferenceAsset = outputAsset;
+    } else {
+      this.outputReferenceAsset = 'BTC';
+    }
+
     return this;
   }
 
   calculateOutputReferenceAmount(price: Price): this {
-    // TODO - implement calculation logic
+    if (!price?.currencyPair.includes('EUR')) {
+      throw new Error('Cannot calculate outputReferenceAmount, EUR price is required');
+    }
+
+    if (price?.price === 0) {
+      throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
+    }
+
+    this.outputReferenceAmount = Util.round(this.amountInEur / price.price, 8);
+
     return this;
   }
 
-  calculateOutputAmount(price: Price): this {
-    // TODO - implement calculation logic
+  calculateOutputAmount(batchReferenceAmount: number, batchOutputAmount: number): this {
+    if (batchReferenceAmount === 0) {
+      throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
+    }
+
+    this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
+    this.outputDate = new Date();
+
     return this;
   }
 }

@@ -75,6 +75,10 @@ export class NodeClient {
     return tx;
   }
 
+  async getTx(txId: string): Promise<InWalletTransaction> {
+    return this.callNode((c) => c.wallet.getTransaction(txId));
+  }
+
   // UTXO
   get utxoFee(): number {
     return this.chain === 'mainnet' ? 0.00000132 : 0.0000222;
