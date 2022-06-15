@@ -859,16 +859,16 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "70021591-4ac2-4ec2-a400-0f7923d201b5",
     "name": "Rearrange Output Dates",
-    "url": "{{url}}/v1/cryptoStaking/outputDates?date=2022-06-23",
+    "url": "{{url}}/v1/cryptoStaking/outputDates?date=2022-07-10",
     "method": "PUT",
     "sortNum": 320000,
     "created": "2022-04-12T12:43:46.379Z",
-    "modified": "2022-05-29T19:03:06.326Z",
+    "modified": "2022-06-15T06:51:57.636Z",
     "headers": [],
     "params": [
       {
         "name": "date",
-        "value": "2022-06-23",
+        "value": "2022-07-10",
         "isPath": false
       },
       {
