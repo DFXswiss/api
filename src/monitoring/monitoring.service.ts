@@ -48,9 +48,7 @@ export class MonitoringService {
     const actual = Util.sum(balance);
 
     // calculate should balance
-    const stakingBalance = await this.stakingService.getTotalStakingBalance();
-    const masternodeCount = await this.masternodeService.getCount();
-    const should = stakingBalance + 20000 - masternodeCount * 10;
+    const should = await this.stakingService.getTotalStakingBalance();
 
     // calculate difference
     const difference = Util.round(actual - should, 2);

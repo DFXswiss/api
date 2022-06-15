@@ -30,10 +30,6 @@ export class MasternodeService {
     return await this.masternodeRepo.save({ ...masternode, ...dto });
   }
 
-  async getCount(): Promise<number> {
-    return this.masternodeRepo.count();
-  }
-
   async getActiveCount(date: Date = new Date()): Promise<number> {
     return this.masternodeRepo.count({
       where: [
