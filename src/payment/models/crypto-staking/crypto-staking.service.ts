@@ -8,7 +8,7 @@ import { CryptoStaking } from './crypto-staking.entity';
 import { CryptoStakingRepository } from './crypto-staking.repository';
 import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
 import { NodeClient } from 'src/ain/node/node-client';
-import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
@@ -22,7 +22,7 @@ import { StakingRepository } from '../staking/staking.repository';
 
 @Injectable()
 export class CryptoStakingService {
-  private readonly client: NodeClient;
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -33,7 +33,7 @@ export class CryptoStakingService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly stakingRepo: StakingRepository,
   ) {
-    this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
   // --- CRUD --- //

@@ -43,7 +43,7 @@ import { LetterService } from './services/letter.service';
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
-    MailerModule.forRoot(GetConfig().mail),
+    MailerModule.forRoot(GetConfig().mail.options),
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
   ],

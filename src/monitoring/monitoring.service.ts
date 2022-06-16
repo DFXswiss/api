@@ -10,14 +10,18 @@ import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.se
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
 import { StakingRefRewardService } from 'src/payment/models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
-import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeClient } from 'src/ain/node/node-client';
 import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
 
 @Injectable()
 export class MonitoringService {
+  private inpClient: NodeClient;
+  private refClient: NodeClient;
+
   constructor(
-    private nodeService: NodeService,
+    nodeService: NodeService,
     private stakingService: StakingService,
     private masternodeService: MasternodeService,
     private whaleService: WhaleService,
@@ -29,7 +33,10 @@ export class MonitoringService {
     private stakingRefRewardService: StakingRefRewardService,
     private stakingRewardService: StakingRewardService,
     private cryptoStakingService: CryptoStakingService,
-  ) {}
+  ) {
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
+  }
 
   async getStakingBalance(): Promise<{ actual: number; should: number; difference: number }> {
     const whaleClient = this.whaleService.getClient();
@@ -41,9 +48,7 @@ export class MonitoringService {
     const actual = Util.sum(balance);
 
     // calculate should balance
-    const stakingBalance = await this.stakingService.getTotalStakingBalance();
-    const masternodeCount = await this.masternodeService.getCount();
-    const should = stakingBalance + 20000 - masternodeCount * 10;
+    const should = await this.stakingService.getTotalStakingBalance();
 
     // calculate difference
     const difference = Util.round(actual - should, 2);
@@ -80,8 +85,8 @@ export class MonitoringService {
   async getNodeBalances(): Promise<any> {
     return {
       defichain: {
-        input: await this.nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE).getNodeBalance(),
-        ref: await this.nodeService.getClient(NodeType.REF, NodeMode.ACTIVE).getNodeBalance(),
+        input: await this.inpClient.getNodeBalance(),
+        ref: await this.refClient.getNodeBalance(),
       },
     };
   }
@@ -95,6 +100,6 @@ export class MonitoringService {
   }
 
   async getFreeOperators(): Promise<number> {
-    return await this.masternodeService.getFreeOperators();
+    return await this.masternodeService.getFreeOperatorCount();
   }
 }

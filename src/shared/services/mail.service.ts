@@ -1,9 +1,19 @@
-import { MailerService } from '@nestjs-modules/mailer';
+import { MailerOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
 import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
+
+export interface MailOptions {
+  options: MailerOptions;
+  defaultMailTemplate: string;
+  contact: {
+    supportMail: string;
+    monitoringMail: string;
+    noReplyMail: string;
+  };
+}
 
 interface SendMailOptions {
   to: string;
@@ -29,9 +39,9 @@ interface KycMailContent {
 
 @Injectable()
 export class MailService {
-  private readonly supportMail = 'support@dfx.swiss';
-  private readonly monitoringMail = 'monitoring@dfx.swiss';
-  private readonly noReplyMail = 'noreply@dfx.swiss';
+  private readonly supportMail = Config.mail.contact.supportMail;
+  private readonly monitoringMail = Config.mail.contact.monitoringMail;
+  private readonly noReplyMail = Config.mail.contact.noReplyMail;
   private readonly kycStatus = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
@@ -147,7 +157,7 @@ export class MailService {
           to: options.to,
           cc: options.cc,
           bcc: options.bcc,
-          template: options.template ?? Config.defaultMailTemplate,
+          template: options.template ?? Config.mail.defaultMailTemplate,
           context: {
             salutation: options.salutation,
             body: options.body,
