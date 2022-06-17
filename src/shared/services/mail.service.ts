@@ -4,7 +4,6 @@ import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
-import { UserDataService } from 'src/user/models/user-data/user-data.service';
 
 export interface MailOptions {
   options: MailerOptions;
@@ -50,17 +49,13 @@ export class MailService {
   private readonly monitoringMail = Config.mail.contact.monitoringMail;
   private readonly noReplyMail = Config.mail.contact.noReplyMail;
 
-  constructor(
-    private readonly mailerService: MailerService,
-    private readonly i18n: I18nService,
-    private readonly userDataService: UserDataService,
-  ) {}
+  constructor(private readonly mailerService: MailerService, private readonly i18n: I18nService) {}
 
   // --- KYC --- //
 
   async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
     const body = `
-    <p>a customer has failed or expired during progress ${this.userDataService.kycStatus[userData.kycStatus]}.</p>
+    <p>a customer has failed or expired during progress ${userData.kycStatus}.</p>
       <table>
           <tr>
               <td>Reference:</td>
