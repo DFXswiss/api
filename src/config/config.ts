@@ -14,7 +14,7 @@ export class Configuration {
   environment = process.env.ENVIRONMENT;
   network = process.env.NETWORK;
   githubToken = process.env.GH_TOKEN;
-  defaultLanguage = 'de';
+  defaultLanguage = 'en';
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';
   defaultTelegramUrl = 'https://t.me/DFXswiss';

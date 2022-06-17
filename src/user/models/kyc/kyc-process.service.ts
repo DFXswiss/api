@@ -76,11 +76,15 @@ export class KycProcessService {
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
 
-      await this.mailService.sendOnlineFailedMail(
-        userData.mail,
-        userData?.language?.symbol?.toLocaleLowerCase(),
-        userData.spiderData?.url,
-      );
+      await this.mailService
+        .sendTranslatedMail({
+          userData,
+          translationKey: 'mail.kyc.failed',
+          params: {
+            url: userData.spiderData?.url,
+          },
+        })
+        .catch(() => null);
       return userData;
     }
 
@@ -139,7 +143,12 @@ export class KycProcessService {
   async identCompleted(userData: UserData, result: IdentResultDto): Promise<UserData> {
     userData = await this.storeIdentResult(userData, result);
 
-    await this.mailService.sendIdentificationCompleteMail(userData.mail, userData.language?.symbol?.toLowerCase());
+    await this.mailService
+      .sendTranslatedMail({
+        userData,
+        translationKey: 'mail.kyc.ident',
+      })
+      .catch(() => null);
     return await this.goToStatus(userData, KycStatus.CHECK);
   }
 
