@@ -24,6 +24,11 @@ import { KycProcessService } from 'src/user/models/kyc/kyc-process.service';
 
 @Injectable()
 export class SpiderSyncService {
+  kycStatusTranslation = {
+    [KycStatus.CHATBOT]: 'Chatbot',
+    [KycStatus.ONLINE_ID]: 'Online ID',
+    [KycStatus.VIDEO_ID]: 'Video ID',
+  };
   private readonly lock = new Lock(1800);
 
   constructor(
@@ -185,7 +190,7 @@ export class SpiderSyncService {
         userData,
         translationKey: 'mail.kyc.reminder',
         params: {
-          status: userData.kycStatus[userData.kycStatus],
+          status: this.kycStatusTranslation[userData.kycStatus],
           url: spiderData.url,
         },
       })

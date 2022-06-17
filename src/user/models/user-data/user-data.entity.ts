@@ -160,12 +160,6 @@ export const IdentInProgressStates = [KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
 export const KycCompletedStates = [KycStatus.MANUAL, KycStatus.COMPLETED];
 export const IdentCompletedStates = [KycStatus.CHECK, ...KycCompletedStates];
 
-export const kycStatusTranslation = {
-  [KycStatus.CHATBOT]: 'Chatbot',
-  [KycStatus.ONLINE_ID]: 'Online ID',
-  [KycStatus.VIDEO_ID]: 'Video ID',
-};
-
 export function KycInProgress(kycStatus?: KycStatus): boolean {
   return KycInProgressStates.includes(kycStatus);
 }
