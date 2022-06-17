@@ -98,7 +98,7 @@ export class MailService {
   async sendTranslatedMail(translationOptions: TranslationOptions): Promise<void> {
     const { salutation, body, subject } = await this.t(
       translationOptions.translationKey,
-      translationOptions.userData.language.symbol.toLowerCase(),
+      translationOptions.userData.language?.symbol.toLowerCase(),
       translationOptions.params,
     );
 
