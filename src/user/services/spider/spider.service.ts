@@ -41,7 +41,7 @@ export class SpiderService {
   async createCustomer(userDataId: number, name: string): Promise<CreateResponse | undefined> {
     const customer = await this.spiderApi.getCustomer(userDataId);
     if (!customer) {
-      const newCustomer = this.spiderApi.createCustomer(userDataId, name);
+      const newCustomer = await this.spiderApi.createCustomer(userDataId, name);
       this.spiderApi.checkCustomer(userDataId);
       return newCustomer;
     }
