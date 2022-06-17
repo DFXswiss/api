@@ -317,7 +317,7 @@ export class CryptoInputService {
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
-    const outTxId = await this.client.sendUtxo(input.route.deposit.address, address, input.amount);
+    const outTxId = await this.client.sendCompleteUtxo(input.route.deposit.address, address, input.amount);
     await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
   }
 

@@ -94,19 +94,19 @@ export class NodeClient {
 
   async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
     return this.callNode(
-      (c) =>
-        c.call(
-          NodeCommand.SEND_UTXO,
-          [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee), addressTo],
-          'number',
-        ),
+      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount)], 'number'),
       true,
     );
   }
 
   async sendCompleteUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
     return this.callNode(
-      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount / 2), addressTo], 'number'),
+      (c) =>
+        c.call(
+          NodeCommand.SEND_UTXO,
+          [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee), addressTo],
+          'number',
+        ),
       true,
     );
   }
