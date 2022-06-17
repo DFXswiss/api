@@ -42,7 +42,7 @@ export class SpiderService {
     const customer = await this.spiderApi.getCustomer(userDataId);
     if (!customer) {
       const newCustomer = await this.spiderApi.createCustomer(userDataId, name);
-      this.spiderApi.checkCustomer(userDataId);
+      await this.spiderApi.checkCustomer(userDataId);
       return newCustomer;
     }
   }

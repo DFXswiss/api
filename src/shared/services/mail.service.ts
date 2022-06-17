@@ -31,6 +31,13 @@ interface SendMailOptions {
   instagramUrl?: string;
 }
 
+interface TranslationOptions {
+  to: string;
+  language: string;
+  translationKey: string;
+  params?: object;
+}
+
 interface KycMailContent {
   salutation: string;
   body: string;
@@ -42,7 +49,7 @@ export class MailService {
   private readonly supportMail = Config.mail.contact.supportMail;
   private readonly monitoringMail = Config.mail.contact.monitoringMail;
   private readonly noReplyMail = Config.mail.contact.noReplyMail;
-  private readonly kycStatus = {
+  readonly kycStatus = {
     [KycStatus.CHATBOT]: 'Chatbot',
     [KycStatus.ONLINE_ID]: 'Online ID',
     [KycStatus.VIDEO_ID]: 'Video ID',
@@ -51,33 +58,6 @@ export class MailService {
   constructor(private readonly mailerService: MailerService, private readonly i18n: I18nService) {}
 
   // --- KYC --- //
-  async sendKycReminderMail(to: string, kycStatus: KycStatus, language: string, url: string): Promise<void> {
-    const { salutation, body, subject } = await this.t('mail.kyc.reminder', language, {
-      status: this.kycStatus[kycStatus],
-      url: url,
-    });
-
-    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
-  }
-
-  async sendChatbotCompleteMail(to: string, language: string, url: string): Promise<void> {
-    const { salutation, body, subject } = await this.t('mail.kyc.chatbot', language, {
-      url: url,
-    });
-    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
-  }
-
-  async sendIdentificationCompleteMail(to: string, language: string): Promise<void> {
-    const { salutation, body, subject } = await this.t('mail.kyc.ident', language);
-    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
-  }
-
-  async sendOnlineFailedMail(to: string, language: string, url: string): Promise<void> {
-    const { salutation, body, subject } = await this.t('mail.kyc.failed', language, {
-      url: url,
-    });
-    await this.sendMailInternal({ to, salutation, subject, body, template: 'default' });
-  }
 
   async sendKycFailedMail(userData: UserData, kycCustomerId: number): Promise<void> {
     const body = `
@@ -94,7 +74,7 @@ export class MailService {
       </table>
     `;
 
-    await this.sendMailInternal({
+    await this.sendMail({
       to: this.supportMail,
       salutation: 'Hi DFX Support',
       subject: 'KYC failed or expired',
@@ -130,7 +110,7 @@ export class MailService {
     </ul>
     `;
 
-    await this.sendMailInternal({
+    await this.sendMail({
       to: this.monitoringMail,
       salutation: 'Hi DFX Tech Support',
       subject: `${subject} (${env})`,
@@ -138,40 +118,47 @@ export class MailService {
     });
   }
 
-  async sendMailInternal(options: SendMailOptions) {
+  async sendTranslatedMail(translationOptions: TranslationOptions): Promise<void> {
+    const { salutation, body, subject } = await this.t(
+      translationOptions.translationKey,
+      translationOptions.language,
+      translationOptions.params,
+    );
+
+    await this.sendMail({ to: translationOptions.to, salutation, subject, body, template: 'default' });
+  }
+
+  async sendMail(options: SendMailOptions) {
     try {
-      await this.sendMail(options);
+      await Util.retry(
+        () =>
+          this.mailerService.sendMail({
+            from: { name: options.displayName ?? 'DFX.swiss', address: options.from ?? this.noReplyMail },
+            to: options.to,
+            cc: options.cc,
+            bcc: options.bcc,
+            template: options.template ?? Config.mail.defaultMailTemplate,
+            context: {
+              salutation: options.salutation,
+              body: options.body,
+              date: new Date().getFullYear(),
+              telegramUrl: options.telegramUrl ?? Config.defaultTelegramUrl,
+              twitterUrl: options.twitterUrl ?? Config.defaultTwitterUrl,
+              linkedinUrl: options.linkedinUrl ?? Config.defaultLinkedinUrl,
+              instagramUrl: options.instagramUrl ?? Config.defaultInstagramUrl,
+            },
+            subject: options.subject,
+          }),
+        3,
+        1000,
+      );
     } catch (e) {
       console.error(
         `Exception during send mail: from:${options.from}, to:${options.to}, subject:${options.subject}:`,
         e,
       );
+      throw e;
     }
-  }
-
-  async sendMail(options: SendMailOptions) {
-    await Util.retry(
-      () =>
-        this.mailerService.sendMail({
-          from: { name: options.displayName ?? 'DFX.swiss', address: options.from ?? this.noReplyMail },
-          to: options.to,
-          cc: options.cc,
-          bcc: options.bcc,
-          template: options.template ?? Config.mail.defaultMailTemplate,
-          context: {
-            salutation: options.salutation,
-            body: options.body,
-            date: new Date().getFullYear(),
-            telegramUrl: options.telegramUrl ?? Config.defaultTelegramUrl,
-            twitterUrl: options.twitterUrl ?? Config.defaultTwitterUrl,
-            linkedinUrl: options.linkedinUrl ?? Config.defaultLinkedinUrl,
-            instagramUrl: options.instagramUrl ?? Config.defaultInstagramUrl,
-          },
-          subject: options.subject,
-        }),
-      3,
-      1000,
-    );
   }
 
   private async t(key: string, lang: string, args?: any): Promise<KycMailContent> {

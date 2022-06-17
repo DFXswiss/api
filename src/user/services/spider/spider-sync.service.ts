@@ -155,11 +155,16 @@ export class SpiderSyncService {
     if (userData.kycStatus === KycStatus.CHATBOT) {
       userData = await this.kycProcess.chatbotCompleted(userData);
 
-      await this.mailService.sendChatbotCompleteMail(
-        userData.mail,
-        userData.language?.symbol?.toLowerCase(),
-        userData.spiderData?.url,
-      );
+      await this.mailService
+        .sendTranslatedMail({
+          to: userData.mail,
+          language: userData.language?.symbol?.toLowerCase(),
+          translationKey: 'mail.kyc.chatbot',
+          params: {
+            url: userData.spiderData?.url,
+          },
+        })
+        .catch(() => null);
     } else {
       const identResult = await this.fetchIdentResult(userData);
       userData = await this.kycProcess.identCompleted(userData, identResult);
@@ -176,12 +181,18 @@ export class SpiderSyncService {
       where: { userData: userData.id },
     });
     // send reminder
-    await this.mailService.sendKycReminderMail(
-      userData.mail,
-      userData.kycStatus,
-      userData.language?.symbol?.toLowerCase(),
-      spiderData.url,
-    );
+    await this.mailService
+      .sendTranslatedMail({
+        to: userData.mail,
+        language: userData.language?.symbol?.toLowerCase(),
+        translationKey: 'mail.kyc.reminder',
+        params: {
+          status: this.mailService.kycStatus[userData.kycStatus],
+          url: spiderData.url,
+        },
+      })
+      .catch(() => null);
+
     return this.kycProcess.updateKycState(userData, KycState.REMINDED);
   }
 
