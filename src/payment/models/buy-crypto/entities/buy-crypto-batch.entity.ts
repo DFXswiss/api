@@ -35,6 +35,9 @@ export class BuyCryptoBatch extends IEntity {
   @Column({ length: 256, nullable: true })
   purchaseTxId: string;
 
+  @Column({ length: 256, nullable: true })
+  lastCompleteBlock: number;
+
   addOutputReferenceAmount(amount: number): this {
     this.outputReferenceAmount = this.outputReferenceAmount + amount;
 

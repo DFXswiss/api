@@ -233,6 +233,19 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
+  // *** Step 0 - Get recent write transactions from blockchain *** //
+
+  private async getRecentChainHistory(): Promise<string[]> {
+    const { blocks: currentHeight } = await this.dexClient.getInfo();
+    const lastHeight = await this.buyCryptoRepo
+      .findOne({ order: { blockHeight: 'DESC' } })
+      .then((tx) => tx?.blockHeight ?? 0);
+
+    return await this.dexClient
+      .getHistories([Config.node.dexWalletAddress, Config.node.outWalletAddress], lastHeight, currentHeight)
+      .then((h) => h.map((t) => t.txid));
+  }
+
   // *** Process Buy Crypto - Step 1 *** //
 
   private async batchTransactionsByAssets(): Promise<void> {
@@ -328,23 +341,7 @@ export class BuyCryptoService {
     pendingBatches: BuyCryptoBatch[],
   ): Promise<void> {
     await this.checkPendingBatches(pendingBatches);
-
-    for (const batch of newBatches) {
-      const isSufficient = this.checkLiquidity(batch, securedBatches, pendingBatches);
-
-      if (!isSufficient) {
-        await this.purchaseLiquidity(batch);
-        await this.buyCryptoBatchRepo.save(batch);
-
-        return;
-      }
-
-      batch.secure();
-      await this.buyCryptoBatchRepo.save(batch);
-
-      // some kind of recovery for batch save??
-      this.calculateOutputAmounts(batch);
-    }
+    await this.processNewBatches(newBatches, securedBatches, pendingBatches);
   }
 
   private async checkPendingBatches(pendingBatches: BuyCryptoBatch[]): Promise<void> {
@@ -353,7 +350,30 @@ export class BuyCryptoService {
 
       if (blockhash && confirmations > 0) {
         batch.secure();
+        await this.calculateOutputAmounts(batch);
       }
+    }
+  }
+
+  private async processNewBatches(
+    newBatches: BuyCryptoBatch[],
+    securedBatches: BuyCryptoBatch[],
+    pendingBatches: BuyCryptoBatch[],
+  ): Promise<void> {
+    for (const batch of newBatches) {
+      const isSufficient = this.checkLiquidity(batch, securedBatches, pendingBatches);
+
+      if (!isSufficient) {
+        await this.purchaseLiquidity(batch);
+
+        return;
+      }
+
+      batch.secure();
+      await this.buyCryptoBatchRepo.save(batch);
+
+      // some kind of recovery for batch save??
+      await this.calculateOutputAmounts(batch);
     }
   }
 
@@ -377,16 +397,21 @@ export class BuyCryptoService {
         batch.outputReferenceAmount + securedAmount + pendingAmount,
       );
 
-      const tokens = await this.dexClient.getToken();
-      const token = tokens
-        .map((t) => this.dexClient.parseAmount(t.amount))
-        .find((pt) => pt.asset === batch.outputAsset);
+      const availableAmount = await this.getAvailableTokenAmount(batch);
 
-      return token && requiredAmount >= token.amount;
+      return availableAmount >= requiredAmount;
     } catch {
       // not sure if I should just return false on fail
+      // cause this will purchase liquidity, not what I want
       return false;
     }
+  }
+
+  private async getAvailableTokenAmount(batch: BuyCryptoBatch): Promise<number> {
+    const tokens = await this.dexClient.getToken();
+    const token = tokens.map((t) => this.dexClient.parseAmount(t.amount)).find((pt) => pt.asset === batch.outputAsset);
+
+    return token ? token.amount : 0;
   }
 
   private async purchaseLiquidity(batch: BuyCryptoBatch) {
@@ -394,7 +419,6 @@ export class BuyCryptoService {
       (await this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', 1)) * batch.outputReferenceAmount;
 
     try {
-      // we need to wait and confirm if its done from history
       const txId = await this.dexClient.compositeSwap(
         Config.node.dexWalletAddress,
         'DFI',
@@ -404,6 +428,7 @@ export class BuyCryptoService {
       );
 
       batch.pending(txId);
+      await this.buyCryptoBatchRepo.save(batch);
     } catch (e) {
       // then what?
     }
@@ -423,21 +448,37 @@ export class BuyCryptoService {
     const batches = await this.buyCryptoBatchRepo.find({ status: BuyCryptoBatchStatus.SECURED, outTxId: IsNull() });
 
     for (const batch of batches) {
-      const txId = await this.dexClient.sendToken(
-        Config.node.dexWalletAddress,
-        Config.node.outWalletAddress,
-        batch.outputAsset,
-        batch.outputAmount,
-      );
-
-      batch.recordOutToDexTransfer(txId);
-      this.buyCryptoBatchRepo.save(batch);
+      batch.outputAsset === 'DFI' ? this.transferUtxoForOutput(batch) : this.transferTokenForOutput(batch);
     }
+  }
+
+  private async transferUtxoForOutput(batch: BuyCryptoBatch): Promise<void> {
+    const txId = await this.dexClient.sendUtxo(
+      Config.node.dexWalletAddress,
+      Config.node.outWalletAddress,
+      batch.outputAmount,
+    );
+
+    batch.recordOutToDexTransfer(txId);
+    this.buyCryptoBatchRepo.save(batch);
+  }
+
+  private async transferTokenForOutput(batch: BuyCryptoBatch): Promise<void> {
+    const txId = await this.dexClient.sendToken(
+      Config.node.dexWalletAddress,
+      Config.node.outWalletAddress,
+      batch.outputAsset,
+      batch.outputAmount,
+    );
+
+    batch.recordOutToDexTransfer(txId);
+    this.buyCryptoBatchRepo.save(batch);
   }
 
   // *** Process Buy Crypto - Step 4 *** //
 
   private async payoutTransactions(): Promise<void> {
+    const txInChain = await this.getRecentChainHistory();
     const batches = await this.buyCryptoBatchRepo.find({
       where: {
         status: BuyCryptoBatchStatus.SECURED,
@@ -447,15 +488,42 @@ export class BuyCryptoService {
     });
 
     for (const batch of batches) {
+      this.checkPreviousPayouts(batch, txInChain);
+
+      if (batch.status === BuyCryptoBatchStatus.COMPLETE) {
+        return;
+      }
+
       for (const tx of batch.transactions) {
         // if DFI - then BEWARE you need to send utxo and NOT token
         // you actually can send all transactions in batch with sendTokenBatch (create sendMany style method for both token and utxo)
-        await this.sendToken(tx);
-      }
+        if (tx.txId || txInChain.includes(tx.txId)) {
+          // beware not to send second time
+          return;
+        }
 
-      // not that simple =) need to wait
-      batch.complete();
+        tx.outputAsset === 'DFI' ? await this.sendUtxo(tx) : await this.sendToken(tx);
+      }
     }
+  }
+
+  private async checkPreviousPayouts(batch: BuyCryptoBatch, txInChain: string[]): Promise<void> {
+    const isComplete = batch.transactions.every(({ txId }) => txId && txInChain.includes(txId));
+
+    if (isComplete) {
+      batch.complete();
+      await this.buyCryptoBatchRepo.save(batch);
+    }
+  }
+
+  private async sendUtxo(input: BuyCrypto): Promise<void> {
+    const txId = this.outClient.sendUtxo(
+      Config.node.outWalletAddress,
+      input.buy.user.wallet.address,
+      input.outputAmount,
+    );
+
+    await this.buyCryptoRepo.update({ id: input.id }, { txId });
   }
 
   private async sendToken(input: BuyCrypto): Promise<void> {
@@ -475,7 +543,7 @@ export class BuyCryptoService {
 
   // TODO - shared??
   private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
-    // you need to find out
+    // you need to find out how to get utxo from User wallet
     const feeUtxo = await this.getFeeUtxo(addressFrom);
     feeUtxo ? await this.tokenTx(addressFrom, tx, feeUtxo) : this.tokenTx(addressFrom, tx); // no waiting;
   }

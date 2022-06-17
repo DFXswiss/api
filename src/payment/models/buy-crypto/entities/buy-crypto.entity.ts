@@ -71,6 +71,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   txId: string;
 
+  @Column({ type: 'integer' })
+  blockHeight: number;
+
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 
