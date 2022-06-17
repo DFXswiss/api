@@ -21,6 +21,7 @@ import { KycDocuments, KycDocumentState, KycContentType, KycDocument } from './d
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 import { DocumentState } from './spider.service';
 import { KycProcessService } from 'src/user/models/kyc/kyc-process.service';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
 
 @Injectable()
 export class SpiderSyncService {
@@ -29,6 +30,7 @@ export class SpiderSyncService {
   constructor(
     private readonly mailService: MailService,
     private readonly userDataRepo: UserDataRepository,
+    private readonly userDataService: UserDataService,
     private readonly kycProcess: KycProcessService,
     private readonly spiderApi: SpiderApiService,
     private readonly settingService: SettingService,
@@ -157,8 +159,7 @@ export class SpiderSyncService {
 
       await this.mailService
         .sendTranslatedMail({
-          to: userData.mail,
-          language: userData.language?.symbol?.toLowerCase(),
+          userData,
           translationKey: 'mail.kyc.chatbot',
           params: {
             url: userData.spiderData?.url,
@@ -183,11 +184,10 @@ export class SpiderSyncService {
     // send reminder
     await this.mailService
       .sendTranslatedMail({
-        to: userData.mail,
-        language: userData.language?.symbol?.toLowerCase(),
+        userData,
         translationKey: 'mail.kyc.reminder',
         params: {
-          status: this.mailService.kycStatus[userData.kycStatus],
+          status: this.userDataService.kycStatus[userData.kycStatus],
           url: spiderData.url,
         },
       })

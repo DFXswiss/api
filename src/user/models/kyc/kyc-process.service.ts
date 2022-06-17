@@ -78,8 +78,7 @@ export class KycProcessService {
 
       await this.mailService
         .sendTranslatedMail({
-          to: userData.mail,
-          language: userData.language?.symbol?.toLowerCase(),
+          userData,
           translationKey: 'mail.kyc.failed',
           params: {
             url: userData.spiderData?.url,
@@ -146,8 +145,7 @@ export class KycProcessService {
 
     await this.mailService
       .sendTranslatedMail({
-        to: userData.mail,
-        language: userData.language?.symbol?.toLowerCase(),
+        userData,
         translationKey: 'mail.kyc.ident',
       })
       .catch(() => null);

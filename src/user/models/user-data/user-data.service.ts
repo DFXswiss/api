@@ -24,6 +24,11 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class UserDataService {
+  readonly kycStatus = {
+    [KycStatus.CHATBOT]: 'Chatbot',
+    [KycStatus.ONLINE_ID]: 'Online ID',
+    [KycStatus.VIDEO_ID]: 'Video ID',
+  };
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,

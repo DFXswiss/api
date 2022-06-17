@@ -146,8 +146,7 @@ export class StakingRefRewardService {
         try {
           if (reward.user.userData.mail) {
             await this.mailService.sendTranslatedMail({
-              to: reward.user.userData.mail,
-              language: reward.user.userData.language?.symbol.toLowerCase(),
+              userData: reward.user.userData,
               translationKey: `mail.stakingRef.${reward.stakingRefType.toString().toLowerCase()}`,
               params: {
                 txId: reward.txId,
