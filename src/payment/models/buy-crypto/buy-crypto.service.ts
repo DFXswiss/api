@@ -19,8 +19,8 @@ import { BuyCryptoBatchRepository } from './buy-crypto-batch.repository';
 import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { MailService } from 'src/shared/services/mail.service';
-import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Price } from '../exchange/dto/price.dto';
+import { WhaleService } from 'src/ain/whale/whale.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -37,6 +37,7 @@ export class BuyCryptoService {
     private readonly userService: UserService,
     private readonly exchangeUtilityService: ExchangeUtilityService,
     private readonly mailService: MailService,
+    private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
   ) {
     this.dexClient = nodeService.getClient(NodeType.DEX, NodeMode.ACTIVE);
@@ -233,7 +234,7 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  // *** Step 0 - Get recent write transactions from blockchain *** //
+  // *** Shared - Get recent write transactions from blockchain *** //
 
   private async getRecentChainHistory(): Promise<string[]> {
     const { blocks: currentHeight } = await this.dexClient.getInfo();
@@ -448,37 +449,42 @@ export class BuyCryptoService {
     const batches = await this.buyCryptoBatchRepo.find({ status: BuyCryptoBatchStatus.SECURED, outTxId: IsNull() });
 
     for (const batch of batches) {
-      batch.outputAsset === 'DFI' ? this.transferUtxoForOutput(batch) : this.transferTokenForOutput(batch);
+      batch.outputAsset === 'DFI'
+        ? this.transferForOutput(batch, this.transferUtxo)
+        : this.transferForOutput(batch, this.transferToken);
     }
   }
 
-  private async transferUtxoForOutput(batch: BuyCryptoBatch): Promise<void> {
-    const txId = await this.dexClient.sendUtxo(
-      Config.node.dexWalletAddress,
-      Config.node.outWalletAddress,
-      batch.outputAmount,
-    );
+  private async transferForOutput(
+    batch: BuyCryptoBatch,
+    transfer: (batch: BuyCryptoBatch) => Promise<string>,
+  ): Promise<void> {
+    const txId = await transfer(batch);
 
     batch.recordOutToDexTransfer(txId);
     this.buyCryptoBatchRepo.save(batch);
   }
 
-  private async transferTokenForOutput(batch: BuyCryptoBatch): Promise<void> {
-    const txId = await this.dexClient.sendToken(
+  private async transferUtxo(batch: BuyCryptoBatch): Promise<string> {
+    return await this.dexClient.sendUtxo(
+      Config.node.dexWalletAddress,
+      Config.node.outWalletAddress,
+      batch.outputAmount,
+    );
+  }
+
+  private async transferToken(batch: BuyCryptoBatch): Promise<string> {
+    return await this.dexClient.sendToken(
       Config.node.dexWalletAddress,
       Config.node.outWalletAddress,
       batch.outputAsset,
       batch.outputAmount,
     );
-
-    batch.recordOutToDexTransfer(txId);
-    this.buyCryptoBatchRepo.save(batch);
   }
 
   // *** Process Buy Crypto - Step 4 *** //
 
   private async payoutTransactions(): Promise<void> {
-    const txInChain = await this.getRecentChainHistory();
     const batches = await this.buyCryptoBatchRepo.find({
       where: {
         status: BuyCryptoBatchStatus.SECURED,
@@ -487,8 +493,10 @@ export class BuyCryptoService {
       relations: ['transactions'],
     });
 
+    const recentChainHistory = await this.getRecentChainHistory();
+
     for (const batch of batches) {
-      this.checkPreviousPayouts(batch, txInChain);
+      await this.checkPreviousPayouts(batch, recentChainHistory);
 
       if (batch.status === BuyCryptoBatchStatus.COMPLETE) {
         return;
@@ -497,11 +505,12 @@ export class BuyCryptoService {
       for (const tx of batch.transactions) {
         // if DFI - then BEWARE you need to send utxo and NOT token
         // you actually can send all transactions in batch with sendTokenBatch (create sendMany style method for both token and utxo)
-        if (tx.txId || txInChain.includes(tx.txId)) {
+        if (tx.txId || recentChainHistory.includes(tx.txId)) {
           // beware not to send second time
           return;
         }
 
+        // token only by 10, utxo by 100
         tx.outputAsset === 'DFI' ? await this.sendUtxo(tx) : await this.sendToken(tx);
       }
     }
@@ -517,7 +526,7 @@ export class BuyCryptoService {
   }
 
   private async sendUtxo(input: BuyCrypto): Promise<void> {
-    const txId = this.outClient.sendUtxo(
+    const txId = await this.outClient.sendUtxo(
       Config.node.outWalletAddress,
       input.buy.user.wallet.address,
       input.outputAmount,
@@ -527,63 +536,23 @@ export class BuyCryptoService {
   }
 
   private async sendToken(input: BuyCrypto): Promise<void> {
-    await this.doTokenTx(input.buy.user.wallet.address, async (utxo) => {
-      const txId = await this.outClient.sendToken(
-        Config.node.outWalletAddress,
-        input.buy.user.wallet.address,
-        input.outputAsset,
-        input.outputAmount,
-        [utxo],
-      );
-      await this.buyCryptoRepo.update({ id: input.id }, { txId });
+    await this.checkUtxo(input.buy.user.wallet.address);
 
-      return txId;
-    });
+    const txId = await this.outClient.sendToken(
+      Config.node.outWalletAddress,
+      input.buy.user.wallet.address,
+      input.outputAsset,
+      input.outputAmount,
+    );
+    await this.buyCryptoRepo.update({ id: input.id }, { txId });
   }
 
-  // TODO - shared??
-  private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
-    // you need to find out how to get utxo from User wallet
-    const feeUtxo = await this.getFeeUtxo(addressFrom);
-    feeUtxo ? await this.tokenTx(addressFrom, tx, feeUtxo) : this.tokenTx(addressFrom, tx); // no waiting;
-  }
+  private async checkUtxo(address: string): Promise<void> {
+    const utxo = await this.whaleService.getClient().getBalance(address);
 
-  // TODO - shared??
-  private async tokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>, feeUtxo?: UTXO): Promise<void> {
-    try {
-      // get UTXO
-      if (!feeUtxo) {
-        const utxoTx = await this.sendFeeUtxo(addressFrom);
-        await this.outClient.waitForTx(utxoTx);
-        feeUtxo = await this.outClient
-          .getUtxo()
-          .then((utxos) => utxos.find((u) => u.txid === utxoTx && u.address === addressFrom));
-      }
-
-      // do TX
-      await tx(feeUtxo);
-    } catch (e) {
-      console.error('Failed to do token TX:', e);
+    if (!utxo) {
+      await this.outClient.sendUtxo(Config.node.utxoSpenderAddress, address, Config.node.minDfiDeposit / 2);
     }
-  }
-
-  // TODO - shared??
-  private async getFeeUtxo(address: string): Promise<UTXO | undefined> {
-    return await this.outClient
-      .getUtxo()
-      .then((utxos) =>
-        utxos.find(
-          (u) =>
-            u.address === address &&
-            u.amount.toNumber() < Config.node.minDfiDeposit &&
-            u.amount.toNumber() > Config.node.minDfiDeposit / 4,
-        ),
-      );
-  }
-
-  // TODO - shared??
-  private async sendFeeUtxo(address: string): Promise<string> {
-    return await this.outClient.sendUtxo(Config.node.utxoSpenderAddress, address, Config.node.minDfiDeposit / 2);
   }
 
   // *** Process Buy Crypto - Step 5 *** //
@@ -604,8 +573,7 @@ export class BuyCryptoService {
           tx.outputAsset,
         );
 
-        tx.recipientMail = tx.buy.user.userData.mail;
-        tx.mailSendDate = Date.now();
+        tx.confirmSentMail();
 
         // TODO - no need to await? make sure
         await this.buyCryptoRepo.save(tx);

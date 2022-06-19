@@ -128,4 +128,11 @@ export class BuyCrypto extends IEntity {
 
     return this;
   }
+
+  confirmSentMail(): this {
+    this.recipientMail = this.buy.user.userData.mail;
+    this.mailSendDate = Date.now();
+
+    return this;
+  }
 }
