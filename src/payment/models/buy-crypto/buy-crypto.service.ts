@@ -21,6 +21,7 @@ import { Config } from 'src/config/config';
 import { MailService } from 'src/shared/services/mail.service';
 import { Price } from '../exchange/dto/price.dto';
 import { WhaleService } from 'src/ain/whale/whale.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -33,6 +34,7 @@ export class BuyCryptoService {
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly bankTxRepo: BankTxRepository,
     private readonly buyRepo: BuyRepository,
+    private readonly settingService: SettingService,
     private readonly buyService: BuyService,
     private readonly userService: UserService,
     private readonly exchangeUtilityService: ExchangeUtilityService,
@@ -164,6 +166,7 @@ export class BuyCryptoService {
     // send utxo to user only if its not DFI (cause its already utxo) AND there is no utxo on user wallet -> check via Whale client.
 
     // how to we get BTC/DFI rate in case tx will be performed by GS? testpoolswap?
+    if ((await this.settingService.get('buy-process')) === 'off') return;
     if (!this.lock.acquire()) return;
 
     try {
