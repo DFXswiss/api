@@ -12,6 +12,7 @@ import { AccountType } from '../user-data/account-type.enum';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
 import { StakingRefReward } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
+import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -88,6 +89,9 @@ export class User extends IEntity {
 
   @OneToMany(() => Staking, (staking) => staking.user)
   stakingRoutes: Staking[];
+
+  @OneToMany(() => BankAccount, (bankAccount) => bankAccount.user)
+  ibans: BankAccount[];
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
