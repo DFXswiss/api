@@ -145,7 +145,7 @@
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n    \"address\": \"8bmnAbfiq9zMYcZmiRAxcKnVxspPbXyUm6\",\n    \"signature\": \"H4tBL3fiQGFnT99D/QOi56TBW2zpUrR9NmyYW4xMPcf7E3f59CRIxW//3RYyWijg/FGaECqGvT9JM3+MAbPhdi4=\"\n}",
+      "raw": "{\n    \"address\": \"address\",\n    \"signature\": \"signature\"\n}",
       "form": []
     },
     "auth": {
@@ -167,7 +167,7 @@
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"address\": \"df1qcvzphmq0qaahnjy6qs6jcljrp8nz4dxefr7ytg\",\n  \"signature\": \"H2GHd71xqGqTj1hGpZE51KyGzqaxsC1aSNL0M9eCuwxNF6KAFsJQjHdIToVF/R4USXAzfJ0Cpsre5rM1B9ExjnQ=\",\n  \"usedRef\": null,\n  \"walletId\": 1\n}",
+      "raw": "{\n  \"address\": \"address\",\n  \"signature\": \"signature\",\n  \"usedRef\": null,\n  \"walletId\": 1\n}",
       "form": []
     },
     "tests": []

@@ -60,7 +60,7 @@ export class Configuration {
     jwt: {
       secret: process.env.JWT_SECRET,
       signOptions: {
-        expiresIn: 172800,
+        expiresIn: process.env.JWT_EXPIRES_IN ?? 172800,
       },
     },
     signMessage:
