@@ -194,9 +194,9 @@ export class CfpService {
       .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
 
     const votes = Object.values(validVotes);
-    const yesVotes = votes.filter((v) => v.vote.endsWith('yes'));
-    const noVotes = votes.filter((v) => v.vote.endsWith('no'));
-    const neutralVotes = votes.filter((v) => v.vote.endsWith('neutral'));
+    const yesVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
+    const noVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('no'));
+    const neutralVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
 
     const cakeVotes = votes.filter((v) => v.isCake);
     const yesVotesCake = yesVotes.filter((v) => v.isCake);
