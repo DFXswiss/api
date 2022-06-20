@@ -22,9 +22,10 @@ export class MonitoringController {
       lastOutputDates: await this.monitoringService.getLastOutputDates(),
       nodeBalances: await this.monitoringService.getNodeBalances(),
       stakingBalance: await this.monitoringService.getStakingBalance(),
-      userWithoutIpCountry: await this.monitoringService.getUserWithoutIpCountry(),
-      // TODO implement wrongCryptoStaking: await this.monitoringService.getWrongCryptoStaking(),
+      userWithout: await this.monitoringService.getUserWithout(),
+      unmatchedStaking: await this.monitoringService.getUnmatchedStaking(),
       freeOperators: await this.monitoringService.getFreeOperators(),
+      freeDeposits: await this.monitoringService.getFreeDeposits(),
     };
   }
 }

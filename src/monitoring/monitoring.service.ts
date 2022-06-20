@@ -14,6 +14,7 @@ import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { NodeClient } from 'src/ain/node/node-client';
 import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
+import { DepositService } from 'src/payment/models/deposit/deposit.service';
 
 @Injectable()
 export class MonitoringService {
@@ -33,6 +34,7 @@ export class MonitoringService {
     private stakingRefRewardService: StakingRefRewardService,
     private stakingRewardService: StakingRewardService,
     private cryptoStakingService: CryptoStakingService,
+    private depositService: DepositService,
   ) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
@@ -91,15 +93,30 @@ export class MonitoringService {
     };
   }
 
+  async getUserWithout(): Promise<any> {
+    return {
+      userWithoutIpCountry: await this.getUserWithoutIpCountry(),
+      userWithoutRiskState: await this.getUserWithoutRiskState(),
+    };
+  }
+
   async getUserWithoutIpCountry(): Promise<number> {
     return await this.userService.getUserWithoutIpCountry();
   }
 
-  async getWrongCryptoStaking(): Promise<number> {
-    return await this.cryptoStakingService.getWrongCryptoStaking();
+  async getUserWithoutRiskState(): Promise<number> {
+    return await this.userDataService.getUserWithoutRiskState();
+  }
+
+  async getUnmatchedStaking(): Promise<number> {
+    return await this.cryptoStakingService.getUnmatchedStaking();
   }
 
   async getFreeOperators(): Promise<number> {
     return await this.masternodeService.getFreeOperatorCount();
+  }
+
+  async getFreeDeposits(): Promise<number> {
+    return await this.depositService.getFreeDeposit();
   }
 }

@@ -21,6 +21,7 @@ import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { Util } from 'src/shared/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { User, UserStatus } from '../user/user.entity';
 
 @Injectable()
 export class UserDataService {
@@ -230,5 +231,15 @@ export class UserDataService {
       });
     }
     return kycStatusData;
+  }
+
+  async getUserWithoutRiskState(): Promise<number> {
+    const userWithoutRiskState = await this.userDataRepo
+      .createQueryBuilder('userData')
+      .leftJoin(User, 'user', 'userData.id = user.userDataId')
+      .where('user.status != :status', { status: UserStatus.NA })
+      .andWhere('userData.riskState is NULL')
+      .getCount();
+    return userWithoutRiskState;
   }
 }

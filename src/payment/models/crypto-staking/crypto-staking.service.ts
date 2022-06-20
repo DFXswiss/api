@@ -19,6 +19,7 @@ import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { Util } from 'src/shared/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 import { StakingRepository } from '../staking/staking.repository';
+import { DepositRoute } from '../route/deposit-route.entity';
 
 @Injectable()
 export class CryptoStakingService {
@@ -336,13 +337,22 @@ export class CryptoStakingService {
 
   // Monitoring
 
-  async getWrongCryptoStaking(): Promise<number> {
+  async getUnmatchedStaking(): Promise<number> {
     const cryptoStakingAndInput = await this.cryptoStakingRepo
       .createQueryBuilder('cryptoStaking')
+      .leftJoin(DepositRoute, 'depositRoute', 'cryptoStaking.paybackDepositId = depositRoute.depositId')
+      .leftJoin(
+        CryptoInput,
+        'cryptoInput',
+        '(cryptoStaking.outTxId = cryptoInput.inTxId OR cryptoStaking.outTxId2 = cryptoInput.inTxId) AND cryptoInput.routeId = depositRoute.id',
+      )
+      .leftJoin(DepositRoute, 'depositRoute2', 'cryptoInput.routeId = depositRoute2.id')
+      .where('cryptoStaking.payoutType != :payoutType', { payoutType: PayoutType.WALLET })
+      .where('cryptoStaking.outTxId IS NOT NULL')
       .where('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
-      .innerJoinAndSelect(CryptoInput, 'cryptoInput', 'cryptoStaking.outTxId = cryptoInput.inTxId')
-      .getRawMany();
+      .where('cryptoInput.id IS NULL OR depositRoute.userId != depositRoute2.userId')
+      .getCount();
 
-    return cryptoStakingAndInput.filter((a) => a.cryptoStaking_outputAmount != a.cryptoInput_amount).length;
+    return cryptoStakingAndInput;
   }
 }

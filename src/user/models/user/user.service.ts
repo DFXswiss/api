@@ -70,7 +70,7 @@ export class UserService {
 
     user.ipCountry = await this.geoLocationService.getCountry(userIp);
     const country = await this.countryService.getCountryWithSymbol(user.ipCountry);
-    if (!country.ipEnable) throw new ForbiddenException('IP country is not allowed');
+    if (!country.ipEnable) throw new ForbiddenException('The country of IP address is not allowed');
     user.ip = userIp;
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ref = await this.getNextRef();
