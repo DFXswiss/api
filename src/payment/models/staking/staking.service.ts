@@ -238,7 +238,6 @@ export class StakingService {
   ): Promise<StakingDto> {
     const rewardType = this.getPayoutType(staking.rewardDeposit?.id, staking.deposit.id);
     const paybackType = this.getPayoutType(staking.paybackDeposit?.id, staking.deposit.id);
-    const balance = await this.getCurrentStakingBalance(staking.id);
 
     stakingDepositsInUse ??= await this.getUserStakingDepositsInUse(userId);
     fee ??= await this.userService.getUserStakingFee(userId);
@@ -253,9 +252,9 @@ export class StakingService {
       paybackType,
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
       paybackAsset: staking.paybackAsset ?? undefined,
-      balance: Util.round(balance, 2), // TODO: switch to DB balance
+      balance: Util.round(staking.volume, 2),
       rewardVolume: staking.rewardVolume ?? 0,
-      isInUse: balance > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
+      isInUse: staking.volume > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
       fee: fee,
       period: Config.staking.period,
     };
