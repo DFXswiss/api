@@ -505,16 +505,14 @@ export class BuyCryptoService {
         return;
       }
 
-      for (const tx of batch.transactions) {
-        // if DFI - then BEWARE you need to send utxo and NOT token
-        // you actually can send all transactions in batch with sendTokenBatch (create sendMany style method for both token and utxo)
-        if (tx.txId || recentChainHistory.includes(tx.txId)) {
-          // beware not to send second time
-          return;
-        }
+      const groups = this.groupPayoutTransactions(batch);
 
-        // token only by 10, utxo by 100
-        tx.outputAsset === 'DFI' ? await this.sendUtxo(tx) : await this.sendToken(tx);
+      for (const group of groups) {
+        const transactions = this.validateTransactions(group, recentChainHistory);
+
+        batch.outputAsset === 'DFI'
+          ? await this.sendDFI(transactions)
+          : await this.sendToken(transactions, batch.outputAsset);
       }
     }
   }
@@ -528,6 +526,22 @@ export class BuyCryptoService {
     }
   }
 
+  private groupPayoutTransactions(batch: BuyCryptoBatch): BuyCrypto[][] {
+    const groupSize = batch.outputAsset === 'DFI' ? 100 : 10;
+    const numberOfGroups = Math.ceil(batch.transactions.length / groupSize);
+    const result: BuyCrypto[][] = [];
+
+    for (let i = 0; i <= numberOfGroups; i += groupSize) {
+      result.push(batch.transactions.slice(i, i + groupSize));
+    }
+
+    return result;
+  }
+
+  private validateTransactions(group: BuyCrypto[], recentChainHistory: string[]): BuyCrypto[] {
+    return group.filter((tx) => !(tx.txId || recentChainHistory.includes(tx.txId)));
+  }
+
   private async sendUtxo(input: BuyCrypto): Promise<void> {
     const txId = await this.outClient.sendUtxo(
       Config.node.outWalletAddress,
@@ -538,7 +552,32 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update({ id: input.id }, { txId });
   }
 
-  private async sendToken(input: BuyCrypto): Promise<void> {
+  private async sendToken(transactions: BuyCrypto[], outputAsset: string): Promise<void> {
+    for (const tx of transactions) {
+      // need to wait for tx completion?
+      await this.checkUtxo(tx.buy.user.wallet.address);
+    }
+
+    const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.wallet.address, amount: tx.outputAmount }));
+
+    const txId = await this.outClient.sendTokenToMany(Config.node.outWalletAddress, outputAsset, payload);
+
+    for (const tx of transactions) {
+      await this.buyCryptoRepo.update({ id: tx.id }, { txId });
+    }
+  }
+
+  private async sendDFI(transactions: BuyCrypto[]): Promise<void> {
+    const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.wallet.address, amount: tx.outputAmount }));
+
+    const txId = await this.outClient.sendDFIToMany(Config.node.outWalletAddress, payload);
+
+    for (const tx of transactions) {
+      await this.buyCryptoRepo.update({ id: tx.id }, { txId });
+    }
+  }
+
+  private async sendToken2(input: BuyCrypto): Promise<void> {
     await this.checkUtxo(input.buy.user.wallet.address);
 
     const txId = await this.outClient.sendToken(

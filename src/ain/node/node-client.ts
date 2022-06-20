@@ -185,11 +185,44 @@ export class NodeClient {
         );
   }
 
+  async sendTokenToMany(
+    addressFrom: string,
+    token: string,
+    payload: { addressTo: string; amount: number }[],
+    utxos?: SpendUTXO[],
+  ): Promise<string> {
+    if (token === 'DFI') {
+      throw new Error('DFI transfer must be performed as UTXO');
+    }
+
+    if (payload.length > 10) {
+      throw new Error('Too many addresses in one transaction batch, allowed max 10 for non-DFI tokens');
+    }
+
+    const batch = payload.reduce((acc, p) => (acc[p.addressTo] = `${this.roundAmount(p.amount)}@${token}`), {});
+
+    return this.callNode((c) => c.account.accountToAccount(addressFrom, batch, { utxos }), true);
+  }
+
   async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
     return this.callNode(
       (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
       true,
     );
+  }
+
+  async sendDFIToMany(
+    addressFrom: string,
+    payload: { addressTo: string; amount: number }[],
+    utxos?: SpendUTXO[],
+  ): Promise<string> {
+    if (payload.length > 100) {
+      throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
+    }
+
+    const batch = payload.reduce((acc, p) => (acc[p.addressTo] = `${this.roundAmount(p.amount)}@$DFI`), {});
+
+    return this.callNode((c) => c.account.accountToUtxos(addressFrom, batch, { utxos }), true);
   }
 
   async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
