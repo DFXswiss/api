@@ -4,6 +4,7 @@ import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { I18nService } from 'nestjs-i18n';
+
 export interface MailOptions {
   options: MailerOptions;
   defaultMailTemplate: string;
