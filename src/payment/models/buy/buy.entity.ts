@@ -5,6 +5,7 @@ import { CryptoBuy } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { Deposit } from '../deposit/deposit.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { BuyCrypto } from '../buy-crypto/buy-crypto.entity';
+import { BankAccount } from '../bank-account/bank-account.entity';
 
 @Entity()
 @Index('ibanAssetDepositUser', (buy: Buy) => [buy.iban, buy.asset, buy.deposit, buy.user], { unique: true })
@@ -24,11 +25,11 @@ export class Buy extends IEntity {
   @Column({ default: true })
   active: boolean;
 
-  @Column({ nullable: true })
-  instantPayment: boolean;
-
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
+
+  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.routes)
+  bankAccount: BankAccount;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   asset: Asset;
