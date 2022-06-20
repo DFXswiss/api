@@ -350,7 +350,11 @@ export class UserService {
 
   async checkApiKey(key: string, sign: string, timestamp: string): Promise<User> {
     const user = await this.userRepo.findOne({ apiKeyCT: key });
-    if (!user || sign.toUpperCase() != (await this.getApiSign(user, timestamp)))
+    if (!user) throw new NotFoundException('API key not found');
+
+    const userSign = await this.getApiSign(user, timestamp);
+
+    if (!user || sign.toUpperCase() != userSign || Util.daysDiff(new Date(timestamp), new Date()) > 1)
       throw new ForbiddenException('Invalid API key/sign');
 
     return user;
