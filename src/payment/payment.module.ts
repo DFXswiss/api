@@ -135,7 +135,6 @@ import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-
     CryptoInputService,
     CryptoStakingService,
     StakingRefRewardService,
-    DepositService,
   ],
 })
 export class PaymentModule {}
