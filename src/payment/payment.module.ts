@@ -53,7 +53,6 @@ import { BuyCryptoController } from './models/buy-crypto/buy-crypto.controller';
 import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
 import { StakingRefRewardService } from './models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-ref-reward.repository';
-import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 
 @Module({
   imports: [
@@ -121,7 +120,6 @@ import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.re
     RefRewardService,
     CryptoStakingService,
     StakingRefRewardService,
-    SpiderDataRepository,
   ],
   exports: [
     BuyService,
