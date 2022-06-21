@@ -8,7 +8,7 @@ import { CryptoStaking } from './crypto-staking.entity';
 import { CryptoStakingRepository } from './crypto-staking.repository';
 import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
 import { NodeClient } from 'src/ain/node/node-client';
-import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
@@ -19,10 +19,11 @@ import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { Util } from 'src/shared/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 import { StakingRepository } from '../staking/staking.repository';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class CryptoStakingService {
-  private readonly client: NodeClient;
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -33,7 +34,7 @@ export class CryptoStakingService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly stakingRepo: StakingRepository,
   ) {
-    this.client = nodeService.getClient(NodeType.INPUT, NodeMode.ACTIVE);
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
   // --- CRUD --- //
@@ -225,7 +226,17 @@ export class CryptoStakingService {
     return { batches, avgInflow: (inputVolume - reinvestVolume) / inflowAvgDays };
   }
 
-  async rearrangeOutputDates(date: Date, maxBatchSize: number): Promise<void> {
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async doRearrange(): Promise<void> {
+    const date = Util.daysAfter(Config.staking.period - 1);
+    try {
+      await this.rearrangeOutputDates(date);
+    } catch (e) {
+      console.error(`Failed to rearrange staking output dates for ${date}:`, e);
+    }
+  }
+
+  async rearrangeOutputDates(date: Date, maxBatchSize?: number): Promise<void> {
     date.setUTCHours(0, 0, 0, 0);
     const dateTo = Util.daysAfter(1, date);
 
@@ -301,6 +312,7 @@ export class CryptoStakingService {
   private toDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
     return cryptoStakingList.map((e) => ({
       id: e.id,
+      inTxId: e.inTxId,
       address: e.paybackDeposit?.address ?? e.stakingRoute.user.address,
       outputAsset: e.stakingRoute.paybackAsset?.dexName,
       amount: e.inputAmount,
@@ -332,17 +344,5 @@ export class CryptoStakingService {
     if (reinvest) {
       await this.cryptoStakingRepo.update(reinvest.id, { isReinvest: true });
     }
-  }
-
-  // Monitoring
-
-  async getWrongCryptoStaking(): Promise<number> {
-    const cryptoStakingAndInput = await this.cryptoStakingRepo
-      .createQueryBuilder('cryptoStaking')
-      .where('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
-      .innerJoinAndSelect(CryptoInput, 'cryptoInput', 'cryptoStaking.outTxId = cryptoInput.inTxId')
-      .getRawMany();
-
-    return cryptoStakingAndInput.filter((a) => a.cryptoStaking_outputAmount != a.cryptoInput_amount).length;
   }
 }

@@ -213,11 +213,9 @@ export class AdminController {
       .select('bank_tx', 'bankTx')
       .where('bank_tx.id >= :id', { id })
       .andWhere('bank_tx.updated >= :updated', { updated })
-      .andWhere('bank_tx.type != :buyCryptoType', {
-        buyCryptoType: BankTxType.BUY_CRYPTO,
-      })
-      .andWhere('bank_tx.type != :buyFiatType', {
-        buyFiatType: BankTxType.BUY_FIAT,
+      .andWhere('(type IS NULL OR type NOT IN (:crypto, :fiat))', {
+        crypto: BankTxType.BUY_CRYPTO,
+        fiat: BankTxType.BUY_FIAT,
       })
       .getRawMany()
       .catch((e: Error) => {

@@ -41,7 +41,9 @@ export class SpiderService {
   async createCustomer(userDataId: number, name: string): Promise<CreateResponse | undefined> {
     const customer = await this.spiderApi.getCustomer(userDataId);
     if (!customer) {
-      return this.spiderApi.createCustomer(userDataId, name);
+      const newCustomer = await this.spiderApi.createCustomer(userDataId, name);
+      await this.spiderApi.checkCustomer(userDataId);
+      return newCustomer;
     }
   }
 
@@ -253,8 +255,13 @@ export class SpiderService {
   }
 
   // --- URLS --- //
-  getDocumentUrl(kycCustomerId: number, document: KycDocument, version: string): string {
-    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/${this.defaultDocumentPart}`;
+  getDocumentUrl(
+    kycCustomerId: number,
+    document: KycDocument,
+    version: string,
+    part: string = this.defaultDocumentPart,
+  ): string {
+    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/${part}`;
   }
 
   getOnlineIdUrl(identificationId: string): string {

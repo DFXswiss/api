@@ -1,10 +1,10 @@
-import { MailerOptions } from '@nestjs-modules/mailer';
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { MailOptions } from 'src/shared/services/mail.service';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -14,14 +14,13 @@ export class Configuration {
   environment = process.env.ENVIRONMENT;
   network = process.env.NETWORK;
   githubToken = process.env.GH_TOKEN;
-  defaultLanguage = 'de';
+  defaultLanguage = 'en';
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';
   defaultTelegramUrl = 'https://t.me/DFXswiss';
   defaultLinkedinUrl = 'https://www.linkedin.com/company/dfxswiss/';
   defaultInstagramUrl = 'https://www.instagram.com/dfx.swiss/';
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
-  defaultMailTemplate = 'personal';
 
   colors = {
     white: '#FFFFFF',
@@ -61,7 +60,7 @@ export class Configuration {
     jwt: {
       secret: process.env.JWT_SECRET,
       signOptions: {
-        expiresIn: 172800,
+        expiresIn: process.env.JWT_EXPIRES_IN ?? 172800,
       },
     },
     signMessage:
@@ -101,25 +100,33 @@ export class Configuration {
     url: process.env.LETTER_URL,
   };
 
-  mail: MailerOptions = {
-    transport: {
-      host: 'gateway.dfx.swiss',
-      secure: true,
-      port: 465,
-      auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS,
+  mail: MailOptions = {
+    options: {
+      transport: {
+        host: 'gateway.dfx.swiss',
+        secure: true,
+        port: 465,
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
       },
-      tls: {
-        rejectUnauthorized: false,
+      template: {
+        dir: path.join(__dirname, '../shared/assets/mails'),
+        adapter: new HandlebarsAdapter(),
+        options: {
+          strict: true,
+        },
       },
     },
-    template: {
-      dir: path.join(__dirname, '../shared/assets/mails'),
-      adapter: new HandlebarsAdapter(),
-      options: {
-        strict: true,
-      },
+    defaultMailTemplate: 'personal',
+    contact: {
+      supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
+      monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
+      noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
     },
   };
 

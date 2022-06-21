@@ -29,6 +29,14 @@ export class UserDataController {
     return this.userDataRepo.find();
   }
 
+  @Get('kycFileId')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getAllUserDataWithEmptyFileId(): Promise<number[]> {
+    return this.userDataService.getAllUserDataWithEmptyFileId();
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

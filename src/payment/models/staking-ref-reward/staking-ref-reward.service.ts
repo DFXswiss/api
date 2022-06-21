@@ -11,12 +11,12 @@ import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { KrakenService } from '../exchange/kraken.service';
 import { BinanceService } from '../exchange/binance.service';
-import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { NodeClient } from 'src/ain/node/node-client';
 
 @Injectable()
 export class StakingRefRewardService {
-  private readonly client: NodeClient;
+  private client: NodeClient;
 
   constructor(
     nodeService: NodeService,
@@ -27,7 +27,7 @@ export class StakingRefRewardService {
     private readonly binanceService: BinanceService,
     private readonly mailService: MailService,
   ) {
-    this.client = nodeService.getClient(NodeType.REF, NodeMode.ACTIVE);
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
   async create(staking: Staking): Promise<void> {
@@ -145,14 +145,15 @@ export class StakingRefRewardService {
       for (const reward of openRewardMails) {
         try {
           if (reward.user.userData.mail) {
-            await this.mailService.sendStakingRefMail(
-              reward.user.userData.mail,
-              reward.user.userData.language?.symbol.toLowerCase(),
-              reward.stakingRefType.toString().toLowerCase(),
-              reward.txId,
-              reward.outputAmount,
-              reward.outputAsset,
-            );
+            await this.mailService.sendTranslatedMail({
+              userData: reward.user.userData,
+              translationKey: `mail.stakingRef.${reward.stakingRefType.toString().toLowerCase()}`,
+              params: {
+                txId: reward.txId,
+                outputAmount: reward.outputAmount,
+                outputAsset: reward.outputAsset,
+              },
+            });
           } else {
             console.error(`Failed to send staking ref reward mail ${reward.id}: user has no email`);
           }
@@ -200,11 +201,5 @@ export class StakingRefRewardService {
 
       await this.userService.updatePaidStakingRefCredit(id, volume ?? 0);
     }
-  }
-
-  // Monitoring
-
-  async getIncompleteTransactions(): Promise<number> {
-    return await this.stakingRefRewardRepo.count({ mailSendDate: IsNull() });
   }
 }

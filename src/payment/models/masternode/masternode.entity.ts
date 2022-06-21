@@ -9,9 +9,6 @@ export class Masternode extends IEntity {
   @Column({ length: 256, unique: true })
   operator: string;
 
-  @Column({ default: false })
-  enabled: boolean;
-
   @Column({ length: 256, nullable: true })
   @Index({ unique: true, where: 'owner IS NOT NULL' })
   owner: string;
