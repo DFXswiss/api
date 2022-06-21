@@ -123,8 +123,15 @@ export class BuyCrypto extends IEntity {
       throw new Error('Cannot calculate outputAmount, provided batchReferenceAmount is 0');
     }
 
+    // add to some transactions after calculate - verifyBatch()
     this.outputAmount = Util.round((this.outputReferenceAmount / batchReferenceAmount) * batchOutputAmount, 8);
     this.outputDate = new Date();
+
+    return this;
+  }
+
+  recordBlockHeight(blockHeight: number): this {
+    this.blockHeight = blockHeight;
 
     return this;
   }

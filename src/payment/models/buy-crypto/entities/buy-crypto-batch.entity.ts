@@ -38,14 +38,30 @@ export class BuyCryptoBatch extends IEntity {
   @Column({ length: 256, nullable: true })
   lastCompleteBlock: number;
 
-  addOutputReferenceAmount(amount: number): this {
-    this.outputReferenceAmount = this.outputReferenceAmount + amount;
+  addTransaction(tx: BuyCrypto): this {
+    this.transactions.push(tx);
+    this.outputReferenceAmount = this.outputReferenceAmount + tx.outputReferenceAmount;
 
     return this;
   }
 
-  secure(): this {
+  secure(liquidity: number): this {
+    this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
+
+    for (const tx of this.transactions) {
+      tx.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount);
+    }
+
+    return this;
+  }
+
+  recordBlockHeight(recentChainHistory: { txId: string; blockHeight: number }[]): this {
+    for (const tx of this.transactions) {
+      const chainTx = recentChainHistory.find((chainTx) => chainTx.txId === tx.txId);
+
+      tx.recordBlockHeight(chainTx.blockHeight);
+    }
 
     return this;
   }

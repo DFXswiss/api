@@ -211,18 +211,15 @@ export class NodeClient {
     );
   }
 
-  async sendDFIToMany(
-    addressFrom: string,
-    payload: { addressTo: string; amount: number }[],
-    utxos?: SpendUTXO[],
-  ): Promise<string> {
+  // may not be needed -> use only sendMany and do the 100 check there
+  async sendDFIToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
     if (payload.length > 100) {
       throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
     }
 
-    const batch = payload.reduce((acc, p) => (acc[p.addressTo] = `${this.roundAmount(p.amount)}@$DFI`), {});
+    const batch = payload.reduce((acc, p) => (acc[p.addressTo] = `${this.roundAmount(p.amount)}@DFI`), {});
 
-    return this.callNode((c) => c.account.accountToUtxos(addressFrom, batch, { utxos }), true);
+    return this.sendMany(batch);
   }
 
   async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
