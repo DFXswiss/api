@@ -1,0 +1,77 @@
+/**
+     * Step 1 - Define outputReferenceAsset and outputAsset pair, create transactions batches for every unique pair
+     * * Fetch transactions that doesn't have outputReferenceAsset, outputAsset and batchId
+     * * Access outputAsset from Buy, define outputReferenceAsset from outputAsset based on domain rule
+     * * Get EUR to BTC/USDC/USDT prices from kraken/binance and define outputReferenceAmount
+     * * Save transactions with outputReferenceAsset, outputReferenceAmount and outputAsset
+     * * > Transactions failed to save will just go to the next batches
+     * * Create new batches objects for every unique pair, save in the batches repository (ACID saves batchId to transactions as well, we are safe)
+     * * > Fail recovery > fetch all transactions that have outputReferenceAsset and outputAsset, but does not have batchId (might be impossible case)
+     * * > Fail recovery > make sure that these transactions doesn't exist in any batches
+     * * > Fail recovery > recreate batches for such transactions
+     * * - Now we have transactions and batches saved in the initial state - only with outputReferenceAmount
+     *
+     * Matthias - maybe first create a batch and then just push tx into batch (no need to save txId on batch) - good point! THen fail recovery might!! not be needed
+     *
+     * Step 2 - Check liquidity on DEX node, reserve liquidity and define output prices in transactions
+     * * Fetch all batches that are not "complete" and not "secured"
+     * * Fetch all batches that are not "complete" but "secured"
+     * * For every not secured batch
+     * * * Check if target liquidity (everything other than DFI or 1 to 1) is enough (demand from this batch + secured and not complete in other batches)
+     * * If not - attempt to swap target asset liquidity for DFI (check for DFI availability is not required)
+     * * Check for slippage, if more than 3% ->
+     * * > Mark batch as "paused" and you get an email
+     * * > OR define breaking transaction, break down batch on two, set original batch to "canceled"
+     * * * > Process batch for healthy transactions
+     * * * > Mark match with breaking transaction to "paused", send an email. (What to do is open point). Replay mechanism or manual processing.
+     * * Add total output amount for all transactions to the batch, add exchange price to the batch.
+     * * Save batch with flag "secured"
+     * * Distribute outputAmount between transactions proportionally
+     * * Save transactions with outputAmount
+     * * > previous run failure recovery - what if batch is saved as "secured", but some transactions failed to save outputAmount (DB connection), then
+     * * > previous run failure recovery - fetch all transactions that does have batchId, doesn't have outputAmount, and batch is "secured"
+     * * > previous run failure recovery - calculate outputAmount again based on batch total amount and save those transactions
+     *
+     * Step 3 - Perform transfer from DEX node to OUT node
+     * * Fetch all the batches that are "secured", but not "transferred" and "complete"
+     * * Perform transfer from DEX to OUT for every batch - need to wait
+     * * Save batch as "transferred"
+     *
+     * Step 4 - Perform transfer from OUT to User wallets
+     * * Check if amount of batch is exactly matches the amount that you got from DEX to OUT
+     * * Fetch all batches that are "secured", "transferred", but not "complete"
+     * * Filter transactions for every batch, that does not have outTxId
+     * * Check if this is a new user, if it is - send a little utxo, only if its not DFI
+     * * Perform transfer from OUT to user wallet
+     * * Save outTxId (fault tolerance... in worst case tx is stuck at OUT Node)
+     * * In case all transactions from the batch have outTxId, mark batch as "complete", batch is saved
+     * *
+     * Step 5 (batch might not be needed, "notified")
+     * * Fetch all batches that are "complete", but not "notified" // maybe notified is not needed
+     * * For every transaction make sure again that outTxId exists, if yes - send email
+     * * Update transaction with recipientMail and mailSendDate.
+     *
+     * Process Complete!
+     */
+
+    // Done - add on/off button -> settings service, in case it fails!
+    // check the exact match of OUT node and payout values
+    // don't forget about rounding issues
+    // when doing token -> 10 max addresses at the same - batch again on send from OUT to wallets with max 10 addresses.
+    // utxo - limit is a 100 addresses - also batch.
+    // at every step when we write to BC, we need to check the history and confirm later in parallel. Especially for user payout!!!
+    // maybe make a Step 2 parallel, cause you need to wait for swap, why not to parallel it???
+    // make sure that amount that will be sent out from OUT node MATCH those that received from DEX node, OUt should be completely empty as a check
+    // !!!! at step 1 or step 3 - ignore batches for pair that is in the progress right now. Performance penalty???
+    // get history from blockchain before sending from OUT to wallets to make sure TX complete ("transferred" is not enough cause its recorded )
+    // don't forget about utxo...
+    // what if any blockchain TX fails.
+    // limit batch max volume.
+    // try to squeeze in one column the status, if its possible.
+    // DFI liquidity in token on DEX.
+    // notify if batch is stuck (cannot complete for long time)
+    // notify in case of slippage and batch is stuck, or fallback
+    // send utxo to user only if its not DFI (cause its already utxo) AND there is no utxo on user wallet -> check via Whale client.
+    // check the the asset balance on OUT, check if there is some of the incoming batch, if yes - block.
+
+    // how to we get BTC/DFI rate in case tx will be performed by GS? testpoolswap?
