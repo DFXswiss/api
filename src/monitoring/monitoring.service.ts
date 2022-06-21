@@ -16,7 +16,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
 import { DepositService } from 'src/payment/models/deposit/deposit.service';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { IdentCompletedStates } from 'src/user/models/user-data/user-data.entity';
 
 @Injectable()
