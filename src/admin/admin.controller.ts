@@ -13,7 +13,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { BankTxType } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/entities/buy-crypto.entity';
-import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
+import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
 import { CryptoInput } from 'src/payment/models/crypto-input/crypto-input.entity';
 import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { CryptoSell } from 'src/payment/models/crypto-sell/crypto-sell.entity';

@@ -50,7 +50,7 @@ import { CryptoStakingController } from './models/crypto-staking/crypto-staking.
 import { CryptoInputController } from './models/crypto-input/crypto-input.controller';
 import { BuyCryptoRepository } from './models/buy-crypto/buy-crypto.repository';
 import { BuyCryptoController } from './models/buy-crypto/buy-crypto.controller';
-import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
+import { BuyCryptoService } from './models/buy-crypto/services/buy-crypto.service';
 import { StakingRefRewardService } from './models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-ref-reward.repository';
 import { ExchangeUtilityService } from './models/exchange/exchange-utility.service';

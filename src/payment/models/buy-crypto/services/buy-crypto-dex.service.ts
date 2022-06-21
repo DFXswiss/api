@@ -5,7 +5,7 @@ import { Config } from 'src/config/config';
 import { BlockchainWriteError } from 'src/payment/exceptions/blockchain-write.exception';
 import { DBWriteError } from 'src/payment/exceptions/db-write.exception';
 import { IsNull } from 'typeorm';
-import { BuyCryptoBatchRepository } from '../buy-crypto-batch.repository';
+import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MailService } from 'src/shared/services/mail.service';
 import { IsNull, Not } from 'typeorm';
-import { BuyCryptoRepository } from '../buy-crypto.repository';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 
 @Injectable()

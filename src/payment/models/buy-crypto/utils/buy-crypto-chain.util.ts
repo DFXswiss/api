@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
-import { BuyCryptoRepository } from '../buy-crypto.repository';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
 export class BuyCryptoChainUtil {

@@ -7,7 +7,7 @@ import { Util } from 'src/shared/util';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { BankTxService } from 'src/payment/models/bank-tx/bank-tx.service';
 import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
-import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
+import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
 import { StakingRefRewardService } from 'src/payment/models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { NodeService, NodeType } from 'src/ain/node/node.service';

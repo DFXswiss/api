@@ -1,30 +1,26 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BuyService } from '../buy/buy.service';
+import { BuyService } from '../../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
-import { BankTxRepository } from '../bank-tx/bank-tx.repository';
+import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
 import { Between, In, IsNull } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
-import { BuyRepository } from '../buy/buy.repository';
+import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
-import { AmlCheck, BuyCrypto } from './entities/buy-crypto.entity';
-import { BuyCryptoRepository } from './buy-crypto.repository';
-import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
-import { Buy } from '../buy/buy.entity';
+import { AmlCheck, BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
+import { Buy } from '../../buy/buy.entity';
 import { Interval } from '@nestjs/schedule';
-import { NodeClient } from 'src/ain/node/node-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { BuyCryptoBatchService } from './services/buy-crypto-batch.service';
-import { BuyCryptoOutService } from './services/buy-crypto-out.service';
-import { BuyCryptoDexService } from './services/buy-crypto-dex.service';
-import { BuyCryptoNotificationService } from './services/buy-crypto-notification.service';
+import { BuyCryptoBatchService } from './buy-crypto-batch.service';
+import { BuyCryptoOutService } from './buy-crypto-out.service';
+import { BuyCryptoDexService } from './buy-crypto-dex.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 
 @Injectable()
 export class BuyCryptoService {
   private readonly lock = new Lock(1800);
-  private dexClient: NodeClient;
-  private outClient: NodeClient;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -37,11 +33,7 @@ export class BuyCryptoService {
     private readonly buyCryptoDexService: BuyCryptoDexService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
-    readonly nodeService: NodeService,
-  ) {
-    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
-    nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.outClient = client));
-  }
+  ) {}
 
   async create(bankTxId: number, buyId: number): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne({ bankTx: { id: bankTxId } });
@@ -88,7 +80,7 @@ export class BuyCryptoService {
   }
 
   @Interval(300000)
-  async processBuyCrypto() {
+  async process() {
     if ((await this.settingService.get('buy-process')) !== 'on') return;
     if (!this.lock.acquire()) return;
 
@@ -215,6 +207,8 @@ export class BuyCryptoService {
       await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
     }
   }
+
+  // Statistics
 
   async getTransactions(
     dateFrom: Date = new Date(0),
