@@ -33,7 +33,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getAllUserDataWithEmptyFileId(): Promise<any> {
+  async getAllUserDataWithEmptyFileId(): Promise<number[]> {
     return this.userDataService.getAllUserDataWithEmptyFileId();
   }
 
