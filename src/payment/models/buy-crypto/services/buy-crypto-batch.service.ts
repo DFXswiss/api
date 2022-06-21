@@ -12,17 +12,12 @@ import { BuyCryptoOutService } from './buy-crypto-out.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
-  private outClient: NodeClient;
-
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoOutService: BuyCryptoOutService,
     private readonly exchangeUtilityService: ExchangeUtilityService,
-    readonly nodeService: NodeService,
-  ) {
-    nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.outClient = client));
-  }
+  ) {}
 
   async batchTransactionsByAssets(): Promise<void> {
     const txInput = await this.buyCryptoRepo.find({

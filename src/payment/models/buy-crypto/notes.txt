@@ -55,11 +55,11 @@
      */
 
     // Done - add on/off button -> settings service, in case it fails!
-    // check the exact match of OUT node and payout values
+    // Done - check the exact match of OUT node and payout values
     // don't forget about rounding issues
-    // when doing token -> 10 max addresses at the same - batch again on send from OUT to wallets with max 10 addresses.
-    // utxo - limit is a 100 addresses - also batch.
-    // at every step when we write to BC, we need to check the history and confirm later in parallel. Especially for user payout!!!
+    // Done - when doing token -> 10 max addresses at the same - batch again on send from OUT to wallets with max 10 addresses.
+    // Done - utxo - limit is a 100 addresses - also batch.
+    // Kinda done - at every step when we write to BC, we need to check the history and confirm later in parallel. Especially for user payout!!!
     // maybe make a Step 2 parallel, cause you need to wait for swap, why not to parallel it???
     // make sure that amount that will be sent out from OUT node MATCH those that received from DEX node, OUt should be completely empty as a check
     // !!!! at step 1 or step 3 - ignore batches for pair that is in the progress right now. Performance penalty???

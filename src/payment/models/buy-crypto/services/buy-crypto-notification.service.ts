@@ -24,14 +24,12 @@ export class BuyCryptoNotificationService {
         userData: tx.buy.user.userData,
         translationKey: 'payment.buyCrypto',
         params: {
-          buyFiatAmount: tx.amountInEur,
-          // double check the asset
-          buyFiatAsset: 'EUR',
+          buyFiatAmount: tx.inputAmount,
+          buyFiatAsset: tx.inputAsset,
           buyCryptoAmount: tx.outputAmount,
           buyCryptoAsset: tx.outputAsset,
           buyFeePercentage: tx.percentFee,
-          // double check this field
-          buyFeeAmount: tx.absoluteFeeAmount,
+          buyFeeAmount: tx.percentFeeAmount,
           buyWalletAddress: tx.buy.user.wallet.address,
           buyTxId: tx.txId,
         },

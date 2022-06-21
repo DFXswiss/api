@@ -49,6 +49,8 @@ export class BuyCryptoBatch extends IEntity {
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
+    // don't forget to solve rounding issue here!
+    // and maybe add a specification???
     for (const tx of this.transactions) {
       tx.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount);
     }
