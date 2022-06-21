@@ -13,10 +13,10 @@ import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 import { Buy } from '../buy/buy.entity';
 import { Interval } from '@nestjs/schedule';
 import { ExchangeUtilityService } from '../exchange/exchange-utility.service';
-import { NodeClient } from 'src/ain/node/node-client';
+import { NodeClient, NodeMode } from 'src/ain/node/node-client';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from './entities/buy-crypto-batch.entity';
 import { BuyCryptoBatchRepository } from './buy-crypto-batch.repository';
-import { NodeMode, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { MailService } from 'src/shared/services/mail.service';
 import { Price } from '../exchange/dto/price.dto';
@@ -28,8 +28,8 @@ import { DBWriteError } from 'src/payment/exceptions/db-write.exception';
 @Injectable()
 export class BuyCryptoService {
   private readonly lock = new Lock(1800);
-  private readonly dexClient: NodeClient;
-  private readonly outClient: NodeClient;
+  private dexClient: NodeClient;
+  private outClient: NodeClient;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -44,8 +44,8 @@ export class BuyCryptoService {
     private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
   ) {
-    this.dexClient = nodeService.getClient(NodeType.DEX, NodeMode.ACTIVE);
-    this.outClient = nodeService.getClient(NodeType.OUTPUT, NodeMode.ACTIVE);
+    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
+    nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.outClient = client));
   }
 
   async create(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -701,13 +701,22 @@ export class BuyCryptoService {
     });
 
     for (const tx of txOutput) {
-      await this.mailService.sendBuyCryptoMail(
-        tx.buy.user.userData.mail,
-        tx.buy.user.userData.language?.symbol.toLowerCase(),
-        tx.txId,
-        tx.outputAmount,
-        tx.outputAsset,
-      );
+      await this.mailService.sendTranslatedMail({
+        userData: tx.buy.user.userData,
+        translationKey: 'payment.buyCrypto',
+        params: {
+          buyFiatAmount: tx.amountInEur,
+          // double check the asset
+          buyFiatAsset: 'EUR',
+          buyCryptoAmount: tx.outputAmount,
+          buyCryptoAsset: tx.outputAsset,
+          buyFeePercentage: tx.percentFee,
+          // double check this field
+          buyFeeAmount: tx.absoluteFeeAmount,
+          buyWalletAddress: tx.buy.user.wallet.address,
+          buyTxId: tx.txId,
+        },
+      });
 
       tx.confirmSentMail();
 
