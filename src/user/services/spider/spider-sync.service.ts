@@ -40,20 +40,7 @@ export class SpiderSyncService {
     private readonly spiderService: SpiderService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
-  ) {
-    this.fillIdentPdf();
-  }
-
-  //TODO: remove temp code
-  async fillIdentPdf() {
-    const spiderDataList = await this.spiderDataRepo.find({ relations: ['userData'] });
-    for (const spiderData of spiderDataList) {
-      if (!spiderData.identPdf && IdentCompleted(spiderData.userData.kycStatus)) {
-        spiderData.identPdf = await this.getIdentPdfUrl(spiderData.userData);
-        this.spiderDataRepo.save(spiderData);
-      }
-    }
-  }
+  ) {}
 
   @Interval(7230000)
   async checkOngoingKyc() {
