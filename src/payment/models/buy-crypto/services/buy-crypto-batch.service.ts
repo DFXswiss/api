@@ -18,7 +18,6 @@ export class BuyCryptoBatchService {
   ) {}
 
   async batchTransactionsByAssets(): Promise<void> {
-    console.log('START');
     const txInput = await this.buyCryptoRepo.find({
       where: {
         inputReferenceAmountMinusFee: Not(IsNull()),
@@ -93,14 +92,14 @@ export class BuyCryptoBatchService {
       // not allowing to create a batch for an asset that still exists on OUT node
       if (blockedAssets.find((a) => a.asset === outputAsset)) {
         console.warn(`Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`);
-        return;
+        break;
       }
 
-      const existingBatch = this.buyCryptoBatchRepo.find({ outputAsset: tx.outputAsset });
+      const existingBatch = await this.buyCryptoBatchRepo.findOne({ outputAsset: tx.outputAsset });
 
       if (existingBatch) {
         console.warn(`Halting with creation of a batch for asset: ${outputAsset}, batch already exists`);
-        return;
+        break;
       }
 
       let batch = batches.get(outputReferenceAsset + '&' + outputAsset);
