@@ -18,7 +18,7 @@ import { Lock } from 'src/shared/lock';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
-import { KycDocuments, KycDocumentState, KycContentType, KycDocument } from './dto/spider.dto';
+import { KycDocuments, KycDocumentState, KycContentType, KycDocument, DocumentVersionPart } from './dto/spider.dto';
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 import { DocumentState, SpiderService } from './spider.service';
 import { KycProcessService } from 'src/user/models/kyc/kyc-process.service';
@@ -49,7 +49,7 @@ export class SpiderSyncService {
     const spiderDataList = await this.spiderDataRepo.find({ relations: ['userData'] });
     for (const spiderData of spiderDataList) {
       if (!spiderData.identPdf && IdentCompleted(spiderData.userData.kycStatus)) {
-        spiderData.identPdf = await this.getIdentPdf(spiderData.userData);
+        spiderData.identPdf = await this.getIdentPdfUrl(spiderData.userData);
         this.spiderDataRepo.save(spiderData);
       }
     }
@@ -140,7 +140,7 @@ export class SpiderSyncService {
     }
 
     if (IdentCompleted(userData.kycStatus)) {
-      const pdfUrl = await this.getIdentPdf(userData);
+      const pdfUrl = await this.getIdentPdfUrl(userData);
       await this.spiderDataRepo.update({ userData: { id: userData.id } }, { identPdf: pdfUrl });
     }
 
@@ -221,32 +221,27 @@ export class SpiderSyncService {
 
   // --- HELPER METHODS --- //
 
-  private async getIdentPdf(userData: UserData): Promise<string> {
-    const { document, version } = await this.getCompletedIdentDocument(userData);
-
-    if (!version) return null;
-
-    const pdfPart = await this.spiderApi
-      .getDocumentVersionParts(userData.id, false, document, version)
-      .then((parts) => parts.find((p) => p.contentType === KycContentType.PDF));
-
-    return pdfPart ? this.spiderService.getDocumentUrl(userData.kycCustomerId, document, version, pdfPart.name) : null;
+  private async getIdentPdfUrl(userData: UserData): Promise<string> {
+    const result = await this.getIdentResult(userData, KycContentType.PDF);
+    return result
+      ? this.spiderService.getDocumentUrl(userData.kycCustomerId, result.document, result.version, result.part.name)
+      : null;
   }
 
   private async fetchIdentResult(userData: UserData): Promise<IdentResultDto> {
-    const { document, version } = await this.getCompletedIdentDocument(userData);
-    if (!version) throw new Error(`No completed ident version found for user ${userData.id}`);
+    const result = await this.getIdentResult(userData, KycContentType.XML);
+    if (!result) throw new Error(`No XML ident result found for user ${userData.id}`);
 
-    const xmlPart = await this.spiderApi
-      .getDocumentVersionParts(userData.id, false, document, version)
-      .then((parts) => parts.find((p) => p.contentType === KycContentType.XML));
-    if (!xmlPart)
-      throw new Error(`No XML part found for user ${userData.id}, document ${document} and version ${version}`);
-
-    const file = await this.spiderApi.getDocument<string>(userData.id, false, document, version, xmlPart.name);
+    const file = await this.spiderApi.getDocument<string>(
+      userData.id,
+      false,
+      result.document,
+      result.version,
+      result.part.name,
+    );
     const content = Util.parseXml<any>(file);
 
-    const result = JSON.stringify(content.identifications.identification)
+    const identificationResult = JSON.stringify(content.identifications.identification)
       .split('@_status')
       .join('status')
       .split('#text')
@@ -254,7 +249,21 @@ export class SpiderSyncService {
       .split('@_original')
       .join('original');
 
-    return JSON.parse(result);
+    return JSON.parse(identificationResult);
+  }
+
+  private async getIdentResult(
+    userData: UserData,
+    documentType: KycContentType,
+  ): Promise<{ document: KycDocument; version: string; part: DocumentVersionPart }> {
+    const { document, version } = await this.getCompletedIdentDocument(userData);
+    if (!version) return null;
+
+    const part = await this.spiderApi
+      .getDocumentVersionParts(userData.id, false, document, version)
+      .then((parts) => parts.find((p) => p.contentType === documentType));
+
+    return { document, version, part };
   }
 
   private async getCompletedIdentDocument(userData: UserData): Promise<{ document: KycDocument; version: string }> {

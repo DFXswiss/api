@@ -88,8 +88,8 @@ export class MonitoringService {
   async getUser(): Promise<any> {
     return {
       kycStatus: {
-        current: await this.getKycStatusData(),
-        last24h: await this.getKycStatusData(Util.daysBefore(1, new Date())),
+        all: await this.getKycStatusData(),
+        longer24h: await this.getKycStatusData(Util.daysBefore(1)),
       },
       userWithout: await this.getUserWithout(),
     };
@@ -169,7 +169,7 @@ export class MonitoringService {
     const actual = Util.sum(balance);
 
     // calculate should balance
-    const should = await await getCustomRepository(CryptoStakingRepository)
+    const should = await getCustomRepository(CryptoStakingRepository)
       .getActiveEntries()
       .select('SUM(inputAmount)', 'balance')
       .getRawOne<{ balance: number }>()
