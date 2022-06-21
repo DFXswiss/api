@@ -173,5 +173,5 @@ export function KycCompleted(kycStatus?: KycStatus): boolean {
 }
 
 export function IdentCompleted(kycStatus?: KycStatus): boolean {
-  return KycCompletedStates.includes(kycStatus);
+  return IdentCompletedStates.includes(kycStatus);
 }

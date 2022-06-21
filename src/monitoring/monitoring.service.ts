@@ -147,9 +147,9 @@ export class MonitoringService {
         )
         .leftJoin(DepositRoute, 'depositRoute2', 'cryptoInput.routeId = depositRoute2.id')
         .where('cryptoStaking.payoutType != :payoutType', { payoutType: PayoutType.WALLET })
-        .where('cryptoStaking.outTxId IS NOT NULL')
-        .where('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
-        .where('cryptoInput.id IS NULL OR depositRoute.userId != depositRoute2.userId')
+        .andWhere('cryptoStaking.outTxId IS NOT NULL')
+        .andWhere('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
+        .andWhere('(cryptoInput.id IS NULL OR depositRoute.userId != depositRoute2.userId)')
         .getCount(),
     };
   }
