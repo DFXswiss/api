@@ -50,9 +50,7 @@ export class MonitoringService {
 
   async getIncompleteTransactions(): Promise<any> {
     return {
-      buyCrypto: await getCustomRepository(BuyCryptoRepository)
-        .findOne({ order: { outputDate: 'DESC' } })
-        .then((b) => b.outputDate),
+      buyCrypto: await getCustomRepository(BuyCryptoRepository).count({ mailSendDate: IsNull() }),
       cryptoSell: await getCustomRepository(CryptoSellRepository).count({ mail3SendDate: IsNull() }),
       stakingRefRewards: await getCustomRepository(StakingRefRewardRepository).count({ mailSendDate: IsNull() }),
     };
@@ -72,14 +70,6 @@ export class MonitoringService {
     };
   }
 
-  async getFreeDeposits(): Promise<number> {
-    return await getCustomRepository(DepositRepository)
-      .createQueryBuilder('deposit')
-      .leftJoin('deposit.route', 'route')
-      .where('route.id IS NULL')
-      .getCount();
-  }
-
   // Node
 
   async getNode(): Promise<any> {
@@ -97,19 +87,22 @@ export class MonitoringService {
 
   async getUser(): Promise<any> {
     return {
-      kycStatus: await this.getKycStatusData(),
+      kycStatus: {
+        current: await this.getKycStatusData(),
+        last24h: await this.getKycStatusData(Util.daysBefore(1, new Date())),
+      },
       userWithout: await this.getUserWithout(),
     };
   }
 
-  async getKycStatusData(): Promise<any> {
-    const current = {};
+  async getKycStatusData(date: Date = new Date()): Promise<any> {
+    const kycStatusData = {};
     for (const kycStatus of Object.values(KycStatus)) {
-      current[kycStatus] = await getCustomRepository(UserDataRepository).count({
+      kycStatusData[kycStatus] = await getCustomRepository(UserDataRepository).count({
         where: [
           {
             kycStatus,
-            kycStatusChangeDate: LessThan(new Date()),
+            kycStatusChangeDate: LessThan(date),
           },
           {
             kycStatus,
@@ -119,26 +112,7 @@ export class MonitoringService {
       });
     }
 
-    const longer24h = {};
-    for (const kycStatus of Object.values(KycStatus)) {
-      longer24h[kycStatus] = await getCustomRepository(UserDataRepository).count({
-        where: [
-          {
-            kycStatus,
-            kycStatusChangeDate: LessThan(Util.daysBefore(1, new Date())),
-          },
-          {
-            kycStatus,
-            kycStatusChangeDate: IsNull(),
-          },
-        ],
-      });
-    }
-
-    return {
-      current,
-      longer24h,
-    };
+    return kycStatusData;
   }
 
   async getUserWithout(): Promise<any> {
