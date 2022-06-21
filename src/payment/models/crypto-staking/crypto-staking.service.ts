@@ -20,6 +20,7 @@ import { Util } from 'src/shared/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 import { StakingRepository } from '../staking/staking.repository';
 import { DepositRoute } from '../route/deposit-route.entity';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class CryptoStakingService {
@@ -226,7 +227,17 @@ export class CryptoStakingService {
     return { batches, avgInflow: (inputVolume - reinvestVolume) / inflowAvgDays };
   }
 
-  async rearrangeOutputDates(date: Date, maxBatchSize: number): Promise<void> {
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async doRearrange(): Promise<void> {
+    const date = Util.daysAfter(Config.staking.period - 1);
+    try {
+      await this.rearrangeOutputDates(date);
+    } catch (e) {
+      console.error(`Failed to rearrange staking output dates for ${date}:`, e);
+    }
+  }
+
+  async rearrangeOutputDates(date: Date, maxBatchSize?: number): Promise<void> {
     date.setUTCHours(0, 0, 0, 0);
     const dateTo = Util.daysAfter(1, date);
 
