@@ -312,6 +312,7 @@ export class CryptoStakingService {
   private toDtoList(cryptoStakingList: CryptoStaking[]): GetPayoutsCryptoStakingDto[] {
     return cryptoStakingList.map((e) => ({
       id: e.id,
+      inTxId: e.inTxId,
       address: e.paybackDeposit?.address ?? e.stakingRoute.user.address,
       outputAsset: e.stakingRoute.paybackAsset?.dexName,
       amount: e.inputAmount,
