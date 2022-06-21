@@ -58,6 +58,7 @@ export class SpiderSyncService {
             });
           }
         }
+        await this.spiderDataRepo.save(spiderData);
       }
     }
   }
