@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval, Cron, CronExpression } from '@nestjs/schedule';
 import {
+  IdentCompleted,
   IdentInProgress,
   KycInProgress,
   KycInProgressStates,
@@ -19,7 +20,7 @@ import { Util } from 'src/shared/util';
 import { Config } from 'src/config/config';
 import { KycDocuments, KycDocumentState, KycContentType, KycDocument } from './dto/spider.dto';
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
-import { DocumentState } from './spider.service';
+import { DocumentState, SpiderService } from './spider.service';
 import { KycProcessService } from 'src/user/models/kyc/kyc-process.service';
 
 @Injectable()
@@ -36,9 +37,23 @@ export class SpiderSyncService {
     private readonly userDataRepo: UserDataRepository,
     private readonly kycProcess: KycProcessService,
     private readonly spiderApi: SpiderApiService,
+    private readonly spiderService: SpiderService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
-  ) {}
+  ) {
+    this.fillIdentPdf();
+  }
+
+  //TODO: remove temp code
+  async fillIdentPdf() {
+    const spiderDataList = await this.spiderDataRepo.find({ relations: ['userData'] });
+    for (const spiderData of spiderDataList) {
+      if (!spiderData.identPdf && IdentCompleted(spiderData.userData.kycStatus)) {
+        spiderData.identPdf = await this.getIdentPdf(spiderData.userData);
+        this.spiderDataRepo.save(spiderData);
+      }
+    }
+  }
 
   @Interval(7230000)
   async checkOngoingKyc() {
@@ -124,6 +139,11 @@ export class SpiderSyncService {
       userData = await this.checkKycProgress(userData);
     }
 
+    if (IdentCompleted(userData.kycStatus)) {
+      const pdfUrl = await this.getIdentPdf(userData);
+      await this.spiderDataRepo.update({ userData: { id: userData.id } }, { identPdf: pdfUrl });
+    }
+
     // force sync (chatbot and ident result)
     if (forceSync) {
       userData = await this.kycProcess.storeChatbotResult(userData);
@@ -200,6 +220,19 @@ export class SpiderSyncService {
   }
 
   // --- HELPER METHODS --- //
+
+  private async getIdentPdf(userData: UserData): Promise<string> {
+    const { document, version } = await this.getCompletedIdentDocument(userData);
+
+    if (!version) return null;
+
+    const pdfPart = await this.spiderApi
+      .getDocumentVersionParts(userData.id, false, document, version)
+      .then((parts) => parts.find((p) => p.contentType === KycContentType.PDF));
+
+    return pdfPart ? this.spiderService.getDocumentUrl(userData.kycCustomerId, document, version, pdfPart.name) : null;
+  }
+
   private async fetchIdentResult(userData: UserData): Promise<IdentResultDto> {
     const { document, version } = await this.getCompletedIdentDocument(userData);
     if (!version) throw new Error(`No completed ident version found for user ${userData.id}`);

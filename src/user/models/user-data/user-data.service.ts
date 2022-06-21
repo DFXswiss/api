@@ -10,7 +10,7 @@ import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, KycStatus, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { IsNull, LessThan, Not } from 'typeorm';
+import { IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -210,6 +210,17 @@ export class UserDataService {
 
   async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
     return await this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
+  }
+
+  async getAllUserDataWithEmptyFileId(): Promise<number[]> {
+    const userDataList = await this.userDataRepo.find({ where: { kycFileId: MoreThan(0) } });
+    const idList = [];
+    for (const userData of userDataList) {
+      const customerInfo = await this.spiderApiService.getCustomerInfo(userData.id);
+      if (customerInfo && !customerInfo.contractReference) idList.push(userData.id);
+    }
+
+    return idList;
   }
 
   // Monitoring
