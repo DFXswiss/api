@@ -1,6 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { NodeClient } from 'src/ain/node/node-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Not, IsNull } from 'typeorm';
 import { Price } from '../../exchange/dto/price.dto';
 import { ExchangeUtilityService } from '../../exchange/exchange-utility.service';
@@ -20,6 +18,7 @@ export class BuyCryptoBatchService {
   ) {}
 
   async batchTransactionsByAssets(): Promise<void> {
+    console.log('START');
     const txInput = await this.buyCryptoRepo.find({
       where: {
         inputReferenceAmountMinusFee: Not(IsNull()),

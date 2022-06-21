@@ -1,4 +1,4 @@
-import { createCustomBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
+import { createDefaultBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
 import { AmlCheck, BuyCrypto } from '../../buy-crypto.entity';
 import { createCustomBuyCryptoBatch } from './buy-crypto-batch.entity.mock';
 
@@ -38,7 +38,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   const keys = Object.keys(customValues);
   const entity = new BuyCrypto();
 
-  entity.buy = keys.includes('buy') ? buy : createCustomBuy({});
+  entity.buy = keys.includes('buy') ? buy : createDefaultBuy();
   entity.batch = keys.includes('batch') ? batch : createCustomBuyCryptoBatch({ transactions: [entity] });
   entity.inputAmount = keys.includes('inputAmount') ? inputAmount : 100;
   entity.inputAsset = keys.includes('inputAsset') ? inputAsset : 'EUR';
