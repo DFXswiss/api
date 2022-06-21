@@ -15,6 +15,9 @@ import { NodeClient } from 'src/ain/node/node-client';
 import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
 import { DepositService } from 'src/payment/models/deposit/deposit.service';
+import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
+import { In, IsNull, Not } from 'typeorm';
+import { IdentCompletedStates } from 'src/user/models/user-data/user-data.entity';
 
 @Injectable()
 export class MonitoringService {
@@ -35,6 +38,7 @@ export class MonitoringService {
     private stakingRewardService: StakingRewardService,
     private cryptoStakingService: CryptoStakingService,
     private depositService: DepositService,
+    private spiderDataRepo: SpiderDataRepository,
   ) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
@@ -118,5 +122,16 @@ export class MonitoringService {
 
   async getFreeDeposits(): Promise<number> {
     return await this.depositService.getFreeDeposit();
+  }
+
+  async getSpiderData(): Promise<any> {
+    return { identWithoutPdfUrl: await this.getIdentUserWithoutPdfUrl() };
+  }
+
+  async getIdentUserWithoutPdfUrl(): Promise<number> {
+    return await this.spiderDataRepo.count({
+      where: { identPdf: IsNull(), userData: { kycStatus: In(IdentCompletedStates) } },
+      relations: ['userData'],
+    });
   }
 }

@@ -26,6 +26,7 @@ export class MonitoringController {
       unmatchedStaking: await this.monitoringService.getUnmatchedStaking(),
       freeOperators: await this.monitoringService.getFreeOperators(),
       freeDeposits: await this.monitoringService.getFreeDeposits(),
+      spiderData: await this.monitoringService.getSpiderData(),
     };
   }
 }
