@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, IsNull, Like, Not } from 'typeorm';
+import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -70,7 +70,7 @@ export class UserService {
 
     user.ipCountry = await this.geoLocationService.getCountry(userIp);
     const country = await this.countryService.getCountryWithSymbol(user.ipCountry);
-    if (!country.ipEnable) throw new ForbiddenException('IP country is not allowed');
+    if (!country.ipEnable) throw new ForbiddenException('The country of IP address is not allowed');
     user.ip = userIp;
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ref = await this.getNextRef();
@@ -416,11 +416,5 @@ export class UserService {
 
     await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
     return votes;
-  }
-
-  // Monitoring
-
-  async getUserWithoutIpCountry(): Promise<number> {
-    return await this.userRepo.count({ where: { ipCountry: IsNull() } });
   }
 }
