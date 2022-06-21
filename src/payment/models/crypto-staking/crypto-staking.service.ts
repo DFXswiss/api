@@ -19,7 +19,6 @@ import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { Util } from 'src/shared/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 import { StakingRepository } from '../staking/staking.repository';
-import { DepositRoute } from '../route/deposit-route.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
@@ -344,26 +343,5 @@ export class CryptoStakingService {
     if (reinvest) {
       await this.cryptoStakingRepo.update(reinvest.id, { isReinvest: true });
     }
-  }
-
-  // Monitoring
-
-  async getUnmatchedStaking(): Promise<number> {
-    const cryptoStakingAndInput = await this.cryptoStakingRepo
-      .createQueryBuilder('cryptoStaking')
-      .leftJoin(DepositRoute, 'depositRoute', 'cryptoStaking.paybackDepositId = depositRoute.depositId')
-      .leftJoin(
-        CryptoInput,
-        'cryptoInput',
-        '(cryptoStaking.outTxId = cryptoInput.inTxId OR cryptoStaking.outTxId2 = cryptoInput.inTxId) AND cryptoInput.routeId = depositRoute.id',
-      )
-      .leftJoin(DepositRoute, 'depositRoute2', 'cryptoInput.routeId = depositRoute2.id')
-      .where('cryptoStaking.payoutType != :payoutType', { payoutType: PayoutType.WALLET })
-      .where('cryptoStaking.outTxId IS NOT NULL')
-      .where('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
-      .where('cryptoInput.id IS NULL OR depositRoute.userId != depositRoute2.userId')
-      .getCount();
-
-    return cryptoStakingAndInput;
   }
 }

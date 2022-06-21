@@ -168,9 +168,4 @@ export class StakingRewardService {
     return Math.pow(1 + apr / 365, 365) - 1;
   }
 
-  // Monitoring
-
-  async getLastOutputDate(): Promise<Date> {
-    return await this.stakingRewardRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
-  }
 }
