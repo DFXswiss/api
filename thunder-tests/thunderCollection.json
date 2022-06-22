@@ -137,6 +137,20 @@
         "containerId": "",
         "created": "2022-06-07T21:46:13.991Z",
         "sortNum": 190000
+      },
+      {
+        "_id": "1b37c199-5952-4d91-9455-d1a4151c735f",
+        "name": "Buy",
+        "containerId": "",
+        "created": "2022-06-21T21:40:05.817Z",
+        "sortNum": 200000
+      },
+      {
+        "_id": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
+        "name": "Sell",
+        "containerId": "",
+        "created": "2022-06-21T21:40:10.043Z",
+        "sortNum": 210000
       }
     ],
     "settings": {
