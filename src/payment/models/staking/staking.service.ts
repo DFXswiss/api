@@ -127,7 +127,7 @@ export class StakingService {
   }
 
   async updateRewardVolume(stakingId: number, volume: number): Promise<void> {
-    await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, 0) });
+    await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, Config.defaultVolumeDecimal) });
   }
 
   // --- HELPER METHODS --- //
@@ -149,7 +149,7 @@ export class StakingService {
 
     // update balance
     const balance = await this.getCurrentStakingBalance(stakingId);
-    await this.stakingRepo.update(stakingId, { volume: Util.round(balance, 0) });
+    await this.stakingRepo.update(stakingId, { volume: Util.round(balance, Config.defaultVolumeDecimal) });
     await this.updateUserBalance(staking.user.id);
 
     // set staking start
@@ -252,7 +252,7 @@ export class StakingService {
       paybackType,
       paybackSell: await this.getSell(paybackType, staking.paybackDeposit?.id, sellRoutes),
       paybackAsset: staking.paybackAsset ?? undefined,
-      balance: Util.round(staking.volume, 2),
+      balance: Util.round(staking.volume, Config.defaultVolumeDecimal),
       rewardVolume: staking.rewardVolume ?? 0,
       isInUse: staking.volume > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
       fee: fee,

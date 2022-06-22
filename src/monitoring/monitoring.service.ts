@@ -176,7 +176,7 @@ export class MonitoringService {
       .then((b) => b.balance);
 
     // calculate difference
-    const difference = Util.round(actual - should, 2);
+    const difference = Util.round(actual - should, Config.defaultVolumeDecimal);
     return { actual, should, difference };
   }
 }
