@@ -25,13 +25,19 @@ export class BankAccount extends IEntity {
   sell: Sell[];
 
   @Column({ length: 256, nullable: true })
+  result: string;
+
+  @Column({ nullable: true })
+  returnCode: number;
+
+  @Column({ length: 256, nullable: true })
+  checks: string;
+
+  @Column({ length: 256, nullable: true })
   bic: string;
 
   @Column({ length: 256, nullable: true })
   allBicCandidates: string;
-
-  @Column({ length: 256, nullable: true })
-  country: string;
 
   @Column({ length: 256, nullable: true })
   bankCode: string;
@@ -44,15 +50,6 @@ export class BankAccount extends IEntity {
 
   @Column({ length: 256, nullable: true })
   bankAddress: string;
-
-  @Column({ length: 256, nullable: true })
-  bankCity: string;
-
-  @Column({ length: 256, nullable: true })
-  bankState: string;
-
-  @Column({ length: 256, nullable: true })
-  bankPostalCode: string;
 
   @Column({ length: 256, nullable: true })
   bankUrl: string;
@@ -81,7 +78,7 @@ export class BankAccount extends IEntity {
   @Column({ nullable: true })
   sctInstReadinessDate: Date;
 
-  @Column({ nullable: true })
+  @Column({ length: 256, nullable: true })
   acountNumber: string;
 
   @Column({ length: 256, nullable: true })
@@ -89,4 +86,7 @@ export class BankAccount extends IEntity {
 
   @Column({ length: 256, nullable: true })
   ibanListed: string;
+
+  @Column({ nullable: true })
+  ibanWwwOccurrences: number;
 }
