@@ -79,16 +79,20 @@ export class BuyCryptoService {
     return entity;
   }
 
-  @Interval(300000)
+  @Interval(30000)
   async process() {
-    if ((await this.settingService.get('buy-process')) !== 'on') return;
+    // if ((await this.settingService.get('buy-process')) !== 'on') return;
+    console.log('Buy Crypto Process START');
+    if ((await this.settingService.get('buy-process')) === 'on') return;
     if (!this.lock.acquire()) return;
 
-    await this.handle(this.buyCryptoBatchService.batchTransactionsByAssets);
-    await this.handle(this.buyCryptoDexService.secureLiquidity);
-    await this.handle(this.buyCryptoDexService.transferLiquidityForOutput);
-    await this.handle(this.buyCryptoOutService.payoutTransactions);
-    await this.handle(this.buyCryptoNotificationService.sentNotificationMails);
+    await this.buyCryptoBatchService.batchTransactionsByAssets();
+    await this.buyCryptoDexService.secureLiquidity();
+    await this.buyCryptoDexService.transferLiquidityForOutput();
+    await this.buyCryptoOutService.payoutTransactions();
+    await this.buyCryptoNotificationService.sentNotificationMails();
+
+    console.log('Buy Crypto Process END');
 
     this.lock.release();
   }

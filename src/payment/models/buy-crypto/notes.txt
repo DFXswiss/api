@@ -73,5 +73,6 @@
     // notify in case of slippage and batch is stuck, or fallback
     // send utxo to user only if its not DFI (cause its already utxo) AND there is no utxo on user wallet -> check via Whale client.
     // check the the asset balance on OUT, check if there is some of the incoming batch, if yes - block.
+    // run the loop to convert DFI token from utxo on DEX node
 
     // how to we get BTC/DFI rate in case tx will be performed by GS? testpoolswap?

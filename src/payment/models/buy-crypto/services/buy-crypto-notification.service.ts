@@ -16,13 +16,15 @@ export class BuyCryptoNotificationService {
         txId: Not(IsNull()),
         batch: { status: BuyCryptoBatchStatus.COMPLETE },
       },
-      relations: ['bankTx', 'buy', 'buy.user', 'batch'],
+      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'batch'],
     });
+
+    console.log('SEND NOTIFICATIONS', txOutput);
 
     for (const tx of txOutput) {
       await this.mailService.sendTranslatedMail({
         userData: tx.buy.user.userData,
-        translationKey: 'payment.buyCrypto',
+        translationKey: 'mail.payment.buyCrypto',
         params: {
           buyFiatAmount: tx.inputAmount,
           buyFiatAsset: tx.inputAsset,
@@ -30,12 +32,14 @@ export class BuyCryptoNotificationService {
           buyCryptoAsset: tx.outputAsset,
           buyFeePercentage: tx.percentFee,
           buyFeeAmount: tx.percentFeeAmount,
-          buyWalletAddress: tx.buy.user.wallet.address,
+          buyWalletAddress: tx.buy.user.address,
           buyTxId: tx.txId,
         },
       });
 
       tx.confirmSentMail();
+
+      console.log('TX mail confirmed', tx);
 
       // TODO - no need to await? make sure
       await this.buyCryptoRepo.save(tx);

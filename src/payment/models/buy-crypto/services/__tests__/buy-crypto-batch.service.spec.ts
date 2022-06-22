@@ -32,8 +32,6 @@ describe('BuyCryptoBatchService', () => {
   let buyCryptoOutServiceGetAssetsOnOutNode: jest.SpyInstance;
   let exchangeUtilityServiceGetMatchingPrice: jest.SpyInstance;
 
-  /*** DB Mock ***/
-
   beforeEach(() => {
     setupMocks();
     setupSpies();

@@ -199,7 +199,12 @@ export class NodeClient {
       throw new Error('Too many addresses in one transaction batch, allowed max 10 for non-DFI tokens');
     }
 
-    const batch = payload.reduce((acc, p) => (acc[p.addressTo] = `${this.roundAmount(p.amount)}@${token}`), {});
+    const batch = payload.reduce((acc, p) => {
+      acc[p.addressTo] = `${p.amount}@${token}`;
+      return acc;
+    }, {});
+
+    console.log('Final batch', batch);
 
     return this.callNode((c) => c.account.accountToAccount(addressFrom, batch, { utxos }), true);
   }

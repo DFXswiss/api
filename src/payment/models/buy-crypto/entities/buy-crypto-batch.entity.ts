@@ -11,19 +11,19 @@ export enum BuyCryptoBatchStatus {
 
 @Entity()
 export class BuyCryptoBatch extends IEntity {
-  @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.batch)
+  @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.batch, { cascade: true })
   transactions: BuyCrypto[];
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256, nullable: true })
   outputReferenceAsset: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256, nullable: true })
   outputAsset: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
   @Column({ length: 256, nullable: true })
@@ -35,35 +35,52 @@ export class BuyCryptoBatch extends IEntity {
   @Column({ length: 256, nullable: true })
   purchaseTxId: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ type: 'float', nullable: true })
   lastCompleteBlock: number;
 
   addTransaction(tx: BuyCrypto): this {
-    this.transactions.push(tx);
+    if (!this.transactions) {
+      this.transactions = [];
+    }
+
+    tx.batch = this;
+
+    this.transactions = [...this.transactions, tx];
+
+    if (!this.outputReferenceAmount) {
+      this.outputReferenceAmount = 0;
+    }
+
     this.outputReferenceAmount = this.outputReferenceAmount + tx.outputReferenceAmount;
 
     return this;
   }
 
   secure(liquidity: number): this {
+    console.log('Secure Before');
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
     // don't forget to solve rounding issue here!
     // and maybe add a specification???
-    for (const tx of this.transactions) {
-      tx.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount);
-    }
+    const updatedTransactions = this.transactions.map((t) =>
+      t.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount),
+    );
 
+    this.transactions = updatedTransactions;
+
+    console.log('Secure After', this);
     return this;
   }
 
   recordBlockHeight(recentChainHistory: { txId: string; blockHeight: number }[]): this {
-    for (const tx of this.transactions) {
-      const chainTx = recentChainHistory.find((chainTx) => chainTx.txId === tx.txId);
+    const updatedTransactions = this.transactions.map((t) => {
+      const chainTx = recentChainHistory.find((chainTx) => chainTx.txId === t.txId);
 
-      tx.recordBlockHeight(chainTx.blockHeight);
-    }
+      return t.recordBlockHeight(chainTx.blockHeight);
+    });
+
+    this.transactions = updatedTransactions;
 
     return this;
   }

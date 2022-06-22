@@ -20,7 +20,7 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Buy, (buy) => buy.cryptoBuys, { nullable: false })
   buy: Buy;
 
-  @ManyToOne(() => BuyCryptoBatch, { nullable: true })
+  @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true, onUpdate: 'CASCADE' })
   batch: BuyCryptoBatch;
 
   @Column({ type: 'float', nullable: true })
@@ -71,7 +71,7 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   txId: string;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'integer', nullable: true })
   blockHeight: number;
 
   @Column({ type: 'datetime2', nullable: true })
@@ -113,7 +113,11 @@ export class BuyCrypto extends IEntity {
       throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
     }
 
-    this.outputReferenceAmount = Util.round(this.amountInEur / price.price, 8);
+    console.log('Calculating outputReferenceAmount in TX');
+
+    this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
+
+    console.log('outputReferenceAmount in TX', this.outputReferenceAmount);
 
     return this;
   }
