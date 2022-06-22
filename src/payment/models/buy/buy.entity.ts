@@ -28,7 +28,7 @@ export class Buy extends IEntity {
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
-  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.routes)
+  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.buy)
   bankAccount: BankAccount;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })

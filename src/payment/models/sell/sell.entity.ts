@@ -18,7 +18,7 @@ export class Sell extends DepositRoute {
   @ManyToOne(() => User, (user) => user.sells, { nullable: false })
   user: User;
 
-  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.routes)
+  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.sell)
   bankAccount: BankAccount;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)

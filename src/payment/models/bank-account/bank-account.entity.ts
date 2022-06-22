@@ -5,7 +5,7 @@ import { Buy } from '../buy/buy.entity';
 import { Sell } from '../sell/sell.entity';
 
 @Entity()
-@Index('ibanLabel', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.label, bankAccount.user], {
+@Index('ibanLabel', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {
   unique: true,
 })
 export class BankAccount extends IEntity {
@@ -18,72 +18,75 @@ export class BankAccount extends IEntity {
   @ManyToOne(() => User, (user) => user.ibans)
   user: User;
 
-  @OneToMany(() => Buy || Sell, (route) => route.bankAccount)
-  routes: Buy[] | Sell[];
+  @OneToMany(() => Buy, (buy) => buy.bankAccount)
+  buy: Buy[];
 
-  @Column({ length: 256 })
+  @OneToMany(() => Sell, (sell) => sell.bankAccount)
+  sell: Sell[];
+
+  @Column({ length: 256, nullable: true })
   bic: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   allBicCandidates: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   country: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankCode: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankAndBranchCode: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankName: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankAddress: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankCity: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankState: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankPostalCode: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   bankUrl: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   branch: string;
 
   @Column({ nullable: true })
   branchCode: number;
 
-  @Column({})
+  @Column({ nullable: true })
   sct: boolean;
 
-  @Column({})
+  @Column({ nullable: true })
   sdd: boolean;
 
-  @Column({})
+  @Column({ nullable: true })
   b2b: boolean;
 
-  @Column({})
+  @Column({ nullable: true })
   scc: boolean;
 
-  @Column({})
+  @Column({ nullable: true })
   sctInst: boolean;
 
-  @Column({})
-  sctInstReadinessDate: Date;
+  @Column({ nullable: true })
+  sctInstReadinessDate: string;
 
-  @Column({})
+  @Column({ nullable: true })
   acountNumber: number;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   dataAge: string;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: true })
   ibanListed: string;
 }
