@@ -11,14 +11,14 @@ export interface BankAccountDto {
   bankPostalCode: string;
   bankUrl: string;
   branch: string;
-  branchCode: number;
+  branchCode: string;
   sct: boolean;
   sdd: boolean;
   b2b: boolean;
   scc: boolean;
   sctInst: boolean;
-  sctInstReadinessDate: string;
-  acountNumber: number;
+  sctInstReadinessDate: Date;
+  acountNumber: string;
   dataAge: string;
   ibanListed: string;
 }
