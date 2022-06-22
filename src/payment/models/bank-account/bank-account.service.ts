@@ -15,6 +15,7 @@ export class BankAccountService {
       where: {
         iban: iban,
       },
+      relations: ['user'],
     });
 
     if (!bankAccount) {
@@ -30,6 +31,7 @@ export class BankAccountService {
 
     if (bankAccount.user.id != userId) {
       bankAccount.user = { id: userId } as User;
+      delete bankAccount.id;
       return this.bankAccountRepo.save(bankAccount);
     }
 
@@ -41,7 +43,7 @@ export class BankAccountService {
       bic: bankDetails.bic_candidates.length > 0 ? bankDetails.bic_candidates.map((c) => c.bic).join(',') : null,
       bankName: this.parseString(bankDetails.bank),
       allBicCandidates:
-        bankDetails.all_bic_candidates.length > 0 ? JSON.stringify(bankDetails.all_bic_candidates.join(';')) : null,
+        bankDetails.all_bic_candidates.length > 0 ? bankDetails.all_bic_candidates.map((c) => c.bic).join(',') : null,
       country: this.parseString(bankDetails.country),
       bankCode: this.parseString(bankDetails.bank_code),
       bankAndBranchCode: this.parseString(bankDetails.bank_and_branch_code),
@@ -51,14 +53,14 @@ export class BankAccountService {
       bankPostalCode: this.parseString(bankDetails.bank_postal_code),
       bankUrl: this.parseString(bankDetails.bank_url),
       branch: this.parseString(bankDetails.branch),
-      branchCode: this.parseNumber(bankDetails.branch_code),
+      branchCode: this.parseString(bankDetails.branch_code),
       sct: this.parseBoolean(bankDetails.sct),
       sdd: this.parseBoolean(bankDetails.sdd),
       b2b: this.parseBoolean(bankDetails.b2b),
       scc: this.parseBoolean(bankDetails.scc),
       sctInst: this.parseBoolean(bankDetails.sct_inst),
-      sctInstReadinessDate: this.parseString(bankDetails.sct_inst_readiness_date),
-      acountNumber: this.parseNumber(bankDetails.account_number),
+      sctInstReadinessDate: !bankDetails.sct_inst_readiness_date ? null : new Date(bankDetails.sct_inst_readiness_date),
+      acountNumber: this.parseString(bankDetails.account_number),
       dataAge: this.parseString(bankDetails.data_age),
       ibanListed: this.parseString(bankDetails.iban_listed),
     };
@@ -70,9 +72,5 @@ export class BankAccountService {
 
   private parseBoolean(temp: string): boolean {
     return !temp ? null : temp === 'yes' ? true : false;
-  }
-
-  private parseNumber(temp: string): number {
-    return !temp ? null : Number.parseInt(temp);
   }
 }

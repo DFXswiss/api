@@ -61,7 +61,7 @@ export class BankAccount extends IEntity {
   branch: string;
 
   @Column({ nullable: true })
-  branchCode: number;
+  branchCode: string;
 
   @Column({ nullable: true })
   sct: boolean;
@@ -79,10 +79,10 @@ export class BankAccount extends IEntity {
   sctInst: boolean;
 
   @Column({ nullable: true })
-  sctInstReadinessDate: string;
+  sctInstReadinessDate: Date;
 
   @Column({ nullable: true })
-  acountNumber: number;
+  acountNumber: string;
 
   @Column({ length: 256, nullable: true })
   dataAge: string;
