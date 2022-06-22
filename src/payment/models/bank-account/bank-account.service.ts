@@ -40,17 +40,22 @@ export class BankAccountService {
 
   private parseBankDetails(bankDetails: IbanDetails): BankAccountDto {
     return {
+      result: this.parseString(bankDetails.result),
+      returnCode: !bankDetails.return_code ? null : bankDetails.return_code,
+      checks: bankDetails.checks.length > 0 ? bankDetails.checks.join(',') : null,
       bic: bankDetails.bic_candidates.length > 0 ? bankDetails.bic_candidates.map((c) => c.bic).join(',') : null,
       bankName: this.parseString(bankDetails.bank),
       allBicCandidates:
         bankDetails.all_bic_candidates.length > 0 ? bankDetails.all_bic_candidates.map((c) => c.bic).join(',') : null,
-      country: this.parseString(bankDetails.country),
       bankCode: this.parseString(bankDetails.bank_code),
       bankAndBranchCode: this.parseString(bankDetails.bank_and_branch_code),
-      bankAddress: this.parseString(bankDetails.bank_address),
-      bankCity: this.parseString(bankDetails.bank_city),
-      bankState: this.parseString(bankDetails.bank_state),
-      bankPostalCode: this.parseString(bankDetails.bank_postal_code),
+      bankAddress: this.parseAddressString(
+        bankDetails.bank_address,
+        bankDetails.bank_street,
+        bankDetails.bank_city,
+        bankDetails.bank_state,
+        bankDetails.bank_postal_code,
+      ),
       bankUrl: this.parseString(bankDetails.bank_url),
       branch: this.parseString(bankDetails.branch),
       branchCode: this.parseString(bankDetails.branch_code),
@@ -63,11 +68,18 @@ export class BankAccountService {
       acountNumber: this.parseString(bankDetails.account_number),
       dataAge: this.parseString(bankDetails.data_age),
       ibanListed: this.parseString(bankDetails.iban_listed),
+      ibanWwwOccurrences: !bankDetails.iban_www_occurrences ? null : bankDetails.iban_www_occurrences,
     };
   }
 
   private parseString(temp: string): string {
     return !temp ? null : temp;
+  }
+
+  private parseAddressString(address: string, street: string, city: string, state: string, postalCode: string): string {
+    return !address && !street && !city && !state && !postalCode
+      ? null
+      : address + ',' + street + ',' + city + ',' + state + ',' + postalCode;
   }
 
   private parseBoolean(temp: string): boolean {

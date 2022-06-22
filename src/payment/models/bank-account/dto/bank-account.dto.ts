@@ -1,14 +1,13 @@
 export interface BankAccountDto {
+  result: string;
+  returnCode: number;
+  checks: string;
   bic: string;
   allBicCandidates: string;
-  country: string;
   bankCode: string;
   bankAndBranchCode: string;
   bankName: string;
   bankAddress: string;
-  bankCity: string;
-  bankState: string;
-  bankPostalCode: string;
   bankUrl: string;
   branch: string;
   branchCode: string;
@@ -21,4 +20,5 @@ export interface BankAccountDto {
   acountNumber: string;
   dataAge: string;
   ibanListed: string;
+  ibanWwwOccurrences: number;
 }
