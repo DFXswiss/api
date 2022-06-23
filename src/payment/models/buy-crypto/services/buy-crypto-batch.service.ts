@@ -18,50 +18,46 @@ export class BuyCryptoBatchService {
   ) {}
 
   async batchTransactionsByAssets(): Promise<void> {
-    const txInput = await this.buyCryptoRepo.find({
-      where: {
-        inputReferenceAmountMinusFee: Not(IsNull()),
-        outputReferenceAsset: IsNull(),
-        outputReferenceAmount: IsNull(),
-        outputAsset: IsNull(),
-        batch: IsNull(),
-      },
-      relations: ['bankTx', 'buy', 'buy.user', 'batch'],
-    });
-
-    console.log('batchTransactionsByAssets Input Transactions', txInput);
-
     try {
-      console.log('batchTransactionsByAssets Input Transactions DETAILS', txInput[0].buy.user, txInput[0].buy.asset);
-    } catch {}
+      const txInput = await this.buyCryptoRepo.find({
+        where: {
+          inputReferenceAmountMinusFee: Not(IsNull()),
+          outputReferenceAsset: IsNull(),
+          outputReferenceAmount: IsNull(),
+          outputAsset: IsNull(),
+          batch: IsNull(),
+        },
+        relations: ['bankTx', 'buy', 'buy.user', 'batch'],
+      });
 
-    if (txInput.length === 0) {
-      return;
-    }
+      if (txInput.length === 0) {
+        return;
+      }
 
-    const txWithAssets = await this.defineAssetPair(txInput);
-    const referencePrices = await this.getReferencePrices(txWithAssets);
-    const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
-    const blockedAssets = await this.buyCryptoOutService.getAssetsOnOutNode();
-    const batches = await this.batchTransactions(txWithReferenceAmount, blockedAssets);
+      console.info(`New buy crypto transaction input. Processing ${txInput.length} transaction(s)`);
 
-    console.log('batchTransactionsByAssets batches', batches);
+      const txWithAssets = await this.defineAssetPair(txInput);
+      const referencePrices = await this.getReferencePrices(txWithAssets);
+      const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
+      const blockedAssets = await this.buyCryptoOutService.getAssetsOnOutNode();
+      const batches = await this.batchTransactions(txWithReferenceAmount, blockedAssets);
 
-    for (const batch of batches) {
-      // in case of interim DB failure - will safely start over
-      await this.buyCryptoBatchRepo.save(batch);
+      for (const batch of batches) {
+        await this.buyCryptoBatchRepo.save(batch);
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 
   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Map<string, Price>> {
     const result = new Map<string, Price>();
     const referenceAssets = [...new Set(txWithAssets.map((tx) => tx.outputReferenceAsset))];
-    console.log('Getting matching prices');
+
     await Promise.all(
       referenceAssets.map(async (asset) => await this.exchangeUtilityService.getMatchingPrice('EUR', asset)),
     ).then((prices) => prices.forEach((price, i) => result.set(referenceAssets[i], price)));
 
-    console.log('Got matching prices', result);
     return result;
   }
 
@@ -70,8 +66,6 @@ export class BuyCryptoBatchService {
       const outputAsset = tx.buy?.asset?.dexName;
       tx.defineAssetExchangePair(outputAsset);
     }
-
-    console.log('Defined asset pair', transactions);
 
     return transactions;
   }
@@ -85,12 +79,8 @@ export class BuyCryptoBatchService {
 
       const referenceAssetPrice = referencePrices.get(outputReferenceAsset);
 
-      console.log('referenceAssetPrice', referenceAssetPrice);
-
       tx.calculateOutputReferenceAmount(referenceAssetPrice);
     }
-
-    console.log('Defined reference amount', transactions);
 
     return transactions;
   }
@@ -99,13 +89,11 @@ export class BuyCryptoBatchService {
     transactions: BuyCrypto[],
     blockedAssets: { amount: number; asset: string }[],
   ): Promise<BuyCryptoBatch[]> {
-    console.log('Creating batches');
     const batches = new Map<string, BuyCryptoBatch>();
 
     for (const tx of transactions) {
       const { outputReferenceAsset, outputAsset } = tx;
 
-      // not allowing to create a batch for an asset that still exists on OUT node
       if (blockedAssets.find((a) => a.asset === outputAsset)) {
         console.warn(`Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`);
         break;
@@ -129,23 +117,11 @@ export class BuyCryptoBatchService {
         batches.set(outputReferenceAsset + '&' + outputAsset, batch);
       }
 
-      console.log('First batch', batch);
-
       batch.addTransaction(tx);
     }
 
-    console.log('All Batches output', [...batches.values()]);
+    console.info(`Created ${batches.size} buy crypto batch(es)`);
 
     return [...batches.values()];
-  }
-
-  private async saveBatch(batch: BuyCryptoBatch): Promise<BuyCryptoBatch> {
-    const updatedBatch = await this.buyCryptoBatchRepo.save(batch);
-    for (const tx of batch.transactions) {
-      await this.buyCryptoRepo.save(tx);
-      // in case of interim DB failure - will safely start over
-    }
-
-    return updatedBatch;
   }
 }

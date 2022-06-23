@@ -76,3 +76,6 @@
     // run the loop to convert DFI token from utxo on DEX node
 
     // how to we get BTC/DFI rate in case tx will be performed by GS? testpoolswap?
+
+    // check the block height 
+    // solve rounding issue

@@ -9,40 +9,41 @@ export class BuyCryptoNotificationService {
   constructor(private readonly buyCryptoRepo: BuyCryptoRepository, private readonly mailService: MailService) {}
 
   async sentNotificationMails(): Promise<void> {
-    const txOutput = await this.buyCryptoRepo.find({
-      where: {
-        recipientMail: IsNull(),
-        mailSendDate: IsNull(),
-        txId: Not(IsNull()),
-        batch: { status: BuyCryptoBatchStatus.COMPLETE },
-      },
-      relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'batch'],
-    });
-
-    console.log('SEND NOTIFICATIONS', txOutput);
-
-    for (const tx of txOutput) {
-      await this.mailService.sendTranslatedMail({
-        userData: tx.buy.user.userData,
-        translationKey: 'mail.payment.buyCrypto',
-        params: {
-          buyFiatAmount: tx.inputAmount,
-          buyFiatAsset: tx.inputAsset,
-          buyCryptoAmount: tx.outputAmount,
-          buyCryptoAsset: tx.outputAsset,
-          buyFeePercentage: tx.percentFee,
-          buyFeeAmount: tx.percentFeeAmount,
-          buyWalletAddress: tx.buy.user.address,
-          buyTxId: tx.txId,
+    try {
+      const txOutput = await this.buyCryptoRepo.find({
+        where: {
+          recipientMail: IsNull(),
+          mailSendDate: IsNull(),
+          txId: Not(IsNull()),
+          batch: { status: BuyCryptoBatchStatus.COMPLETE },
         },
+        relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'batch'],
       });
 
-      tx.confirmSentMail();
+      txOutput.length && console.info(`Sending notifications for ${txOutput.length} buy crypto transaction(s)`);
 
-      console.log('TX mail confirmed', tx);
+      for (const tx of txOutput) {
+        await this.mailService.sendTranslatedMail({
+          userData: tx.buy.user.userData,
+          translationKey: 'mail.payment.buyCrypto',
+          params: {
+            buyFiatAmount: tx.inputAmount,
+            buyFiatAsset: tx.inputAsset,
+            buyCryptoAmount: tx.outputAmount,
+            buyCryptoAsset: tx.outputAsset,
+            buyFeePercentage: tx.percentFee,
+            buyFeeAmount: tx.percentFeeAmount,
+            buyWalletAddress: tx.buy.user.address,
+            buyTxId: tx.txId,
+          },
+        });
 
-      // TODO - no need to await? make sure
-      await this.buyCryptoRepo.save(tx);
+        tx.confirmSentMail();
+
+        await this.buyCryptoRepo.save(tx);
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 }

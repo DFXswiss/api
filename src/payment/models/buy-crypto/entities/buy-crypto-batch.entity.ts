@@ -6,6 +6,7 @@ export enum BuyCryptoBatchStatus {
   CREATED = 'created',
   SECURED = 'secured',
   PENDING_LIQUIDITY = 'pending-liquidity',
+  PENDING_PAYOUT = 'pending-payout',
   COMPLETE = 'complete',
 }
 
@@ -57,7 +58,6 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   secure(liquidity: number): this {
-    console.log('Secure Before');
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
@@ -69,7 +69,6 @@ export class BuyCryptoBatch extends IEntity {
 
     this.transactions = updatedTransactions;
 
-    console.log('Secure After', this);
     return this;
   }
 
@@ -98,7 +97,7 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  recordOutToDexTransfer(txId: string): this {
+  recordDexToOutTransfer(txId: string): this {
     this.outTxId = txId;
 
     return this;

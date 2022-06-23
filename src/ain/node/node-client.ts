@@ -174,7 +174,7 @@ export class NodeClient {
     addressTo: string,
     token: string,
     amount: number,
-    utxos?: SpendUTXO[],
+    utxos: SpendUTXO[] = [],
   ): Promise<string> {
     return token === 'DFI'
       ? this.toUtxo(addressFrom, addressTo, amount, utxos)
@@ -189,7 +189,7 @@ export class NodeClient {
     addressFrom: string,
     token: string,
     payload: { addressTo: string; amount: number }[],
-    utxos?: SpendUTXO[],
+    utxos: SpendUTXO[] = [],
   ): Promise<string> {
     if (token === 'DFI') {
       throw new Error('DFI transfer must be performed as UTXO');
@@ -203,8 +203,6 @@ export class NodeClient {
       acc[p.addressTo] = `${p.amount}@${token}`;
       return acc;
     }, {});
-
-    console.log('Final batch', batch);
 
     return this.callNode((c) => c.account.accountToAccount(addressFrom, batch, { utxos }), true);
   }

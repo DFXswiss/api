@@ -42,7 +42,11 @@ describe('BuyCryptoDexService', () => {
     });
   });
 
-  describe('#transferLiquidityForOutput(...)', () => {});
+  describe('#transferLiquidityForOutput(...)', () => {
+    it('', () => {
+      console.log('halt');
+    });
+  });
 
   // --- HELPER FUNCTIONS --- //
 
@@ -54,6 +58,7 @@ describe('BuyCryptoDexService', () => {
 
     jest.spyOn(nodeService, 'getConnectedNode').mockImplementation(() => new BehaviorSubject(dexClient).asObservable());
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     service = new BuyCryptoDexService(buyCryptoBatchRepo, buyCryptoChainUtil, nodeService);
   }
 

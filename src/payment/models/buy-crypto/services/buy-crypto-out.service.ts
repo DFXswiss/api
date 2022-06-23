@@ -27,82 +27,66 @@ export class BuyCryptoOutService {
   }
 
   async getAssetsOnOutNode(): Promise<{ amount: number; asset: string }[]> {
-    console.log('Getting getAssetsOnOutNode');
     const tokens = await this.outClient.getToken();
-
-    console.log('Got getAssetsOnOutNode', tokens);
 
     return tokens.map((t) => this.outClient.parseAmount(t.amount));
   }
 
   async payoutTransactions(): Promise<void> {
-    // console.log('Sending BTC manually');
-    // const txID = await this.outClient.sendToken(
-    //   Config.node.outWalletAddress,
-    //   Config.node.dexWalletAddress,
-    //   'BTC',
-    //   0.00005188,
-    //   [],
-    // );
+    try {
+      const batches = await this.buyCryptoBatchRepo.find({
+        where: {
+          status: BuyCryptoBatchStatus.SECURED,
+          outTxId: Not(IsNull()),
+        },
+        relations: ['transactions', 'transactions.buy', 'transactions.buy.user'],
+      });
 
-    // console.log('Sending BTC Back', txID);
-
-    // return;
-
-    const batches = await this.buyCryptoBatchRepo.find({
-      where: {
-        status: BuyCryptoBatchStatus.SECURED,
-        outTxId: Not(IsNull()),
-      },
-      relations: ['transactions', 'transactions.buy', 'transactions.buy.user'],
-    });
-
-    if (batches.length === 0) {
-      return;
-    }
-
-    console.log('Starting paying out', batches);
-
-    const recentChainHistory = await this.buyCryptoChainUtil.getRecentChainHistory();
-    const outAssets = await this.getAssetsOnOutNode();
-
-    console.log('recentChainHistory', recentChainHistory);
-
-    for (const batch of batches) {
-      try {
-        await this.checkPreviousPayouts(batch, recentChainHistory);
-      } catch (e) {
-        // log the error and continue with next batch
-        console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
-      }
-
-      if (batch.status === BuyCryptoBatchStatus.COMPLETE) {
+      if (batches.length === 0) {
         return;
       }
 
-      const isValid = await this.validateNewPayouts(batch, outAssets);
+      const recentChainHistory = await this.buyCryptoChainUtil.getRecentChainHistory();
+      const outAssets = await this.getAssetsOnOutNode();
 
-      if (!isValid) {
-        break;
-      }
+      for (const batch of batches) {
+        try {
+          await this.checkPreviousPayouts(batch, recentChainHistory);
+        } catch (e) {
+          console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
+          break;
+        }
 
-      const groups = this.groupPayoutTransactions(batch);
-
-      for (const group of groups) {
-        // maybe overkill
-        const transactions = this.validateTransactions(group, recentChainHistory);
-
-        console.log('Transactions after validation', transactions);
-
-        // not to attempt sending empty batches for payout
-        if (transactions.length === 0) {
+        if (batch.status === BuyCryptoBatchStatus.COMPLETE || batch.status === BuyCryptoBatchStatus.COMPLETE) {
           return;
         }
 
-        batch.outputAsset === 'DFI'
-          ? await this.sendDFI(transactions)
-          : await this.sendToken(transactions, batch.outputAsset);
+        const isValid = await this.validateNewPayouts(batch, outAssets);
+
+        if (!isValid) {
+          break;
+        }
+
+        const groups = this.groupPayoutTransactions(batch);
+
+        for (const group of groups) {
+          // filtering out transactions that were already sent!
+          const transactions = this.validateTransactions(group, recentChainHistory);
+
+          // not to attempt sending empty batches for payout
+          if (transactions.length === 0) {
+            break;
+          }
+
+          console.info(`Paying out ${transactions.length} transaction(s)`);
+
+          batch.outputAsset === 'DFI'
+            ? await this.sendDFI(transactions)
+            : await this.sendToken(transactions, batch.outputAsset);
+        }
       }
+    } catch (e) {
+      console.error(e);
     }
   }
 
@@ -110,18 +94,15 @@ export class BuyCryptoOutService {
     batch: BuyCryptoBatch,
     recentChainHistory: { txId: string; blockHeight: number }[],
   ): Promise<void> {
-    console.log('Checking previous payout', batch);
     const isComplete = batch.transactions.every(({ txId }) => {
       const inChain = recentChainHistory.find((tx) => tx.txId === txId);
       return !!(txId && inChain);
     });
 
     if (isComplete) {
-      // no write to blockchain, if write is failed, just start over
       batch.recordBlockHeight(recentChainHistory);
       batch.complete();
 
-      console.log('Marked Batch as complete', batch);
       await this.buyCryptoBatchRepo.save(batch);
     }
   }
@@ -131,10 +112,10 @@ export class BuyCryptoOutService {
     outAssets: { amount: number; asset: string }[],
   ): Promise<boolean> {
     const amountOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
-    const isMatch = amountOnOutNode && amountOnOutNode.amount === batch.outputAmount;
+    const isMatch = amountOnOutNode?.amount === batch.outputAmount;
 
     if (!isMatch && amountOnOutNode) {
-      const mismatch = amountOnOutNode.amount - batch.outputAmount;
+      const mismatch = amountOnOutNode?.amount - batch.outputAmount;
       console.error(`Mismatch between batch and OUT amounts: ${mismatch}, cannot proceed with the batch`);
     }
 
@@ -142,7 +123,6 @@ export class BuyCryptoOutService {
   }
 
   private groupPayoutTransactions(batch: BuyCryptoBatch): BuyCrypto[][] {
-    console.log('Grouping payouts');
     const groupSize = batch.outputAsset === 'DFI' ? 100 : 10;
     const numberOfGroups = Math.ceil(batch.transactions.length / groupSize);
     const result: BuyCrypto[][] = [];
@@ -151,12 +131,9 @@ export class BuyCryptoOutService {
       result.push(batch.transactions.slice(i, i + groupSize));
     }
 
-    console.log('Groups', result);
-
     return result;
   }
 
-  // maybe overkill
   private validateTransactions(
     group: BuyCrypto[],
     recentChainHistory: { txId: string; blockHeight: number }[],
@@ -168,30 +145,47 @@ export class BuyCryptoOutService {
   }
 
   private async sendToken(transactions: BuyCrypto[], outputAsset: string): Promise<void> {
-    console.log('sendToken', outputAsset, transactions);
-    for (const tx of transactions) {
-      // need to wait for tx completion?
-      await this.checkUtxo(tx.buy.user.address);
+    let txId: string;
+
+    try {
+      for (const tx of transactions) {
+        await this.checkUtxo(tx.buy.user.address);
+      }
+
+      const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.address, amount: tx.outputAmount }));
+
+      txId = await this.outClient.sendTokenToMany(Config.node.outWalletAddress, outputAsset, payload);
+    } catch (e) {
+      console.error(`Error on sending ${outputAsset} for output. Transaction IDs: ${transactions.map((t) => t.id)}`, e);
     }
 
-    const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.address, amount: tx.outputAmount }));
-
-    const txId = await this.outClient.sendTokenToMany(Config.node.outWalletAddress, outputAsset, payload, []);
-
-    console.log('sendToken txId', txId);
     for (const tx of transactions) {
-      // in case this break, see the OUT node, there is nowhere to get txId from
-      await this.buyCryptoRepo.update({ id: tx.id }, { txId });
+      try {
+        await this.buyCryptoRepo.update({ id: tx.id }, { txId });
+      } catch (e) {
+        console.error(`Error on saving payout txId to the database. Transaction ID: ${tx.id}. Payout ID: ${txId}`, e);
+      }
     }
   }
 
   private async sendDFI(transactions: BuyCrypto[]): Promise<void> {
-    const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.address, amount: tx.outputAmount }));
+    let txId: string;
 
-    const txId = await this.outClient.sendDFIToMany(payload);
+    try {
+      const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.address, amount: tx.outputAmount }));
+
+      txId = await this.outClient.sendDFIToMany(payload);
+    } catch (e) {
+      console.error(`Error on sending DFI for output. Transaction IDs: ${transactions.map((t) => t.id)}`, e);
+    }
 
     for (const tx of transactions) {
-      await this.buyCryptoRepo.update({ id: tx.id }, { txId });
+      try {
+        await this.buyCryptoRepo.update({ id: tx.id }, { txId });
+      } catch (e) {
+        // in this case batch will be stuck and will require manual resolve
+        console.error(`Error on saving payout txId to the database. Transaction ID: ${tx.id}. Payout ID: ${txId}`, e);
+      }
     }
   }
 
@@ -199,17 +193,7 @@ export class BuyCryptoOutService {
     const utxo = await this.whaleService.getClient().getBalance(address);
 
     if (!utxo) {
-      await this.dexClient.sendToken(Config.node.dexWalletAddress, address, 'DFI', Config.node.minDfiDeposit / 2, []);
+      await this.dexClient.sendToken(Config.node.dexWalletAddress, address, 'DFI', Config.node.minDfiDeposit / 2);
     }
-  }
-
-  private async saveBatch(batch: BuyCryptoBatch): Promise<BuyCryptoBatch> {
-    const updatedBatch = await this.buyCryptoBatchRepo.save(batch);
-    for (const tx of batch.transactions) {
-      await this.buyCryptoRepo.save(tx);
-      // in case of interim DB failure - will safely start over
-    }
-
-    return updatedBatch;
   }
 }

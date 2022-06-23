@@ -82,7 +82,6 @@ export class BuyCryptoService {
   @Interval(30000)
   async process() {
     // if ((await this.settingService.get('buy-process')) !== 'on') return;
-    console.log('Buy Crypto Process START');
     if ((await this.settingService.get('buy-process')) === 'on') return;
     if (!this.lock.acquire()) return;
 
@@ -91,8 +90,6 @@ export class BuyCryptoService {
     await this.buyCryptoDexService.transferLiquidityForOutput();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sentNotificationMails();
-
-    console.log('Buy Crypto Process END');
 
     this.lock.release();
   }

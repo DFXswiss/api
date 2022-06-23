@@ -113,11 +113,7 @@ export class BuyCrypto extends IEntity {
       throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
     }
 
-    console.log('Calculating outputReferenceAmount in TX');
-
     this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
-
-    console.log('outputReferenceAmount in TX', this.outputReferenceAmount);
 
     return this;
   }
