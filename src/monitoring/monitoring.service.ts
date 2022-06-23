@@ -170,7 +170,8 @@ export class MonitoringService {
 
     // calculate should balance
     const should = await getCustomRepository(CryptoStakingRepository)
-      .getActiveEntries()
+      .createQueryBuilder('cryptoStaking')
+      .where('readyToPayout = 0')
       .select('SUM(inputAmount)', 'balance')
       .getRawOne<{ balance: number }>()
       .then((b) => b.balance);
