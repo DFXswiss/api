@@ -20,7 +20,12 @@ export class BuyCryptoNotificationService {
         relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'batch'],
       });
 
-      txOutput.length && console.info(`Sending notifications for ${txOutput.length} buy crypto transaction(s)`);
+      txOutput.length &&
+        console.info(
+          `Sending notifications for ${txOutput.length} buy crypto transaction(s). Transaction ID(s): ${txOutput.map(
+            (t) => t.id,
+          )}`,
+        );
 
       for (const tx of txOutput) {
         await this.mailService.sendTranslatedMail({
@@ -45,5 +50,11 @@ export class BuyCryptoNotificationService {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
+    const body = e ? [message, e.message] : [message];
+
+    await this.mailService.sendErrorMail('Buy Crypto Error', body);
   }
 }

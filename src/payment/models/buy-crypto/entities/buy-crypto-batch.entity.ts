@@ -6,7 +6,6 @@ export enum BuyCryptoBatchStatus {
   CREATED = 'created',
   SECURED = 'secured',
   PENDING_LIQUIDITY = 'pending-liquidity',
-  PENDING_PAYOUT = 'pending-payout',
   COMPLETE = 'complete',
 }
 
@@ -36,9 +35,6 @@ export class BuyCryptoBatch extends IEntity {
   @Column({ length: 256, nullable: true })
   purchaseTxId: string;
 
-  @Column({ type: 'float', nullable: true })
-  lastCompleteBlock: number;
-
   addTransaction(tx: BuyCrypto): this {
     if (!this.transactions) {
       this.transactions = [];
@@ -52,7 +48,7 @@ export class BuyCryptoBatch extends IEntity {
       this.outputReferenceAmount = 0;
     }
 
-    this.outputReferenceAmount = this.outputReferenceAmount + tx.outputReferenceAmount;
+    this.outputReferenceAmount += tx.outputReferenceAmount;
 
     return this;
   }
@@ -61,11 +57,11 @@ export class BuyCryptoBatch extends IEntity {
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
-    // don't forget to solve rounding issue here!
-    // and maybe add a specification???
     const updatedTransactions = this.transactions.map((t) =>
       t.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount),
     );
+
+    this.fixRoundingMismatch();
 
     this.transactions = updatedTransactions;
 
@@ -101,5 +97,20 @@ export class BuyCryptoBatch extends IEntity {
     this.outTxId = txId;
 
     return this;
+  }
+
+  private fixRoundingMismatch(): void {
+    const transactionsTotal = this.transactions.reduce((acc, t) => acc + t.outputAmount, 0);
+
+    const mismatch = this.outputAmount - transactionsTotal;
+
+    if (mismatch && mismatch < 0.00001) {
+      this.transactions[0].outputAmount += mismatch;
+      console.info(
+        `Fixed total output amount mismatch of ${mismatch} ${this.outputAsset}. Added to transaction ID: ${this.transactions[0].id}`,
+      );
+    } else {
+      throw new Error(`Output amount mismatch is too high. Mismatch: ${mismatch} ${this.outputAsset}`);
+    }
   }
 }

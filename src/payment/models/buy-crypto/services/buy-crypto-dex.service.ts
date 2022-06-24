@@ -47,7 +47,8 @@ export class BuyCryptoDexService {
     try {
       const batches = await this.buyCryptoBatchRepo.find({ status: BuyCryptoBatchStatus.SECURED, outTxId: IsNull() });
 
-      batches?.length && console.info(`Transferring ${batches.length} batch(es) to OUT Node`);
+      batches?.length &&
+        console.info(`Transferring ${batches.length} batch(es) to OUT Node. Batch ID(s): ${batches.map((b) => b.id)}`);
 
       for (const batch of batches) {
         this.transferForOutput(batch);
@@ -75,9 +76,11 @@ export class BuyCryptoDexService {
           const liquidity = await this.getLiquidityAfterPurchase(batch);
           batch.secure(liquidity);
           await this.buyCryptoBatchRepo.save(batch);
+
+          console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
         }
       } catch (e) {
-        console.error(`Failed to check pending batch, ID: ${batch.id}`, e);
+        console.error(`Failed to check pending batch. Batch ID: ${batch.id}`, e);
       }
     }
   }
@@ -122,12 +125,14 @@ export class BuyCryptoDexService {
           batch.secure(liquidity);
           await this.buyCryptoBatchRepo.save(batch);
 
+          console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
+
           return;
         }
 
         await this.purchaseLiquidity(batch);
       } catch {
-        console.info(`Error in processing new batch, ID: ${batch.id}`);
+        console.info(`Error in processing new batch. Batch ID: ${batch.id}`);
       }
     }
   }
@@ -185,6 +190,9 @@ export class BuyCryptoDexService {
       );
 
       batch.pending(txId);
+      console.info(
+        `Purchased ${DFIAmount} worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
+      );
     } catch (e) {
       console.error(`Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
     }

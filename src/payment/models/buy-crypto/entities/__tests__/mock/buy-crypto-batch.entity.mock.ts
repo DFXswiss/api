@@ -14,7 +14,6 @@ export function createCustomBuyCryptoBatch(customValues: Partial<BuyCryptoBatch>
     status,
     outTxId,
     purchaseTxId,
-    lastCompleteBlock,
   } = customValues;
   const keys = Object.keys(customValues);
 
@@ -28,7 +27,6 @@ export function createCustomBuyCryptoBatch(customValues: Partial<BuyCryptoBatch>
   entity.status = keys.includes('status') ? status : BuyCryptoBatchStatus.CREATED;
   entity.outTxId = keys.includes('outTxId') ? outTxId : '';
   entity.purchaseTxId = keys.includes('purchaseTxId') ? purchaseTxId : '';
-  entity.lastCompleteBlock = keys.includes('lastCompleteBlock') ? lastCompleteBlock : 100;
 
   return entity;
 }

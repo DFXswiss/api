@@ -7,6 +7,7 @@ import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -14,6 +15,7 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoOutService: BuyCryptoOutService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly exchangeUtilityService: ExchangeUtilityService,
   ) {}
 
@@ -34,7 +36,10 @@ export class BuyCryptoBatchService {
         return;
       }
 
-      console.info(`New buy crypto transaction input. Processing ${txInput.length} transaction(s)`);
+      console.info(
+        `New buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s):`,
+        txInput.map((t) => t.id),
+      );
 
       const txWithAssets = await this.defineAssetPair(txInput);
       const referencePrices = await this.getReferencePrices(txWithAssets);
@@ -43,7 +48,8 @@ export class BuyCryptoBatchService {
       const batches = await this.batchTransactions(txWithReferenceAmount, blockedAssets);
 
       for (const batch of batches) {
-        await this.buyCryptoBatchRepo.save(batch);
+        const savedBatch = await this.buyCryptoBatchRepo.save(batch);
+        console.info(`Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset}`);
       }
     } catch (e) {
       console.error(e);
@@ -94,15 +100,25 @@ export class BuyCryptoBatchService {
     for (const tx of transactions) {
       const { outputReferenceAsset, outputAsset } = tx;
 
-      if (blockedAssets.find((a) => a.asset === outputAsset)) {
-        console.warn(`Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`);
+      const existingBatch = await this.buyCryptoBatchRepo.findOne({
+        outputAsset: tx.outputAsset,
+        status: Not(BuyCryptoBatchStatus.COMPLETE),
+      });
+
+      if (existingBatch) {
+        console.info(`Halting with creation of a batch for asset: ${outputAsset}, batch already exists`);
+
+        // ???
         break;
       }
 
-      const existingBatch = await this.buyCryptoBatchRepo.findOne({ outputAsset: tx.outputAsset });
+      if (blockedAssets.find((a) => a.asset === outputAsset)) {
+        const errorMessage = `Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`;
 
-      if (existingBatch) {
-        console.warn(`Halting with creation of a batch for asset: ${outputAsset}, batch already exists`);
+        console.warn(errorMessage);
+        this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
+
+        // ???
         break;
       }
 
@@ -119,8 +135,6 @@ export class BuyCryptoBatchService {
 
       batch.addTransaction(tx);
     }
-
-    console.info(`Created ${batches.size} buy crypto batch(es)`);
 
     return [...batches.values()];
   }
