@@ -115,8 +115,14 @@ export class NodeClient {
     );
   }
 
-  async sendMany(amounts: Record<string, number>): Promise<string> {
-    return this.callNode((c) => c.wallet.sendMany(amounts), true);
+  async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
+    if (payload.length > 100) {
+      throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
+    }
+
+    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}` }), {});
+
+    return this.callNode((c) => c.wallet.sendMany(batch), true);
   }
 
   // token
@@ -191,12 +197,8 @@ export class NodeClient {
     payload: { addressTo: string; amount: number }[],
     utxos: SpendUTXO[] = [],
   ): Promise<string> {
-    if (token === 'DFI') {
-      throw new Error('DFI transfer must be performed as UTXO');
-    }
-
     if (payload.length > 10) {
-      throw new Error('Too many addresses in one transaction batch, allowed max 10 for non-DFI tokens');
+      throw new Error('Too many addresses in one transaction batch, allowed max 10 for tokens');
     }
 
     const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}@${token}` }), {});
@@ -209,17 +211,6 @@ export class NodeClient {
       (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
       true,
     );
-  }
-
-  // may not be needed -> use only sendMany and do the 100 check there
-  async sendDFIToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
-    if (payload.length > 100) {
-      throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
-    }
-
-    const batch = payload.reduce((acc, p) => (acc[p.addressTo] = `${this.roundAmount(p.amount)}@DFI`), {});
-
-    return this.sendMany(batch);
   }
 
   async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {

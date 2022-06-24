@@ -131,8 +131,8 @@ export class BuyCryptoDexService {
         }
 
         await this.purchaseLiquidity(batch);
-      } catch {
-        console.info(`Error in processing new batch. Batch ID: ${batch.id}`);
+      } catch (e) {
+        console.info(`Error in processing new batch. Batch ID: ${batch.id}`, e);
       }
     }
   }

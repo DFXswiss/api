@@ -116,7 +116,7 @@ export class StakingRefRewardService {
 
     const address =
       reward.stakingRefType === StakingRefType.REFERRED ? reward.staking.deposit.address : reward.user.address;
-    const txId = await this.client.sendMany({ [address]: rewardInDfi });
+    const txId = await this.client.sendUtxoToMany([{ addressTo: address, amount: rewardInDfi }]);
 
     const update = {
       outputReferenceAmount: rewardInBtc,

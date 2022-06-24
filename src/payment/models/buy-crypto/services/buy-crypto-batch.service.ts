@@ -44,8 +44,8 @@ export class BuyCryptoBatchService {
       const txWithAssets = await this.defineAssetPair(txInput);
       const referencePrices = await this.getReferencePrices(txWithAssets);
       const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
-      const blockedAssets = await this.buyCryptoOutService.getAssetsOnOutNode();
-      const batches = await this.batchTransactions(txWithReferenceAmount, blockedAssets);
+      const existingAssets = await this.buyCryptoOutService.getAssetsOnOutNode();
+      const batches = await this.batchTransactions(txWithReferenceAmount, existingAssets);
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
@@ -93,7 +93,7 @@ export class BuyCryptoBatchService {
 
   private async batchTransactions(
     transactions: BuyCrypto[],
-    blockedAssets: { amount: number; asset: string }[],
+    existingAssets: { amount: number; asset: string }[],
   ): Promise<BuyCryptoBatch[]> {
     const batches = new Map<string, BuyCryptoBatch>();
 
@@ -108,18 +108,13 @@ export class BuyCryptoBatchService {
       if (existingBatch) {
         console.info(`Halting with creation of a batch for asset: ${outputAsset}, batch already exists`);
 
-        // ???
-        break;
+        continue;
       }
 
-      if (blockedAssets.find((a) => a.asset === outputAsset)) {
-        const errorMessage = `Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`;
+      if (this.isExistingBatch(existingAssets, outputAsset)) {
+        console.warn(`Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`);
 
-        console.warn(errorMessage);
-        this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
-
-        // ???
-        break;
+        continue;
       }
 
       let batch = batches.get(outputReferenceAsset + '&' + outputAsset);
@@ -137,5 +132,19 @@ export class BuyCryptoBatchService {
     }
 
     return [...batches.values()];
+  }
+
+  private isExistingBatch(existingAssets: { amount: number; asset: string }[], outputAsset: string): boolean {
+    const existingAsset = existingAssets.find((a) => a.asset === outputAsset);
+
+    if (!existingAsset) {
+      return false;
+    }
+
+    if (existingAsset.asset === 'DFI') {
+      return existingAsset.amount > 1;
+    }
+
+    return true;
   }
 }

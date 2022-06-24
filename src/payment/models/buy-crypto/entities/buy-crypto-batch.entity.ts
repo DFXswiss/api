@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/util';
 import { Column, Entity, OneToMany } from 'typeorm';
 import { BuyCrypto } from './buy-crypto.entity';
 
@@ -102,9 +103,13 @@ export class BuyCryptoBatch extends IEntity {
   private fixRoundingMismatch(): void {
     const transactionsTotal = this.transactions.reduce((acc, t) => acc + t.outputAmount, 0);
 
-    const mismatch = this.outputAmount - transactionsTotal;
+    const mismatch = Util.round(this.outputAmount - transactionsTotal, 8);
 
-    if (mismatch && mismatch < 0.00001) {
+    if (mismatch === 0) {
+      return;
+    }
+
+    if (Math.abs(mismatch) > 0 && Math.abs(mismatch) < 0.00001) {
       this.transactions[0].outputAmount += mismatch;
       console.info(
         `Fixed total output amount mismatch of ${mismatch} ${this.outputAsset}. Added to transaction ID: ${this.transactions[0].id}`,

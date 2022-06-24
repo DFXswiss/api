@@ -29,10 +29,15 @@ export class BuyCryptoOutService {
   }
 
   async getAssetsOnOutNode(): Promise<{ amount: number; asset: string }[]> {
-    // get utxo for DFI
+    const utxo = await this.outClient.getBalance();
     const tokens = await this.outClient.getToken();
 
-    return tokens.map((t) => this.outClient.parseAmount(t.amount));
+    const utxoBalance = { amount: +utxo, asset: 'DFI' };
+    const tokensBalance = tokens.map((t) => this.outClient.parseAmount(t.amount));
+
+    const assets = [...tokensBalance, utxoBalance];
+
+    return assets;
   }
 
   async payoutTransactions(): Promise<void> {
@@ -64,9 +69,9 @@ export class BuyCryptoOutService {
           return;
         }
 
-        const isValid = await this.validateNewPayouts(batch, outAssets);
+        const canProceed = await this.checkNewPayouts(batch, outAssets);
 
-        if (!isValid) {
+        if (!canProceed) {
           continue;
         }
 
@@ -99,6 +104,59 @@ export class BuyCryptoOutService {
     batch: BuyCryptoBatch,
     recentChainHistory: { txId: string; blockHeight: number }[],
   ): Promise<void> {
+    if (batch.outputAsset === 'DFI') {
+      await this.checkCompleteUtxo(batch);
+      return;
+    }
+
+    await this.checkCompleteToken(batch, recentChainHistory);
+    return;
+  }
+
+  private async checkCompleteUtxo(batch: BuyCryptoBatch): Promise<void> {
+    const recentTransactionHistory: { txId: string; blockHeight: number }[] = [];
+
+    const transactions = await Promise.all(
+      batch.transactions
+        .filter((t) => !!t.txId)
+        .map(({ txId }) => {
+          return this.outClient.getTx(txId);
+        }),
+    ).catch(() => {
+      console.error(`Error on checking DFI payout transactions for Batch ID: ${batch.id}`);
+      return [];
+    });
+
+    if (transactions.length) {
+      return;
+    }
+
+    const isComplete = batch.transactions.every(({ txId }) => {
+      const inChain = transactions.find((tx) => tx.txId === txId);
+
+      if (!inChain) {
+        return false;
+      }
+
+      const { blockhash, confirmations, blockindex, txid } = inChain;
+
+      recentTransactionHistory.push({ txId: txid, blockHeight: blockindex });
+
+      return blockhash && confirmations > 0;
+    });
+
+    if (isComplete) {
+      batch.recordBlockHeight(recentTransactionHistory);
+      batch.complete();
+
+      await this.buyCryptoBatchRepo.save(batch);
+    }
+  }
+
+  private async checkCompleteToken(
+    batch: BuyCryptoBatch,
+    recentChainHistory: { txId: string; blockHeight: number }[],
+  ): Promise<void> {
     const isComplete = batch.transactions.every(({ txId }) => {
       const inChain = recentChainHistory.find((tx) => tx.txId === txId);
       return !!(txId && inChain);
@@ -112,22 +170,25 @@ export class BuyCryptoOutService {
     }
   }
 
-  private async validateNewPayouts(
+  private async checkNewPayouts(
     batch: BuyCryptoBatch,
     outAssets: { amount: number; asset: string }[],
   ): Promise<boolean> {
     const amountOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
-    const isMatch = amountOnOutNode && amountOnOutNode.amount === batch.outputAmount;
 
-    if (!isMatch) {
-      const mismatch = amountOnOutNode ? batch.outputAmount - amountOnOutNode.amount : batch.outputAmount;
-      const errorMessage = `Mismatch between batch and OUT amounts: ${mismatch}, cannot proceed with the batch ID: ${batch.id}`;
-
-      console.error(errorMessage);
-      this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
+    if (!amountOnOutNode) {
+      return false;
     }
 
-    return isMatch;
+    const balanceDifference = amountOnOutNode.amount - batch.outputAmount;
+    const isMismatch = batch.outputAsset === 'DFI' ? balanceDifference > 1 : balanceDifference !== 0;
+
+    if (isMismatch) {
+      this.handleBalanceMismatch(batch, balanceDifference);
+      return false;
+    }
+
+    return true;
   }
 
   private groupPayoutTransactions(batch: BuyCryptoBatch): BuyCrypto[][] {
@@ -153,8 +214,17 @@ export class BuyCryptoOutService {
       return !(tx.txId || inChain);
     });
 
-    if (validatedTransactions.length !== group.length) {
-      console.warn(`Dropped ${group.length - validatedTransactions.length} transactions to avoid double payout`);
+    const existingTransactions = group.filter((tx) => {
+      const inChain = recentChainHistory.find((chainTx) => chainTx.txId === tx.txId);
+      return tx.txId || inChain;
+    });
+
+    if (group.length > 0 && validatedTransactions.length !== group.length) {
+      console.warn(
+        `Skipped ${
+          existingTransactions.length
+        } transactions to avoid double payout. Transactions ID(s): ${existingTransactions.map((t) => t.id)}`,
+      );
     }
 
     return validatedTransactions;
@@ -167,10 +237,9 @@ export class BuyCryptoOutService {
       for (const tx of transactions) {
         await this.checkUtxo(tx.buy.user.address);
       }
+      const payout = this.aggregatePayout(transactions);
 
-      const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.address, amount: tx.outputAmount }));
-
-      txId = await this.outClient.sendTokenToMany(Config.node.outWalletAddress, outputAsset, payload);
+      txId = await this.outClient.sendTokenToMany(Config.node.outWalletAddress, outputAsset, payout);
     } catch (e) {
       console.error(`Error on sending ${outputAsset} for output. Transaction IDs: ${transactions.map((t) => t.id)}`, e);
     }
@@ -192,9 +261,9 @@ export class BuyCryptoOutService {
     let txId: string;
 
     try {
-      const payload = transactions.map((tx) => ({ addressTo: tx.buy.user.address, amount: tx.outputAmount }));
+      const payout = this.aggregatePayout(transactions);
 
-      txId = await this.outClient.sendDFIToMany(payload);
+      txId = await this.outClient.sendUtxoToMany(payout);
     } catch (e) {
       console.error(`Error on sending DFI for output. Transaction IDs: ${transactions.map((t) => t.id)}`, e);
     }
@@ -218,5 +287,26 @@ export class BuyCryptoOutService {
     if (!utxo) {
       await this.dexClient.sendToken(Config.node.dexWalletAddress, address, 'DFI', Config.node.minDfiDeposit / 2);
     }
+  }
+
+  private handleBalanceMismatch(batch: BuyCryptoBatch, mismatchAmount: number) {
+    const errorMessage = `Mismatch between batch and OUT amounts: ${mismatchAmount}, cannot proceed with the batch ID: ${batch.id}`;
+
+    console.error(errorMessage);
+    this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
+  }
+
+  private aggregatePayout(transactions: BuyCrypto[]): { addressTo: string; amount: number }[] {
+    // sum up duplicated addresses
+    const uniqueAddresses = new Map<string, number>();
+
+    transactions.forEach((t) => {
+      const existingAmount = uniqueAddresses.get(t.buy.user.address);
+      const increment = existingAmount ? existingAmount + t.outputAmount : t.outputAmount;
+
+      uniqueAddresses.set(t.buy.user.address, increment);
+    });
+
+    return [...uniqueAddresses.entries()].map(([addressTo, amount]) => ({ addressTo, amount }));
   }
 }
