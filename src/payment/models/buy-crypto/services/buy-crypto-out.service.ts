@@ -29,6 +29,7 @@ export class BuyCryptoOutService {
   }
 
   async getAssetsOnOutNode(): Promise<{ amount: number; asset: string }[]> {
+    // get utxo for DFI
     const tokens = await this.outClient.getToken();
 
     return tokens.map((t) => this.outClient.parseAmount(t.amount));

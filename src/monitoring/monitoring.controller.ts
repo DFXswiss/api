@@ -16,16 +16,10 @@ export class MonitoringController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getMonitoringData(): Promise<any> {
     return {
-      kycStatus: await this.monitoringService.getKycStatusData(),
-      bankTxWithoutType: await this.monitoringService.getBankTxWithoutType(),
-      incompleteTransactions: await this.monitoringService.getIncompleteTransactions(),
-      lastOutputDates: await this.monitoringService.getLastOutputDates(),
-      nodeBalances: await this.monitoringService.getNodeBalances(),
-      stakingBalance: await this.monitoringService.getStakingBalance(),
-      userWithout: await this.monitoringService.getUserWithout(),
-      unmatchedStaking: await this.monitoringService.getUnmatchedStaking(),
-      freeOperators: await this.monitoringService.getFreeOperators(),
-      freeDeposits: await this.monitoringService.getFreeDeposits(),
+      user: await this.monitoringService.getUser(),
+      staking: await this.monitoringService.getStaking(),
+      payment: await this.monitoringService.getPayment(),
+      node: await this.monitoringService.getNode(),
     };
   }
 }

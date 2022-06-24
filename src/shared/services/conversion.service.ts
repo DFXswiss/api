@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Util } from '../util';
 import { HttpService } from './http.service';
 
@@ -16,7 +17,7 @@ export class ConversionService {
     date: Date = new Date(),
   ): Promise<number> {
     const rate = await this.getFiatRate(fromCurrency, toCurrency, date);
-    return Util.round(amount * rate, 2);
+    return Util.round(amount * rate, Config.defaultVolumeDecimal);
   }
 
   async getFiatRate(fromCurrency: string, toCurrency: string, date: Date = new Date()): Promise<number> {

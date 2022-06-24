@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, IsNull, Like, Not } from 'typeorm';
+import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -118,8 +118,8 @@ export class UserService {
 
   async updateBuyVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
     await this.userRepo.update(userId, {
-      buyVolume: Util.round(volume, 0),
-      annualBuyVolume: Util.round(annualVolume, 0),
+      buyVolume: Util.round(volume, Config.defaultVolumeDecimal),
+      annualBuyVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
     });
 
     await this.updateUserDataVolume(userId);
@@ -127,8 +127,8 @@ export class UserService {
 
   async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
     await this.userRepo.update(userId, {
-      sellVolume: Util.round(volume, 0),
-      annualSellVolume: Util.round(annualVolume, 0),
+      sellVolume: Util.round(volume, Config.defaultVolumeDecimal),
+      annualSellVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
     });
 
     await this.updateUserDataVolume(userId);
@@ -136,7 +136,7 @@ export class UserService {
 
   async updateStakingBalance(userId: number, balance: number): Promise<void> {
     await this.userRepo.update(userId, {
-      stakingBalance: Util.round(balance, 0),
+      stakingBalance: Util.round(balance, Config.defaultVolumeDecimal),
     });
 
     await this.updateUserDataVolume(userId);
@@ -245,7 +245,10 @@ export class UserService {
 
     const refBonus = 1 - (refFee ?? 1);
 
-    return { fee: Util.round(baseFee - refBonus, 2), refBonus: Util.round(refBonus, 2) };
+    return {
+      fee: Util.round(baseFee - refBonus, Config.defaultPercentageDecimal),
+      refBonus: Util.round(refBonus, Config.defaultPercentageDecimal),
+    };
   }
 
   async getUserSellFee(userId: number): Promise<number> {
@@ -254,7 +257,7 @@ export class UserService {
       where: { id: userId },
     });
 
-    return Util.round((user?.sellFee ?? Config.sell.fee) * 100, 2);
+    return Util.round((user?.sellFee ?? Config.sell.fee) * 100, Config.defaultPercentageDecimal);
   }
 
   async getUserStakingFee(userId: number): Promise<number> {
@@ -265,19 +268,28 @@ export class UserService {
 
     const hasFreeStaking = Util.daysDiff(user.stakingStart ?? new Date(), new Date()) < Config.staking.freeDays;
 
-    return Util.round((user?.stakingFee ?? (hasFreeStaking ? 0 : Config.staking.fee)) * 100, 2);
+    return Util.round(
+      (user?.stakingFee ?? (hasFreeStaking ? 0 : Config.staking.fee)) * 100,
+      Config.defaultPercentageDecimal,
+    );
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
-    await this.userRepo.update({ ref }, { refVolume: Util.round(volume, 0), refCredit: Util.round(credit, 0) });
+    await this.userRepo.update(
+      { ref },
+      {
+        refVolume: Util.round(volume, Config.defaultVolumeDecimal),
+        refCredit: Util.round(credit, Config.defaultVolumeDecimal),
+      },
+    );
   }
 
   async updatePaidRefCredit(id: number, volume: number): Promise<void> {
-    await this.userRepo.update(id, { paidRefCredit: Util.round(volume, 0) });
+    await this.userRepo.update(id, { paidRefCredit: Util.round(volume, Config.defaultVolumeDecimal) });
   }
 
   async updatePaidStakingRefCredit(id: number, volume: number): Promise<void> {
-    await this.userRepo.update(id, { paidStakingRefCredit: Util.round(volume, 0) });
+    await this.userRepo.update(id, { paidStakingRefCredit: Util.round(volume, Config.defaultVolumeDecimal) });
   }
 
   // returns true, if is new staking user
@@ -416,11 +428,5 @@ export class UserService {
 
     await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
     return votes;
-  }
-
-  // Monitoring
-
-  async getUserWithoutIpCountry(): Promise<number> {
-    return await this.userRepo.count({ where: { ipCountry: IsNull() } });
   }
 }

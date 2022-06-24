@@ -21,6 +21,8 @@ export class Configuration {
   defaultLinkedinUrl = 'https://www.linkedin.com/company/dfxswiss/';
   defaultInstagramUrl = 'https://www.instagram.com/dfx.swiss/';
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
+  defaultVolumeDecimal = 2;
+  defaultPercentageDecimal = 2;
 
   colors = {
     white: '#FFFFFF',

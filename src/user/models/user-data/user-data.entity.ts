@@ -171,3 +171,7 @@ export function IdentInProgress(kycStatus?: KycStatus): boolean {
 export function KycCompleted(kycStatus?: KycStatus): boolean {
   return KycCompletedStates.includes(kycStatus);
 }
+
+export function IdentCompleted(kycStatus?: KycStatus): boolean {
+  return IdentCompletedStates.includes(kycStatus);
+}

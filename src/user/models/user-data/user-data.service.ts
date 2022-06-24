@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycInProgress, KycState, KycStatus, UserData } from './user-data.entity';
+import { KycInProgress, KycState, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { IsNull, LessThan, Not } from 'typeorm';
+import { MoreThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -21,7 +21,6 @@ import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { Util } from 'src/shared/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { User, UserStatus } from '../user/user.entity';
 
 @Injectable()
 export class UserDataService {
@@ -179,11 +178,11 @@ export class UserDataService {
       }>();
 
     await this.userDataRepo.update(userDataId, {
-      buyVolume: Util.round(volumes.buyVolume, 0),
-      annualBuyVolume: Util.round(volumes.annualBuyVolume, 0),
-      sellVolume: Util.round(volumes.sellVolume, 0),
-      annualSellVolume: Util.round(volumes.annualSellVolume, 0),
-      stakingBalance: Util.round(volumes.stakingBalance, 0),
+      buyVolume: Util.round(volumes.buyVolume, Config.defaultVolumeDecimal),
+      annualBuyVolume: Util.round(volumes.annualBuyVolume, Config.defaultVolumeDecimal),
+      sellVolume: Util.round(volumes.sellVolume, Config.defaultVolumeDecimal),
+      annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
+      stakingBalance: Util.round(volumes.stakingBalance, Config.defaultVolumeDecimal),
     });
   }
 
@@ -212,34 +211,14 @@ export class UserDataService {
     return await this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
   }
 
-  // Monitoring
-
-  async getKycStatusData(kycStatusChangeDate: Date = new Date()): Promise<any> {
-    const kycStatusData = {};
-    for (const kycStatus of Object.values(KycStatus)) {
-      kycStatusData[kycStatus] = await this.userDataRepo.count({
-        where: [
-          {
-            kycStatus,
-            kycStatusChangeDate: LessThan(kycStatusChangeDate),
-          },
-          {
-            kycStatus,
-            kycStatusChangeDate: IsNull(),
-          },
-        ],
-      });
+  async getAllUserDataWithEmptyFileId(): Promise<number[]> {
+    const userDataList = await this.userDataRepo.find({ where: { kycFileId: MoreThan(0) } });
+    const idList = [];
+    for (const userData of userDataList) {
+      const customerInfo = await this.spiderApiService.getCustomerInfo(userData.id);
+      if (customerInfo && !customerInfo.contractReference) idList.push(userData.id);
     }
-    return kycStatusData;
-  }
 
-  async getUserWithoutRiskState(): Promise<number> {
-    const userWithoutRiskState = await this.userDataRepo
-      .createQueryBuilder('userData')
-      .leftJoin(User, 'user', 'userData.id = user.userDataId')
-      .where('user.status != :status', { status: UserStatus.NA })
-      .andWhere('userData.riskState is NULL')
-      .getCount();
-    return userWithoutRiskState;
+    return idList;
   }
 }

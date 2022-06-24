@@ -11,6 +11,7 @@ import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
 import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class BuyService {
@@ -28,7 +29,7 @@ export class BuyService {
   }
 
   async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.buyRepo.update(buyId, { volume: Util.round(volume, 0), annualVolume: Util.round(annualVolume, 0) });
+    await this.buyRepo.update(buyId, { volume: Util.round(volume, Config.defaultVolumeDecimal), annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal) });
 
     // update user volume
     const { user } = await this.buyRepo.findOne({

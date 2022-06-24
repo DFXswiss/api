@@ -57,7 +57,17 @@ export class StakingController {
       .then((s) => this.stakingService.toDto(jwt.id, s));
   }
 
-  // --- DEFICHAIN INCOME --- //
+  // --- SERVICES --- //
+
+  @Get('routes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.MASTERNODE_OPERATOR))
+  async getStakingRoutes(@Query('addresses') addresses: string): Promise<string[]> {
+    const stakingRoutes = await this.stakingService.getStakingByUserAddresses(addresses.split(','));
+    return stakingRoutes.map((r) => r.deposit.address);
+  }
+
   @Get('income')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -67,7 +77,6 @@ export class StakingController {
     return { totalAmount: Util.round(Util.sumObj(stakingRoutes, 'volume'), 8) };
   }
 
-  // --- STAKING ROUTE --- //
   @Get('routeBalance')
   async getStakingBalance(@Query('addresses') addresses: string): Promise<{ totalAmount: number }> {
     const stakingRoutes = await this.stakingService.getStakingByDepositAddresses(addresses.split(','));

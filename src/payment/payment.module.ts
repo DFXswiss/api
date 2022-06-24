@@ -149,7 +149,6 @@ import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.u
     CryptoInputService,
     CryptoStakingService,
     StakingRefRewardService,
-    DepositService,
   ],
 })
 export class PaymentModule {}

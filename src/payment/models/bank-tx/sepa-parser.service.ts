@@ -109,7 +109,7 @@ export class SepaParser {
     );
     const currency = [...new Set(charges.map((c) => c.Amt['@_Ccy']))].join(', ');
 
-    return { chargeAmount: Util.round(amount, 2), chargeCurrency: currency };
+    return { chargeAmount: Util.round(amount, Config.defaultVolumeDecimal), chargeCurrency: currency };
   }
 
   private static getRelatedPartyInfo(entry: SepaEntry): Partial<BankTx> {

@@ -227,7 +227,7 @@ export class CfpService {
       totalVotes: {
         total: votes.length,
         possible: this.masterNodeCount,
-        turnout: Util.round((votes.length / this.masterNodeCount) * 100, 2),
+        turnout: Util.round((votes.length / this.masterNodeCount) * 100, Config.defaultPercentageDecimal),
         yes: yesVotes.length,
         neutral: neutralVotes.length,
         no: noVotes.length,
