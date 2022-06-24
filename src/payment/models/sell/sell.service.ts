@@ -9,7 +9,7 @@ import { User } from '../../../user/models/user/user.entity';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
 import { KycService } from 'src/user/models/kyc/kyc.service';
-import { Not } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
 import { Config } from 'src/config/config';
@@ -25,7 +25,28 @@ export class SellService {
     private readonly kycService: KycService,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
-  ) {}
+  ) {
+    // TODO später löschen
+    this.fillBankAccounts();
+  }
+
+  private async fillBankAccounts(): Promise<void> {
+    try {
+      const buys = await this.sellRepo.find({ where: { bankAccount: IsNull() }, relations: ['bankAccount', 'user'] });
+
+      for (const buy of buys) {
+        try {
+          buy.bankAccount = await this.bankAccountService.getBankAccount(buy.iban, buy.user.id);
+
+          await this.sellRepo.save(buy);
+        } catch (error) {
+          console.log('Single fillBankAccount (sell) error:', error);
+        }
+      }
+    } catch (error) {
+      console.log('fillBankAccount (sell) error:', error);
+    }
+  }
 
   async getSellByAddress(depositAddress: string): Promise<Sell> {
     // does not work with find options
@@ -57,8 +78,6 @@ export class SellService {
     // check if exists
     const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
     if (existing) throw new ConflictException('Sell route already exists');
-
-    
 
     // create the entity
     const sell = this.sellRepo.create(dto);
