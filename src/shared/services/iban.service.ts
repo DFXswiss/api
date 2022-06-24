@@ -73,6 +73,7 @@ export interface IbanDetails {
 @Injectable()
 export class IbanService {
   private readonly baseUrl = 'https://rest.sepatools.eu/validate_iban';
+  private ibanApiBalance: number;
 
   constructor(private readonly http: HttpService) {}
 
@@ -84,9 +85,15 @@ export class IbanService {
         auth: { username: process.env.IBAN_USER, password: process.env.IBAN_PASSWORD },
       });
 
+      this.ibanApiBalance = result.balance;
+
       return result;
     } catch {
       throw new ServiceUnavailableException(`sepatools timeout`);
     }
+  }
+
+  public getBalance(): number {
+    return this.ibanApiBalance;
   }
 }

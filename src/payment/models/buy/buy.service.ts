@@ -21,7 +21,28 @@ export class BuyService {
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
-  ) {}
+  ) {
+    // TODO später löschen
+    this.fillBankAccounts();
+  }
+
+  private async fillBankAccounts(): Promise<void> {
+    try {
+      const buys = await this.buyRepo.find({ where: { bankAccount: IsNull() }, relations: ['bankAccount', 'user'] });
+
+      for (const buy of buys) {
+        try {
+          buy.bankAccount = await this.bankAccountService.getBankAccount(buy.iban, buy.user.id);
+
+          await this.buyRepo.save(buy);
+        } catch (error) {
+          console.log('Single fillBankAccount (buy) error:', error);
+        }
+      }
+    } catch (error) {
+      console.log('fillBankAccount (buy) error:', error);
+    }
+  }
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
