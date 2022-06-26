@@ -147,9 +147,9 @@ export class MonitoringService {
         )
         .leftJoin(DepositRoute, 'depositRoute2', 'cryptoInput.routeId = depositRoute2.id')
         .where('cryptoStaking.payoutType != :payoutType', { payoutType: PayoutType.WALLET })
-        .where('cryptoStaking.outTxId IS NOT NULL')
-        .where('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
-        .where('cryptoInput.id IS NULL OR depositRoute.userId != depositRoute2.userId')
+        .andWhere('cryptoStaking.outTxId IS NOT NULL')
+        .andWhere('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
+        .andWhere('(cryptoInput.id IS NULL OR depositRoute.userId != depositRoute2.userId)')
         .getCount(),
     };
   }
@@ -170,13 +170,14 @@ export class MonitoringService {
 
     // calculate should balance
     const should = await getCustomRepository(CryptoStakingRepository)
-      .getActiveEntries()
+      .createQueryBuilder('cryptoStaking')
+      .where('readyToPayout = 0')
       .select('SUM(inputAmount)', 'balance')
       .getRawOne<{ balance: number }>()
       .then((b) => b.balance);
 
     // calculate difference
-    const difference = Util.round(actual - should, 2);
+    const difference = Util.round(actual - should, Config.defaultVolumeDecimal);
     return { actual, should, difference };
   }
 }

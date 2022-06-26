@@ -40,20 +40,7 @@ export class SpiderSyncService {
     private readonly spiderService: SpiderService,
     private readonly settingService: SettingService,
     private readonly spiderDataRepo: SpiderDataRepository,
-  ) {
-    this.fillIdentPdf();
-  }
-
-  //TODO: remove temp code
-  async fillIdentPdf() {
-    const spiderDataList = await this.spiderDataRepo.find({ relations: ['userData'] });
-    for (const spiderData of spiderDataList) {
-      if (!spiderData.identPdf && IdentCompleted(spiderData.userData.kycStatus)) {
-        spiderData.identPdf = await this.getIdentPdfUrl(spiderData.userData);
-        this.spiderDataRepo.save(spiderData);
-      }
-    }
-  }
+  ) {}
 
   @Interval(7230000)
   async checkOngoingKyc() {
@@ -122,7 +109,7 @@ export class SpiderSyncService {
   }
 
   async syncKycUser(userDataId: number, forceSync = false): Promise<void> {
-    let userData = await this.userDataRepo.findOne(userDataId);
+    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['spiderData'] });
     if (!userData) return;
 
     // update KYC data
@@ -139,9 +126,17 @@ export class SpiderSyncService {
       userData = await this.checkKycProgress(userData);
     }
 
-    if (IdentCompleted(userData.kycStatus)) {
-      const pdfUrl = await this.getIdentPdfUrl(userData);
-      await this.spiderDataRepo.update({ userData: { id: userData.id } }, { identPdf: pdfUrl });
+    if (IdentCompleted(userData.kycStatus) && !userData.spiderData.identPdf) {
+      userData.spiderData.identPdf = await this.getIdentPdfUrl(userData);
+      if (!userData.spiderData.identPdf) {
+        userData.spiderData.identPdf = await this.getIdentManualPdfUrl(userData);
+        if (userData.spiderData.identPdf) {
+          userData.spiderData.identResult = JSON.stringify({
+            identificationprocess: { result: 'SUCCESS', type: 'MANUAL' },
+          });
+        }
+      }
+      await this.spiderDataRepo.save(userData.spiderData);
     }
 
     // force sync (chatbot and ident result)
@@ -225,6 +220,30 @@ export class SpiderSyncService {
     const result = await this.getIdentResult(userData, KycContentType.PDF);
     return result
       ? this.spiderService.getDocumentUrl(userData.kycCustomerId, result.document, result.version, result.part.name)
+      : null;
+  }
+
+  private async getIdentManualPdfUrl(userData: UserData): Promise<string> {
+    const version = await this.spiderApi.getDocumentVersion(
+      userData.id,
+      false,
+      KycDocument.PASSPORT_OR_ID,
+      KycDocumentState.COMPLETED,
+    );
+
+    if (!version) return null;
+
+    const part = await this.spiderApi
+      .getDocumentVersionParts(userData.id, false, KycDocument.PASSPORT_OR_ID, version.name)
+      .then((parts) =>
+        parts.find(
+          (p) =>
+            p.contentType === KycContentType.PDF &&
+            p.fileName.startsWith('DFX persönliche Identifikation Kunden vor Ort'),
+        ),
+      );
+    return part
+      ? this.spiderService.getDocumentUrl(userData.kycCustomerId, KycDocument.PASSPORT_OR_ID, version.name, part.name)
       : null;
   }
 
