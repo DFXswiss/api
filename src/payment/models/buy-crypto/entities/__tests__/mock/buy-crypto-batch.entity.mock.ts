@@ -1,4 +1,5 @@
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../../buy-crypto-batch.entity';
+import { createDefaultBuyCrypto } from './buy-crypto.entity.mock';
 
 export function createDefaultBuyCryptoBatch(): BuyCryptoBatch {
   return createCustomBuyCryptoBatch({});
@@ -19,7 +20,7 @@ export function createCustomBuyCryptoBatch(customValues: Partial<BuyCryptoBatch>
 
   const entity = new BuyCryptoBatch();
 
-  entity.transactions = keys.includes('transactions') ? transactions : [];
+  entity.transactions = keys.includes('transactions') ? transactions : [createDefaultBuyCrypto()];
   entity.outputReferenceAsset = keys.includes('outputReferenceAsset') ? outputReferenceAsset : '';
   entity.outputReferenceAmount = keys.includes('outputReferenceAmount') ? outputReferenceAmount : 2;
   entity.outputAsset = keys.includes('outputAsset') ? outputAsset : 'dTSLA';

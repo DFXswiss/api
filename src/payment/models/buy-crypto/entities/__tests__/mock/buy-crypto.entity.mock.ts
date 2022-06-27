@@ -26,7 +26,6 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
     outputAmount,
     outputAsset,
     txId,
-    blockHeight,
     outputDate,
     recipientMail,
     mailSendDate,
@@ -58,7 +57,6 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   entity.outputAmount = keys.includes('outputAmount') ? outputAmount : 0.2;
   entity.outputAsset = keys.includes('outputAsset') ? outputAsset : 'dTSLA';
   entity.txId = keys.includes('txId') ? txId : 'TX_ID_01';
-  entity.blockHeight = keys.includes('blockHeight') ? blockHeight : 100;
   entity.outputDate = keys.includes('outputDate') ? outputDate : new Date();
   entity.recipientMail = keys.includes('recipientMail') ? recipientMail : '';
   entity.mailSendDate = keys.includes('mailSendDate') ? mailSendDate : Date.now();

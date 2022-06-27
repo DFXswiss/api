@@ -5,12 +5,13 @@ export function createDefaultAsset(): Asset {
 }
 
 export function createCustomAsset(customValues: Partial<Asset>): Asset {
-  const { name } = customValues;
+  const { name, dexName } = customValues;
   const keys = Object.keys(customValues);
 
   const entity = new Asset();
 
   entity.name = keys.includes('name') ? name : 'dTSLA';
+  entity.dexName = keys.includes('dexName') ? dexName : 'dTSLA';
 
   return entity;
 }

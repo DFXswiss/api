@@ -67,7 +67,7 @@ describe('BuyCryptoBatchService', () => {
     });
 
     it('defines output reference amounts', async () => {
-      const transactions = [createCustomBuyCrypto({ outputReferenceAmount: null, amountInEur: 100 })];
+      const transactions = [createCustomBuyCrypto({ outputReferenceAmount: null, inputReferenceAmountMinusFee: 100 })];
       const calculateOutputReferenceAmountSpy = jest.spyOn(transactions[0], 'calculateOutputReferenceAmount');
 
       buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => transactions);
@@ -89,10 +89,14 @@ describe('BuyCryptoBatchService', () => {
       expect(buyCryptoOutServiceGetAssetsOnOutNode).toBeCalledTimes(1);
     });
 
-    it('blocks creating a batch if there is a matching blocked asset', async () => {
+    it('blocks creating a batch if there is a matching existingAsset', async () => {
+      buyCryptoBatchRepoFindOne = jest
+        .spyOn(buyCryptoBatchRepo, 'findOne')
+        .mockImplementation(async () => createCustomBuyCryptoBatch({ outputAsset: 'dDOGE' }));
+
       buyCryptoOutServiceGetAssetsOnOutNode = jest
         .spyOn(buyCryptoOutService, 'getAssetsOnOutNode')
-        .mockImplementation(async () => [{ asset: 'dTSLA', amount: 10 }]);
+        .mockImplementation(async () => [{ asset: 'dDOGE', amount: 10 }]);
 
       await service.batchTransactionsByAssets();
 
@@ -116,13 +120,13 @@ describe('BuyCryptoBatchService', () => {
     it('creates separate batches for separate asset pairs', async () => {
       const transactions = [
         createCustomBuyCrypto({
-          buy: createCustomBuy({ asset: createCustomAsset({ name: 'dDOGE' }) }),
+          buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dGOOGL' }) }),
         }),
         createCustomBuyCrypto({
-          buy: createCustomBuy({ asset: createCustomAsset({ name: 'dTSLA' }) }),
+          buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
         }),
         createCustomBuyCrypto({
-          buy: createCustomBuy({ asset: createCustomAsset({ name: 'USDT' }) }),
+          buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
         }),
       ];
 
@@ -130,7 +134,9 @@ describe('BuyCryptoBatchService', () => {
 
       buyCryptoBatchRepoCreate = jest
         .spyOn(buyCryptoBatchRepo, 'create')
-        .mockImplementationOnce(() => createCustomBuyCryptoBatch({ outputReferenceAsset: 'BTC', outputAsset: 'dDOGE' }))
+        .mockImplementationOnce(() =>
+          createCustomBuyCryptoBatch({ outputReferenceAsset: 'BTC', outputAsset: 'dGOOGL' }),
+        )
         .mockImplementationOnce(() => createCustomBuyCryptoBatch({ outputReferenceAsset: 'BTC', outputAsset: 'dTSLA' }))
         .mockImplementationOnce(() =>
           createCustomBuyCryptoBatch({ outputReferenceAsset: 'USDT', outputAsset: 'USDT' }),
@@ -144,13 +150,13 @@ describe('BuyCryptoBatchService', () => {
     it('groups transactions with same asset pair into one batch', async () => {
       const transactions = [
         createCustomBuyCrypto({
-          buy: createCustomBuy({ asset: createCustomAsset({ name: 'dTSLA' }) }),
+          buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
         }),
         createCustomBuyCrypto({
-          buy: createCustomBuy({ asset: createCustomAsset({ name: 'dTSLA' }) }),
+          buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'dTSLA' }) }),
         }),
         createCustomBuyCrypto({
-          buy: createCustomBuy({ asset: createCustomAsset({ name: 'USDT' }) }),
+          buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
         }),
       ];
 

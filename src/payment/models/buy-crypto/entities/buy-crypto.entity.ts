@@ -74,6 +74,9 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'integer', nullable: true })
   blockHeight: number;
 
+  @Column({ default: false })
+  isComplete: boolean;
+
   @Column({ type: 'datetime2', nullable: true })
   outputDate: Date;
 
@@ -105,11 +108,15 @@ export class BuyCrypto extends IEntity {
   }
 
   calculateOutputReferenceAmount(price: Price): this {
-    if (!price?.currencyPair.includes('EUR')) {
+    if (!(price instanceof Price)) {
+      throw new Error('Provided input is not an instance of Price');
+    }
+
+    if (!price.currencyPair.includes('EUR')) {
       throw new Error('Cannot calculate outputReferenceAmount, EUR price is required');
     }
 
-    if (price?.price === 0) {
+    if (!price.price) {
       throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
     }
 
@@ -135,7 +142,8 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  recordBlockHeight(blockHeight: number): this {
+  complete(blockHeight: number): this {
+    this.isComplete = true;
     this.blockHeight = blockHeight;
 
     return this;

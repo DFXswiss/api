@@ -7,7 +7,6 @@ import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
-import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -15,7 +14,6 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoOutService: BuyCryptoOutService,
-    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly exchangeUtilityService: ExchangeUtilityService,
   ) {}
 
@@ -106,7 +104,9 @@ export class BuyCryptoBatchService {
       });
 
       if (existingBatch) {
-        console.info(`Halting with creation of a batch for asset: ${outputAsset}, batch already exists`);
+        console.info(
+          `Halting with creation of a batch for asset: ${outputAsset}, batch already exists. Transaction ID: ${tx.id}`,
+        );
 
         continue;
       }
@@ -126,6 +126,13 @@ export class BuyCryptoBatchService {
           status: BuyCryptoBatchStatus.CREATED,
         });
         batches.set(outputReferenceAsset + '&' + outputAsset, batch);
+      }
+
+      // separating transactions to same address and same asset into separate batches/iterations
+      const existingAddress = batch.transactions.find((_tx) => _tx.buy.user.address === tx.buy.user.address);
+
+      if (existingAddress) {
+        continue;
       }
 
       batch.addTransaction(tx);

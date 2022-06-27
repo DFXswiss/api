@@ -49,7 +49,7 @@ export class BuyCryptoBatch extends IEntity {
       this.outputReferenceAmount = 0;
     }
 
-    this.outputReferenceAmount += tx.outputReferenceAmount;
+    this.outputReferenceAmount = Util.round(this.outputReferenceAmount + tx.outputReferenceAmount, 8);
 
     return this;
   }
@@ -63,18 +63,6 @@ export class BuyCryptoBatch extends IEntity {
     );
 
     this.fixRoundingMismatch();
-
-    this.transactions = updatedTransactions;
-
-    return this;
-  }
-
-  recordBlockHeight(recentChainHistory: { txId: string; blockHeight: number }[]): this {
-    const updatedTransactions = this.transactions.map((t) => {
-      const chainTx = recentChainHistory.find((chainTx) => chainTx.txId === t.txId);
-
-      return t.recordBlockHeight(chainTx.blockHeight);
-    });
 
     this.transactions = updatedTransactions;
 

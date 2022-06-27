@@ -1,3 +1,4 @@
+import { createDefaultUserData } from 'src/user/models/user-data/__tests__/mock/user-data.entity.mock';
 import { createDefaultWallet } from 'src/user/models/wallet/__tests__/mock/wallet.entity.mock';
 import { User } from '../../user.entity';
 
@@ -6,11 +7,12 @@ export function createDefaultUser(): User {
 }
 
 export function createCustomUser(customValues: Partial<User>): User {
-  const { wallet } = customValues;
+  const { userData, wallet } = customValues;
   const keys = Object.keys(customValues);
 
   const entity = new User();
 
+  entity.userData = keys.includes('userData') ? userData : createDefaultUserData();
   entity.wallet = keys.includes('wallet') ? wallet : createDefaultWallet();
 
   return entity;
