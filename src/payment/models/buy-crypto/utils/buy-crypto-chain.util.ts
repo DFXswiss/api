@@ -22,9 +22,9 @@ export class BuyCryptoChainUtil {
 
   async getRecentChainHistory(): Promise<{ txId: string; blockHeight: number; amounts: string[] }[]> {
     const { blocks: currentHeight } = await this.dexClient.getInfo();
-    const lastHeight = await this.buyCryptoRepo
-      .findOne({ order: { blockHeight: 'DESC' } })
-      .then((tx) => tx?.blockHeight ?? 0);
+    const lastHeight =
+      (await this.buyCryptoRepo.findOne({ order: { blockHeight: 'DESC' } }).then((tx) => tx?.blockHeight ?? 0)) ||
+      currentHeight - 1000;
 
     console.info(`Getting chain history from block ${lastHeight} to block ${currentHeight}`);
 
@@ -54,8 +54,8 @@ export class BuyCryptoChainUtil {
             await this.buyCryptoRepo.save(tx);
           }
         }
-      } catch {
-        console.error(`Error on validating transaction completion. ID: ${tx.id}. Chain txId: ${tx.txId}`);
+      } catch (e) {
+        console.error(`Error on validating transaction completion. ID: ${tx.id}. Chain txId: ${tx.txId}`, e);
         continue;
       }
     }

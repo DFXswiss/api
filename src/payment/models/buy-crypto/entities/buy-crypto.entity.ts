@@ -104,7 +104,7 @@ export class BuyCrypto extends IEntity {
   }
 
   calculateOutputReferenceAmount(price: Price): this {
-    if (!(price instanceof Price)) {
+    if (!price) {
       throw new Error('Provided input is not an instance of Price');
     }
 

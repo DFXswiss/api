@@ -111,7 +111,7 @@ export class BuyCryptoBatchService {
         continue;
       }
 
-      if (this.isExistingBatch(existingAssets, outputAsset)) {
+      if (this.isExistingOutBalance(existingAssets, outputAsset)) {
         console.warn(`Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`);
 
         continue;
@@ -124,6 +124,7 @@ export class BuyCryptoBatchService {
           outputReferenceAsset,
           outputAsset,
           status: BuyCryptoBatchStatus.CREATED,
+          transactions: [],
         });
         batches.set(outputReferenceAsset + '&' + outputAsset, batch);
       }
@@ -133,7 +134,7 @@ export class BuyCryptoBatchService {
 
       if (existingAddress) {
         console.warn(
-          `Skipping transaction ID: ${existingAddress.id}, since address ${existingAddress.buy?.user?.address} already exists in the batch`,
+          `Skipping transaction ID: ${tx.id}, since address ${existingAddress.buy?.user?.address} already exists in the batch`,
         );
         continue;
       }
@@ -144,7 +145,7 @@ export class BuyCryptoBatchService {
     return [...batches.values()];
   }
 
-  private isExistingBatch(existingAssets: { amount: number; asset: string }[], outputAsset: string): boolean {
+  private isExistingOutBalance(existingAssets: { amount: number; asset: string }[], outputAsset: string): boolean {
     const existingAsset = existingAssets.find((a) => a.asset === outputAsset);
 
     if (!existingAsset) {
