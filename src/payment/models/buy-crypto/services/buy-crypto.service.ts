@@ -82,8 +82,7 @@ export class BuyCryptoService {
 
   @Interval(30000)
   async process() {
-    // if ((await this.settingService.get('buy-process')) !== 'on') return;
-    if ((await this.settingService.get('buy-process')) === 'on') return;
+    if ((await this.settingService.get('buy-process')) !== 'on') return;
     if (!this.lock.acquire()) return;
 
     await this.buyCryptoBatchService.batchTransactionsByAssets();

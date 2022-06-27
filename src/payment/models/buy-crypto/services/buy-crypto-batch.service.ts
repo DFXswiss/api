@@ -132,6 +132,9 @@ export class BuyCryptoBatchService {
       const existingAddress = batch.transactions.find((_tx) => _tx.buy.user.address === tx.buy.user.address);
 
       if (existingAddress) {
+        console.warn(
+          `Skipping transaction ID: ${existingAddress.id}, since address ${existingAddress.buy?.user?.address} already exists in the batch`,
+        );
         continue;
       }
 
