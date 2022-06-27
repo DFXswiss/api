@@ -1,6 +1,6 @@
 import { ApiClient, BigNumber } from '@defichain/jellyfish-api-core';
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
-import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
+import { Block, BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
@@ -44,6 +44,10 @@ export class NodeClient {
   // common
   async getInfo(): Promise<BlockchainInfo> {
     return this.callNode((c) => c.blockchain.getBlockchainInfo());
+  }
+
+  async getBlock(hash: string): Promise<Block<string>> {
+    return this.callNode((c) => c.blockchain.getBlock(hash, 1));
   }
 
   async getHistories(addresses: string[], fromBlock: number, toBlock: number): Promise<AccountHistory[]> {

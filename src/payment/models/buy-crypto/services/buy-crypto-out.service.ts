@@ -59,7 +59,7 @@ export class BuyCryptoOutService {
 
       for (const batch of batches) {
         try {
-          await this.buyCryptoChainUtil.checkCompletion(batch, this.whaleService.getClient());
+          await this.buyCryptoChainUtil.checkCompletion(batch, this.outClient);
         } catch (e) {
           console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
           continue;

@@ -35,7 +35,7 @@ export class BuyCryptoBatchService {
       }
 
       console.info(
-        `New buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s):`,
+        `Buy crypto transaction input. Processing ${txInput.length} transaction(s). Transaction ID(s):`,
         txInput.map((t) => t.id),
       );
 
@@ -134,7 +134,7 @@ export class BuyCryptoBatchService {
 
       if (existingAddress) {
         console.warn(
-          `Skipping transaction ID: ${tx.id}, since address ${existingAddress.buy?.user?.address} already exists in the batch`,
+          `Skipping transaction ID: ${tx.id}, since address ${existingAddress.buy?.user?.address} and ${tx.outputAsset} asset pair already exists in the batch`,
         );
         continue;
       }
