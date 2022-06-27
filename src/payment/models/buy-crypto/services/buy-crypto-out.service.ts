@@ -127,12 +127,12 @@ export class BuyCryptoOutService {
       return [];
     });
 
-    if (transactions.length) {
+    if (transactions.length === 0) {
       return;
     }
 
     const isComplete = batch.transactions.every(({ txId }) => {
-      const inChain = transactions.find((tx) => tx.txId === txId);
+      const inChain = transactions.find((tx) => tx.txid === txId);
 
       if (!inChain) {
         return false;
