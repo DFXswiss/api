@@ -121,12 +121,12 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-06-21T21:43:10.878Z",
+    "modified": "2022-06-27T10:09:03.286Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n    \"address\": \"df1q65lkkemuyjqtystfleewd6nykftekeqkfn7vhu\",\n    \"signature\": \"H6QD7DG74afGoqAt9gjDddLNJj0eBk1SsVv4RXUvDpsnX1Ddq9H/e5p+j9lSCpuBKZ9M9MKB1UyBfcKq+zF4vIM=\"\n}",
+      "raw": "{\n    \"address\": \"address\",\n    \"signature\": \"signature\"\n}",
       "form": []
     },
     "auth": {
