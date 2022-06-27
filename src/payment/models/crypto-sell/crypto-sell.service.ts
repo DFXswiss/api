@@ -8,11 +8,12 @@ import { CryptoInputRepository } from '../crypto-input/crypto-input.repository';
 import { SellService } from '../sell/sell.service';
 import { SellRepository } from '../sell/sell.repository';
 import { RouteType } from '../route/deposit-route.entity';
-import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
+
 import { Between, In, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { Util } from 'src/shared/util';
+import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 
 @Injectable()
 export class CryptoSellService {

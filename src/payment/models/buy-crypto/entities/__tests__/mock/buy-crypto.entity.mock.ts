@@ -1,5 +1,6 @@
 import { createDefaultBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
-import { AmlCheck, BuyCrypto } from '../../buy-crypto.entity';
+import { AmlCheck } from '../../../enums/aml-check.enum';
+import { BuyCrypto } from '../../buy-crypto.entity';
 import { createCustomBuyCryptoBatch } from './buy-crypto-batch.entity.mock';
 
 export function createDefaultBuyCrypto(): BuyCrypto {

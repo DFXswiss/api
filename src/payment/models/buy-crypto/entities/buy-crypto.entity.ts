@@ -5,11 +5,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Price } from '../../exchange/dto/price.dto';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
-
-export enum AmlCheck {
-  PASS = 'Pass',
-  FAIL = 'Fail',
-}
+import { AmlCheck } from '../enums/aml-check.enum';
 
 @Entity()
 export class BuyCrypto extends IEntity {

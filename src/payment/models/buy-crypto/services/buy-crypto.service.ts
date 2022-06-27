@@ -7,7 +7,7 @@ import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
-import { AmlCheck, BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { Buy } from '../../buy/buy.entity';
@@ -17,6 +17,7 @@ import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { AmlCheck } from '../enums/aml-check.enum';
 
 @Injectable()
 export class BuyCryptoService {
@@ -81,7 +82,8 @@ export class BuyCryptoService {
 
   @Interval(30000)
   async process() {
-    if ((await this.settingService.get('buy-process')) !== 'on') return;
+    // if ((await this.settingService.get('buy-process')) !== 'on') return;
+    if ((await this.settingService.get('buy-process')) === 'on') return;
     if (!this.lock.acquire()) return;
 
     await this.buyCryptoBatchService.batchTransactionsByAssets();

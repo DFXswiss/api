@@ -6,7 +6,7 @@ import { Entity, Column, ManyToOne, Index, OneToOne } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
-import { AmlCheck } from '../buy-crypto/entities/buy-crypto.entity';
+import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 
 export enum CryptoInputType {
   RETURN = 'Return',

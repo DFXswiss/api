@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
-import { AmlCheck } from '../crypto-buy.entity';
+import { AmlCheck } from '../enums/aml-check.enum';
 
 export abstract class CryptoBuyDto {
   @ApiPropertyOptional()
