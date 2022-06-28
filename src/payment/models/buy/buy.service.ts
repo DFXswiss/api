@@ -11,6 +11,7 @@ import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
 import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
+import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
 
 @Injectable()
@@ -20,7 +21,29 @@ export class BuyService {
     private readonly assetService: AssetService,
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
-  ) {}
+    private readonly bankAccountService: BankAccountService,
+  ) {
+    // TODO später löschen
+    this.fillBankAccounts();
+  }
+
+  private async fillBankAccounts(): Promise<void> {
+    try {
+      const buys = await this.buyRepo.find({ where: { bankAccount: IsNull() }, relations: ['bankAccount', 'user'] });
+
+      for (const buy of buys) {
+        try {
+          buy.bankAccount = await this.bankAccountService.getBankAccount(buy.iban, buy.user.id);
+
+          await this.buyRepo.save(buy);
+        } catch (error) {
+          console.log('Single fillBankAccount (buy) error:', error);
+        }
+      }
+    } catch (error) {
+      console.log('fillBankAccount (buy) error:', error);
+    }
+  }
 
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
@@ -29,7 +52,10 @@ export class BuyService {
   }
 
   async updateVolume(buyId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.buyRepo.update(buyId, { volume: Util.round(volume, Config.defaultVolumeDecimal), annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal) });
+    await this.buyRepo.update(buyId, {
+      volume: Util.round(volume, Config.defaultVolumeDecimal),
+      annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+    });
 
     // update user volume
     const { user } = await this.buyRepo.findOne({
@@ -90,6 +116,7 @@ export class BuyService {
     buy.user = { id: userId } as User;
     buy.asset = asset;
     buy.deposit = staking?.deposit ?? null;
+    buy.bankAccount = await this.bankAccountService.getBankAccount(dto.iban, userId);
 
     // create hash
     const hash = Util.createHash(
