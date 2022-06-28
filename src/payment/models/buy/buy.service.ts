@@ -13,6 +13,7 @@ import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
+import { BankAccountService } from '../bank-account/bank-account.service';
 
 @Injectable()
 export class BuyService {
