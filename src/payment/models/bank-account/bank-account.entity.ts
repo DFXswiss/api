@@ -3,7 +3,31 @@ import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Buy } from '../buy/buy.entity';
 import { Sell } from '../sell/sell.entity';
-import { BankAccountInfos } from './dto/bank-account.dto';
+
+export interface BankAccountInfos {
+  result: string;
+  returnCode: number;
+  checks: string;
+  bic: string;
+  allBicCandidates: string;
+  bankCode: string;
+  bankAndBranchCode: string;
+  bankName: string;
+  bankAddress: string;
+  bankUrl: string;
+  branch: string;
+  branchCode: string;
+  sct: boolean;
+  sdd: boolean;
+  b2b: boolean;
+  scc: boolean;
+  sctInst: boolean;
+  sctInstReadinessDate: Date;
+  acountNumber: string;
+  dataAge: string;
+  ibanListed: string;
+  ibanWwwOccurrences: number;
+}
 
 @Entity()
 @Index('ibanLabel', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {

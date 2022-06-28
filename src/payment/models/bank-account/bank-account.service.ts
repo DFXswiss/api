@@ -3,8 +3,7 @@ import { IbanService } from 'src/shared/services/iban.service';
 import { User } from 'src/user/models/user/user.entity';
 import { BankAccountRepository } from './bank-account.repository';
 import { IbanDetailsDto } from 'src/shared/services/iban.service';
-import { BankAccount } from './bank-account.entity';
-import { BankAccountInfos } from './dto/bank-account.dto';
+import { BankAccount, BankAccountInfos } from './bank-account.entity';
 
 @Injectable()
 export class BankAccountService {
