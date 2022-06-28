@@ -3,12 +3,13 @@ import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Buy } from '../buy/buy.entity';
 import { Sell } from '../sell/sell.entity';
+import { BankAccountInfos } from './dto/bank-account.dto';
 
 @Entity()
 @Index('ibanLabel', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {
   unique: true,
 })
-export class BankAccount extends IEntity {
+export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256 })
   iban: string;
 

@@ -89,7 +89,7 @@ export class IbanService {
 
       return result;
     } catch (error) {
-      throw new ServiceUnavailableException('sepatools error:', error);
+      throw new ServiceUnavailableException(`Failed to get IBAN infos for ${iban}:`, error);
     }
   }
 
