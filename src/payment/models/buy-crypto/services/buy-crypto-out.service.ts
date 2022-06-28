@@ -3,7 +3,7 @@ import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Config } from 'src/config/config';
-import { Not, IsNull } from 'typeorm';
+import { Not, IsNull, In } from 'typeorm';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
@@ -45,7 +45,7 @@ export class BuyCryptoOutService {
     try {
       const batches = await this.buyCryptoBatchRepo.find({
         where: {
-          status: BuyCryptoBatchStatus.SECURED,
+          status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
           outTxId: Not(IsNull()),
         },
         relations: ['transactions', 'transactions.buy', 'transactions.buy.user'],
@@ -65,8 +65,8 @@ export class BuyCryptoOutService {
           continue;
         }
 
-        if (batch.status === BuyCryptoBatchStatus.COMPLETE) {
-          return;
+        if (batch.status !== BuyCryptoBatchStatus.SECURED) {
+          continue;
         }
 
         const canProceed = await this.checkNewPayouts(batch, outAssets);
@@ -75,7 +75,10 @@ export class BuyCryptoOutService {
           continue;
         }
 
-        const groups = this.groupPayoutTransactions(batch);
+        const groups = batch.groupPayoutTransactions();
+
+        batch.payingOut();
+        this.buyCryptoBatchRepo.save(batch);
 
         for (const group of groups) {
           // not to attempt sending empty batches for payout
@@ -112,30 +115,6 @@ export class BuyCryptoOutService {
     }
 
     return true;
-  }
-
-  private groupPayoutTransactions(batch: BuyCryptoBatch): BuyCrypto[][] {
-    console.info(`Grouping transactions for payout. Batch ID: ${batch.id}`);
-
-    const payoutTransactions = batch.transactions.filter((tx) => !tx.txId);
-
-    if (batch.transactions.length > 0 && payoutTransactions.length !== batch.transactions.length) {
-      console.warn(
-        `Skipped ${batch.transactions.length - payoutTransactions.length} transactions of batch ID: ${
-          batch.id
-        } to avoid double payout.`,
-      );
-    }
-
-    const groupSize = batch.outputAsset === 'DFI' ? 100 : 10;
-    const numberOfGroups = Math.ceil(batch.transactions.length / groupSize);
-    const result: BuyCrypto[][] = [];
-
-    for (let i = 0; i <= numberOfGroups; i += groupSize) {
-      result.push(payoutTransactions.slice(i, i + groupSize));
-    }
-
-    return result;
   }
 
   private async sendToken(transactions: BuyCrypto[], outputAsset: string): Promise<void> {

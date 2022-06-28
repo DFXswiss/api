@@ -7,6 +7,7 @@ export function createDefaultBuyCryptoBatch(): BuyCryptoBatch {
 
 export function createCustomBuyCryptoBatch(customValues: Partial<BuyCryptoBatch>): BuyCryptoBatch {
   const {
+    id,
     transactions,
     outputReferenceAsset,
     outputReferenceAmount,
@@ -20,6 +21,7 @@ export function createCustomBuyCryptoBatch(customValues: Partial<BuyCryptoBatch>
 
   const entity = new BuyCryptoBatch();
 
+  entity.id = keys.includes('id') ? id : 1;
   entity.transactions = keys.includes('transactions') ? transactions : [createDefaultBuyCrypto()];
   entity.outputReferenceAsset = keys.includes('outputReferenceAsset') ? outputReferenceAsset : '';
   entity.outputReferenceAmount = keys.includes('outputReferenceAmount') ? outputReferenceAmount : 2;

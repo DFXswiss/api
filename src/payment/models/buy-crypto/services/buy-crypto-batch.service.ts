@@ -129,16 +129,6 @@ export class BuyCryptoBatchService {
         batches.set(outputReferenceAsset + '&' + outputAsset, batch);
       }
 
-      // separating transactions to same address and same asset into separate batches/iterations
-      const existingAddress = batch.transactions.find((_tx) => _tx.buy.user.address === tx.buy.user.address);
-
-      if (existingAddress) {
-        console.warn(
-          `Skipping transaction ID: ${tx.id}, since address ${existingAddress.buy?.user?.address} and ${tx.outputAsset} asset pair already exists in the batch`,
-        );
-        continue;
-      }
-
       batch.addTransaction(tx);
     }
 

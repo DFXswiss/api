@@ -61,6 +61,7 @@ export class BuyCryptoChainUtil {
     const isBatchComplete = batch.transactions.every((tx) => tx.txId && tx.isComplete);
 
     if (isBatchComplete) {
+      console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
       batch.complete();
       this.buyCryptoBatchRepo.save(batch);
     }

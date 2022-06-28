@@ -7,6 +7,7 @@ export enum BuyCryptoBatchStatus {
   CREATED = 'created',
   SECURED = 'secured',
   PENDING_LIQUIDITY = 'pending-liquidity',
+  PAYING_OUT = 'paying-out',
   COMPLETE = 'complete',
 }
 
@@ -82,10 +83,92 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
+  payingOut(): this {
+    this.status = BuyCryptoBatchStatus.PAYING_OUT;
+
+    return this;
+  }
+
   recordDexToOutTransfer(txId: string): this {
     this.outTxId = txId;
 
     return this;
+  }
+
+  groupPayoutTransactions(): BuyCrypto[][] {
+    if (this.status !== BuyCryptoBatchStatus.SECURED) {
+      throw new Error(`Cannot payout batch which is not secured. Batch ID: ${this.id}. Batch status: ${this.status}`);
+    }
+
+    console.info(`Grouping transactions for payout. Batch ID: ${this.id}`);
+
+    const payoutTransactions = this.transactions.filter((tx) => !tx.txId);
+
+    if (this.transactions.length > 0 && payoutTransactions.length !== this.transactions.length) {
+      console.warn(
+        `Skipped ${this.transactions.length - payoutTransactions.length} transactions of batch ID: ${
+          this.id
+        } to avoid double payout.`,
+      );
+    }
+
+    const maxGroupSize = this.outputAsset === 'DFI' ? 100 : 10;
+    const groups = this.createPayoutGroups(payoutTransactions, maxGroupSize);
+
+    console.info(`Created ${groups.length} transaction group(s) for payout. Batch ID: ${this.id}`);
+
+    return groups;
+  }
+
+  private createPayoutGroups(transactions: BuyCrypto[], maxGroupSize: number): BuyCrypto[][] {
+    const result: Map<number, BuyCrypto[]> = new Map();
+
+    let currentGroupNumber = 0;
+
+    transactions.forEach((tx) => {
+      let currentGroup = result.get(currentGroupNumber);
+
+      if (!currentGroup) {
+        currentGroup = [tx];
+        result.set(currentGroupNumber, currentGroup);
+
+        return;
+      }
+
+      if (currentGroup.find((_tx) => _tx.buy.user.address === tx.buy.user.address)) {
+        // find nearest non-full group without repeating address
+        const suitableExistingGroups = [...result.entries()].filter(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ([_, transactions]) =>
+            transactions.length < maxGroupSize &&
+            !transactions.find((_tx) => _tx.buy.user.address === tx.buy.user.address),
+        );
+
+        if (suitableExistingGroups.length) {
+          const [key, group] = suitableExistingGroups[0];
+          result.set(key, [...group, tx]);
+
+          return;
+        }
+
+        const newGroup = [tx];
+        result.set(result.size + 1, newGroup);
+
+        return;
+      }
+
+      if (currentGroup.length >= maxGroupSize) {
+        const newGroup = [tx];
+        result.set(currentGroupNumber + 1, newGroup);
+        currentGroupNumber++;
+
+        return;
+      }
+
+      result.set(currentGroupNumber, [...currentGroup, tx]);
+    });
+
+    return [...result.values()];
   }
 
   private fixRoundingMismatch(): void {
@@ -98,7 +181,7 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     if (Math.abs(mismatch) > 0 && Math.abs(mismatch) < 0.00001) {
-      this.transactions[0].outputAmount += mismatch;
+      this.transactions[0].outputAmount = Util.round(this.transactions[0].outputAmount + mismatch, 8);
       console.info(
         `Fixed total output amount mismatch of ${mismatch} ${this.outputAsset}. Added to transaction ID: ${this.transactions[0].id}`,
       );

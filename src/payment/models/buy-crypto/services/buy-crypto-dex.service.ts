@@ -127,7 +127,7 @@ export class BuyCryptoDexService {
 
           console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
 
-          return;
+          continue;
         }
 
         await this.purchaseLiquidity(batch);
