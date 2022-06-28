@@ -145,7 +145,7 @@ export class CryptoStakingService {
       .getRawMany<{ amount: number; outputDate: Date; payoutType: PayoutType }>()
       .then((l) =>
         l
-          .map((b) => ({ ...b, amount: Util.round(b.amount, 2) }))
+          .map((b) => ({ ...b, amount: Util.round(b.amount, Config.defaultVolumeDecimal) }))
           .sort((a, b) => (a.outputDate > b.outputDate ? 1 : -1)),
       );
   }

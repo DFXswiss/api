@@ -178,11 +178,11 @@ export class UserDataService {
       }>();
 
     await this.userDataRepo.update(userDataId, {
-      buyVolume: Util.round(volumes.buyVolume, 0),
-      annualBuyVolume: Util.round(volumes.annualBuyVolume, 0),
-      sellVolume: Util.round(volumes.sellVolume, 0),
-      annualSellVolume: Util.round(volumes.annualSellVolume, 0),
-      stakingBalance: Util.round(volumes.stakingBalance, 0),
+      buyVolume: Util.round(volumes.buyVolume, Config.defaultVolumeDecimal),
+      annualBuyVolume: Util.round(volumes.annualBuyVolume, Config.defaultVolumeDecimal),
+      sellVolume: Util.round(volumes.sellVolume, Config.defaultVolumeDecimal),
+      annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
+      stakingBalance: Util.round(volumes.stakingBalance, Config.defaultVolumeDecimal),
     });
   }
 
