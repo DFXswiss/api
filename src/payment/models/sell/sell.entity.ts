@@ -18,6 +18,7 @@ export class Sell extends DepositRoute {
   @ManyToOne(() => User, (user) => user.sells, { nullable: false })
   user: User;
 
+  // TODO nullable false einstellen wenn alle vorhandenen bankAccount haben
   @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.sells)
   bankAccount: BankAccount;
 
