@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { HttpService } from './http.service';
 
 export interface IbanDetailsDto {
@@ -81,9 +82,7 @@ export class IbanService {
     const url = `${this.baseUrl}/${iban}`;
 
     try {
-      const result = await this.http.get<IbanDetailsDto>(url, {
-        auth: { username: process.env.IBAN_USER, password: process.env.IBAN_PASSWORD },
-      });
+      const result = await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
 
       this.ibanApiBalance = result.balance;
 
