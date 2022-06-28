@@ -1,7 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { HttpService } from './http.service';
 
-export interface IbanDetails {
+export interface IbanDetailsDto {
   value_open: number;
   account_check: string;
   account_number: string;
@@ -77,19 +77,19 @@ export class IbanService {
 
   constructor(private readonly http: HttpService) {}
 
-  async getIbanInfos(iban: string): Promise<IbanDetails> {
+  async getIbanInfos(iban: string): Promise<IbanDetailsDto> {
     const url = `${this.baseUrl}/${iban}`;
 
     try {
-      const result = await this.http.get<IbanDetails>(url, {
+      const result = await this.http.get<IbanDetailsDto>(url, {
         auth: { username: process.env.IBAN_USER, password: process.env.IBAN_PASSWORD },
       });
 
       this.ibanApiBalance = result.balance;
 
       return result;
-    } catch {
-      throw new ServiceUnavailableException(`sepatools timeout`);
+    } catch (error) {
+      throw new ServiceUnavailableException('sepatools error:', error);
     }
   }
 

@@ -14,8 +14,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
-import { BankAccountService } from '../bank-account/bank-account.service';
-
 
 @Injectable()
 export class SellService {
@@ -108,7 +106,10 @@ export class SellService {
   }
 
   async updateVolume(sellId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.sellRepo.update(sellId, { volume: Util.round(volume, Config.defaultVolumeDecimal), annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal) });
+    await this.sellRepo.update(sellId, {
+      volume: Util.round(volume, Config.defaultVolumeDecimal),
+      annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+    });
 
     // update user volume
     const { user } = await this.sellRepo.findOne({

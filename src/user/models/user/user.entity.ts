@@ -91,7 +91,7 @@ export class User extends IEntity {
   stakingRoutes: Staking[];
 
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.user)
-  ibans: BankAccount[];
+  bankAccounts: BankAccount[];
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;

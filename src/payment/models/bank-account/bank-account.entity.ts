@@ -15,14 +15,14 @@ export class BankAccount extends IEntity {
   @Column({ length: 256, nullable: true })
   label: string;
 
-  @ManyToOne(() => User, (user) => user.ibans)
+  @ManyToOne(() => User, (user) => user.bankAccounts, { nullable: false })
   user: User;
 
   @OneToMany(() => Buy, (buy) => buy.bankAccount)
-  buy: Buy[];
+  buys: Buy[];
 
   @OneToMany(() => Sell, (sell) => sell.bankAccount)
-  sell: Sell[];
+  sells: Sell[];
 
   @Column({ length: 256, nullable: true })
   result: string;
@@ -57,7 +57,7 @@ export class BankAccount extends IEntity {
   @Column({ length: 256, nullable: true })
   branch: string;
 
-  @Column({ nullable: true })
+  @Column({ length: 256, nullable: true })
   branchCode: string;
 
   @Column({ nullable: true })
@@ -75,7 +75,7 @@ export class BankAccount extends IEntity {
   @Column({ nullable: true })
   sctInst: boolean;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'datetime2' })
   sctInstReadinessDate: Date;
 
   @Column({ length: 256, nullable: true })

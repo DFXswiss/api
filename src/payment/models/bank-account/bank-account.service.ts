@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { IbanService } from 'src/shared/services/iban.service';
 import { User } from 'src/user/models/user/user.entity';
-import { BankAccount } from './bank-account.entity';
 import { BankAccountRepository } from './bank-account.repository';
-import { IbanDetails } from 'src/shared/services/iban.service';
-import { BankAccountDto } from './dto/bank-account.dto';
+import { IbanDetailsDto } from 'src/shared/services/iban.service';
+import { BankAccount } from './bank-account.entity';
+import { BankAccountInfos } from './dto/bank-account.dto';
 
 @Injectable()
 export class BankAccountService {
@@ -38,7 +38,7 @@ export class BankAccountService {
     return bankAccount;
   }
 
-  private parseBankDetails(bankDetails: IbanDetails): BankAccountDto {
+  private parseBankDetails(bankDetails: IbanDetailsDto): BankAccountInfos {
     return {
       result: this.parseString(bankDetails.result),
       returnCode: !bankDetails.return_code ? null : bankDetails.return_code,

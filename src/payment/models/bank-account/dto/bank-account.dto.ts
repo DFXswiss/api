@@ -1,4 +1,4 @@
-export interface BankAccountDto {
+export interface BankAccountInfos {
   result: string;
   returnCode: number;
   checks: string;
