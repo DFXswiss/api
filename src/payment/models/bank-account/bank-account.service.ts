@@ -4,6 +4,7 @@ import { User } from 'src/user/models/user/user.entity';
 import { BankAccountRepository } from './bank-account.repository';
 import { IbanDetailsDto } from 'src/shared/services/iban.service';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
+import { IEntity } from 'src/shared/models/entity';
 
 @Injectable()
 export class BankAccountService {
@@ -21,9 +22,8 @@ export class BankAccountService {
   }
 
   private async createBankAccount(iban: string, userId: number, copyFrom?: BankAccount): Promise<BankAccount> {
-    const bankAccount = copyFrom ?? (await this.initBankAccount(iban));
+    const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
     bankAccount.user = { id: userId } as User;
-    bankAccount.id = undefined;
 
     return this.bankAccountRepo.save(bankAccount);
   }
