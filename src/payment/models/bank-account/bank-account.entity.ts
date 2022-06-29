@@ -100,7 +100,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ nullable: true })
   sctInst: boolean;
 
-  @Column({ nullable: true, type: 'datetime2' })
+  @Column({ type: 'datetime2', nullable: true })
   sctInstReadinessDate: Date;
 
   @Column({ length: 256, nullable: true })

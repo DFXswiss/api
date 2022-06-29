@@ -11,9 +11,7 @@ export class BankAccountService {
 
   async getBankAccount(iban: string, userId: number): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
-      where: {
-        iban: iban,
-      },
+      where: { iban },
       relations: ['user'],
     });
 
