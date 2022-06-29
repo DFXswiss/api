@@ -7,7 +7,6 @@ import { StakingRewardService } from '../staking-reward/staking-reward.service';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
-import { CryptoBuyService } from '../crypto-buy/crypto-buy.service';
 import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
@@ -15,11 +14,12 @@ import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
 import { RefReward } from '../ref-reward/ref-reward.entity';
 import { StakingRefReward, StakingRefType } from '../staking-ref-reward/staking-ref-reward.entity';
+import { BuyCryptoService } from '../buy-crypto/buy-crypto.service';
 
 @Injectable()
 export class HistoryService {
   constructor(
-    private readonly cryptoBuyService: CryptoBuyService,
+    private readonly buyCryptoService: BuyCryptoService,
     private readonly cryptoSellService: CryptoSellService,
     private readonly stakingRewardService: StakingRewardService,
     private readonly cryptoStakingService: CryptoStakingService,
@@ -54,14 +54,23 @@ export class HistoryService {
 
   // --- HELPER METHODS --- //
   private async getBuyTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const cryptoBuys = await this.cryptoBuyService.getUserTransactions(userId, dateFrom, dateTo);
-    return cryptoBuys
-      .filter((c) => c.amlCheck === AmlCheck.PASS)
+    const buyCryptos = await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo);
+    return buyCryptos
+      .filter(
+        (c) =>
+          c.amlCheck === AmlCheck.PASS &&
+          c.inputAmount &&
+          c.outputAmount &&
+          c.inputAsset &&
+          c.bankTx &&
+          c.outputDate &&
+          c.txId,
+      )
       .map((c) => [
         {
           type: 'Deposit',
-          buyAmount: c.bankTx?.txAmount,
-          buyAsset: c.bankTx?.txCurrency,
+          buyAmount: c.inputAmount,
+          buyAsset: c.inputAsset,
           sellAmount: null,
           sellAsset: null,
           fee: null,
@@ -69,7 +78,7 @@ export class HistoryService {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Purchase',
-          date: c.outputDate ? this.createRandomDate(c.outputDate, -20, c.amount) : null,
+          date: c.outputDate ? this.createRandomDate(c.outputDate, -20, c.inputAmount) : null,
           txid: c.bankTx?.remittanceInfo,
           buyValueInEur: null,
           sellValueInEur: null,
@@ -78,10 +87,10 @@ export class HistoryService {
           type: 'Trade',
           buyAmount: c.outputAmount,
           buyAsset: c.buy?.deposit ? 'DFI' : this.getAssetSymbol(c.buy?.asset?.dexName),
-          sellAmount: c.bankTx?.txAmount,
-          sellAsset: c.bankTx?.txCurrency,
-          fee: c.fee ? c.fee * c.bankTx?.txAmount : null,
-          feeAsset: c.fee ? c.bankTx?.txCurrency : null,
+          sellAmount: c.inputAmount,
+          sellAsset: c.inputAsset,
+          fee: c.percentFeeAmount && c.inputReferenceAsset ? c.percentFeeAmount : null,
+          feeAsset: c.percentFeeAmount && c.inputReferenceAsset ? c.inputReferenceAsset : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Purchase',

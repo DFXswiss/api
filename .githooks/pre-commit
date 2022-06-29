@@ -8,14 +8,14 @@ const thunderRequests = JSON.parse(thunderFile.toString());
 
 const authRequests = thunderRequests.filter((r) => ['Sign In', 'Sign Up'].includes(r.name));
 if (authRequests.length != 2) {
-    console.error("Not all auth requests (Sign In, Sign Up) found!");
-    process.exit(1);
+  console.error('Not all auth requests (Sign In, Sign Up) found!');
+  process.exit(1);
 }
 
 for (const r of authRequests) {
-    const body = JSON.parse(r.body.raw);
-    if (body.address !== 'address' || body.signature !== 'signature') {
-        console.error("Non-dummy value found in auth request:", r);
-        process.exit(1);
-    }
+  const body = JSON.parse(r.body.raw);
+  if (body.address !== 'address' || body.signature !== 'signature') {
+    console.error('Non-dummy value found in auth request:', r);
+    process.exit(1);
+  }
 }

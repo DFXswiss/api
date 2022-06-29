@@ -9,4 +9,13 @@ export class IEntity {
 
   @CreateDateColumn()
   created: Date;
+
+  static copy<T extends IEntity>(entity: T): T {
+    const copy = { ...entity };
+    copy.id = undefined;
+    copy.updated = undefined;
+    copy.created = undefined;
+
+    return copy;
+  }
 }

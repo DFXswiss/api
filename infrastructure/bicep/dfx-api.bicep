@@ -58,6 +58,10 @@ param letterUser string
 @secure()
 param letterAuth string
 
+param sepaToolsUser string
+@secure()
+param sepaToolsPassword string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -523,6 +527,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LETTER_AUTH'
           value: letterAuth
+        }
+        {
+          name: 'SEPA_TOOLS_USER'
+          value: sepaToolsUser
+        }
+        {
+          name: 'SEPA_TOOLS_PASSWORD'
+          value: sepaToolsPassword
         }
       ]
     }

@@ -41,8 +41,8 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
-    // const buyIdBefore = entity.buy?.id;
-    // const usedRefBefore = entity.usedRef;
+    const buyIdBefore = entity.buy?.id;
+    const usedRefBefore = entity.usedRef;
 
     const update = this.buyCryptoRepo.create(dto);
 
@@ -58,37 +58,33 @@ export class BuyCryptoService {
       await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
     }
 
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
-    // await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    // await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
 
   async updateVolumes(): Promise<void> {
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
-    // const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
-    // await this.updateBuyVolume(buyIds);
+    const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
+    await this.updateBuyVolume(buyIds);
   }
 
   async updateRefVolumes(): Promise<void> {
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
-    // const refs = await this.buyCryptoRepo
-    //   .createQueryBuilder('buyCrypto')
-    //   .select('usedRef')
-    //   .groupBy('usedRef')
-    //   .getRawMany<{ usedRef: string }>();
-    // await this.updateRefVolume(refs.map((r) => r.usedRef));
+    const refs = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('usedRef')
+      .groupBy('usedRef')
+      .getRawMany<{ usedRef: string }>();
+    await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
   async getUserTransactions(
-    userIds: number[],
+    userId: number,
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
-    // TODO aktivieren in history nach Umstellung cryptoBuy -> buyCrypto
     return await this.buyCryptoRepo.find({
-      where: { buy: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
+      where: { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
       relations: ['bankTx', 'buy', 'buy.user'],
     });
   }
