@@ -100,6 +100,12 @@
     },
     "letterAuth": {
       "value": "xxx"
+    },
+    "sepaToolsUser": {
+      "value": "xxx"
+    },
+    "sepaToolsPassword": {
+      "value": "xxx"
     }
   }
 }

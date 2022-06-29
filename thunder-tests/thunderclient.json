@@ -94,25 +94,6 @@
     "tests": []
   },
   {
-    "_id": "e0f8acd3-aeec-477b-98db-e7ebaa0e6460",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "bb196338-ee45-4c59-ad65-68bd4a3b2fdd",
-    "name": "Command Int Connected",
-    "url": "{{url}}/v1/node/dex/cmd",
-    "method": "POST",
-    "sortNum": 80000,
-    "created": "2022-06-14T11:27:59.772Z",
-    "modified": "2022-06-14T11:28:14.580Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\"command\": \"listunspent\", \"noAutoUnlock\": false}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
     "_id": "39f53e71-a4af-4ee3-9c91-1bfbc185c117",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "bb196338-ee45-4c59-ad65-68bd4a3b2fdd",
@@ -140,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-04-07T11:56:26.698Z",
+    "modified": "2022-06-27T10:09:03.286Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1026,6 +1007,25 @@
     "tests": []
   },
   {
+    "_id": "e0f8acd3-aeec-477b-98db-e7ebaa0e6460",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "bb196338-ee45-4c59-ad65-68bd4a3b2fdd",
+    "name": "Command Int Connected",
+    "url": "{{url}}/v1/node/dex/cmd",
+    "method": "POST",
+    "sortNum": 80000,
+    "created": "2022-06-14T11:27:59.772Z",
+    "modified": "2022-06-14T11:28:14.580Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\"command\": \"listunspent\", \"noAutoUnlock\": false}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
     "_id": "1d73b590-4edf-4e99-8dbb-e56d1a582631",
     "colId": "fe4684e3-a4f1-4bd6-8d2c-37af07de365b",
     "containerId": "",
@@ -1042,5 +1042,43 @@
       "raw": "{\"hex\":\"04000000000101b7280b37e1a7e66a3828e92137f1f319094fcbf1dd42e833b1deeb9de57a32170100000000ffffffff02081defa30b0000001600147713cba47625c239c09f36254d6bfd37a6b98bb10091949800000000001600141c5b16bc2dc3a9d87bd81b49a0e2f7f4bc6254290002473044022010ed907b9ffc22421a0918033de2e8acfdf1af45ecb549983b98c1bc5c9d79f9022076a307c35ef1a5894eb3502a3d3883e86f609f5e57c87379f6363e3abd39cf510121039a8c6ed7d007b1dbd3199ea1f62fc2c3229e93efaf4cb18200af793155fb4f2500000000\"}",
       "form": []
     }
+  },
+  {
+    "_id": "15218f9f-ee92-4284-92bf-e0ccd5097641",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
+    "name": "create buy",
+    "url": "{{url}}/v1/buy",
+    "method": "POST",
+    "sortNum": 390000,
+    "created": "2022-06-21T21:40:20.592Z",
+    "modified": "2022-06-21T21:43:57.467Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\r\n\"iban\": \"DE9237 0502 9913 2003 89722\",\r\n\"asset\": {\r\n        \"buyable\": true,\r\n        \"id\": 1,\r\n        \"name\": \"DFI\",\r\n        \"sellable\": true,\r\n        \"type\": \"Coin\"\r\n    },\r\n    \"type\":\"Wallet\"\r\n    \r\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "e7ffdd6b-a049-4d18-a4e3-8b1d6c857b03",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
+    "name": "create sell",
+    "url": "{{url}}/v1/sell",
+    "method": "POST",
+    "sortNum": 400000,
+    "created": "2022-06-21T21:40:27.307Z",
+    "modified": "2022-06-21T21:41:49.650Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\r\n    \"iban\": \"DE123467891245699\",\r\n    \"fiat\": {\r\n        \"id\": 3,\r\n        \"name\": \"USD\",\r\n        \"enable\": 1\r\n    }\r\n}",
+      "form": []
+    },
+    "tests": []
   }
 ]

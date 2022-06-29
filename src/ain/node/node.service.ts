@@ -5,6 +5,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
+import { Util } from 'src/shared/util';
 import { NodeClient, NodeMode } from './node-client';
 
 export enum NodeType {
@@ -177,8 +178,7 @@ export class NodeService {
       return { errors: [], info: undefined };
     }
 
-    return client
-      .getInfo()
+    return Util.retry(() => client.getInfo(), 4, 1000)
       .then((info) => this.handleNodeCheckSuccess(info, type, mode))
       .catch(() => this.handleNodeCheckError(type, mode));
   }
