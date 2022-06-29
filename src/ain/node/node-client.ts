@@ -217,7 +217,7 @@ export class NodeClient {
   }
 
   // --- HELPER METHODS --- //
-  private async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
+  async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
     try {
       if (unlock) await this.unlock();
       return await this.call(call);

@@ -161,6 +161,10 @@ export class Configuration {
       active: process.env.NODE_REF_URL_ACTIVE,
       passive: process.env.NODE_REF_URL_PASSIVE,
     },
+    btc_input: {
+      active: process.env.NODE_BTC_INPUT_URL_ACTIVE,
+      passive: process.env.NODE_BTC_INPUT_URL_PASSIVE,
+    },
     walletPassword: process.env.NODE_WALLET_PASSWORD,
     utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
