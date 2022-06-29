@@ -10,31 +10,29 @@ export class BankAccountService {
   constructor(private readonly bankAccountRepo: BankAccountRepository, private readonly ibanService: IbanService) {}
 
   async getBankAccount(iban: string, userId: number): Promise<BankAccount> {
-    const bankAccount = await this.bankAccountRepo.findOne({
+    const bankAccounts = await this.bankAccountRepo.find({
       where: {
         iban: iban,
       },
       relations: ['user'],
     });
 
-    if (!bankAccount) {
-      const bankDetails = await this.ibanService.getIbanInfos(iban);
+    return (
+      bankAccounts.find((b) => b.user.id === userId) ?? (await this.createBankAccount(iban, userId, bankAccounts[0]))
+    );
+  }
 
-      const bankAccount = this.bankAccountRepo.create(this.parseBankDetails(bankDetails));
+  private async createBankAccount(iban: string, userId: number, copyFrom?: BankAccount): Promise<BankAccount> {
+    const bankAccount = copyFrom ?? (await this.initBankAccount(iban));
+    bankAccount.user = { id: userId } as User;
+    bankAccount.id = undefined;
 
-      bankAccount.iban = iban;
-      bankAccount.user = { id: userId } as User;
+    return this.bankAccountRepo.save(bankAccount);
+  }
 
-      return this.bankAccountRepo.save(bankAccount);
-    }
-
-    if (bankAccount.user.id != userId) {
-      bankAccount.user = { id: userId } as User;
-      delete bankAccount.id;
-      return this.bankAccountRepo.save(bankAccount);
-    }
-
-    return bankAccount;
+  private async initBankAccount(iban: string): Promise<BankAccount> {
+    const bankDetails = await this.ibanService.getIbanInfos(iban);
+    return this.bankAccountRepo.create({ ...this.parseBankDetails(bankDetails), iban });
   }
 
   private parseBankDetails(bankDetails: IbanDetailsDto): BankAccountInfos {
