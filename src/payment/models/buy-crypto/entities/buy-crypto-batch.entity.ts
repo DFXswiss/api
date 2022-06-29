@@ -38,19 +38,11 @@ export class BuyCryptoBatch extends IEntity {
   purchaseTxId: string;
 
   addTransaction(tx: BuyCrypto): this {
-    if (!this.transactions) {
-      this.transactions = [];
-    }
-
     tx.batch = this;
 
-    this.transactions = [...this.transactions, tx];
+    this.transactions = [...(this.transactions ?? []), tx];
 
-    if (!this.outputReferenceAmount) {
-      this.outputReferenceAmount = 0;
-    }
-
-    this.outputReferenceAmount = Util.round(this.outputReferenceAmount + tx.outputReferenceAmount, 8);
+    this.outputReferenceAmount = Util.round((this.outputReferenceAmount ?? 0) + tx.outputReferenceAmount, 8);
 
     return this;
   }
@@ -126,49 +118,17 @@ export class BuyCryptoBatch extends IEntity {
   private createPayoutGroups(transactions: BuyCrypto[], maxGroupSize: number): BuyCrypto[][] {
     const result: Map<number, BuyCrypto[]> = new Map();
 
-    let currentGroupNumber = 0;
-
     transactions.forEach((tx) => {
-      let currentGroup = result.get(currentGroupNumber);
+      // find nearest non-full group without repeating address
+      const suitableExistingGroups = [...result.entries()].filter(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        ([_, transactions]) =>
+          transactions.length < maxGroupSize &&
+          !transactions.find((_tx) => _tx.buy.user.address === tx.buy.user.address),
+      );
 
-      if (!currentGroup) {
-        currentGroup = [tx];
-        result.set(currentGroupNumber, currentGroup);
-
-        return;
-      }
-
-      if (currentGroup.find((_tx) => _tx.buy.user.address === tx.buy.user.address)) {
-        // find nearest non-full group without repeating address
-        const suitableExistingGroups = [...result.entries()].filter(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ([_, transactions]) =>
-            transactions.length < maxGroupSize &&
-            !transactions.find((_tx) => _tx.buy.user.address === tx.buy.user.address),
-        );
-
-        if (suitableExistingGroups.length) {
-          const [key, group] = suitableExistingGroups[0];
-          result.set(key, [...group, tx]);
-
-          return;
-        }
-
-        const newGroup = [tx];
-        result.set(result.size + 1, newGroup);
-
-        return;
-      }
-
-      if (currentGroup.length >= maxGroupSize) {
-        const newGroup = [tx];
-        result.set(currentGroupNumber + 1, newGroup);
-        currentGroupNumber++;
-
-        return;
-      }
-
-      result.set(currentGroupNumber, [...currentGroup, tx]);
+      const [key, group] = suitableExistingGroups[0] ?? [result.size, []];
+      result.set(key, [...group, tx]);
     });
 
     return [...result.values()];
