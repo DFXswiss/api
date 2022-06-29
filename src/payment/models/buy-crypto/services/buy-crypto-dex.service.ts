@@ -177,6 +177,9 @@ export class BuyCryptoDexService {
     let txId: string;
 
     try {
+      const isReferenceAsset =
+        batch.outputAsset === 'BTC' || batch.outputAsset === 'USDC' || batch.outputAsset === 'USDT';
+
       const DFIAmount =
         (await this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', 1)) * batch.outputReferenceAmount;
 
@@ -186,7 +189,7 @@ export class BuyCryptoDexService {
         Config.node.dexWalletAddress,
         batch.outputAsset,
         // swapping a bit more output asset to cover commissions
-        DFIAmount + Util.round(DFIAmount * 0.001, 8),
+        isReferenceAsset ? DFIAmount : DFIAmount + Util.round(DFIAmount * 0.001, 8),
       );
 
       batch.pending(txId);

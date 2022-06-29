@@ -47,7 +47,9 @@ export class BuyCryptoBatchService {
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
-        console.info(`Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset}`);
+        console.info(
+          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset}. Transaction(s) count ${batch.transactions.length}`,
+        );
       }
     } catch (e) {
       console.error(e);
@@ -143,7 +145,7 @@ export class BuyCryptoBatchService {
     }
 
     if (existingAsset.asset === 'DFI') {
-      return existingAsset.amount > 1;
+      return existingAsset.amount > 10;
     }
 
     return true;

@@ -4,11 +4,11 @@ import { Column, Entity, OneToMany } from 'typeorm';
 import { BuyCrypto } from './buy-crypto.entity';
 
 export enum BuyCryptoBatchStatus {
-  CREATED = 'created',
-  SECURED = 'secured',
-  PENDING_LIQUIDITY = 'pending-liquidity',
-  PAYING_OUT = 'paying-out',
-  COMPLETE = 'complete',
+  CREATED = 'Created',
+  SECURED = 'Secured',
+  PENDING_LIQUIDITY = 'PendingLiquidity',
+  PAYING_OUT = 'PayingOut',
+  COMPLETE = 'Complete',
 }
 
 @Entity()
@@ -29,7 +29,7 @@ export class BuyCryptoBatch extends IEntity {
   outputAmount: number;
 
   @Column({ length: 256, nullable: true })
-  status: string;
+  status: BuyCryptoBatchStatus;
 
   @Column({ length: 256, nullable: true })
   outTxId: string;
@@ -96,12 +96,15 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   groupPayoutTransactions(): BuyCrypto[][] {
-    if (this.status !== BuyCryptoBatchStatus.SECURED) {
-      throw new Error(`Cannot payout batch which is not secured. Batch ID: ${this.id}. Batch status: ${this.status}`);
+    if (!(this.status === BuyCryptoBatchStatus.SECURED || this.status === BuyCryptoBatchStatus.PAYING_OUT)) {
+      throw new Error(
+        `Cannot payout batch which is not secured or paying-out. Batch ID: ${this.id}. Batch status: ${this.status}`,
+      );
     }
 
     console.info(`Grouping transactions for payout. Batch ID: ${this.id}`);
 
+    // filtering out transactions that were already sent
     const payoutTransactions = this.transactions.filter((tx) => !tx.txId);
 
     if (this.transactions.length > 0 && payoutTransactions.length !== this.transactions.length) {
@@ -172,7 +175,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   private fixRoundingMismatch(): void {
-    const transactionsTotal = this.transactions.reduce((acc, t) => acc + t.outputAmount, 0);
+    const transactionsTotal = Util.sumObj<BuyCrypto>(this.transactions, 'outputAmount');
 
     const mismatch = Util.round(this.outputAmount - transactionsTotal, 8);
 
@@ -180,10 +183,23 @@ export class BuyCryptoBatch extends IEntity {
       return;
     }
 
-    if (Math.abs(mismatch) > 0 && Math.abs(mismatch) < 0.00001) {
-      this.transactions[0].outputAmount = Util.round(this.transactions[0].outputAmount + mismatch, 8);
+    if (Math.abs(mismatch) < 0.00001) {
+      let remainsToDistribute = mismatch;
+      const correction = remainsToDistribute > 0 ? 0.00000001 : -0.00000001;
+      const adjustedTransactions = [];
+
+      this.transactions.forEach((tx) => {
+        if (remainsToDistribute !== 0) {
+          tx.outputAmount = Util.round(tx.outputAmount + correction, 8);
+          adjustedTransactions.push(tx);
+          remainsToDistribute = Util.round(remainsToDistribute - correction, 8);
+        }
+      });
+
       console.info(
-        `Fixed total output amount mismatch of ${mismatch} ${this.outputAsset}. Added to transaction ID: ${this.transactions[0].id}`,
+        `Fixed total output amount mismatch of ${mismatch} ${
+          this.outputAsset
+        }. Added to transaction ID(s): ${adjustedTransactions.map((tx) => tx.id)}`,
       );
     } else {
       throw new Error(`Output amount mismatch is too high. Mismatch: ${mismatch} ${this.outputAsset}`);

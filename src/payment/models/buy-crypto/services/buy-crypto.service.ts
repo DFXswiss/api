@@ -149,15 +149,6 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  // makes sure to continue the flow if one step fails
-  private async handle(action: () => Promise<void>): Promise<void> {
-    try {
-      return action();
-    } catch (e) {
-      console.error('Error batching input transactions', e);
-    }
-  }
-
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
     const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user'] });
@@ -166,7 +157,6 @@ export class BuyCryptoService {
     return buy;
   }
 
-  // keep the methods
   private async updateBuyVolume(buyIds: number[]): Promise<void> {
     buyIds = buyIds.filter((u, j) => buyIds.indexOf(u) === j).filter((i) => i); // distinct, not null
 
@@ -192,7 +182,6 @@ export class BuyCryptoService {
     }
   }
 
-  // keep the methods
   private async updateRefVolume(refs: string[]): Promise<void> {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 

@@ -65,7 +65,7 @@ export class BuyCryptoOutService {
           continue;
         }
 
-        if (batch.status !== BuyCryptoBatchStatus.SECURED) {
+        if (!(batch.status === BuyCryptoBatchStatus.SECURED || batch.status === BuyCryptoBatchStatus.PAYING_OUT)) {
           continue;
         }
 
@@ -107,7 +107,7 @@ export class BuyCryptoOutService {
     }
 
     const balanceDifference = Util.round(amountOnOutNode.amount - batch.outputAmount, 8);
-    const isMismatch = batch.outputAsset === 'DFI' ? balanceDifference > 1 : balanceDifference !== 0;
+    const isMismatch = batch.outputAsset === 'DFI' ? balanceDifference > 10 : balanceDifference !== 0;
 
     if (isMismatch) {
       this.handleBalanceMismatch(batch, balanceDifference);
