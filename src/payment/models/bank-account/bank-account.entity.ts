@@ -30,7 +30,7 @@ export interface BankAccountInfos {
 }
 
 @Entity()
-@Index('ibanLabel', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {
+@Index('ibanUser', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {
   unique: true,
 })
 export class BankAccount extends IEntity implements BankAccountInfos {
