@@ -92,16 +92,15 @@ export class BuyCryptoDexService {
       return outputReferenceAmount;
     }
 
-    const history = await this.buyCryptoChainUtil.getRecentChainHistory();
-    const transaction = history.find((tx) => tx.txId === purchaseTxId);
+    const historyEntry = await this.buyCryptoChainUtil.getHistoryEntryForTx(batch.purchaseTxId, this.dexClient);
 
-    if (!transaction) {
+    if (!historyEntry) {
       throw new Error(
         `Could not find transaction with ID: ${purchaseTxId} while trying to extract purchased liquidity`,
       );
     }
 
-    const amounts = transaction.amounts.map((a) => this.dexClient.parseAmount(a));
+    const amounts = historyEntry.amounts.map((a) => this.dexClient.parseAmount(a));
 
     const { amount } = amounts.find((a) => a.asset === outputAsset);
 

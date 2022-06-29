@@ -200,25 +200,15 @@ describe('BuyCrypto', () => {
 
       expect(entity.isComplete).toBe(undefined);
 
-      entity.complete(1);
+      entity.complete();
 
       expect(entity.isComplete).toBe(true);
-    });
-
-    it('sets blockHeight', () => {
-      const entity = createCustomBuyCrypto({ blockHeight: undefined });
-
-      expect(entity.blockHeight).toBe(undefined);
-
-      entity.complete(10);
-
-      expect(entity.blockHeight).toBe(10);
     });
 
     it('returns instance of BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
 
-      const updatedEntity = entity.complete(1);
+      const updatedEntity = entity.complete();
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
     });

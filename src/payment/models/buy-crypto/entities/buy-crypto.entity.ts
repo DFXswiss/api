@@ -67,9 +67,6 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   txId: string;
 
-  @Column({ type: 'integer', nullable: true })
-  blockHeight: number;
-
   @Column({ default: false })
   isComplete: boolean;
 
@@ -138,9 +135,8 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  complete(blockHeight: number): this {
+  complete(): this {
     this.isComplete = true;
-    this.blockHeight = blockHeight;
 
     return this;
   }
