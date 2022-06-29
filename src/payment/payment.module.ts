@@ -60,6 +60,8 @@ import { BuyCryptoDexService } from './models/buy-crypto/services/buy-crypto-dex
 import { BuyCryptoNotificationService } from './models/buy-crypto/services/buy-crypto-notification.service';
 import { BuyCryptoBatchRepository } from './models/buy-crypto/repositories/buy-crypto-batch.repository';
 import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.util';
+import { BankAccountService } from './models/bank-account/bank-account.service';
+import { BankAccountRepository } from './models/bank-account/bank-account.repository';
 
 @Module({
   imports: [
@@ -81,6 +83,7 @@ import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.u
       RefRewardRepository,
       CryptoStakingRepository,
       StakingRefRewardRepository,
+      BankAccountRepository,
     ]),
     SharedModule,
     AinModule,
@@ -134,6 +137,7 @@ import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.u
     RefRewardService,
     CryptoStakingService,
     StakingRefRewardService,
+    BankAccountService,
   ],
   exports: [
     BuyService,
@@ -149,6 +153,7 @@ import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.u
     CryptoInputService,
     CryptoStakingService,
     StakingRefRewardService,
+    BankAccountService,
   ],
 })
 export class PaymentModule {}

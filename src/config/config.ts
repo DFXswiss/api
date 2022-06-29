@@ -208,6 +208,13 @@ export class Configuration {
     timeout: 30000,
   };
 
+  sepaTools = {
+    auth: {
+      username: process.env.SEPA_TOOLS_USER,
+      password: process.env.SEPA_TOOLS_PASSWORD,
+    },
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {
