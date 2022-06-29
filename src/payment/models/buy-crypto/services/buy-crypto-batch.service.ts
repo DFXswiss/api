@@ -145,7 +145,7 @@ export class BuyCryptoBatchService {
     }
 
     if (existingAsset.asset === 'DFI') {
-      return existingAsset.amount > 10;
+      return existingAsset.amount > 1;
     }
 
     return true;

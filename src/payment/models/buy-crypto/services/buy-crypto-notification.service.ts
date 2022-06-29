@@ -28,24 +28,29 @@ export class BuyCryptoNotificationService {
         );
 
       for (const tx of txOutput) {
-        await this.mailService.sendTranslatedMail({
-          userData: tx.buy.user.userData,
-          translationKey: 'mail.payment.buyCrypto',
-          params: {
-            buyFiatAmount: tx.inputAmount,
-            buyFiatAsset: tx.inputAsset,
-            buyCryptoAmount: tx.outputAmount,
-            buyCryptoAsset: tx.outputAsset,
-            buyFeePercentage: tx.percentFee,
-            buyFeeAmount: tx.percentFeeAmount,
-            buyWalletAddress: tx.buy.user.address,
-            buyTxId: tx.txId,
-          },
-        });
+        try {
+          tx.buy.user.userData.mail &&
+            (await this.mailService.sendTranslatedMail({
+              userData: tx.buy.user.userData,
+              translationKey: 'mail.payment.buyCrypto',
+              params: {
+                buyFiatAmount: tx.inputAmount,
+                buyFiatAsset: tx.inputAsset,
+                buyCryptoAmount: tx.outputAmount,
+                buyCryptoAsset: tx.outputAsset,
+                buyFeePercentage: tx.percentFee,
+                buyFeeAmount: tx.percentFeeAmount,
+                buyWalletAddress: tx.buy.user.address,
+                buyTxId: tx.txId,
+              },
+            }));
 
-        tx.confirmSentMail();
+          tx.confirmSentMail();
 
-        await this.buyCryptoRepo.save(tx);
+          await this.buyCryptoRepo.save(tx);
+        } catch (e) {
+          console.error(e);
+        }
       }
     } catch (e) {
       console.error(e);

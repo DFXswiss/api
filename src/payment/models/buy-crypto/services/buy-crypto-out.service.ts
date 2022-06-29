@@ -81,14 +81,21 @@ export class BuyCryptoOutService {
         this.buyCryptoBatchRepo.save(batch);
 
         for (const group of groups) {
-          // not to attempt sending empty batches for payout
-          if (group.length === 0) {
+          try {
+            if (group.length === 0) {
+              continue;
+            }
+
+            console.info(`Paying out ${group.length} transaction(s). Transaction ID(s): ${group.map((t) => t.id)}`);
+
+            batch.outputAsset === 'DFI' ? await this.sendDFI(group) : await this.sendToken(group, batch.outputAsset);
+          } catch (e) {
+            console.error(
+              `Failed to payout group of ${group.length} transaction(s). Transaction ID(s): ${group.map((t) => t.id)}`,
+            );
+            // continue with next group in case payout failed
             continue;
           }
-
-          console.info(`Paying out ${group.length} transaction(s). Transaction ID(s): ${group.map((t) => t.id)}`);
-
-          batch.outputAsset === 'DFI' ? await this.sendDFI(group) : await this.sendToken(group, batch.outputAsset);
         }
       }
     } catch (e) {
@@ -106,8 +113,12 @@ export class BuyCryptoOutService {
       return false;
     }
 
-    const balanceDifference = Util.round(amountOnOutNode.amount - batch.outputAmount, 8);
-    const isMismatch = batch.outputAsset === 'DFI' ? balanceDifference > 10 : balanceDifference !== 0;
+    const balancePaid = Util.sumObj<BuyCrypto>(
+      batch.transactions.filter((tx) => tx.isComplete),
+      'outputAmount',
+    );
+    const balanceDifference = Util.round(amountOnOutNode.amount + balancePaid - batch.outputAmount, 8);
+    const isMismatch = batch.outputAsset === 'DFI' ? balanceDifference > 1 : balanceDifference !== 0;
 
     if (isMismatch) {
       this.handleBalanceMismatch(batch, balanceDifference);
