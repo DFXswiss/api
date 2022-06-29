@@ -51,7 +51,7 @@ export class BuyCryptoDexService {
         console.info(`Transferring ${batches.length} batch(es) to OUT Node. Batch ID(s): ${batches.map((b) => b.id)}`);
 
       for (const batch of batches) {
-        this.transferForOutput(batch);
+        await this.transferForOutput(batch);
       }
     } catch (e) {
       console.error(e);
@@ -227,7 +227,7 @@ export class BuyCryptoDexService {
     }
 
     try {
-      this.buyCryptoBatchRepo.save(batch);
+      await this.buyCryptoBatchRepo.save(batch);
     } catch (e) {
       console.error(
         `Error in saving DEX to OUT transaction. Asset '${batch.outputAsset}'. Batch ID: ${batch.id}. Transfer ID: ${txId} `,

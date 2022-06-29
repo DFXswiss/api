@@ -1,7 +1,7 @@
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { NodeClient } from 'src/ain/node/node-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
@@ -9,15 +9,11 @@ import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
 export class BuyCryptoChainUtil {
-  private dexClient: NodeClient;
-
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     readonly nodeService: NodeService,
-  ) {
-    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
-  }
+  ) {}
 
   async getHistoryEntryForTx(
     txId: string,
@@ -27,10 +23,10 @@ export class BuyCryptoChainUtil {
 
     if (transaction && transaction.blockhash && transaction.confirmations > 0) {
       const { height } = await client.getBlock(transaction.blockhash);
-      const { blocks: currentHeight } = await this.dexClient.getInfo();
+      const { blocks: currentHeight } = await client.getInfo();
 
       return client
-        .getHistories([Config.node.dexWalletAddress, Config.node.outWalletAddress], height, currentHeight)
+        .getHistories([Config.node.dexWalletAddress], height, currentHeight)
         .then((h) =>
           h.map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts })).find((t) => t.txId === txId),
         );

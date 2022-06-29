@@ -78,7 +78,7 @@ export class BuyCryptoOutService {
         const groups = batch.groupPayoutTransactions();
 
         batch.payingOut();
-        this.buyCryptoBatchRepo.save(batch);
+        await this.buyCryptoBatchRepo.save(batch);
 
         for (const group of groups) {
           try {

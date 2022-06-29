@@ -16,7 +16,7 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Buy, (buy) => buy.cryptoBuys, { nullable: false })
   buy: Buy;
 
-  @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true, onUpdate: 'CASCADE' })
+  @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
   batch: BuyCryptoBatch;
 
   @Column({ type: 'float', nullable: true })
