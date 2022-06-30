@@ -58,10 +58,10 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256, nullable: true })
   checks: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   bic: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   allBicCandidates: string;
 
   @Column({ length: 256, nullable: true })
