@@ -80,14 +80,18 @@ export class BuyCryptoBatchService {
     referencePrices: Map<string, Price>,
   ): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
-      const { outputReferenceAsset } = tx;
+      try {
+        const { outputReferenceAsset } = tx;
 
-      const referenceAssetPrice = referencePrices.get(outputReferenceAsset);
+        const referenceAssetPrice = referencePrices.get(outputReferenceAsset);
 
-      tx.calculateOutputReferenceAmount(referenceAssetPrice);
+        tx.calculateOutputReferenceAmount(referenceAssetPrice);
+      } catch (e) {
+        console.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}`, e);
+      }
     }
 
-    return transactions;
+    return transactions.filter((tx) => tx.outputReferenceAmount);
   }
 
   private async batchTransactions(

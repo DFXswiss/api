@@ -188,10 +188,11 @@ export class BuyCryptoDexService {
 
       batch.pending(txId);
       console.info(
-        `Purchased ${swapAmount} worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
+        `Purchased ${swapAmount} DFI worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
       );
     } catch (e) {
       console.error(`Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
+      return;
     }
 
     try {
@@ -240,6 +241,7 @@ export class BuyCryptoDexService {
       batch.recordDexToOutTransfer(txId);
     } catch (e) {
       console.error(`Error in transferring to OUT. Asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
+      return;
     }
 
     try {
