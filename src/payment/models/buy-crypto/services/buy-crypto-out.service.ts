@@ -136,9 +136,10 @@ export class BuyCryptoOutService {
     batch: BuyCryptoBatch,
     outAssets: { amount: number; asset: string }[],
   ): Promise<boolean> {
-    const amountOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
+    const assetOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
+    const amountOnOutNode = assetOnOutNode ? assetOnOutNode.amount : 0;
 
-    if (!amountOnOutNode) {
+    if (batch.status === BuyCryptoBatchStatus.SECURED && !amountOnOutNode) {
       return false;
     }
 
@@ -146,7 +147,7 @@ export class BuyCryptoOutService {
       batch.transactions.filter((tx) => tx.isComplete),
       'outputAmount',
     );
-    const balanceDifference = Util.round(amountOnOutNode.amount + balancePaid - batch.outputAmount, 8);
+    const balanceDifference = Util.round(amountOnOutNode + balancePaid - batch.outputAmount, 8);
     const isMismatch = batch.outputAsset === 'DFI' ? balanceDifference > 1 : balanceDifference !== 0;
 
     if (isMismatch) {
