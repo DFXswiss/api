@@ -89,7 +89,7 @@ export class BuyCryptoService {
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoDexService.transferLiquidityForOutput();
     await this.buyCryptoOutService.payoutTransactions();
-    await this.buyCryptoNotificationService.sentNotificationMails();
+    await this.buyCryptoNotificationService.sendNotificationMails();
 
     this.lock.release();
   }

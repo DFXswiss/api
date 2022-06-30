@@ -32,15 +32,11 @@ export class ExchangeUtilityService {
   private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceSource]> {
     try {
       return [await this.binanceService.getPrice(fromCurrency, toCurrency), 'binance'];
-    } catch {
-      console.log(`Could not find reference price at Binance. From ${fromCurrency} to ${toCurrency}`);
-    }
+    } catch {}
 
     try {
       return [await this.bitstampService.getPrice(fromCurrency, toCurrency), 'bitstamp'];
-    } catch {
-      console.log(`Could not find reference price at Bitstamp. From ${fromCurrency} to ${toCurrency}`);
-    }
+    } catch {}
 
     throw new Error(
       `Could not find reference price at both Binance and Bitstamp. From ${fromCurrency} to ${toCurrency}`,

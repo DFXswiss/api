@@ -115,6 +115,10 @@ export class BuyCryptoBatch extends IEntity {
     return groups;
   }
 
+  get minimalOutputReferenceAmount(): number {
+    return this.outputReferenceAsset === 'BTC' ? 0.001 : 1;
+  }
+
   private createPayoutGroups(transactions: BuyCrypto[], maxGroupSize: number): BuyCrypto[][] {
     const result: Map<number, BuyCrypto[]> = new Map();
 

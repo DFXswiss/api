@@ -8,13 +8,14 @@ import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 export class BuyCryptoNotificationService {
   constructor(private readonly buyCryptoRepo: BuyCryptoRepository, private readonly mailService: MailService) {}
 
-  async sentNotificationMails(): Promise<void> {
+  async sendNotificationMails(): Promise<void> {
     try {
       const txOutput = await this.buyCryptoRepo.find({
         where: {
           recipientMail: IsNull(),
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
+          isComplete: true,
           batch: { status: BuyCryptoBatchStatus.COMPLETE },
         },
         relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'batch'],

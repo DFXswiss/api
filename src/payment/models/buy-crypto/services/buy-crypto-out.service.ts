@@ -11,6 +11,7 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { Util } from 'src/shared/util';
+import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -36,9 +37,7 @@ export class BuyCryptoOutService {
     const utxoBalance = { amount: +utxo, asset: 'DFI' };
     const tokensBalance = tokens.map((t) => this.outClient.parseAmount(t.amount));
 
-    const assets = [...tokensBalance, utxoBalance];
-
-    return assets;
+    return [...tokensBalance, utxoBalance];
   }
 
   async payoutTransactions(): Promise<void> {
@@ -59,7 +58,7 @@ export class BuyCryptoOutService {
 
       for (const batch of batches) {
         try {
-          await this.buyCryptoChainUtil.checkCompletion(batch, this.outClient);
+          await this.checkCompletion(batch);
         } catch (e) {
           console.error(`Error on checking pervious payout for a batch ID: ${batch.id}`, e);
           continue;
@@ -69,7 +68,7 @@ export class BuyCryptoOutService {
           continue;
         }
 
-        const canProceed = await this.checkNewPayouts(batch, outAssets);
+        const canProceed = await this.validateOutBalance(batch, outAssets);
 
         if (!canProceed) {
           continue;
@@ -103,7 +102,39 @@ export class BuyCryptoOutService {
     }
   }
 
-  private async checkNewPayouts(
+  async checkCompletion(batch: BuyCryptoBatch) {
+    const uniqueTransactions = new Map<string, InWalletTransaction>();
+
+    for (const tx of batch.transactions) {
+      if (!tx.txId || (tx.txId && tx.isComplete)) {
+        continue;
+      }
+
+      try {
+        const transaction = uniqueTransactions.get(tx.txId) || (await this.outClient.getTx(tx.txId));
+
+        if (transaction && transaction.blockhash && transaction.confirmations > 0) {
+          uniqueTransactions.set(tx.txId, transaction);
+
+          tx.complete();
+          await this.buyCryptoRepo.save(tx);
+        }
+      } catch (e) {
+        console.error(`Error on validating transaction completion. ID: ${tx.id}. Chain txId: ${tx.txId}`, e);
+        continue;
+      }
+    }
+
+    const isBatchComplete = batch.transactions.every((tx) => tx.txId && tx.isComplete);
+
+    if (isBatchComplete) {
+      console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
+      batch.complete();
+      this.buyCryptoBatchRepo.save(batch);
+    }
+  }
+
+  private async validateOutBalance(
     batch: BuyCryptoBatch,
     outAssets: { amount: number; asset: string }[],
   ): Promise<boolean> {

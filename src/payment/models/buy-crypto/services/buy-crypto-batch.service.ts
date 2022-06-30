@@ -69,11 +69,10 @@ export class BuyCryptoBatchService {
 
   private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
-      const outputAsset = tx.buy?.asset?.dexName;
-      tx.defineAssetExchangePair(outputAsset);
+      tx.defineAssetExchangePair();
     }
 
-    return transactions;
+    return transactions.filter((tx) => tx.outputAsset);
   }
 
   private async defineReferenceAmount(

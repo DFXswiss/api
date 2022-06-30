@@ -179,21 +179,19 @@ export class BuyCryptoDexService {
       const isReferenceAsset =
         batch.outputAsset === 'BTC' || batch.outputAsset === 'USDC' || batch.outputAsset === 'USDT';
 
-      const DFIAmount =
-        (await this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', 1)) * batch.outputReferenceAmount;
+      const swapAmount = await this.calculateLiquiditySwapAmount(batch, isReferenceAsset);
 
       txId = await this.dexClient.compositeSwap(
         Config.node.dexWalletAddress,
         'DFI',
         Config.node.dexWalletAddress,
         batch.outputAsset,
-        // swapping a bit more output asset to cover commissions
-        isReferenceAsset ? DFIAmount : DFIAmount + Util.round(DFIAmount * 0.001, 8),
+        swapAmount,
       );
 
       batch.pending(txId);
       console.info(
-        `Purchased ${DFIAmount} worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
+        `Purchased ${swapAmount} worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
       );
     } catch (e) {
       console.error(`Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
@@ -208,6 +206,24 @@ export class BuyCryptoDexService {
       );
       throw e;
     }
+  }
+
+  private async calculateLiquiditySwapAmount(batch: BuyCryptoBatch, isReferenceAsset: boolean): Promise<number> {
+    if (isReferenceAsset) {
+      const referencePrice =
+        (await this.dexClient.testCompositeSwap(
+          batch.outputReferenceAsset,
+          'DFI',
+          batch.minimalOutputReferenceAmount,
+        )) / batch.minimalOutputReferenceAmount;
+
+      const swapAmount = batch.outputReferenceAmount * referencePrice;
+
+      // adding 1% reserve cap for non-reference asset liquidity swap
+      return Util.round(swapAmount + swapAmount * 0.01, 8);
+    }
+
+    return await this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', batch.outputReferenceAmount);
   }
 
   private async transferForOutput(batch: BuyCryptoBatch): Promise<void> {

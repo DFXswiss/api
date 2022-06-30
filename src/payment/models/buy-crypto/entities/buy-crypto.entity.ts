@@ -88,11 +88,11 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   refFactor: number;
 
-  defineAssetExchangePair(outputAsset: string): this {
-    this.outputAsset = outputAsset;
+  defineAssetExchangePair(): this {
+    this.outputAsset = this.buy?.asset?.dexName;
 
-    if (outputAsset === 'BTC' || outputAsset === 'USDC' || outputAsset === 'USDT') {
-      this.outputReferenceAsset = outputAsset;
+    if (this.outputAsset === 'BTC' || this.outputAsset === 'USDC' || this.outputAsset === 'USDT') {
+      this.outputReferenceAsset = this.outputAsset;
     } else {
       this.outputReferenceAsset = 'BTC';
     }
