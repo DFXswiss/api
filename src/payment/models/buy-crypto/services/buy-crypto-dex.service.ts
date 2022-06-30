@@ -176,10 +176,7 @@ export class BuyCryptoDexService {
     let txId: string;
 
     try {
-      const isReferenceAsset =
-        batch.outputAsset === 'BTC' || batch.outputAsset === 'USDC' || batch.outputAsset === 'USDT';
-
-      const swapAmount = await this.calculateLiquiditySwapAmount(batch, isReferenceAsset);
+      const swapAmount = await this.calculateLiquiditySwapAmount(batch);
 
       txId = await this.dexClient.compositeSwap(
         Config.node.dexWalletAddress,
@@ -208,7 +205,10 @@ export class BuyCryptoDexService {
     }
   }
 
-  private async calculateLiquiditySwapAmount(batch: BuyCryptoBatch, isReferenceAsset: boolean): Promise<number> {
+  private async calculateLiquiditySwapAmount(batch: BuyCryptoBatch): Promise<number> {
+    const isReferenceAsset =
+      batch.outputAsset === 'BTC' || batch.outputAsset === 'USDC' || batch.outputAsset === 'USDT';
+
     if (isReferenceAsset) {
       const referencePrice =
         (await this.dexClient.testCompositeSwap(
@@ -219,8 +219,8 @@ export class BuyCryptoDexService {
 
       const swapAmount = batch.outputReferenceAmount * referencePrice;
 
-      // adding 1% reserve cap for non-reference asset liquidity swap
-      return Util.round(swapAmount + swapAmount * 0.01, 8);
+      // adding 3% reserve cap for non-reference asset liquidity swap
+      return Util.round(swapAmount + swapAmount * 0.03, 8);
     }
 
     return await this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', batch.outputReferenceAmount);
