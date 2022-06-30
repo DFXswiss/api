@@ -174,14 +174,13 @@ export class UserService {
     });
 
     // get ref volume
-    // TODO cryptoBuy -> buyCrypto umstellen
     let dbQuery = this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(cryptoBuys.amountInEur)', 'volume')
+      .select('SUM(buyCryptos.amountInEur)', 'volume')
       .leftJoin('user.buys', 'buys')
-      .leftJoin('buys.cryptoBuys', 'cryptoBuys')
+      .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS });
+      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
 
     if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
     if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
@@ -192,14 +191,13 @@ export class UserService {
   }
 
   async getUserVolumes(query: VolumeQuery): Promise<{ buy: number; sell: number }> {
-    // TODO cryptoBuy -> buyCrypto
     const { buyVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(cryptoBuys.amountInEur)', 'buyVolume')
+      .select('SUM(buyCryptos.amountInEur)', 'buyVolume')
       .leftJoin('user.buys', 'buys')
-      .leftJoin('buys.cryptoBuys', 'cryptoBuys')
-      .where('cryptoBuys.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('cryptoBuys.amlCheck = :check', { check: AmlCheck.PASS })
+      .leftJoin('buys.buyCryptos', 'buyCryptos')
+      .where('buyCryptos.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS })
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ buyVolume: number }>();
 

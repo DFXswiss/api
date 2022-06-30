@@ -13,7 +13,7 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   bankTx: BankTx;
 
-  @ManyToOne(() => Buy, (buy) => buy.cryptoBuys, { nullable: false })
+  @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: false })
   buy: Buy;
 
   @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
