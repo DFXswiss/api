@@ -211,15 +211,13 @@ export class BuyCryptoOutService {
   private async checkUtxo(address: string): Promise<void> {
     const utxo = await this.whaleService.getClient().getBalance(address);
 
-    if (!utxo) {
+    if (!parseFloat(utxo)) {
       await this.dexClient.sendToken(Config.node.dexWalletAddress, address, 'DFI', Config.node.minDfiDeposit / 2);
     }
   }
 
   private handleBalanceMismatch(batch: BuyCryptoBatch, mismatchAmount: number) {
-    const errorMessage = `Mismatch between batch and OUT amounts: ${
-      mismatchAmount + ''
-    }, cannot proceed with the batch ID: ${batch.id}`;
+    const errorMessage = `Mismatch between batch and OUT amounts: ${mismatchAmount}, cannot proceed with the batch ID: ${batch.id}`;
 
     console.error(errorMessage);
     this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
