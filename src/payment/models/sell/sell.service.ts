@@ -25,28 +25,7 @@ export class SellService {
     private readonly kycService: KycService,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
-  ) {
-    // TODO später löschen
-    this.fillBankAccounts();
-  }
-
-  private async fillBankAccounts(): Promise<void> {
-    try {
-      const buys = await this.sellRepo.find({ where: { bankAccount: IsNull() }, relations: ['bankAccount', 'user'] });
-
-      for (const buy of buys) {
-        try {
-          buy.bankAccount = await this.bankAccountService.getBankAccount(buy.iban, buy.user.id);
-
-          await this.sellRepo.save(buy);
-        } catch (error) {
-          console.error('Single fillBankAccount (sell) error:', error);
-        }
-      }
-    } catch (error) {
-      console.error('fillBankAccount (sell) error:', error);
-    }
-  }
+  ) {}
 
   async getSellByAddress(depositAddress: string): Promise<Sell> {
     // does not work with find options
