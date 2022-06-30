@@ -8,7 +8,6 @@ import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repos
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { Util } from 'src/shared/util';
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
@@ -21,7 +20,6 @@ export class BuyCryptoOutService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-    private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
