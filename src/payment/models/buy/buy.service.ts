@@ -37,11 +37,11 @@ export class BuyService {
 
           await this.buyRepo.save(buy);
         } catch (error) {
-          console.log('Single fillBankAccount (buy) error:', error);
+          console.error('Single fillBankAccount (buy) error:', error);
         }
       }
     } catch (error) {
-      console.log('fillBankAccount (buy) error:', error);
+      console.error('fillBankAccount (buy) error:', error);
     }
   }
 

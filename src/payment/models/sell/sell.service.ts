@@ -40,11 +40,11 @@ export class SellService {
 
           await this.sellRepo.save(buy);
         } catch (error) {
-          console.log('Single fillBankAccount (sell) error:', error);
+          console.error('Single fillBankAccount (sell) error:', error);
         }
       }
     } catch (error) {
-      console.log('fillBankAccount (sell) error:', error);
+      console.error('fillBankAccount (sell) error:', error);
     }
   }
 
