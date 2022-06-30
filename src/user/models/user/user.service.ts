@@ -22,12 +22,12 @@ import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { Config } from 'src/config/config';
 import { ApiKey } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
-import { AmlCheck } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { GeoLocationService } from 'src/user/services/geo-location.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
+import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
 
 @Injectable()
 export class UserService {

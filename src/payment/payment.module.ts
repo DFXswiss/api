@@ -48,11 +48,18 @@ import { CryptoStakingService } from './models/crypto-staking/crypto-staking.ser
 import { CryptoStakingRepository } from './models/crypto-staking/crypto-staking.repository';
 import { CryptoStakingController } from './models/crypto-staking/crypto-staking.controller';
 import { CryptoInputController } from './models/crypto-input/crypto-input.controller';
-import { BuyCryptoRepository } from './models/buy-crypto/buy-crypto.repository';
+import { BuyCryptoRepository } from './models/buy-crypto/repositories/buy-crypto.repository';
 import { BuyCryptoController } from './models/buy-crypto/buy-crypto.controller';
-import { BuyCryptoService } from './models/buy-crypto/buy-crypto.service';
+import { BuyCryptoService } from './models/buy-crypto/services/buy-crypto.service';
 import { StakingRefRewardService } from './models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-ref-reward.repository';
+import { ExchangeUtilityService } from './models/exchange/exchange-utility.service';
+import { BuyCryptoBatchService } from './models/buy-crypto/services/buy-crypto-batch.service';
+import { BuyCryptoOutService } from './models/buy-crypto/services/buy-crypto-out.service';
+import { BuyCryptoDexService } from './models/buy-crypto/services/buy-crypto-dex.service';
+import { BuyCryptoNotificationService } from './models/buy-crypto/services/buy-crypto-notification.service';
+import { BuyCryptoBatchRepository } from './models/buy-crypto/repositories/buy-crypto-batch.repository';
+import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.util';
 import { BankAccountService } from './models/bank-account/bank-account.service';
 import { BankAccountRepository } from './models/bank-account/bank-account.repository';
 
@@ -62,6 +69,7 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
       CryptoInputRepository,
       CryptoBuyRepository,
       BuyCryptoRepository,
+      BuyCryptoBatchRepository,
       CryptoSellRepository,
       BankTxRepository,
       BankTxBatchRepository,
@@ -104,11 +112,17 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
     CryptoBuyService,
     CryptoSellService,
     BuyCryptoService,
+    BuyCryptoBatchService,
+    BuyCryptoDexService,
+    BuyCryptoNotificationService,
+    BuyCryptoOutService,
+    BuyCryptoChainUtil,
     BankTxService,
     BankService,
     KrakenService,
     BinanceService,
     BitstampService,
+    ExchangeUtilityService,
     HistoryService,
     BuyService,
     SellService,

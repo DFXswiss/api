@@ -9,7 +9,7 @@ import { In, IsNull, LessThan, Not } from 'typeorm';
 import { IdentCompletedStates, KycStatus } from 'src/user/models/user-data/user-data.entity';
 import { getCustomRepository } from 'typeorm';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
-import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/buy-crypto.repository';
+import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/repositories/buy-crypto.repository';
 import { CryptoSellRepository } from 'src/payment/models/crypto-sell/crypto-sell.repository';
 import { StakingRefRewardRepository } from 'src/payment/models/staking-ref-reward/staking-ref-reward.repository';
 import { StakingRewardRepository } from 'src/payment/models/staking-reward/staking-reward.respository';

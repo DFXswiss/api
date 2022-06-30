@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
-import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
+import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 
 @Entity()

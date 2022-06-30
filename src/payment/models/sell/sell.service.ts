@@ -9,7 +9,7 @@ import { User } from '../../../user/models/user/user.entity';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
 import { KycService } from 'src/user/models/kyc/kyc.service';
-import { IsNull, Not } from 'typeorm';
+import { Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';

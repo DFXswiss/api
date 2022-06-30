@@ -10,11 +10,11 @@ import { HistoryQuery } from './dto/history-query.dto';
 import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
-import { AmlCheck } from '../crypto-buy/crypto-buy.entity';
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
 import { RefReward } from '../ref-reward/ref-reward.entity';
 import { StakingRefReward, StakingRefType } from '../staking-ref-reward/staking-ref-reward.entity';
-import { BuyCryptoService } from '../buy-crypto/buy-crypto.service';
+import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 
 @Injectable()
 export class HistoryService {

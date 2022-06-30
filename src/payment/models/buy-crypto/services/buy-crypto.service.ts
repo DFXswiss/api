@@ -1,23 +1,38 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BuyService } from '../buy/buy.service';
+import { BuyService } from '../../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
-import { BankTxRepository } from '../bank-tx/bank-tx.repository';
+import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
 import { Between, In, IsNull } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
-import { BuyRepository } from '../buy/buy.repository';
+import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';
-import { AmlCheck, BuyCrypto } from './buy-crypto.entity';
-import { BuyCryptoRepository } from './buy-crypto.repository';
-import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
-import { Buy } from '../buy/buy.entity';
+import { Lock } from 'src/shared/lock';
+import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
+import { Buy } from '../../buy/buy.entity';
+import { Interval } from '@nestjs/schedule';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { BuyCryptoBatchService } from './buy-crypto-batch.service';
+import { BuyCryptoOutService } from './buy-crypto-out.service';
+import { BuyCryptoDexService } from './buy-crypto-dex.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { AmlCheck } from '../enums/aml-check.enum';
 
 @Injectable()
 export class BuyCryptoService {
+  private readonly lock = new Lock(1800);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly bankTxRepo: BankTxRepository,
     private readonly buyRepo: BuyRepository,
+    private readonly settingService: SettingService,
     private readonly buyService: BuyService,
+    private readonly buyCryptoBatchService: BuyCryptoBatchService,
+    private readonly buyCryptoOutService: BuyCryptoOutService,
+    private readonly buyCryptoDexService: BuyCryptoDexService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
   ) {}
 
@@ -62,6 +77,20 @@ export class BuyCryptoService {
     await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
+  }
+
+  @Interval(60000)
+  async process() {
+    if ((await this.settingService.get('buy-process')) !== 'on') return;
+    if (!this.lock.acquire()) return;
+
+    await this.buyCryptoBatchService.batchTransactionsByAssets();
+    await this.buyCryptoDexService.secureLiquidity();
+    await this.buyCryptoDexService.transferLiquidityForOutput();
+    await this.buyCryptoOutService.payoutTransactions();
+    await this.buyCryptoNotificationService.sendNotificationMails();
+
+    this.lock.release();
   }
 
   async updateVolumes(): Promise<void> {
@@ -115,6 +144,7 @@ export class BuyCryptoService {
   }
 
   // --- HELPER METHODS --- //
+
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
     const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user'] });
@@ -163,6 +193,8 @@ export class BuyCryptoService {
       await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
     }
   }
+
+  // Statistics
 
   async getTransactions(
     dateFrom: Date = new Date(0),
