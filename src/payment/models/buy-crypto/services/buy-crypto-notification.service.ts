@@ -3,6 +3,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -41,7 +42,7 @@ export class BuyCryptoNotificationService {
                 buyCryptoAsset: tx.outputAsset,
                 buyFeePercentage: tx.percentFee,
                 buyFeeAmount: tx.percentFeeAmount,
-                buyWalletAddress: tx.buy.user.address,
+                buyWalletAddress: Util.trimBlockchainAddress(tx.buy.user.address),
                 buyTxId: tx.txId,
               },
             }));
