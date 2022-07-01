@@ -147,7 +147,7 @@ export class BuyCryptoOutService {
     }
 
     const balancePaid = Util.sumObj<BuyCrypto>(
-      batch.transactions.filter((tx) => tx.isComplete),
+      batch.transactions.filter((tx) => (tx.outputAsset === 'DFI' ? tx.txId : tx.isComplete)),
       'outputAmount',
     );
     const balanceDifference = Util.round(amountOnOutNode + balancePaid - batch.outputAmount, 8);
