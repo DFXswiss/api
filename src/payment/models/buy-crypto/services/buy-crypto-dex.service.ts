@@ -221,7 +221,7 @@ export class BuyCryptoDexService {
       const swapAmount = batch.outputReferenceAmount * referencePrice;
 
       // adding 3% reserve cap for non-reference asset liquidity swap
-      return Util.round(swapAmount + swapAmount * 0.03, 8);
+      return Util.round(swapAmount + swapAmount * 0.05, 8);
     }
 
     return await this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', batch.outputReferenceAmount);

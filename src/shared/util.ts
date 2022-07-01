@@ -141,4 +141,8 @@ export class Util {
 
     return new XMLParser({ ignoreAttributes: false }).parse(file);
   }
+
+  static trimBlockchainAddress(address: string): string {
+    return '***' + address.slice(address.length - 6);
+  }
 }
