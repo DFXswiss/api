@@ -143,6 +143,6 @@ export class Util {
   }
 
   static trimBlockchainAddress(address: string): string {
-    return '****' + address.slice(address.length - 6);
+    return '***' + address.slice(address.length - 6);
   }
 }
