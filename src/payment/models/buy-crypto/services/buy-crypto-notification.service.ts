@@ -41,7 +41,7 @@ export class BuyCryptoNotificationService {
                 buyCryptoAmount: tx.outputAmount,
                 buyCryptoAsset: tx.outputAsset,
                 buyFeePercentage: Util.round(tx.percentFee * 100, 2),
-                buyFeeAmount: Util.round(tx.inputAmount / tx.outputAmount, 2),
+                exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                 buyWalletAddress: Util.trimBlockchainAddress(tx.buy.user.address),
                 buyTxId: tx.txId,
               },
