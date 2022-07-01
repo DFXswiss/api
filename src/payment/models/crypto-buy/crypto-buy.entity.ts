@@ -3,11 +3,7 @@ import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { IEntity } from 'src/shared/models/entity';
-
-export enum AmlCheck {
-  PASS = 'Pass',
-  FAIL = 'Fail',
-}
+import { AmlCheck } from './enums/aml-check.enum';
 
 @Entity()
 export class CryptoBuy extends IEntity {

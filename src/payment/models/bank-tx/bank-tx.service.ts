@@ -7,7 +7,7 @@ import { In } from 'typeorm';
 import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType } from './bank-tx.entity';
-import { BuyCryptoService } from '../buy-crypto/buy-crypto.service';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 
 @Injectable()
 export class BankTxService {

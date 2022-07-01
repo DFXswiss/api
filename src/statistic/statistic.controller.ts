@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
+import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
 import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
 import { RefRewardService } from 'src/payment/models/ref-reward/ref-reward.service';

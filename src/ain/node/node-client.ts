@@ -1,6 +1,6 @@
 import { ApiClient, BigNumber } from '@defichain/jellyfish-api-core';
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
-import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
+import { Block, BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
 import { ServiceUnavailableException } from '@nestjs/common';
@@ -46,6 +46,10 @@ export class NodeClient {
     return this.callNode((c) => c.blockchain.getBlockchainInfo());
   }
 
+  async getBlock(hash: string): Promise<Block<string>> {
+    return this.callNode((c) => c.blockchain.getBlock(hash, 1));
+  }
+
   async getHistories(addresses: string[], fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
     let results = [];
     for (const address of addresses) {
@@ -73,6 +77,10 @@ export class NodeClient {
 
     if (!(tx?.confirmations > 0)) throw new ServiceUnavailableException('Wait for TX timed out');
     return tx;
+  }
+
+  async getTx(txId: string): Promise<InWalletTransaction> {
+    return this.callNode((c) => c.wallet.getTransaction(txId));
   }
 
   // UTXO
@@ -111,8 +119,14 @@ export class NodeClient {
     );
   }
 
-  async sendMany(amounts: Record<string, number>): Promise<string> {
-    return this.callNode((c) => c.wallet.sendMany(amounts), true);
+  async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
+    if (payload.length > 100) {
+      throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
+    }
+
+    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}` }), {});
+
+    return this.callNode((c) => c.wallet.sendMany(batch), true);
   }
 
   // token
@@ -170,7 +184,7 @@ export class NodeClient {
     addressTo: string,
     token: string,
     amount: number,
-    utxos?: SpendUTXO[],
+    utxos: SpendUTXO[] = [],
   ): Promise<string> {
     return token === 'DFI'
       ? this.toUtxo(addressFrom, addressTo, amount, utxos)
@@ -179,6 +193,21 @@ export class NodeClient {
             c.account.accountToAccount(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@${token}` }, { utxos }),
           true,
         );
+  }
+
+  async sendTokenToMany(
+    addressFrom: string,
+    token: string,
+    payload: { addressTo: string; amount: number }[],
+    utxos: SpendUTXO[] = [],
+  ): Promise<string> {
+    if (payload.length > 10) {
+      throw new Error('Too many addresses in one transaction batch, allowed max 10 for tokens');
+    }
+
+    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}@${token}` }), {});
+
+    return this.callNode((c) => c.account.accountToAccount(addressFrom, batch, { utxos }), true);
   }
 
   async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {

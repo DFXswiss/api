@@ -9,7 +9,7 @@ import { User } from '../../../user/models/user/user.entity';
 import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/util';
 import { KycService } from 'src/user/models/kyc/kyc.service';
-import { IsNull, Not } from 'typeorm';
+import { Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
@@ -25,28 +25,7 @@ export class SellService {
     private readonly kycService: KycService,
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
-  ) {
-    // TODO später löschen
-    this.fillBankAccounts();
-  }
-
-  private async fillBankAccounts(): Promise<void> {
-    try {
-      const buys = await this.sellRepo.find({ where: { bankAccount: IsNull() }, relations: ['bankAccount', 'user'] });
-
-      for (const buy of buys) {
-        try {
-          buy.bankAccount = await this.bankAccountService.getBankAccount(buy.iban, buy.user.id);
-
-          await this.sellRepo.save(buy);
-        } catch (error) {
-          console.error('Single fillBankAccount (sell) error:', error);
-        }
-      }
-    } catch (error) {
-      console.error('fillBankAccount (sell) error:', error);
-    }
-  }
+  ) {}
 
   async getSellByAddress(depositAddress: string): Promise<Sell> {
     // does not work with find options
