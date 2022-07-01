@@ -139,16 +139,20 @@ export class BuyCryptoOutService {
     const assetOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
     const amountOnOutNode = assetOnOutNode ? assetOnOutNode.amount : 0;
 
-    if (batch.status === BuyCryptoBatchStatus.SECURED && !amountOnOutNode) {
+    if (
+      (batch.status === BuyCryptoBatchStatus.SECURED && !amountOnOutNode) ||
+      (batch.status === BuyCryptoBatchStatus.SECURED && batch.outputAsset === 'DFI' && amountOnOutNode < 1)
+    ) {
       return false;
     }
 
     const balancePaid = Util.sumObj<BuyCrypto>(
-      batch.transactions.filter((tx) => tx.isComplete),
+      batch.transactions.filter((tx) => (tx.outputAsset === 'DFI' ? tx.txId : tx.isComplete)),
       'outputAmount',
     );
     const balanceDifference = Util.round(amountOnOutNode + balancePaid - batch.outputAmount, 8);
-    const isMismatch = batch.outputAsset === 'DFI' ? balanceDifference > 1 : balanceDifference !== 0;
+    const isMismatch =
+      batch.outputAsset === 'DFI' ? balanceDifference > 1 || balanceDifference < 0 : balanceDifference !== 0;
 
     if (isMismatch) {
       this.handleBalanceMismatch(batch, balanceDifference);
