@@ -1,16 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { NodeClient } from 'src/ain/node/node-client';
 import { Config } from 'src/config/config';
-import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
-import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 
 @Injectable()
 export class BuyCryptoChainUtil {
-  constructor(
-    private readonly buyCryptoRepo: BuyCryptoRepository,
-    private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-  ) {}
-
   async getHistoryEntryForTx(
     txId: string,
     client: NodeClient,

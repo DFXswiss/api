@@ -97,14 +97,14 @@ export class BuyCryptoBatch extends IEntity {
     // filtering out transactions that were already sent
     const payoutTransactions = this.transactions.filter((tx) => !tx.txId);
 
-    if (payoutTransactions.length === this.transactions.length) {
+    payoutTransactions.length === this.transactions.length &&
       console.info(`Grouping transactions for payout. Batch ID: ${this.id}`);
-    }
 
     const maxGroupSize = this.outputAsset === 'DFI' ? 100 : 10;
     const groups = this.createPayoutGroups(payoutTransactions, maxGroupSize);
 
-    console.info(`Created ${groups.length} transaction group(s) for payout. Batch ID: ${this.id}`);
+    payoutTransactions.length === this.transactions.length &&
+      console.info(`Created ${groups.length} transaction group(s) for payout. Batch ID: ${this.id}`);
 
     return groups;
   }
@@ -117,14 +117,14 @@ export class BuyCryptoBatch extends IEntity {
     const result: Map<number, BuyCrypto[]> = new Map();
 
     transactions.forEach((tx) => {
-      const targetAddress = tx.buy.deposit.address || tx.buy.user.address;
+      const targetAddress = tx.buy.deposit ? tx.buy.deposit.address : tx.buy.user.address;
       // find nearest non-full group without repeating address
       const suitableExistingGroups = [...result.entries()].filter(
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ([_, transactions]) =>
           transactions.length < maxGroupSize &&
           !transactions.find((_tx) => {
-            const _targetAddress = _tx.buy.deposit.address || _tx.buy.user.address;
+            const _targetAddress = _tx.buy.deposit ? _tx.buy.deposit.address : _tx.buy.user.address;
             return _targetAddress === targetAddress;
           }),
       );
