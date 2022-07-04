@@ -1,4 +1,5 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
 import { MonitoringService } from 'src/monitoring-new/monitoring.service';
 import { Util } from 'src/shared/util';
@@ -29,6 +30,7 @@ export class UserObserver extends MetricObserver<UserData> {
     super(monitoringService, 'user', 'userData');
   }
 
+  @Interval(60000)
   async fetch() {
     const data = await this.getUser();
 

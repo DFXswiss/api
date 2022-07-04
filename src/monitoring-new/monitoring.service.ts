@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
@@ -51,6 +52,14 @@ export class MonitoringService {
     this.subscribeToUpdates(observer);
     subsystem.set(observer.metric, observer);
     this.#observers.set(observer.subsystem, subsystem);
+  }
+  // *** PERSISTENCE *** //
+
+  @Interval(120000)
+  async persist() {
+    const entity = this.systemStateSnapshotRepo.create({ data: JSON.stringify(this.#state) });
+    console.log(entity);
+    this.systemStateSnapshotRepo.save(entity);
   }
 
   // *** HELPER METHODS *** //
@@ -122,6 +131,7 @@ export class MonitoringService {
   }
 
   private updateSystemState(subsystem: string, metric: string, data: unknown) {
+    console.log('UPDATE', subsystem, metric, data);
     if (!this.#state[subsystem]) this.#state[subsystem] = {};
 
     const newState = { data, updated: new Date() };

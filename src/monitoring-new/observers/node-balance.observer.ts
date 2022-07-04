@@ -1,4 +1,5 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
@@ -25,6 +26,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
   }
 
+  @Interval(60000)
   async fetch() {
     const data = await this.getNode();
 

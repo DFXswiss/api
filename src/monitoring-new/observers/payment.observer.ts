@@ -1,4 +1,5 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
 import { MonitoringService } from 'src/monitoring-new/monitoring.service';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
@@ -34,6 +35,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     super(monitoringService, 'payment', 'combined');
   }
 
+  @Interval(60000)
   async fetch() {
     const data = await this.getPayment();
 

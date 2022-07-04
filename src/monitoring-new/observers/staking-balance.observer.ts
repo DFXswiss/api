@@ -1,4 +1,5 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Config } from 'src/config/config';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
@@ -23,6 +24,7 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
     super(monitoringService, 'staking', 'stakingBalance');
   }
 
+  @Interval(60000)
   async fetch() {
     const data = await this.getStaking();
 
