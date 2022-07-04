@@ -11,6 +11,7 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { Util } from 'src/shared/util';
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -21,6 +22,7 @@ export class BuyCryptoOutService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
     private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
   ) {
@@ -45,7 +47,7 @@ export class BuyCryptoOutService {
           status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
           outTxId: Not(IsNull()),
         },
-        relations: ['transactions', 'transactions.buy', 'transactions.buy.user'],
+        relations: ['transactions', 'transactions.buy', 'transactions.buy.user', 'transactions.buy.deposit'],
       });
 
       if (batches.length === 0) {
@@ -136,15 +138,14 @@ export class BuyCryptoOutService {
     batch: BuyCryptoBatch,
     outAssets: { amount: number; asset: string }[],
   ): Promise<boolean> {
+    const outTxComplete = await this.buyCryptoChainUtil.getHistoryEntryForTx(batch.outTxId, this.dexClient);
+
+    if (!outTxComplete) return false;
+
     const assetOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
     const amountOnOutNode = assetOnOutNode ? assetOnOutNode.amount : 0;
 
-    if (
-      (batch.status === BuyCryptoBatchStatus.SECURED && !amountOnOutNode) ||
-      (batch.status === BuyCryptoBatchStatus.SECURED && batch.outputAsset === 'DFI' && amountOnOutNode < 1)
-    ) {
-      return false;
-    }
+    if (batch.status === BuyCryptoBatchStatus.SECURED && !amountOnOutNode) return false;
 
     const balancePaid = Util.sumObj<BuyCrypto>(
       batch.transactions.filter((tx) => (tx.outputAsset === 'DFI' ? tx.txId : tx.isComplete)),
@@ -167,7 +168,7 @@ export class BuyCryptoOutService {
 
     try {
       for (const tx of transactions) {
-        await this.checkUtxo(tx.buy.user.address);
+        await this.checkUtxo(tx.targetAddress);
       }
       const payout = this.aggregatePayout(transactions);
 
@@ -233,10 +234,10 @@ export class BuyCryptoOutService {
     const uniqueAddresses = new Map<string, number>();
 
     transactions.forEach((t) => {
-      const existingAmount = uniqueAddresses.get(t.buy.user.address);
+      const existingAmount = uniqueAddresses.get(t.targetAddress);
       const increment = existingAmount ? Util.round(existingAmount + t.outputAmount, 8) : t.outputAmount;
 
-      uniqueAddresses.set(t.buy.user.address, increment);
+      uniqueAddresses.set(t.targetAddress, increment);
     });
 
     return [...uniqueAddresses.entries()].map(([addressTo, amount]) => ({ addressTo, amount }));
