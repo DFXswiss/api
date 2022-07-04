@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { MonitoringService } from './monitoring.service';
-import { SystemState, SubsystemState, Metric } from './system-state.entity';
+import { SystemState, SubsystemState, Metric } from './system-state-snapshot.entity';
 
 @ApiTags('monitoring-new')
 @Controller('monitoring-new')

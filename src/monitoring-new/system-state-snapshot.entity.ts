@@ -18,10 +18,10 @@ export type SubsystemName = string;
 export type MetricName = string;
 
 @Entity()
-export class SystemStateRecord extends IEntity {
+export class SystemStateSnapshot extends IEntity {
   @Column({ type: 'datetime2', nullable: false })
   timestamp: Date;
 
-  @Column({ nullable: false })
+  @Column({ length: 'MAX', nullable: false })
   data: string;
 }

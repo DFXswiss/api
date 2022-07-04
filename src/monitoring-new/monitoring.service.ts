@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { MetricObserver } from './metric.observer';
-import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state.entity';
-import { SystemStateRepository } from './system-state.repository';
+import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
+import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
@@ -10,7 +10,7 @@ export class MonitoringService {
   #state: SystemState;
   #observers: Map<SubsystemName, SubsystemObservers>;
 
-  constructor(private systemStateRepo: SystemStateRepository) {
+  constructor(private systemStateSnapshotRepo: SystemStateSnapshotRepository) {
     this.loadState();
   }
 
@@ -56,7 +56,7 @@ export class MonitoringService {
   // *** HELPER METHODS *** //
 
   private async loadState() {
-    const latestPreservedState = await this.systemStateRepo.findOne();
+    const latestPreservedState = await this.systemStateSnapshotRepo.findOne();
 
     if (!latestPreservedState) {
       this.initState();
