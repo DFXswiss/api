@@ -117,16 +117,11 @@ export class BuyCryptoBatch extends IEntity {
     const result: Map<number, BuyCrypto[]> = new Map();
 
     transactions.forEach((tx) => {
-      const targetAddress = tx.buy.deposit ? tx.buy.deposit.address : tx.buy.user.address;
       // find nearest non-full group without repeating address
       const suitableExistingGroups = [...result.entries()].filter(
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ([_, transactions]) =>
-          transactions.length < maxGroupSize &&
-          !transactions.find((_tx) => {
-            const _targetAddress = _tx.buy.deposit ? _tx.buy.deposit.address : _tx.buy.user.address;
-            return _targetAddress === targetAddress;
-          }),
+          transactions.length < maxGroupSize && !transactions.find((_tx) => _tx.targetAddress === tx.targetAddress),
       );
 
       const [key, group] = suitableExistingGroups[0] ?? [result.size, []];

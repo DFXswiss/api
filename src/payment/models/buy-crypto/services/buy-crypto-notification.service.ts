@@ -42,9 +42,7 @@ export class BuyCryptoNotificationService {
                 buyCryptoAsset: tx.outputAsset,
                 buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                 exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
-                buyWalletAddress: Util.trimBlockchainAddress(
-                  tx.buy.deposit ? tx.buy.deposit.address : tx.buy.user.address,
-                ),
+                buyWalletAddress: Util.trimBlockchainAddress(tx.targetAddress),
                 buyTxId: tx.txId,
               },
             }));
