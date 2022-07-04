@@ -20,7 +20,7 @@ export function createCustomBuy(customValues: Partial<Buy>): Buy {
   entity.active = keys.includes('active') ? active : true;
   entity.user = keys.includes('user') ? user : createDefaultUser();
   entity.asset = keys.includes('asset') ? asset : createDefaultAsset();
-  entity.deposit = keys.includes('deposit') ? deposit : ({} as Deposit); // not used in the tests atm
+  entity.deposit = keys.includes('deposit') ? deposit : (null as Deposit); // not used in the tests atm
   entity.cryptoBuys = keys.includes('cryptoBuys') ? cryptoBuys : [];
   entity.buyCryptos = keys.includes('buyCryptos') ? buyCryptos : [];
 
