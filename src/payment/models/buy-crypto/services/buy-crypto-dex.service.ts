@@ -7,6 +7,7 @@ import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repos
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 import { Util } from 'src/shared/util';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -15,6 +16,7 @@ export class BuyCryptoDexService {
   constructor(
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     readonly nodeService: NodeService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -156,7 +158,7 @@ export class BuyCryptoDexService {
         batch.outputReferenceAmount + securedAmount + pendingAmount,
       );
 
-      const availableAmount = await this.getAvailableTokenAmount(batch);
+      const availableAmount = await this.getAvailableTokenAmount(batch.outputAsset);
 
       return availableAmount >= requiredAmount ? requiredAmount : 0;
     } catch (e) {
@@ -165,9 +167,9 @@ export class BuyCryptoDexService {
     }
   }
 
-  private async getAvailableTokenAmount(batch: BuyCryptoBatch): Promise<number> {
+  private async getAvailableTokenAmount(outputAsset: string): Promise<number> {
     const tokens = await this.dexClient.getToken();
-    const token = tokens.map((t) => this.dexClient.parseAmount(t.amount)).find((pt) => pt.asset === batch.outputAsset);
+    const token = tokens.map((t) => this.dexClient.parseAmount(t.amount)).find((pt) => pt.asset === outputAsset);
 
     return token ? token.amount : 0;
   }
@@ -177,6 +179,16 @@ export class BuyCryptoDexService {
 
     try {
       const swapAmount = await this.calculateLiquiditySwapAmount(batch);
+      const availableDFIAmount = await this.getAvailableTokenAmount('DFI');
+
+      if (swapAmount > availableDFIAmount) {
+        const errorMessage = `Not enough DFI liquidity on DEX Node. Trying to purchase ${swapAmount} DFI worth liquidity for asset ${batch.outputAsset}. Available amount: ${availableDFIAmount}`;
+
+        console.error(errorMessage);
+        this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
+
+        return;
+      }
 
       txId = await this.dexClient.compositeSwap(
         Config.node.dexWalletAddress,
