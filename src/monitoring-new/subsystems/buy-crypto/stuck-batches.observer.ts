@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { MetricObserver } from 'src/monitoring-new/metric-observer';
-import { MonitoringService } from '../monitoring.service';
+import { Injectable, NotImplementedException } from '@nestjs/common';
+import { MetricObserver } from 'src/monitoring-new/metric.observer';
+import { MonitoringService } from 'src/monitoring-new/monitoring.service';
+import { MailService } from 'src/shared/services/mail.service';
 
 export interface StuckBatches {
   stuckBatchesCount: number;
@@ -8,20 +9,21 @@ export interface StuckBatches {
 
 @Injectable()
 export class StuckBatchesObserver extends MetricObserver<StuckBatches> {
-  constructor(monitoringService: MonitoringService) {
+  constructor(monitoringService: MonitoringService, private mailService: MailService) {
     super(monitoringService, 'buy-crypto', 'stuck-batches');
   }
 
   async fetch() {
     const data = await this.getStuckBatches();
 
+    this.compare(this.data, data);
     this.emit(data);
 
     return data;
   }
 
-  onWebhook(data: unknown) {
-    throw new Error('Webhook is not supported by this metric. Ignoring data: ');
+  onWebhook() {
+    throw new NotImplementedException('Webhook is not supported by this metric. Ignoring incoming data');
   }
 
   async compare(prevState: StuckBatches, currState: StuckBatches) {
@@ -30,6 +32,8 @@ export class StuckBatchesObserver extends MetricObserver<StuckBatches> {
       // any actions fo here
     }
   }
+
+  // *** HELPER METHODS *** //
 
   private async getStuckBatches(): Promise<StuckBatches> {
     return { stuckBatchesCount: 4 };

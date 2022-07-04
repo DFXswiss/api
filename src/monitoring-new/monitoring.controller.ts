@@ -14,36 +14,19 @@ export class MonitoringController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getSystemState(
-    @Query('subsystem') subsystem: string,
-    @Query('metric') metric: string,
-    @Query('refresh') refresh: boolean,
-  ): Promise<any> {
-    return await this.monitoringService.getState(subsystem, metric, refresh);
+  async getSystemState(@Query('subsystem') subsystem: string, @Query('metric') metric: string): Promise<any> {
+    return await this.monitoringService.getState(subsystem, metric);
   }
 
-  @Get('state/history')
+  @Post('state')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getSystemStateHistory(
-    @Query('subsystem') subsystem: string,
-    @Query('metric') metric: string,
-    @Query('from') from: Date,
-    @Query('to') to: Date,
-  ): Promise<any> {
-    return await this.monitoringService.getStateHistory(subsystem, metric, from, to);
-  }
-
-  @Post('data')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async recordData(
+  async onWebhook(
     @Query('subsystem') subsystem: string,
     @Query('metric') metric: string,
     @Body() data: unknown,
   ): Promise<any> {
-    return await this.monitoringService.recordData(subsystem, metric, data);
+    return await this.monitoringService.onWebhook(subsystem, metric, data);
   }
 }

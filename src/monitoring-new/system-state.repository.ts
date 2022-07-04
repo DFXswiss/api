@@ -1,5 +1,5 @@
 import { EntityRepository, Repository } from 'typeorm';
-import { SystemState } from './system-state.entity';
+import { SystemStateRecord } from './system-state.entity';
 
-@EntityRepository(SystemState)
-export class SystemStateRepository extends Repository<SystemState> {}
+@EntityRepository(SystemStateRecord)
+export class SystemStateRepository extends Repository<SystemStateRecord> {}
