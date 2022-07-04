@@ -26,7 +26,7 @@ interface UserWithout {
 @Injectable()
 export class UserObserver extends MetricObserver<UserData> {
   constructor(monitoringService: MonitoringService) {
-    super(monitoringService, 'blockchain', 'node-balance');
+    super(monitoringService, 'user', 'userData');
   }
 
   async fetch() {
@@ -57,7 +57,7 @@ export class UserObserver extends MetricObserver<UserData> {
     };
   }
 
-  async getKycStatusData(date: Date = new Date()): Promise<Record<KycStatus, number>> {
+  async getKycStatusData(date: Date = new Date()): Promise<any> {
     const kycStatusData = {};
     for (const kycStatus of Object.values(KycStatus)) {
       kycStatusData[kycStatus] = await getCustomRepository(UserDataRepository).count({

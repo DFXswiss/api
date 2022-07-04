@@ -19,7 +19,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
   private refClient: NodeClient;
 
   constructor(monitoringService: MonitoringService, readonly nodeService: NodeService) {
-    super(monitoringService, 'blockchain', 'node-balance');
+    super(monitoringService, 'node', 'nodeBalance');
 
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));

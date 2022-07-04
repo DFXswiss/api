@@ -13,4 +13,4 @@ import { MonitoringService } from './monitoring.service';
   controllers: [MonitoringController],
   exports: [MonitoringService],
 })
-export class MonitoringModule {}
+export class MonitoringModuleNew {}

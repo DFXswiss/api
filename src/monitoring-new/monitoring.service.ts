@@ -16,7 +16,7 @@ export class MonitoringService {
 
   // *** PUBLIC API *** //
 
-  async getState(subsystem: string, metric: string): Promise<any> {
+  async getState(subsystem: string, metric: string): Promise<SystemState | SubsystemState | Metric> {
     if (!subsystem && !metric) {
       return this.#state;
     }
