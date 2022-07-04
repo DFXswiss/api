@@ -5,6 +5,7 @@ import { Deposit } from '../deposit/deposit.entity';
 export enum RouteType {
   SELL = 'Sell',
   STAKING = 'Staking',
+  CRYPTO = 'Crypto',
 }
 
 @Entity()

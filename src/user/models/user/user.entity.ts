@@ -13,6 +13,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
 import { StakingRefReward } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
+import { CryptoRoute } from 'src/payment/models/crypto/crypto-route.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -86,6 +87,9 @@ export class User extends IEntity {
 
   @OneToMany(() => Sell, (sell) => sell.user)
   sells: Sell[];
+
+  @OneToMany(() => CryptoRoute, (crypto) => crypto.user)
+  cryptos: CryptoRoute[];
 
   @OneToMany(() => Staking, (staking) => staking.user)
   stakingRoutes: Staking[];

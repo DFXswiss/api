@@ -27,10 +27,12 @@ import { PayoutType } from 'src/payment/models/staking-reward/staking-reward.ent
 export class MonitoringService {
   private inpClient: NodeClient;
   private refClient: NodeClient;
+  private btcInpClient: NodeClient;
 
   constructor(nodeService: NodeService, private whaleService: WhaleService) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
+    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.btcInpClient = client));
   }
 
   // Payment
@@ -78,6 +80,9 @@ export class MonitoringService {
         defichain: {
           input: await this.inpClient.getNodeBalance(),
           ref: await this.refClient.getNodeBalance(),
+        },
+        bitcoin: {
+          input: await this.btcInpClient.getBalance(),
         },
       },
     };

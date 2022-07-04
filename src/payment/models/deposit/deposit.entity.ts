@@ -9,4 +9,10 @@ export class Deposit extends IEntity {
 
   @OneToOne(() => DepositRoute, (route) => route.deposit, { nullable: true })
   route: DepositRoute;
+
+
+  //TODO: Chain
+  @Column({ unique: true, length: 256 })
+  chain: string;
+
 }
