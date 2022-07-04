@@ -12,12 +12,6 @@ export interface SubsystemState {
 export interface Metric {
   data: unknown;
   updated: Date;
-  status: MetricUpdateStatus;
-}
-
-export enum MetricUpdateStatus {
-  AVAILABLE = 'Available',
-  NOT_AVAILABLE = 'NotAvailable',
 }
 
 export type SubsystemName = string;

@@ -1,13 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { MetricObserver } from './metric.observer';
-import {
-  Metric,
-  MetricName,
-  MetricUpdateStatus,
-  SubsystemName,
-  SubsystemState,
-  SystemState,
-} from './system-state.entity';
+import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state.entity';
 import { SystemStateRepository } from './system-state.repository';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
@@ -82,12 +75,6 @@ export class MonitoringService {
     this.#state = {};
   }
 
-  private monitorState() {
-    // loop through the state once in a while to get latest updates and mark systems as outdated if needed
-    // when there was no data for a while.
-    // not sure if its needed or leave it to observers?
-  }
-
   private getSubsystemState(subsystem: string): SubsystemState {
     const _subsystem = this.#state[subsystem];
 
@@ -137,7 +124,7 @@ export class MonitoringService {
   private updateSystemState(subsystem: string, metric: string, data: unknown) {
     if (!this.#state[subsystem]) this.#state[subsystem] = {};
 
-    const newState = { data, updated: new Date(), status: MetricUpdateStatus.AVAILABLE };
+    const newState = { data, updated: new Date() };
 
     this.#state[subsystem][metric] = newState;
   }
