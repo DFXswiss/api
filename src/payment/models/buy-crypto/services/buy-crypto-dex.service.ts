@@ -158,8 +158,7 @@ export class BuyCryptoDexService {
         batch.outputReferenceAmount + securedAmount + pendingAmount,
       );
 
-      const availableAmount =
-        batch.outputAsset === 'DFI' ? await this.getAvailableDFIAmount() : await this.getAvailableTokenAmount(batch);
+      const availableAmount = await this.getAvailableTokenAmount(batch.outputAsset);
 
       return availableAmount >= requiredAmount ? requiredAmount : 0;
     } catch (e) {
@@ -168,15 +167,9 @@ export class BuyCryptoDexService {
     }
   }
 
-  private async getAvailableDFIAmount(): Promise<number> {
-    const DFIBalance = await this.dexClient.getBalance();
-
-    return +DFIBalance;
-  }
-
-  private async getAvailableTokenAmount(batch: BuyCryptoBatch): Promise<number> {
+  private async getAvailableTokenAmount(outputAsset: string): Promise<number> {
     const tokens = await this.dexClient.getToken();
-    const token = tokens.map((t) => this.dexClient.parseAmount(t.amount)).find((pt) => pt.asset === batch.outputAsset);
+    const token = tokens.map((t) => this.dexClient.parseAmount(t.amount)).find((pt) => pt.asset === outputAsset);
 
     return token ? token.amount : 0;
   }
@@ -186,7 +179,7 @@ export class BuyCryptoDexService {
 
     try {
       const swapAmount = await this.calculateLiquiditySwapAmount(batch);
-      const availableDFIAmount = await this.getAvailableDFIAmount();
+      const availableDFIAmount = await this.getAvailableTokenAmount('DFI');
 
       if (swapAmount > availableDFIAmount) {
         const errorMessage = `Not enough DFI liquidity on DEX Node. Trying to purchase ${swapAmount} DFI worth liquidity for asset ${batch.outputAsset}. Available amount: ${availableDFIAmount}`;
