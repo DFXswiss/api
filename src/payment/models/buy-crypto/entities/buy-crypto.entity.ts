@@ -147,4 +147,8 @@ export class BuyCrypto extends IEntity {
 
     return this;
   }
+
+  get targetAddress(): string {
+    return this.buy.deposit ? this.buy.deposit.address : this.buy.user.address;
+  }
 }

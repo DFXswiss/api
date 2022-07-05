@@ -94,23 +94,17 @@ export class BuyCryptoBatch extends IEntity {
       );
     }
 
-    console.info(`Grouping transactions for payout. Batch ID: ${this.id}`);
-
     // filtering out transactions that were already sent
     const payoutTransactions = this.transactions.filter((tx) => !tx.txId);
 
-    if (this.transactions.length > 0 && payoutTransactions.length !== this.transactions.length) {
-      console.warn(
-        `Skipped ${this.transactions.length - payoutTransactions.length} transactions of batch ID: ${
-          this.id
-        } to avoid double payout.`,
-      );
-    }
+    payoutTransactions.length === this.transactions.length &&
+      console.info(`Grouping transactions for payout. Batch ID: ${this.id}`);
 
     const maxGroupSize = this.outputAsset === 'DFI' ? 100 : 10;
     const groups = this.createPayoutGroups(payoutTransactions, maxGroupSize);
 
-    console.info(`Created ${groups.length} transaction group(s) for payout. Batch ID: ${this.id}`);
+    payoutTransactions.length === this.transactions.length &&
+      console.info(`Created ${groups.length} transaction group(s) for payout. Batch ID: ${this.id}`);
 
     return groups;
   }
@@ -127,8 +121,7 @@ export class BuyCryptoBatch extends IEntity {
       const suitableExistingGroups = [...result.entries()].filter(
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ([_, transactions]) =>
-          transactions.length < maxGroupSize &&
-          !transactions.find((_tx) => _tx.buy.user.address === tx.buy.user.address),
+          transactions.length < maxGroupSize && !transactions.find((_tx) => _tx.targetAddress === tx.targetAddress),
       );
 
       const [key, group] = suitableExistingGroups[0] ?? [result.size, []];
