@@ -12,8 +12,8 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { BankTxType } from 'src/payment/models/bank-tx/bank-tx.entity';
-import { BuyCrypto } from 'src/payment/models/buy-crypto/buy-crypto.entity';
-import { BuyCryptoService } from 'src/payment/models/buy-crypto/buy-crypto.service';
+import { BuyCrypto } from 'src/payment/models/buy-crypto/entities/buy-crypto.entity';
+import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
 import { CryptoInput } from 'src/payment/models/crypto-input/crypto-input.entity';
 import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { CryptoSell } from 'src/payment/models/crypto-sell/crypto-sell.entity';
@@ -120,21 +120,39 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawData(
     @Query()
-    { table, min, updatedSince, extended }: { table: string; min?: string; updatedSince?: string; extended?: string },
+    {
+      table,
+      min,
+      updatedSince,
+      extended,
+      maxLine,
+      sorting,
+    }: {
+      table: string;
+      min?: string;
+      updatedSince?: string;
+      extended?: string;
+      maxLine?: string;
+      sorting?: 'ASC' | 'DESC';
+    },
   ): Promise<any> {
     const id = min ? +min : 1;
+    const maxResult = maxLine ? +maxLine : undefined;
+    sorting = sorting ? sorting : 'ASC';
     const updated = updatedSince ? new Date(updatedSince) : new Date(0);
 
     let data: any[];
 
     if (extended && table === 'bank_tx') {
-      data = await this.getExtendedBankTxData(table, id, updated);
+      data = await this.getExtendedBankTxData(table, id, updated, maxResult, sorting);
     } else {
       data = await getConnection()
         .createQueryBuilder()
         .from(table, table)
         .where('id >= :id', { id })
         .andWhere('updated >= :updated', { updated })
+        .orderBy('id', sorting)
+        .take(maxResult)
         .getRawMany()
         .catch((e: Error) => {
           throw new BadRequestException(e.message);
@@ -170,7 +188,13 @@ export class AdminController {
     return arrayData;
   }
 
-  private async getExtendedBankTxData(table, id, updated): Promise<any[]> {
+  private async getExtendedBankTxData(
+    table: string,
+    id: number,
+    updated: Date,
+    maxResult: number,
+    sorting: string,
+  ): Promise<any[]> {
     const buyCryptoData = await getConnection()
       .createQueryBuilder()
       .from(table, table)

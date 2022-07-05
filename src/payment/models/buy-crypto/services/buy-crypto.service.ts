@@ -1,23 +1,38 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BuyService } from '../buy/buy.service';
+import { BuyService } from '../../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
-import { BankTxRepository } from '../bank-tx/bank-tx.repository';
+import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
 import { Between, In, IsNull } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
-import { BuyRepository } from '../buy/buy.repository';
+import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';
-import { AmlCheck, BuyCrypto } from './buy-crypto.entity';
-import { BuyCryptoRepository } from './buy-crypto.repository';
-import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
-import { Buy } from '../buy/buy.entity';
+import { Lock } from 'src/shared/lock';
+import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
+import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
+import { Buy } from '../../buy/buy.entity';
+import { Interval } from '@nestjs/schedule';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { BuyCryptoBatchService } from './buy-crypto-batch.service';
+import { BuyCryptoOutService } from './buy-crypto-out.service';
+import { BuyCryptoDexService } from './buy-crypto-dex.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { AmlCheck } from '../enums/aml-check.enum';
 
 @Injectable()
 export class BuyCryptoService {
+  private readonly lock = new Lock(1800);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly bankTxRepo: BankTxRepository,
     private readonly buyRepo: BuyRepository,
+    private readonly settingService: SettingService,
     private readonly buyService: BuyService,
+    private readonly buyCryptoBatchService: BuyCryptoBatchService,
+    private readonly buyCryptoOutService: BuyCryptoOutService,
+    private readonly buyCryptoDexService: BuyCryptoDexService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
   ) {}
 
@@ -41,8 +56,8 @@ export class BuyCryptoService {
     let entity = await this.buyCryptoRepo.findOne(id, { relations: ['buy'] });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
-    // const buyIdBefore = entity.buy?.id;
-    // const usedRefBefore = entity.usedRef;
+    const buyIdBefore = entity.buy?.id;
+    const usedRefBefore = entity.usedRef;
 
     const update = this.buyCryptoRepo.create(dto);
 
@@ -51,44 +66,55 @@ export class BuyCryptoService {
 
     Util.removeNullFields(entity);
 
-    entity = await this.buyCryptoRepo.save({ ...update, ...entity });
+    //TODO update aller Felder wieder deaktivieren
+    entity = await this.buyCryptoRepo.save({ ...entity, ...update });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
       await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
     }
 
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
-    // await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    // await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
 
+  @Interval(60000)
+  async process() {
+    if ((await this.settingService.get('buy-process')) !== 'on') return;
+    if (!this.lock.acquire()) return;
+
+    await this.buyCryptoBatchService.batchTransactionsByAssets();
+    await this.buyCryptoDexService.secureLiquidity();
+    await this.buyCryptoDexService.transferLiquidityForOutput();
+    await this.buyCryptoOutService.payoutTransactions();
+    await this.buyCryptoNotificationService.sendNotificationMails();
+
+    this.lock.release();
+  }
+
   async updateVolumes(): Promise<void> {
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
-    // const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
-    // await this.updateBuyVolume(buyIds);
+    const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
+    await this.updateBuyVolume(buyIds);
   }
 
   async updateRefVolumes(): Promise<void> {
-    // TODO aktivieren nach Umstellung cryptoBuy -> buyCrypto
-    // const refs = await this.buyCryptoRepo
-    //   .createQueryBuilder('buyCrypto')
-    //   .select('usedRef')
-    //   .groupBy('usedRef')
-    //   .getRawMany<{ usedRef: string }>();
-    // await this.updateRefVolume(refs.map((r) => r.usedRef));
+    const refs = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('usedRef')
+      .groupBy('usedRef')
+      .getRawMany<{ usedRef: string }>();
+    await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
   async getUserTransactions(
-    userIds: number[],
+    userId: number,
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
-    // TODO aktivieren in history nach Umstellung cryptoBuy -> buyCrypto
     return await this.buyCryptoRepo.find({
-      where: { buy: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo) },
+      where: { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
       relations: ['bankTx', 'buy', 'buy.user'],
     });
   }
@@ -119,6 +145,7 @@ export class BuyCryptoService {
   }
 
   // --- HELPER METHODS --- //
+
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
     const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user'] });
@@ -167,6 +194,8 @@ export class BuyCryptoService {
       await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
     }
   }
+
+  // Statistics
 
   async getTransactions(
     dateFrom: Date = new Date(0),

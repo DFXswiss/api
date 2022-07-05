@@ -9,9 +9,8 @@ import { User } from 'src/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import { KrakenService } from '../exchange/kraken.service';
-import { BinanceService } from '../exchange/binance.service';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { ExchangeUtilityService } from '../exchange/exchange-utility.service';
 import { NodeClient } from 'src/ain/node/node-client';
 
 @Injectable()
@@ -23,8 +22,7 @@ export class StakingRefRewardService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
     private readonly conversionService: ConversionService,
-    private readonly krakenService: KrakenService,
-    private readonly binanceService: BinanceService,
+    private readonly exchangeUtilityService: ExchangeUtilityService,
     private readonly mailService: MailService,
   ) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
@@ -97,14 +95,11 @@ export class StakingRefRewardService {
       });
 
       if (openRewards.length > 0) {
-        const { price: krakenPrice } = await this.krakenService.getPrice('EUR', 'BTC');
-        const { price: binancePrice } = await this.binanceService.getPrice('EUR', 'BTC');
-        if (Math.abs(binancePrice - krakenPrice) / krakenPrice > 0.02)
-          throw new Error(`BTC price mismatch (kraken: ${krakenPrice}, binance: ${binancePrice})`);
+        const { price } = await this.exchangeUtilityService.getMatchingPrice('EUR', 'BTC');
 
         for (const reward of openRewards) {
           try {
-            await this.sendReward(reward, krakenPrice);
+            await this.sendReward(reward, price);
           } catch (e) {
             console.error(`Failed to send staking ref reward ${reward.id}:`, e);
           }
@@ -121,7 +116,7 @@ export class StakingRefRewardService {
 
     const address =
       reward.stakingRefType === StakingRefType.REFERRED ? reward.staking.deposit.address : reward.user.address;
-    const txId = await this.client.sendMany({ [address]: rewardInDfi });
+    const txId = await this.client.sendUtxoToMany([{ addressTo: address, amount: rewardInDfi }]);
 
     const update = {
       outputReferenceAmount: rewardInBtc,

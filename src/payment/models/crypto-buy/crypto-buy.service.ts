@@ -3,7 +3,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyService } from '../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { AmlCheck, CryptoBuy } from './crypto-buy.entity';
+import { CryptoBuy } from './crypto-buy.entity';
 import { CryptoBuyRepository } from './crypto-buy.repository';
 import { CreateCryptoBuyDto } from './dto/create-crypto-buy.dto';
 import { UpdateCryptoBuyDto } from './dto/update-crypto-buy.dto';
@@ -11,6 +11,7 @@ import { Between, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../buy/buy.repository';
 import { Util } from 'src/shared/util';
+import { AmlCheck } from './enums/aml-check.enum';
 
 @Injectable()
 export class CryptoBuyService {
@@ -47,8 +48,8 @@ export class CryptoBuyService {
       : null;
     if (bankTxWithOtherBuy) throw new ConflictException('There is already a crypto buy for the specified bank Tx');
 
-    const buyIdBefore = entity.buy?.id;
-    const usedRefBefore = entity.usedRef;
+    //const buyIdBefore = entity.buy?.id;
+    //const usedRefBefore = entity.usedRef;
 
     const update = await this.createEntity(dto);
 
@@ -56,23 +57,23 @@ export class CryptoBuyService {
 
     entity = await this.cryptoBuyRepo.save({ ...update, ...entity });
 
-    await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
-    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
+    //await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
+    //await this.updateRefVolume([usedRefBefore, entity.usedRef]);
     return entity;
   }
 
   async updateVolumes(): Promise<void> {
-    const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
-    await this.updateBuyVolume(buyIds);
+    //const buyIds = await this.buyRepo.find().then((l) => l.map((b) => b.id));
+    //await this.updateBuyVolume(buyIds);
   }
 
   async updateRefVolumes(): Promise<void> {
-    const refs = await this.cryptoBuyRepo
-      .createQueryBuilder('cryptoBuy')
-      .select('usedRef')
-      .groupBy('usedRef')
-      .getRawMany<{ usedRef: string }>();
-    await this.updateRefVolume(refs.map((r) => r.usedRef));
+    //const refs = await this.cryptoBuyRepo
+    //  .createQueryBuilder('cryptoBuy')
+    //  .select('usedRef')
+    //  .groupBy('usedRef')
+    //  .getRawMany<{ usedRef: string }>();
+    //await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
   async getUserTransactions(

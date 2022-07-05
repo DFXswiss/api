@@ -168,6 +168,7 @@ export class Configuration {
     walletPassword: process.env.NODE_WALLET_PASSWORD,
     utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
+    outWalletAddress: process.env.OUT_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
     minTxAmount: 0.00000297,
     minDfiDeposit: 0.01,

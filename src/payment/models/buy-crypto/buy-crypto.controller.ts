@@ -3,8 +3,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { BuyCrypto } from './buy-crypto.entity';
-import { BuyCryptoService } from './buy-crypto.service';
+import { BuyCrypto } from './entities/buy-crypto.entity';
+import { BuyCryptoService } from './services/buy-crypto.service';
 import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 
 @ApiTags('buyCrypto')

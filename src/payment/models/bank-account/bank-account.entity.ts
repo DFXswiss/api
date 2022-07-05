@@ -30,7 +30,7 @@ export interface BankAccountInfos {
 }
 
 @Entity()
-@Index('ibanLabel', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {
+@Index('ibanUser', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {
   unique: true,
 })
 export class BankAccount extends IEntity implements BankAccountInfos {
@@ -58,10 +58,10 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256, nullable: true })
   checks: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   bic: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   allBicCandidates: string;
 
   @Column({ length: 256, nullable: true })
@@ -100,7 +100,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ nullable: true })
   sctInst: boolean;
 
-  @Column({ nullable: true, type: 'datetime2' })
+  @Column({ type: 'datetime2', nullable: true })
   sctInstReadinessDate: Date;
 
   @Column({ length: 256, nullable: true })
