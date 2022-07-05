@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Config } from 'src/config/config';
@@ -26,24 +26,22 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
 
   @Interval(60000)
   async fetch() {
-    const data = await this.getStaking();
+    let data: StakingData;
+
+    try {
+      data = await this.getStaking();
+    } catch (e) {
+      data = this.getDefaultData();
+    }
 
     this.emit(data);
 
     return data;
   }
 
-  onWebhook() {
-    throw new NotImplementedException('Webhook is not supported by this metric. Ignoring incoming data');
-  }
-
-  async compare() {
-    // no comparison required in this Observer
-  }
-
   // *** HELPER METHODS *** //
 
-  async getStaking(): Promise<StakingData> {
+  private async getStaking(): Promise<StakingData> {
     return {
       stakingBalance: await this.getStakingBalance(),
       freeOperator: await getCustomRepository(MasternodeRepository).count({ where: { creationHash: IsNull() } }),
@@ -64,7 +62,7 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
     };
   }
 
-  async getStakingBalance(): Promise<{ actual: number; should: number; difference: number }> {
+  private async getStakingBalance(): Promise<{ actual: number; should: number; difference: number }> {
     const whaleClient = this.whaleService.getClient();
 
     // calculate actual balance
@@ -89,5 +87,13 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
     // calculate difference
     const difference = Util.round(actual - should, Config.defaultVolumeDecimal);
     return { actual, should, difference };
+  }
+
+  private getDefaultData(): StakingData {
+    return {
+      stakingBalance: { actual: 0, should: 0, difference: 0 },
+      freeOperator: 0,
+      unmatchedStaking: 0,
+    };
   }
 }

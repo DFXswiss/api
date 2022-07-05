@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
 import { MonitoringService } from 'src/monitoring-new/monitoring.service';
@@ -39,17 +39,9 @@ export class UserObserver extends MetricObserver<UserData> {
     return data;
   }
 
-  onWebhook() {
-    throw new NotImplementedException('Webhook is not supported by this metric. Ignoring incoming data');
-  }
-
-  async compare() {
-    // no comparison required in this Observer
-  }
-
   // *** HELPER METHODS *** //
 
-  async getUser(): Promise<UserData> {
+  private async getUser(): Promise<UserData> {
     return {
       kycStatus: {
         all: await this.getKycStatusData(),
@@ -59,7 +51,7 @@ export class UserObserver extends MetricObserver<UserData> {
     };
   }
 
-  async getKycStatusData(date: Date = new Date()): Promise<any> {
+  private async getKycStatusData(date: Date = new Date()): Promise<any> {
     const kycStatusData = {};
     for (const kycStatus of Object.values(KycStatus)) {
       kycStatusData[kycStatus] = await getCustomRepository(UserDataRepository).count({
@@ -79,7 +71,7 @@ export class UserObserver extends MetricObserver<UserData> {
     return kycStatusData;
   }
 
-  async getUserWithout(): Promise<UserWithout> {
+  private async getUserWithout(): Promise<UserWithout> {
     return {
       ipCountry: await getCustomRepository(UserRepository).count({ where: { ipCountry: IsNull() } }),
       riskState: await getCustomRepository(UserDataRepository)

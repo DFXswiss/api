@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
 import { MonitoringService } from 'src/monitoring-new/monitoring.service';
@@ -42,14 +42,6 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     this.emit(data);
 
     return data;
-  }
-
-  onWebhook() {
-    throw new NotImplementedException('Webhook is not supported by this metric. Ignoring incoming data');
-  }
-
-  async compare() {
-    // no comparison required in this Observer
   }
 
   // *** HELPER METHODS *** //

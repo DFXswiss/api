@@ -1,3 +1,4 @@
+import { NotImplementedException } from '@nestjs/common';
 import { BehaviorSubject, skip } from 'rxjs';
 import { MonitoringService } from './monitoring.service';
 
@@ -16,9 +17,21 @@ export abstract class MetricObserver<T> {
 
   abstract fetch(): Promise<T>;
 
-  abstract compare(prevState: T, currentState: T): void;
+  // default implementation - override in specific observers to implement custom webhook for metric
+  onWebhook(data: unknown): void {
+    const errorMessage = `Webhook is not supported by subsystem: '${this.subsystem}'', metric: '${this.metric}'. Ignoring incoming data`;
+    console.warn(errorMessage, data);
 
-  abstract onWebhook(data: unknown): void;
+    throw new NotImplementedException(errorMessage);
+  }
+
+  // default implementation - override in specific observers to implement custom state comparison for metric
+  protected compare(prevState: T, incomingState: T): void {
+    const errorMessage = `Comparison check is not implemented by subsystem: '${this.subsystem}'', metric: '${this.metric}'`;
+    console.warn(errorMessage, 'Previous state:', prevState, 'Incoming state:', incomingState);
+
+    throw new NotImplementedException(errorMessage);
+  }
 
   protected emit(data: T) {
     this.$data.next(data);

@@ -6,6 +6,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
+import { BankingBotObserver } from './observers/banking-bot.observer';
 import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { PaymentObserver } from './observers/payment.observer';
 import { StakingBalanceObserver } from './observers/staking-balance.observer';
@@ -20,7 +21,14 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     PaymentModule,
     UserModule,
   ],
-  providers: [MonitoringService, NodeBalanceObserver, PaymentObserver, StakingBalanceObserver, UserObserver],
+  providers: [
+    MonitoringService,
+    NodeBalanceObserver,
+    PaymentObserver,
+    StakingBalanceObserver,
+    UserObserver,
+    BankingBotObserver,
+  ],
   controllers: [MonitoringController],
   exports: [MonitoringService],
 })

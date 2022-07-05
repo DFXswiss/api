@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
@@ -33,14 +33,6 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
     this.emit(data);
 
     return data;
-  }
-
-  onWebhook() {
-    throw new NotImplementedException('Webhook is not supported by this metric. Ignoring incoming data');
-  }
-
-  async compare() {
-    // no comparison required in this Observer
   }
 
   // *** HELPER METHODS *** //
