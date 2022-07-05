@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsObject, ValidateIf } from 'class-validator';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BuyType } from '../../buy/dto/buy-type.enum';
+import { ChainType } from '../../deposit/deposit.entity';
 import { StakingDto } from '../../staking/dto/staking.dto';
 
 export class CreateCryptoDto {
@@ -9,6 +10,11 @@ export class CreateCryptoDto {
   @IsNotEmpty()
   @IsEnum(BuyType)
   buyType: BuyType;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsObject()
+  chain: ChainType;
 
   @ApiPropertyOptional()
   @ValidateIf((b: CreateCryptoDto) => b.buyType === BuyType.WALLET)
@@ -21,7 +27,4 @@ export class CreateCryptoDto {
   @IsNotEmpty()
   @IsObject()
   staking: StakingDto;
-
-  //Chain
 }
-

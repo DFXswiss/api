@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { CryptoController } from './crypto.controller';
+import { CryptoController } from './crypto-route.controller';
 import { UserService } from 'src/user/models/user/user.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
-import { CryptoService } from './crypto.service';
+import { CryptoService } from './crypto-route.service';
 
 describe('CryptoController', () => {
   let controller: CryptoController;

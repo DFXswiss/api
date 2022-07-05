@@ -126,9 +126,8 @@ export class UserService {
   }
 
   async updateCryptoVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
-
     //TODO implement
-    
+
     await this.userRepo.update(userId, {
       buyVolume: Util.round(volume, Config.defaultVolumeDecimal),
       annualBuyVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
@@ -261,39 +260,16 @@ export class UserService {
     };
   }
 
-  async getUserCryptoFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
-    //TODO implement
-
-    const { usedRef, accountType, buyFee } = await this.userRepo.findOne({
-      select: ['id', 'usedRef', 'accountType', 'buyFee'],
+  async getUserCryptoFee(userId: number): Promise<number> {
+    const cryptoFee = await this.userRepo.findOne({
+      select: ['id', 'usedRef', 'accountType', 'cryptoFee'],
       where: { id: userId },
     });
 
-    if (buyFee != null) return { fee: buyFee * 100, refBonus: 0 };
+    const baseFee = 0.0005;
+    if (cryptoFee != null) return baseFee;
 
-    const baseFee =
-      accountType === AccountType.PERSONAL
-        ? // personal
-          annualVolume < 5000
-          ? Config.buy.fee.private.base
-          : annualVolume < 50000
-          ? Config.buy.fee.private.moreThan5k
-          : annualVolume < 100000
-          ? Config.buy.fee.private.moreThan50k
-          : Config.buy.fee.private.moreThan100k
-        : // organization
-          Config.buy.fee.organization;
-
-    const refFee = await this.userRepo
-      .findOne({ select: ['id', 'ref', 'refFeePercent'], where: { ref: usedRef } })
-      .then((u) => u?.refFeePercent);
-
-    const refBonus = 1 - (refFee ?? 1);
-
-    return {
-      fee: Util.round(baseFee - refBonus, Config.defaultPercentageDecimal),
-      refBonus: Util.round(refBonus, Config.defaultPercentageDecimal),
-    };
+    return baseFee;
   }
 
   async getUserSellFee(userId: number): Promise<number> {

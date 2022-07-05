@@ -6,17 +6,28 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserService } from 'src/user/models/user/user.service';
-import { CryptoService } from './crypto.service';
-import { CryptoDto } from './dto/crypto.dto';
+import { CryptoService } from './crypto-route.service';
+import { CryptoDto } from './dto/crypto-route.dto';
 import { CryptoRoute } from './crypto-route.entity';
-import { CreateCryptoDto } from './dto/create-crypto.dto';
-import { UpdateCryptoDto } from './dto/update-crypto.dto';
+import { CreateCryptoDto } from './dto/create-crypto-route.dto';
+import { UpdateCryptoDto } from './dto/update-crypto-route.dto';
 import { BuyType } from '../buy/dto/buy-type.enum';
+import { Deposit } from '../deposit/deposit.entity';
+import { Staking } from '../staking/staking.entity';
+import { StakingDto } from '../staking/dto/staking.dto';
+import { StakingRepository } from '../staking/staking.repository';
+import { StakingService } from '../staking/staking.service';
+import { In } from 'typeorm';
 
 @ApiTags('crypto')
 @Controller('crypto')
 export class CryptoController {
-  constructor(private readonly cryptoService: CryptoService, private readonly userService: UserService) {}
+  constructor(
+    private readonly cryptoService: CryptoService,
+    private readonly userService: UserService,
+    private readonly stakingRepo: StakingRepository,
+    private readonly stakingService: StakingService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -45,23 +56,44 @@ export class CryptoController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoDto[]> {
-    const fees = await this.getFees(userId);
+    const fee = await this.getFees(userId);
 
-    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fees)));
+    const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(cryptos.map((b) => b.deposit?.id)) } });
+    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee, stakingRoutes)));
   }
 
-  private async toDto(userId: number, crypto: CryptoRoute, fees?: { fee: number; refBonus: number }): Promise<CryptoDto> {
-    fees ??= await this.getFees(userId);
+  private async toDto(
+    userId: number,
+    crypto: CryptoRoute,
+    fee?: number,
+    stakingRoutes?: Staking[],
+  ): Promise<CryptoDto> {
+    fee ??= await this.getFees(userId);
 
     return {
       buyType: crypto.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...crypto,
-      ...fees,
+      staking: await this.getStaking(userId, crypto.deposit, stakingRoutes),
+      fee,
     };
   }
 
-  async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
-    const { annualVolume } = await this.cryptoService.getUserVolume(userId);
-    return this.userService.getUserCryptoFee(userId, annualVolume);
+  private async getStaking(
+    userId: number,
+    deposit?: Deposit,
+    stakingRoutes?: Staking[],
+  ): Promise<StakingDto | undefined> {
+    if (deposit == null) return undefined;
+
+    return this.stakingService.toDto(
+      userId,
+      stakingRoutes
+        ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
+        : await this.stakingRepo.findOne({ where: { deposit: deposit.id } }),
+    );
+  }
+
+  async getFees(userId: number): Promise<number> {
+    return this.userService.getUserCryptoFee(userId);
   }
 }

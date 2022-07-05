@@ -7,11 +7,11 @@ import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { Config } from 'src/config/config';
-import { CryptoRepository } from './crypto.repository';
+import { CryptoRepository } from './crypto-route.repository';
 import { BuyType } from '../buy/dto/buy-type.enum';
-import { UpdateCryptoDto } from './dto/update-crypto.dto';
-import { CreateCryptoDto } from './dto/create-crypto.dto';
-import { Crypto } from './crypto-route.entity';
+import { UpdateCryptoDto } from './dto/update-crypto-route.dto';
+import { CreateCryptoDto } from './dto/create-crypto-route.dto';
+import { CryptoRoute } from './crypto-route.entity';
 
 @Injectable()
 export class CryptoService {
@@ -62,7 +62,7 @@ export class CryptoService {
   }
 
   // --- CRYPTOS --- //
-  async createCrypto(userId: number, dto: CreateCryptoDto): Promise<Crypto> {
+  async createCrypto(userId: number, dto: CreateCryptoDto): Promise<CryptoRoute> {
     // check asset
     const asset =
       dto.buyType === BuyType.WALLET
@@ -84,7 +84,7 @@ export class CryptoService {
       },
       relations: ['deposit'],
     });
-    if (existing) throw new ConflictException('Buy route already exists');
+    if (existing) throw new ConflictException('Crypto route already exists');
 
     // create the entity
     const crypto = this.cryptoRepo.create(dto);
@@ -96,11 +96,11 @@ export class CryptoService {
     return this.cryptoRepo.save(crypto);
   }
 
-  async getUserCryptos(userId: number): Promise<Crypto[]> {
+  async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
     return this.cryptoRepo.find({ user: { id: userId } });
   }
 
-  async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoDto): Promise<Crypto> {
+  async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoDto): Promise<CryptoRoute> {
     const crypto = await this.cryptoRepo.findOne({ id: cryptoId, user: { id: userId } });
     if (!crypto) throw new NotFoundException('Crypto route not found');
 

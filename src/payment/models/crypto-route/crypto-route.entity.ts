@@ -1,9 +1,10 @@
 import { Entity, Column, ManyToOne, OneToMany } from 'typeorm';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
-import { BuyCrypto } from '../buy-crypto/buy-crypto.entity';
+import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 import { DepositRoute } from '../route/deposit-route.entity';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
+import { Deposit } from '../deposit/deposit.entity';
 
 @Entity()
 export class CryptoRoute extends DepositRoute {
@@ -16,7 +17,8 @@ export class CryptoRoute extends DepositRoute {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   asset: Asset;
 
-  //Deposit
+  @ManyToOne(() => Deposit, { eager: true, nullable: true })
+  deposit: Deposit;
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.buy)
   buyCryptos: BuyCrypto[];

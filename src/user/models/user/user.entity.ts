@@ -13,7 +13,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
 import { StakingRefReward } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
-import { CryptoRoute } from 'src/payment/models/crypto/crypto-route.entity';
+import { CryptoRoute } from 'src/payment/models/crypto-route/crypto-route.entity';
 
 export enum UserStatus {
   NA = 'NA',
@@ -57,6 +57,9 @@ export class User extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   stakingFee: number;
+
+  @Column({ type: 'float', nullable: true })
+  cryptoFee: number;
 
   @Column({ type: 'datetime2', nullable: true })
   stakingStart: Date;
