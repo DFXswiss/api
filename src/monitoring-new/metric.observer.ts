@@ -1,4 +1,4 @@
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, skip } from 'rxjs';
 import { MonitoringService } from './monitoring.service';
 
 export abstract class MetricObserver<T> {
@@ -8,10 +8,10 @@ export abstract class MetricObserver<T> {
   $data = new BehaviorSubject<T>(null);
 
   constructor(private monitoringService: MonitoringService, subsystemName: string, metricName: string) {
-    this.monitoringService.register(this);
-
     this.#subsystemName = subsystemName;
     this.#metricName = metricName;
+
+    this.monitoringService.register(this);
   }
 
   abstract fetch(): Promise<T>;
@@ -25,7 +25,7 @@ export abstract class MetricObserver<T> {
   }
 
   get subscription() {
-    return this.$data.asObservable();
+    return this.$data.asObservable().pipe(skip(1));
   }
 
   get subsystem(): string {

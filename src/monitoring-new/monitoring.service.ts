@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { BehaviorSubject, debounceTime, skip } from 'rxjs';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
@@ -8,18 +8,18 @@ type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
 @Injectable()
 export class MonitoringService {
-  #state: SystemState;
-  #observers: Map<SubsystemName, SubsystemObservers>;
+  #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
+  #observers: Map<SubsystemName, SubsystemObservers> = new Map();
 
   constructor(private systemStateSnapshotRepo: SystemStateSnapshotRepository) {
-    this.loadState();
+    this.initState();
   }
 
   // *** PUBLIC API *** //
 
   async getState(subsystem: string, metric: string): Promise<SystemState | SubsystemState | Metric> {
     if (!subsystem && !metric) {
-      return this.#state;
+      return this.#$state.value;
     }
 
     if (subsystem && !metric) {
@@ -53,39 +53,38 @@ export class MonitoringService {
     subsystem.set(observer.metric, observer);
     this.#observers.set(observer.subsystem, subsystem);
   }
-  // *** PERSISTENCE *** //
-
-  @Interval(120000)
-  async persist() {
-    const entity = this.systemStateSnapshotRepo.create({ data: JSON.stringify(this.#state) });
-    console.log(entity);
-    this.systemStateSnapshotRepo.save(entity);
-  }
 
   // *** HELPER METHODS *** //
 
+  private async initState() {
+    await this.loadState();
+
+    this.#$state.pipe(skip(1), debounceTime(1000)).subscribe((state) => this.persist(state));
+  }
+
   private async loadState() {
-    const latestPreservedState = await this.systemStateSnapshotRepo.findOne();
+    const latestPreservedState = await this.systemStateSnapshotRepo.findOne({ order: { id: 'DESC' } });
 
     if (!latestPreservedState) {
-      this.initState();
+      return;
     }
 
     try {
       const state = JSON.parse(latestPreservedState.data);
-      this.#state = state;
+      this.#$state.next(state);
     } catch (e) {
-      console.warn('Failed to parse loaded system state. Re-initializing monitoring state');
-      this.initState();
+      console.warn('Failed to parse loaded system state. Defaulting to empty state', e);
     }
   }
 
-  private initState() {
-    this.#state = {};
+  private async persist(state: SystemState) {
+    const entity = this.systemStateSnapshotRepo.create({ data: JSON.stringify(state) });
+
+    this.systemStateSnapshotRepo.save(entity);
   }
 
   private getSubsystemState(subsystem: string): SubsystemState {
-    const _subsystem = this.#state[subsystem];
+    const _subsystem = this.#$state.value[subsystem];
 
     if (!_subsystem) {
       throw new NotFoundException(`Subsystem not found, name: ${subsystem}`);
@@ -126,16 +125,18 @@ export class MonitoringService {
 
   private subscribeToUpdates(observer: MetricObserver<unknown>): void {
     observer.subscription.subscribe((data: unknown) =>
-      this.updateSystemState.bind(this, observer.subsystem, observer.metric, data),
+      this.updateSystemState.call(this, observer.subsystem, observer.metric, data),
     );
   }
 
   private updateSystemState(subsystem: string, metric: string, data: unknown) {
-    console.log('UPDATE', subsystem, metric, data);
-    if (!this.#state[subsystem]) this.#state[subsystem] = {};
+    const newSubsystemState = this.#$state.value[subsystem] ?? {};
+    const newMetricState = { data, updated: new Date() };
 
-    const newState = { data, updated: new Date() };
+    newSubsystemState[metric] = newMetricState;
 
-    this.#state[subsystem][metric] = newState;
+    const newSystemState = { ...this.#$state.value, [subsystem]: newSubsystemState };
+
+    this.#$state.next(newSystemState);
   }
 }

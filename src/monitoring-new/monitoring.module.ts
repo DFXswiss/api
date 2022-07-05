@@ -6,11 +6,21 @@ import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
-import { SystemStateRepository } from './system-state.repository';
+import { NodeBalanceObserver } from './observers/node-balance.observer';
+import { PaymentObserver } from './observers/payment.observer';
+import { StakingBalanceObserver } from './observers/staking-balance.observer';
+import { UserObserver } from './observers/user.observer';
+import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SystemStateRepository]), SharedModule, AinModule, PaymentModule, UserModule],
-  providers: [MonitoringService],
+  imports: [
+    TypeOrmModule.forFeature([SystemStateSnapshotRepository]),
+    SharedModule,
+    AinModule,
+    PaymentModule,
+    UserModule,
+  ],
+  providers: [MonitoringService, NodeBalanceObserver, PaymentObserver, StakingBalanceObserver, UserObserver],
   controllers: [MonitoringController],
   exports: [MonitoringService],
 })
