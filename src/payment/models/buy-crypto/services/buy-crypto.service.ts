@@ -66,6 +66,7 @@ export class BuyCryptoService {
 
     Util.removeNullFields(entity);
 
+    //TODO update aller Felder wieder deaktivieren
     entity = await this.buyCryptoRepo.save({ ...entity, ...update });
 
     // activate user
