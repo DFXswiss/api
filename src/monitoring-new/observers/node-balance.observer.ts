@@ -1,5 +1,7 @@
+import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import BigNumber from 'bignumber.js';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
@@ -8,8 +10,14 @@ import { MonitoringService } from 'src/monitoring-new/monitoring.service';
 export interface NodeBalanceData {
   balance: {
     defichain: {
-      input: number;
-      ref: number;
+      input: {
+        utxo: BigNumber;
+        token: AccountResult<string, string>[];
+      };
+      ref: {
+        utxo: BigNumber;
+        token: AccountResult<string, string>[];
+      };
     };
   };
 }
@@ -37,7 +45,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
 
   // *** HELPER METHODS *** //
 
-  private async getNode(): Promise<any> {
+  private async getNode(): Promise<NodeBalanceData> {
     return {
       balance: {
         defichain: {

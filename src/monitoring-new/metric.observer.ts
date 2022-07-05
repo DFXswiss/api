@@ -25,14 +25,6 @@ export abstract class MetricObserver<T> {
     throw new NotImplementedException(errorMessage);
   }
 
-  // default implementation - override in specific observers to implement custom state comparison for metric
-  protected compare(prevState: T, incomingState: T): void {
-    const errorMessage = `Comparison check is not implemented by subsystem: '${this.subsystem}'', metric: '${this.metric}'`;
-    console.warn(errorMessage, 'Previous state:', prevState, 'Incoming state:', incomingState);
-
-    throw new NotImplementedException(errorMessage);
-  }
-
   protected emit(data: T) {
     this.$data.next(data);
   }

@@ -8,6 +8,7 @@ import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
 import { BankingBotObserver } from './observers/banking-bot.observer';
 import { NodeBalanceObserver } from './observers/node-balance.observer';
+import { NodeHealthObserver } from './observers/node-health.observer';
 import { PaymentObserver } from './observers/payment.observer';
 import { StakingBalanceObserver } from './observers/staking-balance.observer';
 import { UserObserver } from './observers/user.observer';
@@ -24,6 +25,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
   providers: [
     MonitoringService,
     NodeBalanceObserver,
+    NodeHealthObserver,
     PaymentObserver,
     StakingBalanceObserver,
     UserObserver,

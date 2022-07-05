@@ -86,6 +86,9 @@ export class MonitoringService {
   private getSubsystemState(subsystem: string): SubsystemState {
     const _subsystem = this.#$state.value[subsystem];
 
+    console.log('subsystem', subsystem);
+    console.log('_subsystem', _subsystem);
+
     if (!_subsystem) {
       throw new NotFoundException(`Subsystem not found, name: ${subsystem}`);
     }
