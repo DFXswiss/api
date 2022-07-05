@@ -264,7 +264,7 @@ export class UserService {
       where: { id: userId },
     });
 
-    const baseFee = 0.0005;
+    const baseFee = Config.crypto.fee;
     if (cryptoFee != null) return baseFee;
 
     return baseFee;
