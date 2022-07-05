@@ -62,6 +62,9 @@ import { BuyCryptoBatchRepository } from './models/buy-crypto/repositories/buy-c
 import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.util';
 import { BankAccountService } from './models/bank-account/bank-account.service';
 import { BankAccountRepository } from './models/bank-account/bank-account.repository';
+import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
+import { CryptoRouteService } from './models/crypto-route/crypto-route.service';
+import { CryptoRouteRepository } from './models/crypto-route/crypto-route.repository';
 
 @Module({
   imports: [
@@ -84,6 +87,7 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
       CryptoStakingRepository,
       StakingRefRewardRepository,
       BankAccountRepository,
+      CryptoRouteRepository,
     ]),
     SharedModule,
     AinModule,
@@ -106,6 +110,7 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
     RefRewardController,
     CryptoStakingController,
     CryptoInputController,
+    CryptoRouteController,
   ],
   providers: [
     CryptoInputService,
@@ -138,6 +143,8 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
     CryptoStakingService,
     StakingRefRewardService,
     BankAccountService,
+    CryptoRouteController,
+    CryptoRouteService,
   ],
   exports: [
     BuyService,
@@ -154,6 +161,7 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
     CryptoStakingService,
     StakingRefRewardService,
     BankAccountService,
+    CryptoRouteService,
   ],
 })
 export class PaymentModule {}

@@ -126,11 +126,9 @@ export class UserService {
   }
 
   async updateCryptoVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
-    //TODO implement
-
     await this.userRepo.update(userId, {
-      buyVolume: Util.round(volume, Config.defaultVolumeDecimal),
-      annualBuyVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+      cryptoVolume: Util.round(volume, Config.defaultVolumeDecimal),
+      annualCryptoVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
     });
 
     await this.updateUserDataVolume(userId);

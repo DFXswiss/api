@@ -7,19 +7,22 @@ import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { Config } from 'src/config/config';
-import { CryptoRepository } from './crypto-route.repository';
+import { CryptoRouteRepository } from './crypto-route.repository';
 import { BuyType } from '../buy/dto/buy-type.enum';
-import { UpdateCryptoDto } from './dto/update-crypto-route.dto';
-import { CreateCryptoDto } from './dto/create-crypto-route.dto';
+import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
+import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { CryptoRoute } from './crypto-route.entity';
+import { DepositService } from '../deposit/deposit.service';
+import { RouteType } from '../route/deposit-route.entity';
 
 @Injectable()
-export class CryptoService {
+export class CryptoRouteService {
   constructor(
-    private readonly cryptoRepo: CryptoRepository,
+    private readonly cryptoRepo: CryptoRouteRepository,
     private readonly assetService: AssetService,
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
+    private readonly depositService: DepositService,
   ) {}
 
   // --- VOLUMES --- //
@@ -62,7 +65,7 @@ export class CryptoService {
   }
 
   // --- CRYPTOS --- //
-  async createCrypto(userId: number, dto: CreateCryptoDto): Promise<CryptoRoute> {
+  async createCrypto(userId: number, dto: CreateCryptoRouteDto): Promise<CryptoRoute> {
     // check asset
     const asset =
       dto.buyType === BuyType.WALLET
@@ -79,7 +82,7 @@ export class CryptoService {
     const existing = await this.cryptoRepo.findOne({
       where: {
         asset: dto.asset,
-        ...(dto.buyType === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
+        ...(dto.buyType === BuyType.WALLET ? { asset: asset, staking: IsNull() } : { staking: staking?.deposit }),
         user: { id: userId },
       },
       relations: ['deposit'],
@@ -90,7 +93,9 @@ export class CryptoService {
     const crypto = this.cryptoRepo.create(dto);
     crypto.user = { id: userId } as User;
     crypto.asset = asset;
-    crypto.deposit = staking?.deposit ?? null;
+    crypto.type = RouteType.CRYPTO;
+    crypto.staking = staking?.deposit ?? null;
+    crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
 
     // save
     return this.cryptoRepo.save(crypto);
@@ -100,7 +105,7 @@ export class CryptoService {
     return this.cryptoRepo.find({ user: { id: userId } });
   }
 
-  async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoDto): Promise<CryptoRoute> {
+  async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {
     const crypto = await this.cryptoRepo.findOne({ id: cryptoId, user: { id: userId } });
     if (!crypto) throw new NotFoundException('Crypto route not found');
 

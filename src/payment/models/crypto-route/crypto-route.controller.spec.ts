@@ -1,22 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { CryptoController } from './crypto-route.controller';
+import { CryptoRouteController } from './crypto-route.controller';
 import { UserService } from 'src/user/models/user/user.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
-import { CryptoService } from './crypto-route.service';
+import { CryptoRouteService } from './crypto-route.service';
 
-describe('CryptoController', () => {
-  let controller: CryptoController;
+describe('CryptoRouteController', () => {
+  let controller: CryptoRouteController;
 
-  let cryptoService: CryptoService;
+  let cryptoRouteService: CryptoRouteService;
   let userService: UserService;
   let stakingRepo: StakingRepository;
   let stakingService: StakingService;
 
   beforeEach(async () => {
-    cryptoService = createMock<CryptoService>();
+    cryptoRouteService = createMock<CryptoRouteService>();
     userService = createMock<UserService>();
     stakingRepo = createMock<StakingRepository>();
     stakingService = createMock<StakingService>();
@@ -24,15 +24,15 @@ describe('CryptoController', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
-        CryptoController,
-        { provide: CryptoService, useValue: cryptoService },
+        CryptoRouteController,
+        { provide: CryptoRouteService, useValue: cryptoRouteService },
         { provide: UserService, useValue: userService },
         { provide: StakingRepository, useValue: stakingRepo },
         { provide: StakingService, useValue: stakingService },
       ],
     }).compile();
 
-    controller = module.get<CryptoController>(CryptoController);
+    controller = module.get<CryptoRouteController>(CryptoRouteController);
   });
 
   it('should be defined', () => {

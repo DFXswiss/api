@@ -2,9 +2,9 @@ import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column, OneToOne } from 'typeorm';
 import { DepositRoute } from '../route/deposit-route.entity';
 
-export enum ChainType {
-  DEFICHAIN = 'defichain',
-  BITCOIN = 'bitcoin',
+export enum Blockchain {
+  DEFICHAIN = 'DeFiChain',
+  Bitcoin = 'Bitcoin',
 }
 
 @Entity()
@@ -15,6 +15,6 @@ export class Deposit extends IEntity {
   @OneToOne(() => DepositRoute, (route) => route.deposit, { nullable: true })
   route: DepositRoute;
 
-  @Column({ unique: true, length: 256 })
-  chain: ChainType;
+  @Column({ length: 256, default: Blockchain.DEFICHAIN })
+  blockchain: Blockchain;
 }
