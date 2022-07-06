@@ -7,7 +7,7 @@ import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring-new/metric.observer';
 import { MonitoringService } from 'src/monitoring-new/monitoring.service';
 
-export interface NodeBalanceData {
+interface NodeBalanceData {
   balance: {
     defichain: {
       input: {

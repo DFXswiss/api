@@ -55,13 +55,13 @@ export class MonitoringService {
     this.#observers.set(observer.subsystem, subsystem);
   }
 
-  // *** HELPER METHODS *** //
+  // *** HELPER METHODS *** /
 
   private async initState() {
     const state = await this.loadState();
     state && this.#$state.next(state);
 
-    this.#$state.pipe(skip(1), debounceTime(1000)).subscribe((state) => this.persist(state));
+    this.#$state.pipe(skip(1), debounceTime(5000)).subscribe((state) => this.persist(state));
   }
 
   private async loadState(): Promise<SystemState | null> {
@@ -83,9 +83,7 @@ export class MonitoringService {
     const persistedState = await this.loadState();
 
     if (this.hasStateChanged(persistedState, newState)) {
-      const entity = this.systemStateSnapshotRepo.create({ data: JSON.stringify(newState) });
-
-      this.systemStateSnapshotRepo.save(entity);
+      this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
     }
   }
 

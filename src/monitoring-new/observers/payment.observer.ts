@@ -10,7 +10,7 @@ import { StakingRefRewardRepository } from 'src/payment/models/staking-ref-rewar
 import { StakingRewardRepository } from 'src/payment/models/staking-reward/staking-reward.respository';
 import { getCustomRepository, IsNull } from 'typeorm';
 
-export interface PaymentData {
+interface PaymentData {
   lastOutputDates: LastOutputDates;
   incomplete: IncompleteTransactions;
   bankTxWithoutType: number;

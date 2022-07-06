@@ -10,7 +10,7 @@ import { User, UserStatus } from 'src/user/models/user/user.entity';
 import { UserRepository } from 'src/user/models/user/user.repository';
 import { getCustomRepository, LessThan, IsNull, In } from 'typeorm';
 
-export interface UserData {
+interface UserData {
   kycStatus: {
     all: Record<KycStatus, number>;
     longer24h: Record<KycStatus, number>;

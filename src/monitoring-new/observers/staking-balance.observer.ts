@@ -12,7 +12,7 @@ import { PayoutType } from 'src/payment/models/staking-reward/staking-reward.ent
 import { Util } from 'src/shared/util';
 import { getCustomRepository, IsNull, Not } from 'typeorm';
 
-export interface StakingData {
+interface StakingData {
   stakingBalance: { actual: number; should: number; difference: number };
   freeOperator: number;
   unmatchedStaking: number;
