@@ -53,10 +53,6 @@ export class BankingBotObserver extends MetricObserver<BankingBotData> {
     super(monitoringService, 'bankingBot', 'logs');
   }
 
-  async fetch() {
-    return null;
-  }
-
   onWebhook(_dto: unknown) {
     const dto = this.createDto(_dto);
     const validationErrors = validateSync(dto);

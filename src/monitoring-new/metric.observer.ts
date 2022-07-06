@@ -15,7 +15,13 @@ export abstract class MetricObserver<T> {
     this.monitoringService.register(this);
   }
 
-  abstract fetch(): Promise<T>;
+  // default implementation - override in specific observers to implement custom fetch mechanism for metric
+  fetch(): Promise<T> {
+    const errorMessage = `Fetch method is not supported by subsystem: '${this.subsystem}'', metric: '${this.metric}'`;
+    console.warn(errorMessage);
+
+    throw new NotImplementedException(errorMessage);
+  }
 
   // default implementation - override in specific observers to implement custom webhook for metric
   onWebhook(data: unknown): void {
