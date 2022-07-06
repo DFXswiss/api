@@ -120,21 +120,38 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawData(
     @Query()
-    { table, min, updatedSince, extended }: { table: string; min?: string; updatedSince?: string; extended?: string },
+    {
+      table,
+      min,
+      updatedSince,
+      extended,
+      maxLine,
+      sorting = 'ASC',
+    }: {
+      table: string;
+      min?: string;
+      updatedSince?: string;
+      extended?: string;
+      maxLine?: string;
+      sorting?: 'ASC' | 'DESC';
+    },
   ): Promise<any> {
     const id = min ? +min : 1;
+    const maxResult = maxLine ? +maxLine : undefined;
     const updated = updatedSince ? new Date(updatedSince) : new Date(0);
 
     let data: any[];
 
     if (extended && table === 'bank_tx') {
-      data = await this.getExtendedBankTxData(table, id, updated);
+      data = await this.getExtendedBankTxData(table, id, updated, maxResult, sorting);
     } else {
       data = await getConnection()
         .createQueryBuilder()
         .from(table, table)
         .where('id >= :id', { id })
         .andWhere('updated >= :updated', { updated })
+        .orderBy('id', sorting)
+        .take(maxResult)
         .getRawMany()
         .catch((e: Error) => {
           throw new BadRequestException(e.message);
@@ -170,7 +187,13 @@ export class AdminController {
     return arrayData;
   }
 
-  private async getExtendedBankTxData(table, id, updated): Promise<any[]> {
+  private async getExtendedBankTxData(
+    table: string,
+    id: number,
+    updated: Date,
+    maxResult: number,
+    sorting: 'ASC' | 'DESC',
+  ): Promise<any[]> {
     const buyCryptoData = await getConnection()
       .createQueryBuilder()
       .from(table, table)
@@ -183,6 +206,8 @@ export class AdminController {
       .where('bank_tx.id >= :id', { id })
       .andWhere('bank_tx.updated >= :updated', { updated })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_CRYPTO })
+      .orderBy('bank_tx.id', sorting)
+      .take(maxResult)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -202,6 +227,8 @@ export class AdminController {
       .where('bank_tx.id >= :id', { id })
       .andWhere('bank_tx.updated >= :updated', { updated })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_FIAT })
+      .orderBy('bank_tx.id', sorting)
+      .take(maxResult)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -217,6 +244,8 @@ export class AdminController {
         crypto: BankTxType.BUY_CRYPTO,
         fiat: BankTxType.BUY_FIAT,
       })
+      .orderBy('bank_tx.id', sorting)
+      .take(maxResult)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);

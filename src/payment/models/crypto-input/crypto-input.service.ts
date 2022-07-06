@@ -32,7 +32,7 @@ interface HistoryAmount {
 @Injectable()
 export class CryptoInputService {
   private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
-  private readonly lock = new Lock(1800);
+  private readonly lock = new Lock(7200);
 
   private client: NodeClient;
 

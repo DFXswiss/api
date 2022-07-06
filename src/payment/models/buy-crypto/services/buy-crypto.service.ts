@@ -66,7 +66,8 @@ export class BuyCryptoService {
 
     Util.removeNullFields(entity);
 
-    entity = await this.buyCryptoRepo.save({ ...update, ...entity });
+    //TODO update aller Felder wieder deaktivieren
+    entity = await this.buyCryptoRepo.save({ ...entity, ...update });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {

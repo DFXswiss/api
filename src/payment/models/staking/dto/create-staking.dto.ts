@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsObject, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsNotEmptyObject, IsObject, ValidateIf, ValidateNested } from 'class-validator';
+import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Sell } from '../../sell/sell.entity';
 import { PayoutType } from '../../staking-reward/staking-reward.entity';
@@ -12,14 +14,18 @@ export class CreateStakingDto {
 
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.rewardType === PayoutType.BANK_ACCOUNT)
-  @IsNotEmpty()
+  @IsNotEmptyObject()
   @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
   rewardSell?: Sell;
 
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.rewardType === PayoutType.WALLET)
-  @IsNotEmpty()
+  @IsNotEmptyObject()
   @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
   rewardAsset: Asset;
 
   @ApiProperty()
@@ -29,13 +35,17 @@ export class CreateStakingDto {
 
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.paybackType === PayoutType.BANK_ACCOUNT)
-  @IsNotEmpty()
+  @IsNotEmptyObject()
   @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
   paybackSell?: Sell;
 
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.paybackType === PayoutType.WALLET)
-  @IsNotEmpty()
+  @IsNotEmptyObject()
   @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
   paybackAsset: Asset;
 }
