@@ -137,7 +137,7 @@ export class AdminController {
     },
   ): Promise<any> {
     const id = min ? +min : 1;
-    const maxResult = maxLine ? +maxLine : undefined;
+    const maxResult = maxLine ? +maxLine : 90000;
     const updated = updatedSince ? new Date(updatedSince) : new Date(0);
 
     let data: any[];
