@@ -128,14 +128,14 @@ export class UserDataService {
   async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<UserData> {
     // check language
     if (dto.language) {
-      const language = await this.languageService.getLanguage(dto.language.id);
-      if (!language) throw new BadRequestException('Language not found');
+      dto.language = await this.languageService.getLanguage(dto.language.id);
+      if (!dto.language) throw new BadRequestException('Language not found');
     }
 
     // check currency
     if (dto.currency) {
-      const currency = await this.fiatService.getFiat(dto.currency.id);
-      if (!currency) throw new BadRequestException('Currency not found');
+      dto.currency = await this.fiatService.getFiat(dto.currency.id);
+      if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
     // update spider
