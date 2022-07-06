@@ -2,8 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { plainToClass, Type } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, ValidateNested, validateSync } from 'class-validator';
 import { NodeService } from 'src/ain/node/node.service';
-import { MetricObserver } from 'src/monitoring-new/metric.observer';
-import { MonitoringService } from 'src/monitoring-new/monitoring.service';
+import { MetricObserver } from 'src/monitoring/metric.observer';
+import { MonitoringService } from 'src/monitoring/monitoring.service';
 
 interface BankingBotData {
   bank: BankingBotFileData[];

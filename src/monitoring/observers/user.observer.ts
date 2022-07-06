@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { MetricObserver } from 'src/monitoring-new/metric.observer';
-import { MonitoringService } from 'src/monitoring-new/monitoring.service';
+import { MetricObserver } from 'src/monitoring/metric.observer';
+import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { Util } from 'src/shared/util';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { KycStatus, IdentCompletedStates } from 'src/user/models/user-data/user-data.entity';

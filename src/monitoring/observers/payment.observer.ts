@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { MetricObserver } from 'src/monitoring-new/metric.observer';
-import { MonitoringService } from 'src/monitoring-new/monitoring.service';
+import { MetricObserver } from 'src/monitoring/metric.observer';
+import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
 import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/repositories/buy-crypto.repository';
 import { CryptoSellRepository } from 'src/payment/models/crypto-sell/crypto-sell.repository';

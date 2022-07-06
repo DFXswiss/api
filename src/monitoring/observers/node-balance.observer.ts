@@ -4,8 +4,8 @@ import { Interval } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
-import { MetricObserver } from 'src/monitoring-new/metric.observer';
-import { MonitoringService } from 'src/monitoring-new/monitoring.service';
+import { MetricObserver } from 'src/monitoring/metric.observer';
+import { MonitoringService } from 'src/monitoring/monitoring.service';
 
 interface NodeBalanceData {
   balance: {

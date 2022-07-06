@@ -4,8 +4,8 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeClient, NodeMode } from 'src/ain/node/node-client';
 import { NodeError, NodeService, NodeType } from 'src/ain/node/node.service';
-import { MetricObserver } from 'src/monitoring-new/metric.observer';
-import { MonitoringService } from 'src/monitoring-new/monitoring.service';
+import { MetricObserver } from 'src/monitoring/metric.observer';
+import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { MailService } from 'src/shared/services/mail.service';
 
 interface NodesData {
