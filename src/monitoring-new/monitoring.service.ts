@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BehaviorSubject, debounceTime, skip } from 'rxjs';
 import { MetricObserver } from './metric.observer';
@@ -57,30 +58,49 @@ export class MonitoringService {
   // *** HELPER METHODS *** //
 
   private async initState() {
-    await this.loadState();
+    const state = await this.loadState();
+    state && this.#$state.next(state);
 
     this.#$state.pipe(skip(1), debounceTime(1000)).subscribe((state) => this.persist(state));
   }
 
-  private async loadState() {
-    const latestPreservedState = await this.systemStateSnapshotRepo.findOne({ order: { id: 'DESC' } });
+  private async loadState(): Promise<SystemState | null> {
+    const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ order: { id: 'DESC' } });
 
-    if (!latestPreservedState) {
-      return;
+    if (!latestPersistedState) {
+      return null;
     }
 
     try {
-      const state = JSON.parse(latestPreservedState.data);
-      this.#$state.next(state);
+      return JSON.parse(latestPersistedState.data);
     } catch (e) {
       console.warn('Failed to parse loaded system state. Defaulting to empty state', e);
+      return null;
     }
   }
 
-  private async persist(state: SystemState) {
-    const entity = this.systemStateSnapshotRepo.create({ data: JSON.stringify(state) });
+  private async persist(newState: SystemState) {
+    const persistedState = await this.loadState();
 
-    this.systemStateSnapshotRepo.save(entity);
+    if (this.hasStateChanged(persistedState, newState)) {
+      const entity = this.systemStateSnapshotRepo.create({ data: JSON.stringify(newState) });
+
+      this.systemStateSnapshotRepo.save(entity);
+    }
+  }
+
+  private hasStateChanged(prevState: SystemState, newState: SystemState): boolean {
+    if (!prevState && newState) return true;
+
+    return Object.entries(newState).some(([subsystemName, subsystemState]) =>
+      Object.entries(subsystemState).some(([metricName, newMetricState]) => {
+        const prevMetricState = prevState[subsystemName] && prevState[subsystemName][metricName];
+
+        if (!prevMetricState && newMetricState) return true;
+
+        return !isEqual(prevMetricState, newMetricState);
+      }),
+    );
   }
 
   private getSubsystemState(subsystem: string): SubsystemState {
