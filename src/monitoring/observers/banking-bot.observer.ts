@@ -72,7 +72,7 @@ export class BankingBotObserver extends MetricObserver<BankingBotData> {
     this.emit(data);
   }
 
-  createDto(_dto: unknown): BankingBotDataDto {
+  private createDto(_dto: unknown): BankingBotDataDto {
     const dto = plainToClass(BankingBotDataDto, _dto);
 
     if (!(dto instanceof BankingBotDataDto)) {
