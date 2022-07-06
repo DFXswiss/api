@@ -145,20 +145,23 @@ export class NodeHealthObserver extends MetricObserver<NodesHealth> {
       }
 
       if (errors.length === 0 && connectedNode.mode === NodeMode.ACTIVE) {
-        this.updateNodeState(type, NodeMode.ACTIVE, { available: true }, state);
+        this.updateNodeState(type, NodeMode.ACTIVE, { available: true, errors: [] }, state);
 
         const isPassiveConfigured = state.nodes[type].health[NodeMode.PASSIVE].configured;
-        this.updateNodeState(type, NodeMode.PASSIVE, { available: isPassiveConfigured }, state);
+        this.updateNodeState(type, NodeMode.PASSIVE, { available: isPassiveConfigured, errors: [] }, state);
+        this.resetMailState(type, state);
 
         return;
       }
 
       if (errors.length === 0 && connectedNode.mode === NodeMode.PASSIVE) {
         try {
+          this.updateNodeState(type, NodeMode.PASSIVE, { available: true, errors: [] }, state);
+
           this.nodeService.swapNode(type, NodeMode.ACTIVE);
 
-          this.updateNodeState(type, NodeMode.ACTIVE, { available: true }, state);
-          this.updateNodeState(type, NodeMode.PASSIVE, { available: true }, state);
+          this.updateNodeState(type, NodeMode.ACTIVE, { available: true, errors: [] }, state);
+          this.resetMailState(type, state);
 
           console.log(`Node ${type} active is back up and running!`);
           mailMessages.push(`OK. Node '${type}' switched back to Active, Passive remains up.`);
@@ -184,11 +187,11 @@ export class NodeHealthObserver extends MetricObserver<NodesHealth> {
         try {
           this.nodeService.swapNode(type, NodeMode.PASSIVE);
 
-          this.updateNodeState(type, NodeMode.PASSIVE, { available: true }, state);
+          this.updateNodeState(type, NodeMode.PASSIVE, { available: true, errors: [] }, state);
 
           mailMessages.push(`WARN. Node '${type}' switched to Passive, Active is down.`);
         } catch {
-          this.updateNodeState(type, NodeMode.PASSIVE, { available: false }, state);
+          this.updateNodeState(type, NodeMode.PASSIVE, { available: false, errors: [] }, state);
           this.updateMailState(type, { activeDownPassiveNotConfigured: true }, state);
 
           !prevState.nodes[type].mails.activeDownPassiveNotConfigured &&
@@ -200,7 +203,7 @@ export class NodeHealthObserver extends MetricObserver<NodesHealth> {
         return;
       }
 
-      if (passiveNodeError && connectedNode?.mode === NodeMode.PASSIVE) {
+      if (passiveNodeError && connectedNode.mode === NodeMode.PASSIVE) {
         this.updateNodeState(type, NodeMode.PASSIVE, { available: false, errors: [passiveNodeError] }, state);
 
         try {
