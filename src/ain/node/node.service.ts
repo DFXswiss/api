@@ -214,6 +214,10 @@ export class NodeService {
 
   // --- GETTERS --- //
 
+  get allNodes(): Map<NodeType, Record<NodeMode, NodeClient | null>> {
+    return this.#allNodes;
+  }
+
   get connectedNodes(): Map<NodeType, BehaviorSubject<NodeClient | null>> {
     return this.#connectedNodes;
   }
