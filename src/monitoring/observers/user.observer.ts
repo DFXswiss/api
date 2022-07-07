@@ -27,11 +27,11 @@ interface UserWithout {
 @Injectable()
 export class UserObserver extends MetricObserver<UserData> {
   constructor(monitoringService: MonitoringService) {
-    super(monitoringService, 'user', 'userData');
+    super(monitoringService, 'user', 'kyc');
   }
 
-  @Interval(60000)
-  async fetch() {
+  @Interval(900000)
+  async fetch(): Promise<UserData> {
     const data = await this.getUser();
 
     this.emit(data);

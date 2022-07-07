@@ -21,11 +21,11 @@ interface StakingData {
 @Injectable()
 export class StakingBalanceObserver extends MetricObserver<StakingData> {
   constructor(monitoringService: MonitoringService, private whaleService: WhaleService) {
-    super(monitoringService, 'staking', 'stakingBalance');
+    super(monitoringService, 'staking', 'balance');
   }
 
-  @Interval(60000)
-  async fetch() {
+  @Interval(900000)
+  async fetch(): Promise<StakingData> {
     let data: StakingData;
 
     try {

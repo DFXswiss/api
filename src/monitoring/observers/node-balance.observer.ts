@@ -28,14 +28,14 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
   private refClient: NodeClient;
 
   constructor(monitoringService: MonitoringService, readonly nodeService: NodeService) {
-    super(monitoringService, 'node', 'nodeBalance');
+    super(monitoringService, 'node', 'balance');
 
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
   }
 
-  @Interval(60000)
-  async fetch() {
+  @Interval(900000)
+  async fetch(): Promise<NodeBalanceData> {
     const data = await this.getNode();
 
     this.emit(data);

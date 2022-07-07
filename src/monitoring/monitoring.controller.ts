@@ -30,7 +30,7 @@ export class MonitoringController {
     @Query('subsystem') subsystem: string,
     @Query('metric') metric: string,
     @Body() data: unknown,
-  ): Promise<any> {
+  ): Promise<void> {
     return await this.monitoringService.onWebhook(subsystem, metric, data);
   }
 }

@@ -50,11 +50,11 @@ export class NodeHealthObserver extends MetricObserver<NodesHealth> {
     readonly nodeService: NodeService,
     readonly mailService: MailService,
   ) {
-    super(monitoringService, 'node', 'nodeHealth');
+    super(monitoringService, 'node', 'health');
   }
 
   @Interval(60000)
-  async fetch() {
+  async fetch(): Promise<NodesHealth> {
     const nodesData = await this.getNodesData();
     const monitoringData = this.generateMonitoringData(nodesData);
 
@@ -277,7 +277,7 @@ export class NodeHealthObserver extends MetricObserver<NodesHealth> {
     };
   }
 
-  private updateAllNodesStatus(allNodesHealthy: boolean, data: NodesHealth) {
+  private updateAllNodesStatus(allNodesHealthy: boolean, data: NodesHealth): void {
     data.allNodesHealthy = allNodesHealthy;
   }
 

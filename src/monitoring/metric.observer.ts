@@ -1,5 +1,5 @@
 import { NotImplementedException } from '@nestjs/common';
-import { BehaviorSubject, skip } from 'rxjs';
+import { BehaviorSubject, Observable, skip } from 'rxjs';
 import { MonitoringService } from './monitoring.service';
 
 export abstract class MetricObserver<T> {
@@ -31,11 +31,11 @@ export abstract class MetricObserver<T> {
     throw new NotImplementedException(errorMessage);
   }
 
-  protected emit(data: T) {
+  protected emit(data: T): void {
     this.$data.next(data);
   }
 
-  get subscription() {
+  get subscription(): Observable<T> {
     return this.$data.asObservable().pipe(skip(1));
   }
 

@@ -35,7 +35,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
     super(monitoringService, 'payment', 'combined');
   }
 
-  @Interval(60000)
+  @Interval(900000)
   async fetch() {
     const data = await this.getPayment();
 
