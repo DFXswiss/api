@@ -53,7 +53,7 @@ export class BuyCryptoService {
   }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOne(id, { relations: ['buy'] });
+    let entity = await this.buyCryptoRepo.findOne(id, { relations: ['buy', 'buy.user'] });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
     const buyIdBefore = entity.buy?.id;

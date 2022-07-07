@@ -11,7 +11,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Util } from 'src/shared/util';
 import { CfpVotes } from './dto/cfp-votes.dto';
-import { UserDetailDto } from './dto/user.dto';
+import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Between, Like, Not } from 'typeorm';
@@ -259,15 +259,12 @@ export class UserService {
   }
 
   async getUserCryptoFee(userId: number): Promise<number> {
-    const cryptoFee = await this.userRepo.findOne({
-      select: ['id', 'usedRef', 'accountType', 'cryptoFee'],
+    const user = await this.userRepo.findOne({
+      select: ['id', 'cryptoFee'],
       where: { id: userId },
     });
 
-    const baseFee = Config.crypto.fee;
-    if (cryptoFee != null) return baseFee;
-
-    return baseFee;
+    return Util.round((user?.cryptoFee ?? Config.crypto.fee) * 100, Config.defaultPercentageDecimal);
   }
 
   async getUserSellFee(userId: number): Promise<number> {
@@ -413,24 +410,29 @@ export class UserService {
       language: user.userData?.language,
       currency: user.userData?.currency,
 
-      ...(detailed && user.status !== UserStatus.ACTIVE
-        ? undefined
-        : {
-            ref: user.ref,
-            refFeePercent: user.refFeePercent,
-            refVolume: user.refVolume,
-            refCredit: user.refCredit,
-            paidRefCredit: user.paidRefCredit,
-            refCount: await this.userRepo.count({ usedRef: user.ref }),
-            refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
-          }),
-
       kycStatus: user.userData?.kycStatus,
       kycState: user.userData?.kycState,
       kycHash: user.userData?.kycHash,
       depositLimit: user.userData?.depositLimit,
       kycDataComplete: this.kycService.isDataComplete(user.userData),
       apiKeyCT: user.apiKeyCT,
+
+      ...(detailed ? await this.getUserDetails(user) : undefined),
+    };
+  }
+
+  private async getUserDetails(user: User): Promise<UserDetails> {
+    return {
+      ref: user.status === UserStatus.ACTIVE ? user.ref : undefined,
+      refFeePercent: user.refFeePercent,
+      refVolume: user.refVolume,
+      refCredit: user.refCredit,
+      paidRefCredit: user.paidRefCredit,
+      refCount: await this.userRepo.count({ usedRef: user.ref }),
+      refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
+      buyVolume: user.buyVolume,
+      sellVolume: user.sellVolume,
+      stakingBalance: user.stakingBalance,
     };
   }
 

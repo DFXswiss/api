@@ -58,7 +58,7 @@ export class CryptoRouteController {
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
     const fee = await this.getFees(userId);
 
-    const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(cryptos.map((b) => b.staking?.id)) } });
+    const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(cryptos.map((b) => b.targetDeposit?.id)) } });
     return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee, stakingRoutes)));
   }
 
@@ -71,9 +71,9 @@ export class CryptoRouteController {
     fee ??= await this.getFees(userId);
 
     return {
-      buyType: crypto.staking != null ? BuyType.STAKING : BuyType.WALLET,
+      buyType: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...crypto,
-      staking: await this.getStaking(userId, crypto.staking, stakingRoutes),
+      staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       fee,
     };
   }

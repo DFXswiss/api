@@ -4,7 +4,7 @@ import { DepositRoute } from '../route/deposit-route.entity';
 
 export enum Blockchain {
   DEFICHAIN = 'DeFiChain',
-  Bitcoin = 'Bitcoin',
+  BITCOIN = 'Bitcoin',
 }
 
 @Entity()

@@ -98,7 +98,7 @@ export class User extends IEntity {
   sells: Sell[];
 
   @OneToMany(() => CryptoRoute, (crypto) => crypto.user)
-  cryptos: CryptoRoute[];
+  cryptoRoutes: CryptoRoute[];
 
   @OneToMany(() => Staking, (staking) => staking.user)
   stakingRoutes: Staking[];

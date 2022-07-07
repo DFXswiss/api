@@ -14,7 +14,7 @@ export class DepositService {
     return this.depositRepo.find();
   }
 
-  async getNextDeposit(blockchain: Blockchain = Blockchain.DEFICHAIN): Promise<Deposit> {
+  async getNextDeposit(blockchain: Blockchain): Promise<Deposit> {
     // does not work with find options
     return this.depositRepo
       .createQueryBuilder('deposit')

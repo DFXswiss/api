@@ -22,7 +22,7 @@ export interface UserDto {
   apiKeyCT: string;
 }
 
-export interface UserDetailDto extends UserDto {
+export interface UserDetails {
   ref?: string;
   refFeePercent?: number;
   refVolume: number;
@@ -30,4 +30,9 @@ export interface UserDetailDto extends UserDto {
   paidRefCredit: number;
   refCount: number;
   refCountActive: number;
+  buyVolume: number;
+  sellVolume: number;
+  stakingBalance: number;
 }
+
+export type UserDetailDto = UserDto & UserDetails;

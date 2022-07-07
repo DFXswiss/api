@@ -14,6 +14,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
+import { Blockchain } from '../deposit/deposit.entity';
 
 @Injectable()
 export class SellService {
@@ -61,7 +62,10 @@ export class SellService {
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = { id: userId } as User;
-    sell.deposit = await this.depositService.getNextDeposit();
+
+    sell.fiat = fiat;
+    sell.deposit = await this.depositService.getNextDeposit(Blockchain.DEFICHAIN);
+
     sell.bankAccount = await this.bankAccountService.getBankAccount(dto.iban, userId);
 
     return this.sellRepo.save(sell);
