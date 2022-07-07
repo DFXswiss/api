@@ -62,7 +62,10 @@ export class SellService {
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = { id: userId } as User;
+
+    sell.fiat = fiat;
     sell.deposit = await this.depositService.getNextDeposit(Blockchain.DEFICHAIN);
+
     sell.bankAccount = await this.bankAccountService.getBankAccount(dto.iban, userId);
 
     return this.sellRepo.save(sell);

@@ -126,7 +126,7 @@ export class AdminController {
       updatedSince,
       extended,
       maxLine,
-      sorting,
+      sorting = 'ASC',
     }: {
       table: string;
       min?: string;
@@ -138,7 +138,6 @@ export class AdminController {
   ): Promise<any> {
     const id = min ? +min : 1;
     const maxResult = maxLine ? +maxLine : undefined;
-    sorting = sorting ? sorting : 'ASC';
     const updated = updatedSince ? new Date(updatedSince) : new Date(0);
 
     let data: any[];
@@ -193,7 +192,7 @@ export class AdminController {
     id: number,
     updated: Date,
     maxResult: number,
-    sorting: string,
+    sorting: 'ASC' | 'DESC',
   ): Promise<any[]> {
     const buyCryptoData = await getConnection()
       .createQueryBuilder()
@@ -207,6 +206,8 @@ export class AdminController {
       .where('bank_tx.id >= :id', { id })
       .andWhere('bank_tx.updated >= :updated', { updated })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_CRYPTO })
+      .orderBy('bank_tx.id', sorting)
+      .take(maxResult)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -226,6 +227,8 @@ export class AdminController {
       .where('bank_tx.id >= :id', { id })
       .andWhere('bank_tx.updated >= :updated', { updated })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_FIAT })
+      .orderBy('bank_tx.id', sorting)
+      .take(maxResult)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -241,6 +244,8 @@ export class AdminController {
         crypto: BankTxType.BUY_CRYPTO,
         fiat: BankTxType.BUY_FIAT,
       })
+      .orderBy('bank_tx.id', sorting)
+      .take(maxResult)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
