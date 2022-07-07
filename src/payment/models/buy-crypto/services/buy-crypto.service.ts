@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BuyService } from '../../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
-import { Between, In, IsNull } from 'typeorm';
+import { Between, In } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';

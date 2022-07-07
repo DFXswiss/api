@@ -51,7 +51,7 @@ export class BitcoinInputService {
   }
 
   // --- INPUT HANDLING --- //
-  @Interval(2000)
+  @Interval(200000)
   async checkInputs(): Promise<void> {
     if (!this.lock.acquire()) return;
 

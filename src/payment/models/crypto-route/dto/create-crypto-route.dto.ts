@@ -8,14 +8,10 @@ import { Blockchain } from '../../deposit/deposit.entity';
 import { StakingDto } from '../../staking/dto/staking.dto';
 
 export class CreateCryptoRouteDto {
-  @IsNotEmptyObject()
-  @ValidateNested()
   @Type(() => EntityDto)
   @IsEnum(BuyType)
   buyType: BuyType;
 
-  @IsNotEmptyObject()
-  @ValidateNested()
   @Type(() => EntityDto)
   @IsEnum(Blockchain)
   blockchain: Blockchain;
@@ -32,5 +28,5 @@ export class CreateCryptoRouteDto {
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  staking: StakingDto;
+  targetDeposit: StakingDto;
 }

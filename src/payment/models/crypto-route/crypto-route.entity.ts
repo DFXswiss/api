@@ -6,7 +6,7 @@ import { DepositRoute } from '../route/deposit-route.entity';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { Deposit } from '../deposit/deposit.entity';
 
-@ChildEntity()
+@ChildEntity('Crypto')
 export class CryptoRoute extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   annualVolume: number;
