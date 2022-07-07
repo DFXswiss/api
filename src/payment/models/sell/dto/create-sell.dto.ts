@@ -12,7 +12,6 @@ export class CreateSellDto {
 
   @ApiProperty()
   @IsNotEmptyObject()
-  @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   fiat: Fiat;

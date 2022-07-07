@@ -15,7 +15,6 @@ export class CreateStakingDto {
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.rewardType === PayoutType.BANK_ACCOUNT)
   @IsNotEmptyObject()
-  @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   rewardSell?: Sell;
@@ -23,7 +22,6 @@ export class CreateStakingDto {
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.rewardType === PayoutType.WALLET)
   @IsNotEmptyObject()
-  @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   rewardAsset: Asset;
@@ -36,7 +34,6 @@ export class CreateStakingDto {
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.paybackType === PayoutType.BANK_ACCOUNT)
   @IsNotEmptyObject()
-  @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   paybackSell?: Sell;
@@ -44,7 +41,6 @@ export class CreateStakingDto {
   @ApiPropertyOptional()
   @ValidateIf((b: CreateStakingDto) => b.paybackType === PayoutType.WALLET)
   @IsNotEmptyObject()
-  @IsObject()
   @ValidateNested()
   @Type(() => EntityDto)
   paybackAsset: Asset;
