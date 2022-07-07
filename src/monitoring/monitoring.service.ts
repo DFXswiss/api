@@ -142,8 +142,8 @@ export class MonitoringService {
   }
 
   private subscribeToUpdates(observer: MetricObserver<unknown>): void {
-    observer.subscription.subscribe((data: unknown) =>
-      this.updateSystemState.call(this, observer.subsystem, observer.metric, data),
+    observer.$subscription.subscribe((data: unknown) =>
+      this.updateSystemState(observer.subsystem, observer.metric, data),
     );
   }
 

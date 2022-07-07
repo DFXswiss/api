@@ -35,7 +35,7 @@ export abstract class MetricObserver<T> {
     this.$data.next(data);
   }
 
-  get subscription(): Observable<T> {
+  get $subscription(): Observable<T> {
     return this.$data.asObservable().pipe(skip(1));
   }
 
