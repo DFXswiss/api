@@ -29,7 +29,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   returnTxId: string;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'integer', nullable: true })
   blockHeight: number;
 
   @Column({ type: 'float' })

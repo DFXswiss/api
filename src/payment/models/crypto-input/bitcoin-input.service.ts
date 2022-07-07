@@ -51,7 +51,7 @@ export class BitcoinInputService {
   }
 
   // --- INPUT HANDLING --- //
-  @Interval(200000)
+  @Interval(2000)
   async checkInputs(): Promise<void> {
     if (!this.lock.acquire()) return;
 
@@ -131,7 +131,6 @@ export class BitcoinInputService {
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
       outTxId: '', // will be set after crypto forward
-      blockHeight: 0,
       amount: utxo.amount.toNumber(),
       asset: assetEntity,
       route: route,

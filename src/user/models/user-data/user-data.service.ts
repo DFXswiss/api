@@ -167,6 +167,8 @@ export class UserDataService {
       .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
       .addSelect('SUM(sellVolume)', 'sellVolume')
       .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
+      .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
       .addSelect('SUM(stakingBalance)', 'stakingBalance')
       .where('userDataId = :id', { id: userDataId })
       .getRawOne<{
@@ -174,6 +176,8 @@ export class UserDataService {
         annualBuyVolume: number;
         sellVolume: number;
         annualSellVolume: number;
+        cryptoVolume: number;
+        annualCryptoVolume: number;
         stakingBalance: number;
       }>();
 
@@ -182,6 +186,8 @@ export class UserDataService {
       annualBuyVolume: Util.round(volumes.annualBuyVolume, Config.defaultVolumeDecimal),
       sellVolume: Util.round(volumes.sellVolume, Config.defaultVolumeDecimal),
       annualSellVolume: Util.round(volumes.annualSellVolume, Config.defaultVolumeDecimal),
+      cryptoVolume: Util.round(volumes.cryptoVolume, Config.defaultVolumeDecimal),
+      annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
       stakingBalance: Util.round(volumes.stakingBalance, Config.defaultVolumeDecimal),
     });
   }
