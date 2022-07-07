@@ -215,14 +215,4 @@ export class BuyCryptoService {
       cryptoCurrency: v.buy?.asset?.name,
     }));
   }
-
-  // Monitoring
-
-  async getIncompleteTransactions(): Promise<number> {
-    return await this.buyCryptoRepo.count({ mailSendDate: IsNull() });
-  }
-
-  async getLastOutputDate(): Promise<Date> {
-    return await this.buyCryptoRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
-  }
 }

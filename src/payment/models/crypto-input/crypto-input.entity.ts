@@ -7,6 +7,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
+import { CryptoRoute } from '../crypto-route/crypto-route.entity';
 
 export enum CryptoInputType {
   RETURN = 'Return',
@@ -47,7 +48,7 @@ export class CryptoInput extends IEntity {
   type: CryptoInputType;
 
   @ManyToOne(() => DepositRoute, { nullable: false })
-  route: Sell | Staking;
+  route: Sell | Staking | CryptoRoute;
 
   @Column({ default: false })
   isConfirmed: boolean;

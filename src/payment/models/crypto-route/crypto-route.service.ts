@@ -18,27 +18,38 @@ import { RouteType } from '../route/deposit-route.entity';
 @Injectable()
 export class CryptoRouteService {
   constructor(
-    private readonly cryptoRepo: CryptoRouteRepository,
+    private readonly cryptoRouteRepo: CryptoRouteRepository,
     private readonly assetService: AssetService,
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
   ) {}
 
+  async getCryptoByAddress(depositAddress: string): Promise<CryptoRoute> {
+    // does not work with find options
+    return this.cryptoRouteRepo
+      .createQueryBuilder('crypto')
+      .leftJoinAndSelect('crypto.deposit', 'deposit')
+      .leftJoinAndSelect('crypto.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .where('deposit.address = :addr', { addr: depositAddress })
+      .getOne();
+  }
+
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    this.cryptoRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+    this.cryptoRouteRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
   async updateVolume(cryptoId: number, volume: number, annualVolume: number): Promise<void> {
-    await this.cryptoRepo.update(cryptoId, {
+    await this.cryptoRouteRepo.update(cryptoId, {
       volume: Util.round(volume, Config.defaultVolumeDecimal),
       annualVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
     });
 
     // update user volume
-    const { user } = await this.cryptoRepo.findOne({
+    const { user } = await this.cryptoRouteRepo.findOne({
       where: { id: cryptoId },
       relations: ['user'],
       select: ['id', 'user'],
@@ -48,7 +59,7 @@ export class CryptoRouteService {
   }
 
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number }> {
-    return this.cryptoRepo
+    return this.cryptoRouteRepo
       .createQueryBuilder('crypto')
       .select('SUM(volume)', 'volume')
       .addSelect('SUM(annualVolume)', 'annualVolume')
@@ -57,7 +68,7 @@ export class CryptoRouteService {
   }
 
   async getTotalVolume(): Promise<number> {
-    return this.cryptoRepo
+    return this.cryptoRouteRepo
       .createQueryBuilder('crypto')
       .select('SUM(volume)', 'volume')
       .getRawOne<{ volume: number }>()
@@ -79,7 +90,7 @@ export class CryptoRouteService {
     if (dto.buyType === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // check if exists
-    const existing = await this.cryptoRepo.findOne({
+    const existing = await this.cryptoRouteRepo.findOne({
       where: {
         asset: dto.asset,
         ...(dto.buyType === BuyType.WALLET ? { asset: asset, staking: IsNull() } : { staking: staking?.deposit }),
@@ -90,7 +101,7 @@ export class CryptoRouteService {
     if (existing) throw new ConflictException('Crypto route already exists');
 
     // create the entity
-    const crypto = this.cryptoRepo.create(dto);
+    const crypto = this.cryptoRouteRepo.create(dto);
     crypto.user = { id: userId } as User;
     crypto.asset = asset;
     crypto.type = RouteType.CRYPTO;
@@ -98,21 +109,21 @@ export class CryptoRouteService {
     crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
 
     // save
-    return this.cryptoRepo.save(crypto);
+    return this.cryptoRouteRepo.save(crypto);
   }
 
   async getUserCryptos(userId: number): Promise<CryptoRoute[]> {
-    return this.cryptoRepo.find({ user: { id: userId } });
+    return this.cryptoRouteRepo.find({ user: { id: userId } });
   }
 
   async updateCrypto(userId: number, cryptoId: number, dto: UpdateCryptoRouteDto): Promise<CryptoRoute> {
-    const crypto = await this.cryptoRepo.findOne({ id: cryptoId, user: { id: userId } });
+    const crypto = await this.cryptoRouteRepo.findOne({ id: cryptoId, user: { id: userId } });
     if (!crypto) throw new NotFoundException('Crypto route not found');
 
-    return await this.cryptoRepo.save({ ...crypto, ...dto });
+    return await this.cryptoRouteRepo.save({ ...crypto, ...dto });
   }
 
   async count(): Promise<number> {
-    return this.cryptoRepo.count();
+    return this.cryptoRouteRepo.count();
   }
 }

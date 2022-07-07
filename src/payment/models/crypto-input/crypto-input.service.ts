@@ -255,14 +255,7 @@ export class CryptoInputService {
       usdtAmount: usdtAmount,
       isConfirmed: false,
       amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
-      type:
-        route.type === RouteType.SELL
-          ? route.id == this.cryptoCryptoRouteId
-            ? CryptoInputType.CRYPTO_CRYPTO
-            : CryptoInputType.BUY_FIAT
-          : route.type === RouteType.STAKING
-          ? CryptoInputType.CRYPTO_STAKING
-          : CryptoInputType.UNKNOWN,
+      type: CryptoInputType.CRYPTO_CRYPTO,
     });
   }
 
