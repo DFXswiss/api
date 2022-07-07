@@ -80,7 +80,9 @@ export class CryptoRouteService {
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        ...(dto.buyType === BuyType.WALLET ? { asset: asset, targetDeposit: IsNull() } : { targetDeposit: staking }),
+        ...(dto.buyType === BuyType.WALLET
+          ? { asset: asset, targetDeposit: IsNull() }
+          : { targetDeposit: staking.deposit }),
         user: { id: userId },
         deposit: { blockchain: dto.blockchain },
       },
