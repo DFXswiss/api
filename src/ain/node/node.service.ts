@@ -122,8 +122,8 @@ export class NodeService {
     });
 
     this.allNodes.set(NodeType.BTC_INPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.btc_input.active, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.btc_input.passive, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.btcInput.active, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.btcInput.passive, NodeMode.PASSIVE),
     });
   }
 

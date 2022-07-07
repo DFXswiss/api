@@ -259,15 +259,12 @@ export class UserService {
   }
 
   async getUserCryptoFee(userId: number): Promise<number> {
-    const cryptoFee = await this.userRepo.findOne({
-      select: ['id', 'usedRef', 'accountType', 'cryptoFee'],
+    const user = await this.userRepo.findOne({
+      select: ['id', 'cryptoFee'],
       where: { id: userId },
     });
 
-    const baseFee = Config.crypto.fee;
-    if (cryptoFee != null) return baseFee;
-
-    return baseFee;
+    return Util.round((user?.cryptoFee ?? Config.crypto.fee) * 100, Config.defaultPercentageDecimal);
   }
 
   async getUserSellFee(userId: number): Promise<number> {

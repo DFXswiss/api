@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { In } from 'typeorm';
-import { Deposit } from '../deposit/deposit.entity';
+import { Blockchain, Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
@@ -98,7 +98,7 @@ export class StakingService {
   ): Promise<Staking> {
     staking ??= this.stakingRepo.create({
       user: { id: userId },
-      deposit: await this.depositService.getNextDeposit(),
+      deposit: await this.depositService.getNextDeposit(Blockchain.DEFICHAIN),
     });
 
     staking.rewardDeposit =

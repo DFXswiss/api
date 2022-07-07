@@ -13,7 +13,6 @@ import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { CryptoRoute } from './crypto-route.entity';
 import { DepositService } from '../deposit/deposit.service';
-import { RouteType } from '../route/deposit-route.entity';
 
 @Injectable()
 export class CryptoRouteService {
@@ -74,16 +73,17 @@ export class CryptoRouteService {
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking
-    const staking =
+    const targetDeposit =
       dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.buyType === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
+    if (dto.buyType === BuyType.STAKING && !targetDeposit) throw new BadRequestException('Staking route not found');
 
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
         asset: dto.asset,
-        ...(dto.buyType === BuyType.WALLET ? { asset: asset, staking: IsNull() } : { staking: staking?.deposit }),
+        ...(dto.buyType === BuyType.WALLET ? { asset: asset, staking: IsNull() } : { staking: targetDeposit?.deposit }),
         user: { id: userId },
+        blockchain: dto.blockchain,
       },
       relations: ['deposit'],
     });
@@ -93,8 +93,7 @@ export class CryptoRouteService {
     const crypto = this.cryptoRepo.create(dto);
     crypto.user = { id: userId } as User;
     crypto.asset = asset;
-    crypto.type = RouteType.CRYPTO;
-    crypto.staking = staking?.deposit ?? null;
+    crypto.targetDeposit = targetDeposit?.deposit ?? null;
     crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
 
     // save
@@ -110,9 +109,5 @@ export class CryptoRouteService {
     if (!crypto) throw new NotFoundException('Crypto route not found');
 
     return await this.cryptoRepo.save({ ...crypto, ...dto });
-  }
-
-  async count(): Promise<number> {
-    return this.cryptoRepo.count();
   }
 }
