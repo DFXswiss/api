@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { plainToClass, Type } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString, ValidateNested, validateSync } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested, validateSync } from 'class-validator';
 import { NodeService } from 'src/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
@@ -36,12 +36,14 @@ class BankingBotFileDataDto {
 }
 
 class BankingBotDataDto {
-  @IsOptional()
+  @IsNotEmpty()
+  @ValidateIf((o) => !o.dfx || o.bank)
   @ValidateNested()
   @Type(() => BankingBotFileDataDto)
   bank: BankingBotFileDataDto;
 
-  @IsOptional()
+  @IsNotEmpty()
+  @ValidateIf((o) => !o.bank || o.dfx)
   @ValidateNested()
   @Type(() => BankingBotFileDataDto)
   dfx: BankingBotFileDataDto;
@@ -53,7 +55,7 @@ export class BankingBotObserver extends MetricObserver<BankingBotData> {
     super(monitoringService, 'bankingBot', 'logs');
   }
 
-  onWebhook(_dto: unknown): void {
+  async onWebhook(_dto: unknown): Promise<void> {
     const dto = this.createDto(_dto);
     const validationErrors = validateSync(dto);
 
@@ -61,13 +63,14 @@ export class BankingBotObserver extends MetricObserver<BankingBotData> {
       throw new BadRequestException(validationErrors, 'Invalid banking-bot logs input');
     }
 
-    const data = this.$data.value || this.initBankingBotData();
+    const data = this.$data.value || (await this.initBankingBotData());
 
     if (!data.bank) data.bank = [];
     if (!data.dfx) data.dfx = [];
 
-    if (dto.bank) data.bank.push(dto.bank);
-    if (dto.dfx) data.dfx.push(dto.dfx);
+    // reducing from dto to simple objects to pas isEqual check in monitoring.service
+    if (dto.bank) data.bank.push({ ...dto.bank });
+    if (dto.dfx) data.dfx.push({ ...dto.dfx });
 
     this.emit(data);
   }
@@ -82,10 +85,21 @@ export class BankingBotObserver extends MetricObserver<BankingBotData> {
     return dto;
   }
 
-  private initBankingBotData(): BankingBotData {
-    return {
-      bank: [],
-      dfx: [],
-    };
+  private async initBankingBotData(): Promise<BankingBotData> {
+    const state = await this.monitoringService.loadState();
+    const data = state?.[this.subsystem]?.[this.metric]?.data as BankingBotData;
+
+    const isValid = this.isParsedDataValid(data);
+
+    return data && isValid
+      ? data
+      : {
+          bank: [],
+          dfx: [],
+        };
+  }
+
+  private isParsedDataValid(data: BankingBotData | any): boolean {
+    return data && data.bank && Array.isArray(data.bank) && data.dfx && Array.isArray(data.dfx);
   }
 }

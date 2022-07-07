@@ -1,9 +1,10 @@
-import { isEqual } from 'lodash';
+import { cloneDeep, isEqual } from 'lodash';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BehaviorSubject, debounceTime, skip } from 'rxjs';
+import { BehaviorSubject, pairwise } from 'rxjs';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
+import { MailService } from 'src/shared/services/mail.service';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
@@ -12,7 +13,7 @@ export class MonitoringService {
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
   #observers: Map<SubsystemName, SubsystemObservers> = new Map();
 
-  constructor(private systemStateSnapshotRepo: SystemStateSnapshotRepository) {
+  constructor(private systemStateSnapshotRepo: SystemStateSnapshotRepository, readonly mailService: MailService) {
     this.initState();
   }
 
@@ -29,6 +30,23 @@ export class MonitoringService {
 
     if (subsystem && metric) {
       return this.getMetric(subsystem, metric);
+    }
+  }
+
+  async loadState(): Promise<SystemState | null> {
+    try {
+      const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ order: { id: 'DESC' } });
+
+      if (!latestPersistedState) {
+        return null;
+      }
+
+      return JSON.parse(latestPersistedState.data);
+    } catch (e) {
+      console.error('Failed to parse loaded system state. Defaulting to empty state', e);
+      this.mailService.sendErrorMail('Monitoring Error. Failed to parse loaded system state.', [e]);
+
+      return null;
     }
   }
 
@@ -61,29 +79,17 @@ export class MonitoringService {
     const state = await this.loadState();
     state && this.#$state.next(state);
 
-    this.#$state.pipe(skip(1), debounceTime(5000)).subscribe((state) => this.persist(state));
+    this.#$state.pipe(pairwise()).subscribe(([prevState, newState]) => this.persist(prevState, newState));
   }
 
-  private async loadState(): Promise<SystemState | null> {
-    const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ order: { id: 'DESC' } });
-
-    if (!latestPersistedState) {
-      return null;
-    }
-
+  private async persist(prevState: SystemState, newState: SystemState) {
     try {
-      return JSON.parse(latestPersistedState.data);
+      if (this.hasStateChanged(prevState, newState)) {
+        this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
+      }
     } catch (e) {
-      console.warn('Failed to parse loaded system state. Defaulting to empty state', e);
-      return null;
-    }
-  }
-
-  private async persist(newState: SystemState) {
-    const persistedState = await this.loadState();
-
-    if (this.hasStateChanged(persistedState, newState)) {
-      this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
+      console.error('Error persisting the state', e);
+      this.mailService.sendErrorMail('Monitoring Error. Error persisting the state.', [e]);
     }
   }
 
@@ -96,7 +102,7 @@ export class MonitoringService {
 
         if (!prevMetricState && newMetricState) return true;
 
-        return !isEqual(prevMetricState, newMetricState);
+        return !isEqual(prevMetricState.data, newMetricState.data);
       }),
     );
   }
@@ -148,13 +154,20 @@ export class MonitoringService {
   }
 
   private updateSystemState(subsystem: string, metric: string, data: unknown) {
-    const newSubsystemState = this.#$state.value[subsystem] ?? {};
-    const newMetricState = { data, updated: new Date() };
+    try {
+      const currentState = cloneDeep(this.#$state.value);
 
-    newSubsystemState[metric] = newMetricState;
+      const newSubsystemState = currentState[subsystem] ?? {};
+      const newMetricState = { data, updated: new Date() };
 
-    const newSystemState = { ...this.#$state.value, [subsystem]: newSubsystemState };
+      newSubsystemState[metric] = newMetricState;
 
-    this.#$state.next(newSystemState);
+      const newSystemState = { ...currentState, [subsystem]: newSubsystemState };
+
+      this.#$state.next(newSystemState);
+    } catch (e) {
+      console.error('Error updating monitoring state', e);
+      this.mailService.sendErrorMail('Monitoring Error. Updating monitoring state.', [e]);
+    }
   }
 }

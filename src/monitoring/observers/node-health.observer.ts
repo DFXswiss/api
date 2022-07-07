@@ -269,12 +269,7 @@ export class NodeHealthObserver extends MetricObserver<NodesHealth> {
   }
 
   private resetMailState(node: NodeType, state: NodesHealth): void {
-    state.nodes[node].mails = {
-      bothNodesDown: undefined,
-      activeDownPassiveNotConfigured: undefined,
-      passiveDownActiveNotConfigured: undefined,
-      passiveDownActiveRemainsUp: undefined,
-    };
+    state.nodes[node].mails = {};
   }
 
   private updateAllNodesStatus(allNodesHealthy: boolean, data: NodesHealth): void {
