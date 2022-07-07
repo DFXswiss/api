@@ -74,16 +74,17 @@ export class CryptoRouteService {
 
     // check staking
     const targetDeposit =
-      dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
+      dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.targetDeposit.id, userId) : null;
     if (dto.buyType === BuyType.STAKING && !targetDeposit) throw new BadRequestException('Staking route not found');
 
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        asset: dto.asset,
-        ...(dto.buyType === BuyType.WALLET ? { asset: asset, staking: IsNull() } : { staking: targetDeposit?.deposit }),
+        ...(dto.buyType === BuyType.WALLET
+          ? { asset: asset, targetDeposit: IsNull() }
+          : { targetDeposit: targetDeposit }),
         user: { id: userId },
-        blockchain: dto.blockchain,
+        deposit: { blockchain: dto.blockchain },
       },
       relations: ['deposit'],
     });
