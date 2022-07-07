@@ -1,6 +1,6 @@
 import { cloneDeep, isEqual } from 'lodash';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BehaviorSubject, pairwise } from 'rxjs';
+import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
@@ -38,6 +38,7 @@ export class MonitoringService {
       const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ order: { id: 'DESC' } });
 
       if (!latestPersistedState) {
+        console.warn('No monitoring state found in the database.');
         return null;
       }
 
@@ -55,7 +56,8 @@ export class MonitoringService {
   async onWebhook(subsystem: string, metric: string, data: unknown) {
     const observer = this.getMetricObserver(subsystem, metric);
 
-    observer.onWebhook(data);
+    // caution - keep await to catch possible exception in controller stack
+    await observer.onWebhook(data);
   }
 
   // *** OBSERVERS REGISTRATION *** //
@@ -79,13 +81,15 @@ export class MonitoringService {
     const state = await this.loadState();
     state && this.#$state.next(state);
 
-    this.#$state.pipe(pairwise()).subscribe(([prevState, newState]) => this.persist(prevState, newState));
+    this.#$state
+      .pipe(debounceTime(2000), pairwise())
+      .subscribe(([prevState, newState]) => this.persist(prevState, newState));
   }
 
   private async persist(prevState: SystemState, newState: SystemState) {
     try {
       if (this.hasStateChanged(prevState, newState)) {
-        this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
+        await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
       }
     } catch (e) {
       console.error('Error persisting the state', e);
@@ -158,7 +162,7 @@ export class MonitoringService {
       const currentState = cloneDeep(this.#$state.value);
 
       const newSubsystemState = currentState[subsystem] ?? {};
-      const newMetricState = { data, updated: new Date() };
+      const newMetricState = { data: cloneDeep(data), updated: new Date() };
 
       newSubsystemState[metric] = newMetricState;
 

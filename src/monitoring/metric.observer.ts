@@ -24,7 +24,7 @@ export abstract class MetricObserver<T> {
   }
 
   // default implementation - override in specific observers to implement custom webhook for metric
-  onWebhook(data: unknown): void {
+  async onWebhook(data: unknown): Promise<void> {
     const errorMessage = `Webhook is not supported by subsystem: '${this.subsystem}'', metric: '${this.metric}'. Ignoring incoming data`;
     console.warn(errorMessage, data);
 
