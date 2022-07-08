@@ -14,6 +14,7 @@ export enum NodeType {
   OUTPUT = 'out',
   INT = 'int',
   REF = 'ref',
+  BTC_INPUT = 'btc-input',
 }
 
 interface NodeError {
@@ -119,6 +120,11 @@ export class NodeService {
       [NodeMode.ACTIVE]: this.createNodeClient(Config.node.ref.active, NodeMode.ACTIVE),
       [NodeMode.PASSIVE]: this.createNodeClient(Config.node.ref.passive, NodeMode.PASSIVE),
     });
+
+    this.allNodes.set(NodeType.BTC_INPUT, {
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.btcInput.active, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.btcInput.passive, NodeMode.PASSIVE),
+    });
   }
 
   private createNodeClient(url: string | undefined, mode: NodeMode): NodeClient | null {
@@ -131,6 +137,7 @@ export class NodeService {
     this.connectedNodes.set(NodeType.OUTPUT, this.setConnectedNode(NodeType.OUTPUT));
     this.connectedNodes.set(NodeType.INT, this.setConnectedNode(NodeType.INT));
     this.connectedNodes.set(NodeType.REF, this.setConnectedNode(NodeType.REF));
+    this.connectedNodes.set(NodeType.BTC_INPUT, this.setConnectedNode(NodeType.BTC_INPUT));
   }
 
   private setConnectedNode(type: NodeType): BehaviorSubject<NodeClient | null> {

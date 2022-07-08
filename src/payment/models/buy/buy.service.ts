@@ -117,8 +117,4 @@ export class BuyService {
 
     return await this.buyRepo.save({ ...buy, ...dto });
   }
-
-  async count(): Promise<number> {
-    return this.buyRepo.count();
-  }
 }

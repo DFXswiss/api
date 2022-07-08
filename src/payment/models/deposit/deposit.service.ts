@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
-import { Deposit } from './deposit.entity';
+import { Blockchain, Deposit } from './deposit.entity';
 
 @Injectable()
 export class DepositService {
@@ -14,12 +14,12 @@ export class DepositService {
     return this.depositRepo.find();
   }
 
-  async getNextDeposit(): Promise<Deposit> {
+  async getNextDeposit(blockchain: Blockchain): Promise<Deposit> {
     // does not work with find options
     return this.depositRepo
       .createQueryBuilder('deposit')
       .leftJoin('deposit.route', 'route')
-      .where('route.id IS NULL')
+      .where('route.id IS NULL AND deposit.blockchain = :blockchain', { blockchain })
       .getOne();
   }
 
