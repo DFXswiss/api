@@ -14,6 +14,7 @@ export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
   TEST_POOL_SWAP = 'testpoolswap',
+  SEND = 'send',
 }
 
 export enum NodeMode {
@@ -88,6 +89,10 @@ export class NodeClient {
     return this.chain === 'mainnet' ? 0.00000132 : 0.0000222;
   }
 
+  get btcUtxoFee(): number {
+    return 0.000083;
+  }
+
   async getUtxo(): Promise<UTXO[]> {
     return this.callNode((c) => c.wallet.listUnspent());
   }
@@ -116,6 +121,24 @@ export class NodeClient {
           'number',
         ),
       true,
+    );
+  }
+
+  async send(addressTo: string, txId: string, amount: number, vout: number): Promise<string> {
+    return this.callNode(
+      (c) =>
+        c.call(
+          NodeCommand.SEND,
+          [
+            [{ [addressTo]: this.roundAmount(amount - this.btcUtxoFee) }],
+            null,
+            'unset',
+            null,
+            { inputs: [{ txid: txId, vout: vout }], replaceable: true },
+          ],
+          'number',
+        ),
+      false,
     );
   }
 

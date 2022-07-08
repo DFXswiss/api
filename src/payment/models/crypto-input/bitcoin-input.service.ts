@@ -20,10 +20,10 @@ import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessib
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoRoute } from '../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
+import { Blockchain } from '../deposit/deposit.entity';
 
 @Injectable()
 export class BitcoinInputService {
-  private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
   private readonly lock = new Lock(7200);
 
   private client: NodeClient;
@@ -70,10 +70,8 @@ export class BitcoinInputService {
 
     const newInputs = await this.getAddressesWithFunds(utxos)
       // map to entities
-      .then((i) => this.createEntities(utxos))
-      .then((i) => i.filter((h) => h != null))
-      // check required balance
-      .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos)));
+      .then(() => this.createEntities(utxos))
+      .then((i) => i.filter((h) => h != null));
 
     newInputs.length > 0 && console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
 
@@ -138,14 +136,7 @@ export class BitcoinInputService {
       usdtAmount: usdtAmount,
       isConfirmed: false,
       amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
-      type:
-        route.type === RouteType.SELL
-          ? route.id == this.cryptoCryptoRouteId
-            ? CryptoInputType.CRYPTO_CRYPTO
-            : CryptoInputType.BUY_FIAT
-          : route.type === RouteType.STAKING
-          ? CryptoInputType.CRYPTO_STAKING
-          : CryptoInputType.UNKNOWN,
+      type: CryptoInputType.BUY_CRYPTO,
     });
   }
 
@@ -175,23 +166,33 @@ export class BitcoinInputService {
 
   private async forwardInputs(): Promise<void> {
     const inputs = await this.cryptoInputRepo.find({
-      where: { outTxId: '', amlCheck: AmlCheck.PASS },
+      where: {
+        outTxId: '',
+        amlCheck: AmlCheck.PASS,
+        route: { deposit: { blockchain: Blockchain.BITCOIN } },
+      },
       relations: ['route'],
     });
+
+    const utxos = await this.client.getUtxo();
 
     inputs.length > 0 && console.log(`Forwarding inputs (${inputs.length})`);
 
     for (const input of inputs) {
       try {
-        await this.forwardUtxo(input, Config.node.bitcoinWalletAddress);
+        const utxo = utxos.filter(
+          (i) =>
+            i.address == input.route.deposit.address && i.txid == input.inTxId && i.amount.toNumber() == input.amount,
+        );
+        await this.forwardUtxo(input, Config.node.bitcoinWalletAddress, utxo[0].vout);
       } catch (e) {
         console.error(`Failed to forward crypto input ${input.id}:`, e);
       }
     }
   }
 
-  private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
-    const outTxId = await this.client.sendCompleteUtxo(input.route.deposit.address, address, input.amount);
+  private async forwardUtxo(input: CryptoInput, address: string, vout: number): Promise<void> {
+    const outTxId = await this.client.send(address, input.inTxId, input.amount , vout);
     await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
   }
 
@@ -240,14 +241,5 @@ export class BitcoinInputService {
       (await this.cryptoRouteService.getCryptoByAddress(address)) ??
       (await this.stakingService.getStakingByAddress(address))
     );
-  }
-
-  private hasMatchingBalance(input: CryptoInput, utxo: UTXO[]): boolean {
-    const fund = utxo.find((u) => u.address === input.route.deposit.address && u.amount.toNumber() >= input.amount);
-    if (!fund) {
-      console.error('Ignoring input due to too low balance:', input);
-    }
-
-    return fund != null;
   }
 }

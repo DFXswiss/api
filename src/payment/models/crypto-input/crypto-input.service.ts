@@ -22,6 +22,7 @@ import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
+import { Blockchain } from '../deposit/deposit.entity';
 
 interface HistoryAmount {
   amount: number;
@@ -255,7 +256,14 @@ export class CryptoInputService {
       usdtAmount: usdtAmount,
       isConfirmed: false,
       amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
-      type: CryptoInputType.CRYPTO_CRYPTO,
+      type:
+        route.type === RouteType.SELL
+          ? route.id == this.cryptoCryptoRouteId
+            ? CryptoInputType.CRYPTO_CRYPTO
+            : CryptoInputType.BUY_FIAT
+          : route.type === RouteType.STAKING
+          ? CryptoInputType.CRYPTO_STAKING
+          : CryptoInputType.UNKNOWN,
     });
   }
 
@@ -290,7 +298,11 @@ export class CryptoInputService {
 
   private async forwardInputs(): Promise<void> {
     const inputs = await this.cryptoInputRepo.find({
-      where: { outTxId: '', amlCheck: AmlCheck.PASS },
+      where: {
+        outTxId: '',
+        amlCheck: AmlCheck.PASS,
+        route: { deposit: { blockchain: Blockchain.DEFICHAIN } },
+      },
       relations: ['route'],
     });
 

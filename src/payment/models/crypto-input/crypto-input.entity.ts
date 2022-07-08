@@ -13,12 +13,13 @@ export enum CryptoInputType {
   RETURN = 'Return',
   CRYPTO_STAKING = 'CryptoStaking',
   BUY_FIAT = 'BuyFiat',
+  BUY_CRYPTO = 'BuyCrypto',
   CRYPTO_CRYPTO = 'CryptoCrypto',
   UNKNOWN = 'Unknown',
 }
 
 @Entity()
-@Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route], { unique: true })
+@Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route, input.amount], { unique: true })
 export class CryptoInput extends IEntity {
   @Column({ length: 256 })
   inTxId: string;
