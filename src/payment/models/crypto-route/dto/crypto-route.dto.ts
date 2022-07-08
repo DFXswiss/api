@@ -10,5 +10,5 @@ export class CryptoRouteDto {
   volume: number;
   annualVolume: number;
   fee: number;
-  targetDeposit: StakingDto;
+  staking: StakingDto;
 }
