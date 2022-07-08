@@ -138,7 +138,7 @@ export class NodeClient {
           ],
           'number',
         ),
-      false,
+      true,
     );
   }
 

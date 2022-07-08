@@ -51,7 +51,7 @@ export class BitcoinInputService {
   }
 
   // --- INPUT HANDLING --- //
-  @Interval(2000)
+  @Interval(300000)
   async checkInputs(): Promise<void> {
     if (!this.lock.acquire()) return;
 
@@ -192,7 +192,7 @@ export class BitcoinInputService {
   }
 
   private async forwardUtxo(input: CryptoInput, address: string, vout: number): Promise<void> {
-    const outTxId = await this.client.send(address, input.inTxId, input.amount , vout);
+    const outTxId = await this.client.send(address, input.inTxId, input.amount, vout);
     await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
   }
 
