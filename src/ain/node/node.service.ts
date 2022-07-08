@@ -60,6 +60,7 @@ export class NodeService {
       this.checkNodePair(NodeType.OUTPUT),
       this.checkNodePair(NodeType.INT),
       this.checkNodePair(NodeType.REF),
+      // TODO: check BTC nodes
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
 
     this.handleNodeErrors(errors);
@@ -101,38 +102,42 @@ export class NodeService {
 
   private initAllNodes(): void {
     this.allNodes.set(NodeType.INPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.inp.active, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.inp.passive, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.inp.active, NodeType.INPUT, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.inp.passive, NodeType.INPUT, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.DEX, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.dex.active, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.dex.passive, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.dex.active, NodeType.DEX, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.dex.passive, NodeType.DEX, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.OUTPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.out.active, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.out.passive, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.out.active, NodeType.OUTPUT, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.out.passive, NodeType.OUTPUT, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.INT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.int.active, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.int.passive, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.int.active, NodeType.INT, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.int.passive, NodeType.INT, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.REF, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.ref.active, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.ref.passive, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.ref.active, NodeType.REF, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.ref.passive, NodeType.REF, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.BTC_INPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.btcInput.active, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.btcInput.passive, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.btcInput.active, NodeType.BTC_INPUT, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.btcInput.passive, NodeType.BTC_INPUT, NodeMode.PASSIVE),
     });
   }
 
-  private createNodeClient(url: string | undefined, mode: NodeMode): NodeClient | null {
-    return url ? new NodeClient(this.http, url, this.scheduler, mode) : null;
+  private createNodeClient(url: string | undefined, type: NodeType, mode: NodeMode): NodeClient | null {
+    return url
+      ? type === NodeType.BTC_INPUT
+        ? new BtcClient(this.http, url, this.scheduler, mode)
+        : new DeFiClient(this.http, url, this.scheduler, mode)
+      : null;
   }
 
   private initConnectedNodes(): void {
