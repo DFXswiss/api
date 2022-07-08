@@ -7,7 +7,7 @@ import { StakingService } from '../staking/staking.service';
 import { CryptoStaking } from './crypto-staking.entity';
 import { CryptoStakingRepository } from './crypto-staking.repository';
 import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
@@ -23,7 +23,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class CryptoStakingService {
-  private client: NodeClient;
+  private client: DeFiClient;
 
   constructor(
     nodeService: NodeService,

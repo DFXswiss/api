@@ -6,6 +6,8 @@ import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
+import { BtcClient } from './btc-client';
+import { DeFiClient } from './defi-client';
 import { NodeClient, NodeMode } from './node-client';
 
 export enum NodeType {
@@ -29,6 +31,8 @@ interface NodeCheckResult {
 }
 
 type MailMessage = string;
+
+type TypedNodeClient<T> = T extends NodeType.BTC_INPUT ? BtcClient : DeFiClient;
 
 @Injectable()
 export class NodeService {
@@ -63,31 +67,31 @@ export class NodeService {
 
   // --- PUBLIC API --- //
 
-  getConnectedNode(type: NodeType): Observable<NodeClient> {
+  getConnectedNode<T extends NodeType>(type: T): Observable<TypedNodeClient<T>> {
     const client = this.connectedNodes.get(type);
 
     if (client) {
-      return client.asObservable();
+      return client.asObservable() as Observable<TypedNodeClient<T>>;
     }
 
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
-  getCurrentConnectedNode(type: NodeType): NodeClient {
+  getCurrentConnectedNode<T extends NodeType>(type: T): TypedNodeClient<T> {
     const client = this.connectedNodes.get(type);
 
     if (client) {
-      return client.getValue();
+      return client.getValue() as TypedNodeClient<T>;
     }
 
     throw new BadRequestException(`No node for type '${type}'`);
   }
 
-  getNodeFromPool(type: NodeType, mode: NodeMode): NodeClient {
+  getNodeFromPool<T extends NodeType>(type: T, mode: NodeMode): TypedNodeClient<T> {
     const client = this.allNodes.get(type)[mode];
 
     if (client) {
-      return client;
+      return client as TypedNodeClient<T>;
     }
 
     throw new BadRequestException(`No node for type '${type}' and mode '${mode}'`);

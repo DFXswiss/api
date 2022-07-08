@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Config } from 'src/config/config';
@@ -15,8 +15,8 @@ import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 
 @Injectable()
 export class BuyCryptoOutService {
-  private outClient: NodeClient;
-  private dexClient: NodeClient;
+  private outClient: DeFiClient;
+  private dexClient: DeFiClient;
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,

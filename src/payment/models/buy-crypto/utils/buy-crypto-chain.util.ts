@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { Config } from 'src/config/config';
 
 @Injectable()
 export class BuyCryptoChainUtil {
   async getHistoryEntryForTx(
     txId: string,
-    client: NodeClient,
+    client: DeFiClient,
   ): Promise<{ txId: string; blockHeight: number; amounts: string[] }> {
     const transaction = await client.getTx(txId);
 

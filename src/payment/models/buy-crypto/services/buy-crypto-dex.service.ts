@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { IsNull } from 'typeorm';
@@ -11,7 +11,7 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 
 @Injectable()
 export class BuyCryptoDexService {
-  private dexClient: NodeClient;
+  private dexClient: DeFiClient;
 
   constructor(
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
