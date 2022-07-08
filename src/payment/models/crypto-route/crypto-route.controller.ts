@@ -80,16 +80,16 @@ export class CryptoRouteController {
 
   private async getStaking(
     userId: number,
-    staking?: Deposit,
+    deposit?: Deposit,
     stakingRoutes?: Staking[],
   ): Promise<StakingDto | undefined> {
-    if (staking == null) return undefined;
+    if (deposit == null) return undefined;
 
     return this.stakingService.toDto(
       userId,
       stakingRoutes
-        ? stakingRoutes.find((s) => s.deposit.id === staking.id)
-        : await this.stakingRepo.findOne({ where: { deposit: staking.id } }),
+        ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
+        : await this.stakingRepo.findOne({ where: { deposit: deposit.id } }),
     );
   }
 
