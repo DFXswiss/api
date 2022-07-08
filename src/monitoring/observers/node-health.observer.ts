@@ -41,7 +41,24 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     return poolStates;
   }
 
-  async handleErrors(poolStates: NodePoolState[]): Promise<void> {
+  private async getState(): Promise<NodePoolState[]> {
+    const errors = await this.nodeService.checkNodes();
+
+    // batch errors by pool and node and get state (up/down)
+    return Object.values(NodeType).map((type) => ({
+      type,
+      nodes: Object.values(NodeMode)
+        .map((mode) => ({
+          type,
+          mode,
+          errors: errors.filter((e) => e.nodeType === type && e.mode === mode).map((e) => e.message),
+        }))
+        .filter((n) => this.nodeService.allNodes.get(n.type)?.[n.mode])
+        .map((n) => ({ ...n, isDown: n.errors.length > 0 })),
+    }));
+  }
+
+  private async handleErrors(poolStates: NodePoolState[]): Promise<void> {
     const messages: MailMessage[] = [];
 
     // handle errors by pool
@@ -83,22 +100,5 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
 
       await this.mailService.sendErrorMail('Node Error', messages);
     }
-  }
-
-  private async getState(): Promise<NodePoolState[]> {
-    const errors = await this.nodeService.checkNodes();
-
-    // batch errors by pool and node and get state (up/down)
-    return Object.values(NodeType).map((type) => ({
-      type,
-      nodes: Object.values(NodeMode)
-        .map((mode) => ({
-          type,
-          mode,
-          errors: errors.filter((e) => e.nodeType === type && e.mode === mode).map((e) => e.message),
-        }))
-        .filter((n) => this.nodeService.allNodes.get(n.type)?.[n.mode])
-        .map((n) => ({ ...n, isDown: n.errors.length > 0 })),
-    }));
   }
 }
