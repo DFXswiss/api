@@ -872,7 +872,54 @@
     "created": "2022-04-12T13:02:46.352Z",
     "modified": "2022-05-31T11:06:00.509Z",
     "headers": [],
-    "params": [],
+    "params": [
+      {
+        "name": "subsystem",
+        "value": "bankingBot",
+        "isPath": false
+      },
+      {
+        "name": "metric",
+        "value": "logs",
+        "isPath": false
+      }
+    ],
+    "auth": {
+      "type": "inherit"
+    },
+    "tests": []
+  },
+  {
+    "_id": "8a44fd4e-15f2-44a4-913d-c24c7f549467",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fd2e8b01-0e57-4f22-bbb5-226617dc19db",
+    "name": "Post Monitoring Data",
+    "url": "{{url}}/v1/monitoring/data",
+    "method": "POST",
+    "sortNum": 410000,
+    "created": "2022-07-07T05:27:57.642Z",
+    "modified": "2022-07-07T05:29:37.379Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "subsystem",
+        "value": "bankingBot",
+        "isPath": false
+      },
+      {
+        "name": "metric",
+        "value": "logs",
+        "isPath": false
+      }
+    ],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"dfx\": {\n        \"date\": \"today\",\n        \"fileName\": \"test_file_name\",\n        \"status\": \"OK\",\n        \"message\": \"test message\"\n    }\n}",
+      "form": []
+    },
+    "auth": {
+      "type": "inherit"
+    },
     "tests": []
   },
   {

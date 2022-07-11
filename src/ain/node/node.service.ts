@@ -1,10 +1,9 @@
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Interval, SchedulerRegistry } from '@nestjs/schedule';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
 import { BtcClient } from './btc-client';
 import { DeFiClient } from './defi-client';
@@ -19,7 +18,7 @@ export enum NodeType {
   BTC_INPUT = 'btc-input',
 }
 
-interface NodeError {
+export interface NodeError {
   message: string;
   nodeType: NodeType;
   mode?: NodeMode;
@@ -30,31 +29,22 @@ interface NodeCheckResult {
   info: BlockchainInfo | undefined;
 }
 
-type MailMessage = string;
-
 type TypedNodeClient<T> = T extends NodeType.BTC_INPUT ? BtcClient : DeFiClient;
 
 @Injectable()
 export class NodeService {
-  #allNodesUp = true;
+  readonly #allNodes: Map<NodeType, Record<NodeMode, NodeClient | null>> = new Map();
+  readonly #connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
 
-  private readonly allNodes: Map<NodeType, Record<NodeMode, NodeClient | null>> = new Map();
-  private readonly connectedNodes: Map<NodeType, BehaviorSubject<NodeClient | null>> = new Map();
-
-  constructor(
-    private readonly http: HttpService,
-    private readonly mailService: MailService,
-    private readonly scheduler: SchedulerRegistry,
-  ) {
+  constructor(private readonly http: HttpService, private readonly scheduler: SchedulerRegistry) {
     this.initAllNodes();
     this.initConnectedNodes();
   }
 
-  // --- JOBS --- //
+  // --- HEALTH CHECK API --- //
 
-  @Interval(60000)
-  async checkNodes(): Promise<void> {
-    const errors = await Promise.all([
+  async checkNodes(): Promise<NodeError[]> {
+    return await Promise.all([
       this.checkNodePair(NodeType.INPUT),
       this.checkNodePair(NodeType.DEX),
       this.checkNodePair(NodeType.OUTPUT),
@@ -62,8 +52,6 @@ export class NodeService {
       this.checkNodePair(NodeType.REF),
       // TODO: check BTC nodes
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
-
-    this.handleNodeErrors(errors);
   }
 
   // --- PUBLIC API --- //
@@ -96,6 +84,15 @@ export class NodeService {
     }
 
     throw new BadRequestException(`No node for type '${type}' and mode '${mode}'`);
+  }
+
+  swapNode(type: NodeType, mode: NodeMode): void {
+    if (this.isNodeClientAvailable(type, mode)) {
+      console.log(`Swapped node ${type} to ${mode}`);
+      this.#connectedNodes.get(type)?.next(this.#allNodes.get(type)[mode]);
+    } else {
+      throw new Error(`Tried to swap to node ${type} to ${mode}, but NodeClient is not available in the pool`);
+    }
   }
 
   // --- INIT METHODS --- //
@@ -158,12 +155,12 @@ export class NodeService {
         console.warn(`Warning. Node ${type} passive is not available in NodeClient pool`);
       }
 
-      return new BehaviorSubject(this.allNodes.get(type)[NodeMode.ACTIVE]);
+      return new BehaviorSubject(this.#allNodes.get(type)[NodeMode.ACTIVE]);
     }
 
     if (passive && !active) {
       console.warn(`Warning. Node ${type} active is not available in NodeClient pool. Falling back to passive`);
-      return new BehaviorSubject(this.allNodes.get(type)[NodeMode.PASSIVE]);
+      return new BehaviorSubject(this.#allNodes.get(type)[NodeMode.PASSIVE]);
     }
 
     if (!active && !passive) {
@@ -181,7 +178,7 @@ export class NodeService {
   }
 
   private async checkNode(type: NodeType, mode: NodeMode): Promise<NodeCheckResult> {
-    const client = this.allNodes.get(type)[mode];
+    const client = this.#allNodes.get(type)[mode];
 
     if (!client) {
       return { errors: [], info: undefined };
@@ -227,118 +224,17 @@ export class NodeService {
     };
   }
 
-  private async handleNodeErrors(errors: NodeError[] = []): Promise<void> {
-    if (errors.length > 0) {
-      this.#allNodesUp = false;
-
-      console.error(`Node errors: ${errors.map((e) => e.message)}`);
-    }
-
-    const mailMessages = this.validateConnectedNodes(errors);
-
-    if (mailMessages.length > 0) {
-      await this.mailService.sendErrorMail('Node Error', [...mailMessages, ...errors.map((e) => e.message)]);
-    }
-
-    if (errors.length === 0 && !this.#allNodesUp) {
-      // recovered from errors in previous iteration
-      await this.mailService.sendErrorMail('Node Recovered', ['INFO. All Nodes are up and running again!']);
-      this.#allNodesUp = true;
-
-      console.log('All nodes recovered from errors');
-    }
-  }
-
-  private validateConnectedNodes(_errors: NodeError[] = []): MailMessage[] {
-    const mailMessages = [];
-    const errorsByNodes = this.batchErrorsByNodes(_errors);
-
-    errorsByNodes.forEach((errors: NodeError[] = [], type: NodeType) => {
-      const { value: connectedNode } = this.connectedNodes.get(type);
-
-      const activeNodeError = errors.find((e) => e.mode === NodeMode.ACTIVE);
-      const passiveNodeError = errors.find((e) => e.mode === NodeMode.PASSIVE);
-
-      if (!connectedNode || (errors.length === 0 && connectedNode.mode === NodeMode.ACTIVE)) {
-        return;
-      }
-
-      if (errors.length === 0 && connectedNode.mode === NodeMode.PASSIVE) {
-        try {
-          this.swapNode(type, NodeMode.ACTIVE);
-
-          console.log(`Node ${type} active is back up and running!`);
-          mailMessages.push(`OK. Node '${type}' switched back to Active, Passive remains up.`);
-        } catch {}
-
-        return;
-      }
-
-      if (activeNodeError && passiveNodeError) {
-        mailMessages.push(`ALERT! Node '${type}' is fully down, both Active and Passive.`);
-
-        return;
-      }
-
-      if (activeNodeError && connectedNode?.mode === NodeMode.ACTIVE) {
-        try {
-          this.swapNode(type, NodeMode.PASSIVE);
-          mailMessages.push(`WARN. Node '${type}' switched to Passive, Active is down.`);
-        } catch {
-          mailMessages.push(
-            `ALERT!. Node '${type}' is fully down. Active is down, Passive is not available in the NodeClient pool`,
-          );
-        }
-
-        return;
-      }
-
-      if (passiveNodeError && connectedNode?.mode === NodeMode.PASSIVE) {
-        try {
-          this.swapNode(type, NodeMode.ACTIVE);
-          mailMessages.push(`WARN. Node '${type}' switched to Active, Passive is down.`);
-        } catch {
-          mailMessages.push(
-            `ALERT!. Node '${type}' is fully down. Passive is down, Active is not available in the NodeClient pool`,
-          );
-        }
-
-        return;
-      }
-
-      if (passiveNodeError && connectedNode?.mode === NodeMode.ACTIVE) {
-        mailMessages.push(`WARN. Node '${type}' Passive is down. Active remains up.`);
-
-        return;
-      }
-    });
-
-    return mailMessages;
-  }
-
-  private batchErrorsByNodes(errors: NodeError[]): Map<NodeType, NodeError[]> {
-    const batch = new Map<NodeType, NodeError[]>();
-
-    Object.values(NodeType).forEach((type) => batch.set(type, []));
-
-    errors.forEach((error) => {
-      const existingErrors = batch.get(error.nodeType) ?? [];
-      batch.set(error.nodeType, [...existingErrors, error]);
-    });
-
-    return batch;
-  }
-
   private isNodeClientAvailable(type: NodeType, mode: NodeMode): boolean {
-    return !!this.allNodes.get(type)[mode];
+    return !!this.#allNodes.get(type)[mode];
   }
 
-  private swapNode(type: NodeType, mode: NodeMode): void {
-    if (this.isNodeClientAvailable(type, mode)) {
-      console.log(`Swapped node ${type} to ${mode}`);
-      this.connectedNodes.get(type)?.next(this.allNodes.get(type)[mode]);
-    } else {
-      throw new Error(`Tried to swap to node ${type} to ${mode}, but NodeClient is not available in the pool`);
-    }
+  // --- GETTERS --- //
+
+  get allNodes(): Map<NodeType, Record<NodeMode, NodeClient | null>> {
+    return this.#allNodes;
+  }
+
+  get connectedNodes(): Map<NodeType, BehaviorSubject<NodeClient | null>> {
+    return this.#connectedNodes;
   }
 }
