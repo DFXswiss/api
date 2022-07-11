@@ -43,7 +43,6 @@ resource nodeAppService 'Microsoft.Web/sites@2021-01-15' = {
 
     siteConfig: {
       alwaysOn: true
-      linuxFxVersion: 'COMPOSE|'
       httpLoggingEnabled: true
       logsDirectorySizeLimit: 100
       ipSecurityRestrictions: allowAllIps ? [] : [
@@ -86,7 +85,6 @@ resource nodeStgAppService 'Microsoft.Web/sites/slots@2021-01-15' = if (hasBacku
 
     siteConfig: {
       alwaysOn: true
-      linuxFxVersion: 'COMPOSE|'
       httpLoggingEnabled: true
       logsDirectorySizeLimit: 100
       ipSecurityRestrictions: allowAllIps ? [] : [

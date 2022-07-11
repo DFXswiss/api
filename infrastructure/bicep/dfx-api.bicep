@@ -83,6 +83,8 @@ var nodeIntFileShareNameA = 'node-int-data-a'
 var nodeIntFileShareNameB = 'node-int-data-b'
 var nodeRefFileShareNameA = 'node-ref-data-a'
 var nodeRefFileShareNameB = 'node-ref-data-b'
+var nodeBtcInpFileShareNameA = 'node-btc-inp-data-a'
+var nodeBtcInpFileShareNameB = 'node-btc-inp-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -101,6 +103,8 @@ var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
 var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
 var nodeRefServicePlanName = 'plan-${compName}-${nodeName}-ref-${env}'
 var nodeRefAppName = 'app-${compName}-${nodeName}-ref-${env}'
+var nodeBtcInpServicePlanName = 'plan-${compName}-${nodeName}-btc-inp-${env}'
+var nodeBtcInpAppName = 'app-${compName}-${nodeName}-btc-inp-${env}'
 
 var nodeProps = [
   {
@@ -137,6 +141,13 @@ var nodeProps = [
     appName: nodeRefAppName
     fileShareNameA: nodeRefFileShareNameA
     fileShareNameB: nodeRefFileShareNameB
+  }
+  {
+    name: 'nodes-btc-inp-${env}'
+    servicePlanName: nodeBtcInpServicePlanName
+    appName: nodeBtcInpAppName
+    fileShareNameA: nodeBtcInpFileShareNameA
+    fileShareNameB: nodeBtcInpFileShareNameB
   }
 ]
 
@@ -247,6 +258,14 @@ resource nodeRefFileShareA 'Microsoft.Storage/storageAccounts/fileServices/share
 
 resource nodeRefFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
   name: '${storageAccount.name}/default/${nodeRefFileShareNameB}'
+}
+
+resource nodeBtcInpFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeBtcInpFileShareNameA}'
+}
+
+resource nodeBtcInpFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccount.name}/default/${nodeBtcInpFileShareNameB}'
 }
 
 
@@ -471,6 +490,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'NODE_REF_URL_PASSIVE'
           value: nodes[4].outputs.urlStg
+        }
+        {
+          name: 'NODE_BTC_INP_URL_ACTIVE'
+          value: nodes[5].outputs.url
+        }
+        {
+          name: 'NODE_BTC_INP_URL_PASSIVE'
+          value: nodes[5].outputs.urlStg
         }
         {
           name: 'DEX_WALLET_ADDRESS'

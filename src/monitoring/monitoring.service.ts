@@ -3,7 +3,8 @@ import { Config } from 'src/config/config';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Util } from 'src/shared/util';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
+import { BtcClient } from 'src/ain/node/btc-client';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { In, IsNull, LessThan, Not } from 'typeorm';
 import { IdentCompletedStates, KycStatus } from 'src/user/models/user-data/user-data.entity';
@@ -25,12 +26,14 @@ import { PayoutType } from 'src/payment/models/staking-reward/staking-reward.ent
 
 @Injectable()
 export class MonitoringService {
-  private inpClient: NodeClient;
-  private refClient: NodeClient;
+  private inpClient: DeFiClient;
+  private refClient: DeFiClient;
+  private btcInpClient: BtcClient;
 
   constructor(nodeService: NodeService, private whaleService: WhaleService) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
+    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.btcInpClient = client));
   }
 
   // Payment
@@ -78,6 +81,9 @@ export class MonitoringService {
         defichain: {
           input: await this.inpClient.getNodeBalance(),
           ref: await this.refClient.getNodeBalance(),
+        },
+        bitcoin: {
+          input: await this.btcInpClient.getBalance(),
         },
       },
     };

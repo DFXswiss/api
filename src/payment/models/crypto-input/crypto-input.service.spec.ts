@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService } from 'src/ain/node/node.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
@@ -20,7 +20,7 @@ import { BehaviorSubject } from 'rxjs';
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
 
-  let nodeClient: NodeClient;
+  let nodeClient: DeFiClient;
   let nodeService: NodeService;
   let cryptoInputRepo: CryptoInputRepository;
   let cryptoStakingService: CryptoStakingService;
@@ -39,7 +39,7 @@ describe('CryptoInputService', () => {
   }
 
   beforeEach(async () => {
-    nodeClient = createMock<NodeClient>();
+    nodeClient = createMock<DeFiClient>();
     nodeService = createMock<NodeService>();
     cryptoInputRepo = createMock<CryptoInputRepository>();
     assetService = createMock<AssetService>();

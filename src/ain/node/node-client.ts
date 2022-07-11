@@ -1,5 +1,4 @@
 import { ApiClient, BigNumber } from '@defichain/jellyfish-api-core';
-import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Block, BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
@@ -22,7 +21,7 @@ export enum NodeMode {
 }
 
 export class NodeClient {
-  private chain = Config.network;
+  protected chain = Config.network;
   private readonly client: ApiClient;
   private readonly queue: QueueHandler;
 
@@ -50,23 +49,6 @@ export class NodeClient {
     return this.callNode((c) => c.blockchain.getBlock(hash, 1));
   }
 
-  async getHistories(addresses: string[], fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
-    let results = [];
-    for (const address of addresses) {
-      results = results.concat(await this.getHistory(address, fromBlock, toBlock));
-    }
-    return results;
-  }
-
-  private async getHistory(address: string, fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
-    return this.callNode((c) =>
-      c.account.listAccountHistory(address, {
-        depth: toBlock - fromBlock,
-        maxBlockHeight: toBlock,
-      }),
-    );
-  }
-
   async waitForTx(txId: string, timeout = 600000): Promise<InWalletTransaction> {
     const tx = await Util.poll(
       () => this.callNode((c) => c.wallet.getTransaction(txId)),
@@ -84,39 +66,12 @@ export class NodeClient {
   }
 
   // UTXO
-  get utxoFee(): number {
-    return this.chain === 'mainnet' ? 0.00000132 : 0.0000222;
-  }
-
   async getUtxo(): Promise<UTXO[]> {
     return this.callNode((c) => c.wallet.listUnspent());
   }
 
   async getBalance(): Promise<BigNumber> {
     return this.callNode((c) => c.wallet.getBalance());
-  }
-
-  async getNodeBalance(): Promise<{ utxo: BigNumber; token: AccountResult<string, string>[] }> {
-    return { utxo: await this.getBalance(), token: await this.getToken() };
-  }
-
-  async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
-    return this.callNode(
-      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount)], 'number'),
-      true,
-    );
-  }
-
-  async sendCompleteUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
-    return this.callNode(
-      (c) =>
-        c.call(
-          NodeCommand.SEND_UTXO,
-          [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee), addressTo],
-          'number',
-        ),
-      true,
-    );
   }
 
   async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
@@ -127,98 +82,6 @@ export class NodeClient {
     const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}` }), {});
 
     return this.callNode((c) => c.wallet.sendMany(batch), true);
-  }
-
-  // token
-  async getToken(): Promise<AccountResult<string, string>[]> {
-    return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
-  }
-
-  async testCompositeSwap(tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
-    if (tokenFrom === tokenTo) return amount;
-
-    return this.callNode((c) =>
-      c.call(
-        NodeCommand.TEST_POOL_SWAP,
-        [
-          {
-            from: undefined,
-            tokenFrom: tokenFrom,
-            amountFrom: this.roundAmount(amount),
-            to: undefined,
-            tokenTo: tokenTo,
-          },
-          'auto',
-        ],
-        'number',
-      ),
-    ).then((r: string) => this.parseAmount(r).amount);
-  }
-
-  async compositeSwap(
-    addressFrom: string,
-    tokenFrom: string,
-    addressTo: string,
-    tokenTo: string,
-    amount: number,
-    utxos?: SpendUTXO[],
-  ): Promise<string> {
-    return this.callNode(
-      (c) =>
-        c.poolpair.compositeSwap(
-          {
-            from: addressFrom,
-            tokenFrom: tokenFrom,
-            amountFrom: this.roundAmount(amount),
-            to: addressTo,
-            tokenTo: tokenTo,
-          },
-          utxos,
-        ),
-      true,
-    );
-  }
-
-  async sendToken(
-    addressFrom: string,
-    addressTo: string,
-    token: string,
-    amount: number,
-    utxos: SpendUTXO[] = [],
-  ): Promise<string> {
-    return token === 'DFI'
-      ? this.toUtxo(addressFrom, addressTo, amount, utxos)
-      : this.callNode(
-          (c) =>
-            c.account.accountToAccount(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@${token}` }, { utxos }),
-          true,
-        );
-  }
-
-  async sendTokenToMany(
-    addressFrom: string,
-    token: string,
-    payload: { addressTo: string; amount: number }[],
-    utxos: SpendUTXO[] = [],
-  ): Promise<string> {
-    if (payload.length > 10) {
-      throw new Error('Too many addresses in one transaction batch, allowed max 10 for tokens');
-    }
-
-    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}@${token}` }), {});
-
-    return this.callNode((c) => c.account.accountToAccount(addressFrom, batch, { utxos }), true);
-  }
-
-  async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
-    return this.callNode(
-      (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
-      true,
-    );
-  }
-
-  async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
-    return this.callNode((c) => c.poolpair.removePoolLiquidity(address, amount, { utxos }), true);
   }
 
   // forwarding
@@ -246,7 +109,7 @@ export class NodeClient {
   }
 
   // --- HELPER METHODS --- //
-  private async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
+  protected async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
     try {
       if (unlock) await this.unlock();
       return await this.call(call);
@@ -275,7 +138,7 @@ export class NodeClient {
     return { Authorization: 'Basic ' + passwordHash };
   }
 
-  private roundAmount(amount: number): number {
+  protected roundAmount(amount: number): number {
     return Util.round(amount, 8);
   }
 

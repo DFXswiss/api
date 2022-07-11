@@ -2,7 +2,7 @@ import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dis
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression, Interval } from '@nestjs/schedule';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -34,7 +34,7 @@ export class CryptoInputService {
   private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
   private readonly lock = new Lock(7200);
 
-  private client: NodeClient;
+  private client: DeFiClient;
 
   constructor(
     nodeService: NodeService,

@@ -1,4 +1,4 @@
-nodes=( "inp" "dex" "out" "int" "ref")
+nodes=( "inp" "dex" "out" "int" "ref" "btc-inp")
 
 for i in "${nodes[@]}"
 do

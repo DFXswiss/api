@@ -125,6 +125,15 @@ export class UserService {
     await this.updateUserDataVolume(userId);
   }
 
+  async updateCryptoVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
+    await this.userRepo.update(userId, {
+      cryptoVolume: Util.round(volume, Config.defaultVolumeDecimal),
+      annualCryptoVolume: Util.round(annualVolume, Config.defaultVolumeDecimal),
+    });
+
+    await this.updateUserDataVolume(userId);
+  }
+
   async updateSellVolume(userId: number, volume: number, annualVolume: number): Promise<void> {
     await this.userRepo.update(userId, {
       sellVolume: Util.round(volume, Config.defaultVolumeDecimal),
@@ -247,6 +256,15 @@ export class UserService {
       fee: Util.round(baseFee - refBonus, Config.defaultPercentageDecimal),
       refBonus: Util.round(refBonus, Config.defaultPercentageDecimal),
     };
+  }
+
+  async getUserCryptoFee(userId: number): Promise<number> {
+    const user = await this.userRepo.findOne({
+      select: ['id', 'cryptoFee'],
+      where: { id: userId },
+    });
+
+    return Util.round((user?.cryptoFee ?? Config.crypto.fee) * 100, Config.defaultPercentageDecimal);
   }
 
   async getUserSellFee(userId: number): Promise<number> {
