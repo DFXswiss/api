@@ -1,24 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeType } from 'src/ain/node/node.service';
-import { SellService } from 'src/payment/models/sell/sell.service';
-import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { In } from 'typeorm';
-import { Sell } from '../sell/sell.entity';
-import { Staking } from '../staking/staking.entity';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { NodeClient } from 'src/ain/node/node-client';
 
 @Injectable()
 export class CryptoInputService {
-  constructor(
-    readonly cryptoInputRepo: CryptoInputRepository,
-    private readonly sellService: SellService,
-    private readonly stakingService: StakingService,
-  ) {}
+  constructor(readonly cryptoInputRepo: CryptoInputRepository) {}
 
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
     const cryptoInput = await this.cryptoInputRepo.findOne(cryptoInputId);
@@ -67,16 +59,10 @@ export class CryptoInputService {
   }
 
   // --- HELPER METHODS --- //
-  async checkNodeInSync(client: NodeClient): Promise<{ headers: number; blocks: number }> {
+  protected async checkNodeInSync(client: NodeClient): Promise<{ headers: number; blocks: number }> {
     const { blocks, headers } = await client.getInfo();
     if (blocks < headers - 1) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
 
     return { headers, blocks };
-  }
-
-  async getDepositRoute(address: string): Promise<Sell | Staking> {
-    return (
-      (await this.sellService.getSellByAddress(address)) ?? (await this.stakingService.getStakingByAddress(address))
-    );
   }
 }

@@ -21,6 +21,8 @@ import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessib
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { Blockchain } from '../deposit/deposit.entity';
 import { CryptoInputService } from './crypto-input.service';
+import { Sell } from '../sell/sell.entity';
+import { Staking } from '../staking/staking.entity';
 
 interface HistoryAmount {
   amount: number;
@@ -39,11 +41,11 @@ export class DeFiInputService extends CryptoInputService {
     nodeService: NodeService,
     cryptoInputRepo: CryptoInputRepository,
     private readonly assetService: AssetService,
-    sellService: SellService,
-    stakingService: StakingService,
+    private readonly sellService: SellService,
+    private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
   ) {
-    super(cryptoInputRepo, sellService, stakingService);
+    super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
@@ -232,7 +234,6 @@ export class DeFiInputService extends CryptoInputService {
 
     return this.cryptoInputRepo.create({
       inTxId: history.txid,
-      outTxId: null, // will be set after crypto forward
       blockHeight: history.blockHeight,
       amount: amount,
       asset: assetEntity,
@@ -252,10 +253,16 @@ export class DeFiInputService extends CryptoInputService {
     });
   }
 
+  private async getDepositRoute(address: string): Promise<Sell | Staking> {
+    return (
+      (await this.sellService.getSellByAddress(address)) ?? (await this.stakingService.getStakingByAddress(address))
+    );
+  }
+
   private async forwardInputs(): Promise<void> {
     const inputs = await this.cryptoInputRepo.find({
       where: {
-        outTxId: null,
+        outTxId: IsNull(),
         amlCheck: AmlCheck.PASS,
         route: { deposit: { blockchain: Blockchain.DEFICHAIN } },
       },
@@ -306,7 +313,7 @@ export class DeFiInputService extends CryptoInputService {
 
       const unconfirmedInputs = await this.cryptoInputRepo.find({
         select: ['id', 'outTxId', 'isConfirmed'],
-        where: { isConfirmed: false, outTxId: Not(IsNull()) },
+        where: { isConfirmed: false, outTxId: Not(IsNull()), type: Blockchain.DEFICHAIN },
       });
 
       for (const input of unconfirmedInputs) {
