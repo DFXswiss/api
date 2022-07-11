@@ -15,7 +15,6 @@ import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { Blockchain } from '../deposit/deposit.entity';
 import { CryptoInputService } from './crypto-input.service';
 import { SellService } from '../sell/sell.service';
-import { DeFiClient } from 'src/ain/node/defi-client';
 import { BtcClient } from 'src/ain/node/btc-client';
 
 @Injectable()
@@ -23,7 +22,6 @@ export class BtcInputService extends CryptoInputService {
   private readonly lock = new Lock(7200);
 
   private btcClient: BtcClient;
-  private deFiClient: DeFiClient;
 
   constructor(
     nodeService: NodeService,
@@ -34,7 +32,6 @@ export class BtcInputService extends CryptoInputService {
   ) {
     super(cryptoInputRepo, sellService, stakingService);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((deFiClient) => (this.deFiClient = deFiClient));
   }
 
   // --- INPUT HANDLING --- //
@@ -92,8 +89,6 @@ export class BtcInputService extends CryptoInputService {
       return null;
     }
 
-    const { usdtAmount } = await this.getReferenceAmounts('BTC', utxo.amount.toNumber(), this.deFiClient);
-
     // min. deposit
     if (utxo.amount.toNumber() < Config.node.minBtcDeposit) {
       console.log(`Ignoring too small crypto input (${utxo.amount.toNumber()} 'BTC'`);
@@ -114,7 +109,7 @@ export class BtcInputService extends CryptoInputService {
       asset: assetEntity,
       route: route,
       btcAmount: utxo.amount.toNumber(),
-      usdtAmount: usdtAmount,
+      usdtAmount: null,
       isConfirmed: false,
       amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
       type: CryptoInputType.BUY_CRYPTO,
