@@ -13,7 +13,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { In, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -22,6 +22,7 @@ import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
+import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 
 interface HistoryAmount {
   amount: number;
@@ -43,8 +44,27 @@ export class CryptoInputService {
     private readonly sellService: SellService,
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
+    private readonly buyFiatService: BuyFiatService,
   ) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
+
+    // TODO: remove
+    this.createMissingBuyFiats();
+  }
+
+  private async createMissingBuyFiats() {
+    try {
+      const inputs = await this.cryptoInputRepo.find({
+        where: { type: CryptoInputType.BUY_FIAT, buyFiat: { id: IsNull() } },
+        relations: ['buyFiat', 'route'],
+      });
+
+      for (const input of inputs) {
+        await this.buyFiatService.create(input);
+      }
+    } catch (e) {
+      console.error('Error creating buy fiats:', e);
+    }
   }
 
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
