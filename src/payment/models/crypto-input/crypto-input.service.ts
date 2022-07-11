@@ -60,7 +60,11 @@ export class CryptoInputService {
       });
 
       for (const input of inputs) {
-        await this.buyFiatService.create(input);
+        try {
+          await this.buyFiatService.create(input);
+        } catch (e) {
+          console.error(`Failed to create buyFiat for input ${input.id}:`, e);
+        }
       }
     } catch (e) {
       console.error('Error creating buy fiats:', e);
