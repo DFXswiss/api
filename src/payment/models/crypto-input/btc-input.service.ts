@@ -1,53 +1,40 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { NodeClient } from 'src/ain/node/node-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { RouteType } from 'src/payment/models/route/deposit-route.entity';
 import { StakingService } from 'src/payment/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
-import { Not } from 'typeorm';
-import { Staking } from '../staking/staking.entity';
-import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
-import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
+import { IsNull, Not } from 'typeorm';
 import { KycStatus } from 'src/user/models/user-data/user-data.entity';
-
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
-import { CryptoRoute } from '../crypto-route/crypto-route.entity';
-import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { Blockchain } from '../deposit/deposit.entity';
+import { CryptoInputService } from './crypto-input.service';
+import { SellService } from '../sell/sell.service';
+import { DeFiClient } from 'src/ain/node/defi-client';
+import { BtcClient } from 'src/ain/node/btc-client';
 
 @Injectable()
-export class BitcoinInputService {
+export class BtcInputService extends CryptoInputService {
   private readonly lock = new Lock(7200);
 
-  private client: NodeClient;
-  private defichainClient: NodeClient;
+  private btcClient: BtcClient;
+  private deFiClient: DeFiClient;
 
   constructor(
     nodeService: NodeService,
-    private readonly cryptoInputRepo: CryptoInputRepository,
+    cryptoInputRepo: CryptoInputRepository,
     private readonly assetService: AssetService,
-    private readonly cryptoRouteService: CryptoRouteService,
-    private readonly stakingService: StakingService,
-    private readonly cryptoStakingService: CryptoStakingService,
+    sellService: SellService,
+    stakingService: StakingService,
   ) {
-    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.client = client));
-    nodeService
-      .getConnectedNode(NodeType.INPUT)
-      .subscribe((defichainClient) => (this.defichainClient = defichainClient));
-  }
-
-  async update(bitcoinInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
-    const cryptoInput = await this.cryptoInputRepo.findOne(bitcoinInputId);
-    if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
-
-    return await this.cryptoInputRepo.save({ ...cryptoInput, ...dto });
+    super(cryptoInputRepo, sellService, stakingService);
+    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((deFiClient) => (this.deFiClient = deFiClient));
   }
 
   // --- INPUT HANDLING --- //
@@ -66,21 +53,15 @@ export class BitcoinInputService {
   }
 
   private async saveInputs(): Promise<void> {
-    const utxos = await this.client.getUtxo();
+    const utxos = await this.btcClient.getUtxo();
 
-    const newInputs = await this.getAddressesWithFunds(utxos)
-      // map to entities
-      .then(() => this.createEntities(utxos))
-      .then((i) => i.filter((h) => h != null));
+    const newInputs = await this.createEntities(utxos).then((i) => i.filter((h) => h != null));
 
     newInputs.length > 0 && console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
 
     // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
     for (const input of newInputs) {
       await this.cryptoInputRepo.save(input);
-      if (input?.route.type === RouteType.STAKING && input.amlCheck === AmlCheck.PASS) {
-        await this.cryptoStakingService.create(input);
-      }
     }
   }
 
@@ -111,7 +92,7 @@ export class BitcoinInputService {
       return null;
     }
 
-    const usdtAmount = await this.getReferenceAmounts(utxo.amount.toNumber());
+    const { usdtAmount } = await this.getReferenceAmounts('BTC', utxo.amount.toNumber(), this.deFiClient);
 
     // min. deposit
     if (utxo.amount.toNumber() < Config.node.minBtcDeposit) {
@@ -128,7 +109,7 @@ export class BitcoinInputService {
 
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
-      outTxId: '', // will be set after crypto forward
+      outTxId: null, // will be set after crypto forward
       amount: utxo.amount.toNumber(),
       asset: assetEntity,
       route: route,
@@ -140,59 +121,29 @@ export class BitcoinInputService {
     });
   }
 
-  private async getReferenceAmounts(amount: number, allowRetry = true): Promise<number> {
-    try {
-      const usdtAmount = await this.defichainClient.testCompositeSwap('BTC', 'USDT', amount);
-
-      return usdtAmount;
-    } catch (e) {
-      try {
-        // poll the node
-        await this.client.getInfo();
-      } catch (nodeError) {
-        throw new NodeNotAccessibleError(NodeType.INPUT, nodeError);
-      }
-
-      if (allowRetry) {
-        // try once again
-        console.log('Retrying testCompositeSwaps after node poll success');
-        return await this.getReferenceAmounts(amount, false);
-      }
-
-      // re-throw error, likely input related
-      throw e;
-    }
-  }
-
   private async forwardInputs(): Promise<void> {
     const inputs = await this.cryptoInputRepo.find({
       where: {
-        outTxId: '',
+        outTxId: null,
         amlCheck: AmlCheck.PASS,
         route: { deposit: { blockchain: Blockchain.BITCOIN } },
       },
       relations: ['route'],
     });
 
-    const utxos = await this.client.getUtxo();
-
-    inputs.length > 0 && console.log(`Forwarding inputs (${inputs.length})`);
+    if (inputs.length == 0) return;
 
     for (const input of inputs) {
       try {
-        const utxo = utxos.filter(
-          (i) =>
-            i.address == input.route.deposit.address && i.txid == input.inTxId && i.amount.toNumber() == input.amount,
-        );
-        await this.forwardUtxo(input, Config.node.bitcoinWalletAddress, utxo[0].vout);
+        await this.forwardUtxo(input, Config.node.bitcoinWalletAddress);
       } catch (e) {
         console.error(`Failed to forward crypto input ${input.id}:`, e);
       }
     }
   }
 
-  private async forwardUtxo(input: CryptoInput, address: string, vout: number): Promise<void> {
-    const outTxId = await this.client.send(address, input.inTxId, input.amount, vout);
+  private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
+    const outTxId = await this.btcClient.send(address, input.inTxId, input.amount, input.vout);
     await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
   }
 
@@ -200,16 +151,16 @@ export class BitcoinInputService {
   @Interval(300000)
   async checkConfirmations(): Promise<void> {
     try {
-      await this.checkNodeInSync();
+      await this.checkNodeInSync(this.btcClient);
 
       const unconfirmedInputs = await this.cryptoInputRepo.find({
         select: ['id', 'outTxId', 'isConfirmed'],
-        where: { isConfirmed: false, outTxId: Not('') },
+        where: { isConfirmed: false, outTxId: Not(IsNull()) },
       });
 
       for (const input of unconfirmedInputs) {
         try {
-          const { confirmations } = await this.client.waitForTx(input.outTxId);
+          const { confirmations } = await this.btcClient.waitForTx(input.outTxId);
           if (confirmations > 60) {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
           }
@@ -220,26 +171,5 @@ export class BitcoinInputService {
     } catch (e) {
       console.error('Exception during crypto confirmations checks:', e);
     }
-  }
-
-  // --- HELPER METHODS --- //
-  private async checkNodeInSync(): Promise<{ headers: number; blocks: number }> {
-    const { blocks, headers } = await this.client.getInfo();
-    if (blocks < headers - 1) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
-
-    return { headers, blocks };
-  }
-
-  async getAddressesWithFunds(utxo: UTXO[]): Promise<string[]> {
-    const utxoAddresses = utxo.filter((u) => u.amount.toNumber() >= Config.node.minBtcDeposit).map((u) => u.address);
-
-    return utxoAddresses;
-  }
-
-  private async getDepositRoute(address: string): Promise<CryptoRoute | Staking> {
-    return (
-      (await this.cryptoRouteService.getCryptoByAddress(address)) ??
-      (await this.stakingService.getStakingByAddress(address))
-    );
   }
 }

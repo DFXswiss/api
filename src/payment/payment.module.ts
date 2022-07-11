@@ -65,7 +65,7 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
 import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
 import { CryptoRouteService } from './models/crypto-route/crypto-route.service';
 import { CryptoRouteRepository } from './models/crypto-route/crypto-route.repository';
-import { BitcoinInputService } from './models/crypto-input/bitcoin-input.service';
+import { BitcoinInputService } from './models/crypto-input/btc-input.service';
 
 @Module({
   imports: [

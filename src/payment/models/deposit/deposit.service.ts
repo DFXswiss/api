@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
 import { Blockchain, Deposit } from './deposit.entity';
 
@@ -16,10 +16,13 @@ export class DepositService {
 
   async getNextDeposit(blockchain: Blockchain): Promise<Deposit> {
     // does not work with find options
-    return this.depositRepo
+    const deposit = await this.depositRepo
       .createQueryBuilder('deposit')
       .leftJoin('deposit.route', 'route')
       .where('route.id IS NULL AND deposit.blockchain = :blockchain', { blockchain })
       .getOne();
+    if (!deposit) throw new InternalServerErrorException(`No unused deposit for ${blockchain} found`);
+
+    return deposit;
   }
 }

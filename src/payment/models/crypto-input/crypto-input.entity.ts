@@ -19,12 +19,15 @@ export enum CryptoInputType {
 }
 
 @Entity()
-@Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route, input.amount], { unique: true })
+@Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route, input.vout], { unique: true })
 export class CryptoInput extends IEntity {
   @Column({ length: 256 })
   inTxId: string;
 
-  @Column({ length: 256 })
+  @Column({ type: 'integer', nullable: true })
+  vout: number;
+
+  @Column({ length: 256, nullable: true })
   outTxId: string;
 
   @Column({ length: 256, nullable: true })
