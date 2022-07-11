@@ -15,7 +15,7 @@ export enum NodeType {
   OUTPUT = 'out',
   INT = 'int',
   REF = 'ref',
-  BTC_INPUT = 'btc-input',
+  BTC_INPUT = 'btc-inp',
 }
 
 export interface NodeError {
