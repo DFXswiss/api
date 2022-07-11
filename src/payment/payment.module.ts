@@ -65,7 +65,8 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
 import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
 import { CryptoRouteService } from './models/crypto-route/crypto-route.service';
 import { CryptoRouteRepository } from './models/crypto-route/crypto-route.repository';
-import { BitcoinInputService } from './models/crypto-input/btc-input.service';
+import { BtcInputService } from './models/crypto-input/btc-input.service';
+import { DeFiInputService } from './models/crypto-input/defi-input.service';
 
 @Module({
   imports: [
@@ -115,7 +116,8 @@ import { BitcoinInputService } from './models/crypto-input/btc-input.service';
   ],
   providers: [
     CryptoInputService,
-    BitcoinInputService,
+    BtcInputService,
+    DeFiInputService,
     CryptoBuyService,
     CryptoSellService,
     BuyCryptoService,
@@ -160,7 +162,8 @@ import { BitcoinInputService } from './models/crypto-input/btc-input.service';
     CryptoSellService,
     BankTxService,
     CryptoInputService,
-    BitcoinInputService,
+    BtcInputService,
+    DeFiInputService,
     CryptoStakingService,
     StakingRefRewardService,
     BankAccountService,
