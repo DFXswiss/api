@@ -169,8 +169,16 @@ export class CryptoInputService {
     // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
     for (const input of newInputs) {
       await this.cryptoInputRepo.save(input);
-      if (input?.route.type === RouteType.STAKING && input.amlCheck === AmlCheck.PASS) {
-        await this.cryptoStakingService.create(input);
+
+      switch (input?.route.type) {
+        case RouteType.SELL:
+          await this.buyFiatService.create(input);
+          break;
+        case RouteType.STAKING:
+          if (input.amlCheck === AmlCheck.PASS) {
+            await this.cryptoStakingService.create(input);
+          }
+          break;
       }
     }
   }

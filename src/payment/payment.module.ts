@@ -65,6 +65,9 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
 import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
 import { CryptoRouteService } from './models/crypto-route/crypto-route.service';
 import { CryptoRouteRepository } from './models/crypto-route/crypto-route.repository';
+import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
+import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
+import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
 
 @Module({
   imports: [
@@ -74,6 +77,7 @@ import { CryptoRouteRepository } from './models/crypto-route/crypto-route.reposi
       BuyCryptoRepository,
       BuyCryptoBatchRepository,
       CryptoSellRepository,
+      BuyFiatRepository,
       BankTxRepository,
       BankTxBatchRepository,
       BuyRepository,
@@ -100,6 +104,7 @@ import { CryptoRouteRepository } from './models/crypto-route/crypto-route.reposi
     CryptoBuyController,
     BuyCryptoController,
     CryptoSellController,
+    BuyFiatController,
     HistoryController,
     RouteController,
     BuyController,
@@ -116,6 +121,7 @@ import { CryptoRouteRepository } from './models/crypto-route/crypto-route.reposi
     CryptoInputService,
     CryptoBuyService,
     CryptoSellService,
+    BuyFiatService,
     BuyCryptoService,
     BuyCryptoBatchService,
     BuyCryptoDexService,
@@ -156,6 +162,7 @@ import { CryptoRouteRepository } from './models/crypto-route/crypto-route.reposi
     CryptoBuyService,
     BuyCryptoService,
     CryptoSellService,
+    BuyFiatService,
     BankTxService,
     CryptoInputService,
     CryptoStakingService,
