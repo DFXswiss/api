@@ -11,6 +11,8 @@ import { BuyController } from '../buy/buy.controller';
 import { SellController } from '../sell/sell.controller';
 import { SellDto } from '../sell/dto/sell.dto';
 import { BuyDto } from '../buy/dto/buy.dto';
+import { CryptoRouteController } from '../crypto-route/crypto-route.controller';
+import { CryptoRouteDto } from '../crypto-route/dto/crypto-route.dto';
 
 @ApiTags('route')
 @Controller('route')
@@ -19,16 +21,20 @@ export class RouteController {
     private readonly buyController: BuyController,
     private readonly sellController: SellController,
     private readonly stakingController: StakingController,
+    private readonly cryptoRouteController: CryptoRouteController,
   ) {}
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllRoutes(@GetJwt() jwt: JwtPayload): Promise<{ buy: BuyDto[]; sell: SellDto[]; staking: StakingDto[] }> {
+  async getAllRoutes(
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<{ buy: BuyDto[]; sell: SellDto[]; staking: StakingDto[]; crypto: CryptoRouteDto[] }> {
     return Promise.all([
       this.buyController.getAllBuy(jwt),
       this.sellController.getAllSell(jwt),
       this.stakingController.getAllStaking(jwt),
-    ]).then(([buy, sell, staking]) => ({ buy, sell, staking }));
+      this.cryptoRouteController.getAllCrypto(jwt),
+    ]).then(([buy, sell, staking, crypto]) => ({ buy, sell, staking, crypto }));
   }
 }

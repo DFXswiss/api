@@ -1094,7 +1094,7 @@
     "_id": "15218f9f-ee92-4284-92bf-e0ccd5097641",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
-    "name": "create buy",
+    "name": "Create Buy",
     "url": "{{url}}/v1/buy",
     "method": "POST",
     "sortNum": 390000,
@@ -1113,7 +1113,7 @@
     "_id": "e7ffdd6b-a049-4d18-a4e3-8b1d6c857b03",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
-    "name": "create sell",
+    "name": "Create Sell",
     "url": "{{url}}/v1/sell",
     "method": "POST",
     "sortNum": 400000,
@@ -1281,6 +1281,39 @@
           "value": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
         }
       ]
+    },
+    "tests": []
+  },
+  {
+    "_id": "62b4036a-686f-4fd6-bb82-a712e32ca1b7",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0dfedb35-f836-48a1-b010-04736f083788",
+    "name": "Get My Crypto Routes",
+    "url": "{{url}}/v1/cryptoRoute",
+    "method": "GET",
+    "sortNum": 410000,
+    "created": "2022-07-08T16:28:47.111Z",
+    "modified": "2022-07-08T16:29:06.302Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "a6f50f94-33d5-4626-bcf4-abc196db233c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0dfedb35-f836-48a1-b010-04736f083788",
+    "name": "Create Crypto Route",
+    "url": "{{url}}/v1/cryptoRoute",
+    "method": "POST",
+    "sortNum": 420000,
+    "created": "2022-07-08T16:29:53.792Z",
+    "modified": "2022-07-08T16:49:16.378Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"buyType\": \"Wallet\",\n  \"blockchain\": \"Bitcoin\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
+      "form": []
     },
     "tests": []
   }

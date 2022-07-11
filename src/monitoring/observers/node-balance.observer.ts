@@ -2,7 +2,8 @@ import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/accou
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
-import { NodeClient } from 'src/ain/node/node-client';
+import { BtcClient } from 'src/ain/node/btc-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
@@ -19,19 +20,26 @@ interface NodeBalanceData {
         token: AccountResult<string, string>[];
       };
     };
+    bitcoin: {
+      input: BigNumber;
+    };
   };
 }
 
 @Injectable()
 export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
-  private inpClient: NodeClient;
-  private refClient: NodeClient;
+  private inpClient: DeFiClient;
+  private refClient: DeFiClient;
+  private btcInpClient: BtcClient;
 
   constructor(monitoringService: MonitoringService, readonly nodeService: NodeService) {
     super(monitoringService, 'node', 'balance');
 
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
-    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
+    nodeService.getConnectedNode<NodeType.INPUT>(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
+    nodeService.getConnectedNode<NodeType.REF>(NodeType.REF).subscribe((client) => (this.refClient = client));
+    nodeService
+      .getConnectedNode<NodeType.BTC_INPUT>(NodeType.BTC_INPUT)
+      .subscribe((client) => (this.btcInpClient = client));
   }
 
   @Interval(900000)
@@ -51,6 +59,9 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
         defichain: {
           input: await this.inpClient.getNodeBalance(),
           ref: await this.refClient.getNodeBalance(),
+        },
+        bitcoin: {
+          input: await this.btcInpClient.getBalance(),
         },
       },
     };
