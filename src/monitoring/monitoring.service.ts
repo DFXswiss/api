@@ -4,7 +4,7 @@ import { WhaleService } from 'src/ain/whale/whale.service';
 import { Util } from 'src/shared/util';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { DeFiClient } from 'src/ain/node/defi-client';
-import { BtcClient } from 'src/ain/node/btc-client';
+//import { BtcClient } from 'src/ain/node/btc-client'; TODO: setup btc node and activate monitoring again
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { In, IsNull, LessThan, Not } from 'typeorm';
 import { IdentCompletedStates, KycStatus } from 'src/user/models/user-data/user-data.entity';
@@ -28,12 +28,12 @@ import { PayoutType } from 'src/payment/models/staking-reward/staking-reward.ent
 export class MonitoringService {
   private inpClient: DeFiClient;
   private refClient: DeFiClient;
-  private btcInpClient: BtcClient;
+  //private btcInpClient: BtcClient; TODO: setup btc node and activate monitoring again
 
   constructor(nodeService: NodeService, private whaleService: WhaleService) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
-    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.btcInpClient = client));
+    //nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.btcInpClient = client)); TODO: setup btc node and activate monitoring again
   }
 
   // Payment
@@ -82,9 +82,9 @@ export class MonitoringService {
           input: await this.inpClient.getNodeBalance(),
           ref: await this.refClient.getNodeBalance(),
         },
-        bitcoin: {
-          input: await this.btcInpClient.getBalance(),
-        },
+        /*  bitcoin: {
+          input: await this.btcInpClient.getBalance(), //TODO: setup btc node and activate monitoring again
+        }, */
       },
     };
   }
