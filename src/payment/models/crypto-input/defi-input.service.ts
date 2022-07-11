@@ -23,6 +23,7 @@ import { Blockchain } from '../deposit/deposit.entity';
 import { CryptoInputService } from './crypto-input.service';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
+import { HttpService } from 'src/shared/services/http.service';
 
 interface HistoryAmount {
   amount: number;
@@ -40,12 +41,13 @@ export class DeFiInputService extends CryptoInputService {
   constructor(
     nodeService: NodeService,
     cryptoInputRepo: CryptoInputRepository,
+    http: HttpService,
     private readonly assetService: AssetService,
     private readonly sellService: SellService,
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
   ) {
-    super(cryptoInputRepo);
+    super(cryptoInputRepo, http);
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
@@ -313,7 +315,7 @@ export class DeFiInputService extends CryptoInputService {
 
       const unconfirmedInputs = await this.cryptoInputRepo.find({
         select: ['id', 'outTxId', 'isConfirmed'],
-        where: { isConfirmed: false, outTxId: Not(IsNull()), type: Blockchain.DEFICHAIN },
+        where: { isConfirmed: false, outTxId: Not(IsNull()), route: { deposit: { blockchain: Blockchain.DEFICHAIN } } },
       });
 
       for (const input of unconfirmedInputs) {

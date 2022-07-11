@@ -15,20 +15,23 @@ import { Blockchain } from '../deposit/deposit.entity';
 import { CryptoInputService } from './crypto-input.service';
 import { BtcClient } from 'src/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
+import { HttpService } from 'src/shared/services/http.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
   private readonly lock = new Lock(7200);
+  private readonly btcFeeUrl = 'https://bitcoinfees.earn.com/api/v1/fees/recommended';
 
   private btcClient: BtcClient;
 
   constructor(
     nodeService: NodeService,
     cryptoInputRepo: CryptoInputRepository,
+    http: HttpService,
     private readonly assetService: AssetService,
     private readonly cryptoRouteService: CryptoRouteService,
   ) {
-    super(cryptoInputRepo);
+    super(cryptoInputRepo, http);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
   }
 
@@ -105,7 +108,6 @@ export class BtcInputService extends CryptoInputService {
       asset: assetEntity,
       route: route,
       btcAmount: utxo.amount.toNumber(),
-      usdtAmount: null,
       isConfirmed: false,
       amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
       type: CryptoInputType.BUY_CRYPTO,
@@ -115,7 +117,7 @@ export class BtcInputService extends CryptoInputService {
   private async forwardInputs(): Promise<void> {
     const inputs = await this.cryptoInputRepo.find({
       where: {
-        outTxId: null,
+        outTxId: IsNull(),
         amlCheck: AmlCheck.PASS,
         route: { deposit: { blockchain: Blockchain.BITCOIN } },
       },
@@ -135,7 +137,11 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
-    const outTxId = await this.btcClient.send(address, input.inTxId, input.amount, input.vout);
+    const { fastestFee } = await this.callApi<{ fastestFee: number; halfHourFee: number; hourFee: number }>(
+      this.btcFeeUrl,
+    );
+    const btcFee = fastestFee < Config.crypto.fee * input.amount ? fastestFee : Config.crypto.fee * input.amount;
+    const outTxId = await this.btcClient.send(address, input.inTxId, input.amount, input.vout, btcFee);
     await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
   }
 
@@ -147,7 +153,11 @@ export class BtcInputService extends CryptoInputService {
 
       const unconfirmedInputs = await this.cryptoInputRepo.find({
         select: ['id', 'outTxId', 'isConfirmed'],
-        where: { isConfirmed: false, outTxId: Not(IsNull()), type: Blockchain.BITCOIN },
+        where: {
+          isConfirmed: false,
+          outTxId: Not(IsNull()),
+          route: { deposit: { blockchain: Blockchain.BITCOIN } },
+        },
       });
 
       for (const input of unconfirmedInputs) {
