@@ -16,6 +16,7 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import BigNumber from 'bignumber.js';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { BehaviorSubject } from 'rxjs';
+import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 
 describe('CryptoInputService', () => {
   let service: CryptoInputService;
@@ -27,6 +28,7 @@ describe('CryptoInputService', () => {
   let assetService: AssetService;
   let sellService: SellService;
   let stakingService: StakingService;
+  let buyFiatService: BuyFiatService;
 
   function setup(headers: number, blocks: number, lastBlocks: number, addresses: string[]) {
     const utxo = addresses.map((a) => ({ amount: new BigNumber(1), address: a } as unknown as UTXO));
@@ -46,6 +48,7 @@ describe('CryptoInputService', () => {
     sellService = createMock<SellService>();
     stakingService = createMock<StakingService>();
     cryptoStakingService = createMock<CryptoStakingService>();
+    buyFiatService = createMock<BuyFiatService>();
 
     jest
       .spyOn(nodeService, 'getConnectedNode')
@@ -65,6 +68,7 @@ describe('CryptoInputService', () => {
         { provide: SellService, useValue: sellService },
         { provide: StakingService, useValue: stakingService },
         { provide: CryptoStakingService, useValue: cryptoStakingService },
+        { provide: BuyFiatService, useValue: buyFiatService },
         TestUtil.provideConfig({ node: { minDfiDeposit: 0.01, utxoSpenderAddress: 'addr2' } }),
       ],
     }).compile();
