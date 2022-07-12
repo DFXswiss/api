@@ -4,17 +4,20 @@ import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
 import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/repositories/buy-crypto.repository';
+import { CryptoInputType } from 'src/payment/models/crypto-input/crypto-input.entity';
+import { CryptoInputRepository } from 'src/payment/models/crypto-input/crypto-input.repository';
 import { CryptoSellRepository } from 'src/payment/models/crypto-sell/crypto-sell.repository';
 import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
 import { StakingRefRewardRepository } from 'src/payment/models/staking-ref-reward/staking-ref-reward.repository';
 import { StakingRewardRepository } from 'src/payment/models/staking-reward/staking-reward.respository';
-import { getCustomRepository, IsNull } from 'typeorm';
+import { getCustomRepository, IsNull, Not } from 'typeorm';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
   incomplete: IncompleteTransactions;
   bankTxWithoutType: number;
   freeDeposit: number;
+  unhandledCryptoInputs: number;
 }
 
 interface LastOutputDates {
@@ -56,6 +59,15 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .leftJoin('deposit.route', 'route')
         .where('route.id IS NULL')
         .getCount(),
+      unhandledCryptoInputs: await getCustomRepository(CryptoInputRepository).count({
+        where: {
+          type: Not(CryptoInputType.CRYPTO_CRYPTO),
+          buyFiat: { id: IsNull() },
+          cryptoStaking: { id: IsNull() },
+          /* TODO: Buy_Crypto */
+        },
+        relations: ['buyFiat', 'cryptoStaking'],
+      }),
     };
   }
 
