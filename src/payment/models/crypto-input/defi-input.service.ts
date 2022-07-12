@@ -22,6 +22,7 @@ import { Blockchain } from '../deposit/deposit.entity';
 import { CryptoInputService } from './crypto-input.service';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
+import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 
 interface HistoryAmount {
   amount: number;
@@ -43,6 +44,7 @@ export class DeFiInputService extends CryptoInputService {
     private readonly sellService: SellService,
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
+    private readonly buyFiatService: BuyFiatService,
   ) {
     super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
@@ -156,8 +158,16 @@ export class DeFiInputService extends CryptoInputService {
     // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
     for (const input of newInputs) {
       await this.cryptoInputRepo.save(input);
-      if (input?.route.type === RouteType.STAKING && input.amlCheck === AmlCheck.PASS) {
-        await this.cryptoStakingService.create(input);
+
+      switch (input?.route.type) {
+        case RouteType.SELL:
+          await this.buyFiatService.create(input);
+          break;
+        case RouteType.STAKING:
+          if (input.amlCheck === AmlCheck.PASS) {
+            await this.cryptoStakingService.create(input);
+          }
+          break;
       }
     }
   }

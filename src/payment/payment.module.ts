@@ -67,6 +67,9 @@ import { CryptoRouteService } from './models/crypto-route/crypto-route.service';
 import { CryptoRouteRepository } from './models/crypto-route/crypto-route.repository';
 import { BtcInputService } from './models/crypto-input/btc-input.service';
 import { DeFiInputService } from './models/crypto-input/defi-input.service';
+import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
+import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
+import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
 
 @Module({
   imports: [
@@ -76,6 +79,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
       BuyCryptoRepository,
       BuyCryptoBatchRepository,
       CryptoSellRepository,
+      BuyFiatRepository,
       BankTxRepository,
       BankTxBatchRepository,
       BuyRepository,
@@ -102,6 +106,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
     CryptoBuyController,
     BuyCryptoController,
     CryptoSellController,
+    BuyFiatController,
     HistoryController,
     RouteController,
     BuyController,
@@ -120,6 +125,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
     DeFiInputService,
     CryptoBuyService,
     CryptoSellService,
+    BuyFiatService,
     BuyCryptoService,
     BuyCryptoBatchService,
     BuyCryptoDexService,
@@ -160,6 +166,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
     CryptoBuyService,
     BuyCryptoService,
     CryptoSellService,
+    BuyFiatService,
     BankTxService,
     CryptoInputService,
     BtcInputService,
