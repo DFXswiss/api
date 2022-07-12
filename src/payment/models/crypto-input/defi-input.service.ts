@@ -16,14 +16,12 @@ import { Lock } from 'src/shared/lock';
 import { IsNull, Not } from 'typeorm';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { KycStatus } from 'src/user/models/user-data/user-data.entity';
-
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { Blockchain } from '../deposit/deposit.entity';
 import { CryptoInputService } from './crypto-input.service';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
-import { HttpService } from 'src/shared/services/http.service';
 
 interface HistoryAmount {
   amount: number;
@@ -41,13 +39,12 @@ export class DeFiInputService extends CryptoInputService {
   constructor(
     nodeService: NodeService,
     cryptoInputRepo: CryptoInputRepository,
-    http: HttpService,
     private readonly assetService: AssetService,
     private readonly sellService: SellService,
     private readonly stakingService: StakingService,
     private readonly cryptoStakingService: CryptoStakingService,
   ) {
-    super(cryptoInputRepo, http);
+    super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 

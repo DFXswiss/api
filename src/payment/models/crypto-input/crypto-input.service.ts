@@ -7,11 +7,10 @@ import { In } from 'typeorm';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { NodeClient } from 'src/ain/node/node-client';
-import { HttpService } from 'src/shared/services/http.service';
 
 @Injectable()
 export class CryptoInputService {
-  constructor(readonly cryptoInputRepo: CryptoInputRepository, readonly http: HttpService) {}
+  constructor(readonly cryptoInputRepo: CryptoInputRepository) {}
 
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
     const cryptoInput = await this.cryptoInputRepo.findOne(cryptoInputId);
@@ -57,10 +56,6 @@ export class CryptoInputService {
       // re-throw error, likely input related
       throw e;
     }
-  }
-
-  protected async callApi<T>(url: string): Promise<T> {
-    return this.http.get<T>(url, { tryCount: 3 });
   }
 
   // --- HELPER METHODS --- //

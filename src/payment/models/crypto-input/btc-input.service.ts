@@ -27,11 +27,11 @@ export class BtcInputService extends CryptoInputService {
   constructor(
     nodeService: NodeService,
     cryptoInputRepo: CryptoInputRepository,
-    http: HttpService,
+    private readonly http: HttpService,
     private readonly assetService: AssetService,
     private readonly cryptoRouteService: CryptoRouteService,
   ) {
-    super(cryptoInputRepo, http);
+    super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
   }
 
@@ -148,8 +148,11 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async getFeeRate(amount: number): Promise<number> {
-    const { fastestFee } = await this.callApi<{ fastestFee: number; halfHourFee: number; hourFee: number }>(
+    const { fastestFee } = await this.http.get<{ fastestFee: number; halfHourFee: number; hourFee: number }>(
       this.btcFeeUrl,
+      {
+        tryCount: 3,
+      },
     );
     return Math.min(fastestFee, 0.000005 * amount);
   }
