@@ -8,8 +8,7 @@ import { Sell } from '../sell/sell.entity';
 export class BuyFiatService {
   // TODO: copy logic from CryptoSellService:
   // - Update sell volumes
-  // - Update CryptoInput and BankTx update time?
-  // - Activate user
+  // - Activate user (move to user.service)
   // - Methods for history and statistic service
 
   constructor(private readonly buyFiatRepo: BuyFiatRepository) {}
