@@ -162,6 +162,9 @@ import { CryptoRouteRepository } from './models/crypto-route/crypto-route.reposi
     StakingRefRewardService,
     BankAccountService,
     CryptoRouteService,
+    KrakenService,
+    BinanceService,
+    BitstampService,
   ],
 })
 export class PaymentModule {}

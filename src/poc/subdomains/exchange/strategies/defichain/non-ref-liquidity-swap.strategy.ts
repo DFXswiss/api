@@ -1,21 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
-
-interface SwapRequest {
-  asset: string;
-  amount: number;
-}
+import { LiquiditySwapStrategy, SwapRequest } from './liquidity-swap.strategy';
 
 @Injectable()
-export class DefichainNonReferenceAssetService {
-  private dexClient: NodeClient;
+export class NonReferenceLiquiditySwapStrategy extends LiquiditySwapStrategy {
+  private dexClient: DeFiClient;
 
   constructor(nodeService: NodeService) {
+    super();
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
   }
 
   async calculateLiquiditySwapAmount(request: SwapRequest): Promise<number> {
-    return await this.dexClient.testCompositeSwap(request.asset, 'DFI', request.amount);
+    return this.dexClient.testCompositeSwap(request.asset, 'DFI', request.amount);
   }
 }

@@ -3,6 +3,7 @@ import { ICommand } from 'src/poc/shared/events/command';
 interface PreparePayoutCommandPayload {
   asset: string;
   amount: number;
+  destination: string;
 }
 
 export class PreparePayoutCommand extends ICommand {

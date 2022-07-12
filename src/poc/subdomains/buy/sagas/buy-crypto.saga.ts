@@ -48,7 +48,7 @@ export class BuyCryptoSaga {
   start(events$: Observable<any>): Observable<ICommand> {
     return events$.pipe(
       ofType(BankTransactionCompleteEvent),
-      concatMap(async (event) => await this.handleBankTransactionCompleteEvent(event)),
+      concatMap(async (event) => this.handleBankTransactionCompleteEvent(event)),
       map(({ correlationId, from, to }) => new GetReferencePricesCommand(correlationId, { from, to })),
     );
   }
@@ -57,7 +57,7 @@ export class BuyCryptoSaga {
   onReferencePricesReceived(events$: Observable<any>): Observable<ICommand> {
     return events$.pipe(
       ofType(PriceReceivedEvent),
-      concatMap(async (event) => await this.handlePriceReceivedEvent(event)),
+      concatMap(async (event) => this.handlePriceReceivedEvent(event)),
       map(
         ({ correlationId, referenceAsset, referenceAmount, targetAsset }) =>
           new SecureLiquidityCommand(correlationId, { referenceAsset, referenceAmount, targetAsset }),
@@ -69,8 +69,11 @@ export class BuyCryptoSaga {
   onLiquiditySecured(events$: Observable<any>): Observable<ICommand> {
     return events$.pipe(
       ofType(LiquiditySecuredEvent),
-      concatMap(async (event) => await this.handleLiquiditySecuredEvent(event)),
-      map(({ correlationId, asset, amount }) => new PreparePayoutCommand(correlationId, { asset, amount })),
+      concatMap(async (event) => this.handleLiquiditySecuredEvent(event)),
+      map(
+        ({ correlationId, asset, amount, destination }) =>
+          new PreparePayoutCommand(correlationId, { asset, amount, destination }),
+      ),
     );
   }
 
@@ -78,8 +81,11 @@ export class BuyCryptoSaga {
   onPayoutPrepared(events$: Observable<any>): Observable<ICommand> {
     return events$.pipe(
       ofType(PayoutPreparedEvent),
-      concatMap(async (event) => await this.handlePayoutPreparedEvent(event)),
-      map(({ correlationId, payoutReservationId }) => new DoPayoutCommand(correlationId, { payoutReservationId })),
+      concatMap(async (event) => this.handlePayoutPreparedEvent(event)),
+      map(
+        ({ correlationId, payoutReservationId }) =>
+          new DoPayoutCommand(correlationId, { payoutOrderId: payoutReservationId }),
+      ),
     );
   }
 
@@ -87,14 +93,17 @@ export class BuyCryptoSaga {
   onPayoutComplete(events$: Observable<any>): Observable<ICommand> {
     return events$.pipe(
       ofType(PayoutCompleteEvent),
-      concatMap(async (event) => await this.handlePayoutCompleteEvent(event)),
+      concatMap(async (event) => this.handlePayoutCompleteEvent(event)),
       map(({ correlationId, payload }) => new NotifyUserCommand(correlationId, payload)),
     );
   }
 
   @Saga()
-  end(events$: Observable<any>): void {
-    events$.pipe(ofType(UserNotifiedEvent)).subscribe(async (event) => await this.handleUserNotifiedEvent(event));
+  end(events$: Observable<any>): Observable<any> {
+    return events$.pipe(
+      ofType(UserNotifiedEvent),
+      concatMap(async (event) => this.handleUserNotifiedEvent(event)),
+    );
   }
 
   // *** EVENT HANDLERS *** //
@@ -168,6 +177,7 @@ export class BuyCryptoSaga {
         correlationId: saga.correlationId,
         asset: buyCrypto.outputAsset,
         amount: buyCrypto.outputAmount,
+        destination: buyCrypto.targetAddress,
       };
     } catch (e) {
       await this.logStep(saga, BuyCryptoSagaStep.LiquiditySecuredEventEnd, e.message);
@@ -265,7 +275,7 @@ export class BuyCryptoSaga {
       logs: [],
     });
 
-    return await this.sagaRepo.save(saga);
+    return this.sagaRepo.save(saga);
   }
 
   private async logStep(saga: PocSaga, step: BuyCryptoSagaStep, error?: string): Promise<void> {

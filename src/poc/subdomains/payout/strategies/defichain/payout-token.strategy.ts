@@ -1,38 +1,35 @@
 import { Injectable } from '@nestjs/common';
-import { EventBus } from '@nestjs/cqrs';
-import { NodeClient } from 'src/ain/node/node-client';
+import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { WhaleService } from 'src/ain/whale/whale.service';
 import { Config } from 'src/config/config';
-import { BuyCrypto } from 'src/payment/models/buy-crypto/entities/buy-crypto.entity';
-import { PayoutCompleteEvent } from '../events/payout-complete.event';
-import { PayoutUtil } from '../utils/payout.util';
-import { DoPayoutStrategy } from './common/do-payout.strategy';
+import { PocPayoutOrder } from '../../models/payout-order.entity';
+import { PocPayoutOrderRepository } from '../../repositories/payout-order.repository';
+import { PayoutUtil } from '../../utils/payout.util';
+import { DoPayoutStrategy } from './do-payout.strategy';
 
 @Injectable()
 export class PayoutTokenStrategy extends DoPayoutStrategy {
-  private outClient: NodeClient;
-  private dexClient: NodeClient;
+  private outClient: DeFiClient;
+  private dexClient: DeFiClient;
 
   constructor(
-    private readonly eventBus: EventBus,
     readonly nodeService: NodeService,
     private readonly whaleService: WhaleService,
+    private readonly payoutOrderRepo: PocPayoutOrderRepository,
   ) {
     super();
     nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.outClient = client));
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
   }
 
-  async doPayout(tx: BuyCrypto): Promise<void> {
-    await this.checkUtxo(tx.targetAddress);
+  async doPayout(order: PocPayoutOrder): Promise<void> {
+    await this.checkUtxo(order.destination);
 
-    const payout = PayoutUtil.aggregatePayout([tx]);
+    const payout = PayoutUtil.aggregatePayout([order]);
 
-    const txId = await this.outClient.sendTokenToMany(Config.node.outWalletAddress, tx.outputAsset, payout);
-    console.log('Paid out Token', txId);
-
-    this.eventBus.publish(new PayoutCompleteEvent(tx.id, txId));
+    const payoutId = await this.outClient.sendTokenToMany(Config.node.outWalletAddress, order.asset, payout);
+    await this.payoutOrderRepo.save({ ...order, payoutId });
   }
 
   private async checkUtxo(address: string): Promise<void> {

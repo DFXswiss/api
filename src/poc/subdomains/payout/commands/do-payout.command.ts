@@ -1,7 +1,7 @@
 import { ICommand } from 'src/poc/shared/events/command';
 
 interface DoPayoutCommandPayload {
-  payoutReservationId: string;
+  payoutOrderId: string;
 }
 
 export class DoPayoutCommand extends ICommand {

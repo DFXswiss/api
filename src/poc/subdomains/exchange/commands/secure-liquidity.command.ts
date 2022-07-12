@@ -1,7 +1,7 @@
 import { ICommand } from 'src/poc/shared/events/command';
 
 interface SecureLiquidityCommandPayload {
-  // TODO - ideally would have only one asset
+  // in more generic solution would have only one asset
   referenceAsset: string;
   referenceAmount: number;
   targetAsset: string;

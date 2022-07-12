@@ -1,16 +1,16 @@
-import { BuyCrypto } from 'src/payment/models/buy-crypto/entities/buy-crypto.entity';
 import { Util } from 'src/shared/util';
+import { PocPayoutOrder } from '../models/payout-order.entity';
 
 export class PayoutUtil {
-  static aggregatePayout(transactions: BuyCrypto[]): { addressTo: string; amount: number }[] {
+  static aggregatePayout(orders: PocPayoutOrder[]): { addressTo: string; amount: number }[] {
     // sum up duplicated addresses, fallback in case transactions to same address and asset end up in one batch
     const uniqueAddresses = new Map<string, number>();
 
-    transactions.forEach((t) => {
-      const existingAmount = uniqueAddresses.get(t.targetAddress);
-      const increment = existingAmount ? Util.round(existingAmount + t.outputAmount, 8) : t.outputAmount;
+    orders.forEach((o) => {
+      const existingAmount = uniqueAddresses.get(o.destination);
+      const increment = existingAmount ? Util.round(existingAmount + o.amount, 8) : o.amount;
 
-      uniqueAddresses.set(t.targetAddress, increment);
+      uniqueAddresses.set(o.destination, increment);
     });
 
     return [...uniqueAddresses.entries()].map(([addressTo, amount]) => ({ addressTo, amount }));
