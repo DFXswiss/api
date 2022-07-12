@@ -7,17 +7,17 @@ export class BtcClient extends NodeClient {
     super(http, url, scheduler, mode);
   }
 
-  async send(addressTo: string, txId: string, amount: number, vout: number, btcFee: number): Promise<string> {
+  async send(addressTo: string, txId: string, amount: number, vout: number, feeRate: number): Promise<string> {
     return this.callNode(
       (c) =>
         c.call(
           NodeCommand.SEND,
           [
-            [{ [addressTo]: this.roundAmount(amount - btcFee) }],
+            [{ [addressTo]: this.roundAmount(amount - feeRate * 135) }],
             null,
             'unset',
             null,
-            { fee_rate: btcFee, inputs: [{ txid: txId, vout: vout }], replaceable: true },
+            { fee_rate: feeRate, inputs: [{ txid: txId, vout: vout }], replaceable: true },
           ],
           'number',
         ),

@@ -129,7 +129,7 @@ export class BtcInputService extends CryptoInputService {
 
     for (const input of inputs) {
       try {
-        await this.forwardUtxo(input, Config.node.bitcoinWalletAddress);
+        await this.forwardUtxo(input, Config.node.btcCollectorAddress);
       } catch (e) {
         console.error(`Failed to forward crypto input ${input.id}:`, e);
       }
@@ -137,12 +137,21 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
+    const outTxId = await this.btcClient.send(
+      address,
+      input.inTxId,
+      input.amount,
+      input.vout,
+      await this.getFeeRate(input.amount),
+    );
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+  }
+
+  private async getFeeRate(amount: number): Promise<number> {
     const { fastestFee } = await this.callApi<{ fastestFee: number; halfHourFee: number; hourFee: number }>(
       this.btcFeeUrl,
     );
-    const btcFee = fastestFee < Config.crypto.fee * input.amount ? fastestFee : Config.crypto.fee * input.amount;
-    const outTxId = await this.btcClient.send(address, input.inTxId, input.amount, input.vout, btcFee);
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+    return Math.min(fastestFee, 0.000005 * amount);
   }
 
   // --- CONFIRMATION HANDLING --- //
