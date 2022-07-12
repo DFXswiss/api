@@ -1,189 +1,177 @@
-import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
-import { WhaleService } from 'src/ain/whale/whale.service';
-import { Util } from 'src/shared/util';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { BtcClient } from 'src/ain/node/btc-client';
-import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
-import { In, IsNull, LessThan, Not } from 'typeorm';
-import { IdentCompletedStates, KycStatus } from 'src/user/models/user-data/user-data.entity';
-import { getCustomRepository } from 'typeorm';
-import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
-import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/repositories/buy-crypto.repository';
-import { CryptoSellRepository } from 'src/payment/models/crypto-sell/crypto-sell.repository';
-import { StakingRefRewardRepository } from 'src/payment/models/staking-ref-reward/staking-ref-reward.repository';
-import { StakingRewardRepository } from 'src/payment/models/staking-reward/staking-reward.respository';
-import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
-import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
-import { User, UserStatus } from 'src/user/models/user/user.entity';
-import { UserRepository } from 'src/user/models/user/user.repository';
-import { MasternodeRepository } from 'src/payment/models/masternode/masternode.repository';
-import { CryptoStakingRepository } from 'src/payment/models/crypto-staking/crypto-staking.repository';
-import { DepositRoute } from 'src/payment/models/route/deposit-route.entity';
-import { CryptoInput } from 'src/payment/models/crypto-input/crypto-input.entity';
-import { PayoutType } from 'src/payment/models/staking-reward/staking-reward.entity';
+import { cloneDeep, isEqual } from 'lodash';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
+import { MetricObserver } from './metric.observer';
+import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
+import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
+import { MailService } from 'src/shared/services/mail.service';
+
+type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
 @Injectable()
 export class MonitoringService {
-  private inpClient: DeFiClient;
-  private refClient: DeFiClient;
-  private btcInpClient: BtcClient;
+  #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
+  #observers: Map<SubsystemName, SubsystemObservers> = new Map();
 
-  constructor(nodeService: NodeService, private whaleService: WhaleService) {
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.inpClient = client));
-    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.refClient = client));
-    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.btcInpClient = client));
+  constructor(private systemStateSnapshotRepo: SystemStateSnapshotRepository, readonly mailService: MailService) {
+    this.initState();
   }
 
-  // Payment
+  // *** PUBLIC API *** //
 
-  async getPayment(): Promise<any> {
-    return {
-      lastOutputDates: await this.getLastOutputDates(),
-      incomplete: await this.getIncompleteTransactions(),
-      bankTxWithoutType: await getCustomRepository(BankTxRepository).count({ type: IsNull() }),
-      freeDeposit: await getCustomRepository(DepositRepository)
-        .createQueryBuilder('deposit')
-        .leftJoin('deposit.route', 'route')
-        .where('route.id IS NULL')
-        .getCount(),
-    };
-  }
-
-  async getIncompleteTransactions(): Promise<any> {
-    return {
-      buyCrypto: await getCustomRepository(BuyCryptoRepository).count({ mailSendDate: IsNull() }),
-      cryptoSell: await getCustomRepository(CryptoSellRepository).count({ mail3SendDate: IsNull() }),
-      stakingRefRewards: await getCustomRepository(StakingRefRewardRepository).count({ mailSendDate: IsNull() }),
-    };
-  }
-
-  async getLastOutputDates(): Promise<any> {
-    return {
-      buyCrypto: await getCustomRepository(BuyCryptoRepository)
-        .findOne({ order: { outputDate: 'DESC' } })
-        .then((b) => b.outputDate),
-      cryptoSell: await getCustomRepository(CryptoSellRepository)
-        .findOne({ order: { outputDate: 'DESC' } })
-        .then((b) => b.outputDate),
-      stakingReward: await getCustomRepository(StakingRewardRepository)
-        .findOne({ order: { outputDate: 'DESC' } })
-        .then((b) => b.outputDate),
-    };
-  }
-
-  // Node
-
-  async getNode(): Promise<any> {
-    return {
-      balance: {
-        defichain: {
-          input: await this.inpClient.getNodeBalance(),
-          ref: await this.refClient.getNodeBalance(),
-        },
-        bitcoin: {
-          input: await this.btcInpClient.getBalance(),
-        },
-      },
-    };
-  }
-
-  // User
-
-  async getUser(): Promise<any> {
-    return {
-      kycStatus: {
-        all: await this.getKycStatusData(),
-        longer24h: await this.getKycStatusData(Util.daysBefore(1)),
-      },
-      userWithout: await this.getUserWithout(),
-    };
-  }
-
-  async getKycStatusData(date: Date = new Date()): Promise<any> {
-    const kycStatusData = {};
-    for (const kycStatus of Object.values(KycStatus)) {
-      kycStatusData[kycStatus] = await getCustomRepository(UserDataRepository).count({
-        where: [
-          {
-            kycStatus,
-            kycStatusChangeDate: LessThan(date),
-          },
-          {
-            kycStatus,
-            kycStatusChangeDate: IsNull(),
-          },
-        ],
-      });
+  async getState(subsystem: string, metric: string): Promise<SystemState | SubsystemState | Metric> {
+    if (!subsystem && !metric) {
+      return this.#$state.value;
     }
 
-    return kycStatusData;
+    if (subsystem && !metric) {
+      return this.getSubsystemState(subsystem);
+    }
+
+    if (subsystem && metric) {
+      return this.getMetric(subsystem, metric);
+    }
   }
 
-  async getUserWithout(): Promise<any> {
-    return {
-      ipCountry: await getCustomRepository(UserRepository).count({ where: { ipCountry: IsNull() } }),
-      riskState: await getCustomRepository(UserDataRepository)
-        .createQueryBuilder('userData')
-        .leftJoin(User, 'user', 'userData.id = user.userDataId')
-        .where('user.status != :status', { status: UserStatus.NA })
-        .andWhere('userData.riskState is NULL')
-        .getCount(),
-      pdfUrl: await getCustomRepository(SpiderDataRepository).count({
-        where: { identPdf: IsNull(), userData: { kycStatus: In(IdentCompletedStates) } },
-        relations: ['userData'],
+  async loadState(): Promise<SystemState | null> {
+    try {
+      const latestPersistedState = await this.systemStateSnapshotRepo.findOne({ order: { id: 'DESC' } });
+
+      if (!latestPersistedState) {
+        console.warn('No monitoring state found in the database.');
+        return null;
+      }
+
+      return JSON.parse(latestPersistedState.data);
+    } catch (e) {
+      console.error('Failed to parse loaded system state. Defaulting to empty state', e);
+      this.mailService.sendErrorMail('Monitoring Error. Failed to parse loaded system state.', [e]);
+
+      return null;
+    }
+  }
+
+  // *** WEBHOOK *** //
+
+  async onWebhook(subsystem: string, metric: string, data: unknown) {
+    const observer = this.getMetricObserver(subsystem, metric);
+
+    // caution - keep await to catch possible exception in controller stack
+    await observer.onWebhook(data);
+  }
+
+  // *** OBSERVERS REGISTRATION *** //
+
+  register(observer: MetricObserver<unknown>) {
+    const subsystem = this.#observers.get(observer.subsystem) || new Map();
+    const existingObserver = subsystem.get(observer.metric);
+
+    if (existingObserver) {
+      throw new Error(`Observer for metric '${observer.metric}' already exists`);
+    }
+
+    this.subscribeToUpdates(observer);
+    subsystem.set(observer.metric, observer);
+    this.#observers.set(observer.subsystem, subsystem);
+  }
+
+  // *** HELPER METHODS *** /
+
+  private async initState() {
+    const state = await this.loadState();
+    state && this.#$state.next(state);
+
+    this.#$state
+      .pipe(debounceTime(2000), pairwise())
+      .subscribe(([prevState, newState]) => this.persist(prevState, newState));
+  }
+
+  private async persist(prevState: SystemState, newState: SystemState) {
+    try {
+      if (this.hasStateChanged(prevState, newState)) {
+        await this.systemStateSnapshotRepo.save({ id: 1, data: JSON.stringify(newState) });
+      }
+    } catch (e) {
+      console.error('Error persisting the state', e);
+      this.mailService.sendErrorMail('Monitoring Error. Error persisting the state.', [e]);
+    }
+  }
+
+  private hasStateChanged(prevState: SystemState, newState: SystemState): boolean {
+    if (!prevState && newState) return true;
+
+    return Object.entries(newState).some(([subsystemName, subsystemState]) =>
+      Object.entries(subsystemState).some(([metricName, newMetricState]) => {
+        const prevMetricState = prevState[subsystemName] && prevState[subsystemName][metricName];
+
+        if (!prevMetricState && newMetricState) return true;
+
+        return !isEqual(prevMetricState.data, newMetricState.data);
       }),
-    };
+    );
   }
 
-  // Staking
+  private getSubsystemState(subsystem: string): SubsystemState {
+    const _subsystem = this.#$state.value[subsystem];
 
-  async getStaking(): Promise<any> {
-    return {
-      stakingBalance: await this.getStakingBalance(),
-      freeOperator: await getCustomRepository(MasternodeRepository).count({ where: { creationHash: IsNull() } }),
-      unmatchedStaking: await getCustomRepository(CryptoStakingRepository)
-        .createQueryBuilder('cryptoStaking')
-        .leftJoin(DepositRoute, 'depositRoute', 'cryptoStaking.paybackDepositId = depositRoute.depositId')
-        .leftJoin(
-          CryptoInput,
-          'cryptoInput',
-          '(cryptoStaking.outTxId = cryptoInput.inTxId OR cryptoStaking.outTxId2 = cryptoInput.inTxId) AND cryptoInput.routeId = depositRoute.id',
-        )
-        .leftJoin(DepositRoute, 'depositRoute2', 'cryptoInput.routeId = depositRoute2.id')
-        .where('cryptoStaking.payoutType != :payoutType', { payoutType: PayoutType.WALLET })
-        .andWhere('cryptoStaking.outTxId IS NOT NULL')
-        .andWhere('cryptoStaking.outputDate > :date', { date: Util.daysBefore(7, new Date()) })
-        .andWhere('(cryptoInput.id IS NULL OR depositRoute.userId != depositRoute2.userId)')
-        .getCount(),
-    };
+    if (!_subsystem) {
+      throw new NotFoundException(`Subsystem not found, name: ${subsystem}`);
+    }
+    return _subsystem;
   }
 
-  async getStakingBalance(): Promise<{ actual: number; should: number; difference: number }> {
-    const whaleClient = this.whaleService.getClient();
+  private getMetric(subsystem: string, metric: string): Metric {
+    const _subsystem = this.getSubsystemState(subsystem);
+    const _metric = _subsystem[metric];
 
-    // calculate actual balance
-    const activeMasternodes = await getCustomRepository(MasternodeRepository).find({
-      where: {
-        creationHash: Not(IsNull()),
-        resignHash: IsNull(),
-      },
-    });
-    const addresses = [...activeMasternodes.map((m) => m.owner), Config.node.stakingWalletAddress];
-    const balance = await Promise.all(addresses.map((a) => whaleClient.getBalance(a).then((b) => +b)));
-    const actual = Util.sum(balance);
+    if (!_metric) {
+      throw new NotFoundException(`Metric not found, subsystem name: ${subsystem}, metric name: ${metric}`);
+    }
 
-    // calculate should balance
-    const should = await getCustomRepository(CryptoStakingRepository)
-      .createQueryBuilder('cryptoStaking')
-      .where('readyToPayout = 0')
-      .select('SUM(inputAmount)', 'balance')
-      .getRawOne<{ balance: number }>()
-      .then((b) => b.balance);
+    return _metric;
+  }
 
-    // calculate difference
-    const difference = Util.round(actual - should, Config.defaultVolumeDecimal);
-    return { actual, should, difference };
+  private getSubsystemObserver(subsystem: string): SubsystemObservers {
+    const _subsystem = this.#observers.get(subsystem);
+
+    if (!_subsystem) {
+      throw new NotFoundException(`No observers for subsystem: ${subsystem}`);
+    }
+    return _subsystem;
+  }
+
+  private getMetricObserver(subsystem: string, metric: string): MetricObserver<unknown> {
+    const _subsystem = this.getSubsystemObserver(subsystem);
+    const _observer = _subsystem.get(metric);
+
+    if (!_observer) {
+      throw new NotFoundException(`Observer not found, subsystem name: ${subsystem}, metric name: ${metric}`);
+    }
+
+    return _observer;
+  }
+
+  private subscribeToUpdates(observer: MetricObserver<unknown>): void {
+    observer.$subscription.subscribe((data: unknown) =>
+      this.updateSystemState(observer.subsystem, observer.metric, data),
+    );
+  }
+
+  private updateSystemState(subsystem: string, metric: string, data: unknown) {
+    try {
+      const currentState = cloneDeep(this.#$state.value);
+
+      const newSubsystemState = currentState[subsystem] ?? {};
+      const newMetricState = { data: cloneDeep(data), updated: new Date() };
+
+      newSubsystemState[metric] = newMetricState;
+
+      const newSystemState = { ...currentState, [subsystem]: newSubsystemState };
+
+      this.#$state.next(newSystemState);
+    } catch (e) {
+      console.error('Error updating monitoring state', e);
+      this.mailService.sendErrorMail('Monitoring Error. Updating monitoring state.', [e]);
+    }
   }
 }
