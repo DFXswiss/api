@@ -79,7 +79,7 @@ export class HistoryService {
           tradeGroup: null,
           comment: 'DFX Purchase',
           date: c.outputDate ? this.createRandomDate(c.outputDate, -20, c.inputAmount) : null,
-          txid: c.bankTx?.remittanceInfo,
+          txid: c.bankTx?.id.toString(),
           buyValueInEur: null,
           sellValueInEur: null,
         },
@@ -331,23 +331,28 @@ export class HistoryService {
     dateTo?: Date,
     timeout?: number,
   ): Promise<HistoryDto[]> {
-    const rewards = await this.dfiTaxService.getRewards(userAddress, interval, dateFrom, dateTo, timeout);
-    return rewards.map((reward) => ({
-      type: 'Mining',
-      buyAmount: Util.round(reward.qty, 8),
-      buyAsset: this.getAssetSymbol(reward.token),
-      sellAmount: null,
-      sellAsset: null,
-      fee: null,
-      feeAsset: null,
-      exchange: 'DFX',
-      tradeGroup: null,
-      comment: `Liquidity Mining ${reward.category} ${reward.pool}`,
-      date: new Date(reward.date),
-      txid: null,
-      buyValueInEur: Util.round(reward.value_open, 8),
-      sellValueInEur: null,
-    }));
+    try {
+      const rewards = await this.dfiTaxService.getRewards(userAddress, interval, dateFrom, dateTo, timeout);
+      return rewards.map((reward) => ({
+        type: 'Mining',
+        buyAmount: Util.round(reward.qty, 8),
+        buyAsset: this.getAssetSymbol(reward.token),
+        sellAmount: null,
+        sellAsset: null,
+        fee: null,
+        feeAsset: null,
+        exchange: 'DFX',
+        tradeGroup: null,
+        comment: `Liquidity Mining ${reward.category} ${reward.pool}`,
+        date: new Date(reward.date),
+        txid: null,
+        buyValueInEur: Util.round(reward.value_open, 8),
+        sellValueInEur: null,
+      }));
+    } catch (error) {
+      console.error(`Failed to get DFI.tax rewards for ${userAddress}:`, error);
+      return [];
+    }
   }
 
   private toCsv(list: any[], separator = ','): string {
