@@ -12,6 +12,7 @@ import { AdminController } from './admin/admin.controller';
 import { GetConfig } from './config/config';
 import { SeedService } from './shared/seed/seed.service';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { PocModule } from './poc/poc.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MonitoringModule } from './monitoring/monitoring.module';
     PaymentModule,
     UserModule,
     MonitoringModule,
+    PocModule,
   ],
   controllers: [AppController, StatisticController, AdminController],
   providers: [StatisticService, CfpService, SeedService],

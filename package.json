@@ -33,12 +33,14 @@
     "@nestjs/common": "^8.3.1",
     "@nestjs/config": "^1.2.0",
     "@nestjs/core": "^8.3.1",
+    "@nestjs/cqrs": "^8.0.5",
     "@nestjs/jwt": "^8.0.0",
     "@nestjs/passport": "^8.2.1",
     "@nestjs/platform-express": "^8.3.1",
     "@nestjs/schedule": "^1.0.2",
     "@nestjs/swagger": "^5.2.0",
     "@nestjs/typeorm": "^8.0.3",
+    "@types/uuid": "^8.3.4",
     "applicationinsights": "^2.2.1",
     "axios": "^0.26.0",
     "basic-ftp": "^4.6.6",
@@ -67,6 +69,7 @@
     "rxjs": "^7.5.4",
     "swagger-ui-express": "^4.3.0",
     "typeorm": "^0.2.43",
+    "uuid": "^8.3.2",
     "xoauth2": "^1.2.0"
   },
   "devDependencies": {
