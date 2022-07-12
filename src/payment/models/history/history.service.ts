@@ -350,7 +350,7 @@ export class HistoryService {
         sellValueInEur: null,
       }));
     } catch (error) {
-      console.error('getDFITaxRewards error', error);
+      console.error(`Failed to get DFI.tax rewards for ${userAddress}:`, error);
       return [];
     }
   }

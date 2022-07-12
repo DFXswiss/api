@@ -59,8 +59,8 @@ export class DfiTaxService {
       return rewards.filter((item) => {
         return new Date(item.date).getTime() >= dateFrom.getTime() && new Date(item.date).getTime() <= dateTo.getTime();
       });
-    } catch {
-      throw new ServiceUnavailableException(`DFI.tax timeout (${timeout}ms)`);
+    } catch (e) {
+      throw new ServiceUnavailableException(e);
     }
   }
 
