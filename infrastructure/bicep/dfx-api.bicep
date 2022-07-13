@@ -27,6 +27,7 @@ param kycWebhookIps string
 param githubToken string
 
 param nodeAllowAllIps bool
+param allowedIpRange string
 @secure()
 param nodePassword string
 @secure()
@@ -62,6 +63,10 @@ param sepaToolsUser string
 @secure()
 param sepaToolsPassword string
 
+param btcVmUser string
+@secure()
+param btcVmPassword string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -70,6 +75,7 @@ var nodeName = 'node'
 
 var virtualNetName = 'vnet-${compName}-${apiName}-${env}'
 var subNetName = 'snet-${compName}-${apiName}-${env}'
+var vmSubNetName = 'snet-${compName}-vm-${env}'
 
 var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
 var dbBackupContainerName = 'db-bak'
@@ -83,8 +89,6 @@ var nodeIntFileShareNameA = 'node-int-data-a'
 var nodeIntFileShareNameB = 'node-int-data-b'
 var nodeRefFileShareNameA = 'node-ref-data-a'
 var nodeRefFileShareNameB = 'node-ref-data-b'
-var nodeBtcInpFileShareNameA = 'node-btc-inp-data-a'
-var nodeBtcInpFileShareNameB = 'node-btc-inp-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -103,8 +107,13 @@ var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
 var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
 var nodeRefServicePlanName = 'plan-${compName}-${nodeName}-ref-${env}'
 var nodeRefAppName = 'app-${compName}-${nodeName}-ref-${env}'
-var nodeBtcInpServicePlanName = 'plan-${compName}-${nodeName}-btc-inp-${env}'
-var nodeBtcInpAppName = 'app-${compName}-${nodeName}-btc-inp-${env}'
+
+var btcVmName = 'vm-${compName}-btc-inp-${env}'
+var btcVmDiskName = 'osdisk-${compName}-btc-inp-${env}'
+var btcNicName = 'nic-${compName}-btc-inp-${env}'
+var btcPipName = 'ip-${compName}-btc-inp-${env}'
+var btcNsgName = 'nsg-${compName}-btc-inp-${env}'
+
 
 var nodeProps = [
   {
@@ -141,13 +150,6 @@ var nodeProps = [
     appName: nodeRefAppName
     fileShareNameA: nodeRefFileShareNameA
     fileShareNameB: nodeRefFileShareNameB
-  }
-  {
-    name: 'nodes-btc-inp-${env}'
-    servicePlanName: nodeBtcInpServicePlanName
-    appName: nodeBtcInpAppName
-    fileShareNameA: nodeBtcInpFileShareNameA
-    fileShareNameB: nodeBtcInpFileShareNameB
   }
 ]
 
@@ -194,13 +196,18 @@ resource virtualNet 'Microsoft.Network/virtualNetworks@2020-11-01' = {
           privateLinkServiceNetworkPolicies: 'Enabled'
         }
       }
+      {
+        name: vmSubNetName
+        properties: {
+          addressPrefix: '10.0.1.0/24'
+        }
+      }
     ]
   }
 }
 
 
 // Storage Account
-// TODO: VNet integration
 resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
   name: storageAccountName
   location: location
@@ -258,14 +265,6 @@ resource nodeRefFileShareA 'Microsoft.Storage/storageAccounts/fileServices/share
 
 resource nodeRefFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
   name: '${storageAccount.name}/default/${nodeRefFileShareNameB}'
-}
-
-resource nodeBtcInpFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeBtcInpFileShareNameA}'
-}
-
-resource nodeBtcInpFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeBtcInpFileShareNameB}'
 }
 
 
@@ -493,11 +492,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'NODE_BTC_INP_URL_ACTIVE'
-          value: nodes[5].outputs.url
-        }
-        {
-          name: 'NODE_BTC_INP_URL_PASSIVE'
-          value: nodes[5].outputs.urlStg
+          value: 'http://${btcNic.properties.ipConfigurations[0].properties.privateIPAddress}:8332'
         }
         {
           name: 'DEX_WALLET_ADDRESS'
@@ -599,3 +594,124 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
     hasBackup: hasBackupNodes
   }
 }]
+
+
+// BTC Node
+resource btcPip 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
+  name: btcPipName
+  location: location
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    dnsSettings: {
+      domainNameLabel: btcVmName
+    }
+  }
+}
+
+resource btcNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
+  name: btcNsgName
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'SSH'
+        properties: {
+          protocol: 'TCP'
+          sourcePortRange: '*'
+          destinationPortRange: '22'
+          sourceAddressPrefix: allowedIpRange
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 300
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
+}
+
+resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
+  parent: btcNsg
+  name: 'RPC'
+  properties: {
+    protocol: 'TCP'
+    sourcePortRange: '*'
+    destinationPortRange: '8332'
+    sourceAddressPrefix: allowedIpRange
+    destinationAddressPrefix: '*'
+    access: 'Allow'
+    priority: 350
+    direction: 'Inbound'
+  }
+}
+
+resource btcNic 'Microsoft.Network/networkInterfaces@2020-11-01' = {
+  name: btcNicName
+  location: location
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'ipconfig1'
+        properties: {
+          privateIPAllocationMethod: 'Dynamic'
+          publicIPAddress: {
+            id: btcPip.id
+          }
+          subnet: {
+            id: virtualNet.properties.subnets[1].id
+          }
+        }
+      }
+    ]
+    networkSecurityGroup: {
+      id: btcNsg.id
+    }
+  }
+}
+
+resource btcVm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
+  name: btcVmName
+  location: location
+  properties: {
+    hardwareProfile: {
+      vmSize: 'Standard_B2s'
+    }
+    storageProfile: {
+      imageReference: {
+        publisher: 'canonical'
+        offer: '0001-com-ubuntu-server-focal'
+        sku: '20_04-lts-gen2'
+        version: 'latest'
+      }
+      osDisk: {
+        name: btcVmDiskName
+        createOption: 'FromImage'
+        caching: 'ReadWrite'
+        managedDisk: {
+          storageAccountType: 'StandardSSD_LRS'
+        }
+        diskSizeGB: 1023
+      }
+    }
+    osProfile: {
+      computerName: btcVmName
+      adminUsername: btcVmUser
+      adminPassword: btcVmPassword
+    }
+    networkProfile: {
+      networkInterfaces: [
+        {
+          id: btcNic.id
+        }
+      ]
+    }
+    diagnosticsProfile: {
+      bootDiagnostics: {
+        enabled: true
+      }
+    }
+  }
+}

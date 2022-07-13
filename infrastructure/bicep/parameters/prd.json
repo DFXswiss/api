@@ -50,6 +50,9 @@
     "nodeAllowAllIps": {
       "value": false
     },
+    "allowedIpRange": {
+      "value": "xxx"
+    },
     "nodePassword": {
       "value": "xxx"
     },
@@ -105,6 +108,12 @@
       "value": "xxx"
     },
     "sepaToolsPassword": {
+      "value": "xxx"
+    },
+    "btcVmUser": {
+      "value": "xxx"
+    },
+    "btcVmPassword": {
       "value": "xxx"
     }
   }
