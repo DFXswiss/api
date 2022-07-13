@@ -134,6 +134,8 @@ export class BuyCryptoSaga {
   }
 
   private async handlePriceReceivedEvent(event: PriceReceivedEvent) {
+    console.log(`Reference prices received. CorrelationID: ${event.correlationId}`);
+
     const saga = await this.getSagaByCorrelationId(event.correlationId);
 
     try {
@@ -154,12 +156,14 @@ export class BuyCryptoSaga {
         targetAsset: buyCrypto.outputAsset,
       };
     } catch (e) {
-      await this.logStep(saga, BuyCryptoSagaStep.BankTransactionEventEnd, e.message);
+      await this.logStep(saga, BuyCryptoSagaStep.PriceReceivedEventEnd, e.message);
       throw e;
     }
   }
 
   private async handleLiquiditySecuredEvent(event: LiquiditySecuredEvent) {
+    console.log(`Liquidity secured. CorrelationID: ${event.correlationId}`);
+
     const saga = await this.getSagaByCorrelationId(event.correlationId);
 
     try {
@@ -186,6 +190,8 @@ export class BuyCryptoSaga {
   }
 
   private async handlePayoutPreparedEvent(event: PayoutPreparedEvent) {
+    console.log(`Payout prepared. CorrelationID: ${event.correlationId}`);
+
     const saga = await this.getSagaByCorrelationId(event.correlationId);
 
     try {
@@ -200,6 +206,8 @@ export class BuyCryptoSaga {
   }
 
   private async handlePayoutCompleteEvent(event: PayoutCompleteEvent) {
+    console.log(`Payout complete. CorrelationID: ${event.correlationId}`);
+
     const saga = await this.getSagaByCorrelationId(event.correlationId);
 
     try {
@@ -236,21 +244,23 @@ export class BuyCryptoSaga {
   }
 
   private async handleUserNotifiedEvent(event: UserNotifiedEvent): Promise<void> {
+    console.log(`Notification sent. CorrelationID: ${event.correlationId}`);
+
     const saga = await this.getSagaByCorrelationId(event.correlationId);
 
     try {
-      const buyCrypto = await this.prepareStep<PayoutPreparedEvent>(
+      const buyCrypto = await this.prepareStep<UserNotifiedEvent>(
         event,
         saga,
-        BuyCryptoSagaStep.PayoutCompleteEventStart,
+        BuyCryptoSagaStep.UserNotifiedEventStart,
       );
 
       buyCrypto.confirmSentMail();
       await this.buyCryptoRepo.save(buyCrypto);
 
-      await this.logStep(saga, BuyCryptoSagaStep.PayoutCompleteEventEnd);
+      await this.logStep(saga, BuyCryptoSagaStep.UserNotifiedEventEnd);
     } catch (e) {
-      await this.logStep(saga, BuyCryptoSagaStep.PayoutCompleteEventEnd, e.message);
+      await this.logStep(saga, BuyCryptoSagaStep.UserNotifiedEventEnd, e.message);
       throw e;
     }
   }
@@ -268,6 +278,8 @@ export class BuyCryptoSaga {
   }
 
   private async startSaga(event: BankTransactionCompleteEvent) {
+    console.log(`Start BuyCrypto Saga. Correlation ID: ${event.correlationId}`);
+
     const saga = this.sagaRepo.create({
       name: 'BuyCryptoSaga',
       correlationId: event.correlationId,
@@ -286,7 +298,7 @@ export class BuyCryptoSaga {
   }
 
   private async getSagaByCorrelationId(correlationId: string): Promise<PocSaga> {
-    const saga = await this.sagaRepo.findOne({ correlationId: correlationId });
+    const saga = await this.sagaRepo.findOne({ where: { correlationId }, relations: ['logs'] });
 
     if (!saga) {
       throw new Error(`Saga not found! ID: ${correlationId}`);
@@ -300,7 +312,10 @@ export class BuyCryptoSaga {
 
     this.validateEvent<T>(event);
 
-    const buyCrypto = await this.buyCryptoRepo.findOne(saga.subjectId);
+    const buyCrypto = await this.buyCryptoRepo.findOne({
+      where: { id: saga.subjectId },
+      relations: ['bankTx', 'buy', 'buy.user'],
+    });
 
     if (!buyCrypto) {
       const message = `BuyCrypto not found. ID: ${saga.subjectId}`;

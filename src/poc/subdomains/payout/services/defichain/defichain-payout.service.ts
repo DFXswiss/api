@@ -36,7 +36,7 @@ export class DeFiChainPayoutService {
 
   // *** JOBS *** //
 
-  @Interval(60000)
+  @Interval(30000)
   async checkLiquidityTransferCompletion() {
     if (!this.preparePayoutLock.acquire()) return;
 
@@ -50,6 +50,8 @@ export class DeFiChainPayoutService {
       const { blockhash, confirmations } = await this.dexClient.getTx(order.liquidityTransferId);
 
       if (blockhash && confirmations > 0) {
+        console.log(`Preparing payout complete. OrderID: ${order.id}. CorrelationID: ${order.correlationId}`);
+
         await this.payoutOrderRepo.save({ ...order, isLiquidityTransferComplete: true });
         this.eventBus.publish(
           new PayoutPreparedEvent(order.correlationId, { payoutReservationId: order.id.toString() }),
@@ -60,7 +62,7 @@ export class DeFiChainPayoutService {
     this.preparePayoutLock.release();
   }
 
-  @Interval(60000)
+  @Interval(30000)
   async checkPayoutCompletion() {
     if (!this.preparePayoutLock.acquire()) return;
 
@@ -74,6 +76,8 @@ export class DeFiChainPayoutService {
       const { blockhash, confirmations } = await this.dexClient.getTx(order.liquidityTransferId);
 
       if (blockhash && confirmations > 0) {
+        console.log(`Payout complete. OrderID: ${order.id}. CorrelationID: ${order.correlationId}`);
+
         await this.payoutOrderRepo.save({ ...order, isComplete: true });
         this.eventBus.publish(new PayoutCompleteEvent(order.correlationId, { payoutTransactionId: order.payoutId }));
       }
@@ -91,6 +95,8 @@ export class DeFiChainPayoutService {
       request.asset,
       request.amount,
     );
+
+    console.log(`Preparing payout. CorrelationID: ${correlationId}. TxID: ${txId}`);
 
     await this.payoutOrderRepo.insert({
       chain: 'defichain',

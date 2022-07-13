@@ -16,8 +16,12 @@ export class PayoutDFIStrategy extends DoPayoutStrategy {
   }
 
   async doPayout(order: PocPayoutOrder): Promise<void> {
+    console.log(`Doing payout. OrderID: ${order.id}. CorrelationID: ${order.correlationId}`);
+
     const payout = PayoutUtil.aggregatePayout([order]);
     const payoutId = await this.outClient.sendUtxoToMany(payout);
+
+    console.log(`Payout in progress. OrderID: ${order.id}. CorrelationID: ${order.correlationId}. TxID: ${payoutId}`);
 
     await this.payoutOrderRepo.save({ ...order, payoutId });
   }

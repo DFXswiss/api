@@ -13,10 +13,14 @@ export class PocSaga extends IEntity {
   @Column({ length: 256, nullable: true })
   subjectId: string;
 
-  @OneToMany(() => PocSagaLog, (log) => log.saga)
+  @OneToMany(() => PocSagaLog, (log) => log.saga, { cascade: true })
   logs: PocSagaLog[];
 
   addLog(log: PocSagaLog): this {
+    if (!this.logs) {
+      this.logs = [];
+    }
+
     this.logs.push(log);
 
     return this;

@@ -12,7 +12,7 @@ export class PocPayoutOrder extends IEntity {
   @Column({ nullable: true })
   isLiquidityTransferComplete: boolean;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256, nullable: true })
   payoutId: string;
 
   @Column({ length: 256, nullable: false })

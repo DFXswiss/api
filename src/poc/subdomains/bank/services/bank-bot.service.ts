@@ -1,5 +1,4 @@
 import { v4 as uuid } from 'uuid';
-import { throttle } from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { EventBus } from '@nestjs/cqrs';
 import { Interval } from '@nestjs/schedule';
@@ -11,7 +10,7 @@ import { PocBuyCryptoRepository } from '../../buy/repositories/buy-crypto.reposi
 export class BankBotService {
   constructor(private readonly eventBus: EventBus, private readonly buyCryptoRepo: PocBuyCryptoRepository) {}
 
-  @Interval(60000)
+  @Interval(10000)
   async process() {
     const txInput = await this.buyCryptoRepo.find({
       where: {
@@ -19,17 +18,20 @@ export class BankBotService {
         outputReferenceAsset: IsNull(),
         outputReferenceAmount: IsNull(),
         outputAsset: IsNull(),
-        batch: IsNull(),
+        isStarted: false,
       },
-      relations: ['bankTx', 'buy', 'buy.user', 'batch'],
+      relations: ['bankTx', 'buy', 'buy.user'],
     });
 
     if (txInput.length === 0) {
       return;
     }
 
-    txInput.forEach((input) =>
-      throttle(() => this.eventBus.publish(new BankTransactionCompleteEvent(uuid(), { buyCryptoId: input.id })), 1000),
-    );
+    for (const input of txInput) {
+      console.log(`Dispatching BuyCrypto input. ID: ${input.id}`);
+
+      await this.eventBus.publish(new BankTransactionCompleteEvent(uuid(), { buyCryptoId: input.id }));
+      await this.buyCryptoRepo.save({ ...input, isStarted: true });
+    }
   }
 }

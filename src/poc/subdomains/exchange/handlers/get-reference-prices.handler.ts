@@ -18,6 +18,7 @@ export class GetReferencePricesHandler implements ICommandHandler<GetReferencePr
   ) {}
 
   async execute(command: GetReferencePricesCommand) {
+    console.log(`Getting reference prices. CorrelationID: ${command.correlationId}`);
     // can be cached and updated periodically, only new pairs would results in direct call
     const price = await this.getMatchingPrice(command.payload.from, command.payload.to);
     this.eventBus.publish(new PriceReceivedEvent(command.correlationId, price));

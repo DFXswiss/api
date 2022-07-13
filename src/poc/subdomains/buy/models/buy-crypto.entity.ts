@@ -64,6 +64,9 @@ export class PocBuyCrypto extends IEntity {
   txId: string;
 
   @Column({ default: false })
+  isStarted: boolean;
+
+  @Column({ default: false })
   isComplete: boolean;
 
   @Column({ type: 'datetime2', nullable: true })

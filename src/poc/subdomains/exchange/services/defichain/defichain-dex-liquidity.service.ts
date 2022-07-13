@@ -36,7 +36,7 @@ export class DeFiChainDexLiquidityService {
 
   // *** JOBS *** //
 
-  @Interval(60000)
+  @Interval(30000)
   async checkLiquidityOrders() {
     if (!this.lock.acquire()) return;
 
@@ -48,6 +48,8 @@ export class DeFiChainDexLiquidityService {
       const { blockhash, confirmations } = await this.dexClient.getTx(order.purchaseId);
 
       if (blockhash && confirmations > 0) {
+        console.log(`Liquidity purchased. Order ID: ${order.id}. CorrelationID: ${order.correlationId}`);
+
         const amount = await this.getLiquidityAfterPurchase(order);
 
         await this.liquidityOrderRepo.save({ ...order, isComplete: true, amount });
@@ -66,6 +68,8 @@ export class DeFiChainDexLiquidityService {
   // *** PUBLIC API *** //
 
   async checkAvailableLiquidity(request: LiquidityCheckRequest, correlationId: string): Promise<boolean> {
+    console.log(`Checking liquidity for correlationID: ${correlationId}`);
+
     const requiredAmount = await this.dexClient.testCompositeSwap(
       request.referenceAsset,
       request.targetAsset,
@@ -90,6 +94,8 @@ export class DeFiChainDexLiquidityService {
   }
 
   async purchaseLiquidity(swapAmount: number, outputAsset: string, correlationId: string): Promise<void> {
+    console.log(`Purchasing liquidity for correlationID: ${correlationId}`);
+
     const availableDFIAmount = await this.getAvailableTokenAmount('DFI');
 
     if (swapAmount > availableDFIAmount) {
