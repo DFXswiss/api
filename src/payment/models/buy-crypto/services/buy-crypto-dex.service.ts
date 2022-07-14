@@ -190,6 +190,12 @@ export class BuyCryptoDexService {
         return;
       }
 
+      const isSlippage = await this.checkForSlippage(batch, swapAmount);
+
+      if (isSlippage) {
+        // do what?
+      }
+
       txId = await this.dexClient.compositeSwap(
         Config.node.dexWalletAddress,
         'DFI',
@@ -219,10 +225,7 @@ export class BuyCryptoDexService {
   }
 
   private async calculateLiquiditySwapAmount(batch: BuyCryptoBatch): Promise<number> {
-    const isReferenceAsset =
-      batch.outputAsset === 'BTC' || batch.outputAsset === 'USDC' || batch.outputAsset === 'USDT';
-
-    if (isReferenceAsset) {
+    if (batch.isReferenceAsset) {
       const referencePrice =
         (await this.dexClient.testCompositeSwap(
           batch.outputReferenceAsset,
@@ -236,7 +239,18 @@ export class BuyCryptoDexService {
       return Util.round(swapAmount + swapAmount * 0.05, 8);
     }
 
-    return await this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', batch.outputReferenceAmount);
+    return this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', batch.outputReferenceAmount);
+  }
+
+  private async checkForSlippage(batch: BuyCryptoBatch, swapAmount: number): Promise<boolean> {
+    const basePrice = await this.dexClient.testCompositeSwap('DFI', batch.outputAsset, 1);
+    const targetPrice = (await this.dexClient.testCompositeSwap('DFI', batch.outputAsset, swapAmount)) / swapAmount;
+
+    if (batch.isReferenceAsset) {
+      return (targetPrice - basePrice) / basePrice > 0.005;
+    }
+
+    return (targetPrice - basePrice) / basePrice > 0.03;
   }
 
   private async transferForOutput(batch: BuyCryptoBatch): Promise<void> {

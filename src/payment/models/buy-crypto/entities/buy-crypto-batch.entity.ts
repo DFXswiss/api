@@ -113,6 +113,10 @@ export class BuyCryptoBatch extends IEntity {
     return this.outputReferenceAsset === 'BTC' ? 0.001 : 1;
   }
 
+  get isReferenceAsset(): boolean {
+    return this.outputAsset === 'BTC' || this.outputAsset === 'USDC' || this.outputAsset === 'USDT';
+  }
+
   private createPayoutGroups(transactions: BuyCrypto[], maxGroupSize: number): BuyCrypto[][] {
     const result: Map<number, BuyCrypto[]> = new Map();
 
