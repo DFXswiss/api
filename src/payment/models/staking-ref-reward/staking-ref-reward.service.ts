@@ -132,12 +132,14 @@ export class StakingRefRewardService {
 
   private async sendMails(): Promise<void> {
     try {
-      const openRewardMails = await this.stakingRefRewardRepo.find({
+      const sentRewards = await this.stakingRefRewardRepo.find({
         where: { txId: Not(IsNull()), mailSendDate: IsNull() },
         relations: ['user', 'user.userData', 'user.userData.language'],
       });
 
-      for (const reward of openRewardMails) {
+      const confirmedRewards = await this.getConfirmedRewards(sentRewards);
+
+      for (const reward of confirmedRewards) {
         try {
           if (reward.user.userData.mail) {
             await this.mailService.sendTranslatedMail({
@@ -196,5 +198,19 @@ export class StakingRefRewardService {
 
       await this.userService.updatePaidStakingRefCredit(id, volume ?? 0);
     }
+  }
+
+  private async getConfirmedRewards(sentRewards: StakingRefReward[]): Promise<StakingRefReward[]> {
+    const confirmedRewards = [];
+
+    for (const reward of sentRewards) {
+      const chainTx = await this.client.getTx(reward.txId);
+
+      if (chainTx.blockhash && chainTx.confirmations > 0) {
+        confirmedRewards.push(reward);
+      }
+    }
+
+    return confirmedRewards;
   }
 }
