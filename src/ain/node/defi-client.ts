@@ -1,6 +1,7 @@
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
+import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { NodeClient, NodeCommand, NodeMode } from './node-client';
 
@@ -137,6 +138,10 @@ export class DeFiClient extends NodeClient {
   }
 
   async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
+    if (amount < Config.node.minTxAmount) {
+      throw new Error(`Ignoring dust toUtxo transaction. AddressTo: ${addressTo}. Amount: ${amount}`);
+    }
+
     return this.callNode(
       (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
       true,
