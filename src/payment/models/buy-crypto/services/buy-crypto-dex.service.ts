@@ -152,6 +152,7 @@ export class BuyCryptoDexService {
       .reduce((acc, curr) => acc + curr.outputReferenceAmount, 0);
 
     try {
+      // TODO - check if testcomposite swap counts in slippage
       const requiredAmount = await this.dexClient.testCompositeSwap(
         batch.outputReferenceAsset,
         batch.outputAsset,
@@ -178,6 +179,7 @@ export class BuyCryptoDexService {
     let txId: string;
 
     try {
+      const basePrice = await this.dexClient.testCompositeSwap('DFI', batch.outputAsset, 1);
       const swapAmount = await this.calculateLiquiditySwapAmount(batch);
       const availableDFIAmount = await this.getAvailableTokenAmount('DFI');
 
@@ -190,18 +192,14 @@ export class BuyCryptoDexService {
         return;
       }
 
-      const isSlippage = await this.checkForSlippage(batch, swapAmount);
-
-      if (isSlippage) {
-        // do what?
-      }
-
       txId = await this.dexClient.compositeSwap(
         Config.node.dexWalletAddress,
         'DFI',
         Config.node.dexWalletAddress,
         batch.outputAsset,
         swapAmount,
+        [],
+        Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8),
       );
 
       batch.pending(txId);
@@ -209,6 +207,13 @@ export class BuyCryptoDexService {
         `Purchased ${swapAmount} DFI worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
       );
     } catch (e) {
+      if (e.message && e.message.includes('TBD - Max price violation...')) {
+        this.buyCryptoNotificationService.sendNonRecoverableErrorMail(
+          `Composite swap slippage error while purchasing asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
+          e,
+        );
+      }
+
       console.error(`Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
       return;
     }
