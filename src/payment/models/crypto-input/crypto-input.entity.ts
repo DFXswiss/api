@@ -7,6 +7,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
+import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
 
 export enum CryptoInputType {
   RETURN = 'Return',
@@ -43,7 +44,7 @@ export class CryptoInput extends IEntity {
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   asset: Asset;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   type: CryptoInputType;
 
   @ManyToOne(() => DepositRoute, { nullable: false })
@@ -57,6 +58,9 @@ export class CryptoInput extends IEntity {
 
   @OneToOne(() => CryptoSell, (sell) => sell.cryptoInput, { nullable: true })
   cryptoSell?: CryptoSell;
+
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { nullable: true })
+  buyFiat?: BuyFiat;
 
   @OneToOne(() => CryptoStaking, (staking) => staking.cryptoInput, { nullable: true })
   cryptoStaking?: CryptoStaking;

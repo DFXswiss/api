@@ -4,6 +4,8 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { DepositRoute } from '../route/deposit-route.entity';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { BankAccount } from '../bank-account/bank-account.entity';
+import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
+
 @ChildEntity()
 export class Sell extends DepositRoute {
   @Column({ length: 256 })
@@ -23,4 +25,7 @@ export class Sell extends DepositRoute {
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)
   cryptoInputs: CryptoInput[];
+
+  @OneToMany(() => BuyFiat, (buyFiat) => buyFiat.sell)
+  buyFiats: BuyFiat[];
 }
