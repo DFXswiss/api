@@ -16,6 +16,7 @@ import { CryptoInputService } from './crypto-input.service';
 import { BtcClient } from 'src/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { HttpService } from 'src/shared/services/http.service';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -30,6 +31,7 @@ export class BtcInputService extends CryptoInputService {
     private readonly http: HttpService,
     private readonly assetService: AssetService,
     private readonly cryptoRouteService: CryptoRouteService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {
     super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
@@ -177,6 +179,7 @@ export class BtcInputService extends CryptoInputService {
           const { confirmations } = await this.btcClient.waitForTx(input.outTxId);
           if (confirmations > 60) {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
+            await this.buyCryptoService.createFromCrypto(input.id, input.route.id);
           }
         } catch (e) {
           console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);

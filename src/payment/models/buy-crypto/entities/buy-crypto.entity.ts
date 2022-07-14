@@ -6,6 +6,10 @@ import { Price } from '../../exchange/dto/price.dto';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
 import { AmlCheck } from '../enums/aml-check.enum';
+import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
+import { CryptoInput } from '../../crypto-input/crypto-input.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { User } from 'src/user/models/user/user.entity';
 
 @Entity()
 export class BuyCrypto extends IEntity {
@@ -13,8 +17,15 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   bankTx: BankTx;
 
-  @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: false })
+  @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy: Buy;
+
+  @OneToOne(() => CryptoInput, { nullable: true })
+  @JoinColumn()
+  cryptoInput: CryptoInput;
+
+  @ManyToOne(() => CryptoRoute, (cryptoRoute) => cryptoRoute.buyCryptos, { nullable: true })
+  cryptoRoute: CryptoRoute;
 
   @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
   batch: BuyCryptoBatch;
@@ -89,7 +100,7 @@ export class BuyCrypto extends IEntity {
   refFactor: number;
 
   defineAssetExchangePair(): this {
-    this.outputAsset = this.buy?.asset?.dexName;
+    this.outputAsset = this.target?.asset?.dexName;
 
     if (this.outputAsset === 'BTC' || this.outputAsset === 'USDC' || this.outputAsset === 'USDT') {
       this.outputReferenceAsset = this.outputAsset;
@@ -142,13 +153,21 @@ export class BuyCrypto extends IEntity {
   }
 
   confirmSentMail(): this {
-    this.recipientMail = this.buy.user.userData.mail;
+    this.recipientMail = this.user.userData.mail;
     this.mailSendDate = Date.now();
 
     return this;
   }
 
-  get targetAddress(): string {
-    return this.buy.deposit ? this.buy.deposit.address : this.buy.user.address;
+  get user(): User {
+    return this.buy ? this.buy.user : this.cryptoRoute.user;
+  }
+
+  get target(): { address: string; asset: Asset } {
+    if (this.buy) {
+      return { address: this.buy.deposit ? this.buy.deposit.address : this.buy.user.address, asset: this.buy.asset };
+    } else {
+      return { address: this.cryptoRoute.targetDeposit.address, asset: this.cryptoRoute.asset };
+    }
   }
 }

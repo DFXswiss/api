@@ -30,7 +30,7 @@ export class BankTxService {
 
     bankTx.type = dto.type;
 
-    if (bankTx.type === BankTxType.BUY_CRYPTO) await this.buyCryptoService.create(bankTxId, dto.buyId);
+    if (bankTx.type === BankTxType.BUY_CRYPTO) await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
 
     return await this.bankTxRepo.save(bankTx);
   }
