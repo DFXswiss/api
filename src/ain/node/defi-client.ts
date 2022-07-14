@@ -138,9 +138,7 @@ export class DeFiClient extends NodeClient {
   }
 
   async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
-    if (amount < Config.node.minTxAmount) {
-      throw new Error(`Ignoring dust toUtxo transaction. AddressTo: ${addressTo}. Amount: ${amount}`);
-    }
+    amount = amount >= Config.node.minTxAmount ? amount : Config.node.minTxAmount;
 
     return this.callNode(
       (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
