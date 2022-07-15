@@ -99,6 +99,16 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   refFactor: number;
 
+  @Column({ type: 'datetime2', nullable: true })
+  chargebackDate: Date;
+
+  @Column({ length: 256, nullable: true })
+  chargebackRemittanceInfo: string;
+
+  @OneToOne(() => BankTx, { nullable: true })
+  @JoinColumn()
+  chargebackBankTx: BankTx;
+
   defineAssetExchangePair(): this {
     this.outputAsset = this.target?.asset?.dexName;
 
