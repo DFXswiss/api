@@ -201,12 +201,12 @@
     "method": "PUT",
     "sortNum": 120000,
     "created": "2022-01-15T13:47:31.522Z",
-    "modified": "2022-02-15T21:30:30.025Z",
+    "modified": "2022-07-15T10:00:33.475Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"NA\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4\n}",
+      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"NA\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null\n}",
       "form": []
     },
     "tests": []
@@ -890,39 +890,6 @@
     "tests": []
   },
   {
-    "_id": "8a44fd4e-15f2-44a4-913d-c24c7f549467",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "fd2e8b01-0e57-4f22-bbb5-226617dc19db",
-    "name": "Post Monitoring Data",
-    "url": "{{url}}/v1/monitoring/data",
-    "method": "POST",
-    "sortNum": 410000,
-    "created": "2022-07-07T05:27:57.642Z",
-    "modified": "2022-07-07T05:29:37.379Z",
-    "headers": [],
-    "params": [
-      {
-        "name": "subsystem",
-        "value": "bankingBot",
-        "isPath": false
-      },
-      {
-        "name": "metric",
-        "value": "logs",
-        "isPath": false
-      }
-    ],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"dfx\": {\n        \"date\": \"today\",\n        \"fileName\": \"test_file_name\",\n        \"status\": \"OK\",\n        \"message\": \"test message\"\n    }\n}",
-      "form": []
-    },
-    "auth": {
-      "type": "inherit"
-    },
-    "tests": []
-  },
-  {
     "_id": "dea11939-638e-4a1a-9010-924edea26199",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "70021591-4ac2-4ec2-a400-0f7923d201b5",
@@ -1285,6 +1252,39 @@
     "tests": []
   },
   {
+    "_id": "8a44fd4e-15f2-44a4-913d-c24c7f549467",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fd2e8b01-0e57-4f22-bbb5-226617dc19db",
+    "name": "Post Monitoring Data",
+    "url": "{{url}}/v1/monitoring/data",
+    "method": "POST",
+    "sortNum": 410000,
+    "created": "2022-07-07T05:27:57.642Z",
+    "modified": "2022-07-07T05:29:37.379Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "subsystem",
+        "value": "bankingBot",
+        "isPath": false
+      },
+      {
+        "name": "metric",
+        "value": "logs",
+        "isPath": false
+      }
+    ],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"dfx\": {\n        \"date\": \"today\",\n        \"fileName\": \"test_file_name\",\n        \"status\": \"OK\",\n        \"message\": \"test message\"\n    }\n}",
+      "form": []
+    },
+    "auth": {
+      "type": "inherit"
+    },
+    "tests": []
+  },
+  {
     "_id": "62b4036a-686f-4fd6-bb82-a712e32ca1b7",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "0dfedb35-f836-48a1-b010-04736f083788",
@@ -1313,6 +1313,25 @@
     "body": {
       "type": "json",
       "raw": "{\n  \"buyType\": \"Wallet\",\n  \"blockchain\": \"Bitcoin\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "58f1caa4-cc35-42e6-8368-cbe3b64e41cd",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1ac2a4e1-088e-4ef9-be7f-e1fb2364f464",
+    "name": "Update",
+    "url": "{{url}}/v1/buyCrypto/56",
+    "method": "PUT",
+    "sortNum": 10000,
+    "created": "2022-07-15T20:21:20.070Z",
+    "modified": "2022-07-15T20:24:27.683Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"chargebackDate\": \"2022-01-01\",\n  \"chargebackRemittanceInfo\": null,\n  \"chargebackBankTxId\": 2\n}",
       "form": []
     },
     "tests": []
