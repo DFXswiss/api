@@ -162,6 +162,24 @@ export class BuyCryptoDexService {
 
       const availableAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(batch.outputAsset, this.dexClient);
 
+      if (availableAmount >= requiredAmount) {
+        const basePrice =
+          (await this.dexClient.testCompositeSwap(
+            batch.outputReferenceAsset,
+            batch.outputAsset,
+            batch.minimalOutputReferenceAmount,
+          )) / batch.minimalOutputReferenceAmount;
+
+        const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
+
+        return await this.dexClient.testCompositeSwap(
+          batch.outputReferenceAsset,
+          batch.outputAsset,
+          batch.outputReferenceAmount,
+          maxPrice,
+        );
+      }
+
       return availableAmount >= requiredAmount ? requiredAmount : 0;
     } catch (e) {
       console.error(`Error in checking liquidity for a batch, ID: ${batch.id}`, e);

@@ -76,7 +76,9 @@ export class PurchaseLiquidityService {
     maxPrice: number;
     error?: string;
   }> {
-    const basePrice = await this.#dexClient.testCompositeSwap(swapAsset, batch.outputAsset, 1);
+    const basePrice =
+      (await this.#dexClient.testCompositeSwap(swapAsset, batch.outputAsset, batch.minimalOutputReferenceAmount)) /
+      batch.minimalOutputReferenceAmount;
     const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
 
     const requiredSwapAmount = await this.calculateLiquiditySwapAmount(swapAsset, batch);
