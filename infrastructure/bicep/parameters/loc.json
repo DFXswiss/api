@@ -59,6 +59,9 @@
     "dexWalletAddress": {
       "value": "xxx"
     },
+    "outWalletAddress": {
+      "value": "xxx"
+    },
     "stakingWalletAddress": {
       "value": "xxx"
     },
