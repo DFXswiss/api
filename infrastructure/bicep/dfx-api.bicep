@@ -32,6 +32,7 @@ param nodePassword string
 @secure()
 param nodeWalletPassword string
 param dexWalletAddress string
+param outWalletAddress string
 param stakingWalletAddress string
 param utxoSpenderAddress string
 
@@ -502,6 +503,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'DEX_WALLET_ADDRESS'
           value: dexWalletAddress
+        }
+        {
+          name: 'OUT_WALLET_ADDRESS'
+          value: outWalletAddress
         }
         {
           name: 'STAKING_WALLET_ADDRESS'
