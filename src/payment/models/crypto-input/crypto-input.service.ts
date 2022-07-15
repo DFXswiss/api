@@ -47,29 +47,6 @@ export class CryptoInputService {
     private readonly buyFiatService: BuyFiatService,
   ) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
-
-    // TODO: remove
-    this.createMissingBuyFiats();
-  }
-
-  private async createMissingBuyFiats() {
-    try {
-      const inputs = await this.cryptoInputRepo.find({
-        where: { type: CryptoInputType.BUY_FIAT, buyFiat: { id: IsNull() } },
-        relations: ['buyFiat', 'route'],
-        order: { id: 'ASC' },
-      });
-
-      for (const input of inputs) {
-        try {
-          await this.buyFiatService.create(input);
-        } catch (e) {
-          console.error(`Failed to create buyFiat for input ${input.id}:`, e);
-        }
-      }
-    } catch (e) {
-      console.error('Error creating buy fiats:', e);
-    }
   }
 
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
