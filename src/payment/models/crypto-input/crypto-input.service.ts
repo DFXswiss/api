@@ -121,6 +121,10 @@ export class CryptoInputService {
                 token.owner,
                 async (utxo) =>
                   await this.client.sendToken(token.owner, Config.node.dexWalletAddress, asset, amount, [utxo]),
+                () => {
+                  // completely ignoring dust error, without log
+                  return;
+                },
               );
             } else {
               const route = await this.getDepositRoute(token.owner);
@@ -456,12 +460,21 @@ export class CryptoInputService {
     return { ...this.client.parseAmount(amount), isToken };
   }
 
-  private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
+  private async doTokenTx(
+    addressFrom: string,
+    tx: (utxo: UTXO) => Promise<string>,
+    onError?: (e: Error) => void,
+  ): Promise<void> {
     const feeUtxo = await this.getFeeUtxo(addressFrom);
-    feeUtxo ? await this.tokenTx(addressFrom, tx, feeUtxo) : this.tokenTx(addressFrom, tx); // no waiting;
+    await this.tokenTx(addressFrom, tx, feeUtxo, onError); // no waiting;
   }
 
-  private async tokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>, feeUtxo?: UTXO): Promise<void> {
+  private async tokenTx(
+    addressFrom: string,
+    tx: (utxo: UTXO) => Promise<string>,
+    feeUtxo: UTXO,
+    onError?: (e: Error) => void,
+  ): Promise<void> {
     try {
       // get UTXO
       if (!feeUtxo) {
@@ -475,6 +488,8 @@ export class CryptoInputService {
       // do TX
       await tx(feeUtxo);
     } catch (e) {
+      // custom error handling
+      if (onError) return onError(e);
       console.error('Failed to do token TX:', e);
     }
   }
