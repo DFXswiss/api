@@ -8,6 +8,8 @@ import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-bat
 import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 import { Util } from 'src/shared/util';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PurchaseLiquidityService } from '../strategies/purchase-liquidity/purchase-liquidity.service';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -17,6 +19,7 @@ export class BuyCryptoDexService {
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    private readonly purchaseLiquidityService: PurchaseLiquidityService,
     readonly nodeService: NodeService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -152,7 +155,6 @@ export class BuyCryptoDexService {
       .reduce((acc, curr) => acc + curr.outputReferenceAmount, 0);
 
     try {
-      // TODO - check if testcomposite swap counts in slippage
       const requiredAmount = await this.dexClient.testCompositeSwap(
         batch.outputReferenceAsset,
         batch.outputAsset,
@@ -179,33 +181,9 @@ export class BuyCryptoDexService {
     let txId: string;
 
     try {
-      const basePrice = await this.dexClient.testCompositeSwap('DFI', batch.outputAsset, 1);
-      const swapAmount = await this.calculateLiquiditySwapAmount(batch);
-      const availableDFIAmount = await this.getAvailableTokenAmount('DFI');
-
-      if (swapAmount > availableDFIAmount) {
-        const errorMessage = `Not enough DFI liquidity on DEX Node. Trying to purchase ${swapAmount} DFI worth liquidity for asset ${batch.outputAsset}. Available amount: ${availableDFIAmount}`;
-
-        console.error(errorMessage);
-        this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
-
-        return;
-      }
-
-      txId = await this.dexClient.compositeSwap(
-        Config.node.dexWalletAddress,
-        'DFI',
-        Config.node.dexWalletAddress,
-        batch.outputAsset,
-        swapAmount,
-        [],
-        Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8),
-      );
+      txId = await this.purchaseLiquidityService.purchaseLiquidity(batch);
 
       batch.pending(txId);
-      console.info(
-        `Purchased ${swapAmount} DFI worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
-      );
     } catch (e) {
       if (e.message && e.message.includes('TBD - Max price violation...')) {
         this.buyCryptoNotificationService.sendNonRecoverableErrorMail(
