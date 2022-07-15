@@ -57,6 +57,7 @@ export class CryptoInputService {
       const inputs = await this.cryptoInputRepo.find({
         where: { type: CryptoInputType.BUY_FIAT, buyFiat: { id: IsNull() } },
         relations: ['buyFiat', 'route'],
+        order: { id: 'ASC' },
       });
 
       for (const input of inputs) {
