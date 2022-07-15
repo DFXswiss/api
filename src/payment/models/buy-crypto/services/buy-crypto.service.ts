@@ -151,7 +151,7 @@ export class BuyCryptoService {
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
     return await this.buyCryptoRepo.find({
-      where: { cryptoRoute: { user: { id: In(userIds) } } },
+      where: { buy: { user: { id: In(userIds) } } },
       relations: ['bankTx', 'buy', 'buy.user'],
     });
   }
