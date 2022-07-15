@@ -61,6 +61,12 @@ export class BuyCryptoService {
 
     const update = this.buyCryptoRepo.create(dto);
 
+    // bank tx
+    if (dto.chargebackBankTxId) {
+      update.chargebackBankTx = await this.bankTxRepo.findOne({ id: dto.chargebackBankTxId });
+      if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
+    }
+
     // buy
     if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
 
