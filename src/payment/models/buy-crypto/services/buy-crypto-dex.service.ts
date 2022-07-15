@@ -8,8 +8,7 @@ import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-bat
 import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 import { Util } from 'src/shared/util';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PurchaseLiquidityService } from '../strategies/purchase-liquidity/purchase-liquidity.service';
+import { PurchaseLiquidityService } from './purchase-liquidity.service';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -161,20 +160,13 @@ export class BuyCryptoDexService {
         batch.outputReferenceAmount + securedAmount + pendingAmount,
       );
 
-      const availableAmount = await this.getAvailableTokenAmount(batch.outputAsset);
+      const availableAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(batch.outputAsset, this.dexClient);
 
       return availableAmount >= requiredAmount ? requiredAmount : 0;
     } catch (e) {
       console.error(`Error in checking liquidity for a batch, ID: ${batch.id}`, e);
       throw e;
     }
-  }
-
-  private async getAvailableTokenAmount(outputAsset: string): Promise<number> {
-    const tokens = await this.dexClient.getToken();
-    const token = tokens.map((t) => this.dexClient.parseAmount(t.amount)).find((pt) => pt.asset === outputAsset);
-
-    return token ? token.amount : 0;
   }
 
   private async purchaseLiquidity(batch: BuyCryptoBatch) {
@@ -205,24 +197,6 @@ export class BuyCryptoDexService {
       );
       throw e;
     }
-  }
-
-  private async calculateLiquiditySwapAmount(batch: BuyCryptoBatch): Promise<number> {
-    if (batch.isReferenceAsset) {
-      const referencePrice =
-        (await this.dexClient.testCompositeSwap(
-          batch.outputReferenceAsset,
-          'DFI',
-          batch.minimalOutputReferenceAmount,
-        )) / batch.minimalOutputReferenceAmount;
-
-      const swapAmount = batch.outputReferenceAmount * referencePrice;
-
-      // adding 3% reserve cap for non-reference asset liquidity swap
-      return Util.round(swapAmount + swapAmount * 0.05, 8);
-    }
-
-    return this.dexClient.testCompositeSwap(batch.outputReferenceAsset, 'DFI', batch.outputReferenceAmount);
   }
 
   private async checkForSlippage(batch: BuyCryptoBatch, swapAmount: number): Promise<boolean> {

@@ -20,4 +20,11 @@ export class BuyCryptoChainUtil {
         );
     }
   }
+
+  async getAvailableTokenAmount(asset: string, client: DeFiClient): Promise<number> {
+    const tokens = await client.getToken();
+    const token = tokens.map((t) => client.parseAmount(t.amount)).find((pt) => pt.asset === asset);
+
+    return token ? token.amount : 0;
+  }
 }
