@@ -208,7 +208,7 @@ export class DeFiInputService extends CryptoInputService {
       return null;
     }
 
-    const { btcAmount, usdtAmount } = await this.getReferenceAmounts(asset, amount, this.client);
+    const { btcAmount, usdtAmount } = await this.getReferenceAmounts(asset, amount);
 
     // min. deposit
     if (
@@ -262,6 +262,35 @@ export class DeFiInputService extends CryptoInputService {
     });
   }
 
+  async getReferenceAmounts(
+    asset: string,
+    amount: number,
+    allowRetry = true,
+  ): Promise<{ btcAmount: number; usdtAmount: number }> {
+    try {
+      const btcAmount = await this.client.testCompositeSwap(asset, 'BTC', amount);
+      const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+
+      return { btcAmount, usdtAmount };
+    } catch (e) {
+      try {
+        // poll the node
+        await this.client.getInfo();
+      } catch (nodeError) {
+        throw new NodeNotAccessibleError(NodeType.INPUT, nodeError);
+      }
+
+      if (allowRetry) {
+        // try once again
+        console.log('Retrying testCompositeSwaps after node poll success');
+        return await this.getReferenceAmounts(asset, amount, false);
+      }
+
+      // re-throw error, likely input related
+      throw e;
+    }
+  }
+
   private async getDepositRoute(address: string): Promise<Sell | Staking> {
     return (
       (await this.sellService.getSellByAddress(address)) ?? (await this.stakingService.getStakingByAddress(address))
@@ -277,8 +306,6 @@ export class DeFiInputService extends CryptoInputService {
       },
       relations: ['route'],
     });
-
-    inputs.length > 0 && console.log(`Forwarding inputs (${inputs.length})`);
 
     for (const input of inputs) {
       try {
@@ -323,6 +350,7 @@ export class DeFiInputService extends CryptoInputService {
       const unconfirmedInputs = await this.cryptoInputRepo.find({
         select: ['id', 'outTxId', 'isConfirmed'],
         where: { isConfirmed: false, outTxId: Not(IsNull()), route: { deposit: { blockchain: Blockchain.DEFICHAIN } } },
+        relations: ['route'],
       });
 
       for (const input of unconfirmedInputs) {

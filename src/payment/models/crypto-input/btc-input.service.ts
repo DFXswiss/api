@@ -53,8 +53,7 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async saveInputs(): Promise<void> {
-    const { blocks, headers } = await this.checkNodeInSync(this.btcClient);
-    if (blocks < headers) throw new BadRequestException('Bitcoin node is not in sync.');
+    await this.checkNodeInSync(this.btcClient);
 
     const utxos = await this.btcClient.getUtxo();
 
@@ -128,6 +127,7 @@ export class BtcInputService extends CryptoInputService {
         amlCheck: AmlCheck.PASS,
         route: { deposit: { blockchain: Blockchain.BITCOIN } },
       },
+      relations: ['route'],
     });
 
     for (const input of inputs) {
@@ -173,6 +173,7 @@ export class BtcInputService extends CryptoInputService {
           outTxId: Not(IsNull()),
           route: { deposit: { blockchain: Blockchain.BITCOIN } },
         },
+        relations: ['route'],
       });
 
       for (const input of unconfirmedInputs) {

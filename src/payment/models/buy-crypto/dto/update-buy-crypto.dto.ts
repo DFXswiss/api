@@ -1,15 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum, ValidateIf } from 'class-validator';
+import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
 import { AmlCheck } from '../enums/aml-check.enum';
 
 export class UpdateBuyCryptoDto {
   @IsOptional()
-  @ValidateIf((b: UpdateBuyCryptoDto) => !b.cryptoRouteId)
   @IsInt()
   buyId: number;
 
   @IsOptional()
-  @ValidateIf((b: UpdateBuyCryptoDto) => !b.buyId)
   @IsInt()
   cryptoRouteId: number;
 

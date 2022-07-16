@@ -81,24 +81,22 @@ export class BuyCryptoService {
 
     const update = this.buyCryptoRepo.create(dto);
 
-    // bank tx
+    // chargeback bank tx
     if (dto.chargebackBankTxId) {
       update.chargebackBankTx = await this.bankTxRepo.findOne({ id: dto.chargebackBankTxId });
       if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
     }
 
-    if (entity.bankTx) {
-      // buy
-      if (dto.buyId) {
-        if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
-        update.buy = await this.getBuy(dto.buyId);
-      }
-    } else {
-      // crypto route
-      if (dto.cryptoRouteId) {
-        if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
-        update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
-      }
+    // buy
+    if (dto.buyId) {
+      if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
+      update.buy = await this.getBuy(dto.buyId);
+    }
+
+    // crypto route
+    if (dto.cryptoRouteId) {
+      if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
+      update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
     }
 
     Util.removeNullFields(entity);

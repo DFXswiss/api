@@ -26,38 +26,6 @@ export class CryptoInputService {
     });
   }
 
-  // --- INPUT HANDLING --- //
-
-  async getReferenceAmounts(
-    asset: string,
-    amount: number,
-    client: DeFiClient,
-    allowRetry = true,
-  ): Promise<{ btcAmount: number; usdtAmount: number }> {
-    try {
-      const btcAmount = await client.testCompositeSwap(asset, 'BTC', amount);
-      const usdtAmount = await client.testCompositeSwap(asset, 'USDT', amount);
-
-      return { btcAmount, usdtAmount };
-    } catch (e) {
-      try {
-        // poll the node
-        await client.getInfo();
-      } catch (nodeError) {
-        throw new NodeNotAccessibleError(NodeType.INPUT, nodeError);
-      }
-
-      if (allowRetry) {
-        // try once again
-        console.log('Retrying testCompositeSwaps after node poll success');
-        return await this.getReferenceAmounts(asset, amount, client, false);
-      }
-
-      // re-throw error, likely input related
-      throw e;
-    }
-  }
-
   // --- HELPER METHODS --- //
   protected async checkNodeInSync(client: NodeClient): Promise<{ headers: number; blocks: number }> {
     const { blocks, headers } = await client.getInfo();
