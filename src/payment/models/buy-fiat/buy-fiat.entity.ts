@@ -22,14 +22,14 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail: string;
 
-  @Column({ type: 'float', nullable: true })
-  mail1SendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  mail1SendDate: Date;
 
-  @Column({ type: 'float', nullable: true })
-  mail2SendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  mail2SendDate: Date;
 
-  @Column({ type: 'float', nullable: true })
-  mail3SendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  mail3SendDate: Date;
 
   //Pricing
   @Column({ type: 'float', nullable: true })
@@ -73,8 +73,8 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   cryptoReturnDate: Date;
 
-  @Column({ type: 'float', nullable: true })
-  mailReturnSendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  mailReturnSendDate: Date;
 
   // Pass
   @Column({ type: 'float', nullable: true })

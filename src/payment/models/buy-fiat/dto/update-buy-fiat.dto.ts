@@ -16,16 +16,19 @@ export class UpdateBuyFiatDto {
   recipientMail: string;
 
   @IsOptional()
-  @IsNumber()
-  mail1SendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  mail1SendDate: Date;
 
   @IsOptional()
-  @IsNumber()
-  mail2SendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  mail2SendDate: Date;
 
   @IsOptional()
-  @IsNumber()
-  mail3SendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  mail3SendDate: Date;
 
   @IsOptional()
   @IsNumber()
@@ -81,8 +84,9 @@ export class UpdateBuyFiatDto {
   cryptoReturnDate: Date;
 
   @IsOptional()
-  @IsNumber()
-  mailReturnSendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  mailReturnSendDate: Date;
 
   @IsOptional()
   @IsNumber()

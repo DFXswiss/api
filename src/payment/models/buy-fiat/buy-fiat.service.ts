@@ -53,6 +53,7 @@ export class BuyFiatService {
       await this.userService.updateUserInternal(entity.sell.user.id, { status: UserStatus.ACTIVE });
     }
 
+    //TODO cryptoSell -> buyFiat Umstellung
     //await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
 
     return entity;
