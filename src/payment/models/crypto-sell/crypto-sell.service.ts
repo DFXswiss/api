@@ -56,7 +56,8 @@ export class CryptoSellService {
 
     Util.removeNullFields(entity);
 
-    entity = await this.cryptoSellRepo.save({ ...update, ...entity });
+    // TODO update aller Felder wieder deaktivieren
+    entity = await this.cryptoSellRepo.save({ ...entity, ...update });
 
     await this.updateSellVolume([sellIdBefore, entity.cryptoInput.route.id]);
 
