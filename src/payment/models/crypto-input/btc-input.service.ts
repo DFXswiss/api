@@ -57,9 +57,7 @@ export class BtcInputService extends CryptoInputService {
 
     const utxos = await this.btcClient.getUtxo();
 
-    const newInputs = await this.createEntities(utxos);
-
-    if (!newInputs) return null;
+    const newInputs = await this.createEntities(utxos).then((i) => i.filter((h) => h != null));
 
     newInputs.length > 0 && console.log(`New Bitcoin inputs (${newInputs.length}):`, newInputs);
 
@@ -74,17 +72,6 @@ export class BtcInputService extends CryptoInputService {
 
     for (const utxo of utxos) {
       try {
-        const inputCheck = await this.cryptoInputRepo.findOne({
-          where: {
-            inTxId: utxo.txid,
-            asset: { dexName: 'BTC' },
-            vout: utxo.vout,
-            route: { deposit: { address: utxo.address } },
-          },
-          relations: ['asset', 'route', 'route.deposit'],
-        });
-
-        if (inputCheck) return null;
         inputs.push(await this.createEntity(utxo));
       } catch (e) {
         console.error(`Failed to create Bitcoin input ${utxo.txid}:`, e);
@@ -119,6 +106,13 @@ export class BtcInputService extends CryptoInputService {
       console.error(`Failed to process Bitcoin input. No matching route for ${utxo.address} found.. UTXO:`, utxo);
       return null;
     }
+
+    // check if already registered
+    const existingInput = await this.cryptoInputRepo.findOne({
+      where: { inTxId: utxo.txid, vout: utxo.vout, asset: assetEntity, route: route },
+      relations: ['asset', 'route'],
+    });
+    if (existingInput) return null;
 
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
