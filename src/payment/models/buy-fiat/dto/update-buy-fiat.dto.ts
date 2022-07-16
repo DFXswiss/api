@@ -59,6 +59,10 @@ export class UpdateBuyFiatDto {
   amlCheck: AmlCheck;
 
   @IsOptional()
+  @IsString()
+  amlReason: string;
+
+  @IsOptional()
   @IsNumber()
   percentFee: number;
 

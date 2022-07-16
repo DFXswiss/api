@@ -54,6 +54,9 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   amlCheck: AmlCheck;
 
+  @Column({ length: 256, nullable: true })
+  amlReason: string;
+
   @Column({ type: 'float', nullable: true })
   percentFee: number;
 
