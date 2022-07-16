@@ -67,7 +67,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
           cryptoStaking: { id: IsNull() },
           buyCrypto: { id: IsNull() },
         },
-        relations: ['buyFiat', 'cryptoStaking'],
+        relations: ['buyFiat', 'cryptoStaking', 'buyCrypto'],
       }),
     };
   }
