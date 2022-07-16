@@ -20,7 +20,7 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy: Buy;
 
-  @OneToOne(() => CryptoInput, { nullable: true })
+  @OneToOne(() => CryptoInput, (input) => input.buyCrypto, { nullable: true })
   @JoinColumn()
   cryptoInput: CryptoInput;
 

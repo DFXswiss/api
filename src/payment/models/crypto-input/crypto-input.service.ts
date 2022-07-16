@@ -1,11 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeType } from 'src/ain/node/node.service';
 import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { In } from 'typeorm';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
-import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { NodeClient } from 'src/ain/node/node-client';
 
 @Injectable()

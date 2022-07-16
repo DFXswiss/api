@@ -187,6 +187,4 @@ describe('DeFiInputService', () => {
       },
     ]);
   });
-
-  // TODO: do more tests
 });

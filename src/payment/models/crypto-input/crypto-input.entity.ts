@@ -9,6 +9,7 @@ import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoRoute } from '../crypto-route/crypto-route.entity';
 import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
+import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 
 export enum CryptoInputType {
   RETURN = 'Return',
@@ -71,4 +72,7 @@ export class CryptoInput extends IEntity {
 
   @OneToOne(() => CryptoStaking, (staking) => staking.cryptoInput, { nullable: true })
   cryptoStaking?: CryptoStaking;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
+  buyCrypto: BuyCrypto;
 }

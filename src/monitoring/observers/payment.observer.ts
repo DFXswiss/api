@@ -64,7 +64,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
           type: Not(CryptoInputType.CRYPTO_CRYPTO),
           buyFiat: { id: IsNull() },
           cryptoStaking: { id: IsNull() },
-          /* TODO: Buy_Crypto */
+          buyCrypto: { id: IsNull() },
         },
         relations: ['buyFiat', 'cryptoStaking'],
       }),
