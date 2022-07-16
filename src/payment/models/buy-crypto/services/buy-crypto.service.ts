@@ -22,6 +22,7 @@ import { CryptoInputRepository } from '../../crypto-input/crypto-input.repositor
 import { CryptoRouteRepository } from '../../crypto-route/crypto-route.repository';
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
+import { CryptoInput } from '../../crypto-input/crypto-input.entity';
 
 @Injectable()
 export class BuyCryptoService {
@@ -59,15 +60,11 @@ export class BuyCryptoService {
     return await this.buyCryptoRepo.save(entity);
   }
 
-  async createFromCrypto(cryptoInputId: number, cryptoRouteId: number): Promise<BuyCrypto> {
+  async createFromCrypto(cryptoInput: CryptoInput): Promise<BuyCrypto> {
     const entity = this.buyCryptoRepo.create();
 
-    // crypto input
-    entity.cryptoInput = await this.cryptoInputRepo.findOne(cryptoInputId);
-    if (!entity.cryptoInput) throw new BadRequestException('Crypto input not found');
-
-    // crypto route
-    if (cryptoRouteId) entity.cryptoRoute = await this.getCryptoRoute(cryptoRouteId);
+    entity.cryptoInput = cryptoInput;
+    entity.cryptoRoute = cryptoInput.route as CryptoRoute;
 
     return await this.buyCryptoRepo.save(entity);
   }
@@ -92,10 +89,16 @@ export class BuyCryptoService {
 
     if (entity.bankTx) {
       // buy
-      if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
+      if (dto.buyId) {
+        if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
+        update.buy = await this.getBuy(dto.buyId);
+      }
     } else {
       // crypto route
-      if (dto.cryptoRouteId) update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+      if (dto.cryptoRouteId) {
+        if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
+        update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+      }
     }
 
     Util.removeNullFields(entity);

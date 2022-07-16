@@ -177,7 +177,12 @@ export class BuyCrypto extends IEntity {
     if (this.buy) {
       return { address: this.buy.deposit ? this.buy.deposit.address : this.buy.user.address, asset: this.buy.asset };
     } else {
-      return { address: this.cryptoRoute.targetDeposit.address, asset: this.cryptoRoute.asset };
+      return {
+        address: this.cryptoRoute.targetDeposit
+          ? this.cryptoRoute.targetDeposit.address
+          : this.cryptoRoute.user.address,
+        asset: this.cryptoRoute.asset,
+      };
     }
   }
 }

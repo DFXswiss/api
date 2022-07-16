@@ -1,5 +1,5 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
@@ -46,22 +46,25 @@ export class BtcInputService extends CryptoInputService {
       await this.saveInputs();
       await this.forwardInputs();
     } catch (e) {
-      console.error('Exception during crypto input checks:', e);
+      console.error('Exception during Bitcoin input checks:', e);
     } finally {
       this.lock.release();
     }
   }
 
   private async saveInputs(): Promise<void> {
+    const { blocks, headers } = await this.checkNodeInSync(this.btcClient);
+    if (blocks < headers) throw new BadRequestException('Bitcoin node is not in sync.');
+
     const utxos = await this.btcClient.getUtxo();
 
     const newInputs = await this.createEntities(utxos).then((i) => i.filter((h) => h != null));
 
-    newInputs.length > 0 && console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
+    newInputs.length > 0 && console.log(`New Bitcoin inputs (${newInputs.length}):`, newInputs);
 
     for (const input of newInputs) {
       await this.cryptoInputRepo.save(input);
-      await this.buyCryptoService.createFromCrypto(input.id, input.route.id);
+      await this.buyCryptoService.createFromCrypto(input);
     }
   }
 
@@ -72,7 +75,7 @@ export class BtcInputService extends CryptoInputService {
       try {
         inputs.push(await this.createEntity(utxo));
       } catch (e) {
-        console.error(`Failed to create crypto input ${utxo.txid}:`, e);
+        console.error(`Failed to create Bitcoin input ${utxo.txid}:`, e);
 
         if (e instanceof NodeNotAccessibleError) {
           // abort the process until next interval cycle
@@ -88,20 +91,20 @@ export class BtcInputService extends CryptoInputService {
     // get asset
     const assetEntity = await this.assetService.getAssetByDexName('BTC');
     if (!assetEntity) {
-      console.error(`Failed to process bitcoin input.`);
+      console.error(`Failed to process Bitcoin input. No asset BTC found. UTXO:`, utxo);
       return null;
     }
 
     // min. deposit
     if (utxo.amount.toNumber() < Config.node.minBtcDeposit) {
-      console.log(`Ignoring too small crypto input (${utxo.amount.toNumber()} 'BTC'`);
+      console.log(`Ignoring too small Bitcoin input (${utxo.amount.toNumber()} 'BTC'. UTXO:`, utxo);
       return null;
     }
 
     // get crypto route
     const route = await this.cryptoRouteService.getCryptoRouteByAddress(utxo.address);
     if (!route) {
-      console.error(`Failed to process crypto input. No matching route for ${utxo.address} found.`);
+      console.error(`Failed to process Bitcoin input. No matching route for ${utxo.address} found.. UTXO:`, utxo);
       return null;
     }
 
@@ -114,6 +117,7 @@ export class BtcInputService extends CryptoInputService {
       isConfirmed: false,
       amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
       type: CryptoInputType.BUY_CRYPTO,
+      vout: utxo.vout,
     });
   }
 
@@ -126,14 +130,11 @@ export class BtcInputService extends CryptoInputService {
       },
     });
 
-    if (inputs.length == 0) return;
-    console.log(`New crypto inputs (${inputs.length}):`, inputs);
-
     for (const input of inputs) {
       try {
         await this.forwardUtxo(input, Config.node.btcCollectorAddress);
       } catch (e) {
-        console.error(`Failed to forward crypto input ${input.id}:`, e);
+        console.error(`Failed to forward Bitcoin input ${input.id}:`, e);
       }
     }
   }
@@ -156,7 +157,7 @@ export class BtcInputService extends CryptoInputService {
         tryCount: 3,
       },
     );
-    return Math.min(fastestFee, 0.000005 * amount);
+    return Math.min(fastestFee, 500 * amount);
   }
 
   // --- CONFIRMATION HANDLING --- //
@@ -181,11 +182,11 @@ export class BtcInputService extends CryptoInputService {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
           }
         } catch (e) {
-          console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
+          console.error(`Failed to check confirmations of Bitcoin input ${input.id}:`, e);
         }
       }
     } catch (e) {
-      console.error('Exception during crypto confirmations checks:', e);
+      console.error('Exception during Bitcoin confirmations checks:', e);
     }
   }
 }

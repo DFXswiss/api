@@ -170,7 +170,7 @@ export class Configuration {
     dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
     outWalletAddress: process.env.OUT_WALLET_ADDRESS,
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
-    btcCollectorAddress: process.env.BITCOIN_COLLECTOR_ADDRESS,
+    btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
     minTxAmount: 0.00000297,
     minDfiDeposit: 0.01,
     minBtcDeposit: 0.0005,

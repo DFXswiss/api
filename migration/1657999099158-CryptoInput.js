@@ -1,7 +1,7 @@
 const { MigrationInterface, QueryRunner } = require("typeorm");
 
-module.exports = class CryptoInput1657963015297 {
-    name = 'CryptoInput1657963015297'
+module.exports = class CryptoInput1657999099158 {
+    name = 'CryptoInput1657999099158'
 
     async up(queryRunner) {
         await queryRunner.query(`DROP INDEX "txAssetRoute" ON "crypto_input"`);

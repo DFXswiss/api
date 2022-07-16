@@ -124,7 +124,7 @@ export class DeFiInputService extends CryptoInputService {
       await this.saveInputs();
       await this.forwardInputs();
     } catch (e) {
-      console.error('Exception during crypto input checks:', e);
+      console.error('Exception during DeFiChain input checks:', e);
     } finally {
       this.lock.release();
     }
@@ -153,7 +153,7 @@ export class DeFiInputService extends CryptoInputService {
       // check required balance
       .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
 
-    newInputs.length > 0 && console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
+    newInputs.length > 0 && console.log(`New DeFiChain inputs (${newInputs.length}):`, newInputs);
 
     // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
     for (const input of newInputs) {
@@ -182,7 +182,7 @@ export class DeFiInputService extends CryptoInputService {
           inputs.push(await this.createEntity(history, amount));
         }
       } catch (e) {
-        console.error(`Failed to create crypto input ${history.txid}:`, e);
+        console.error(`Failed to create DeFiChain input ${history.txid}:`, e);
 
         if (e instanceof NodeNotAccessibleError) {
           // abort the process until next interval cycle
@@ -198,13 +198,13 @@ export class DeFiInputService extends CryptoInputService {
     // get asset
     const assetEntity = await this.assetService.getAssetByDexName(asset, isToken);
     if (!assetEntity) {
-      console.error(`Failed to process crypto input. No asset ${asset} found. History entry:`, history);
+      console.error(`Failed to process DeFiChain input. No asset ${asset} found. History entry:`, history);
       return null;
     }
 
     // only sellable
     if (!assetEntity.sellable || assetEntity.isLP) {
-      console.log(`Ignoring unsellable crypto input (${amount} ${asset}). History entry:`, history);
+      console.log(`Ignoring unsellable DeFiChain input (${amount} ${asset}). History entry:`, history);
       return null;
     }
 
@@ -215,7 +215,7 @@ export class DeFiInputService extends CryptoInputService {
       (asset === 'DFI' && amount < Config.node.minDfiDeposit) ||
       (asset !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
     ) {
-      console.log(`Ignoring too small crypto input (${amount} ${asset}). History entry:`, history);
+      console.log(`Ignoring too small DeFiChain input (${amount} ${asset}). History entry:`, history);
       return null;
     }
 
@@ -223,7 +223,7 @@ export class DeFiInputService extends CryptoInputService {
     const route = await this.getDepositRoute(history.owner);
     if (!route) {
       console.error(
-        `Failed to process crypto input. No matching route for ${history.owner} found. History entry:`,
+        `Failed to process DeFiChain input. No matching route for ${history.owner} found. History entry:`,
         history,
       );
       return null;
@@ -231,13 +231,13 @@ export class DeFiInputService extends CryptoInputService {
 
     // ignore AccountToUtxos for sell
     if (route.type === RouteType.SELL && history.type === 'AccountToUtxos') {
-      console.log('Ignoring AccountToUtxos crypto input on sell route. History entry:', history);
+      console.log('Ignoring AccountToUtxos DeFiChain input on sell route. History entry:', history);
       return null;
     }
 
     // only DFI for staking
     if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
-      console.log(`Ignoring non-DFI crypto input (${amount} ${asset}) on staking route. History entry:`, history);
+      console.log(`Ignoring non-DFI DeFiChain input (${amount} ${asset}) on staking route. History entry:`, history);
       return null;
     }
 
@@ -289,7 +289,7 @@ export class DeFiInputService extends CryptoInputService {
           ? await this.forwardUtxo(input, targetAddress)
           : await this.forwardToken(input, targetAddress);
       } catch (e) {
-        console.error(`Failed to forward crypto input ${input.id}:`, e);
+        console.error(`Failed to forward DeFiChain input ${input.id}:`, e);
       }
     }
   }
@@ -332,11 +332,11 @@ export class DeFiInputService extends CryptoInputService {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
           }
         } catch (e) {
-          console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);
+          console.error(`Failed to check confirmations of DeFiChain input ${input.id}:`, e);
         }
       }
     } catch (e) {
-      console.error('Exception during crypto confirmations checks:', e);
+      console.error('Exception during DeFiChain confirmations checks:', e);
     }
   }
 
@@ -443,7 +443,7 @@ export class DeFiInputService extends CryptoInputService {
             (t) => t.owner === input.route.deposit.address && this.client.parseAmount(t.amount).amount >= input.amount,
           );
     if (!fund) {
-      console.error('Ignoring input due to too low balance:', input);
+      console.error('Ignoring DeFiChain input due to too low balance:', input);
     }
 
     return fund != null;

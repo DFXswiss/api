@@ -8,12 +8,15 @@ export class BtcClient extends NodeClient {
   }
 
   async send(addressTo: string, txId: string, amount: number, vout: number, feeRate: number): Promise<string> {
+    //135 vByte for a single-input single-output TX
+    const feeAmount = (feeRate / (10 ^ 8)) * 135;
+
     return this.callNode(
       (c) =>
         c.call(
           NodeCommand.SEND,
           [
-            [{ [addressTo]: this.roundAmount(amount - feeRate * 135) }],
+            [{ [addressTo]: this.roundAmount(amount - feeAmount) }],
             null,
             'unset',
             null,
