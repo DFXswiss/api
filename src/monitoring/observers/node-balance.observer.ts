@@ -60,7 +60,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
           ref: await this.refClient.getNodeBalance(),
         },
         bitcoin: {
-          input: await this.btcInpClient.getBalance(),
+          input: await this.btcInpClient?.getBalance() ?? new BigNumber(0),
         },
       },
     };
