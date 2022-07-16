@@ -61,6 +61,7 @@ export class BtcInputService extends CryptoInputService {
 
     for (const input of newInputs) {
       await this.cryptoInputRepo.save(input);
+      await this.buyCryptoService.createFromCrypto(input.id, input.route.id);
     }
   }
 
@@ -98,7 +99,7 @@ export class BtcInputService extends CryptoInputService {
     }
 
     // get crypto route
-    const route = await this.cryptoRouteService.getCryptoByAddress(utxo.address);
+    const route = await this.cryptoRouteService.getCryptoRouteByAddress(utxo.address);
     if (!route) {
       console.error(`Failed to process crypto input. No matching route for ${utxo.address} found.`);
       return null;
@@ -123,7 +124,6 @@ export class BtcInputService extends CryptoInputService {
         amlCheck: AmlCheck.PASS,
         route: { deposit: { blockchain: Blockchain.BITCOIN } },
       },
-      relations: ['route', 'route.user'],
     });
 
     if (inputs.length == 0) return;
@@ -172,15 +172,13 @@ export class BtcInputService extends CryptoInputService {
           outTxId: Not(IsNull()),
           route: { deposit: { blockchain: Blockchain.BITCOIN } },
         },
-        relations: ['route', 'route.user'],
       });
 
       for (const input of unconfirmedInputs) {
         try {
           const { confirmations } = await this.btcClient.waitForTx(input.outTxId);
-          if (confirmations > 60) {
+          if (confirmations > 1) {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
-            await this.buyCryptoService.createFromCrypto(input.id, input.route.id);
           }
         } catch (e) {
           console.error(`Failed to check confirmations of crypto input ${input.id}:`, e);

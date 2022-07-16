@@ -24,7 +24,7 @@ export class CryptoRouteService {
     private readonly depositService: DepositService,
   ) {}
 
-  async getCryptoByAddress(depositAddress: string): Promise<CryptoRoute> {
+  async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
     // does not work with find options
     return this.cryptoRepo
       .createQueryBuilder('crypto')

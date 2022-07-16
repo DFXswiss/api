@@ -60,10 +60,7 @@ export class BuyCryptoService {
   }
 
   async createFromCrypto(cryptoInputId: number, cryptoRouteId: number): Promise<BuyCrypto> {
-    let entity = await this.buyCryptoRepo.findOne({ cryptoInput: { id: cryptoInputId } });
-    if (entity) throw new ConflictException('There is already a buy crypto for the specified crypto input');
-
-    entity = this.buyCryptoRepo.create();
+    const entity = this.buyCryptoRepo.create();
 
     // crypto input
     entity.cryptoInput = await this.cryptoInputRepo.findOne(cryptoInputId);
@@ -93,11 +90,13 @@ export class BuyCryptoService {
       if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
     }
 
-    // buy
-    if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
-
-    // crypto route
-    if (dto.cryptoRouteId) update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+    if (entity.bankTx) {
+      // buy
+      if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
+    } else {
+      // crypto route
+      if (dto.cryptoRouteId) update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+    }
 
     Util.removeNullFields(entity);
 
