@@ -36,6 +36,7 @@ param dexWalletAddress string
 param outWalletAddress string
 param stakingWalletAddress string
 param utxoSpenderAddress string
+param btcCollectorAddress string
 
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
@@ -510,6 +511,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'UTXO_SPENDER_ADDRESS'
           value: utxoSpenderAddress
+        }
+        {
+          name: 'BTC_COLLECTOR_ADDRESS'
+          value: btcCollectorAddress
         }
         {
           name: 'FTP_HOST'

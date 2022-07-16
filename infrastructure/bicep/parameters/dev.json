@@ -71,6 +71,9 @@
     "utxoSpenderAddress": {
       "value": "xxx"
     },
+    "btcCollectorAddress": {
+      "value": "xxx"
+    },
     "nodeServicePlanSkuName": {
       "value": "P1v2"
     },
