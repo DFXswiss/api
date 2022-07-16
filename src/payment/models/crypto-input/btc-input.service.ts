@@ -57,7 +57,9 @@ export class BtcInputService extends CryptoInputService {
 
     const utxos = await this.btcClient.getUtxo();
 
-    const newInputs = await this.createEntities(utxos).then((i) => i.filter((h) => h != null));
+    const newInputs = await this.createEntities(utxos);
+
+    if (!newInputs) return null;
 
     newInputs.length > 0 && console.log(`New Bitcoin inputs (${newInputs.length}):`, newInputs);
 
@@ -72,6 +74,17 @@ export class BtcInputService extends CryptoInputService {
 
     for (const utxo of utxos) {
       try {
+        const inputCheck = await this.cryptoInputRepo.findOne({
+          where: {
+            inTxId: utxo.txid,
+            asset: { dexName: 'BTC' },
+            vout: utxo.vout,
+            route: { deposit: { address: utxo.address } },
+          },
+          relations: ['asset', 'route', 'route.deposit'],
+        });
+
+        if (inputCheck) return null;
         inputs.push(await this.createEntity(utxo));
       } catch (e) {
         console.error(`Failed to create Bitcoin input ${utxo.txid}:`, e);
@@ -157,7 +170,7 @@ export class BtcInputService extends CryptoInputService {
         tryCount: 3,
       },
     );
-    return Math.min(fastestFee, 500 * amount);
+    return Math.max(Math.min(fastestFee, 500 * amount), 1);
   }
 
   // --- CONFIRMATION HANDLING --- //

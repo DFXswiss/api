@@ -11,7 +11,7 @@ export class BtcClient extends NodeClient {
     // 135 vByte for a single-input single-output TX
     const feeAmount = (feeRate * 135) / Math.pow(10, 8);
 
-    return this.callNode(
+    const sendCommand = await this.callNode(
       (c) =>
         c.call(
           NodeCommand.SEND,
@@ -26,5 +26,7 @@ export class BtcClient extends NodeClient {
         ),
       true,
     );
+
+    return sendCommand['txid'];
   }
 }
