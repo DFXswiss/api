@@ -142,4 +142,8 @@ export class UpdateBuyFiatDto {
   @IsDate()
   @Type(() => Date)
   outputDate: Date;
+
+  @IsOptional()
+  @IsBoolean()
+  isComplete: boolean;
 }

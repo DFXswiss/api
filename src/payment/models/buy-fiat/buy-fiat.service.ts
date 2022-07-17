@@ -11,16 +11,16 @@ import { UserStatus } from 'src/user/models/user/user.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { SellRepository } from '../sell/sell.repository';
 import { SellService } from '../sell/sell.service';
+import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 
 @Injectable()
 export class BuyFiatService {
-  // TODO: Activate user (move to user.service)
-
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     private readonly userService: UserService,
     private readonly sellRepo: SellRepository,
     private readonly sellService: SellService,
+    private readonly bankTxRepo: BankTxRepository,
   ) {}
 
   async create(cryptoInput: CryptoInput): Promise<BuyFiat> {
@@ -43,6 +43,12 @@ export class BuyFiatService {
     // buy
     if (dto.sellId) update.sell = await this.getSell(dto.sellId);
 
+    // bank tx
+    if (dto.bankTxId) {
+      update.bankTx = await this.bankTxRepo.findOne({ id: dto.bankTxId });
+      if (!update.bankTx) throw new BadRequestException('Bank TX not found');
+    }
+
     Util.removeNullFields(entity);
 
     //TODO update aller Felder wieder deaktivieren
@@ -50,7 +56,7 @@ export class BuyFiatService {
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user?.status === UserStatus.NA) {
-      await this.userService.updateUserInternal(entity.sell.user.id, { status: UserStatus.ACTIVE });
+      await this.userService.activateUser(entity.sell.user.id);
     }
 
     //TODO cryptoSell -> buyFiat Umstellung
@@ -60,8 +66,8 @@ export class BuyFiatService {
   }
 
   async updateVolumes(): Promise<void> {
-    //const buyIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
-    //await this.updateSellVolume(buyIds);
+    //const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
+    //await this.updateSellVolume(sellIds);
   }
 
   async getUserTransactions(

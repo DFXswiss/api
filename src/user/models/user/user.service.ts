@@ -323,6 +323,10 @@ export class UserService {
     return startDate.getTime() === currentDate.getTime();
   }
 
+  async activateUser(userId: number): Promise<void> {
+    await this.userRepo.update(userId, { status: UserStatus.ACTIVE });
+  }
+
   private async checkRef(user: User, usedRef: string): Promise<string> {
     const refUser = await this.getRefUser(usedRef);
     return usedRef === null ||

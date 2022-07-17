@@ -77,7 +77,7 @@ export class BuyCryptoService {
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
-      await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
+      await this.userService.activateUser(entity.buy.user.id);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
