@@ -171,6 +171,7 @@ export class BuyCryptoDexService {
           )) / batch.minimalOutputReferenceAmount;
 
         const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
+        console.log('Enough', basePrice, maxPrice);
 
         return await this.dexClient.testCompositeSwap(
           batch.outputReferenceAsset,

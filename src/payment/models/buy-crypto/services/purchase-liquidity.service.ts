@@ -36,7 +36,7 @@ export class PurchaseLiquidityService {
     );
 
     console.info(
-      `Purchased ${swapAmount} DFI worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
+      `Purchased ${swapAmount} ${swapAsset} worth liquidity for asset ${batch.outputAsset}. Batch ID: ${batch.id}. Transaction ID: ${txId}`,
     );
 
     return txId;
@@ -53,10 +53,10 @@ export class PurchaseLiquidityService {
     const fallbackSwapAsset = 'DFI';
 
     const priorityResult = await this.tryAssetSwap(prioritySwapAsset, batch);
-    if (!priorityResult.error) return priorityResult;
+    if (!priorityResult.error) return priorityResult.result;
 
     const fallbackResult = await this.tryAssetSwap(fallbackSwapAsset, batch);
-    if (!fallbackResult.error) return fallbackResult;
+    if (!fallbackResult.error) return fallbackResult.result;
 
     const errorMessage = 'Failed to purchase liquidity on DEX node. '.concat(
       priorityResult.error,
@@ -71,30 +71,41 @@ export class PurchaseLiquidityService {
     swapAsset: string,
     batch: BuyCryptoBatch,
   ): Promise<{
-    swapAsset: string;
-    swapAmount: number;
-    maxPrice: number;
+    result?: {
+      swapAsset: string;
+      swapAmount: number;
+      maxPrice: number;
+    };
     error?: string;
   }> {
-    const basePrice =
-      (await this.#dexClient.testCompositeSwap(swapAsset, batch.outputAsset, batch.minimalOutputReferenceAmount)) /
-      batch.minimalOutputReferenceAmount;
-    const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
+    try {
+      const basePrice =
+        (await this.#dexClient.testCompositeSwap(swapAsset, batch.outputAsset, batch.minimalOutputReferenceAmount)) /
+        batch.minimalOutputReferenceAmount;
+      const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
 
-    const requiredSwapAmount = await this.calculateLiquiditySwapAmount(swapAsset, batch);
-    const availableSwapAssetAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(swapAsset, this.#dexClient);
+      const requiredSwapAmount = await this.calculateLiquiditySwapAmount(swapAsset, batch);
+      const availableSwapAssetAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(
+        swapAsset,
+        this.#dexClient,
+      );
 
-    const result = { swapAsset, swapAmount: requiredSwapAmount, maxPrice };
+      const result = { swapAsset, swapAmount: requiredSwapAmount, maxPrice };
 
-    // 5% cap for unexpected meantime swaps
-    if (requiredSwapAmount * 1.05 > availableSwapAssetAmount) {
-      const error = `Not enough ${swapAsset} liquidity on DEX Node. Trying to purchase ${requiredSwapAmount} ${swapAsset} worth liquidity for asset ${batch.outputAsset}. Available amount: ${availableSwapAssetAmount}.`;
-      console.error(error);
+      // 5% cap for unexpected meantime swaps
+      if (requiredSwapAmount * 1.05 > availableSwapAssetAmount) {
+        const error = `Not enough ${swapAsset} liquidity on DEX Node. Trying to purchase ${requiredSwapAmount} ${swapAsset} worth liquidity for asset ${batch.outputAsset}. Available amount: ${availableSwapAssetAmount}.`;
+        console.error(error);
 
-      return { ...result, error };
+        return { result, error };
+      }
+
+      return { result };
+    } catch (e) {
+      console.warn(`Error on trying asset swap`, e);
+
+      return { error: e };
     }
-
-    return result;
   }
 
   private async calculateLiquiditySwapAmount(swapAsset: string, batch: BuyCryptoBatch): Promise<number> {
