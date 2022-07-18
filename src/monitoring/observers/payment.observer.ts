@@ -3,6 +3,7 @@ import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
+import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
 import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/repositories/buy-crypto.repository';
 import { CryptoInputType } from 'src/payment/models/crypto-input/crypto-input.entity';
 import { CryptoInputRepository } from 'src/payment/models/crypto-input/crypto-input.repository';
@@ -73,8 +74,14 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
 
   private async getIncompleteTransactions(): Promise<IncompleteTransactions> {
     return {
-      buyCrypto: await getCustomRepository(BuyCryptoRepository).count({ mailSendDate: IsNull() }),
-      cryptoSell: await getCustomRepository(CryptoSellRepository).count({ mail3SendDate: IsNull() }),
+      buyCrypto: await getCustomRepository(BuyCryptoRepository).count({
+        mailSendDate: IsNull(),
+        amlCheck: Not(AmlCheck.FAIL),
+      }),
+      cryptoSell: await getCustomRepository(CryptoSellRepository).count({
+        mail3SendDate: IsNull(),
+        amlCheck: Not(AmlCheck.FAIL),
+      }),
       stakingRefRewards: await getCustomRepository(StakingRefRewardRepository).count({ mailSendDate: IsNull() }),
     };
   }
