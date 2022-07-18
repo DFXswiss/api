@@ -4,6 +4,7 @@
     "authorises",
     "Bitstamp",
     "ccxt",
+    "chargeback",
     "citizenships",
     "Datas",
     "datetime",

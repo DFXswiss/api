@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BuyService } from '../../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
-import { Between, In, IsNull } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';
@@ -61,13 +61,18 @@ export class BuyCryptoService {
 
     const update = this.buyCryptoRepo.create(dto);
 
+    // bank tx
+    if (dto.chargebackBankTxId) {
+      update.chargebackBankTx = await this.bankTxRepo.findOne({ id: dto.chargebackBankTxId });
+      if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
+    }
+
     // buy
     if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
 
     Util.removeNullFields(entity);
 
-    //TODO update aller Felder wieder deaktivieren
-    entity = await this.buyCryptoRepo.save({ ...entity, ...update });
+    entity = await this.buyCryptoRepo.save({ ...update, ...entity });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
@@ -219,7 +224,7 @@ export class BuyCryptoService {
   // Monitoring
 
   async getIncompleteTransactions(): Promise<number> {
-    return await this.buyCryptoRepo.count({ mailSendDate: IsNull() });
+    return await this.buyCryptoRepo.count({ mailSendDate: IsNull(), amlCheck: Not(AmlCheck.FAIL) });
   }
 
   async getLastOutputDate(): Promise<Date> {

@@ -95,4 +95,17 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsNumber()
   refFactor: number;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackDate: Date;
+
+  @IsOptional()
+  @IsString()
+  chargebackRemittanceInfo: string;
+
+  @IsOptional()
+  @IsInt()
+  chargebackBankTxId: number;
 }

@@ -1,4 +1,4 @@
-import { IsOptional, IsInt, IsEnum, IsEmail, IsString } from 'class-validator';
+import { IsOptional, IsInt, IsEnum, IsEmail, IsString, IsBoolean } from 'class-validator';
 import { AccountType } from '../account-type.enum';
 import { KycState, KycStatus } from '../user-data.entity';
 
@@ -82,6 +82,14 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(KycState)
   kycState: KycState;
+
+  @IsOptional()
+  @IsBoolean()
+  highRisk: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  complexOrgStructure: boolean;
 
   @IsOptional()
   @IsInt()
