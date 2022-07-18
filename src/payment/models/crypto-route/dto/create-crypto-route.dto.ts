@@ -30,5 +30,5 @@ export class CreateCryptoRouteDto {
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  targetDeposit: StakingDto;
+  staking: StakingDto;
 }

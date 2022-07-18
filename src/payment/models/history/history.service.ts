@@ -104,6 +104,7 @@ export class HistoryService {
   }
 
   private async getSellTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
+    //TODO cryptoSell -> buyFiat Umstellung
     const cryptoSells = await this.cryptoSellService.getUserTransactions([userId], dateFrom, dateTo);
     return cryptoSells
       .filter((c) => c.amlCheck === AmlCheck.PASS)

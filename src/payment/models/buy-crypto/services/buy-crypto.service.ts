@@ -75,8 +75,8 @@ export class BuyCryptoService {
     entity = await this.buyCryptoRepo.save({ ...update, ...entity });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
-      await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
+    if (entity.amlCheck === AmlCheck.PASS) {
+      await this.userService.activateUser(entity.buy?.user);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
@@ -219,15 +219,5 @@ export class BuyCryptoService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.buy?.asset?.name,
     }));
-  }
-
-  // Monitoring
-
-  async getIncompleteTransactions(): Promise<number> {
-    return await this.buyCryptoRepo.count({ mailSendDate: IsNull(), amlCheck: Not(AmlCheck.FAIL) });
-  }
-
-  async getLastOutputDate(): Promise<Date> {
-    return await this.buyCryptoRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
   }
 }
