@@ -114,7 +114,7 @@ export class UpdateBuyFiatDto {
 
   @IsOptional()
   @IsBoolean()
-  instantSEPA: boolean;
+  instantSepa: boolean;
 
   @IsOptional()
   @IsString()
