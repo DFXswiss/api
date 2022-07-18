@@ -180,8 +180,14 @@ export class BuyCryptoDexService {
         );
       }
 
-      return availableAmount >= requiredAmount ? requiredAmount : 0;
+      return 0;
     } catch (e) {
+      if (this.isSlippageError(e))
+        this.handleSlippageError(
+          `Slippage error while checking liquidity for asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
+          e,
+        );
+
       console.error(`Error in checking liquidity for a batch, ID: ${batch.id}`, e);
       throw e;
     }
@@ -195,12 +201,11 @@ export class BuyCryptoDexService {
 
       batch.pending(txId);
     } catch (e) {
-      if (e.message && e.message.includes('TBD - Max price violation...')) {
-        this.buyCryptoNotificationService.sendNonRecoverableErrorMail(
+      if (this.isSlippageError(e))
+        return this.handleSlippageError(
           `Composite swap slippage error while purchasing asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
           e,
         );
-      }
 
       console.error(`Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
       return;
@@ -217,15 +222,12 @@ export class BuyCryptoDexService {
     }
   }
 
-  private async checkForSlippage(batch: BuyCryptoBatch, swapAmount: number): Promise<boolean> {
-    const basePrice = await this.dexClient.testCompositeSwap('DFI', batch.outputAsset, 1);
-    const targetPrice = (await this.dexClient.testCompositeSwap('DFI', batch.outputAsset, swapAmount)) / swapAmount;
+  private isSlippageError(e: Error): boolean {
+    return e.message && e.message.includes('Price is higher than indicated');
+  }
 
-    if (batch.isReferenceAsset) {
-      return (targetPrice - basePrice) / basePrice > 0.005;
-    }
-
-    return (targetPrice - basePrice) / basePrice > 0.03;
+  private handleSlippageError(message: string, e: Error): void {
+    this.buyCryptoNotificationService.sendNonRecoverableErrorMail(message, e);
   }
 
   private async transferForOutput(batch: BuyCryptoBatch): Promise<void> {
