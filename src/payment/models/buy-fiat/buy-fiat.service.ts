@@ -3,11 +3,10 @@ import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { Sell } from '../sell/sell.entity';
-import { Between, In, IsNull, Not } from 'typeorm';
+import { Between, In } from 'typeorm';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 import { Util } from 'src/shared/util';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
-import { UserStatus } from 'src/user/models/user/user.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { SellRepository } from '../sell/sell.repository';
 import { SellService } from '../sell/sell.service';
@@ -36,7 +35,7 @@ export class BuyFiatService {
     let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user'] });
     if (!entity) throw new NotFoundException('Buy fiat not found');
 
-    const sellIdBefore = entity.sell?.id;
+    //const sellIdBefore = entity.sell?.id;
 
     const update = this.buyFiatRepo.create(dto);
 
