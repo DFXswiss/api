@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Util } from '../util';
 import { HttpService } from './http.service';
 
 export interface DfiTaxReward {
@@ -51,6 +52,13 @@ export class DfiTaxService {
     dateTo: Date = new Date(),
     timeout = 15000,
   ): Promise<DfiTaxReward[]> {
+    // ignore today's rewards
+    const yesterday = Util.daysBefore(1);
+    yesterday.setHours(23, 59, 59, 999);
+    dateTo = new Date(Math.min(dateTo.getTime(), yesterday.getTime()));
+
+    dateFrom.setHours(0, 0, 0, 0);
+
     const url = `${this.baseUrl}/p01/rwd/${address}/${interval}/EUR`;
 
     try {

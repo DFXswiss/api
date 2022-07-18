@@ -78,7 +78,10 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         mailSendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
-      cryptoSell: await getCustomRepository(CryptoSellRepository).count({ mail3SendDate: IsNull() }),
+      cryptoSell: await getCustomRepository(CryptoSellRepository).count({
+        mail3SendDate: IsNull(),
+        amlCheck: Not(AmlCheck.FAIL),
+      }),
       stakingRefRewards: await getCustomRepository(StakingRefRewardRepository).count({ mailSendDate: IsNull() }),
     };
   }
