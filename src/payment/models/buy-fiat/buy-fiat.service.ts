@@ -142,14 +142,4 @@ export class BuyFiatService {
       cryptoCurrency: v.cryptoInput?.asset?.name,
     }));
   }
-
-  // Monitoring
-
-  async getIncompleteTransactions(): Promise<number> {
-    return await this.buyFiatRepo.count({ mail3SendDate: IsNull(), amlCheck: Not(AmlCheck.FAIL) });
-  }
-
-  async getLastOutputDate(): Promise<Date> {
-    return await this.buyFiatRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
-  }
 }
