@@ -27,9 +27,6 @@ export class Asset extends IEntity {
   @Column({ length: 256 })
   category: AssetCategory;
 
-  @Column({ default: false })
-  isLP: boolean;
-
   @Column({ nullable: true, length: 256 })
   sellCommand: string;
 
