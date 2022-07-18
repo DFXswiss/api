@@ -55,8 +55,8 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save({ ...entity, ...update });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
-      await this.userService.activateUser(entity.sell.user.id);
+    if (entity.amlCheck === AmlCheck.PASS) {
+      await this.userService.activateUser(entity.sell?.user);
     }
 
     //TODO cryptoSell -> buyFiat Umstellung

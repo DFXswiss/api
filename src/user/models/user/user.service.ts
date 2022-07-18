@@ -323,10 +323,8 @@ export class UserService {
     return startDate.getTime() === currentDate.getTime();
   }
 
-  async activateUser(userId: number): Promise<void> {
-    const user = await this.userRepo.findOne(userId);
-    if (!user) throw new NotFoundException('User not found');
-    if (user.status === UserStatus.NA) await this.userRepo.update(userId, { status: UserStatus.ACTIVE });
+  async activateUser(user?: User): Promise<void> {
+    if (user?.status === UserStatus.NA) await this.userRepo.update(user.id, { status: UserStatus.ACTIVE });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {
