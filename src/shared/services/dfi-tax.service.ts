@@ -51,7 +51,7 @@ export class DfiTaxService {
     dateTo: Date = new Date(),
     timeout = 15000,
   ): Promise<DfiTaxReward[]> {
-    var yesterday = new Date();
+    const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     yesterday.setHours(23, 59, 59, 999);
 
