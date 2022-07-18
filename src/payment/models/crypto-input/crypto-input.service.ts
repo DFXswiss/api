@@ -90,6 +90,11 @@ export class CryptoInputService {
               await this.sendFeeUtxo(token.owner);
             }
           } else {
+            // ignoring dust DFI transactions
+            if (asset === 'DFI' && amount < Config.node.minTxAmount) {
+              continue;
+            }
+
             // check for min. deposit
             const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
             if (usdtAmount < Config.node.minTokenDeposit) {
