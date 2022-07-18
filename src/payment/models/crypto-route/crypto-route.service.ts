@@ -74,7 +74,7 @@ export class CryptoRouteService {
 
     // check staking
     const staking =
-      dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.targetDeposit.id, userId) : null;
+      dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
     if (dto.buyType === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // check if exists

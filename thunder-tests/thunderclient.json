@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-06-30T15:07:22.913Z",
+    "modified": "2022-07-17T19:18:30.339Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1332,6 +1332,25 @@
     "body": {
       "type": "json",
       "raw": "{\n  \"chargebackDate\": \"2022-01-01\",\n  \"chargebackRemittanceInfo\": null,\n  \"chargebackBankTxId\": 2\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "079fef5c-0256-49e9-89d0-d9f063e0501b",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "7111236b-5cec-4ec2-be12-0eca0f9f29e0",
+    "name": "Update",
+    "url": "{{url}}/v1/buyFiat/84",
+    "method": "PUT",
+    "sortNum": 10000,
+    "created": "2022-07-17T09:06:43.862Z",
+    "modified": "2022-07-17T17:47:28.816Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"chargebackDate\": \"2022-01-01\",\n  \"chargebackRemittanceInfo\": null,\n  \"chargebackBankTxId\": 2,\n  \"recipientMail\":\"bnk\",\n  \"mail1SendDate\":\"2022-01-01T00:00:00\"\n      ,\"mail2SendDate\":\"2022-01-01\"\n      ,\"mail3SendDate\":\"2022-01-01\"\n      ,\"inputAmount\":123\n      ,\"inputAsset\":\"BTC\"\n      ,\"inputReferenceAmount\":1234\n      ,\"inputReferenceAsset\":\"BTC\"\n      ,\"amountInChf\":132\n      ,\"amountInEur\":2535\n      ,\"amlCheck\":\"Pass\"\n      ,\"amlReason\":\"asdf\"\n      ,\"percentFee\":0.003\n      ,\"percentFeeAmount\":10\n      ,\"absoluteFeeAmount\":null\n      ,\"inputReferenceAmountMinusFee\":9.5\n      ,\"cryptoReturnTxId\":\"asdfghjkjhgf\"\n      ,\"cryptoReturnDate\":null\n      ,\"mailReturnSendDate\":null\n      ,\"outputReferenceAmount\":10\n      ,\"outputReferenceAsset\":\"EUR\"\n      ,\"outputAmount\":300\n      ,\"outputAsset\":\"EUR\"\n      ,\"remittanceInfo\":\"HKL-bjhv\"\n      ,\"instantSEPA\":false\n      ,\"usedBank\":\"Maerki\"\n      ,\"bankBatchId\":458\n      ,\"bankStartTimestamp\":\"2022-01-01\"\n      ,\"bankFinishTimestamp\":\"2022-01-01\"\n      ,\"info\":\"xfgchvb\"\n      ,\"outputDate\":\"2022-01-01\"\n      ,\"isComplete\":true\n      ,\"bankTxId\":12\n}",
       "form": []
     },
     "tests": []

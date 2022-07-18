@@ -2,8 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BuyService } from '../../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
-import { Between, In, IsNull } from 'typeorm';
-import { UserStatus } from 'src/user/models/user/user.entity';
+import { Between, In } from 'typeorm';
 import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
@@ -72,12 +71,11 @@ export class BuyCryptoService {
 
     Util.removeNullFields(entity);
 
-    //TODO update aller Felder wieder deaktivieren
-    entity = await this.buyCryptoRepo.save({ ...entity, ...update });
+    entity = await this.buyCryptoRepo.save({ ...update, ...entity });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
-      await this.userService.updateUserInternal(entity.buy.user.id, { status: UserStatus.ACTIVE });
+    if (entity.amlCheck === AmlCheck.PASS) {
+      await this.userService.activateUser(entity.buy?.user);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
@@ -220,15 +218,5 @@ export class BuyCryptoService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.buy?.asset?.name,
     }));
-  }
-
-  // Monitoring
-
-  async getIncompleteTransactions(): Promise<number> {
-    return await this.buyCryptoRepo.count({ mailSendDate: IsNull() });
-  }
-
-  async getLastOutputDate(): Promise<Date> {
-    return await this.buyCryptoRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
   }
 }
