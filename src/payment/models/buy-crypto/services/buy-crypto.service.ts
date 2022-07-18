@@ -220,17 +220,4 @@ export class BuyCryptoService {
       cryptoCurrency: v.buy?.asset?.name,
     }));
   }
-<<<<<<< HEAD
-=======
-
-  // Monitoring
-
-  async getIncompleteTransactions(): Promise<number> {
-    return await this.buyCryptoRepo.count({ mailSendDate: IsNull(), amlCheck: Not(AmlCheck.FAIL) });
-  }
-
-  async getLastOutputDate(): Promise<Date> {
-    return await this.buyCryptoRepo.findOne({ order: { outputDate: 'DESC' } }).then((b) => b.outputDate);
-  }
->>>>>>> develop
 }
