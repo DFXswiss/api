@@ -324,7 +324,9 @@ export class UserService {
   }
 
   async activateUser(userId: number): Promise<void> {
-    await this.userRepo.update(userId, { status: UserStatus.ACTIVE });
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status === UserStatus.NA) await this.userRepo.update(userId, { status: UserStatus.ACTIVE });
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {

@@ -97,7 +97,7 @@ export class BuyFiat extends IEntity {
   remittanceInfo: string;
 
   @Column({ nullable: true })
-  instantSEPA: boolean;
+  instantSepa: boolean;
 
   @Column({ length: 256, nullable: true })
   usedBank: string;

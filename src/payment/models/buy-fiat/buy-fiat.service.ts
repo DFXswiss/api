@@ -55,7 +55,7 @@ export class BuyFiatService {
     entity = await this.buyFiatRepo.save({ ...entity, ...update });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user?.status === UserStatus.NA) {
+    if (entity.amlCheck === AmlCheck.PASS && entity.sell?.user) {
       await this.userService.activateUser(entity.sell.user.id);
     }
 
@@ -76,14 +76,14 @@ export class BuyFiatService {
     dateTo: Date = new Date(),
   ): Promise<BuyFiat[]> {
     return await this.buyFiatRepo.find({
-      where: { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+      where: { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
       relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user'],
     });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
     return await this.buyFiatRepo.find({
-      where: { buy: { user: { id: In(userIds) } } },
+      where: { sell: { user: { id: In(userIds) } } },
       relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user'],
     });
   }

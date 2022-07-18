@@ -28,7 +28,7 @@ module.exports = class buyFiatCols1658047296831 {
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "outputAmount" float`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "outputAsset" nvarchar(256)`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "remittanceInfo" nvarchar(256)`);
-        await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "instantSEPA" bit`);
+        await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "instantSepa" bit`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "usedBank" nvarchar(256)`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "bankBatchId" float`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" ADD "bankStartTimestamp" datetime2`);
@@ -53,7 +53,7 @@ module.exports = class buyFiatCols1658047296831 {
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "bankStartTimestamp"`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "bankBatchId"`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "usedBank"`);
-        await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "instantSEPA"`);
+        await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "instantSepa"`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "remittanceInfo"`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "outputAsset"`);
         await queryRunner.query(`ALTER TABLE "dbo"."buy_fiat" DROP COLUMN "outputAmount"`);

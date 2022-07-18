@@ -76,7 +76,7 @@ export class BuyCryptoService {
     entity = await this.buyCryptoRepo.save({ ...entity, ...update });
 
     // activate user
-    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user?.status === UserStatus.NA) {
+    if (entity.amlCheck === AmlCheck.PASS && entity.buy?.user) {
       await this.userService.activateUser(entity.buy.user.id);
     }
 
