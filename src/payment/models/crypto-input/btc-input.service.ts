@@ -1,5 +1,5 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
