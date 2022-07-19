@@ -355,7 +355,7 @@ export class DeFiInputService extends CryptoInputService {
 
       for (const input of unconfirmedInputs) {
         try {
-          const { confirmations } = await this.client.waitForTx(input.outTxId);
+          const { confirmations } = await this.client.getTx(input.outTxId);
           if (confirmations > 60) {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
           }
