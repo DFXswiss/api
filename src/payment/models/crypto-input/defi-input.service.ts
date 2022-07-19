@@ -269,7 +269,8 @@ export class DeFiInputService extends CryptoInputService {
   ): Promise<{ btcAmount: number; usdtAmount: number }> {
     try {
       const btcAmount = await this.client.testCompositeSwap(asset, 'BTC', amount);
-      const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+      // TODO: remove temporary DUSD pool fix
+      const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
 
       return { btcAmount, usdtAmount };
     } catch (e) {
