@@ -25,8 +25,6 @@ export class PurchaseLiquidityService {
   async purchaseLiquidity(batch: BuyCryptoBatch): Promise<string> {
     const { swapAsset, swapAmount, maxPrice } = await this.getSuitableSwapAsset(batch);
 
-    console.log('MAX PRICE', swapAsset, swapAmount, maxPrice);
-
     const txId = await this.#dexClient.compositeSwap(
       Config.node.dexWalletAddress,
       swapAsset,
@@ -51,7 +49,7 @@ export class PurchaseLiquidityService {
   }> {
     const targetAsset = await this.assetService.getAssetByDexName(batch.outputAsset);
 
-    const prioritySwapAsset = targetAsset.category === AssetCategory.D_TOKEN ? 'DUSD' : 'DFI';
+    const prioritySwapAsset = targetAsset.category === AssetCategory.STOCK ? 'DUSD' : 'DFI';
     const fallbackSwapAsset = 'DFI';
 
     const priorityResult = await this.tryAssetSwap(prioritySwapAsset, batch);
