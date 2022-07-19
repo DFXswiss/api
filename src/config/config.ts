@@ -203,7 +203,7 @@ export class Configuration {
   };
 
   crypto = {
-    fee: 0.0005,
+    fee: 0.012,
   };
 
   ftp = {
