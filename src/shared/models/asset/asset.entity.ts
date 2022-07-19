@@ -24,7 +24,7 @@ export class Asset extends IEntity {
   @Column({ length: 256 })
   type: AssetType;
 
-  @Column({ length: 256 })
+  @Column({ length: 256, nullable: false, default: 'default' })
   category: AssetCategory;
 
   @Column({ nullable: true, length: 256 })

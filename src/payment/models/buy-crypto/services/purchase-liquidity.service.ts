@@ -25,6 +25,8 @@ export class PurchaseLiquidityService {
   async purchaseLiquidity(batch: BuyCryptoBatch): Promise<string> {
     const { swapAsset, swapAmount, maxPrice } = await this.getSuitableSwapAsset(batch);
 
+    console.log('MAX PRICE', swapAsset, swapAmount, maxPrice);
+
     const txId = await this.#dexClient.compositeSwap(
       Config.node.dexWalletAddress,
       swapAsset,
@@ -79,10 +81,12 @@ export class PurchaseLiquidityService {
     error?: string;
   }> {
     try {
-      const basePrice =
-        (await this.#dexClient.testCompositeSwap(swapAsset, batch.outputAsset, batch.minimalOutputReferenceAmount)) /
-        batch.minimalOutputReferenceAmount;
-      const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
+      const baseOutputAssetPrice =
+        1 /
+        ((await this.#dexClient.testCompositeSwap(swapAsset, batch.outputAsset, batch.minimalOutputReferenceAmount)) /
+          batch.minimalOutputReferenceAmount);
+
+      const maxOutputAssetPrice = Util.round(baseOutputAssetPrice + baseOutputAssetPrice * batch.maxPriceSlippage, 8);
 
       const requiredSwapAmount = await this.calculateLiquiditySwapAmount(swapAsset, batch);
       const availableSwapAssetAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(
@@ -90,7 +94,7 @@ export class PurchaseLiquidityService {
         this.#dexClient,
       );
 
-      const result = { swapAsset, swapAmount: requiredSwapAmount, maxPrice };
+      const result = { swapAsset, swapAmount: requiredSwapAmount, maxPrice: maxOutputAssetPrice };
 
       // 5% cap for unexpected meantime swaps
       if (requiredSwapAmount * 1.05 > availableSwapAssetAmount) {

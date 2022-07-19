@@ -168,7 +168,7 @@ export class BuyCryptoOutService {
 
     try {
       for (const tx of transactions) {
-        await this.checkUtxo(tx.targetAddress);
+        await this.checkUtxo(tx.target.address);
       }
       const payout = this.aggregatePayout(transactions);
 
@@ -234,10 +234,10 @@ export class BuyCryptoOutService {
     const uniqueAddresses = new Map<string, number>();
 
     transactions.forEach((t) => {
-      const existingAmount = uniqueAddresses.get(t.targetAddress);
+      const existingAmount = uniqueAddresses.get(t.target.address);
       const increment = existingAmount ? Util.round(existingAmount + t.outputAmount, 8) : t.outputAmount;
 
-      uniqueAddresses.set(t.targetAddress, increment);
+      uniqueAddresses.set(t.target.address, increment);
     });
 
     return [...uniqueAddresses.entries()].map(([addressTo, amount]) => ({ addressTo, amount }));

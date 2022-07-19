@@ -8,6 +8,10 @@ export class UpdateBuyCryptoDto {
   buyId: number;
 
   @IsOptional()
+  @IsInt()
+  cryptoRouteId: number;
+
+  @IsOptional()
   @IsNumber()
   inputAmount: number;
 

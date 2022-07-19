@@ -163,21 +163,22 @@ export class BuyCryptoDexService {
       const availableAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(batch.outputAsset, this.dexClient);
 
       if (availableAmount >= requiredAmount) {
-        const basePrice =
-          (await this.dexClient.testCompositeSwap(
+        const baseOutputAssetPrice =
+          1 /
+          ((await this.dexClient.testCompositeSwap(
             batch.outputReferenceAsset,
             batch.outputAsset,
             batch.minimalOutputReferenceAmount,
-          )) / batch.minimalOutputReferenceAmount;
+          )) /
+            batch.minimalOutputReferenceAmount);
 
-        const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
-        console.log('Enough', basePrice, maxPrice);
+        const maxOutputAssetPrice = Util.round(baseOutputAssetPrice + baseOutputAssetPrice * batch.maxPriceSlippage, 8);
 
         return await this.dexClient.testCompositeSwap(
           batch.outputReferenceAsset,
           batch.outputAsset,
           batch.outputReferenceAmount,
-          maxPrice,
+          maxOutputAssetPrice,
         );
       }
 

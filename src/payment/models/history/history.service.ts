@@ -107,7 +107,7 @@ export class HistoryService {
     //TODO cryptoSell -> buyFiat Umstellung
     const cryptoSells = await this.cryptoSellService.getUserTransactions([userId], dateFrom, dateTo);
     return cryptoSells
-      .filter((c) => c.amlCheck === AmlCheck.PASS)
+      .filter((c) => c.amlCheck === AmlCheck.PASS && c.bankTx)
       .map((c) => [
         {
           type: 'Trade',
@@ -262,7 +262,7 @@ export class HistoryService {
               tradeGroup: null,
               comment: null,
               date: this.createRandomDate(c.outputDate, -10, c.inputAmount),
-              txid: null,
+              txid: Util.createHash(c.outputDate.toUTCString() + c.outputAmount + c.inputAmount),
               buyValueInEur: c.outputAmountInEur,
               sellValueInEur: c.inputAmountInEur,
             }
@@ -346,7 +346,7 @@ export class HistoryService {
         tradeGroup: null,
         comment: `Liquidity Mining ${reward.category} ${reward.pool}`,
         date: new Date(reward.date),
-        txid: null,
+        txid: Util.createHash(reward.date + reward.qty),
         buyValueInEur: Util.round(reward.value_open, 8),
         sellValueInEur: null,
       }));

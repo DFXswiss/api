@@ -7,29 +7,37 @@ import { IEntity } from 'src/shared/models/entity';
 import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
+import { CryptoRoute } from '../crypto-route/crypto-route.entity';
 import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
+import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 
 export enum CryptoInputType {
   RETURN = 'Return',
   CRYPTO_STAKING = 'CryptoStaking',
   BUY_FIAT = 'BuyFiat',
+  BUY_CRYPTO = 'BuyCrypto',
   CRYPTO_CRYPTO = 'CryptoCrypto',
   UNKNOWN = 'Unknown',
 }
 
 @Entity()
-@Index('txAssetRoute', (input: CryptoInput) => [input.inTxId, input.asset, input.route], { unique: true })
+@Index('txAssetRouteVout', (input: CryptoInput) => [input.inTxId, input.asset, input.route, input.vout], {
+  unique: true,
+})
 export class CryptoInput extends IEntity {
   @Column({ length: 256 })
   inTxId: string;
 
-  @Column({ length: 256 })
+  @Column({ type: 'integer', nullable: true })
+  vout: number;
+
+  @Column({ length: 256, nullable: true })
   outTxId: string;
 
   @Column({ length: 256, nullable: true })
   returnTxId: string;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'integer', nullable: true })
   blockHeight: number;
 
   @Column({ type: 'float' })
@@ -48,7 +56,7 @@ export class CryptoInput extends IEntity {
   type: CryptoInputType;
 
   @ManyToOne(() => DepositRoute, { nullable: false })
-  route: Sell | Staking;
+  route: Sell | Staking | CryptoRoute;
 
   @Column({ default: false })
   isConfirmed: boolean;
@@ -64,4 +72,7 @@ export class CryptoInput extends IEntity {
 
   @OneToOne(() => CryptoStaking, (staking) => staking.cryptoInput, { nullable: true })
   cryptoStaking?: CryptoStaking;
+
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
+  buyCrypto: BuyCrypto;
 }

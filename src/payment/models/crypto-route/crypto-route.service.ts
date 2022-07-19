@@ -24,6 +24,17 @@ export class CryptoRouteService {
     private readonly depositService: DepositService,
   ) {}
 
+  async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
+    // does not work with find options
+    return this.cryptoRepo
+      .createQueryBuilder('crypto')
+      .leftJoinAndSelect('crypto.deposit', 'deposit')
+      .leftJoinAndSelect('crypto.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .where('deposit.address = :addr', { addr: depositAddress })
+      .getOne();
+  }
+
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {

@@ -13,6 +13,7 @@ export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
   SEND_UTXO = 'sendutxosfrom',
   TEST_POOL_SWAP = 'testpoolswap',
+  SEND = 'send',
 }
 
 export enum NodeMode {

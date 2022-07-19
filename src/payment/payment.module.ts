@@ -65,6 +65,8 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
 import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
 import { CryptoRouteService } from './models/crypto-route/crypto-route.service';
 import { CryptoRouteRepository } from './models/crypto-route/crypto-route.repository';
+import { BtcInputService } from './models/crypto-input/btc-input.service';
+import { DeFiInputService } from './models/crypto-input/defi-input.service';
 import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
 import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
@@ -120,6 +122,8 @@ import { PurchaseLiquidityService } from './models/buy-crypto/services/purchase-
   ],
   providers: [
     CryptoInputService,
+    BtcInputService,
+    DeFiInputService,
     CryptoBuyService,
     CryptoSellService,
     BuyFiatService,
@@ -167,6 +171,8 @@ import { PurchaseLiquidityService } from './models/buy-crypto/services/purchase-
     BuyFiatService,
     BankTxService,
     CryptoInputService,
+    BtcInputService,
+    DeFiInputService,
     CryptoStakingService,
     StakingRefRewardService,
     BankAccountService,

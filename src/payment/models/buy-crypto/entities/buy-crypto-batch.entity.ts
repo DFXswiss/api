@@ -129,7 +129,7 @@ export class BuyCryptoBatch extends IEntity {
       const suitableExistingGroups = [...result.entries()].filter(
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ([_, transactions]) =>
-          transactions.length < maxGroupSize && !transactions.find((_tx) => _tx.targetAddress === tx.targetAddress),
+          transactions.length < maxGroupSize && !transactions.find((_tx) => _tx.target.address === tx.target.address),
       );
 
       const [key, group] = suitableExistingGroups[0] ?? [result.size, []];
