@@ -28,8 +28,7 @@ export class Buy extends IEntity {
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
-  // TODO nullable false einstellen wenn alle vorhandenen bankAccount haben
-  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.buys, {nullable: false})
+  @ManyToOne(() => BankAccount, (bankAccount) => bankAccount.buys, { nullable: false })
   bankAccount: BankAccount;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })

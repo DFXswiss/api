@@ -24,6 +24,17 @@ export class CryptoRouteService {
     private readonly depositService: DepositService,
   ) {}
 
+  async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
+    // does not work with find options
+    return this.cryptoRepo
+      .createQueryBuilder('crypto')
+      .leftJoinAndSelect('crypto.deposit', 'deposit')
+      .leftJoinAndSelect('crypto.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .where('deposit.address = :addr', { addr: depositAddress })
+      .getOne();
+  }
+
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
@@ -67,20 +78,19 @@ export class CryptoRouteService {
   async createCrypto(userId: number, dto: CreateCryptoRouteDto): Promise<CryptoRoute> {
     // check asset
     const asset =
-      dto.buyType === BuyType.WALLET
+      dto.type === BuyType.WALLET
         ? await this.assetService.getAsset(dto.asset.id)
         : await this.assetService.getAssetByDexName('DFI');
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking
-    const staking =
-      dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.buyType === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
+    const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
+    if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        ...(dto.buyType === BuyType.WALLET
+        ...(dto.type === BuyType.WALLET
           ? { asset: asset, targetDeposit: IsNull() }
           : { targetDeposit: staking.deposit }),
         user: { id: userId },
@@ -91,7 +101,7 @@ export class CryptoRouteService {
     if (existing) throw new ConflictException('Crypto route already exists');
 
     // create the entity
-    const crypto = this.cryptoRepo.create(dto);
+    const crypto = this.cryptoRepo.create();
     crypto.user = { id: userId } as User;
     crypto.asset = asset;
     crypto.targetDeposit = staking?.deposit ?? null;

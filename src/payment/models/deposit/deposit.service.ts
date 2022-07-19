@@ -25,14 +25,4 @@ export class DepositService {
 
     return deposit;
   }
-
-  // Monitoring
-
-  async getFreeDeposit(): Promise<number> {
-    return this.depositRepo
-      .createQueryBuilder('deposit')
-      .leftJoin('deposit.route', 'route')
-      .where('route.id IS NULL')
-      .getCount();
-  }
 }
