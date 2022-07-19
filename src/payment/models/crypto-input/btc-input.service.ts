@@ -185,7 +185,7 @@ export class BtcInputService extends CryptoInputService {
 
       for (const input of unconfirmedInputs) {
         try {
-          const { confirmations } = await this.btcClient.waitForTx(input.outTxId);
+          const { confirmations } = await this.btcClient.getTx(input.outTxId);
           if (confirmations > 1) {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
           }

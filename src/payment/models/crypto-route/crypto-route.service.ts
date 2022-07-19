@@ -13,6 +13,8 @@ import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { CryptoRoute } from './crypto-route.entity';
 import { DepositService } from '../deposit/deposit.service';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
+import { KycCompleted } from 'src/user/models/user-data/user-data.entity';
 
 @Injectable()
 export class CryptoRouteService {
@@ -22,6 +24,7 @@ export class CryptoRouteService {
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
@@ -76,6 +79,10 @@ export class CryptoRouteService {
 
   // --- CRYPTOS --- //
   async createCrypto(userId: number, dto: CreateCryptoRouteDto): Promise<CryptoRoute> {
+    // KYC check
+    const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
+    if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
+
     // check asset
     const asset =
       dto.type === BuyType.WALLET
