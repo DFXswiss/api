@@ -78,20 +78,19 @@ export class CryptoRouteService {
   async createCrypto(userId: number, dto: CreateCryptoRouteDto): Promise<CryptoRoute> {
     // check asset
     const asset =
-      dto.buyType === BuyType.WALLET
+      dto.type === BuyType.WALLET
         ? await this.assetService.getAsset(dto.asset.id)
         : await this.assetService.getAssetByDexName('DFI');
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking
-    const staking =
-      dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.buyType === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
+    const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
+    if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        ...(dto.buyType === BuyType.WALLET
+        ...(dto.type === BuyType.WALLET
           ? { asset: asset, targetDeposit: IsNull() }
           : { targetDeposit: staking.deposit }),
         user: { id: userId },

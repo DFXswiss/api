@@ -11,7 +11,7 @@ export class CreateCryptoRouteDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsEnum(BuyType)
-  buyType: BuyType;
+  type: BuyType;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -19,14 +19,14 @@ export class CreateCryptoRouteDto {
   blockchain: Blockchain;
 
   @ApiPropertyOptional()
-  @ValidateIf((b: CreateCryptoRouteDto) => b.buyType === BuyType.WALLET)
+  @ValidateIf((b: CreateCryptoRouteDto) => b.type === BuyType.WALLET)
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   asset: Asset;
 
   @ApiPropertyOptional()
-  @ValidateIf((b: CreateCryptoRouteDto) => b.buyType === BuyType.STAKING)
+  @ValidateIf((b: CreateCryptoRouteDto) => b.type === BuyType.STAKING)
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)

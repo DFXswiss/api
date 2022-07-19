@@ -5,7 +5,7 @@ import { StakingDto } from '../../staking/dto/staking.dto';
 export class CryptoRouteDto {
   id: number;
   active: boolean;
-  buyType: BuyType;
+  type: BuyType;
   asset: Asset;
   volume: number;
   annualVolume: number;
