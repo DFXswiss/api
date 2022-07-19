@@ -31,17 +31,12 @@ export class BuyCryptoDexService {
         relations: ['transactions'],
       });
 
-      const securedBatches = await this.buyCryptoBatchRepo.find({
-        where: { status: BuyCryptoBatchStatus.SECURED },
-        relations: ['transactions'],
-      });
-
       const pendingBatches = await this.buyCryptoBatchRepo.find({
         where: { status: BuyCryptoBatchStatus.PENDING_LIQUIDITY },
         relations: ['transactions'],
       });
 
-      await this.secureLiquidityPerBatch(newBatches, securedBatches, pendingBatches);
+      await this.secureLiquidityPerBatch(newBatches, pendingBatches);
     } catch (e) {
       console.error(e);
     }
@@ -62,13 +57,9 @@ export class BuyCryptoDexService {
     }
   }
 
-  private async secureLiquidityPerBatch(
-    newBatches: BuyCryptoBatch[],
-    securedBatches: BuyCryptoBatch[],
-    pendingBatches: BuyCryptoBatch[],
-  ): Promise<void> {
+  private async secureLiquidityPerBatch(newBatches: BuyCryptoBatch[], pendingBatches: BuyCryptoBatch[]): Promise<void> {
     await this.checkPendingBatches(pendingBatches);
-    await this.processNewBatches(newBatches, securedBatches, pendingBatches);
+    await this.processNewBatches(newBatches);
   }
 
   private async checkPendingBatches(pendingBatches: BuyCryptoBatch[]): Promise<void> {
@@ -115,14 +106,10 @@ export class BuyCryptoDexService {
     return amount;
   }
 
-  private async processNewBatches(
-    newBatches: BuyCryptoBatch[],
-    securedBatches: BuyCryptoBatch[],
-    pendingBatches: BuyCryptoBatch[],
-  ): Promise<void> {
+  private async processNewBatches(newBatches: BuyCryptoBatch[]): Promise<void> {
     for (const batch of newBatches) {
       try {
-        const liquidity = await this.checkLiquidity(batch, securedBatches, pendingBatches);
+        const liquidity = await this.checkLiquidity(batch);
 
         if (liquidity !== 0) {
           batch.secure(liquidity);
@@ -140,30 +127,20 @@ export class BuyCryptoDexService {
     }
   }
 
-  private async checkLiquidity(
-    batch: BuyCryptoBatch,
-    securedBatches: BuyCryptoBatch[],
-    pendingBatches: BuyCryptoBatch[],
-  ): Promise<number> {
-    const securedAmount = securedBatches
-      .filter((securedBatch) => securedBatch.outputAsset === batch.outputAsset)
-      .reduce((acc, curr) => acc + curr.outputReferenceAmount, 0);
-
-    const pendingAmount = pendingBatches
-      .filter((pendingBatch) => pendingBatch.outputAsset === batch.outputAsset)
-      .reduce((acc, curr) => acc + curr.outputReferenceAmount, 0);
-
+  private async checkLiquidity(batch: BuyCryptoBatch): Promise<number> {
     try {
       const requiredAmount = await this.dexClient.testCompositeSwap(
         batch.outputReferenceAsset,
         batch.outputAsset,
-        batch.outputReferenceAmount + securedAmount + pendingAmount,
+        batch.outputReferenceAmount,
       );
 
       const availableAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(batch.outputAsset, this.dexClient);
 
       if (availableAmount >= requiredAmount) {
-        const baseOutputAssetPrice =
+        const targetAmount = requiredAmount;
+
+        const basePrice =
           1 /
           ((await this.dexClient.testCompositeSwap(
             batch.outputReferenceAsset,
@@ -172,14 +149,16 @@ export class BuyCryptoDexService {
           )) /
             batch.minimalOutputReferenceAmount);
 
-        const maxOutputAssetPrice = Util.round(baseOutputAssetPrice + baseOutputAssetPrice * batch.maxPriceSlippage, 8);
+        const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
+        const minimalAllowedTargetAmount = Util.round(batch.outputReferenceAmount / maxPrice, 8);
 
-        return await this.dexClient.testCompositeSwap(
-          batch.outputReferenceAsset,
-          batch.outputAsset,
-          batch.outputReferenceAmount,
-          maxOutputAssetPrice,
-        );
+        if (targetAmount < minimalAllowedTargetAmount) {
+          throw new Error(
+            `Price is higher than indicated. Maximum price for asset ${batch.outputAsset} is ${maxPrice} ${batch.outputReferenceAsset}`,
+          );
+        }
+
+        return targetAmount;
       }
 
       return 0;

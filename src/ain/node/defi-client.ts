@@ -60,7 +60,7 @@ export class DeFiClient extends NodeClient {
     return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
   }
 
-  async testCompositeSwap(tokenFrom: string, tokenTo: string, amount: number, maxPrice?: number): Promise<number> {
+  async testCompositeSwap(tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
     if (tokenFrom === tokenTo) return amount;
 
     return this.callNode((c) =>
@@ -73,7 +73,6 @@ export class DeFiClient extends NodeClient {
             amountFrom: this.roundAmount(amount),
             to: undefined,
             tokenTo: tokenTo,
-            maxPrice,
           },
           'auto',
         ],
