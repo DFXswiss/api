@@ -19,7 +19,7 @@ export class BuyCryptoNotificationService {
           isComplete: true,
           batch: { status: BuyCryptoBatchStatus.COMPLETE },
         },
-        relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'buy.deposit', 'batch'],
+        relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'batch', 'cryptoRoute', 'cryptoRoute.user'],
       });
 
       txOutput.length &&

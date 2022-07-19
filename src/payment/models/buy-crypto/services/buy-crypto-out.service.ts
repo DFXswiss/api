@@ -47,7 +47,13 @@ export class BuyCryptoOutService {
           status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
           outTxId: Not(IsNull()),
         },
-        relations: ['transactions', 'transactions.buy', 'transactions.buy.user', 'transactions.buy.deposit'],
+        relations: [
+          'transactions',
+          'transactions.buy',
+          'transactions.buy.user',
+          'transactions.cryptoRoute',
+          'transactions.cryptoRoute.user',
+        ],
       });
 
       if (batches.length === 0) {

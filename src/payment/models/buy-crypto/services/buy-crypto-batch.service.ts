@@ -27,7 +27,7 @@ export class BuyCryptoBatchService {
           outputAsset: IsNull(),
           batch: IsNull(),
         },
-        relations: ['bankTx', 'buy', 'buy.user', 'batch'],
+        relations: ['bankTx', 'buy', 'buy.user', 'batch', 'cryptoRoute', 'cryptoRoute.user'],
       });
 
       if (txInput.length === 0) {
