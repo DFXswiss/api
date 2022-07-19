@@ -52,6 +52,4 @@ describe('CryptoStakingService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
-
-  // TODO: do more tests
 });

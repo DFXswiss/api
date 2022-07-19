@@ -50,7 +50,7 @@ export class NodeService {
       this.checkNodePair(NodeType.OUTPUT),
       this.checkNodePair(NodeType.INT),
       this.checkNodePair(NodeType.REF),
-      // TODO: check BTC nodes
+      this.checkNodePair(NodeType.BTC_INPUT),
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
   }
 

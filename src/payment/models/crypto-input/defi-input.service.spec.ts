@@ -4,7 +4,6 @@ import { NodeService } from 'src/ain/node/node.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { CryptoInputRepository } from './crypto-input.repository';
-import { CryptoInputService } from './crypto-input.service';
 import { createMock } from '@golevelup/ts-jest';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 import { CryptoInput } from './crypto-input.entity';
@@ -16,10 +15,12 @@ import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import BigNumber from 'bignumber.js';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { BehaviorSubject } from 'rxjs';
+import { DeFiInputService } from './defi-input.service';
+import { HttpService } from '@nestjs/axios';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 
-describe('CryptoInputService', () => {
-  let service: CryptoInputService;
+describe('DeFiInputService', () => {
+  let service: DeFiInputService;
 
   let nodeClient: DeFiClient;
   let nodeService: NodeService;
@@ -28,6 +29,7 @@ describe('CryptoInputService', () => {
   let assetService: AssetService;
   let sellService: SellService;
   let stakingService: StakingService;
+  let http: HttpService;
   let buyFiatService: BuyFiatService;
 
   function setup(headers: number, blocks: number, lastBlocks: number, addresses: string[]) {
@@ -48,6 +50,7 @@ describe('CryptoInputService', () => {
     sellService = createMock<SellService>();
     stakingService = createMock<StakingService>();
     cryptoStakingService = createMock<CryptoStakingService>();
+    http = createMock<HttpService>();
     buyFiatService = createMock<BuyFiatService>();
 
     jest
@@ -61,19 +64,20 @@ describe('CryptoInputService', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
-        CryptoInputService,
+        DeFiInputService,
         { provide: NodeService, useValue: nodeService },
         { provide: CryptoInputRepository, useValue: cryptoInputRepo },
         { provide: AssetService, useValue: assetService },
         { provide: SellService, useValue: sellService },
         { provide: StakingService, useValue: stakingService },
         { provide: CryptoStakingService, useValue: cryptoStakingService },
+        { provide: HttpService, useValue: http },
         { provide: BuyFiatService, useValue: buyFiatService },
         TestUtil.provideConfig({ node: { minDfiDeposit: 0.01, utxoSpenderAddress: 'addr2' } }),
       ],
     }).compile();
 
-    service = module.get<CryptoInputService>(CryptoInputService);
+    service = module.get<DeFiInputService>(DeFiInputService);
   });
 
   it('should be defined', () => {
@@ -183,6 +187,4 @@ describe('CryptoInputService', () => {
       },
     ]);
   });
-
-  // TODO: do more tests
 });
