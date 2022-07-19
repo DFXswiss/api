@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { BuyService } from '../../buy/buy.service';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
-import { Between, In } from 'typeorm';
+import { Between, In, IsNull, Not } from 'typeorm';
 import { BuyRepository } from '../../buy/buy.repository';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
@@ -17,7 +17,6 @@ import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AmlCheck } from '../enums/aml-check.enum';
-import { CryptoInputRepository } from '../../crypto-input/crypto-input.repository';
 import { CryptoRouteRepository } from '../../crypto-route/crypto-route.repository';
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
@@ -30,7 +29,6 @@ export class BuyCryptoService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly bankTxRepo: BankTxRepository,
-    private readonly cryptoInputRepo: CryptoInputRepository,
     private readonly cryptoRouteRepo: CryptoRouteRepository,
     private readonly buyRepo: BuyRepository,
     private readonly settingService: SettingService,
