@@ -121,23 +121,26 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  calculateOutputReferenceAmount(price: Price): this {
-    if (!price) {
-      throw new Error('Provided input is not an instance of Price');
-    }
+  calculateOutputReferenceAmount(prices: Price[]): this {
+    if (this.inputReferenceAsset === this.outputReferenceAsset) {
+      this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee, 8);
+    } else {
+      const price = prices.find(
+        (p) => p.currencyPair.includes(this.inputReferenceAsset) && p.currencyPair.includes(this.outputReferenceAsset),
+      );
 
-    if (!price.currencyPair.includes(this.inputReferenceAsset)) {
-      throw new Error(`Cannot calculate outputReferenceAmount, ${this.inputReferenceAsset} price is required`);
-    }
+      if (!price) {
+        throw new Error(
+          `Cannot calculate outputReferenceAmount, ${this.inputReferenceAsset}/${this.outputReferenceAsset} price is missing`,
+        );
+      }
 
-    if (!price.price) {
-      throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
-    }
+      if (!price.price) {
+        throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
+      }
 
-    this.outputReferenceAmount =
-      this.inputReferenceAsset == this.outputReferenceAsset
-        ? Util.round(this.inputReferenceAmountMinusFee, 8)
-        : Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
+      this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
+    }
 
     return this;
   }
