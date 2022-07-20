@@ -12,7 +12,7 @@ import { CryptoRoute } from './crypto-route.entity';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 import { BuyType } from '../buy/dto/buy-type.enum';
-import { Blockchain, Deposit } from '../deposit/deposit.entity';
+import { Deposit } from '../deposit/deposit.entity';
 import { Staking } from '../staking/staking.entity';
 import { StakingDto } from '../staking/dto/staking.dto';
 import { StakingRepository } from '../staking/staking.repository';
