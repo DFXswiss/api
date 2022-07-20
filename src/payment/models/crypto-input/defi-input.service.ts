@@ -78,7 +78,8 @@ export class DeFiInputService extends CryptoInputService {
             }
           } else {
             // check for min. deposit
-            const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+            // TODO: remove temporary DUSD pool fix
+            const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
             if (usdtAmount < Config.node.minTokenDeposit) {
               console.log('Retrieving small token:', token);
 
