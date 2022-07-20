@@ -73,6 +73,7 @@ export class CryptoRouteController {
     return {
       ...crypto,
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
+      blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       fee,
     };
