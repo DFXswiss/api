@@ -126,15 +126,18 @@ export class BuyCrypto extends IEntity {
       throw new Error('Provided input is not an instance of Price');
     }
 
-    if (!price.currencyPair.includes('EUR')) {
-      throw new Error('Cannot calculate outputReferenceAmount, EUR price is required');
+    if (!price.currencyPair.includes(this.inputReferenceAsset)) {
+      throw new Error(`Cannot calculate outputReferenceAmount, ${this.inputReferenceAsset} price is required`);
     }
 
     if (!price.price) {
       throw new Error('Cannot calculate outputReferenceAmount, price value is 0');
     }
 
-    this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
+    this.outputReferenceAmount =
+      this.inputReferenceAsset == this.outputReferenceAsset
+        ? Util.round(this.inputReferenceAmountMinusFee, 8)
+        : Util.round(this.inputReferenceAmountMinusFee / price.price, 8);
 
     return this;
   }
