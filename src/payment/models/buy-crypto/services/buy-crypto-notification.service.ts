@@ -43,7 +43,7 @@ export class BuyCryptoNotificationService {
           tx.user.userData.mail &&
             (await this.mailService.sendTranslatedMail({
               userData: tx.user.userData,
-              translationKey: 'mail.payment.buyCrypto',
+              translationKey: tx.translationKey,
               params: {
                 buyFiatAmount: tx.inputAmount,
                 buyFiatAsset: tx.inputAsset,
