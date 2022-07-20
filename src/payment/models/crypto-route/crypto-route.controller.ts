@@ -12,7 +12,7 @@ import { CryptoRoute } from './crypto-route.entity';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 import { BuyType } from '../buy/dto/buy-type.enum';
-import { Deposit } from '../deposit/deposit.entity';
+import { Blockchain, Deposit } from '../deposit/deposit.entity';
 import { Staking } from '../staking/staking.entity';
 import { StakingDto } from '../staking/dto/staking.dto';
 import { StakingRepository } from '../staking/staking.repository';
@@ -73,6 +73,7 @@ export class CryptoRouteController {
     return {
       ...crypto,
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
+      blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       fee,
     };
