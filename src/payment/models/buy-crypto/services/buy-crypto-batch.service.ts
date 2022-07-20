@@ -56,15 +56,12 @@ export class BuyCryptoBatchService {
     }
   }
 
-  private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Map<string, Price>> {
-    const result = new Map<string, Price>();
+  private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
     const referenceAssets = [...new Set(txWithAssets.map((tx) => tx.outputReferenceAsset))];
 
-    await Promise.all(
+    return await Promise.all(
       referenceAssets.map(async (asset) => await this.exchangeUtilityService.getMatchingPrice('EUR', asset)),
-    ).then((prices) => prices.forEach((price, i) => result.set(referenceAssets[i], price)));
-
-    return result;
+    );
   }
 
   private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
@@ -75,17 +72,10 @@ export class BuyCryptoBatchService {
     return transactions.filter((tx) => tx.outputAsset);
   }
 
-  private async defineReferenceAmount(
-    transactions: BuyCrypto[],
-    referencePrices: Map<string, Price>,
-  ): Promise<BuyCrypto[]> {
+  private async defineReferenceAmount(transactions: BuyCrypto[], referencePrices: Price[]): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
       try {
-        const { outputReferenceAsset } = tx;
-
-        const referenceAssetPrice = referencePrices.get(outputReferenceAsset);
-
-        tx.calculateOutputReferenceAmount(referenceAssetPrice);
+        tx.calculateOutputReferenceAmount(referencePrices);
       } catch (e) {
         console.error(`Could not calculate outputReferenceAmount for transaction ${tx.id}}`, e);
       }
