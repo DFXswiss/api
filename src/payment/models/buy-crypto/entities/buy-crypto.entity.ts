@@ -175,6 +175,10 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
+  get translationKey(): string {
+    return this.buy ? 'mail.payment.buyCryptoFiat' : 'mail.payment.buyCryptoCrypto';
+  }
+
   get user(): User {
     return this.buy ? this.buy.user : this.cryptoRoute.user;
   }
