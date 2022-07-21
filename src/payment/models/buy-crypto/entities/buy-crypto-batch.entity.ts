@@ -68,8 +68,7 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  pending(purchaseTxId: string): this {
-    this.purchaseTxId = purchaseTxId;
+  pending(): this {
     this.status = BuyCryptoBatchStatus.PENDING_LIQUIDITY;
 
     return this;

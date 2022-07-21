@@ -70,7 +70,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
 import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
 import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
-import { PurchaseLiquidityService } from './models/buy-crypto/services/purchase-liquidity.service';
+import { PurchaseLiquidityService } from './models/dex/strategies/purchase-liquidity/purchase-liquidity.service';
 
 @Module({
   imports: [

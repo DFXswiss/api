@@ -8,7 +8,12 @@ import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-bat
 import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
 import { Util } from 'src/shared/util';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { PurchaseLiquidityService } from './purchase-liquidity.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
+import {
+  PurchaseLiquidityFacade,
+  PurchaseLiquidityRequest,
+} from '../../dex/strategies/purchase-liquidity/purchase-liquidity.facade';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -18,7 +23,8 @@ export class BuyCryptoDexService {
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
-    private readonly purchaseLiquidityService: PurchaseLiquidityService,
+    private readonly assetService: AssetService,
+    private readonly purchaseLiquidityFacade: PurchaseLiquidityFacade,
     readonly nodeService: NodeService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -178,9 +184,18 @@ export class BuyCryptoDexService {
     let txId: string;
 
     try {
-      txId = await this.purchaseLiquidityService.purchaseLiquidity(batch);
+      const targetAsset = await this.assetService.getAssetByDexName(batch.outputAsset);
+      const request: PurchaseLiquidityRequest = {
+        context: LiquidityOrderContext.BUY_CRYPTO,
+        correlationId: batch.id.toString(),
+        referenceAsset: batch.outputReferenceAsset,
+        referenceAmount: batch.outputReferenceAmount,
+        targetAsset,
+      };
 
-      batch.pending(txId);
+      await this.purchaseLiquidityFacade.purchaseLiquidity(request);
+
+      batch.pending();
     } catch (e) {
       if (this.isSlippageError(e))
         return this.handleSlippageError(
