@@ -23,17 +23,13 @@ export class KycController {
   }
 
   @Post()
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async requestKyc(@GetJwt() jwt: JwtPayload): Promise<string> {
-    return await this.kycService.requestKyc(jwt.id).then(JSON.stringify);
+  async requestKyc(@Query('code') code: string): Promise<string> {
+    return await this.kycService.requestKyc(code).then(JSON.stringify);
   }
 
   @Post('data')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycUserDataDto): Promise<boolean> {
-    await this.kycService.updateKycData(jwt.id, data);
+  async updateKycData(@Query('code') code: string, @Body() data: KycUserDataDto): Promise<boolean> {
+    await this.kycService.updateKycData(code, data);
     return true;
   }
 
@@ -43,13 +39,11 @@ export class KycController {
   }
 
   @Post('incorporationCertificate')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @UseInterceptors(FilesInterceptor('files'))
   async uploadIncorporationCertificate(
-    @GetJwt() jwt: JwtPayload,
+    @Query('code') code: string,
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
-    return this.kycService.uploadDocument(jwt.id, files[0], KycDocument.INCORPORATION_CERTIFICATE);
+    return this.kycService.uploadDocument(code, files[0], KycDocument.INCORPORATION_CERTIFICATE);
   }
 }

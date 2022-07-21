@@ -125,13 +125,6 @@
         "sortNum": 170000
       },
       {
-        "_id": "2810d09a-5150-4925-96be-15684f45ad20",
-        "name": "KYC",
-        "containerId": "",
-        "created": "2022-05-05T13:28:49.715Z",
-        "sortNum": 180000
-      },
-      {
         "_id": "4db44ba0-0e26-436f-871c-35ae2d76a700",
         "name": "Statistic",
         "containerId": "",
@@ -172,6 +165,13 @@
         "containerId": "",
         "created": "2022-07-19T16:43:19.513Z",
         "sortNum": 240000
+      },
+      {
+        "_id": "4294c334-1994-4bbf-accf-1f9a38a162c3",
+        "name": "KYC",
+        "containerId": "",
+        "created": "2022-07-21T07:42:41.397Z",
+        "sortNum": 250000
       }
     ],
     "settings": {
