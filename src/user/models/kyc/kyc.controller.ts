@@ -1,11 +1,6 @@
-import { Body, Controller, Get, Post, Query, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Body, Controller, Get, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import {  ApiTags } from '@nestjs/swagger';
 import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 import { LimitRequestDto } from '../limit-request/dto/limit-request.dto';
 import { LimitRequestService } from '../limit-request/limit-request.service';
