@@ -47,9 +47,8 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
-  async updateKycData(userId: number, data: KycUserDataDto): Promise<void> {
-    const user = await this.userDataService.getUserDataByUser(userId);
-    if (!user) throw new NotFoundException(`User data not found`);
+  async updateKycData(code: string, data: KycUserDataDto): Promise<void> {
+    const user = await this.getUserByKYCCode(code)
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
@@ -102,9 +101,8 @@ export class KycService {
     return requiredFields.filter((f) => !user[f]).length === 0;
   }
 
-  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const userData = await this.userDataService.getUserDataByUser(userId);
-    if (!userData) throw new NotFoundException(`User data not found`);
+  async uploadDocument(code: string, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
+    const userData = await this.getUserByKYCCode(code)
 
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, userData.surname);
@@ -120,8 +118,8 @@ export class KycService {
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(userId: number): Promise<string> {
-    let user = await this.userDataService.getUserDataByUser(userId);
+  async requestKyc(code: string): Promise<string> {
+    let user = await this.getUserByKYCCode(code)
 
     // check if KYC already started
     if (user.kycStatus !== KycStatus.NA) {
@@ -150,9 +148,8 @@ export class KycService {
     return await this.kycProcess.startKycProcess(userData);
   }
 
-  async getKycStatus(kycHash: string): Promise<KycInfo> {
-    let userData = await this.userDataRepo.findOne({ where: { kycHash }, relations: ['spiderData'] });
-    if (!userData) throw new NotFoundException('User not found');
+  async getKycStatus(code: string): Promise<KycInfo> {
+    let userData = await this.getUserByKYCCode(code)
 
     if (KycInProgress(userData.kycStatus)) {
       // update
@@ -168,5 +165,13 @@ export class KycService {
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
     };
+  }
+
+  // --- GET USER --- //
+
+  private async getUserByKYCCode(code: string): Promise<UserData> {
+    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] });
+    if (!userData) throw new NotFoundException('User not found');
+    return userData
   }
 }
