@@ -17,6 +17,7 @@ import { BtcClient } from 'src/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -164,7 +165,7 @@ export class BtcInputService extends CryptoInputService {
         tryCount: 3,
       },
     );
-    return Math.max(Math.min(fastestFee, 500 * amount), 1);
+    return Util.round(Math.max(Math.min(fastestFee, 500 * amount), 1), 0);
   }
 
   // --- CONFIRMATION HANDLING --- //
