@@ -1387,7 +1387,7 @@
     ],
     "body": {
       "type": "json",
-      "raw": "{\n    \"accountType\": \"Personal\",\n    \"firstname\": \"A\",\n    \"surname\": \"B\",\n    \"street\": \"C\",\n    \"houseNumber\": \"42\",\n    \"location\": \"D\",\n    \"zip\": \"4321\",\n    \"country\": {\n        \"id\": 55,\n        \"symbol\": \"DE\",\n        \"name\": \"Germany\",\n        \"enable\": true\n    }\n}",
+      "raw": "{\n    \"accountType\": \"Personal\",\n    \"firstname\": \"A\",\n    \"surname\": \"B\",\n    \"street\": \"C\",\n    \"houseNumber\": \"42\",\n    \"location\": \"D\",\n    \"zip\": \"4321\",\n    \"country\": {\n        \"id\": 55,\n        \"symbol\": \"DE\",\n        \"name\": \"Germany\",\n        \"enable\": true\n    },\n    \"mail\": \"test@test.com\",\n    \"phone\": \"+43 69912345678\"\n}",
       "form": []
     },
     "tests": []
@@ -1458,6 +1458,24 @@
     "sortNum": 510000,
     "created": "2022-07-21T11:42:55.550Z",
     "modified": "2022-07-21T11:44:36.177Z",
+    "headers": [],
+    "params": [],
+    "auth": {
+      "type": "bearer",
+      "bearer": "{{token}}"
+    },
+    "tests": []
+  },
+  {
+    "_id": "8e94c061-f86a-4408-baa8-e7dd50e0682a",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "User",
+    "url": "{{url}}/v1/user",
+    "method": "GET",
+    "sortNum": 520000,
+    "created": "2022-07-21T14:41:01.678Z",
+    "modified": "2022-07-21T14:42:04.970Z",
     "headers": [],
     "params": [],
     "auth": {
