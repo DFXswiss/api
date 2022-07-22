@@ -4,6 +4,7 @@ import { Column, Entity } from 'typeorm';
 
 export enum LiquidityOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
+  CREATE_POOL_PAIR = 'CreatePoolPair',
 }
 
 export type ChainSwapId = string;
@@ -11,7 +12,6 @@ export type TargetAmount = number;
 
 @Entity()
 export class LiquidityOrder extends IEntity {
-  // not needed in target event based solution, now correlationId is not unique
   @Column({ length: 256, nullable: false })
   context: LiquidityOrderContext;
 
@@ -54,6 +54,13 @@ export class LiquidityOrder extends IEntity {
   recordLiquiditySourceAsset(sourceAsset: string, sourceAmount: number): this {
     this.sourceAsset = sourceAsset;
     this.sourceAmount = sourceAmount;
+
+    return this;
+  }
+
+  complete(targetAmount: number): this {
+    this.targetAmount = targetAmount;
+    this.isComplete = true;
 
     return this;
   }

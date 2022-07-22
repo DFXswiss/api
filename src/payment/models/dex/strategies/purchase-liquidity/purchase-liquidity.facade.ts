@@ -31,14 +31,20 @@ export class PurchaseLiquidityFacade {
   }
 
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
+    // throw generic error here
     const strategy = this.#strategies.get(request?.targetAsset?.category);
 
     if (!strategy) {
       throw new Error(`No purchase liquidity strategy for asset category ${request?.targetAsset?.category}`);
     }
 
-    const order = this.liquidityOrderFactory.createFromPurchaseLiquidityRequest(request, 'defichain');
-
-    await strategy.purchaseLiquidity(order);
+    try {
+      await strategy.purchaseLiquidity(request);
+    } catch (e) {
+      console.error(e);
+      throw new Error(
+        `Error while purchasing liquidity. Context: ${request.context}. Correlation ID: ${request.correlationId}. `,
+      );
+    }
   }
 }

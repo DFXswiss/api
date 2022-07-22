@@ -5,7 +5,7 @@ import { Config } from 'src/config/config';
 import { IsNull } from 'typeorm';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
+import { DeFiChainUtil } from '../../dex/utils/defichain.util';
 import { Util } from 'src/shared/util';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -21,7 +21,7 @@ export class BuyCryptoDexService {
 
   constructor(
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-    private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
+    private readonly buyCryptoChainUtil: DeFiChainUtil,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly assetService: AssetService,
     private readonly purchaseLiquidityFacade: PurchaseLiquidityFacade,

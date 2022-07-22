@@ -1,58 +1,58 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
-import { AssetNotAvailableException } from '../../../buy-crypto/exceptions/asset-not-available.exception';
+import { AssetNotAvailableException } from '../../exceptions/asset-not-available.exception';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
-import { BuyCryptoNotificationService } from '../../../buy-crypto/services/buy-crypto-notification.service';
 import { SwapLiquidityService } from '../../services/swap-liquidity.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
+import { MailService } from 'src/shared/services/mail.service';
+import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
+import { PurchaseLiquidityRequest } from './purchase-liquidity.facade';
 
 @Injectable()
-export class PurchaseStockLiquidityStrategy implements PurchaseLiquidityStrategy {
+export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
   constructor(
-    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    readonly mailService: MailService,
+    private readonly liquidityOrderFactory: LiquidityOrderFactory,
     private readonly swapLiquidityService: SwapLiquidityService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
-  ) {}
+  ) {
+    super(mailService);
+  }
 
-  async purchaseLiquidity(order: LiquidityOrder): Promise<void> {
-    const chainSwapId = await this.bookLiquiditySwap(order);
+  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
+    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
 
-    order.addChainSwapId(chainSwapId);
+    try {
+      const chainSwapId = await this.bookLiquiditySwap(order);
 
-    await this.liquidityOrderRepo.save(order);
+      order.addChainSwapId(chainSwapId);
+
+      await this.liquidityOrderRepo.save(order);
+    } catch (e) {
+      this.handlePurchaseLiquidityError(e, order);
+    }
   }
 
   private async bookLiquiditySwap(order: LiquidityOrder): Promise<string> {
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
 
-    try {
-      const { asset: sourceAsset, amount: sourceAmount } = await this.getSuitableSourceAsset(
-        referenceAsset,
-        referenceAmount,
-      );
+    const { asset: sourceAsset, amount: sourceAmount } = await this.getSuitableSourceAsset(
+      referenceAsset,
+      referenceAmount,
+    );
 
-      const txId = await this.swapLiquidityService.doAssetSwap(
-        sourceAsset,
-        sourceAmount,
-        targetAsset.dexName,
-        maxPriceSlippage,
-      );
+    const txId = await this.swapLiquidityService.doAssetSwap(
+      sourceAsset,
+      sourceAmount,
+      targetAsset.dexName,
+      maxPriceSlippage,
+    );
 
-      console.info(
-        `Booked ${sourceAmount} ${sourceAsset} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
-      );
+    console.info(
+      `Booked ${sourceAmount} ${sourceAsset} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
+    );
 
-      return txId;
-    } catch (e) {
-      const errorMessage = `LiquidityOrder  ID: ${order.id}. ${e.message}`;
-      console.error(errorMessage);
-
-      if (e instanceof AssetNotAvailableException) {
-        await this.buyCryptoNotificationService.sendNonRecoverableErrorMail(errorMessage);
-      }
-
-      throw e;
-    }
+    return txId;
   }
 
   private async getSuitableSourceAsset(

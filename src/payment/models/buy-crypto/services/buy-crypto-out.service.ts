@@ -11,7 +11,7 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { Util } from 'src/shared/util';
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
+import { DeFiChainUtil } from '../../dex/utils/defichain.util';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -22,7 +22,7 @@ export class BuyCryptoOutService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
-    private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
+    private readonly buyCryptoChainUtil: DeFiChainUtil,
     private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
   ) {

@@ -1,24 +1,46 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
-import { BuyCryptoNotificationService } from '../../../buy-crypto/services/buy-crypto-notification.service';
 import { SwapLiquidityService } from '../../services/swap-liquidity.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
+import { AssetNotAvailableException } from 'src/payment/models/dex/exceptions/asset-not-available.exception';
+import { MailService } from 'src/shared/services/mail.service';
+import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
+import { PurchaseLiquidityRequest } from './purchase-liquidity.facade';
 
 @Injectable()
-export class PurchaseCryptoLiquidityStrategy implements PurchaseLiquidityStrategy {
+export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
   constructor(
-    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
+    readonly mailService: MailService,
+    private readonly liquidityOrderFactory: LiquidityOrderFactory,
     private readonly swapLiquidityService: SwapLiquidityService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
-  ) {}
+  ) {
+    super(mailService);
+  }
 
-  async purchaseLiquidity(order: LiquidityOrder): Promise<void> {
-    const chainSwapId = await this.bookLiquiditySwap(order);
+  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
+    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
 
-    order.addChainSwapId(chainSwapId);
+    try {
+      const chainSwapId = await this.bookLiquiditySwap(order);
 
-    await this.liquidityOrderRepo.save(order);
+      order.addChainSwapId(chainSwapId);
+
+      await this.liquidityOrderRepo.save(order);
+    } catch (e) {
+      this.handlePurchaseLiquidityError(e, order);
+    }
+  }
+
+  protected async handlePurchaseLiquidityError(e: Error, order: LiquidityOrder): Promise<void> {
+    const errorMessage = `LiquidityOrder ID: ${order.id}. ${e.message}`;
+
+    if (e instanceof AssetNotAvailableException) {
+      await this.mailService.sendErrorMail('Purchase Liquidity Error', [errorMessage]);
+    }
+
+    throw new Error(errorMessage);
   }
 
   private async bookLiquiditySwap(order: LiquidityOrder): Promise<string> {

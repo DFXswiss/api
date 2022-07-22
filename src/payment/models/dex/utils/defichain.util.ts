@@ -3,7 +3,7 @@ import { DeFiClient } from 'src/ain/node/defi-client';
 import { Config } from 'src/config/config';
 
 @Injectable()
-export class BuyCryptoChainUtil {
+export class DeFiChainUtil {
   async getHistoryEntryForTx(
     txId: string,
     client: DeFiClient,

@@ -59,7 +59,7 @@ import { BuyCryptoOutService } from './models/buy-crypto/services/buy-crypto-out
 import { BuyCryptoDexService } from './models/buy-crypto/services/buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './models/buy-crypto/services/buy-crypto-notification.service';
 import { BuyCryptoBatchRepository } from './models/buy-crypto/repositories/buy-crypto-batch.repository';
-import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.util';
+import { DeFiChainUtil } from './models/dex/utils/defichain.util';
 import { BankAccountService } from './models/bank-account/bank-account.service';
 import { BankAccountRepository } from './models/bank-account/bank-account.repository';
 import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
@@ -133,7 +133,7 @@ import { PurchaseLiquidityService } from './models/dex/strategies/purchase-liqui
     BuyCryptoNotificationService,
     BuyCryptoOutService,
     PurchaseLiquidityService,
-    BuyCryptoChainUtil,
+    DeFiChainUtil,
     BankTxService,
     BankService,
     KrakenService,

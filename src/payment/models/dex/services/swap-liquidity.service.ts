@@ -4,7 +4,7 @@ import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { ChainSwapId } from '../entities/liquidity-order.entity';
-import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
+import { BuyCryptoChainUtil } from '../utils/defichain.util';
 
 @Injectable()
 export class SwapLiquidityService {
@@ -13,6 +13,8 @@ export class SwapLiquidityService {
   constructor(private readonly buyCryptoChainUtil: BuyCryptoChainUtil, readonly nodeService: NodeService) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
+
+  async getSwapResult(txId: string): Promise<number | null> {}
 
   async doAssetSwap(
     sourceAsset: string,
