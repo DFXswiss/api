@@ -47,6 +47,16 @@ export class KycUserDataDto {
   @Type(() => EntityDto)
   country: Country;
 
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  mail: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  phone: string;
+
   @ApiPropertyOptional()
   @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()

@@ -13,6 +13,7 @@ import { KycProcessService } from './kyc-process.service';
 export interface KycInfo {
   kycStatus: KycStatus;
   kycState: KycState;
+  kycDataComplete: boolean;
   depositLimit: number;
   sessionUrl?: string;
   setupUrl?: string;
@@ -161,6 +162,7 @@ export class KycService {
     return {
       kycStatus: userData.kycStatus,
       kycState: userData.kycState,
+      kycDataComplete: this.isDataComplete(userData),
       depositLimit: userData.depositLimit,
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,

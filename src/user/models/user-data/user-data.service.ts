@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
@@ -60,20 +59,7 @@ export class UserDataService {
       currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
     });
 
-    // generate KYC hash
-    userData.kycHash = await this.generateKycHash(userData.id);
-    await this.userDataRepo.update(userData.id, { kycHash: userData.kycHash });
-
     return userData;
-  }
-
-  private async generateKycHash(id: number): Promise<string> {
-    for (let i = 0; i < 3; i++) {
-      const kycHash = Util.createHash(id.toString() + new Date().getDate()).slice(0, 12);
-      if ((await this.getUserDataByKycHash(kycHash)) == null) return kycHash;
-    }
-
-    throw new InternalServerErrorException(`Failed to generate KYC hash`);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
