@@ -165,7 +165,7 @@ export class BtcInputService extends CryptoInputService {
         tryCount: 3,
       },
     );
-    return Util.round(Math.max(Math.min(fastestFee, 500 * amount), 1), 0);
+    return Math.floor(Math.max(Math.min(fastestFee, 500 * amount), 1));
   }
 
   // --- CONFIRMATION HANDLING --- //
