@@ -64,7 +64,8 @@ export class HistoryService {
           c.inputAsset &&
           c.bankTx &&
           c.outputDate &&
-          c.txId,
+          c.txId &&
+          c.buy,
       )
       .map((c) => [
         {
@@ -190,7 +191,7 @@ export class HistoryService {
           tradeGroup: 'Staking',
           comment: 'DFX Staking Invest',
           date: c.inputDate,
-          txid: c.inTxId,
+          txid: c.inTxId + '-1',
           buyValueInEur: null,
           sellValueInEur: null,
         },
@@ -206,7 +207,7 @@ export class HistoryService {
           tradeGroup: null,
           comment: 'DFX Staking Invest',
           date: this.createRandomDate(c.inputDate, -10, c.inputAmount),
-          txid: c.inTxId,
+          txid: c.inTxId + '-2',
           buyValueInEur: null,
           sellValueInEur: null,
         },
@@ -229,7 +230,7 @@ export class HistoryService {
           tradeGroup: null,
           comment: 'DFX Staking Invest',
           date: c.outputDate,
-          txid: c.outTxId,
+          txid: c.outTxId + '-1',
           buyValueInEur: null,
           sellValueInEur: null,
         },
@@ -245,7 +246,7 @@ export class HistoryService {
           tradeGroup: null,
           comment: 'DFX Staking Invest',
           date: this.createRandomDate(c.outputDate, 10, c.outputAmount),
-          txid: c.outTxId,
+          txid: c.outTxId + '-2',
           buyValueInEur: null,
           sellValueInEur: null,
         },
