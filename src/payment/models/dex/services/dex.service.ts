@@ -9,6 +9,7 @@ import { SwapLiquidityService } from './swap-liquidity.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
+import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
@@ -37,21 +38,31 @@ export class DEXService {
   // *** PUBLIC API *** //
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {
-    const { referenceAsset, referenceAmount, targetAsset } = request;
+    const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
 
-    return this.swapLiquidityService.tryAssetSwap(
-      referenceAsset,
-      referenceAmount,
-      targetAsset.dexName,
-      LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
-    );
+    try {
+      return this.swapLiquidityService.tryAssetSwap(
+        referenceAsset,
+        referenceAmount,
+        targetAsset.dexName,
+        LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
+      );
+    } catch (e) {
+      // publicly exposed exceptions
+      if (e instanceof NotEnoughLiquidityException) return 0;
+      if (e instanceof PriceSlippageException) throw e;
+
+      // default public exception
+      throw new Error(`Error while checking liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
+    }
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
-    const strategy = this.#purchaseLiquidityStrategies.get(request?.targetAsset?.category);
+    const { context, correlationId, targetAsset } = request;
+    const strategy = this.#purchaseLiquidityStrategies.get(targetAsset?.category);
 
     if (!strategy) {
-      throw new Error(`No purchase liquidity strategy for asset category ${request?.targetAsset?.category}`);
+      throw new Error(`No purchase liquidity strategy for asset category ${targetAsset?.category}`);
     }
 
     try {
@@ -59,13 +70,11 @@ export class DEXService {
     } catch (e) {
       console.error(e);
 
-      if (e instanceof PriceSlippageException) {
-        throw e;
-      }
+      // publicly exposed exception
+      if (e instanceof PriceSlippageException) throw e;
 
-      throw new Error(
-        `Error while purchasing liquidity. Context: ${request.context}. Correlation ID: ${request.correlationId}. `,
-      );
+      // default public exception
+      throw new Error(`Error while purchasing liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
     }
   }
 

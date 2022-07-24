@@ -24,18 +24,12 @@ export class SwapLiquidityService {
     targetAsset: string,
     maxSlippage?: number,
   ): Promise<number> {
-    try {
-      const { amount: targetAmount } = await this.tryAssetAvailability(sourceAsset, sourceAmount, targetAsset);
+    const { amount: targetAmount } = await this.tryAssetAvailability(sourceAsset, sourceAmount, targetAsset);
 
-      maxSlippage &&
-        (await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage));
+    maxSlippage &&
+      (await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage));
 
-      return targetAmount;
-    } catch (e) {
-      if (e instanceof NotEnoughLiquidityException) return 0;
-
-      throw e;
-    }
+    return targetAmount;
   }
 
   async doAssetSwap(
