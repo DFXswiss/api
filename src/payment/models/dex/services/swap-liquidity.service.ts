@@ -3,7 +3,8 @@ import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
-import { ChainSwapId } from '../entities/liquidity-order.entity';
+import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity';
+import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { DeFiChainUtil } from '../utils/defichain.util';
 
@@ -15,18 +16,26 @@ export class SwapLiquidityService {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
 
+  // *** PUBLIC API *** //
+
   async tryAssetSwap(
     sourceAsset: string,
     sourceAmount: number,
     targetAsset: string,
     maxSlippage?: number,
   ): Promise<number> {
-    const { amount: targetAmount } = await this.tryAssetAvailability(sourceAsset, sourceAmount, targetAsset);
+    try {
+      const { amount: targetAmount } = await this.tryAssetAvailability(sourceAsset, sourceAmount, targetAsset);
 
-    maxSlippage &&
-      (await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage));
+      maxSlippage &&
+        (await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage));
 
-    return targetAmount;
+      return targetAmount;
+    } catch (e) {
+      if (e instanceof NotEnoughLiquidityException) return 0;
+
+      throw e;
+    }
   }
 
   async doAssetSwap(
@@ -39,15 +48,23 @@ export class SwapLiquidityService {
       ? await this.calculateMaxTargetAssetPrice(sourceAsset, targetAsset, maxSlippage)
       : undefined;
 
-    return this.#dexClient.compositeSwap(
-      Config.node.dexWalletAddress,
-      sourceAsset,
-      Config.node.dexWalletAddress,
-      targetAsset,
-      sourceAmount,
-      [],
-      maxPrice,
-    );
+    try {
+      return await this.#dexClient.compositeSwap(
+        Config.node.dexWalletAddress,
+        sourceAsset,
+        Config.node.dexWalletAddress,
+        targetAsset,
+        sourceAmount,
+        [],
+        maxPrice,
+      );
+    } catch (e) {
+      if (this.isSlippageError(e)) {
+        throw new PriceSlippageException(e.message);
+      }
+
+      throw e;
+    }
   }
 
   async getSwapResult(txId: string, asset: string): Promise<number> {
@@ -78,8 +95,8 @@ export class SwapLiquidityService {
 
     // 5% cap for unexpected meantime swaps
     if (targetAmount * 1.05 > availableAmount) {
-      throw new Error(
-        `Not enough ${targetAsset} liquidity. Trying to convert ${targetAmount} ${targetAsset} worth liquidity for asset ${targetAsset}. Available amount: ${availableAmount}.`,
+      throw new NotEnoughLiquidityException(
+        `Not enough liquidity of asset ${targetAsset}. Trying to convert ${targetAmount} ${targetAsset} worth liquidity for asset ${targetAsset}. Available amount: ${availableAmount}.`,
       );
     }
 
@@ -94,12 +111,14 @@ export class SwapLiquidityService {
     return (await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, 0.001)) / 0.001;
   }
 
+  // *** HELPER METHODS *** //
+
   private async calculateAssetAmount(
     referenceAsset: string,
     referenceAmount: number,
     targetAsset: string,
   ): Promise<number> {
-    if (this.isReferenceAsset(targetAsset)) {
+    if (LiquidityOrder.getIsReferenceAsset(targetAsset)) {
       const targetAssetPrice = await this.calculateTargetAssetPrice(referenceAsset, targetAsset);
 
       const amount = referenceAmount / targetAssetPrice;
@@ -138,10 +157,6 @@ export class SwapLiquidityService {
     const targetAssetPrice = await this.calculateTargetAssetPrice(sourceAsset, targetAsset);
 
     return Util.round(targetAssetPrice * (1 + maxSlippage), 8);
-  }
-
-  private isReferenceAsset(asset: string): boolean {
-    return asset === 'BTC' || asset === 'USDC' || asset === 'USDT';
   }
 
   private isSlippageError(e: Error): boolean {

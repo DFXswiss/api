@@ -34,6 +34,8 @@ export class DEXService {
     this.#purchaseLiquidityStrategies.set(AssetCategory.CRYPTO, cryptoStrategy);
   }
 
+  // *** PUBLIC API *** //
+
   async checkLiquidity(request: LiquidityRequest): Promise<number> {
     const { referenceAsset, referenceAmount, targetAsset } = request;
 
