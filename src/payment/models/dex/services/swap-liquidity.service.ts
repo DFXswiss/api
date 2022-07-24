@@ -144,10 +144,6 @@ export class SwapLiquidityService {
     return asset === 'BTC' || asset === 'USDC' || asset === 'USDT';
   }
 
-  private getMaxPriceSlippage(asset: string): number {
-    return this.isReferenceAsset(asset) ? 0.005 : 0.03;
-  }
-
   private isSlippageError(e: Error): boolean {
     return e.message && e.message.includes('Price is higher than indicated');
   }

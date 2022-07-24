@@ -1,6 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 
 export enum LiquidityOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
@@ -36,7 +36,7 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   sourceAmount: number;
 
-  @Column({ nullable: false })
+  @ManyToOne(() => Asset, { eager: true, nullable: false })
   targetAsset: Asset;
 
   @Column({ type: 'float', nullable: false })

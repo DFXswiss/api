@@ -1,6 +1,7 @@
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
 import { AssetNotAvailableException } from '../../exceptions/asset-not-available.exception';
+import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { LiquidityRequest } from '../../services/dex.service';
 
 export abstract class PurchaseLiquidityStrategy {
@@ -13,6 +14,10 @@ export abstract class PurchaseLiquidityStrategy {
 
     if (e instanceof AssetNotAvailableException) {
       await this.mailService.sendErrorMail('Purchase Liquidity Error', [errorMessage]);
+    }
+
+    if (e instanceof PriceSlippageException) {
+      throw new PriceSlippageException(errorMessage);
     }
 
     throw new Error(errorMessage);

@@ -3,7 +3,6 @@ import { LiquidityOrder } from '../../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { SwapLiquidityService } from '../../services/swap-liquidity.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
-import { AssetNotAvailableException } from 'src/payment/models/dex/exceptions/asset-not-available.exception';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityRequest } from '../../services/dex.service';
@@ -31,16 +30,6 @@ export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
     } catch (e) {
       this.handlePurchaseLiquidityError(e, order);
     }
-  }
-
-  protected async handlePurchaseLiquidityError(e: Error, order: LiquidityOrder): Promise<void> {
-    const errorMessage = `LiquidityOrder ID: ${order.id}. ${e.message}`;
-
-    if (e instanceof AssetNotAvailableException) {
-      await this.mailService.sendErrorMail('Purchase Liquidity Error', [errorMessage]);
-    }
-
-    throw new Error(errorMessage);
   }
 
   private async bookLiquiditySwap(order: LiquidityOrder): Promise<string> {

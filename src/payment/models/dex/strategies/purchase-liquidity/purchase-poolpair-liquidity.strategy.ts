@@ -91,16 +91,6 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     }
   }
 
-  protected async handlePurchaseLiquidityError(e: Error, order: LiquidityOrder): Promise<void> {
-    const errorMessage = `LiquidityOrder ID: ${order.id}. ${e.message}`;
-
-    if (e instanceof AssetNotAvailableException) {
-      await this.mailService.sendErrorMail('Purchase Liquidity Error', [errorMessage]);
-    }
-
-    throw new Error(errorMessage);
-  }
-
   private parseAssetPair(asset: Asset): [string, string] {
     const assetPair = asset.dexName.split('-');
 

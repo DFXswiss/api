@@ -59,7 +59,6 @@ import { BuyCryptoOutService } from './models/buy-crypto/services/buy-crypto-out
 import { BuyCryptoDexService } from './models/buy-crypto/services/buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './models/buy-crypto/services/buy-crypto-notification.service';
 import { BuyCryptoBatchRepository } from './models/buy-crypto/repositories/buy-crypto-batch.repository';
-import { DeFiChainUtil } from './models/dex/utils/defichain.util';
 import { BankAccountService } from './models/bank-account/bank-account.service';
 import { BankAccountRepository } from './models/bank-account/bank-account.repository';
 import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
@@ -70,7 +69,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
 import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
 import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
-import { PurchaseLiquidityService } from './models/dex/strategies/purchase-liquidity/purchase-liquidity.service';
+import { DexModule } from './models/dex/dex.module';
 
 @Module({
   imports: [
@@ -99,6 +98,7 @@ import { PurchaseLiquidityService } from './models/dex/strategies/purchase-liqui
     SharedModule,
     AinModule,
     UserModule,
+    DexModule,
   ],
   controllers: [
     BankTxController,
@@ -132,8 +132,6 @@ import { PurchaseLiquidityService } from './models/dex/strategies/purchase-liqui
     BuyCryptoDexService,
     BuyCryptoNotificationService,
     BuyCryptoOutService,
-    PurchaseLiquidityService,
-    DeFiChainUtil,
     BankTxService,
     BankService,
     KrakenService,

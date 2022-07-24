@@ -8,6 +8,7 @@ import { LiquidityOrder, LiquidityOrderContext } from '../entities/liquidity-ord
 import { SwapLiquidityService } from './swap-liquidity.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
+import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
@@ -55,6 +56,11 @@ export class DEXService {
       await strategy.purchaseLiquidity(request);
     } catch (e) {
       console.error(e);
+
+      if (e instanceof PriceSlippageException) {
+        throw e;
+      }
+
       throw new Error(
         `Error while purchasing liquidity. Context: ${request.context}. Correlation ID: ${request.correlationId}. `,
       );
