@@ -1,5 +1,5 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
@@ -164,7 +164,7 @@ export class BtcInputService extends CryptoInputService {
         tryCount: 3,
       },
     );
-    return Math.max(Math.min(fastestFee, 500 * amount), 1);
+    return Math.floor(Math.max(Math.min(fastestFee, 500 * amount), 1));
   }
 
   // --- CONFIRMATION HANDLING --- //
@@ -185,7 +185,7 @@ export class BtcInputService extends CryptoInputService {
 
       for (const input of unconfirmedInputs) {
         try {
-          const { confirmations } = await this.btcClient.waitForTx(input.outTxId);
+          const { confirmations } = await this.btcClient.getTx(input.outTxId);
           if (confirmations > 1) {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
           }

@@ -71,8 +71,9 @@ export class CryptoRouteController {
     fee ??= await this.getFees(userId);
 
     return {
-      buyType: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...crypto,
+      type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
+      blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       fee,
     };

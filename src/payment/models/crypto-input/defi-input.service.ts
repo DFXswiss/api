@@ -78,7 +78,8 @@ export class DeFiInputService extends CryptoInputService {
             }
           } else {
             // check for min. deposit
-            const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+            // TODO: remove temporary DUSD pool fix
+            const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
             if (usdtAmount < Config.node.minTokenDeposit) {
               console.log('Retrieving small token:', token);
 
@@ -269,7 +270,8 @@ export class DeFiInputService extends CryptoInputService {
   ): Promise<{ btcAmount: number; usdtAmount: number }> {
     try {
       const btcAmount = await this.client.testCompositeSwap(asset, 'BTC', amount);
-      const usdtAmount = await this.client.testCompositeSwap(asset, 'USDT', amount);
+      // TODO: remove temporary DUSD pool fix
+      const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
 
       return { btcAmount, usdtAmount };
     } catch (e) {
@@ -355,7 +357,7 @@ export class DeFiInputService extends CryptoInputService {
 
       for (const input of unconfirmedInputs) {
         try {
-          const { confirmations } = await this.client.waitForTx(input.outTxId);
+          const { confirmations } = await this.client.getTx(input.outTxId);
           if (confirmations > 60) {
             await this.cryptoInputRepo.update(input.id, { isConfirmed: true });
           }

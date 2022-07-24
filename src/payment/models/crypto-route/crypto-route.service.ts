@@ -13,6 +13,8 @@ import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { CryptoRoute } from './crypto-route.entity';
 import { DepositService } from '../deposit/deposit.service';
+import { UserDataService } from 'src/user/models/user-data/user-data.service';
+import { KycCompleted } from 'src/user/models/user-data/user-data.entity';
 
 @Injectable()
 export class CryptoRouteService {
@@ -22,6 +24,7 @@ export class CryptoRouteService {
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
     private readonly depositService: DepositService,
+    private readonly userDataService: UserDataService,
   ) {}
 
   async getCryptoRouteByAddress(depositAddress: string): Promise<CryptoRoute> {
@@ -76,22 +79,25 @@ export class CryptoRouteService {
 
   // --- CRYPTOS --- //
   async createCrypto(userId: number, dto: CreateCryptoRouteDto): Promise<CryptoRoute> {
+    // KYC check
+    const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
+    if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
+
     // check asset
     const asset =
-      dto.buyType === BuyType.WALLET
+      dto.type === BuyType.WALLET
         ? await this.assetService.getAsset(dto.asset.id)
         : await this.assetService.getAssetByDexName('DFI');
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking
-    const staking =
-      dto.buyType === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
-    if (dto.buyType === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
+    const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
+    if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
     // check if exists
     const existing = await this.cryptoRepo.findOne({
       where: {
-        ...(dto.buyType === BuyType.WALLET
+        ...(dto.type === BuyType.WALLET
           ? { asset: asset, targetDeposit: IsNull() }
           : { targetDeposit: staking.deposit }),
         user: { id: userId },
@@ -102,7 +108,7 @@ export class CryptoRouteService {
     if (existing) throw new ConflictException('Crypto route already exists');
 
     // create the entity
-    const crypto = this.cryptoRepo.create(dto);
+    const crypto = this.cryptoRepo.create();
     crypto.user = { id: userId } as User;
     crypto.asset = asset;
     crypto.targetDeposit = staking?.deposit ?? null;

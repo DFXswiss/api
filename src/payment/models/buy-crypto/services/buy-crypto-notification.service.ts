@@ -19,7 +19,16 @@ export class BuyCryptoNotificationService {
           isComplete: true,
           batch: { status: BuyCryptoBatchStatus.COMPLETE },
         },
-        relations: ['bankTx', 'buy', 'buy.user', 'buy.user.userData', 'buy.deposit', 'batch'],
+        relations: [
+          'bankTx',
+          'buy',
+          'buy.user',
+          'buy.user.userData',
+          'batch',
+          'cryptoRoute',
+          'cryptoRoute.user',
+          'cryptoRoute.user.userData',
+        ],
       });
 
       txOutput.length &&
@@ -34,12 +43,12 @@ export class BuyCryptoNotificationService {
           tx.user.userData.mail &&
             (await this.mailService.sendTranslatedMail({
               userData: tx.user.userData,
-              translationKey: 'mail.payment.buyCrypto',
+              translationKey: tx.translationKey,
               params: {
-                buyFiatAmount: tx.inputAmount,
-                buyFiatAsset: tx.inputAsset,
-                buyCryptoAmount: tx.outputAmount,
-                buyCryptoAsset: tx.outputAsset,
+                buyInputAmount: tx.inputAmount,
+                buyInputAsset: tx.inputAsset,
+                buyOutputAmount: tx.outputAmount,
+                buyOutputAsset: tx.outputAsset,
                 buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                 exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                 buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
