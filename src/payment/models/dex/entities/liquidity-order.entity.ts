@@ -65,13 +65,19 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
+  static getIsReferenceAsset(asset: string): boolean {
+    return asset === 'BTC' || asset === 'USDC' || asset === 'USDT';
+  }
+
+  static getMaxPriceSlippage(asset: string): number {
+    return this.getIsReferenceAsset(asset) ? 0.005 : 0.03;
+  }
+
   get isReferenceAsset(): boolean {
-    return (
-      this.targetAsset.dexName === 'BTC' || this.targetAsset.dexName === 'USDC' || this.targetAsset.dexName === 'USDT'
-    );
+    return LiquidityOrder.getIsReferenceAsset(this.targetAsset.dexName);
   }
 
   get maxPriceSlippage(): number {
-    return this.isReferenceAsset ? 0.005 : 0.03;
+    return LiquidityOrder.getMaxPriceSlippage(this.targetAsset.dexName);
   }
 }

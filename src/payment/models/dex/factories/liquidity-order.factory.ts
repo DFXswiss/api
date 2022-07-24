@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { PurchaseLiquidityRequest } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
+import { LiquidityRequest } from '../services/dex.service';
 
 @Injectable()
 export class LiquidityOrderFactory {
   constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository) {}
 
-  createFromRequest(request: PurchaseLiquidityRequest, chain: string): LiquidityOrder {
+  createFromRequest(request: LiquidityRequest, chain: string): LiquidityOrder {
     const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
 
     return this.liquidityOrderRepo.create({
@@ -30,7 +30,7 @@ export class LiquidityOrderFactory {
       chain,
       referenceAsset,
       referenceAmount,
-      targetAsset: targetAsset,
+      targetAsset,
     });
   }
 }

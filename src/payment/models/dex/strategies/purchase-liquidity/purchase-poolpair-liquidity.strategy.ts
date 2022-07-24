@@ -12,7 +12,7 @@ import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { SwapLiquidityService } from '../../services/swap-liquidity.service';
 import { DeFiChainUtil } from '../../utils/defichain.util';
-import { PurchaseLiquidityRequest } from './purchase-liquidity.facade';
+import { LiquidityRequest } from '../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
 @Injectable()
@@ -30,7 +30,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     super(mailService);
   }
 
-  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
+  async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
     const newOrder = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
 
     try {
@@ -52,23 +52,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     });
 
     for (const order of standingParentOrders) {
-      const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(order.chainSwapId, this.#chainClient);
-
-      if (!historyEntry) {
-        throw new Error(
-          `Could not find transaction with ID: ${order.chainSwapId} while trying to extract purchased liquidity`,
-        );
-      }
-
-      const amounts = historyEntry.amounts.map((a) => this.#chainClient.parseAmount(a));
-
-      const { amount } = amounts.find((a) => a.asset === order.targetAsset.dexName);
-
-      if (!amount) {
-        throw new Error(
-          `Failed to get amount for TX: ${order.chainSwapId} while trying to extract purchased liquidity`,
-        );
-      }
+      const amount = await this.swapLiquidityService.getSwapResult(order.chainSwapId, order.targetAsset.dexName);
 
       order.complete(amount);
       await this.liquidityOrderRepo.save(order);
@@ -82,23 +66,10 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     });
 
     for (const derivedOrder of standingDerivedOrders) {
-      const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(derivedOrder.chainSwapId, this.#chainClient);
-
-      if (!historyEntry) {
-        throw new Error(
-          `Could not find transaction with ID: ${derivedOrder.chainSwapId} while trying to extract purchased liquidity`,
-        );
-      }
-
-      const amounts = historyEntry.amounts.map((a) => this.#chainClient.parseAmount(a));
-
-      const { amount } = amounts.find((a) => a.asset === derivedOrder.targetAsset.dexName);
-
-      if (!amount) {
-        throw new Error(
-          `Failed to get amount for TX: ${derivedOrder.chainSwapId} while trying to extract purchased liquidity`,
-        );
-      }
+      const amount = await this.swapLiquidityService.getSwapResult(
+        derivedOrder.chainSwapId,
+        derivedOrder.targetAsset.dexName,
+      );
 
       derivedOrder.complete(amount);
       await this.liquidityOrderRepo.save(derivedOrder);

@@ -4,17 +4,30 @@ import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { ChainSwapId } from '../entities/liquidity-order.entity';
-import { BuyCryptoChainUtil } from '../utils/defichain.util';
+import { PriceSlippageException } from '../exceptions/price-slippage.exception';
+import { DeFiChainUtil } from '../utils/defichain.util';
 
 @Injectable()
 export class SwapLiquidityService {
   #dexClient: DeFiClient;
 
-  constructor(private readonly buyCryptoChainUtil: BuyCryptoChainUtil, readonly nodeService: NodeService) {
+  constructor(private readonly deFiChainUtil: DeFiChainUtil, readonly nodeService: NodeService) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
 
-  async getSwapResult(txId: string): Promise<number | null> {}
+  async tryAssetSwap(
+    sourceAsset: string,
+    sourceAmount: number,
+    targetAsset: string,
+    maxSlippage?: number,
+  ): Promise<number> {
+    const { amount: targetAmount } = await this.tryAssetAvailability(sourceAsset, sourceAmount, targetAsset);
+
+    maxSlippage &&
+      (await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage));
+
+    return targetAmount;
+  }
 
   async doAssetSwap(
     sourceAsset: string,
@@ -37,13 +50,31 @@ export class SwapLiquidityService {
     );
   }
 
+  async getSwapResult(txId: string, asset: string): Promise<number> {
+    const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
+
+    if (!historyEntry) {
+      throw new Error(`Could not find transaction with ID: ${txId} while trying to extract purchased liquidity`);
+    }
+
+    const amounts = historyEntry.amounts.map((a) => this.#dexClient.parseAmount(a));
+
+    const { amount } = amounts.find((a) => a.asset === asset);
+
+    if (!amount) {
+      throw new Error(`Failed to get amount for TX: ${txId} while trying to extract purchased liquidity`);
+    }
+
+    return amount;
+  }
+
   async tryAssetAvailability(
     sourceAsset: string,
     sourceAmount: number,
     targetAsset: string,
   ): Promise<{ asset: string; amount: number }> {
     const targetAmount = await this.calculateAssetAmount(sourceAsset, sourceAmount, targetAsset);
-    const availableAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(targetAsset, this.#dexClient);
+    const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(targetAsset, this.#dexClient);
 
     // 5% cap for unexpected meantime swaps
     if (targetAmount * 1.05 > availableAmount) {
@@ -80,6 +111,25 @@ export class SwapLiquidityService {
     return this.#dexClient.testCompositeSwap(referenceAsset, targetAsset, referenceAmount);
   }
 
+  private async checkTestSwapPriceSlippage(
+    sourceAsset: string,
+    sourceAmount: number,
+    targetAsset: string,
+    targetAmount: number,
+    maxSlippage: number,
+  ): Promise<void> {
+    const basePrice = await this.calculateTargetAssetPrice(sourceAsset, targetAsset);
+    const maxPrice = Util.round(basePrice + basePrice * maxSlippage, 8);
+
+    const minimalAllowedTargetAmount = Util.round(sourceAmount / maxPrice, 8);
+
+    if (targetAmount < minimalAllowedTargetAmount) {
+      throw new PriceSlippageException(
+        `Price is higher than indicated. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}`,
+      );
+    }
+  }
+
   private async calculateMaxTargetAssetPrice(
     sourceAsset: string,
     targetAsset: string,
@@ -92,5 +142,13 @@ export class SwapLiquidityService {
 
   private isReferenceAsset(asset: string): boolean {
     return asset === 'BTC' || asset === 'USDC' || asset === 'USDT';
+  }
+
+  private getMaxPriceSlippage(asset: string): number {
+    return this.isReferenceAsset(asset) ? 0.005 : 0.03;
+  }
+
+  private isSlippageError(e: Error): boolean {
+    return e.message && e.message.includes('Price is higher than indicated');
   }
 }

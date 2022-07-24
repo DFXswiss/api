@@ -5,15 +5,12 @@ import { Config } from 'src/config/config';
 import { IsNull } from 'typeorm';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
-import { DeFiChainUtil } from '../../dex/utils/defichain.util';
-import { Util } from 'src/shared/util';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
-import {
-  PurchaseLiquidityFacade,
-  PurchaseLiquidityRequest,
-} from '../../dex/strategies/purchase-liquidity/purchase-liquidity.facade';
+import { DEXService, LiquidityRequest } from '../../dex/services/dex.service';
+import { LiquidityOrderNotReadyException } from '../../dex/exceptions/liquidity-order-not-ready.exception';
+import { PriceSlippageException } from '../../dex/exceptions/price-slippage.exception';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -21,10 +18,9 @@ export class BuyCryptoDexService {
 
   constructor(
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-    private readonly buyCryptoChainUtil: DeFiChainUtil,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly assetService: AssetService,
-    private readonly purchaseLiquidityFacade: PurchaseLiquidityFacade,
+    private readonly dexService: DEXService,
     readonly nodeService: NodeService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -71,45 +67,30 @@ export class BuyCryptoDexService {
   private async checkPendingBatches(pendingBatches: BuyCryptoBatch[]): Promise<void> {
     for (const batch of pendingBatches) {
       try {
-        const { blockhash, confirmations } = await this.dexClient.getTx(batch.purchaseTxId);
+        const liquidity = await this.getLiquidityAfterPurchase(batch);
 
-        if (blockhash && confirmations > 0) {
-          const liquidity = await this.getLiquidityAfterPurchase(batch);
-          batch.secure(liquidity);
-          await this.buyCryptoBatchRepo.save(batch);
+        batch.secure(liquidity);
+        await this.buyCryptoBatchRepo.save(batch);
 
-          console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
-        }
+        console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
       } catch (e) {
+        if (e instanceof LiquidityOrderNotReadyException) {
+          continue;
+        }
+
         console.error(`Failed to check pending batch. Batch ID: ${batch.id}`, e);
       }
     }
   }
 
   private async getLiquidityAfterPurchase(batch: BuyCryptoBatch): Promise<number> {
-    const { purchaseTxId, outputAsset, outputReferenceAsset, outputReferenceAmount } = batch;
+    const { outputAsset, outputReferenceAsset, outputReferenceAmount } = batch;
 
     if (outputReferenceAsset === outputAsset) {
       return outputReferenceAmount;
     }
 
-    const historyEntry = await this.buyCryptoChainUtil.getHistoryEntryForTx(batch.purchaseTxId, this.dexClient);
-
-    if (!historyEntry) {
-      throw new Error(
-        `Could not find transaction with ID: ${purchaseTxId} while trying to extract purchased liquidity`,
-      );
-    }
-
-    const amounts = historyEntry.amounts.map((a) => this.dexClient.parseAmount(a));
-
-    const { amount } = amounts.find((a) => a.asset === outputAsset);
-
-    if (!amount) {
-      throw new Error(`Failed to get amount for TX: ${purchaseTxId} while trying to extract purchased liquidity`);
-    }
-
-    return amount;
+    return this.dexService.fetchPurchasedLiquidity(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
   }
 
   private async processNewBatches(newBatches: BuyCryptoBatch[]): Promise<void> {
@@ -135,45 +116,17 @@ export class BuyCryptoDexService {
 
   private async checkLiquidity(batch: BuyCryptoBatch): Promise<number> {
     try {
-      const requiredAmount = await this.dexClient.testCompositeSwap(
-        batch.outputReferenceAsset,
-        batch.outputAsset,
-        batch.outputReferenceAmount,
-      );
+      const request = await this.createLiquidityRequest(batch);
+      const liquidity = await this.dexService.checkLiquidity(request);
 
-      const availableAmount = await this.buyCryptoChainUtil.getAvailableTokenAmount(batch.outputAsset, this.dexClient);
-
-      if (availableAmount >= requiredAmount) {
-        const targetAmount = requiredAmount;
-
-        const basePrice =
-          1 /
-          ((await this.dexClient.testCompositeSwap(
-            batch.outputReferenceAsset,
-            batch.outputAsset,
-            batch.minimalOutputReferenceAmount,
-          )) /
-            batch.minimalOutputReferenceAmount);
-
-        const maxPrice = Util.round(basePrice + basePrice * batch.maxPriceSlippage, 8);
-        const minimalAllowedTargetAmount = Util.round(batch.outputReferenceAmount / maxPrice, 8);
-
-        if (targetAmount < minimalAllowedTargetAmount) {
-          throw new Error(
-            `Price is higher than indicated. Maximum price for asset ${batch.outputAsset} is ${maxPrice} ${batch.outputReferenceAsset}`,
-          );
-        }
-
-        return targetAmount;
-      }
-
-      return 0;
+      return liquidity || 0;
     } catch (e) {
-      if (this.isSlippageError(e))
-        this.handleSlippageError(
+      if (e instanceof PriceSlippageException) {
+        await this.handleSlippageException(
           `Slippage error while checking liquidity for asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
           e,
         );
+      }
 
       console.error(`Error in checking liquidity for a batch, ID: ${batch.id}`, e);
       throw e;
@@ -184,27 +137,20 @@ export class BuyCryptoDexService {
     let txId: string;
 
     try {
-      const targetAsset = await this.assetService.getAssetByDexName(batch.outputAsset);
-      const request: PurchaseLiquidityRequest = {
-        context: LiquidityOrderContext.BUY_CRYPTO,
-        correlationId: batch.id.toString(),
-        referenceAsset: batch.outputReferenceAsset,
-        referenceAmount: batch.outputReferenceAmount,
-        targetAsset,
-      };
-
-      await this.purchaseLiquidityFacade.purchaseLiquidity(request);
+      const request = await this.createLiquidityRequest(batch);
+      await this.dexService.purchaseLiquidity(request);
 
       batch.pending();
     } catch (e) {
-      if (this.isSlippageError(e))
-        return this.handleSlippageError(
+      if (e instanceof PriceSlippageException) {
+        await this.handleSlippageException(
           `Composite swap slippage error while purchasing asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
           e,
         );
+      }
 
       console.error(`Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
-      return;
+      throw e;
     }
 
     try {
@@ -218,12 +164,20 @@ export class BuyCryptoDexService {
     }
   }
 
-  private isSlippageError(e: Error): boolean {
-    return e.message && e.message.includes('Price is higher than indicated');
+  private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
+    const targetAsset = await this.assetService.getAssetByDexName(batch.outputAsset);
+
+    return {
+      context: LiquidityOrderContext.BUY_CRYPTO,
+      correlationId: batch.id.toString(),
+      referenceAsset: batch.outputReferenceAsset,
+      referenceAmount: batch.outputReferenceAmount,
+      targetAsset,
+    };
   }
 
-  private handleSlippageError(message: string, e: Error): void {
-    this.buyCryptoNotificationService.sendNonRecoverableErrorMail(message, e);
+  private async handleSlippageException(message: string, e: Error): Promise<void> {
+    await this.buyCryptoNotificationService.sendNonRecoverableErrorMail(message, e);
   }
 
   private async transferForOutput(batch: BuyCryptoBatch): Promise<void> {

@@ -6,7 +6,7 @@ import { SwapLiquidityService } from '../../services/swap-liquidity.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
-import { PurchaseLiquidityRequest } from './purchase-liquidity.facade';
+import { LiquidityRequest } from '../../services/dex.service';
 
 @Injectable()
 export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
@@ -19,7 +19,7 @@ export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
     super(mailService);
   }
 
-  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
+  async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
     const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
 
     try {
