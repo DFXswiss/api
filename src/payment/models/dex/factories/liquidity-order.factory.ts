@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { LiquidityRequest } from '../services/dex.service';
