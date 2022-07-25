@@ -3,16 +3,21 @@ import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
-import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity';
+import { ChainSwapId, LiquidityOrder, TargetAmount } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
+import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { DeFiChainUtil } from '../utils/defichain.util';
 
 @Injectable()
 export class SwapLiquidityService {
   #dexClient: DeFiClient;
 
-  constructor(private readonly deFiChainUtil: DeFiChainUtil, readonly nodeService: NodeService) {
+  constructor(
+    private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    private readonly deFiChainUtil: DeFiChainUtil,
+    readonly nodeService: NodeService,
+  ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
   }
 
@@ -23,7 +28,7 @@ export class SwapLiquidityService {
     sourceAmount: number,
     targetAsset: string,
     maxSlippage?: number,
-  ): Promise<number> {
+  ): Promise<TargetAmount> {
     const { amount: targetAmount } = await this.tryAssetAvailability(sourceAsset, sourceAmount, targetAsset);
 
     maxSlippage &&
@@ -85,10 +90,16 @@ export class SwapLiquidityService {
     targetAsset: string,
   ): Promise<{ asset: string; amount: number }> {
     const targetAmount = await this.calculateAssetAmount(sourceAsset, sourceAmount, targetAsset);
+
+    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
+      (o) => o.targetAsset.dexName === targetAsset,
+    );
+    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+
     const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(targetAsset, this.#dexClient);
 
     // 5% cap for unexpected meantime swaps
-    if (targetAmount * 1.05 > availableAmount) {
+    if (targetAmount * 1.05 > availableAmount + pendingAmount) {
       throw new NotEnoughLiquidityException(
         `Not enough liquidity of asset ${targetAsset}. Trying to convert ${targetAmount} ${targetAsset} worth liquidity for asset ${targetAsset}. Available amount: ${availableAmount}.`,
       );
@@ -105,6 +116,14 @@ export class SwapLiquidityService {
     return (await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, 0.001)) / 0.001;
   }
 
+  isSlippageError(e: Error): boolean {
+    return e.message && e.message.includes('Price is higher than indicated');
+  }
+
+  isAssetNotAvailableError(e: Error): boolean {
+    return e.message && e.message.includes('Cannot find usable pool pair');
+  }
+
   // *** HELPER METHODS *** //
 
   private async calculateAssetAmount(
@@ -117,7 +136,10 @@ export class SwapLiquidityService {
 
       const amount = referenceAmount / targetAssetPrice;
 
-      // adding 5% reserve cap for non-reference asset liquidity swap
+      // adding 5% reserve cap for non-reference asset liquidity swap,
+      // TODO - wrong comment, clarify
+      // TODO - double check with Matthias if this should be other way around or why we need to add 5% to ref asset
+      // TODO - differentiate between swapped liquidity and liquidity returned to client.
       return Util.round(amount + amount * 0.05, 8);
     }
 
@@ -151,9 +173,5 @@ export class SwapLiquidityService {
     const targetAssetPrice = await this.calculateTargetAssetPrice(sourceAsset, targetAsset);
 
     return Util.round(targetAssetPrice * (1 + maxSlippage), 8);
-  }
-
-  private isSlippageError(e: Error): boolean {
-    return e.message && e.message.includes('Price is higher than indicated');
   }
 }

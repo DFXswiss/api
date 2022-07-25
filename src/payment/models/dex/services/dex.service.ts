@@ -7,9 +7,11 @@ import { PurchaseLiquidityStrategy } from '../strategies/purchase-liquidity/purc
 import { LiquidityOrder, LiquidityOrderContext } from '../entities/liquidity-order.entity';
 import { SwapLiquidityService } from './swap-liquidity.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
+import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
+import { Interval } from '@nestjs/schedule';
+import { Not, IsNull } from 'typeorm';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
@@ -41,6 +43,7 @@ export class DEXService {
     const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
 
     try {
+      // calculating how much targetAmount is needed and if it's available on the node
       return this.swapLiquidityService.tryAssetSwap(
         referenceAsset,
         referenceAmount,
@@ -48,6 +51,8 @@ export class DEXService {
         LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
       );
     } catch (e) {
+      console.error(e);
+
       // publicly exposed exceptions
       if (e instanceof NotEnoughLiquidityException) return 0;
       if (e instanceof PriceSlippageException) throw e;
@@ -90,5 +95,57 @@ export class DEXService {
     }
 
     return order.targetAmount;
+  }
+
+  async completeOrder(context: LiquidityOrderContext, correlationId: string): Promise<void> {
+    const incompleteOrders = await this.liquidityOrderRepo.find({
+      where: { context, correlationId, isComplete: false, isReady: true },
+    });
+
+    if (incompleteOrders.length === 0) {
+      throw new Error(`No ready liquidity orders found for context ${context} and correlationId: ${correlationId}`);
+    }
+
+    for (const order of incompleteOrders) {
+      order.complete();
+      await this.liquidityOrderRepo.save(order);
+    }
+  }
+
+  @Interval(60000)
+  async verifyExternalOrders(): Promise<void> {
+    const standingOrders = await this.liquidityOrderRepo.find({
+      context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
+      isReady: false,
+      chainSwapId: Not(IsNull()),
+    });
+
+    await this.verifyOrders(standingOrders);
+  }
+
+  @Interval(60000)
+  async verifyInternalOrders(): Promise<void> {
+    const standingOrders = await this.liquidityOrderRepo.find({
+      context: LiquidityOrderContext.CREATE_POOL_PAIR,
+      isReady: false,
+      chainSwapId: Not(IsNull()),
+    });
+
+    await this.verifyOrders(standingOrders);
+  }
+
+  // *** HELPER METHODS *** //
+
+  private async verifyOrders(orders: LiquidityOrder[]): Promise<void> {
+    for (const order of orders) {
+      try {
+        const amount = await this.swapLiquidityService.getSwapResult(order.chainSwapId, order.targetAsset.dexName);
+
+        order.ready(amount);
+        await this.liquidityOrderRepo.save(order);
+      } catch {
+        continue;
+      }
+    }
   }
 }

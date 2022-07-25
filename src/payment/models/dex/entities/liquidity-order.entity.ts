@@ -19,6 +19,9 @@ export class LiquidityOrder extends IEntity {
   correlationId: string;
 
   @Column({ length: 256, nullable: false })
+  strategy: string;
+
+  @Column({ length: 256, nullable: false })
   chain: string;
 
   @Column({ length: 256, nullable: false })
@@ -43,6 +46,9 @@ export class LiquidityOrder extends IEntity {
   targetAmount: number;
 
   @Column({ nullable: false, default: false })
+  isReady: boolean;
+
+  @Column({ nullable: false, default: false })
   isComplete: boolean;
 
   addChainSwapId(chainSwapId: string): this {
@@ -58,8 +64,14 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
-  complete(targetAmount: number): this {
+  ready(targetAmount: number): this {
     this.targetAmount = targetAmount;
+    this.isReady = true;
+
+    return this;
+  }
+
+  complete(): this {
     this.isComplete = true;
 
     return this;

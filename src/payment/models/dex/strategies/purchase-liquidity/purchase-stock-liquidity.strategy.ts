@@ -7,6 +7,7 @@ import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityRequest } from '../../services/dex.service';
+import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
@@ -20,7 +21,7 @@ export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
-    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
+    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain', AssetCategory.STOCK);
 
     try {
       const chainSwapId = await this.bookLiquiditySwap(order);
@@ -64,13 +65,21 @@ export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
     try {
       return await this.swapLiquidityService.tryAssetAvailability(referenceAsset, referenceAmount, 'DUSD');
     } catch (e) {
-      errors.push(e.message);
+      if (this.swapLiquidityService.isAssetNotAvailableError(e)) {
+        errors.push(e.message);
+      } else {
+        throw e;
+      }
     }
 
     try {
       return await this.swapLiquidityService.tryAssetAvailability(referenceAsset, referenceAmount, 'DFI');
     } catch (e) {
-      errors.push(e.message);
+      if (this.swapLiquidityService.isAssetNotAvailableError(e)) {
+        errors.push(e.message);
+      } else {
+        throw e;
+      }
     }
 
     throw new AssetNotAvailableException(

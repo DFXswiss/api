@@ -6,6 +6,8 @@ import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityRequest } from '../../services/dex.service';
+import { AssetNotAvailableException } from '../../exceptions/asset-not-available.exception';
+import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
@@ -19,7 +21,7 @@ export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
-    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
+    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain', AssetCategory.CRYPTO);
 
     try {
       const chainSwapId = await this.bookLiquiditySwap(order);
@@ -34,11 +36,7 @@ export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
 
   private async bookLiquiditySwap(order: LiquidityOrder): Promise<string> {
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
-    const { asset: sourceAsset, amount: sourceAmount } = await this.swapLiquidityService.tryAssetAvailability(
-      referenceAsset,
-      referenceAmount,
-      'DFI',
-    );
+    const { asset: sourceAsset, amount: sourceAmount } = await this.getSourceAsset(referenceAsset, referenceAmount);
 
     const txId = await this.swapLiquidityService.doAssetSwap(
       sourceAsset,
@@ -52,5 +50,22 @@ export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
     );
 
     return txId;
+  }
+
+  private async getSourceAsset(
+    referenceAsset: string,
+    referenceAmount: number,
+  ): Promise<{ asset: string; amount: number }> {
+    try {
+      return await this.swapLiquidityService.tryAssetAvailability(referenceAsset, referenceAmount, 'DFI');
+    } catch (e) {
+      if (this.swapLiquidityService.isAssetNotAvailableError(e)) {
+        throw new AssetNotAvailableException(
+          `Failed to find suitable source asset for liquidity order. `.concat(e.message),
+        );
+      }
+
+      throw e;
+    }
   }
 }

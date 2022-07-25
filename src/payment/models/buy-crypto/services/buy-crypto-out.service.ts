@@ -12,6 +12,8 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { Util } from 'src/shared/util';
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { DeFiChainUtil } from '../../dex/utils/defichain.util';
+import { DEXService } from '../../dex/services/dex.service';
+import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -22,7 +24,8 @@ export class BuyCryptoOutService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
-    private readonly buyCryptoChainUtil: DeFiChainUtil,
+    private readonly deFiChainUtil: DeFiChainUtil,
+    private readonly dexService: DEXService,
     private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
   ) {
@@ -136,7 +139,9 @@ export class BuyCryptoOutService {
     if (isBatchComplete) {
       console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
       batch.complete();
-      this.buyCryptoBatchRepo.save(batch);
+
+      await this.dexService.completeOrder(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
+      await this.buyCryptoBatchRepo.save(batch);
     }
   }
 
@@ -144,7 +149,7 @@ export class BuyCryptoOutService {
     batch: BuyCryptoBatch,
     outAssets: { amount: number; asset: string }[],
   ): Promise<boolean> {
-    const outTxComplete = await this.buyCryptoChainUtil.getHistoryEntryForTx(batch.outTxId, this.dexClient);
+    const outTxComplete = await this.deFiChainUtil.getHistoryEntryForTx(batch.outTxId, this.dexClient);
 
     if (!outTxComplete) return false;
 

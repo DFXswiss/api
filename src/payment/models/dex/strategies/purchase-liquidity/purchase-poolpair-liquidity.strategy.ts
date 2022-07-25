@@ -11,9 +11,9 @@ import { AssetNotAvailableException } from '../../exceptions/asset-not-available
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { SwapLiquidityService } from '../../services/swap-liquidity.service';
-import { DeFiChainUtil } from '../../utils/defichain.util';
 import { LiquidityRequest } from '../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {
@@ -22,7 +22,6 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
   constructor(
     readonly mailService: MailService,
     private readonly assetService: AssetService,
-    private readonly deFiChainUtil: DeFiChainUtil,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
     private readonly swapLiquidityService: SwapLiquidityService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
@@ -31,61 +30,36 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
-    const newOrder = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
+    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain', AssetCategory.POOL_PAIR);
 
     try {
-      const parentOrder = await this.liquidityOrderRepo.save(newOrder);
+      const parentOrder = await this.liquidityOrderRepo.save(order);
 
       const [leftAsset, rightAsset] = await this.getAssetPair(request.targetAsset);
 
-      await this.createDerivedPurchaseOrder(leftAsset, parentOrder);
-      await this.createDerivedPurchaseOrder(rightAsset, parentOrder);
+      await this.createDerivedPurchaseOrder(parentOrder, leftAsset);
+      await this.createDerivedPurchaseOrder(parentOrder, rightAsset);
     } catch (e) {
-      this.handlePurchaseLiquidityError(e, newOrder);
+      this.handlePurchaseLiquidityError(e, order);
     }
   }
 
   @Interval(60000)
-  async checkParentOrders(): Promise<void> {
-    const standingParentOrders = await this.liquidityOrderRepo.find({
-      where: { context: LiquidityOrderContext.CREATE_POOL_PAIR, isComplete: false, chainSwapId: Not(IsNull()) },
+  async verifyDerivedOrders(): Promise<void> {
+    const pendingParentOrders = await this.liquidityOrderRepo.find({
+      strategy: AssetCategory.POOL_PAIR,
+      context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
+      chainSwapId: IsNull(),
     });
-
-    for (const order of standingParentOrders) {
-      const amount = await this.swapLiquidityService.getSwapResult(order.chainSwapId, order.targetAsset.dexName);
-
-      order.complete(amount);
-      await this.liquidityOrderRepo.save(order);
-    }
-  }
-
-  @Interval(60000)
-  async checkDerivedOrders(): Promise<void> {
-    const standingDerivedOrders = await this.liquidityOrderRepo.find({
-      where: { context: LiquidityOrderContext.CREATE_POOL_PAIR, isComplete: false, chainSwapId: Not(IsNull()) },
-    });
-
-    for (const derivedOrder of standingDerivedOrders) {
-      const amount = await this.swapLiquidityService.getSwapResult(
-        derivedOrder.chainSwapId,
-        derivedOrder.targetAsset.dexName,
-      );
-
-      derivedOrder.complete(amount);
-      await this.liquidityOrderRepo.save(derivedOrder);
-    }
-
-    // replace with query builder to look for nested conditions
-    const pendingParentOrders = await this.liquidityOrderRepo
-      .find({
-        where: { context: Not(LiquidityOrderContext.CREATE_POOL_PAIR), isComplete: false, chainSwapId: IsNull() },
-      })
-      .then((orders) => orders.filter((o) => o.targetAsset?.category === AssetCategory.POOL_PAIR));
 
     for (const parentOrder of pendingParentOrders) {
-      const derivedOrders = standingDerivedOrders.filter((o) => o.correlationId === parentOrder.id.toString());
+      const derivedOrders = await this.liquidityOrderRepo.find({
+        strategy: AssetCategory.POOL_PAIR,
+        context: LiquidityOrderContext.CREATE_POOL_PAIR,
+        correlationId: parentOrder.id.toString(),
+      });
 
-      if (derivedOrders.every((o) => o.isComplete)) {
+      if (derivedOrders.every((o) => o.isReady)) {
         await this.addPoolPair(parentOrder, derivedOrders);
       }
     }
@@ -116,42 +90,20 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     return [leftAsset, rightAsset];
   }
 
-  private async createDerivedPurchaseOrder(pairAsset: Asset, parentOrder: LiquidityOrder): Promise<void> {
+  private async createDerivedPurchaseOrder(parentOrder: LiquidityOrder, pairAsset: Asset): Promise<void> {
     const request = {
       context: LiquidityOrderContext.CREATE_POOL_PAIR,
       correlationId: parentOrder.id.toString(),
       referenceAsset: parentOrder.referenceAsset,
-      referenceAmount: parentOrder.referenceAmount / 2,
+      referenceAmount: Util.round(parentOrder.referenceAmount / 2, 8),
       targetAsset: pairAsset,
     };
-    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain');
+    const order = this.liquidityOrderFactory.createFromRequest(request, 'defichain', AssetCategory.POOL_PAIR);
     const chainSwapId = await this.bookLiquiditySwap(order);
 
     order.addChainSwapId(chainSwapId);
 
     await this.liquidityOrderRepo.save(order);
-  }
-
-  private async addPoolPair(parentOrder: LiquidityOrder, derivedOrders: LiquidityOrder[]): Promise<void> {
-    const [leftAsset, rightAsset] = this.parseAssetPair(parentOrder.targetAsset);
-
-    const leftOrder = derivedOrders.find((o) => o.targetAsset.dexName === leftAsset);
-    const rightOrder = derivedOrders.find((o) => o.targetAsset.dexName === rightAsset);
-
-    const poolPair: [string, string] = [
-      `${leftOrder.targetAmount}@${leftOrder.targetAsset.dexName}`,
-      `${rightOrder.targetAmount}@${rightOrder.targetAsset.dexName}`,
-    ];
-
-    const chainSwapId = await this.#chainClient.addPoolLiquidity(
-      Config.node.dexWalletAddress,
-      Config.node.dexWalletAddress,
-      poolPair,
-    );
-
-    parentOrder.addChainSwapId(chainSwapId);
-
-    await this.liquidityOrderRepo.save(parentOrder);
   }
 
   private async bookLiquiditySwap(order: LiquidityOrder): Promise<string> {
@@ -185,17 +137,47 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     try {
       return await this.swapLiquidityService.tryAssetAvailability(referenceAsset, referenceAmount, 'DUSD');
     } catch (e) {
-      errors.push(e.message);
+      if (this.swapLiquidityService.isAssetNotAvailableError(e)) {
+        errors.push(e.message);
+      } else {
+        throw e;
+      }
     }
 
     try {
       return await this.swapLiquidityService.tryAssetAvailability(referenceAsset, referenceAmount, 'DFI');
     } catch (e) {
-      errors.push(e.message);
+      if (this.swapLiquidityService.isAssetNotAvailableError(e)) {
+        errors.push(e.message);
+      } else {
+        throw e;
+      }
     }
 
     throw new AssetNotAvailableException(
       `Failed to find suitable source asset for liquidity order. `.concat(...errors),
     );
+  }
+
+  private async addPoolPair(parentOrder: LiquidityOrder, derivedOrders: LiquidityOrder[]): Promise<void> {
+    const [leftAsset, rightAsset] = this.parseAssetPair(parentOrder.targetAsset);
+
+    const leftOrder = derivedOrders.find((o) => o.targetAsset.dexName === leftAsset);
+    const rightOrder = derivedOrders.find((o) => o.targetAsset.dexName === rightAsset);
+
+    const poolPair: [string, string] = [
+      `${leftOrder.targetAmount}@${leftOrder.targetAsset.dexName}`,
+      `${rightOrder.targetAmount}@${rightOrder.targetAsset.dexName}`,
+    ];
+
+    const chainSwapId = await this.#chainClient.addPoolLiquidity(
+      Config.node.dexWalletAddress,
+      Config.node.dexWalletAddress,
+      poolPair,
+    );
+
+    parentOrder.addChainSwapId(chainSwapId);
+
+    await this.liquidityOrderRepo.save(parentOrder);
   }
 }
