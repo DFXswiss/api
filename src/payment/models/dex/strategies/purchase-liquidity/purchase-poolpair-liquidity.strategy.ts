@@ -177,25 +177,59 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     const leftOrder = derivedOrders.find((o) => o.targetAsset.dexName === leftAsset);
     const rightOrder = derivedOrders.find((o) => o.targetAsset.dexName === rightAsset);
 
-    const poolPair: [string, string] = [
-      `${leftOrder.targetAmount}@${leftOrder.targetAsset.dexName}`,
-      `${rightOrder.targetAmount}@${rightOrder.targetAsset.dexName}`,
-    ];
-
     try {
-      const chainSwapId = await this.#chainClient.addPoolLiquidity(
-        Config.node.dexWalletAddress,
-        Config.node.dexWalletAddress,
-        poolPair,
+      await this.addPoolLiquidity(
+        parentOrder,
+        leftOrder.targetAsset.dexName,
+        leftOrder.targetAmount,
+        rightOrder.targetAsset.dexName,
+        rightOrder.targetAmount,
       );
-
-      parentOrder.addChainSwapId(chainSwapId);
     } catch (e) {
       if (this.isBalanceError(e)) {
+        await this.fixPoolLiquidityBalance(
+          e,
+          parentOrder,
+          leftOrder.targetAsset.dexName,
+          leftOrder.targetAmount,
+          rightOrder.targetAsset.dexName,
+          rightOrder.targetAmount,
+        );
       }
+
+      throw e;
     }
 
     await this.liquidityOrderRepo.save(parentOrder);
+  }
+
+  private async addPoolLiquidity(
+    order: LiquidityOrder,
+    leftAsset: string,
+    leftAmount: number,
+    rightAsset: string,
+    rightAmount: number,
+  ): Promise<void> {
+    const poolPair: [string, string] = [`${leftAmount}@${leftAsset}`, `${rightAmount}@${rightAsset}`];
+
+    const chainSwapId = await this.#chainClient.addPoolLiquidity(
+      Config.node.dexWalletAddress,
+      Config.node.dexWalletAddress,
+      poolPair,
+    );
+
+    order.addChainSwapId(chainSwapId);
+  }
+
+  private async fixPoolLiquidityBalance(
+    e: Error,
+    order: LiquidityOrder,
+    leftAsset: string,
+    leftAmount: number,
+    rightAsset: string,
+    rightAmount: number,
+  ) {
+    await this.addPoolLiquidity(order, leftAsset, leftAmount, rightAsset, rightAmount);
   }
 
   private isBalanceError(e: Error): boolean {
