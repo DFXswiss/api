@@ -71,6 +71,8 @@ import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
 import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
 import { OlkyPayService } from './models/bank-tx/olky-pay.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { SettingRepository } from 'src/shared/models/setting/setting.repository';
 
 @Module({
   imports: [
@@ -95,6 +97,7 @@ import { OlkyPayService } from './models/bank-tx/olky-pay.service';
       StakingRefRewardRepository,
       BankAccountRepository,
       CryptoRouteRepository,
+      SettingRepository,
     ]),
     SharedModule,
     AinModule,
@@ -157,6 +160,7 @@ import { OlkyPayService } from './models/bank-tx/olky-pay.service';
     BankAccountService,
     CryptoRouteController,
     CryptoRouteService,
+    SettingService,
   ],
   exports: [
     BuyService,
