@@ -11,6 +11,7 @@ import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
 import { Interval } from '@nestjs/schedule';
+import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 
 export interface LiquidityRequest {
@@ -23,6 +24,9 @@ export interface LiquidityRequest {
 
 @Injectable()
 export class DEXService {
+  private readonly verifyExternalOrdersLock = new Lock(1800);
+  private readonly verifyInternalOrdersLock = new Lock(1800);
+
   #purchaseLiquidityStrategies = new Map<AssetCategory, PurchaseLiquidityStrategy>();
 
   constructor(
@@ -114,6 +118,8 @@ export class DEXService {
 
   @Interval(60000)
   async verifyExternalOrders(): Promise<void> {
+    if (!this.verifyExternalOrdersLock.acquire()) return;
+
     const standingOrders = await this.liquidityOrderRepo.find({
       context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
       isReady: false,
@@ -121,10 +127,13 @@ export class DEXService {
     });
 
     await this.verifyOrders(standingOrders);
+
+    this.verifyExternalOrdersLock.release();
   }
 
   @Interval(60000)
   async verifyInternalOrders(): Promise<void> {
+    if (!this.verifyInternalOrdersLock.acquire()) return;
     const standingOrders = await this.liquidityOrderRepo.find({
       context: LiquidityOrderContext.CREATE_POOL_PAIR,
       isReady: false,
@@ -132,6 +141,8 @@ export class DEXService {
     });
 
     await this.verifyOrders(standingOrders);
+
+    this.verifyInternalOrdersLock.release();
   }
 
   // *** HELPER METHODS *** //

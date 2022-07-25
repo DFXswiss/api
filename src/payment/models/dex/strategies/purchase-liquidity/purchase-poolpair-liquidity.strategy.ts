@@ -14,9 +14,12 @@ import { SwapLiquidityService } from '../../services/swap-liquidity.service';
 import { LiquidityRequest } from '../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 import { Util } from 'src/shared/util';
+import { Lock } from 'src/shared/lock';
 
 @Injectable()
 export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {
+  private readonly verifyDerivedOrdersLock = new Lock(1800);
+
   #chainClient: DeFiClient;
 
   constructor(
@@ -46,6 +49,8 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
 
   @Interval(60000)
   async verifyDerivedOrders(): Promise<void> {
+    if (!this.verifyDerivedOrdersLock.acquire()) return;
+
     const pendingParentOrders = await this.liquidityOrderRepo.find({
       strategy: AssetCategory.POOL_PAIR,
       context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
@@ -53,16 +58,23 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     });
 
     for (const parentOrder of pendingParentOrders) {
-      const derivedOrders = await this.liquidityOrderRepo.find({
-        strategy: AssetCategory.POOL_PAIR,
-        context: LiquidityOrderContext.CREATE_POOL_PAIR,
-        correlationId: parentOrder.id.toString(),
-      });
+      try {
+        const derivedOrders = await this.liquidityOrderRepo.find({
+          strategy: AssetCategory.POOL_PAIR,
+          context: LiquidityOrderContext.CREATE_POOL_PAIR,
+          correlationId: parentOrder.id.toString(),
+        });
 
-      if (derivedOrders.every((o) => o.isReady)) {
-        await this.addPoolPair(parentOrder, derivedOrders);
+        if (derivedOrders.every((o) => o.isReady)) {
+          await this.addPoolPair(parentOrder, derivedOrders);
+        }
+      } catch (e) {
+        console.error(`Error while verifying derived liquidity order. Parent Order ID: ${parentOrder.id}`, e);
+        continue;
       }
     }
+
+    this.verifyDerivedOrdersLock.release();
   }
 
   private parseAssetPair(asset: Asset): [string, string] {
@@ -170,14 +182,23 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
       `${rightOrder.targetAmount}@${rightOrder.targetAsset.dexName}`,
     ];
 
-    const chainSwapId = await this.#chainClient.addPoolLiquidity(
-      Config.node.dexWalletAddress,
-      Config.node.dexWalletAddress,
-      poolPair,
-    );
+    try {
+      const chainSwapId = await this.#chainClient.addPoolLiquidity(
+        Config.node.dexWalletAddress,
+        Config.node.dexWalletAddress,
+        poolPair,
+      );
 
-    parentOrder.addChainSwapId(chainSwapId);
+      parentOrder.addChainSwapId(chainSwapId);
+    } catch (e) {
+      if (this.isBalanceError(e)) {
+      }
+    }
 
     await this.liquidityOrderRepo.save(parentOrder);
+  }
+
+  private isBalanceError(e: Error): boolean {
+    return e.message && e.message.includes('TBD');
   }
 }
