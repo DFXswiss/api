@@ -34,9 +34,6 @@ export class BuyCryptoBatch extends IEntity {
   @Column({ length: 256, nullable: true })
   outTxId: string;
 
-  @Column({ length: 256, nullable: true })
-  purchaseTxId: string;
-
   addTransaction(tx: BuyCrypto): this {
     tx.batch = this;
 
