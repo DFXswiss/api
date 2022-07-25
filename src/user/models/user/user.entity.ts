@@ -4,7 +4,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { Sell } from 'src/payment/models/sell/sell.entity';
 import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
-import { Entity, Column, OneToMany, ManyToOne } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne, Index } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Staking } from '../../../payment/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
@@ -68,6 +68,7 @@ export class User extends IEntity {
   origin: string;
 
   @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
   apiKeyCT: string;
 
   @Column({ type: 'float', default: 0 })
