@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
+import { Blank, BlankType, KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { KycDocument } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { SpiderService } from 'src/user/services/spider/spider.service';
@@ -17,6 +17,8 @@ export interface KycInfo {
   depositLimit: number;
   sessionUrl?: string;
   setupUrl?: string;
+  blankedPhone?: string;
+  blankedMail?: string;
 }
 
 @Injectable()
@@ -48,7 +50,7 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
-  async updateKycData(code: string, data: KycUserDataDto): Promise<void> {
+  async updateKycData(code: string, data: KycUserDataDto): Promise<KycInfo> {
     const user = await this.getUserByKYCCode(code)
 
     // check countries
@@ -68,7 +70,11 @@ export class KycService {
       data.organizationCountry = null;
     }
 
-    await this.userDataRepo.save({ ...user, ...data });
+    await this.userDataService.updateSpiderIfNeeded(user, data)
+
+    const updatedUser = await this.userDataRepo.save({ ...user, ...data });
+
+    return this.createKycInfoBasedOn(updatedUser)
   }
 
   async userDataComplete(userId: number): Promise<boolean> {
@@ -119,7 +125,7 @@ export class KycService {
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(code: string): Promise<string> {
+  async requestKyc(code: string): Promise<KycInfo> {
     let user = await this.getUserByKYCCode(code)
 
     // check if KYC already started
@@ -133,9 +139,9 @@ export class KycService {
 
     // update
     user = await this.startKyc(user);
-    await this.userDataRepo.save(user);
+    const updatedUser = await this.userDataRepo.save(user);
 
-    return user.kycHash;
+    return this.createKycInfoBasedOn(updatedUser);
   }
 
   private async startKyc(userData: UserData): Promise<UserData> {
@@ -158,12 +164,20 @@ export class KycService {
       await this.userDataRepo.save(userData);
     }
 
+    return this.createKycInfoBasedOn(userData)
+  }
+
+  // --- CREATE KYC INFO --- //
+
+  private createKycInfoBasedOn(userData: UserData): KycInfo {
     const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
     return {
       kycStatus: userData.kycStatus,
       kycState: userData.kycState,
       kycDataComplete: this.isDataComplete(userData),
       depositLimit: userData.depositLimit,
+      blankedPhone: Blank(userData.phone, BlankType.PHONE),
+      blankedMail: Blank(userData.mail, BlankType.MAIL),
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
     };

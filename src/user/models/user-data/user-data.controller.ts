@@ -79,7 +79,8 @@ export class UserDataController {
     const user = userData.users[0];
     if (!user) throw new BadRequestException('User not found');
 
-    return this.kycService.requestKyc(userData.kycHash);
+    await this.kycService.requestKyc(userData.kycHash);
+    return userData.kycHash;
   }
 
   @Get(':id/nameCheck')
