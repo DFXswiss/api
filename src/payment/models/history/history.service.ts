@@ -38,9 +38,7 @@ export class HistoryService {
       all || query.staking != null ? await this.getStakingRewards(userId, query.from, query.to) : Promise.resolve([]),
       all || query.staking != null ? await this.getStakingInvests(userId, query.from, query.to) : Promise.resolve([]),
       all || query.ref != null ? await this.getAllRefRewards(userId, query.from, query.to) : Promise.resolve([]),
-      all || query.lm != null
-        ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout)
-        : Promise.resolve([]),
+      //all || query.lm != null ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout): Promise.resolve([]),
     ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
 
     return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
