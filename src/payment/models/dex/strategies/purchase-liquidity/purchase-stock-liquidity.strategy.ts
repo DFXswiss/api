@@ -46,7 +46,7 @@ export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
     );
 
     console.info(
-      `Booked ${swapAmount} ${swapAsset} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
+      `Booked purchase of ${swapAmount} ${swapAsset} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
 
     order.addPurchaseMetadata(txId, swapAsset, swapAmount);

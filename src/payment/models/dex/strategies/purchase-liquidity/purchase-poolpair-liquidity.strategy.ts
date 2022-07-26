@@ -174,6 +174,10 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     );
 
     order.addPurchaseMetadata(chainSwapId);
+
+    console.info(
+      `Booked poolpair purchase of ${leftAmount} ${leftAsset} and ${rightAmount} ${rightAsset} . Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
+    );
   }
 
   private isPoolPairSlippageError(e: Error): boolean {

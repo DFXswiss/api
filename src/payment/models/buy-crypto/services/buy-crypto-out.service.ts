@@ -140,7 +140,6 @@ export class BuyCryptoOutService {
       console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
       batch.complete();
 
-      await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
       await this.buyCryptoBatchRepo.save(batch);
     }
   }
@@ -152,6 +151,8 @@ export class BuyCryptoOutService {
     const outTxComplete = await this.deFiChainUtil.getHistoryEntryForTx(batch.outTxId, this.dexClient);
 
     if (!outTxComplete) return false;
+
+    await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
 
     const assetOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
     const amountOnOutNode = assetOnOutNode ? assetOnOutNode.amount : 0;

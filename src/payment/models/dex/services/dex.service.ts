@@ -92,6 +92,8 @@ export class DEXService {
     const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
 
     try {
+      console.info(`Reserving liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
+
       // calculating how much targetAmount is needed and if it's available on the node
       const liquidity = await this.liquidityService.getAvailableTargetLiquidity(
         referenceAsset,
@@ -127,6 +129,7 @@ export class DEXService {
     }
 
     try {
+      console.info(`Purchasing liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
       await strategy.purchaseLiquidity(request);
     } catch (e) {
       console.error(e);
@@ -191,6 +194,10 @@ export class DEXService {
 
         order.purchased(amount);
         await this.liquidityOrderRepo.save(order);
+
+        console.info(
+          `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
+        );
       } catch {
         continue;
       }
