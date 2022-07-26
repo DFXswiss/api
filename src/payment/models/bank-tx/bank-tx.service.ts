@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BankTxRepository } from './bank-tx.repository';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
@@ -17,6 +17,15 @@ export class BankTxService {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly mailService: MailService,
   ) {}
+
+  async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {
+    let entity = await this.bankTxRepo.findOne({ accountServiceRef: bankTx.accountServiceRef });
+    if (entity)
+      throw new ConflictException(`There is already a bank tx with the accountServiceRef: ${bankTx.accountServiceRef}`);
+
+    entity = await this.bankTxRepo.create(bankTx);
+    return await this.bankTxRepo.save(entity);
+  }
 
   async storeSepaFiles(files: string[]): Promise<(BankTxBatch | Error)[]> {
     return Promise.all(files.map((f) => this.storeSepaFile(f).catch((e: Error) => e)));

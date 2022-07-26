@@ -225,6 +225,15 @@ export class Configuration {
     },
   };
 
+  bank = {
+    olkypay: {
+      clientId: process.env.OLKY_CLIENT,
+      username: process.env.OLKY_USERNAME,
+      password: process.env.OLKY_PASSWORD,
+      clientSecret: process.env.OLKY_CLIENT_SECRET,
+    },
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {

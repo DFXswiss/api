@@ -21,7 +21,7 @@ export class ConversionService {
   }
 
   async getFiatRate(fromCurrency: string, toCurrency: string, date: Date = new Date()): Promise<number> {
-    const dateString = this.isToday(date) ? 'latest' : date.toISOString().split('T')[0];
+    const dateString = this.isToday(date) ? 'latest' : Util.isoDate(date);
     const url = `${
       this.fiatUrl
     }/${dateString}/currencies/${fromCurrency.toLowerCase()}/${toCurrency.toLowerCase()}.json`;

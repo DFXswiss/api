@@ -59,6 +59,10 @@ export class Util {
     return this.daysAfter(-days, from);
   }
 
+  static isoDate(date: Date): string {
+    return date.toISOString().split('T')[0];
+  }
+
   // --- MISC --- //
   static async readFileFromDisk(fileName: string): Promise<string> {
     return new Promise((resolve, reject) =>

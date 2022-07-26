@@ -15,6 +15,11 @@ export enum BankTxType {
   UNKNOWN = 'Unknown',
 }
 
+export enum BankTxIndicator {
+  CREDIT = 'CRDT',
+  DEBIT = 'DBIT',
+}
+
 @Entity()
 export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
