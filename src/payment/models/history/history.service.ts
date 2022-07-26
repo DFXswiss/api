@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
-import { DfiTaxInterval, DfiTaxService } from 'src/shared/services/dfi-tax.service';
+import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
