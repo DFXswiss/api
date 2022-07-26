@@ -70,9 +70,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
 import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
 import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
-import { OlkyPayService } from './models/bank-tx/olky-pay.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { SettingRepository } from 'src/shared/models/setting/setting.repository';
+import { OlkypayService } from './models/bank-tx/olkypay.service';
 
 @Module({
   imports: [
@@ -97,7 +95,6 @@ import { SettingRepository } from 'src/shared/models/setting/setting.repository'
       StakingRefRewardRepository,
       BankAccountRepository,
       CryptoRouteRepository,
-      SettingRepository,
     ]),
     SharedModule,
     AinModule,
@@ -137,7 +134,7 @@ import { SettingRepository } from 'src/shared/models/setting/setting.repository'
     BuyCryptoOutService,
     BuyCryptoChainUtil,
     BankTxService,
-    OlkyPayService,
+    OlkypayService,
     BankService,
     KrakenService,
     BinanceService,
@@ -160,7 +157,6 @@ import { SettingRepository } from 'src/shared/models/setting/setting.repository'
     BankAccountService,
     CryptoRouteController,
     CryptoRouteService,
-    SettingService,
   ],
   exports: [
     BuyService,

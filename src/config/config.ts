@@ -226,7 +226,7 @@ export class Configuration {
   };
 
   bank = {
-    olkyPay: {
+    olkypay: {
       clientId: process.env.OLKY_CLIENT,
       username: process.env.OLKY_USERNAME,
       password: process.env.OLKY_PASSWORD,

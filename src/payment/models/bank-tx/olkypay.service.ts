@@ -8,6 +8,7 @@ import { Util } from 'src/shared/util';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
+import { stringify } from 'qs';
 
 export interface Transaction {
   idCtp: number;
@@ -27,6 +28,16 @@ export interface Balance {
   balanceOperationYesterday: number;
 }
 
+export interface TokenAuth {
+  access_token: string;
+  expires_in: number;
+  refresh_expires_in: number;
+  refresh_token: string;
+  token_type: string;
+  id_token: string;
+  session_state: string;
+}
+
 enum TransactionType {
   RECEIVED = 'SCT_RECEIVED',
   SENT = 'SCT_SENT',
@@ -34,10 +45,10 @@ enum TransactionType {
 }
 
 @Injectable()
-export class OlkyPayService {
-  private readonly baseUrl = 'https://ws.olkypay.com/reporting/';
+export class OlkypayService {
+  private readonly baseUrl = 'https://ws.olkypay.com/reporting';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
-  private accessToken = 'access-token-will-be-updated';
+  private tokenAuth = { access_token: 'access-token-will-be-updated' } as Partial<TokenAuth>;
 
   constructor(
     private readonly http: HttpService,
@@ -47,43 +58,39 @@ export class OlkyPayService {
 
   // --- TRANSACTION HANDLING --- //
   @Interval(60000)
-  async checkInputs(): Promise<void> {
-    const settingKey = 'lastOlkyPayDate';
-    const lastModificationTime = await this.settingService.get(settingKey);
-    const newModificationTime = new Date().toISOString().split('T')[0];
+  async checkTransactions(): Promise<void> {
+    try {
+      const settingKey = 'lastOlkypayDate';
+      const lastModificationTime = await this.settingService.get(settingKey);
+      const newModificationTime = new Date().toISOString();
 
-    const allTransaction = await this.getTransactions(lastModificationTime);
+      const transactions = await this.getTransactions(new Date(lastModificationTime));
 
-    for (const transaction of allTransaction) {
-      try {
-        const bankTx = this.parseTransaction(transaction);
-        await this.bankTxService.create(bankTx);
-      } catch (e) {
-        console.error(`Failed to import Transaction:`, e);
+      for (const transaction of transactions) {
+        try {
+          const bankTx = this.parseTransaction(transaction);
+          await this.bankTxService.create(bankTx);
+        } catch (e) {
+          if (e.status != 409) console.error(`Failed to import Transaction:`, e);
+        }
       }
-    }
 
-    await this.settingService.set(settingKey, newModificationTime);
+      await this.settingService.set(settingKey, newModificationTime);
+    } catch (e) {
+      console.error(`Failed to check olkypay transaction:`, e);
+    }
   }
 
-  private async getTransactions(fromDate: string): Promise<Transaction[]> {
-    const url = `ecritures/${Config.bank.olkyPay.clientId}/${fromDate}/${new Date().toISOString().split('T')[0]}`;
+  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
+    const url = `ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(toDate)}`;
 
-    try {
-      return await this.callApi<Transaction[]>(url);
-    } catch (error) {
-      throw new ServiceUnavailableException(`Failed to get Transactions:`, error);
-    }
+    return await this.callApi<Transaction[]>(url);
   }
 
   private async getBalance(): Promise<Balance> {
-    const url = `balance/today/${Config.bank.olkyPay.clientId}`;
+    const url = `balance/today/${Config.bank.olkypay.clientId}`;
 
-    try {
-      return await this.callApi<Balance>(url);
-    } catch (error) {
-      throw new ServiceUnavailableException(`Failed to get Balance:`, error);
-    }
+    return await this.callApi<Balance>(url);
   }
 
   // --- PARSING --- //
@@ -105,12 +112,12 @@ export class OlkyPayService {
       txInfo: tx.line1,
       remittanceInfo: tx.line2,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
-      batch: { id: 1 } as BankTxBatch, // TODO create an olky pay batch and replace the ID
+      batch: { id: 1 } as BankTxBatch, // TODO create an olkypay batch and replace the ID
     };
   }
 
-  private parseDate(olkyDate: number[]): Date {
-    return new Date(olkyDate[0], olkyDate[1], olkyDate[2]);
+  private parseDate(olkypayDate: number[]): Date {
+    return new Date(olkypayDate[0], olkypayDate[1], olkypayDate[2]);
   }
 
   private getNameAndAddress(tx: Transaction): { name?: string; addressLine1?: string } {
@@ -138,44 +145,40 @@ export class OlkyPayService {
 
   private async request<T>(url: string, method: Method, data?: any, nthTry = 3, getNewAccessToken = false): Promise<T> {
     try {
-      if (getNewAccessToken) this.accessToken = await this.getAccessToken();
+      if (getNewAccessToken) this.tokenAuth = await this.getAccessToken();
       return await this.http.request<T>({
-        url: `${this.baseUrl}${url}`,
+        url: `${this.baseUrl}/${url}`,
         method: method,
         data: data,
         headers: {
           Accept: 'application/json',
-          'x-pay-token': this.accessToken,
+          'x-pay-token': this.tokenAuth.access_token,
           'network-id': 19077,
         },
       });
     } catch (e) {
-      if (nthTry > 1) {
+      if (nthTry > 1 && e.response.status == 403) {
         return this.request(url, method, data, nthTry - 1, true);
       }
       throw e;
     }
   }
 
-  private async getAccessToken(): Promise<any> {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const qs = require('qs');
-
-    const data = qs.stringify({
+  private async getAccessToken(): Promise<TokenAuth> {
+    const data = stringify({
       grant_type: 'password',
       client_id: 'wsapi',
-      client_secret: Config.bank.olkyPay.clientSecret,
-      username: Config.bank.olkyPay.username,
-      password: Config.bank.olkyPay.password,
+      client_secret: Config.bank.olkypay.clientSecret,
+      username: Config.bank.olkypay.username,
+      password: Config.bank.olkypay.password,
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
     });
 
-    const key = await this.http.request<any>({
+    return await this.http.request<TokenAuth>({
       url: `${this.loginUrl}`,
       method: 'POST',
       data: data,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
-    return key.access_token;
   }
 }
