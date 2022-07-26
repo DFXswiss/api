@@ -10,7 +10,7 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 import { DeFiChainUtil } from '../utils/defichain.util';
 
 @Injectable()
-export class SwapLiquidityService {
+export class LiquidityService {
   #dexClient: DeFiClient;
 
   constructor(
@@ -23,29 +23,30 @@ export class SwapLiquidityService {
 
   // *** PUBLIC API *** //
 
-  async tryAssetSwap(
+  async getAvailableTargetLiquidity(
     sourceAsset: string,
     sourceAmount: number,
     targetAsset: string,
-    maxSlippage?: number,
+    maxSlippage: number,
   ): Promise<TargetAmount> {
-    const { amount: targetAmount } = await this.tryAssetAvailability(sourceAsset, sourceAmount, targetAsset);
+    const targetAmount =
+      targetAsset === sourceAsset
+        ? sourceAmount
+        : await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, sourceAmount);
 
-    maxSlippage &&
-      (await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage));
+    await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage);
+    await this.checkAssetAvailability(targetAsset, targetAmount);
 
     return targetAmount;
   }
 
-  async doAssetSwap(
+  async purchaseLiquidity(
     sourceAsset: string,
     sourceAmount: number,
     targetAsset: string,
-    maxSlippage?: number,
+    maxSlippage: number,
   ): Promise<ChainSwapId> {
-    const maxPrice = maxSlippage
-      ? await this.calculateMaxTargetAssetPrice(sourceAsset, targetAsset, maxSlippage)
-      : undefined;
+    const maxPrice = await this.calculateMaxTargetAssetPrice(sourceAsset, targetAsset, maxSlippage);
 
     try {
       return await this.#dexClient.compositeSwap(
@@ -58,7 +59,7 @@ export class SwapLiquidityService {
         maxPrice,
       );
     } catch (e) {
-      if (this.isSlippageError(e)) {
+      if (this.isCompositeSwapSlippageError(e)) {
         throw new PriceSlippageException(e.message);
       }
 
@@ -66,7 +67,7 @@ export class SwapLiquidityService {
     }
   }
 
-  async getSwapResult(txId: string, asset: string): Promise<number> {
+  async getPurchasedAmount(txId: string, asset: string): Promise<number> {
     const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
 
     if (!historyEntry) {
@@ -75,75 +76,69 @@ export class SwapLiquidityService {
 
     const amounts = historyEntry.amounts.map((a) => this.#dexClient.parseAmount(a));
 
-    const { amount } = amounts.find((a) => a.asset === asset);
+    const { amount: purchasedAmount } = amounts.find((a) => a.asset === asset);
 
-    if (!amount) {
+    if (!purchasedAmount) {
       throw new Error(`Failed to get amount for TX: ${txId} while trying to extract purchased liquidity`);
     }
 
-    return amount;
+    return purchasedAmount;
   }
 
-  async tryAssetAvailability(
-    sourceAsset: string,
-    sourceAmount: number,
+  async getSwapAmountForPurchase(
+    referenceAsset: string,
+    referenceAmount: number,
     targetAsset: string,
-  ): Promise<{ asset: string; amount: number }> {
-    const targetAmount = await this.calculateAssetAmount(sourceAsset, sourceAmount, targetAsset);
-
-    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === targetAsset,
+    swapAsset: string,
+  ): Promise<number> {
+    const swapAmount = await this.calculateSwapAmountForPurchase(
+      referenceAsset,
+      referenceAmount,
+      targetAsset,
+      swapAsset,
     );
-    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
 
-    const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(targetAsset, this.#dexClient);
+    await this.checkAssetAvailability(swapAsset, swapAmount);
 
-    // 5% cap for unexpected meantime swaps
-    if (targetAmount * 1.05 > availableAmount + pendingAmount) {
-      throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${targetAsset}. Trying to convert ${targetAmount} ${targetAsset} worth liquidity for asset ${targetAsset}. Available amount: ${availableAmount}.`,
-      );
-    }
-
-    return { asset: targetAsset, amount: targetAmount };
-  }
-
-  async calculateTargetAssetPrice(sourceAsset: string, targetAsset: string): Promise<number> {
-    return 1 / (await this.calculateSourceAssetPrice(sourceAsset, targetAsset));
-  }
-
-  async calculateSourceAssetPrice(sourceAsset: string, targetAsset: string): Promise<number> {
-    return (await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, 0.001)) / 0.001;
-  }
-
-  isSlippageError(e: Error): boolean {
-    return e.message && e.message.includes('Price is higher than indicated');
-  }
-
-  isAssetNotAvailableError(e: Error): boolean {
-    return e.message && e.message.includes('Cannot find usable pool pair');
+    return swapAmount;
   }
 
   // *** HELPER METHODS *** //
 
-  private async calculateAssetAmount(
+  private async checkAssetAvailability(asset: string, amount: number): Promise<{ asset: string; amount: number }> {
+    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
+      (o) => o.targetAsset.dexName === asset,
+    );
+    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+
+    const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset, this.#dexClient);
+
+    // 5% cap for unexpected meantime swaps
+    if (amount * 1.05 > availableAmount - pendingAmount) {
+      throw new NotEnoughLiquidityException(
+        `Not enough liquidity of asset ${asset}. Trying to use ${amount} ${asset} worth liquidity. Available amount: ${availableAmount}.`,
+      );
+    }
+
+    return { asset, amount };
+  }
+
+  private async calculateSwapAmountForPurchase(
     referenceAsset: string,
     referenceAmount: number,
     targetAsset: string,
+    swapAsset: string,
   ): Promise<number> {
-    if (LiquidityOrder.getIsReferenceAsset(targetAsset)) {
-      const targetAssetPrice = await this.calculateTargetAssetPrice(referenceAsset, targetAsset);
+    if (referenceAsset === targetAsset) {
+      const swapAssetPrice = await this.calculateTargetAssetPrice(referenceAsset, swapAsset);
 
-      const amount = referenceAmount / targetAssetPrice;
+      const swapAmount = referenceAmount / swapAssetPrice;
 
-      // adding 5% reserve cap for non-reference asset liquidity swap,
-      // TODO - wrong comment, clarify
-      // TODO - double check with Matthias if this should be other way around or why we need to add 5% to ref asset
-      // TODO - differentiate between swapped liquidity and liquidity returned to client.
-      return Util.round(amount + amount * 0.05, 8);
+      // adding 5% cap to liquidity swap to cover meantime referenceAmount price difference (initially taken from Kraken/Binance)
+      return Util.round(swapAmount + swapAmount * 0.05, 8);
     }
 
-    return this.#dexClient.testCompositeSwap(referenceAsset, targetAsset, referenceAmount);
+    return this.#dexClient.testCompositeSwap(referenceAsset, swapAsset, referenceAmount);
   }
 
   private async checkTestSwapPriceSlippage(
@@ -153,8 +148,7 @@ export class SwapLiquidityService {
     targetAmount: number,
     maxSlippage: number,
   ): Promise<void> {
-    const basePrice = await this.calculateTargetAssetPrice(sourceAsset, targetAsset);
-    const maxPrice = Util.round(basePrice + basePrice * maxSlippage, 8);
+    const maxPrice = await this.calculateMaxTargetAssetPrice(sourceAsset, targetAsset, maxSlippage);
 
     const minimalAllowedTargetAmount = Util.round(sourceAmount / maxPrice, 8);
 
@@ -173,5 +167,22 @@ export class SwapLiquidityService {
     const targetAssetPrice = await this.calculateTargetAssetPrice(sourceAsset, targetAsset);
 
     return Util.round(targetAssetPrice * (1 + maxSlippage), 8);
+  }
+
+  private async calculateTargetAssetPrice(sourceAsset: string, targetAsset: string): Promise<number> {
+    return 1 / (await this.calculateSourceAssetPrice(sourceAsset, targetAsset));
+  }
+
+  private async calculateSourceAssetPrice(sourceAsset: string, targetAsset: string): Promise<number> {
+    return (await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, 0.001)) / 0.001;
+  }
+
+  private isCompositeSwapSlippageError(e: Error): boolean {
+    return e.message && e.message.includes('Price is higher than indicated');
+  }
+
+  // TODO - double check where such error comes from
+  private isAssetNotAvailableError(e: Error): boolean {
+    return e.message && e.message.includes('Cannot find usable pool pair');
   }
 }

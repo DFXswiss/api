@@ -4,7 +4,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
-import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index } from 'typeorm';
+import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index, Generated } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { AccountType } from './account-type.enum';
 
@@ -119,8 +119,9 @@ export class UserData extends IEntity {
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
 
-  @Column({ length: 256, nullable: true })
-  @Index({ unique: true, where: 'kycHash IS NOT NULL' })
+  @Column()
+  @Generated('uuid')
+  @Index({ unique: true })
   kycHash: string;
 
   @Column({ type: 'float', default: 90000 })

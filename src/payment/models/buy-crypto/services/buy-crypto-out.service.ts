@@ -140,7 +140,7 @@ export class BuyCryptoOutService {
       console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
       batch.complete();
 
-      await this.dexService.completeOrder(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
+      await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
       await this.buyCryptoBatchRepo.save(batch);
     }
   }

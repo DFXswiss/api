@@ -7,11 +7,19 @@ export enum LiquidityOrderContext {
   CREATE_POOL_PAIR = 'CreatePoolPair',
 }
 
+export enum LiquidityOrderType {
+  PURCHASE = 'Purchase',
+  RESERVATION = 'Reservation',
+}
+
 export type ChainSwapId = string;
 export type TargetAmount = number;
 
 @Entity()
 export class LiquidityOrder extends IEntity {
+  @Column({ length: 256, nullable: false })
+  type: LiquidityOrderType;
+
   @Column({ length: 256, nullable: false })
   context: LiquidityOrderContext;
 
@@ -19,30 +27,18 @@ export class LiquidityOrder extends IEntity {
   correlationId: string;
 
   @Column({ length: 256, nullable: false })
-  strategy: string;
-
-  @Column({ length: 256, nullable: false })
   chain: string;
 
   @Column({ length: 256, nullable: false })
-  chainSwapId: string;
+  referenceAsset: string;
 
-  @Column({ length: 256, nullable: true })
-  referenceAsset?: string;
-
-  @Column({ type: 'float', nullable: true })
-  referenceAmount?: number;
-
-  @Column({ length: 256, nullable: true })
-  sourceAsset: string;
-
-  @Column({ type: 'float', nullable: true })
-  sourceAmount: number;
+  @Column({ type: 'float', nullable: false })
+  referenceAmount: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: false })
   targetAsset: Asset;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float', nullable: true })
   targetAmount: number;
 
   @Column({ nullable: false, default: false })
@@ -51,21 +47,44 @@ export class LiquidityOrder extends IEntity {
   @Column({ nullable: false, default: false })
   isComplete: boolean;
 
-  addChainSwapId(chainSwapId: string): this {
-    this.chainSwapId = chainSwapId;
+  @Column({ length: 256, nullable: true })
+  swapAsset?: string;
+
+  @Column({ type: 'float', nullable: true })
+  swapAmount?: number;
+
+  @Column({ length: 256, nullable: true })
+  purchaseStrategy?: string;
+
+  @Column({ length: 256, nullable: true })
+  purchaseTxId?: string;
+
+  @Column({ type: 'float', nullable: true })
+  purchasedAmount?: number;
+
+  addPurchaseTxId(purchaseTxId: string): this {
+    this.purchaseTxId = purchaseTxId;
 
     return this;
   }
 
-  recordLiquiditySourceAsset(sourceAsset: string, sourceAmount: number): this {
-    this.sourceAsset = sourceAsset;
-    this.sourceAmount = sourceAmount;
+  saveLiquiditySwapAsset(swapAsset: string, swapAmount: number): this {
+    this.swapAsset = swapAsset;
+    this.swapAmount = swapAmount;
 
     return this;
   }
 
-  ready(targetAmount: number): this {
-    this.targetAmount = targetAmount;
+  reserved(targetAmount: number): this {
+    this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : targetAmount;
+    this.isReady = true;
+
+    return this;
+  }
+
+  purchased(purchasedAmount: number): this {
+    this.purchasedAmount = purchasedAmount;
+    this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : purchasedAmount;
     this.isReady = true;
 
     return this;

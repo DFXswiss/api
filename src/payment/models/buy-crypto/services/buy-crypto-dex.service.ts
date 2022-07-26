@@ -11,6 +11,7 @@ import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity
 import { DEXService, LiquidityRequest } from '../../dex/services/dex.service';
 import { LiquidityOrderNotReadyException } from '../../dex/exceptions/liquidity-order-not-ready.exception';
 import { PriceSlippageException } from '../../dex/exceptions/price-slippage.exception';
+import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -117,10 +118,13 @@ export class BuyCryptoDexService {
   private async checkLiquidity(batch: BuyCryptoBatch): Promise<number> {
     try {
       const request = await this.createLiquidityRequest(batch);
-      const liquidity = await this.dexService.checkLiquidity(request);
 
-      return liquidity || 0;
+      return (await this.dexService.reserveLiquidity(request)) || 0;
     } catch (e) {
+      if (e instanceof NotEnoughLiquidityException) {
+        return 0;
+      }
+
       if (e instanceof PriceSlippageException) {
         await this.handleSlippageException(
           `Slippage error while checking liquidity for asset '${batch.outputAsset}. Batch ID: ${batch.id}`,

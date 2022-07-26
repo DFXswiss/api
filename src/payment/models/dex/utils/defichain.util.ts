@@ -15,8 +15,10 @@ export class DeFiChainUtil {
 
       return client
         .getHistories([Config.node.dexWalletAddress], height, height + 1)
-        .then((h) =>
-          h.map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts })).find((t) => t.txId === txId),
+        .then((histories) =>
+          histories
+            .map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts }))
+            .find((t) => t.txId === txId),
         );
     }
   }

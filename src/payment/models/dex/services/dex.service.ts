@@ -5,7 +5,7 @@ import { PurchaseStockLiquidityStrategy } from '../strategies/purchase-liquidity
 import { PurchaseCryptoLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-crypto-liquidity.strategy';
 import { PurchaseLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-liquidity.strategy';
 import { LiquidityOrder, LiquidityOrderContext } from '../entities/liquidity-order.entity';
-import { SwapLiquidityService } from './swap-liquidity.service';
+import { LiquidityService } from './liquidity.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -13,6 +13,7 @@ import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-n
 import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
+import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
@@ -30,8 +31,9 @@ export class DEXService {
   #purchaseLiquidityStrategies = new Map<AssetCategory, PurchaseLiquidityStrategy>();
 
   constructor(
-    private readonly swapLiquidityService: SwapLiquidityService,
+    private readonly swapLiquidityService: LiquidityService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    private readonly liquidityOrderFactory: LiquidityOrderFactory,
     readonly poolPairStrategy: PurchasePoolPairLiquidityStrategy,
     readonly stockStrategy: PurchaseStockLiquidityStrategy,
     readonly cryptoStrategy: PurchaseCryptoLiquidityStrategy,
@@ -48,12 +50,14 @@ export class DEXService {
 
     try {
       // calculating how much targetAmount is needed and if it's available on the node
-      return this.swapLiquidityService.tryAssetSwap(
+      return this.swapLiquidityService.getAvailableTargetLiquidity(
         referenceAsset,
         referenceAmount,
         targetAsset.dexName,
         LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
       );
+
+      // TODO also check for pending orders
     } catch (e) {
       console.error(e);
 
@@ -63,6 +67,36 @@ export class DEXService {
 
       // default public exception
       throw new Error(`Error while checking liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
+    }
+  }
+
+  async reserveLiquidity(request: LiquidityRequest): Promise<number> {
+    const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
+
+    try {
+      // calculating how much targetAmount is needed and if it's available on the node
+      const liquidity = await this.swapLiquidityService.getAvailableTargetLiquidity(
+        referenceAsset,
+        referenceAmount,
+        targetAsset.dexName,
+        LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
+      );
+
+      if (liquidity !== 0) {
+        const order = this.liquidityOrderFactory.createReservationOrder(request, 'defichain');
+        order.reserved(liquidity);
+
+        await this.liquidityOrderRepo.save(order);
+
+        return order.targetAmount;
+      }
+    } catch (e) {
+      // publicly exposed exceptions
+      if (e instanceof NotEnoughLiquidityException) throw e;
+      if (e instanceof PriceSlippageException) throw e;
+
+      // default public exception
+      throw new Error(`Error while reserving liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
     }
   }
 
@@ -101,7 +135,7 @@ export class DEXService {
     return order.targetAmount;
   }
 
-  async completeOrder(context: LiquidityOrderContext, correlationId: string): Promise<void> {
+  async completeOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
     const incompleteOrders = await this.liquidityOrderRepo.find({
       where: { context, correlationId, isComplete: false, isReady: true },
     });
@@ -117,42 +151,30 @@ export class DEXService {
   }
 
   @Interval(60000)
-  async verifyExternalOrders(): Promise<void> {
+  async verifyPurchaseOrders(): Promise<void> {
     if (!this.verifyExternalOrdersLock.acquire()) return;
 
     const standingOrders = await this.liquidityOrderRepo.find({
-      context: Not(LiquidityOrderContext.CREATE_POOL_PAIR),
       isReady: false,
-      chainSwapId: Not(IsNull()),
+      purchaseTxId: Not(IsNull()),
     });
 
-    await this.verifyOrders(standingOrders);
+    await this.addPurchasedAmountsToOrders(standingOrders);
 
     this.verifyExternalOrdersLock.release();
   }
 
-  @Interval(60000)
-  async verifyInternalOrders(): Promise<void> {
-    if (!this.verifyInternalOrdersLock.acquire()) return;
-    const standingOrders = await this.liquidityOrderRepo.find({
-      context: LiquidityOrderContext.CREATE_POOL_PAIR,
-      isReady: false,
-      chainSwapId: Not(IsNull()),
-    });
-
-    await this.verifyOrders(standingOrders);
-
-    this.verifyInternalOrdersLock.release();
-  }
-
   // *** HELPER METHODS *** //
 
-  private async verifyOrders(orders: LiquidityOrder[]): Promise<void> {
+  private async addPurchasedAmountsToOrders(orders: LiquidityOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const amount = await this.swapLiquidityService.getSwapResult(order.chainSwapId, order.targetAsset.dexName);
+        const amount = await this.swapLiquidityService.getPurchasedAmount(
+          order.purchaseTxId,
+          order.targetAsset.dexName,
+        );
 
-        order.ready(amount);
+        order.purchased(amount);
         await this.liquidityOrderRepo.save(order);
       } catch {
         continue;
