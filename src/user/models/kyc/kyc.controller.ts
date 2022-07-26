@@ -18,14 +18,13 @@ export class KycController {
   }
 
   @Post()
-  async requestKyc(@Query('code') code: string): Promise<string> {
-    return await this.kycService.requestKyc(code).then(JSON.stringify);
+  async requestKyc(@Query('code') code: string): Promise<KycInfo> {
+    return await this.kycService.requestKyc(code);
   }
 
   @Post('data')
-  async updateKycData(@Query('code') code: string, @Body() data: KycUserDataDto): Promise<boolean> {
-    await this.kycService.updateKycData(code, data);
-    return true;
+  async updateKycData(@Query('code') code: string, @Body() data: KycUserDataDto): Promise<KycInfo> {
+    return await this.kycService.updateKycData(code, data);
   }
 
   @Post('limit')
