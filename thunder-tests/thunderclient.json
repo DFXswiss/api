@@ -884,9 +884,6 @@
         "isPath": false
       }
     ],
-    "auth": {
-      "type": "inherit"
-    },
     "tests": []
   },
   {
@@ -1352,6 +1349,31 @@
       "type": "json",
       "raw": "{\n  \"chargebackDate\": \"2022-01-01\",\n  \"chargebackRemittanceInfo\": null,\n  \"chargebackBankTxId\": 2,\n  \"recipientMail\":\"bnk\",\n  \"mail1SendDate\":\"2022-01-01T00:00:00\"\n      ,\"mail2SendDate\":\"2022-01-01\"\n      ,\"mail3SendDate\":\"2022-01-01\"\n      ,\"inputAmount\":123\n      ,\"inputAsset\":\"BTC\"\n      ,\"inputReferenceAmount\":1234\n      ,\"inputReferenceAsset\":\"BTC\"\n      ,\"amountInChf\":132\n      ,\"amountInEur\":2535\n      ,\"amlCheck\":\"Pass\"\n      ,\"amlReason\":\"asdf\"\n      ,\"percentFee\":0.003\n      ,\"percentFeeAmount\":10\n      ,\"absoluteFeeAmount\":null\n      ,\"inputReferenceAmountMinusFee\":9.5\n      ,\"cryptoReturnTxId\":\"asdfghjkjhgf\"\n      ,\"cryptoReturnDate\":null\n      ,\"mailReturnSendDate\":null\n      ,\"outputReferenceAmount\":10\n      ,\"outputReferenceAsset\":\"EUR\"\n      ,\"outputAmount\":300\n      ,\"outputAsset\":\"EUR\"\n      ,\"remittanceInfo\":\"HKL-bjhv\"\n      ,\"instantSEPA\":false\n      ,\"usedBank\":\"Maerki\"\n      ,\"bankBatchId\":458\n      ,\"bankStartTimestamp\":\"2022-01-01\"\n      ,\"bankFinishTimestamp\":\"2022-01-01\"\n      ,\"info\":\"xfgchvb\"\n      ,\"outputDate\":\"2022-01-01\"\n      ,\"isComplete\":true\n      ,\"bankTxId\":12\n}",
       "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "3b789d47-2c12-4103-99a7-4ca65b643e98",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",
+    "name": "Upload XML",
+    "url": "{{url}}/v1/bankTx",
+    "method": "POST",
+    "sortNum": 440000,
+    "created": "2022-07-26T13:38:08.571Z",
+    "modified": "2022-07-26T13:45:07.990Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "formdata",
+      "raw": "",
+      "form": [],
+      "files": [
+        {
+          "name": "files",
+          "value": "../../../../../Downloads/2022-07-25_C53_LI51088110104693K000U_USD_082598.xml"
+        }
+      ]
     },
     "tests": []
   }
