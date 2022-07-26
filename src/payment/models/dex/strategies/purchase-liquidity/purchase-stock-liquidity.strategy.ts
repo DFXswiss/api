@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { LiquidityService } from '../../services/liquidity.service';
@@ -9,13 +8,12 @@ import { LiquidityRequest } from '../../services/dex.service';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
 
-@Injectable()
 export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
   constructor(
     readonly mailService: MailService,
-    private readonly liquidityOrderFactory: LiquidityOrderFactory,
-    private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityService: LiquidityService,
+    private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
     super(mailService);
   }

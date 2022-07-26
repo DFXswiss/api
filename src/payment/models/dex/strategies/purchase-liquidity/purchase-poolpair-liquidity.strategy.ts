@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { DeFiClient } from 'src/ain/node/defi-client';
 import { Config } from 'src/config/config';
@@ -17,7 +16,6 @@ import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidi
 import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 
-@Injectable()
 export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {
   private readonly verifyDerivedOrdersLock = new Lock(1800);
 
@@ -27,8 +25,8 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     readonly mailService: MailService,
     private readonly settingService: SettingService,
     private readonly assetService: AssetService,
-    private readonly liquidityOrderFactory: LiquidityOrderFactory,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
+    private readonly liquidityOrderFactory: LiquidityOrderFactory,
     private readonly dexService: DEXService,
   ) {
     super(mailService);

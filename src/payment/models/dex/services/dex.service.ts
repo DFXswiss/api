@@ -14,6 +14,9 @@ import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { MailService } from 'src/shared/services/mail.service';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
@@ -25,22 +28,39 @@ export interface LiquidityRequest {
 
 @Injectable()
 export class DEXService {
-  private readonly verifyExternalOrdersLock = new Lock(1800);
-  private readonly verifyInternalOrdersLock = new Lock(1800);
+  private readonly verifyPurchaseOrdersLock = new Lock(1800);
 
   #purchaseLiquidityStrategies = new Map<AssetCategory, PurchaseLiquidityStrategy>();
 
   constructor(
-    private readonly swapLiquidityService: LiquidityService,
+    readonly mailService: MailService,
+    readonly settingService: SettingService,
+    readonly assetService: AssetService,
+    private readonly liquidityService: LiquidityService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
-    readonly poolPairStrategy: PurchasePoolPairLiquidityStrategy,
-    readonly stockStrategy: PurchaseStockLiquidityStrategy,
-    readonly cryptoStrategy: PurchaseCryptoLiquidityStrategy,
   ) {
-    this.#purchaseLiquidityStrategies.set(AssetCategory.POOL_PAIR, poolPairStrategy);
-    this.#purchaseLiquidityStrategies.set(AssetCategory.STOCK, stockStrategy);
-    this.#purchaseLiquidityStrategies.set(AssetCategory.CRYPTO, cryptoStrategy);
+    this.#purchaseLiquidityStrategies.set(
+      AssetCategory.POOL_PAIR,
+      new PurchasePoolPairLiquidityStrategy(
+        mailService,
+        settingService,
+        assetService,
+        liquidityOrderRepo,
+        liquidityOrderFactory,
+        this,
+      ),
+    );
+
+    this.#purchaseLiquidityStrategies.set(
+      AssetCategory.STOCK,
+      new PurchaseStockLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
+    );
+
+    this.#purchaseLiquidityStrategies.set(
+      AssetCategory.CRYPTO,
+      new PurchaseCryptoLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
+    );
   }
 
   // *** PUBLIC API *** //
@@ -50,14 +70,12 @@ export class DEXService {
 
     try {
       // calculating how much targetAmount is needed and if it's available on the node
-      return this.swapLiquidityService.getAvailableTargetLiquidity(
+      return this.liquidityService.getAvailableTargetLiquidity(
         referenceAsset,
         referenceAmount,
         targetAsset.dexName,
         LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
       );
-
-      // TODO also check for pending orders
     } catch (e) {
       console.error(e);
 
@@ -75,7 +93,7 @@ export class DEXService {
 
     try {
       // calculating how much targetAmount is needed and if it's available on the node
-      const liquidity = await this.swapLiquidityService.getAvailableTargetLiquidity(
+      const liquidity = await this.liquidityService.getAvailableTargetLiquidity(
         referenceAsset,
         referenceAmount,
         targetAsset.dexName,
@@ -152,7 +170,7 @@ export class DEXService {
 
   @Interval(60000)
   async verifyPurchaseOrders(): Promise<void> {
-    if (!this.verifyExternalOrdersLock.acquire()) return;
+    if (!this.verifyPurchaseOrdersLock.acquire()) return;
 
     const standingOrders = await this.liquidityOrderRepo.find({
       isReady: false,
@@ -161,7 +179,7 @@ export class DEXService {
 
     await this.addPurchasedAmountsToOrders(standingOrders);
 
-    this.verifyExternalOrdersLock.release();
+    this.verifyPurchaseOrdersLock.release();
   }
 
   // *** HELPER METHODS *** //
@@ -169,10 +187,7 @@ export class DEXService {
   private async addPurchasedAmountsToOrders(orders: LiquidityOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const amount = await this.swapLiquidityService.getPurchasedAmount(
-          order.purchaseTxId,
-          order.targetAsset.dexName,
-        );
+        const amount = await this.liquidityService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
 
         order.purchased(amount);
         await this.liquidityOrderRepo.save(order);
