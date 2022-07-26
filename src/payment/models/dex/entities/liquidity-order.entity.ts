@@ -62,22 +62,17 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   purchasedAmount?: number;
 
-  addPurchaseTxId(purchaseTxId: string): this {
-    this.purchaseTxId = purchaseTxId;
-
-    return this;
-  }
-
-  saveLiquiditySwapAsset(swapAsset: string, swapAmount: number): this {
-    this.swapAsset = swapAsset;
-    this.swapAmount = swapAmount;
-
-    return this;
-  }
-
   reserved(targetAmount: number): this {
     this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : targetAmount;
     this.isReady = true;
+
+    return this;
+  }
+
+  addPurchaseMetadata(purchaseTxId: string, swapAsset?: string, swapAmount?: number): this {
+    this.purchaseTxId = purchaseTxId;
+    this.swapAsset = swapAsset;
+    this.swapAmount = swapAmount;
 
     return this;
   }

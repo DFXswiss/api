@@ -121,7 +121,7 @@ export class DEXService {
     }
   }
 
-  async fetchPurchasedLiquidity(context: LiquidityOrderContext, correlationId: string): Promise<number> {
+  async fetchTargetLiquidityAfterPurchase(context: LiquidityOrderContext, correlationId: string): Promise<number> {
     const order = await this.liquidityOrderRepo.findOne({ where: { context, correlationId } });
 
     if (!order) {

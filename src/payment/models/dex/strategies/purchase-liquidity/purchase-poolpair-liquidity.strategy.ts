@@ -175,7 +175,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
       poolPair,
     );
 
-    order.addPurchaseTxId(chainSwapId);
+    order.addPurchaseMetadata(chainSwapId);
   }
 
   private isPoolPairSlippageError(e: Error): boolean {

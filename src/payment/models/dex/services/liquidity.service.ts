@@ -116,7 +116,7 @@ export class LiquidityService {
     // 5% cap for unexpected meantime swaps
     if (amount * 1.05 > availableAmount - pendingAmount) {
       throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${asset}. Trying to use ${amount} ${asset} worth liquidity. Available amount: ${availableAmount}.`,
+        `Not enough liquidity of asset ${asset}. Trying to use ${amount} ${asset} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
       );
     }
 

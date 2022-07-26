@@ -68,7 +68,10 @@ export class BuyCryptoDexService {
   private async checkPendingBatches(pendingBatches: BuyCryptoBatch[]): Promise<void> {
     for (const batch of pendingBatches) {
       try {
-        const liquidity = await this.getLiquidityAfterPurchase(batch);
+        const liquidity = await this.dexService.fetchTargetLiquidityAfterPurchase(
+          LiquidityOrderContext.BUY_CRYPTO,
+          batch.id.toString(),
+        );
 
         batch.secure(liquidity);
         await this.buyCryptoBatchRepo.save(batch);
@@ -82,16 +85,6 @@ export class BuyCryptoDexService {
         console.error(`Failed to check pending batch. Batch ID: ${batch.id}`, e);
       }
     }
-  }
-
-  private async getLiquidityAfterPurchase(batch: BuyCryptoBatch): Promise<number> {
-    const { outputAsset, outputReferenceAsset, outputReferenceAmount } = batch;
-
-    if (outputReferenceAsset === outputAsset) {
-      return outputReferenceAmount;
-    }
-
-    return this.dexService.fetchPurchasedLiquidity(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
   }
 
   private async processNewBatches(newBatches: BuyCryptoBatch[]): Promise<void> {
@@ -122,6 +115,7 @@ export class BuyCryptoDexService {
       return (await this.dexService.reserveLiquidity(request)) || 0;
     } catch (e) {
       if (e instanceof NotEnoughLiquidityException) {
+        console.info(e);
         return 0;
       }
 

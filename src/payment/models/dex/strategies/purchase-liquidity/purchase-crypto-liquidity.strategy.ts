@@ -24,37 +24,34 @@ export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
     const order = this.liquidityOrderFactory.createPurchaseOrder(request, 'defichain', AssetCategory.CRYPTO);
 
     try {
-      const chainSwapId = await this.bookLiquiditySwap(order);
-
-      order.addPurchaseTxId(chainSwapId);
-
+      await this.bookLiquiditySwap(order);
       await this.liquidityOrderRepo.save(order);
     } catch (e) {
       this.handlePurchaseLiquidityError(e, order);
     }
   }
 
-  private async bookLiquiditySwap(order: LiquidityOrder): Promise<string> {
+  private async bookLiquiditySwap(order: LiquidityOrder): Promise<void> {
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
 
-    const { asset: sourceAsset, amount: sourceAmount } = await this.getSwapAsset(
+    const { asset: swapAsset, amount: swapAmount } = await this.getSwapAsset(
       referenceAsset,
       referenceAmount,
       targetAsset.dexName,
     );
 
     const txId = await this.liquidityService.purchaseLiquidity(
-      sourceAsset,
-      sourceAmount,
+      swapAsset,
+      swapAmount,
       targetAsset.dexName,
       maxPriceSlippage,
     );
 
-    console.info(
-      `Booked ${sourceAmount} ${sourceAsset} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
-    );
+    order.addPurchaseMetadata(txId, swapAsset, swapAmount);
 
-    return txId;
+    console.info(
+      `Booked ${swapAmount} ${swapAsset} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
+    );
   }
 
   private async getSwapAsset(
