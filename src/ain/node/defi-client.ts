@@ -88,6 +88,7 @@ export class DeFiClient extends NodeClient {
     tokenTo: string,
     amount: number,
     utxos?: SpendUTXO[],
+    maxPrice?: number,
   ): Promise<string> {
     return this.callNode(
       (c) =>
@@ -98,11 +99,16 @@ export class DeFiClient extends NodeClient {
             amountFrom: this.roundAmount(amount),
             to: addressTo,
             tokenTo: tokenTo,
+            maxPrice,
           },
           utxos,
         ),
       true,
     );
+  }
+
+  async addPoolLiquidity(addressFrom: string, addressTo: string, assetsPair: [string, string]): Promise<string> {
+    return this.callNode((c) => c.poolpair.addPoolLiquidity({ [addressFrom]: assetsPair }, addressTo), true);
   }
 
   async sendToken(

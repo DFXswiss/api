@@ -11,7 +11,9 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { Util } from 'src/shared/util';
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { BuyCryptoChainUtil } from '../utils/buy-crypto-chain.util';
+import { DeFiChainUtil } from '../../dex/utils/defichain.util';
+import { DEXService } from '../../dex/services/dex.service';
+import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -22,7 +24,8 @@ export class BuyCryptoOutService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
-    private readonly buyCryptoChainUtil: BuyCryptoChainUtil,
+    private readonly deFiChainUtil: DeFiChainUtil,
+    private readonly dexService: DEXService,
     private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
   ) {
@@ -136,7 +139,8 @@ export class BuyCryptoOutService {
     if (isBatchComplete) {
       console.info(`Buy crypto batch payout complete. Batch ID: ${batch.id}`);
       batch.complete();
-      this.buyCryptoBatchRepo.save(batch);
+
+      await this.buyCryptoBatchRepo.save(batch);
     }
   }
 
@@ -144,9 +148,11 @@ export class BuyCryptoOutService {
     batch: BuyCryptoBatch,
     outAssets: { amount: number; asset: string }[],
   ): Promise<boolean> {
-    const outTxComplete = await this.buyCryptoChainUtil.getHistoryEntryForTx(batch.outTxId, this.dexClient);
+    const outTxComplete = await this.deFiChainUtil.getHistoryEntryForTx(batch.outTxId, this.dexClient);
 
     if (!outTxComplete) return false;
+
+    await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
 
     const assetOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
     const amountOnOutNode = assetOnOutNode ? assetOnOutNode.amount : 0;
