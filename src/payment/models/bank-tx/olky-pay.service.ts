@@ -56,7 +56,8 @@ export class OlkyPayService {
 
     for (const transaction of allTransaction) {
       try {
-        this.parseTransaction(transaction).then((transaction) => this.bankTxService.create(transaction));
+        const bankTx = this.parseTransaction(transaction);
+        await this.bankTxService.create(bankTx);
       } catch (e) {
         console.error(`Failed to import Transaction:`, e);
       }
@@ -65,52 +66,7 @@ export class OlkyPayService {
     await this.settingService.set(settingKey, newModificationTime);
   }
 
-  async parseTransaction(transaction: Transaction): Promise<Partial<BankTx>> {
-    let amount;
-    let addressLine1;
-    let name = transaction.line1;
-    let txInfo = transaction.line1;
-    let type;
-    if (transaction.debit > 0) {
-      amount = transaction.debit;
-      if (transaction.codeInterbancaireInterne == TransactionType.SENT)
-        name = transaction.line1.split('Virement Inst Client : ')[1];
-      if (transaction.codeInterbancaireInterne == TransactionType.BILLING) {
-        type = BankTxType.INTERNAL;
-        txInfo = txInfo + ' ' + name;
-      }
-    } else {
-      amount = transaction.credit;
-      type = BankTxType.BUY_CRYPTO;
-      if (transaction.codeInterbancaireInterne == TransactionType.RECEIVED) {
-        name = name.split(' Recu ')[1];
-        if (name.includes('Adresse débiteur')) {
-          addressLine1 = name.split(' [ Adresse débiteur : ')[1].replace(']', '');
-          name = name.split(' [ Adresse débiteur : ')[0];
-        }
-      }
-    }
-
-    return {
-      accountServiceRef: transaction.idCtp.toString(),
-      bookingDate: new Date(transaction.dateEcriture[0], transaction.dateEcriture[1], transaction.dateEcriture[2]),
-      valueDate: new Date(transaction.dateValeur[0], transaction.dateValeur[1], transaction.dateValeur[2]),
-      txCount: 1,
-      instructionId: transaction.codeInterbancaireInterne,
-      amount: Util.round(amount / 100, 2),
-      iban: transaction.instructingIban,
-      batch: { id: 1 } as BankTxBatch, //TODO create an olky pay batch and replace the ID
-      currency: 'EUR',
-      creditDebitIndicator: transaction.debit > 0 ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
-      remittanceInfo: transaction.line2,
-      name,
-      addressLine1,
-      txInfo: txInfo,
-      type,
-    };
-  }
-
-  async getTransactions(fromDate: string): Promise<Transaction[]> {
+  private async getTransactions(fromDate: string): Promise<Transaction[]> {
     const url = `ecritures/${Config.bank.olkyPay.clientId}/${fromDate}/${new Date().toISOString().split('T')[0]}`;
 
     try {
@@ -120,7 +76,7 @@ export class OlkyPayService {
     }
   }
 
-  async getBalance(): Promise<Balance> {
+  private async getBalance(): Promise<Balance> {
     const url = `balance/today/${Config.bank.olkyPay.clientId}`;
 
     try {
@@ -130,8 +86,50 @@ export class OlkyPayService {
     }
   }
 
-  // --- HELPER METHODS --- //
+  // --- PARSING --- //
+  private parseTransaction(tx: Transaction): Partial<BankTx> {
+    if (tx.debit > 0 && tx.credit > 0)
+      throw new Error(`Transaction with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
+    return {
+      accountServiceRef: tx.idCtp.toString(),
+      bookingDate: this.parseDate(tx.dateEcriture),
+      valueDate: this.parseDate(tx.dateValeur),
+      txCount: 1,
+      instructionId: tx.codeInterbancaireInterne,
+      amount: Util.round((tx.debit + tx.credit) / 100, 2),
+      currency: 'EUR',
+      creditDebitIndicator: tx.debit > 0 ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
+      iban: tx.instructingIban,
+      ...this.getNameAndAddress(tx),
+      txInfo: tx.line1,
+      remittanceInfo: tx.line2,
+      type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
+      batch: { id: 1 } as BankTxBatch, // TODO create an olky pay batch and replace the ID
+    };
+  }
+
+  private parseDate(olkyDate: number[]): Date {
+    return new Date(olkyDate[0], olkyDate[1], olkyDate[2]);
+  }
+
+  private getNameAndAddress(tx: Transaction): { name?: string; addressLine1?: string } {
+    switch (tx.codeInterbancaireInterne) {
+      case TransactionType.SENT:
+        return {
+          name: tx.line1.split('Virement Inst Client : ')[1],
+        };
+      case TransactionType.RECEIVED:
+        return {
+          name: tx.line1.split(' Recu ')[1]?.split(' [ Adresse débiteur : ')[0],
+          addressLine1: tx.line1.split(' [ Adresse débiteur : ')[1]?.replace(']', ''),
+        };
+    }
+
+    return {};
+  }
+
+  // --- HELPER METHODS --- //
   private async callApi<T>(url: string, method: Method = 'GET', data?: any): Promise<T> {
     return this.request<T>(url, method, data).catch((e: HttpError) => {
       throw new ServiceUnavailableException(e);
