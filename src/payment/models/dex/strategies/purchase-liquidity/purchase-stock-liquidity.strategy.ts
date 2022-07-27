@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { LiquidityService } from '../../services/liquidity.service';
@@ -8,6 +9,7 @@ import { LiquidityRequest } from '../../services/dex.service';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
 
+@Injectable()
 export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
   constructor(
     readonly mailService: MailService,
@@ -59,34 +61,33 @@ export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
   ): Promise<{ asset: string; amount: number }> {
     const errors = [];
 
-    try {
-      return {
-        asset: 'DUSD',
-        amount: await this.liquidityService.getSwapAmountForPurchase(
+    if (targetAsset !== 'DUSD') {
+      try {
+        const amount = await this.liquidityService.getSwapAmountForPurchase(
           referenceAsset,
           referenceAmount,
           targetAsset,
           'DUSD',
-        ),
-      };
-    } catch (e) {
-      if (e instanceof NotEnoughLiquidityException) {
-        errors.push(e.message);
-      } else {
-        throw e;
+        );
+        return { asset: 'DUSD', amount };
+      } catch (e) {
+        if (e instanceof NotEnoughLiquidityException) {
+          errors.push(e.message);
+        } else {
+          throw e;
+        }
       }
     }
 
     try {
-      return {
-        asset: 'DFI',
-        amount: await this.liquidityService.getSwapAmountForPurchase(
-          referenceAsset,
-          referenceAmount,
-          targetAsset,
-          'DFI',
-        ),
-      };
+      const amount = await this.liquidityService.getSwapAmountForPurchase(
+        referenceAsset,
+        referenceAmount,
+        targetAsset,
+        'DFI',
+      );
+
+      return { asset: 'DFI', amount };
     } catch (e) {
       if (e instanceof NotEnoughLiquidityException) {
         errors.push(e.message);

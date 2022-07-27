@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { PurchasePoolPairLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-poolpair-liquidity.strategy';
 import { PurchaseStockLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-stock-liquidity.strategy';
@@ -40,18 +40,21 @@ export class DEXService {
     readonly mailService: MailService,
     readonly settingService: SettingService,
     readonly assetService: AssetService,
+    readonly checkPoolPairLiquidityStrategy: CheckPoolPairLiquidityStrategy,
+    readonly checkLiquidityDefaultStrategy: CheckLiquidityDefaultStrategy,
+    @Inject(forwardRef(() => PurchasePoolPairLiquidityStrategy))
+    readonly purchasePoolPairLiquidityStrategy: PurchasePoolPairLiquidityStrategy,
+    readonly purchaseStockLiquidityStrategy: PurchaseStockLiquidityStrategy,
+    readonly purchaseCryptoLiquidityStrategy: PurchaseCryptoLiquidityStrategy,
     private readonly liquidityService: LiquidityService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    this.initStrategies(
-      mailService,
-      settingService,
-      assetService,
-      liquidityService,
-      liquidityOrderRepo,
-      liquidityOrderFactory,
-    );
+    this.#checkLiquidityStrategies.set(AssetCategory.POOL_PAIR, checkPoolPairLiquidityStrategy);
+    this.#checkLiquidityStrategies.set('default', checkLiquidityDefaultStrategy);
+    this.#purchaseLiquidityStrategies.set(AssetCategory.POOL_PAIR, purchasePoolPairLiquidityStrategy);
+    this.#purchaseLiquidityStrategies.set(AssetCategory.STOCK, purchaseStockLiquidityStrategy);
+    this.#purchaseLiquidityStrategies.set(AssetCategory.CRYPTO, purchaseCryptoLiquidityStrategy);
   }
 
   // *** PUBLIC API *** //
@@ -80,7 +83,7 @@ export class DEXService {
     const { context, correlationId, targetAsset } = request;
 
     try {
-      console.info(`Reserving liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
+      console.info(`Reserving ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
 
       const strategy =
         this.#checkLiquidityStrategies.get(targetAsset?.category) || this.#checkLiquidityStrategies.get('default');
@@ -114,7 +117,9 @@ export class DEXService {
     }
 
     try {
-      console.info(`Purchasing liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
+      console.info(
+        `Purchasing ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`,
+      );
       await strategy.purchaseLiquidity(request);
     } catch (e) {
       console.error(e);
@@ -187,39 +192,5 @@ export class DEXService {
         continue;
       }
     }
-  }
-
-  private initStrategies(
-    mailService: MailService,
-    settingService: SettingService,
-    assetService: AssetService,
-    liquidityService: LiquidityService,
-    liquidityOrderRepo: LiquidityOrderRepository,
-    liquidityOrderFactory: LiquidityOrderFactory,
-  ): void {
-    this.#checkLiquidityStrategies.set(AssetCategory.POOL_PAIR, new CheckPoolPairLiquidityStrategy());
-    this.#checkLiquidityStrategies.set('default', new CheckLiquidityDefaultStrategy(liquidityService));
-
-    this.#purchaseLiquidityStrategies.set(
-      AssetCategory.POOL_PAIR,
-      new PurchasePoolPairLiquidityStrategy(
-        mailService,
-        settingService,
-        assetService,
-        liquidityOrderRepo,
-        liquidityOrderFactory,
-        this,
-      ),
-    );
-
-    this.#purchaseLiquidityStrategies.set(
-      AssetCategory.STOCK,
-      new PurchaseStockLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
-    );
-
-    this.#purchaseLiquidityStrategies.set(
-      AssetCategory.CRYPTO,
-      new PurchaseCryptoLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
-    );
   }
 }

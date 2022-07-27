@@ -1,10 +1,11 @@
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { DeFiClient } from 'src/ain/node/defi-client';
+import { Not } from 'typeorm';
 import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { MailService } from 'src/shared/services/mail.service';
-import { Not } from 'typeorm';
 import { LiquidityOrder, LiquidityOrderContext } from '../../entities/liquidity-order.entity';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
@@ -15,21 +16,26 @@ import { Lock } from 'src/shared/lock';
 import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 
+@Injectable()
 export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {
   private readonly verifyDerivedOrdersLock = new Lock(1800);
 
-  #chainClient: DeFiClient;
+  private chainClient: DeFiClient;
 
   constructor(
+    readonly nodeService: NodeService,
     readonly mailService: MailService,
     private readonly settingService: SettingService,
     private readonly assetService: AssetService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
+    @Inject(forwardRef(() => DEXService))
     private readonly dexService: DEXService,
   ) {
     super(mailService);
+    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.chainClient = client));
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
@@ -52,7 +58,6 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
   @Interval(60000)
   async verifyDerivedOrders(): Promise<void> {
     if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
-
     if (!this.verifyDerivedOrdersLock.acquire()) return;
 
     const pendingParentOrders = await this.liquidityOrderRepo.find({
@@ -65,9 +70,11 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
         const derivedOrders = await this.liquidityOrderRepo.find({
           context: LiquidityOrderContext.CREATE_POOL_PAIR,
           correlationId: parentOrder.id.toString(),
+          isReady: true,
+          isComplete: false,
         });
 
-        if (derivedOrders.length === 2 && derivedOrders.every((o) => o.isReady)) {
+        if (derivedOrders.length === 2) {
           await this.addPoolPair(parentOrder, derivedOrders);
           await this.dexService.completeOrders(LiquidityOrderContext.CREATE_POOL_PAIR, parentOrder.id.toString());
         }
@@ -110,6 +117,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     const existingOrder = await this.liquidityOrderRepo.findOne({
       context: LiquidityOrderContext.CREATE_POOL_PAIR,
       correlationId: parentOrder.id.toString(),
+      targetAsset: pairAsset,
     });
 
     if (existingOrder) return;
@@ -126,7 +134,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
       await this.dexService.reserveLiquidity(request);
     } catch (e) {
       if (e instanceof NotEnoughLiquidityException) {
-        await this.purchaseLiquidity(request);
+        return this.dexService.purchaseLiquidity(request);
       }
 
       throw e;
@@ -139,6 +147,9 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
     const leftOrder = derivedOrders.find((o) => o.targetAsset.dexName === leftAsset);
     const rightOrder = derivedOrders.find((o) => o.targetAsset.dexName === rightAsset);
 
+    console.info(
+      `Creating poolpair token of ${leftOrder.targetAsset.dexName} ${leftOrder.targetAmount} and ${rightOrder.targetAsset.dexName} ${rightOrder.targetAmount}`,
+    );
     try {
       await this.addPoolLiquidity(
         parentOrder,
@@ -167,7 +178,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
   ): Promise<void> {
     const poolPair: [string, string] = [`${leftAmount}@${leftAsset}`, `${rightAmount}@${rightAsset}`];
 
-    const chainSwapId = await this.#chainClient.addPoolLiquidity(
+    const chainSwapId = await this.chainClient.addPoolLiquidity(
       Config.node.dexWalletAddress,
       Config.node.dexWalletAddress,
       poolPair,
