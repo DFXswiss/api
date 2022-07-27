@@ -60,7 +60,7 @@ export class OlkypayService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Interval(10000)
+  @Interval(60000)
   async checkTransactions(): Promise<void> {
     try {
       if (!Config.bank.olkypay.clientId) return;
