@@ -365,10 +365,12 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
-    user.apiKeyCT = Util.createHash(
+    const hash = Util.createHash(
       Util.createHash(user.address + new Date().toISOString(), 'sha256'),
       'md5',
     ).toUpperCase();
+
+    user.apiKeyCT = hash.substring(0, hash.length - 1) + Config.apiKeyVersionCT;
 
     await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT });
 
