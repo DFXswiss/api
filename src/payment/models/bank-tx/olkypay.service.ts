@@ -9,6 +9,7 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { stringify } from 'qs';
+import { BankTxBatchRepository } from './bank-tx-batch.repository';
 
 interface Transaction {
   idCtp: number;
@@ -49,24 +50,27 @@ export class OlkypayService {
   private readonly baseUrl = 'https://ws.olkypay.com/reporting';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
   private accessToken = 'access-token-will-be-updated';
+  private bankTxBatch: BankTxBatch;
 
   constructor(
     private readonly http: HttpService,
     private readonly bankTxService: BankTxService,
+    private readonly bankTxBatchService: BankTxBatchRepository,
     private readonly settingService: SettingService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Interval(60000)
+  @Interval(10000)
   async checkTransactions(): Promise<void> {
     try {
-      if (!process.env.OLKY_CLIENT) return;
+      if (!Config.bank.olkypay.clientId) return;
       const settingKey = 'lastOlkypayDate';
-      const lastModificationTime = await this.settingService.get(settingKey);
-      const fromDate = lastModificationTime ? lastModificationTime : new Date(0).toISOString();
-      const newModificationTime = new Date().toISOString();
+      const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
 
-      const transactions = await this.getTransactions(new Date(fromDate));
+      const newModificationTime = new Date().toISOString();
+      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
+
+      const transactions = await this.getTransactions(new Date(lastModificationTime));
 
       for (const transaction of transactions) {
         try {
@@ -114,7 +118,7 @@ export class OlkypayService {
       txInfo: tx.line1,
       remittanceInfo: tx.line2,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
-      batch: { id: 1 } as BankTxBatch, // TODO create an olkypay batch and replace the ID
+      batch: this.bankTxBatch,
     };
   }
 
