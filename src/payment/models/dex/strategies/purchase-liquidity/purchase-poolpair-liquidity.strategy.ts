@@ -45,7 +45,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
       await this.secureLiquidityForPairAsset(parentOrder, leftAsset);
       await this.secureLiquidityForPairAsset(parentOrder, rightAsset);
     } catch (e) {
-      this.handlePurchaseLiquidityError(e, order);
+      await this.handlePurchaseLiquidityError(e, order);
     }
   }
 

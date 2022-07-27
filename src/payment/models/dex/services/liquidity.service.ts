@@ -34,8 +34,8 @@ export class LiquidityService {
         ? sourceAmount
         : await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, sourceAmount);
 
-    await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage);
     await this.checkAssetAvailability(targetAsset, targetAmount);
+    await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage);
 
     return targetAmount;
   }
@@ -152,9 +152,11 @@ export class LiquidityService {
 
     const minimalAllowedTargetAmount = Util.round(sourceAmount / maxPrice, 8);
 
-    if (targetAmount < minimalAllowedTargetAmount) {
+    if (targetAmount > 0.0001 && targetAmount < minimalAllowedTargetAmount) {
       throw new PriceSlippageException(
-        `Price is higher than indicated. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}`,
+        `Price is higher than indicated. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${
+          sourceAmount / targetAmount
+        } ${sourceAsset}`,
       );
     }
   }

@@ -115,7 +115,7 @@ export class BuyCryptoDexService {
       return (await this.dexService.reserveLiquidity(request)) || 0;
     } catch (e) {
       if (e instanceof NotEnoughLiquidityException) {
-        console.info(e);
+        console.info(e.message);
         return 0;
       }
 

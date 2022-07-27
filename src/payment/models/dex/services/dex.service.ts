@@ -17,6 +17,9 @@ import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MailService } from 'src/shared/services/mail.service';
+import { CheckLiquidityStrategy } from '../strategies/check-liquidity/check-liquidity.strategy';
+import { CheckPoolPairLiquidityStrategy } from '../strategies/check-liquidity/check-poolpair-liquidity.strategy';
+import { CheckLiquidityDefaultStrategy } from '../strategies/check-liquidity/check-liquidity-default.strategy';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
@@ -30,6 +33,7 @@ export interface LiquidityRequest {
 export class DEXService {
   private readonly verifyPurchaseOrdersLock = new Lock(1800);
 
+  #checkLiquidityStrategies = new Map<AssetCategory | 'default', CheckLiquidityStrategy>();
   #purchaseLiquidityStrategies = new Map<AssetCategory, PurchaseLiquidityStrategy>();
 
   constructor(
@@ -40,42 +44,26 @@ export class DEXService {
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    this.#purchaseLiquidityStrategies.set(
-      AssetCategory.POOL_PAIR,
-      new PurchasePoolPairLiquidityStrategy(
-        mailService,
-        settingService,
-        assetService,
-        liquidityOrderRepo,
-        liquidityOrderFactory,
-        this,
-      ),
-    );
-
-    this.#purchaseLiquidityStrategies.set(
-      AssetCategory.STOCK,
-      new PurchaseStockLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
-    );
-
-    this.#purchaseLiquidityStrategies.set(
-      AssetCategory.CRYPTO,
-      new PurchaseCryptoLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
+    this.initStrategies(
+      mailService,
+      settingService,
+      assetService,
+      liquidityService,
+      liquidityOrderRepo,
+      liquidityOrderFactory,
     );
   }
 
   // *** PUBLIC API *** //
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {
-    const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
+    const { context, correlationId, targetAsset } = request;
 
     try {
-      // calculating how much targetAmount is needed and if it's available on the node
-      return this.liquidityService.getAvailableTargetLiquidity(
-        referenceAsset,
-        referenceAmount,
-        targetAsset.dexName,
-        LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
-      );
+      const strategy =
+        this.#checkLiquidityStrategies.get(targetAsset?.category) || this.#checkLiquidityStrategies.get('default');
+
+      return strategy.checkLiquidity(request);
     } catch (e) {
       console.error(e);
 
@@ -89,18 +77,15 @@ export class DEXService {
   }
 
   async reserveLiquidity(request: LiquidityRequest): Promise<number> {
-    const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
+    const { context, correlationId, targetAsset } = request;
 
     try {
       console.info(`Reserving liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
 
-      // calculating how much targetAmount is needed and if it's available on the node
-      const liquidity = await this.liquidityService.getAvailableTargetLiquidity(
-        referenceAsset,
-        referenceAmount,
-        targetAsset.dexName,
-        LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
-      );
+      const strategy =
+        this.#checkLiquidityStrategies.get(targetAsset?.category) || this.#checkLiquidityStrategies.get('default');
+
+      const liquidity = await strategy.checkLiquidity(request);
 
       if (liquidity !== 0) {
         const order = this.liquidityOrderFactory.createReservationOrder(request, 'defichain');
@@ -162,7 +147,7 @@ export class DEXService {
     });
 
     if (incompleteOrders.length === 0) {
-      throw new Error(`No ready liquidity orders found for context ${context} and correlationId: ${correlationId}`);
+      return;
     }
 
     for (const order of incompleteOrders) {
@@ -202,5 +187,39 @@ export class DEXService {
         continue;
       }
     }
+  }
+
+  private initStrategies(
+    mailService: MailService,
+    settingService: SettingService,
+    assetService: AssetService,
+    liquidityService: LiquidityService,
+    liquidityOrderRepo: LiquidityOrderRepository,
+    liquidityOrderFactory: LiquidityOrderFactory,
+  ): void {
+    this.#checkLiquidityStrategies.set(AssetCategory.POOL_PAIR, new CheckPoolPairLiquidityStrategy());
+    this.#checkLiquidityStrategies.set('default', new CheckLiquidityDefaultStrategy(liquidityService));
+
+    this.#purchaseLiquidityStrategies.set(
+      AssetCategory.POOL_PAIR,
+      new PurchasePoolPairLiquidityStrategy(
+        mailService,
+        settingService,
+        assetService,
+        liquidityOrderRepo,
+        liquidityOrderFactory,
+        this,
+      ),
+    );
+
+    this.#purchaseLiquidityStrategies.set(
+      AssetCategory.STOCK,
+      new PurchaseStockLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
+    );
+
+    this.#purchaseLiquidityStrategies.set(
+      AssetCategory.CRYPTO,
+      new PurchaseCryptoLiquidityStrategy(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory),
+    );
   }
 }

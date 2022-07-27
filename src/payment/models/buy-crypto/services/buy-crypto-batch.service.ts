@@ -100,14 +100,16 @@ export class BuyCryptoBatchService {
 
       if (existingBatch) {
         console.info(
-          `Halting with creation of a batch for asset: ${outputAsset}, batch already exists. Transaction ID: ${tx.id}`,
+          `Halting with creation of a new batch for asset: ${outputAsset}, existing batch for this asset is not complete yet. Transaction ID: ${tx.id}`,
         );
 
         continue;
       }
 
       if (this.isExistingOutBalance(existingAssets, outputAsset)) {
-        console.warn(`Halting with creation of a batch for asset: ${outputAsset}, balance still available on OUT node`);
+        console.warn(
+          `Halting with creation of a new batch for asset: ${outputAsset}, balance still available on OUT node`,
+        );
 
         continue;
       }

@@ -25,7 +25,7 @@ export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
       await this.bookLiquiditySwap(order);
       await this.liquidityOrderRepo.save(order);
     } catch (e) {
-      this.handlePurchaseLiquidityError(e, order);
+      await this.handlePurchaseLiquidityError(e, order);
     }
   }
 

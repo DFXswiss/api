@@ -141,6 +141,7 @@ export class BuyCryptoOutService {
       batch.complete();
 
       await this.buyCryptoBatchRepo.save(batch);
+      await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
     }
   }
 
@@ -151,8 +152,6 @@ export class BuyCryptoOutService {
     const outTxComplete = await this.deFiChainUtil.getHistoryEntryForTx(batch.outTxId, this.dexClient);
 
     if (!outTxComplete) return false;
-
-    await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
 
     const assetOnOutNode = outAssets.find((a) => a.asset === batch.outputAsset);
     const amountOnOutNode = assetOnOutNode ? assetOnOutNode.amount : 0;
