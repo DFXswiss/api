@@ -225,6 +225,16 @@ export class Configuration {
     },
   };
 
+  bank = {
+    olkypay: {
+      iban: 'LU116060002000005040',
+      clientId: process.env.OLKY_CLIENT,
+      username: process.env.OLKY_USERNAME,
+      password: process.env.OLKY_PASSWORD,
+      clientSecret: process.env.OLKY_CLIENT_SECRET,
+    },
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {
