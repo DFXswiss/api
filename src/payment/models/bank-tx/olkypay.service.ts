@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
@@ -10,7 +10,7 @@ import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { stringify } from 'qs';
 
-export interface Transaction {
+interface Transaction {
   idCtp: number;
   dateEcriture: number[];
   dateValeur: number[];
@@ -23,12 +23,12 @@ export interface Transaction {
   instructingIban: string;
 }
 
-export interface Balance {
+interface Balance {
   balance: number;
   balanceOperationYesterday: number;
 }
 
-export interface TokenAuth {
+interface TokenAuth {
   access_token: string;
   expires_in: number;
   refresh_expires_in: number;
@@ -48,7 +48,7 @@ enum TransactionType {
 export class OlkypayService {
   private readonly baseUrl = 'https://ws.olkypay.com/reporting';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
-  private tokenAuth = { access_token: 'access-token-will-be-updated' } as Partial<TokenAuth>;
+  private accessToken = 'access-token-will-be-updated';
 
   constructor(
     private readonly http: HttpService,
@@ -60,24 +60,26 @@ export class OlkypayService {
   @Interval(60000)
   async checkTransactions(): Promise<void> {
     try {
+      if (!process.env.OLKY_CLIENT) return;
       const settingKey = 'lastOlkypayDate';
       const lastModificationTime = await this.settingService.get(settingKey);
+      const fromDate = lastModificationTime ? lastModificationTime : new Date(0).toISOString();
       const newModificationTime = new Date().toISOString();
 
-      const transactions = await this.getTransactions(new Date(lastModificationTime));
+      const transactions = await this.getTransactions(new Date(fromDate));
 
       for (const transaction of transactions) {
         try {
           const bankTx = this.parseTransaction(transaction);
           await this.bankTxService.create(bankTx);
         } catch (e) {
-          if (e.status != 409) console.error(`Failed to import Transaction:`, e);
+          if (!(e instanceof ConflictException)) console.error(`Failed to import transaction:`, e);
         }
       }
 
       await this.settingService.set(settingKey, newModificationTime);
     } catch (e) {
-      console.error(`Failed to check olkypay transaction:`, e);
+      console.error(`Failed to check olkypay transactions:`, e);
     }
   }
 
@@ -145,14 +147,17 @@ export class OlkypayService {
 
   private async request<T>(url: string, method: Method, data?: any, nthTry = 3, getNewAccessToken = false): Promise<T> {
     try {
-      if (getNewAccessToken) this.tokenAuth = await this.getAccessToken();
+      if (getNewAccessToken) {
+        const tokenAuth = await this.getTokenAuth();
+        this.accessToken = tokenAuth.access_token;
+      }
       return await this.http.request<T>({
         url: `${this.baseUrl}/${url}`,
         method: method,
         data: data,
         headers: {
           Accept: 'application/json',
-          'x-pay-token': this.tokenAuth.access_token,
+          'x-pay-token': this.accessToken,
           'network-id': 19077,
         },
       });
@@ -164,7 +169,7 @@ export class OlkypayService {
     }
   }
 
-  private async getAccessToken(): Promise<TokenAuth> {
+  private async getTokenAuth(): Promise<TokenAuth> {
     const data = stringify({
       grant_type: 'password',
       client_id: 'wsapi',
