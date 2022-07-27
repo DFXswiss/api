@@ -1332,19 +1332,13 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
     "name": "KYC Progress",
-    "url": "{{url}}/v1/kyc?code={{kycCode}}",
+    "url": "{{url}}/v1/kyc/{{kycCode}}",
     "method": "GET",
     "sortNum": 440000,
     "created": "2022-07-21T07:43:41.329Z",
-    "modified": "2022-07-21T07:48:45.142Z",
+    "modified": "2022-07-27T07:37:40.024Z",
     "headers": [],
-    "params": [
-      {
-        "name": "code",
-        "value": "{{kycCode}}",
-        "isPath": false
-      }
-    ],
+    "params": [],
     "tests": []
   },
   {
@@ -1352,19 +1346,13 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
     "name": "Request KYC",
-    "url": "{{url}}/v1/kyc?code={{kycCode}}",
+    "url": "{{url}}/v1/kyc/{{kycCode}}",
     "method": "POST",
     "sortNum": 450000,
     "created": "2022-07-21T07:49:47.070Z",
-    "modified": "2022-07-21T11:58:15.031Z",
+    "modified": "2022-07-27T07:37:49.398Z",
     "headers": [],
-    "params": [
-      {
-        "name": "code",
-        "value": "{{kycCode}}",
-        "isPath": false
-      }
-    ],
+    "params": [],
     "tests": []
   },
   {
@@ -1372,19 +1360,13 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
     "name": "Update KYC Data",
-    "url": "{{url}}/v1/kyc/data?code={{kycCode}}",
-    "method": "POST",
+    "url": "{{url}}/v1/kyc/{{kycCode}}",
+    "method": "PUT",
     "sortNum": 460000,
     "created": "2022-07-21T07:55:08.344Z",
-    "modified": "2022-07-21T11:58:13.483Z",
+    "modified": "2022-07-27T12:56:13.554Z",
     "headers": [],
-    "params": [
-      {
-        "name": "code",
-        "value": "{{kycCode}}",
-        "isPath": false
-      }
-    ],
+    "params": [],
     "body": {
       "type": "json",
       "raw": "{\n    \"accountType\": \"Personal\",\n    \"firstname\": \"A\",\n    \"surname\": \"B\",\n    \"street\": \"C\",\n    \"houseNumber\": \"42\",\n    \"location\": \"D\",\n    \"zip\": \"4321\",\n    \"country\": {\n        \"id\": 55,\n        \"symbol\": \"DE\",\n        \"name\": \"Germany\",\n        \"enable\": true\n    },\n    \"mail\": \"test@test.com\",\n    \"phone\": \"+43 69912345678\"\n}",
@@ -1397,19 +1379,13 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
     "name": "Increase Limit",
-    "url": "{{url}}/v1/kyc/limit?code={{kycCode}}",
+    "url": "{{url}}/v1/kyc/{{kycCode}}/limit",
     "method": "POST",
     "sortNum": 470000,
     "created": "2022-07-21T08:00:46.930Z",
-    "modified": "2022-07-21T08:06:23.335Z",
+    "modified": "2022-07-27T07:38:28.066Z",
     "headers": [],
-    "params": [
-      {
-        "name": "code",
-        "value": "{{kycCode}}",
-        "isPath": false
-      }
-    ],
+    "params": [],
     "body": {
       "type": "json",
       "raw": "{\n    \"limit\": 500000,\n    \"investmentDate\": \"Now\",\n    \"fundOrigin\": \"Savings\"\n}",
@@ -1422,19 +1398,13 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
     "name": "Upload Incorporation Certificate",
-    "url": "{{url}}/v1/kyc/incorporationCertificate?code={{kycCode}}",
+    "url": "{{url}}/v1/kyc/{{kycCode}}/incorporationCertificate",
     "method": "POST",
     "sortNum": 500000,
     "created": "2022-07-21T08:22:53.555Z",
-    "modified": "2022-07-21T11:58:11.256Z",
+    "modified": "2022-07-27T07:38:36.968Z",
     "headers": [],
-    "params": [
-      {
-        "name": "code",
-        "value": "{{kycCode}}",
-        "isPath": false
-      }
-    ],
+    "params": [],
     "body": {
       "type": "formdata",
       "raw": "",
@@ -1485,15 +1455,101 @@
     "tests": []
   },
   {
-    "_id": "3b789d47-2c12-4103-99a7-4ca65b643e98",
+    "_id": "7c25cd13-4068-489e-a1c0-eaffefdac268",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",
-    "name": "Upload XML",
-    "url": "{{url}}/v1/bankTx",
+    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
+    "name": "Deprecated KYC Progress",
+    "url": "{{url}}/v1/kyc?code={{kycCode}}",
+    "method": "GET",
+    "sortNum": 10000,
+    "created": "2022-07-27T13:15:18.678Z",
+    "modified": "2022-07-27T13:15:56.164Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "code",
+        "value": "{{kycCode}}",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "72561741-9c5b-4988-9c6d-53be9f3ce92d",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
+    "name": "Deprecated Request KYC",
+    "url": "{{url}}/v1/kyc",
     "method": "POST",
     "sortNum": 540000,
-    "created": "2022-07-26T13:38:08.571Z",
-    "modified": "2022-07-26T13:45:07.990Z",
+    "created": "2022-07-27T13:16:06.494Z",
+    "modified": "2022-07-27T13:17:09.637Z",
+    "headers": [],
+    "params": [],
+    "auth": {
+      "type": "bearer",
+      "bearer": "{{token}}"
+    },
+    "tests": []
+  },
+  {
+    "_id": "ec4cf48e-c737-406d-be1b-94ad43684917",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
+    "name": "Deprecated Update KYC Data",
+    "url": "{{url}}/v1/kyc/data",
+    "method": "POST",
+    "sortNum": 550000,
+    "created": "2022-07-27T14:06:29.406Z",
+    "modified": "2022-07-27T14:07:50.083Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"accountType\": \"Personal\",\n    \"firstname\": \"A\",\n    \"surname\": \"B\",\n    \"street\": \"C\",\n    \"houseNumber\": \"42\",\n    \"location\": \"D\",\n    \"zip\": \"4321\",\n    \"country\": {\n        \"id\": 55,\n        \"symbol\": \"DE\",\n        \"name\": \"Germany\",\n        \"enable\": true\n    },\n    \"mail\": \"test@test.com\",\n    \"phone\": \"+43 69912345678\"\n}",
+      "form": []
+    },
+    "auth": {
+      "type": "bearer",
+      "bearer": "{{token}}"
+    },
+    "tests": []
+  },
+  {
+    "_id": "266d849b-3590-402b-8c26-91cf4462c7c0",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
+    "name": "Deprecated Increase Limit",
+    "url": "{{url}}/v1/kyc/limit?code={{kycCode}}",
+    "method": "POST",
+    "sortNum": 560000,
+    "created": "2022-07-27T14:09:58.512Z",
+    "modified": "2022-07-27T14:12:59.878Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "code",
+        "value": "{{kycCode}}",
+        "isPath": false
+      }
+    ],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"limit\": 500000,\n    \"investmentDate\": \"Now\",\n    \"fundOrigin\": \"Savings\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "ace26c49-e460-450b-b407-85308cf74796",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
+    "name": "Deprecated Incorporation Certificate",
+    "url": "{{url}}/v1/kyc/incorporationCertificate",
+    "method": "POST",
+    "sortNum": 570000,
+    "created": "2022-07-27T14:13:15.317Z",
+    "modified": "2022-07-27T14:14:52.380Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1503,10 +1559,39 @@
       "files": [
         {
           "name": "files",
-          "value": "../../../../../Downloads/2022-07-25_C53_LI51088110104693K000U_USD_082598.xml"
+          "value": "kyc-incorp-cert/test.json"
         }
       ]
     },
+    "auth": {
+      "type": "bearer",
+      "bearer": "{{token}}"
+    },
     "tests": []
+  },
+  {
+      "_id": "3b789d47-2c12-4103-99a7-4ca65b643e98",
+      "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+      "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",
+      "name": "Upload XML",
+      "url": "{{url}}/v1/bankTx",
+      "method": "POST",
+      "sortNum": 540000,
+      "created": "2022-07-26T13:38:08.571Z",
+      "modified": "2022-07-26T13:45:07.990Z",
+      "headers": [],
+      "params": [],
+      "body": {
+          "type": "formdata",
+          "raw": "",
+          "form": [],
+          "files": [
+              {
+                  "name": "files",
+                  "value": "../../../../../Downloads/2022-07-25_C53_LI51088110104693K000U_USD_082598.xml"
+              }
+          ]
+      },
+      "tests": []
   }
 ]

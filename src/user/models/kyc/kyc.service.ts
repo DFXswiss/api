@@ -13,6 +13,7 @@ import { KycProcessService } from './kyc-process.service';
 export interface KycInfo {
   kycStatus: KycStatus;
   kycState: KycState;
+  kycHash: string;
   kycDataComplete: boolean;
   depositLimit: number;
   sessionUrl?: string;
@@ -50,8 +51,10 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
-  async updateKycData(code: string, data: KycUserDataDto): Promise<KycInfo> {
-    const user = await this.getUserByKYCCode(code)
+  async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
+    const user = userId
+      ? await this.getUserById(userId)
+      : await this.getUserByKYCCode(code)
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
@@ -108,8 +111,10 @@ export class KycService {
     return requiredFields.filter((f) => !user[f]).length === 0;
   }
 
-  async uploadDocument(code: string, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const userData = await this.getUserByKYCCode(code)
+  async uploadDocument(code: string, document: Express.Multer.File, kycDocument: KycDocument, userId?: number): Promise<boolean> {
+    const userData = userId
+      ? await this.getUserById(userId)
+      : await this.getUserByKYCCode(code)
 
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, userData.surname);
@@ -125,8 +130,10 @@ export class KycService {
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(code: string): Promise<KycInfo> {
-    let user = await this.getUserByKYCCode(code)
+  async requestKyc(code: string, userId?: number): Promise<KycInfo> {
+    let user = userId
+      ? await this.getUserById(userId)
+      : await this.getUserByKYCCode(code)
 
     // check if KYC already started
     if (user.kycStatus !== KycStatus.NA) {
@@ -139,9 +146,9 @@ export class KycService {
 
     // update
     user = await this.startKyc(user);
-    const updatedUser = await this.userDataRepo.save(user);
+    await this.userDataRepo.save(user);
 
-    return this.createKycInfoBasedOn(updatedUser);
+    return this.createKycInfoBasedOn(user);
   }
 
   private async startKyc(userData: UserData): Promise<UserData> {
@@ -174,6 +181,7 @@ export class KycService {
     return {
       kycStatus: userData.kycStatus,
       kycState: userData.kycState,
+      kycHash: userData.kycHash,
       kycDataComplete: this.isDataComplete(userData),
       depositLimit: userData.depositLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
@@ -185,9 +193,15 @@ export class KycService {
 
   // --- GET USER --- //
 
+  private async getUserById(id: number): Promise<UserData> {
+    const userData = await this.userDataService.getUserDataByUser(id)
+    if (!userData) throw new NotFoundException('User not found')
+    return userData
+  }
+
   private async getUserByKYCCode(code: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] });
-    if (!userData) throw new NotFoundException('User not found');
+    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] })
+    if (!userData) throw new NotFoundException('User not found')
     return userData
   }
 }

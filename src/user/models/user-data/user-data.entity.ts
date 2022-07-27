@@ -197,6 +197,7 @@ export function IdentCompleted(kycStatus?: KycStatus): boolean {
 const numberOfLastVisibleNumbers = 2
 
 export function Blank(value: string, type: BlankType): string {
+  if (!value || value.length === 0) return
   switch (type) {
     case BlankType.PHONE:
       // plus 1 as .join will only add a in between and not at the end
