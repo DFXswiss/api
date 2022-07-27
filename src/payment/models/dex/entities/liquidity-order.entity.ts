@@ -63,7 +63,7 @@ export class LiquidityOrder extends IEntity {
   purchasedAmount?: number;
 
   reserved(targetAmount: number): this {
-    this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : targetAmount;
+    this.setTargetAmount(targetAmount);
     this.isReady = true;
 
     return this;
@@ -79,7 +79,7 @@ export class LiquidityOrder extends IEntity {
 
   purchased(purchasedAmount: number): this {
     this.purchasedAmount = purchasedAmount;
-    this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : purchasedAmount;
+    this.setTargetAmount(purchasedAmount);
     this.isReady = true;
 
     return this;
@@ -89,6 +89,10 @@ export class LiquidityOrder extends IEntity {
     this.isComplete = true;
 
     return this;
+  }
+
+  private setTargetAmount(incomingAmount: number): void {
+    this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : incomingAmount;
   }
 
   static getIsReferenceAsset(asset: string): boolean {

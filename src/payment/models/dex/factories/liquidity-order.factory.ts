@@ -10,9 +10,9 @@ export class LiquidityOrderFactory {
 
   // *** PUBLIC API *** //
 
-  createPurchaseOrder(request: LiquidityRequest, chain: string, purchaseStrategy: AssetCategory): LiquidityOrder {
+  createPurchaseOrder(request: LiquidityRequest, chain: string, purchaseAssetCategory: AssetCategory): LiquidityOrder {
     const order = this.createOrder(request, chain, LiquidityOrderType.PURCHASE);
-    order.purchaseStrategy = purchaseStrategy;
+    order.purchaseStrategy = purchaseAssetCategory;
 
     return order;
   }

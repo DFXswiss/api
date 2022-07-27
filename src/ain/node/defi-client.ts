@@ -107,8 +107,8 @@ export class DeFiClient extends NodeClient {
     );
   }
 
-  async addPoolLiquidity(addressFrom: string, addressTo: string, assetsPair: [string, string]): Promise<string> {
-    return this.callNode((c) => c.poolpair.addPoolLiquidity({ [addressFrom]: assetsPair }, addressTo), true);
+  async addPoolLiquidity(address: string, assetsPair: [string, string]): Promise<string> {
+    return this.callNode((c) => c.poolpair.addPoolLiquidity({ [address]: assetsPair }, address), true);
   }
 
   async sendToken(

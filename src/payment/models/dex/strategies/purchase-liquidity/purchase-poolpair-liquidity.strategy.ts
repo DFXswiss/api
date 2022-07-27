@@ -178,11 +178,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
   ): Promise<void> {
     const poolPair: [string, string] = [`${leftAmount}@${leftAsset}`, `${rightAmount}@${rightAsset}`];
 
-    const chainSwapId = await this.chainClient.addPoolLiquidity(
-      Config.node.dexWalletAddress,
-      Config.node.dexWalletAddress,
-      poolPair,
-    );
+    const chainSwapId = await this.chainClient.addPoolLiquidity(Config.node.dexWalletAddress, poolPair);
 
     order.addPurchaseMetadata(chainSwapId);
 
