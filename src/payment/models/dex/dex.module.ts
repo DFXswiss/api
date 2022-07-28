@@ -4,7 +4,7 @@ import { AinModule } from 'src/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { LiquidityOrderFactory } from './factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from './repositories/liquidity-order.repository';
-import { DEXService } from './services/dex.service';
+import { DexService } from './services/dex.service';
 import { LiquidityService } from './services/liquidity.service';
 import { CheckLiquidityDefaultStrategy } from './strategies/check-liquidity/check-liquidity-default.strategy';
 import { CheckPoolPairLiquidityStrategy } from './strategies/check-liquidity/check-poolpair-liquidity.strategy';
@@ -20,13 +20,13 @@ import { DeFiChainUtil } from './utils/defichain.util';
     LiquidityService,
     DeFiChainUtil,
     LiquidityOrderFactory,
-    DEXService,
+    DexService,
     CheckPoolPairLiquidityStrategy,
     CheckLiquidityDefaultStrategy,
     PurchaseCryptoLiquidityStrategy,
     PurchasePoolPairLiquidityStrategy,
     PurchaseStockLiquidityStrategy,
   ],
-  exports: [DEXService, DeFiChainUtil],
+  exports: [DexService, DeFiChainUtil],
 })
 export class DexModule {}

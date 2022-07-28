@@ -8,7 +8,7 @@ import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-bat
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
-import { DEXService, LiquidityRequest } from '../../dex/services/dex.service';
+import { DexService, LiquidityRequest } from '../../dex/services/dex.service';
 import { LiquidityOrderNotReadyException } from '../../dex/exceptions/liquidity-order-not-ready.exception';
 import { PriceSlippageException } from '../../dex/exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
@@ -21,7 +21,7 @@ export class BuyCryptoDexService {
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly assetService: AssetService,
-    private readonly dexService: DEXService,
+    private readonly dexService: DexService,
     readonly nodeService: NodeService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -39,7 +39,8 @@ export class BuyCryptoDexService {
         relations: ['transactions'],
       });
 
-      await this.secureLiquidityPerBatch(newBatches, pendingBatches);
+      await this.checkPendingBatches(pendingBatches);
+      await this.processNewBatches(newBatches);
     } catch (e) {
       console.error(e);
     }
@@ -58,11 +59,6 @@ export class BuyCryptoDexService {
     } catch (e) {
       console.error(e);
     }
-  }
-
-  private async secureLiquidityPerBatch(newBatches: BuyCryptoBatch[], pendingBatches: BuyCryptoBatch[]): Promise<void> {
-    await this.checkPendingBatches(pendingBatches);
-    await this.processNewBatches(newBatches);
   }
 
   private async checkPendingBatches(pendingBatches: BuyCryptoBatch[]): Promise<void> {
@@ -112,7 +108,7 @@ export class BuyCryptoDexService {
     try {
       const request = await this.createLiquidityRequest(batch);
 
-      return (await this.dexService.reserveLiquidity(request)) || 0;
+      return await this.dexService.reserveLiquidity(request);
     } catch (e) {
       if (e instanceof NotEnoughLiquidityException) {
         console.info(e.message);

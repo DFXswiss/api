@@ -1,24 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/ain/node/node.service';
+import { AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
+import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
+import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
+import { LiquidityRequest } from '../../services/dex.service';
 import { LiquidityService } from '../../services/liquidity.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
-import { MailService } from 'src/shared/services/mail.service';
-import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
-import { LiquidityRequest } from '../../services/dex.service';
-import { AssetCategory } from 'src/shared/models/asset/asset.entity';
-import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
-import { Blockchain } from 'src/ain/node/node.service';
 
-@Injectable()
-export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
+export abstract class PurchaseNonPoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {
+  private prioritySwapAssets: string[] = [];
+
   constructor(
-    readonly mailService: MailService,
+    mailService: MailService,
     private readonly liquidityService: LiquidityService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
+    prioritySwapAssets: string[],
   ) {
     super(mailService);
+    this.prioritySwapAssets = prioritySwapAssets;
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
@@ -62,38 +64,25 @@ export class PurchaseStockLiquidityStrategy extends PurchaseLiquidityStrategy {
   ): Promise<{ asset: string; amount: number }> {
     const errors = [];
 
-    if (targetAsset !== 'DUSD') {
-      try {
-        const amount = await this.liquidityService.getSwapAmountForPurchase(
-          referenceAsset,
-          referenceAmount,
-          targetAsset,
-          'DUSD',
-        );
-        return { asset: 'DUSD', amount };
-      } catch (e) {
-        if (e instanceof NotEnoughLiquidityException) {
-          errors.push(e.message);
-        } else {
-          throw e;
+    for (const prioritySwapAsset of this.prioritySwapAssets) {
+      if (!(targetAsset === 'DUSD' && prioritySwapAsset === 'DUSD')) {
+        try {
+          return {
+            asset: prioritySwapAsset,
+            amount: await this.liquidityService.getSwapAmountForPurchase(
+              referenceAsset,
+              referenceAmount,
+              targetAsset,
+              prioritySwapAsset,
+            ),
+          };
+        } catch (e) {
+          if (e instanceof NotEnoughLiquidityException) {
+            errors.push(e.message);
+          } else {
+            throw e;
+          }
         }
-      }
-    }
-
-    try {
-      const amount = await this.liquidityService.getSwapAmountForPurchase(
-        referenceAsset,
-        referenceAmount,
-        targetAsset,
-        'DFI',
-      );
-
-      return { asset: 'DFI', amount };
-    } catch (e) {
-      if (e instanceof NotEnoughLiquidityException) {
-        errors.push(e.message);
-      } else {
-        throw e;
       }
     }
 

@@ -8,6 +8,7 @@ import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityRequest } from '../../services/dex.service';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
+import { Blockchain } from 'src/ain/node/node.service';
 
 @Injectable()
 export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
@@ -21,7 +22,7 @@ export class PurchaseCryptoLiquidityStrategy extends PurchaseLiquidityStrategy {
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
-    const order = this.liquidityOrderFactory.createPurchaseOrder(request, 'defichain', AssetCategory.CRYPTO);
+    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, AssetCategory.CRYPTO);
 
     try {
       await this.bookLiquiditySwap(order);

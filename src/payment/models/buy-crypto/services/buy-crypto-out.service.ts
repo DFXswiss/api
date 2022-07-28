@@ -12,7 +12,7 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { Util } from 'src/shared/util';
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { DeFiChainUtil } from '../../dex/utils/defichain.util';
-import { DEXService } from '../../dex/services/dex.service';
+import { DexService } from '../../dex/services/dex.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
 
 @Injectable()
@@ -25,7 +25,7 @@ export class BuyCryptoOutService {
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly deFiChainUtil: DeFiChainUtil,
-    private readonly dexService: DEXService,
+    private readonly dexService: DexService,
     private readonly whaleService: WhaleService,
     readonly nodeService: NodeService,
   ) {
@@ -82,6 +82,8 @@ export class BuyCryptoOutService {
         if (!canProceed) {
           continue;
         }
+
+        await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
 
         const groups = batch.groupPayoutTransactions();
 
@@ -141,7 +143,6 @@ export class BuyCryptoOutService {
       batch.complete();
 
       await this.buyCryptoBatchRepo.save(batch);
-      await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
     }
   }
 
