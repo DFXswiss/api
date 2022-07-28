@@ -1360,11 +1360,11 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
     "name": "Update KYC Data",
-    "url": "{{url}}/v1/kyc/{{kycCode}}",
+    "url": "{{url}}/v1/kyc/{{kycCode}}/data",
     "method": "PUT",
     "sortNum": 460000,
     "created": "2022-07-21T07:55:08.344Z",
-    "modified": "2022-07-27T12:56:13.554Z",
+    "modified": "2022-07-28T12:41:03.761Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1451,6 +1451,31 @@
     "auth": {
       "type": "bearer",
       "bearer": "{{token}}"
+    },
+    "tests": []
+  },
+  {
+    "_id": "3b789d47-2c12-4103-99a7-4ca65b643e98",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",
+    "name": "Upload XML",
+    "url": "{{url}}/v1/bankTx",
+    "method": "POST",
+    "sortNum": 540000,
+    "created": "2022-07-26T13:38:08.571Z",
+    "modified": "2022-07-26T13:45:07.990Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "formdata",
+      "raw": "",
+      "form": [],
+      "files": [
+        {
+          "name": "files",
+          "value": "../../../../../Downloads/2022-07-25_C53_LI51088110104693K000U_USD_082598.xml"
+        }
+      ]
     },
     "tests": []
   },
@@ -1568,30 +1593,5 @@
       "bearer": "{{token}}"
     },
     "tests": []
-  },
-  {
-      "_id": "3b789d47-2c12-4103-99a7-4ca65b643e98",
-      "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-      "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",
-      "name": "Upload XML",
-      "url": "{{url}}/v1/bankTx",
-      "method": "POST",
-      "sortNum": 540000,
-      "created": "2022-07-26T13:38:08.571Z",
-      "modified": "2022-07-26T13:45:07.990Z",
-      "headers": [],
-      "params": [],
-      "body": {
-          "type": "formdata",
-          "raw": "",
-          "form": [],
-          "files": [
-              {
-                  "name": "files",
-                  "value": "../../../../../Downloads/2022-07-25_C53_LI51088110104693K000U_USD_082598.xml"
-              }
-          ]
-      },
-      "tests": []
   }
 ]

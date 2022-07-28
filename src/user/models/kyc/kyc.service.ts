@@ -1,5 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Blank, BlankType, KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
+import {
+  Blank,
+  BlankType,
+  KycInProgress,
+  KycState,
+  KycStatus,
+  UserData,
+} from 'src/user/models/user-data/user-data.entity';
 import { KycDocument } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { SpiderService } from 'src/user/services/spider/spider.service';
@@ -52,9 +59,7 @@ export class KycService {
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
-    const user = userId
-      ? await this.getUserById(userId)
-      : await this.getUserByKYCCode(code)
+    const user = await this.getUser(code, userId);
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
@@ -73,11 +78,11 @@ export class KycService {
       data.organizationCountry = null;
     }
 
-    await this.userDataService.updateSpiderIfNeeded(user, data)
+    await this.userDataService.updateSpiderIfNeeded(user, data);
 
     const updatedUser = await this.userDataRepo.save({ ...user, ...data });
 
-    return this.createKycInfoBasedOn(updatedUser)
+    return this.createKycInfoBasedOn(updatedUser);
   }
 
   async userDataComplete(userId: number): Promise<boolean> {
@@ -111,10 +116,13 @@ export class KycService {
     return requiredFields.filter((f) => !user[f]).length === 0;
   }
 
-  async uploadDocument(code: string, document: Express.Multer.File, kycDocument: KycDocument, userId?: number): Promise<boolean> {
-    const userData = userId
-      ? await this.getUserById(userId)
-      : await this.getUserByKYCCode(code)
+  async uploadDocument(
+    code: string,
+    document: Express.Multer.File,
+    kycDocument: KycDocument,
+    userId?: number,
+  ): Promise<boolean> {
+    const userData = await this.getUser(code, userId);
 
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, userData.surname);
@@ -131,9 +139,7 @@ export class KycService {
 
   // --- KYC PROCESS --- //
   async requestKyc(code: string, userId?: number): Promise<KycInfo> {
-    let user = userId
-      ? await this.getUserById(userId)
-      : await this.getUserByKYCCode(code)
+    let user = await this.getUser(code, userId);
 
     // check if KYC already started
     if (user.kycStatus !== KycStatus.NA) {
@@ -163,7 +169,7 @@ export class KycService {
   }
 
   async getKycStatus(code: string): Promise<KycInfo> {
-    let userData = await this.getUserByKYCCode(code)
+    let userData = await this.getUserByKycCode(code);
 
     if (KycInProgress(userData.kycStatus)) {
       // update
@@ -171,7 +177,7 @@ export class KycService {
       await this.userDataRepo.save(userData);
     }
 
-    return this.createKycInfoBasedOn(userData)
+    return this.createKycInfoBasedOn(userData);
   }
 
   // --- CREATE KYC INFO --- //
@@ -193,15 +199,19 @@ export class KycService {
 
   // --- GET USER --- //
 
-  private async getUserById(id: number): Promise<UserData> {
-    const userData = await this.userDataService.getUserDataByUser(id)
-    if (!userData) throw new NotFoundException('User not found')
-    return userData
+  private async getUser(code: string, userId?: number): Promise<UserData> {
+    return userId ? await this.getUserById(userId) : await this.getUserByKycCode(code);
   }
 
-  private async getUserByKYCCode(code: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] })
-    if (!userData) throw new NotFoundException('User not found')
-    return userData
+  private async getUserById(id: number): Promise<UserData> {
+    const userData = await this.userDataService.getUserDataByUser(id);
+    if (!userData) throw new NotFoundException('User not found');
+    return userData;
+  }
+
+  private async getUserByKycCode(code: string): Promise<UserData> {
+    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] });
+    if (!userData) throw new NotFoundException('User not found');
+    return userData;
   }
 }

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsEnum, IsString, ValidateIf, IsNotEmptyObject, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsEnum, IsString, ValidateIf, IsNotEmptyObject, ValidateNested, IsEmail } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { AccountType } from '../../user-data/account-type.enum';
@@ -49,7 +49,7 @@ export class KycUserDataDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
+  @IsEmail()
   mail: string;
 
   @ApiProperty()
