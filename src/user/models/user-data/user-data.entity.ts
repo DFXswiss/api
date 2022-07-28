@@ -194,17 +194,21 @@ export function IdentCompleted(kycStatus?: KycStatus): boolean {
   return IdentCompletedStates.includes(kycStatus);
 }
 
-const numberOfLastVisibleNumbers = 2
+const numberOfLastVisibleNumbers = 2;
 
 export function Blank(value: string, type: BlankType): string {
-  if (!value || value.length === 0) return
+  if (!value || value.length === 0) return;
   switch (type) {
     case BlankType.PHONE:
-      // plus 1 as .join will only add a in between and not at the end
-      return `${new Array(value.length - numberOfLastVisibleNumbers + 1).join('*')}${value.substring(value.length - numberOfLastVisibleNumbers)}`
+      return `${createStringOf('*', value.length - numberOfLastVisibleNumbers)}${value.substring(
+        value.length - numberOfLastVisibleNumbers,
+      )}`;
     case BlankType.MAIL:
-      const [name, domain] = value.split('@')
-      // -1 on name.length .join is not needed as the join will produce one less character
-      return `${name[0]}${new Array(name.length).join('*')}@${domain}`
+      const [name, domain] = value.split('@');
+      return `${name[0]}${createStringOf('*', name.length - 1)}@${domain}`;
   }
+}
+
+function createStringOf(character: string, length: number): string {
+  return ''.padStart(length, character);
 }
