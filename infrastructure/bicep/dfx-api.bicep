@@ -56,6 +56,13 @@ param binanceKey string
 @secure()
 param binanceSecret string
 
+param olkyClient string
+@secure()
+param olkySecret string
+param olkyUser string
+@secure()
+param olkyPassword string
+
 param letterUrl string
 param letterUser string
 @secure()
@@ -567,6 +574,22 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SEPA_TOOLS_PASSWORD'
           value: sepaToolsPassword
+        }
+        {
+          name: 'OLKY_CLIENT'
+          value: olkyClient
+        }
+        {
+          name: 'OLKY_CLIENT_SECRET'
+          value: olkySecret
+        }
+        {
+          name: 'OLKY_USERNAME'
+          value: olkyUser
+        }
+        {
+          name: 'OLKY_PASSWORD'
+          value: olkyPassword
         }
       ]
     }

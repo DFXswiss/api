@@ -101,6 +101,18 @@
     "binanceSecret": {
       "value": "xxx"
     },
+    "olkyClient": {
+      "value": "xxx"
+    },
+    "olkySecret": {
+      "value": "xxx"
+    },
+    "olkyUser": {
+      "value": "xxx"
+    },
+    "olkyPassword": {
+      "value": "xxx"
+    },
     "letterUrl": {
       "value": "https://api.letterxpress.de/v1"
     },
