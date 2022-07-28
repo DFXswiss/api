@@ -93,10 +93,12 @@ export class OlkypayService {
     return await this.callApi<Transaction[]>(url);
   }
 
-  private async getBalance(): Promise<Balance> {
+  async getBalance(): Promise<number> {
     const url = `balance/today/${Config.bank.olkypay.clientId}`;
 
-    return await this.callApi<Balance>(url);
+    const balance = await this.callApi<Balance>(url);
+
+    return Util.round(balance.balance / 100, 2);
   }
 
   // --- PARSING --- //
