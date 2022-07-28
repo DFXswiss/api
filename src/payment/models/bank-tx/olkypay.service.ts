@@ -104,14 +104,21 @@ export class OlkypayService {
     if (tx.debit > 0 && tx.credit > 0)
       throw new Error(`Transaction with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
+    const amount = Util.round((tx.debit + tx.credit) / 100, 2);
+    const currency = 'EUR';
     return {
       accountServiceRef: tx.idCtp.toString(),
       bookingDate: this.parseDate(tx.dateEcriture),
       valueDate: this.parseDate(tx.dateValeur),
       txCount: 1,
       instructionId: tx.codeInterbancaireInterne,
-      amount: Util.round((tx.debit + tx.credit) / 100, 2),
-      currency: 'EUR',
+      amount,
+      instructedAmount: amount,
+      instructedCurrency: currency,
+      currency,
+      txAmount: amount,
+      chargeAmount: 0,
+      chargeCurrency: currency,
       creditDebitIndicator: tx.debit > 0 ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
       iban: tx.instructingIban,
       ...this.getNameAndAddress(tx),
