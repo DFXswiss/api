@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
 import { ChainSwapId, LiquidityOrder, TargetAmount } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -16,6 +17,7 @@ export class LiquidityService {
   constructor(
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly deFiChainUtil: DeFiChainUtil,
+    private readonly settingService: SettingService,
     readonly nodeService: NodeService,
   ) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.#dexClient = client));
@@ -35,7 +37,10 @@ export class LiquidityService {
         : await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, sourceAmount);
 
     await this.checkAssetAvailability(targetAsset, targetAmount);
-    await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage);
+
+    if ((await this.settingService.get('slippage-protection')) === 'on') {
+      await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage);
+    }
 
     return targetAmount;
   }
@@ -46,7 +51,10 @@ export class LiquidityService {
     targetAsset: string,
     maxSlippage: number,
   ): Promise<ChainSwapId> {
-    const maxPrice = await this.calculateMaxSwapPrice(swapAsset, targetAsset, maxSlippage);
+    const maxPrice =
+      (await this.settingService.get('slippage-protection')) === 'on'
+        ? await this.calculateMaxTargetAssetPrice(swapAsset, targetAsset, maxSlippage)
+        : undefined;
 
     try {
       return await this.#dexClient.compositeSwap(
@@ -60,7 +68,9 @@ export class LiquidityService {
       );
     } catch (e) {
       if (this.isCompositeSwapSlippageError(e)) {
-        throw new PriceSlippageException(e.message);
+        throw new PriceSlippageException(
+          `Price is higher than indicated. Composite swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
+        );
       }
 
       throw e;
@@ -130,9 +140,9 @@ export class LiquidityService {
     swapAsset: string,
   ): Promise<number> {
     if (referenceAsset === targetAsset) {
-      const referenceAssetPrice = await this.calculatePrice(swapAsset, referenceAsset);
+      const swapAssetPrice = await this.calculatePrice(referenceAsset, swapAsset);
 
-      const swapAmount = referenceAmount / referenceAssetPrice;
+      const swapAmount = referenceAmount / swapAssetPrice;
 
       // adding 5% cap to liquidity swap to cover meantime referenceAmount price difference (initially taken from Kraken/Binance)
       return Util.round(swapAmount + swapAmount * 0.05, 8);
@@ -148,29 +158,35 @@ export class LiquidityService {
     targetAmount: number,
     maxSlippage: number,
   ): Promise<void> {
-    const maxPrice = await this.calculateMaxSwapPrice(sourceAsset, targetAsset, maxSlippage);
+    // how much sourceAsset we are willing to pay for 1 unit of targetAsset max
+    const maxPrice = await this.calculateMaxTargetAssetPrice(sourceAsset, targetAsset, maxSlippage);
 
     const minimalAllowedTargetAmount = Util.round(sourceAmount / maxPrice, 8);
 
-    if (targetAmount > 0.0001 && targetAmount < minimalAllowedTargetAmount) {
+    if (targetAmount > 0.000001 && targetAmount < minimalAllowedTargetAmount) {
       throw new PriceSlippageException(
-        `Price is higher than indicated. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${
-          sourceAmount / targetAmount
-        } ${sourceAsset}`,
+        `Price is higher than indicated. Test swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
+          sourceAmount / targetAmount,
+          8,
+        )} ${sourceAsset}`,
       );
     }
   }
 
-  private async calculateMaxSwapPrice(sourceAsset: string, targetAsset: string, maxSlippage: number): Promise<number> {
+  private async calculateMaxTargetAssetPrice(
+    sourceAsset: string,
+    targetAsset: string,
+    maxSlippage: number,
+  ): Promise<number> {
     // how much of sourceAsset you get for 1 unit of targetAsset
-    const price = await this.calculatePrice(targetAsset, sourceAsset);
+    const targetAssetPrice = await this.calculatePrice(sourceAsset, targetAsset);
 
-    return Util.round(price * (1 + maxSlippage), 8);
+    return Util.round(targetAssetPrice * (1 + maxSlippage), 8);
   }
 
-  private async calculatePrice(fromAsset: string, toAsset: string): Promise<number> {
-    // how much units of toAsset you get for 1 unit of fromAsset
-    return (await this.#dexClient.testCompositeSwap(fromAsset, toAsset, 0.001)) / 0.001;
+  private async calculatePrice(sourceAsset: string, targetAsset: string): Promise<number> {
+    // how much of sourceAsset you going to pay for 1 unit of targetAsset, caution - only indicative calculation
+    return 1 / ((await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, 0.001)) / 0.001);
   }
 
   private isCompositeSwapSlippageError(e: Error): boolean {

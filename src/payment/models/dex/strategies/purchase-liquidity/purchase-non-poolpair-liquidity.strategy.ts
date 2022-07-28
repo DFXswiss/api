@@ -14,9 +14,9 @@ export abstract class PurchaseNonPoolPairLiquidityStrategy extends PurchaseLiqui
 
   constructor(
     mailService: MailService,
-    private readonly liquidityService: LiquidityService,
-    private readonly liquidityOrderRepo: LiquidityOrderRepository,
-    private readonly liquidityOrderFactory: LiquidityOrderFactory,
+    protected readonly liquidityService: LiquidityService,
+    protected readonly liquidityOrderRepo: LiquidityOrderRepository,
+    protected readonly liquidityOrderFactory: LiquidityOrderFactory,
     prioritySwapAssets: string[],
   ) {
     super(mailService);
@@ -30,7 +30,7 @@ export abstract class PurchaseNonPoolPairLiquidityStrategy extends PurchaseLiqui
       await this.bookLiquiditySwap(order);
       await this.liquidityOrderRepo.save(order);
     } catch (e) {
-      await this.handlePurchaseLiquidityError(e, order);
+      await this.handlePurchaseLiquidityError(e, request);
     }
   }
 

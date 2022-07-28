@@ -73,7 +73,7 @@ export class DexService {
       if (e instanceof NotEnoughLiquidityException) return 0;
       if (e instanceof PriceSlippageException) throw e;
 
-      console.error(e);
+      console.error(e.message);
 
       // default public exception
       throw new Error(`Error while checking liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
@@ -99,12 +99,16 @@ export class DexService {
 
         return order.targetAmount;
       }
+
+      throw new NotEnoughLiquidityException(
+        `Not enough liquidity of asset ${targetAsset.dexName}. Available amount: 0. Fallback error message.`,
+      );
     } catch (e) {
       // publicly exposed exceptions
       if (e instanceof NotEnoughLiquidityException) throw e;
       if (e instanceof PriceSlippageException) throw e;
 
-      console.error(e);
+      console.error(e.message);
 
       // default public exception
       throw new Error(`Error while reserving liquidity. Context: ${context}. Correlation ID: ${correlationId}.`);
@@ -128,7 +132,7 @@ export class DexService {
       // publicly exposed exception
       if (e instanceof PriceSlippageException) throw e;
 
-      console.error(e);
+      console.error(e.message);
 
       // default public exception
       throw new Error(`Error while purchasing liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);

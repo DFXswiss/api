@@ -92,14 +92,14 @@ export class BuyCryptoDexService {
           batch.secure(liquidity);
           await this.buyCryptoBatchRepo.save(batch);
 
-          console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
+          console.info(`Secured liquidity for batch. Batch ID: ${batch.id}.`);
 
           continue;
         }
 
         await this.purchaseLiquidity(batch);
       } catch (e) {
-        console.info(`Error in processing new batch. Batch ID: ${batch.id}`, e);
+        console.info(`Error in processing new batch. Batch ID: ${batch.id}.`, e.message);
       }
     }
   }
@@ -122,8 +122,7 @@ export class BuyCryptoDexService {
         );
       }
 
-      console.error(`Error in checking liquidity for a batch, ID: ${batch.id}`, e);
-      throw e;
+      throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
     }
   }
 
@@ -143,8 +142,9 @@ export class BuyCryptoDexService {
         );
       }
 
-      console.error(`Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
-      throw e;
+      throw new Error(
+        `Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}. ${e.message}`,
+      );
     }
 
     try {
