@@ -59,7 +59,6 @@ import { BuyCryptoOutService } from './models/buy-crypto/services/buy-crypto-out
 import { BuyCryptoDexService } from './models/buy-crypto/services/buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './models/buy-crypto/services/buy-crypto-notification.service';
 import { BuyCryptoBatchRepository } from './models/buy-crypto/repositories/buy-crypto-batch.repository';
-import { BuyCryptoChainUtil } from './models/buy-crypto/utils/buy-crypto-chain.util';
 import { BankAccountService } from './models/bank-account/bank-account.service';
 import { BankAccountRepository } from './models/bank-account/bank-account.repository';
 import { CryptoRouteController } from './models/crypto-route/crypto-route.controller';
@@ -70,6 +69,7 @@ import { DeFiInputService } from './models/crypto-input/defi-input.service';
 import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
 import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
+import { DexModule } from './models/dex/dex.module';
 import { OlkypayService } from './models/bank-tx/olkypay.service';
 
 @Module({
@@ -99,6 +99,7 @@ import { OlkypayService } from './models/bank-tx/olkypay.service';
     SharedModule,
     AinModule,
     UserModule,
+    DexModule,
   ],
   controllers: [
     BankTxController,
@@ -132,7 +133,6 @@ import { OlkypayService } from './models/bank-tx/olkypay.service';
     BuyCryptoDexService,
     BuyCryptoNotificationService,
     BuyCryptoOutService,
-    BuyCryptoChainUtil,
     BankTxService,
     OlkypayService,
     BankService,

@@ -235,22 +235,12 @@ describe('BuyCryptoBatch', () => {
   });
 
   describe('#pending(...)', () => {
-    it('sets a purchaseTxId', () => {
-      const entity = createCustomBuyCryptoBatch({ purchaseTxId: undefined });
-
-      expect(entity.purchaseTxId).toBeUndefined();
-
-      entity.pending('P_ID_01');
-
-      expect(entity.purchaseTxId).toBe('P_ID_01');
-    });
-
     it('sets a status to PENDING_LIQUIDITY', () => {
       const entity = createCustomBuyCryptoBatch({ status: undefined });
 
       expect(entity.status).toBeUndefined();
 
-      entity.pending('P_ID_01');
+      entity.pending();
 
       expect(entity.status).toBe(BuyCryptoBatchStatus.PENDING_LIQUIDITY);
     });
@@ -258,7 +248,7 @@ describe('BuyCryptoBatch', () => {
     it('returns instance of BuyCryptoBatch', () => {
       const entity = createDefaultBuyCryptoBatch();
 
-      const updatedEntity = entity.pending('P_ID_01');
+      const updatedEntity = entity.pending();
 
       expect(updatedEntity).toBeInstanceOf(BuyCryptoBatch);
     });
