@@ -24,7 +24,6 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     AinModule,
     PaymentModule,
     UserModule,
-    BankTxBatchRepository,
   ],
   providers: [
     MonitoringService,
@@ -35,8 +34,6 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     UserObserver,
     BankingBotObserver,
     OlkypayObserver,
-    OlkypayService,
-    BankTxBatchRepository,
   ],
   controllers: [MonitoringController],
   exports: [MonitoringService],

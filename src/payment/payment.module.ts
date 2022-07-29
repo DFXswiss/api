@@ -177,6 +177,7 @@ import { OlkypayService } from './models/bank-tx/olkypay.service';
     StakingRefRewardService,
     BankAccountService,
     CryptoRouteService,
+    OlkypayService,
   ],
 })
 export class PaymentModule {}

@@ -3,8 +3,6 @@ import { Interval } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
-import { BankTxBatchRepository } from 'src/payment/models/bank-tx/bank-tx-batch.repository';
-import { BankTxIndicator } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
 import { OlkypayService } from 'src/payment/models/bank-tx/olkypay.service';
 import { getCustomRepository } from 'typeorm';
@@ -18,7 +16,7 @@ interface OlkypayData {
 @Injectable()
 export class OlkypayObserver extends MetricObserver<OlkypayData> {
   constructor(monitoringService: MonitoringService, private readonly olkypayService: OlkypayService) {
-    super(monitoringService, 'olkypay', 'combined');
+    super(monitoringService, 'olkypay', 'balance');
   }
 
   @Interval(10000)
@@ -33,29 +31,22 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
   // *** HELPER METHODS *** //
 
   private async getOlkypay(): Promise<OlkypayData> {
-    const bankTxBatch = await getCustomRepository(BankTxBatchRepository).findOne({
-      where: { iban: Config.bank.olkypay.iban },
-    });
-
-    const transactions = await getCustomRepository(BankTxRepository)
-      .createQueryBuilder('bankTx')
-      .where('bankTx.batchId = :batchId', { batchId: bankTxBatch.id })
-      .getMany();
-
-    let dbBalance = 0;
-    for (const transaction of transactions) {
-      dbBalance += this.amount(transaction.creditDebitIndicator as BankTxIndicator, transaction.amount);
-    }
     const balance = await this.olkypayService.getBalance();
+
+    const dbBalance = await getCustomRepository(BankTxRepository)
+      .createQueryBuilder('bankTx')
+      .select(
+        "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
+        'balance',
+      )
+      .innerJoin('bankTx.batch', 'bankTxBatch')
+      .where('bankTxBatch.iban = :iban', { iban: Config.bank.olkypay.iban })
+      .getRawOne<{ balance: number }>();
 
     return {
       balance,
-      dbBalance,
-      difference: balance - dbBalance,
+      dbBalance: dbBalance.balance,
+      difference: balance - dbBalance.balance,
     };
-  }
-
-  private amount(indicator: BankTxIndicator, amount: number): number {
-    return indicator == BankTxIndicator.CREDIT ? amount : -amount;
   }
 }
