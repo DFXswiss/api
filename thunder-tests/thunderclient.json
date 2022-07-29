@@ -1445,13 +1445,9 @@
     "method": "GET",
     "sortNum": 520000,
     "created": "2022-07-21T14:41:01.678Z",
-    "modified": "2022-07-21T14:42:04.970Z",
+    "modified": "2022-07-29T06:21:05.072Z",
     "headers": [],
     "params": [],
-    "auth": {
-      "type": "bearer",
-      "bearer": "{{token}}"
-    },
     "tests": []
   },
   {
@@ -1508,13 +1504,9 @@
     "method": "POST",
     "sortNum": 540000,
     "created": "2022-07-27T13:16:06.494Z",
-    "modified": "2022-07-27T13:17:09.637Z",
+    "modified": "2022-07-29T06:21:23.523Z",
     "headers": [],
     "params": [],
-    "auth": {
-      "type": "bearer",
-      "bearer": "{{token}}"
-    },
     "tests": []
   },
   {
@@ -1526,17 +1518,13 @@
     "method": "POST",
     "sortNum": 550000,
     "created": "2022-07-27T14:06:29.406Z",
-    "modified": "2022-07-27T14:07:50.083Z",
+    "modified": "2022-07-29T06:21:40.661Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
       "raw": "{\n    \"accountType\": \"Personal\",\n    \"firstname\": \"A\",\n    \"surname\": \"B\",\n    \"street\": \"C\",\n    \"houseNumber\": \"42\",\n    \"location\": \"D\",\n    \"zip\": \"4321\",\n    \"country\": {\n        \"id\": 55,\n        \"symbol\": \"DE\",\n        \"name\": \"Germany\",\n        \"enable\": true\n    },\n    \"mail\": \"test@test.com\",\n    \"phone\": \"+43 69912345678\"\n}",
       "form": []
-    },
-    "auth": {
-      "type": "bearer",
-      "bearer": "{{token}}"
     },
     "tests": []
   },
@@ -1574,7 +1562,7 @@
     "method": "POST",
     "sortNum": 570000,
     "created": "2022-07-27T14:13:15.317Z",
-    "modified": "2022-07-27T14:14:52.380Z",
+    "modified": "2022-07-29T06:21:50.347Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1587,10 +1575,6 @@
           "value": "kyc-incorp-cert/test.json"
         }
       ]
-    },
-    "auth": {
-      "type": "bearer",
-      "bearer": "{{token}}"
     },
     "tests": []
   }
