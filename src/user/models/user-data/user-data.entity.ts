@@ -4,7 +4,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
-import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index } from 'typeorm';
+import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index, Generated } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { AccountType } from './account-type.enum';
 
@@ -30,6 +30,11 @@ export enum RiskState {
   A = 'a',
   B = 'b',
   C = 'c',
+}
+
+export enum BlankType {
+  PHONE,
+  MAIL,
 }
 
 @Entity()
@@ -119,8 +124,9 @@ export class UserData extends IEntity {
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
 
-  @Column({ length: 256, nullable: true })
-  @Index({ unique: true, where: 'kycHash IS NOT NULL' })
+  @Column()
+  @Generated('uuid')
+  @Index({ unique: true })
   kycHash: string;
 
   @Column({ type: 'float', default: 90000 })
@@ -186,4 +192,23 @@ export function KycCompleted(kycStatus?: KycStatus): boolean {
 
 export function IdentCompleted(kycStatus?: KycStatus): boolean {
   return IdentCompletedStates.includes(kycStatus);
+}
+
+const numberOfLastVisibleNumbers = 2;
+
+export function Blank(value: string, type: BlankType): string {
+  if (!value || value.length === 0) return value;
+  switch (type) {
+    case BlankType.PHONE:
+      return `${createStringOf('*', value.length - numberOfLastVisibleNumbers)}${value.substring(
+        value.length - numberOfLastVisibleNumbers,
+      )}`;
+    case BlankType.MAIL:
+      const [name, domain] = value.split('@');
+      return `${name[0]}${createStringOf('*', name.length - 1)}@${domain}`;
+  }
+}
+
+function createStringOf(character: string, length: number): string {
+  return ''.padStart(length, character);
 }

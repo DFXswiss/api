@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
@@ -60,20 +59,7 @@ export class UserDataService {
       currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
     });
 
-    // generate KYC hash
-    userData.kycHash = await this.generateKycHash(userData.id);
-    await this.userDataRepo.update(userData.id, { kycHash: userData.kycHash });
-
     return userData;
-  }
-
-  private async generateKycHash(id: number): Promise<string> {
-    for (let i = 0; i < 3; i++) {
-      const kycHash = Util.createHash(id.toString() + new Date().getDate()).slice(0, 12);
-      if ((await this.getUserDataByKycHash(kycHash)) == null) return kycHash;
-    }
-
-    throw new InternalServerErrorException(`Failed to generate KYC hash`);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
@@ -139,18 +125,22 @@ export class UserDataService {
     }
 
     // update spider
-    if ((dto.phone && dto.phone != user.phone) || (dto.mail && dto.mail != user.mail)) {
-      await this.spiderService.updateCustomer(user.id, {
+    await this.updateSpiderIfNeeded(user, dto)
+
+    return this.userDataRepo.save({ ...user, ...dto });
+  }
+
+  async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto) {
+    if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
+      await this.spiderService.updateCustomer(userData.id, {
         telephones: dto.phone ? [dto.phone.replace('+', '').split(' ').join('')] : undefined,
         emails: dto.mail ? [dto.mail] : undefined,
       });
 
-      if (KycInProgress(user.kycStatus)) {
-        user.kycState = KycState.FAILED;
+      if (KycInProgress(userData.kycStatus)) {
+        userData.kycState = KycState.FAILED;
       }
     }
-
-    return this.userDataRepo.save({ ...user, ...dto });
   }
 
   // --- VOLUMES --- //

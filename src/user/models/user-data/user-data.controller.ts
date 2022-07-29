@@ -76,10 +76,9 @@ export class UserDataController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async requestKyc(@Param('id') id: string): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id }, relations: ['users'] });
-    const user = userData.users[0];
-    if (!user) throw new BadRequestException('User not found');
 
-    return this.kycService.requestKyc(user.id);
+    await this.kycService.requestKyc(userData.kycHash);
+    return userData.kycHash;
   }
 
   @Get(':id/nameCheck')
