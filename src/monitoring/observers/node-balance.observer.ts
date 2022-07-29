@@ -1,4 +1,3 @@
-import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
@@ -13,11 +12,11 @@ interface NodeBalanceData {
     defichain: {
       input: {
         utxo: BigNumber;
-        token: AccountResult<string, string>[];
+        token: number;
       };
       ref: {
         utxo: BigNumber;
-        token: AccountResult<string, string>[];
+        token: number;
       };
     };
     bitcoin: {
@@ -60,7 +59,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
           ref: await this.refClient.getNodeBalance(),
         },
         bitcoin: {
-          input: await this.btcInpClient?.getBalance() ?? new BigNumber(0),
+          input: (await this.btcInpClient?.getBalance()) ?? new BigNumber(0),
         },
       },
     };

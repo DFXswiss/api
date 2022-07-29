@@ -27,8 +27,8 @@ export class DeFiClient extends NodeClient {
     );
   }
 
-  async getNodeBalance(): Promise<{ utxo: BigNumber; token: AccountResult<string, string>[] }> {
-    return { utxo: await this.getBalance(), token: await this.getToken() };
+  async getNodeBalance(): Promise<{ utxo: BigNumber; token: number }> {
+    return { utxo: await this.getBalance(), token: await this.getToken().then((t) => t.length) };
   }
 
   // UTXO

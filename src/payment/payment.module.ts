@@ -70,6 +70,7 @@ import { BuyFiatRepository } from './models/buy-fiat/buy-fiat.repository';
 import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
 import { DexModule } from './models/dex/dex.module';
+import { OlkypayService } from './models/bank-tx/olkypay.service';
 
 @Module({
   imports: [
@@ -133,6 +134,7 @@ import { DexModule } from './models/dex/dex.module';
     BuyCryptoNotificationService,
     BuyCryptoOutService,
     BankTxService,
+    OlkypayService,
     BankService,
     KrakenService,
     BinanceService,

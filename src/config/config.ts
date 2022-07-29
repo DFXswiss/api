@@ -23,6 +23,7 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
+  apiKeyVersionCT = '0'; // single digit hex number
 
   colors = {
     white: '#FFFFFF',
@@ -222,6 +223,16 @@ export class Configuration {
     auth: {
       username: process.env.SEPA_TOOLS_USER,
       password: process.env.SEPA_TOOLS_PASSWORD,
+    },
+  };
+
+  bank = {
+    olkypay: {
+      iban: 'LU116060002000005040',
+      clientId: process.env.OLKY_CLIENT,
+      username: process.env.OLKY_USERNAME,
+      password: process.env.OLKY_PASSWORD,
+      clientSecret: process.env.OLKY_CLIENT_SECRET,
     },
   };
 

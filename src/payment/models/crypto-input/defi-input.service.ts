@@ -159,11 +159,11 @@ export class DeFiInputService extends CryptoInputService {
     for (const input of newInputs) {
       await this.cryptoInputRepo.save(input);
 
-      switch (input?.route.type) {
-        case RouteType.SELL:
+      switch (input?.type) {
+        case CryptoInputType.BUY_FIAT:
           await this.buyFiatService.create(input);
           break;
-        case RouteType.STAKING:
+        case CryptoInputType.CRYPTO_STAKING:
           if (input.amlCheck === AmlCheck.PASS) {
             await this.cryptoStakingService.create(input);
           }
