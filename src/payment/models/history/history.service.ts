@@ -15,11 +15,13 @@ import { RefReward } from '../ref-reward/ref-reward.entity';
 import { StakingRefReward, StakingRefType } from '../staking-ref-reward/staking-ref-reward.entity';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 
 @Injectable()
 export class HistoryService {
   constructor(
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyFiatService: BuyFiatService,
     private readonly cryptoSellService: CryptoSellService,
     private readonly stakingRewardService: StakingRewardService,
     private readonly cryptoStakingService: CryptoStakingService,
@@ -103,19 +105,35 @@ export class HistoryService {
   }
 
   private async getSellTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    //TODO cryptoSell -> buyFiat Umstellung
-    const cryptoSells = await this.cryptoSellService.getUserTransactions([userId], dateFrom, dateTo);
-    return cryptoSells
-      .filter((c) => c.amlCheck === AmlCheck.PASS && c.bankTx)
+    const buyFiats = await this.buyFiatService.getUserTransactions(userId, dateFrom, dateTo);
+    return buyFiats
+      .filter(
+        (c) =>
+          c.amlCheck === AmlCheck.PASS &&
+          c.bankTx &&
+          c.cryptoInput &&
+          c.outputAmount &&
+          c.outputAsset &&
+          c.inputAmount &&
+          c.outputDate,
+      )
       .map((c) => [
         {
           type: 'Trade',
           buyAmount: c.outputAmount,
-          buyAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
-          sellAmount: c.cryptoInput.amount,
+          buyAsset: c.outputAsset,
+          sellAmount: c.inputAmount,
           sellAsset: this.getAssetSymbol(c.cryptoInput.asset?.dexName),
-          fee: c.fee ? c.fee * c.cryptoInput.amount : null,
-          feeAsset: c.fee ? this.getAssetSymbol(c.cryptoInput.asset?.dexName) : null,
+          fee:
+            c.percentFeeAmount && c.inputReferenceAsset
+              ? c.percentFeeAmount
+              : c.percentFee && c.inputReferenceAsset && c.inputReferenceAmount
+              ? c.percentFee * c.inputReferenceAmount
+              : null,
+          feeAsset:
+            (c.percentFeeAmount || (c.inputReferenceAmount && c.percentFee)) && c.inputReferenceAsset
+              ? this.getAssetSymbol(c.inputReferenceAsset)
+              : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Sale',
@@ -129,7 +147,7 @@ export class HistoryService {
           buyAmount: null,
           buyAsset: null,
           sellAmount: c.outputAmount,
-          sellAsset: 'fiat' in c.cryptoInput.route ? c.cryptoInput.route.fiat?.name : null,
+          sellAsset: c.outputAsset,
           fee: null,
           feeAsset: null,
           exchange: 'DFX',
