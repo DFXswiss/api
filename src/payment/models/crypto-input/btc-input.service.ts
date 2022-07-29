@@ -17,6 +17,7 @@ import { BtcClient } from 'src/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { ChainalysisService } from './chainalysis.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -32,6 +33,7 @@ export class BtcInputService extends CryptoInputService {
     private readonly assetService: AssetService,
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly chainalysisService: ChainalysisService,
   ) {
     super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
@@ -114,6 +116,15 @@ export class BtcInputService extends CryptoInputService {
     });
     if (existingInput) return null;
 
+    //aml check with chainalysis
+    const amlCheck = await this.chainalysisService.checkTransaction(
+      route.user.userData.id,
+      utxo.address,
+      utxo.vout,
+      'BTC',
+      'Bitcoin',
+    );
+    
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
       amount: utxo.amount.toNumber(),
@@ -121,7 +132,7 @@ export class BtcInputService extends CryptoInputService {
       route: route,
       btcAmount: utxo.amount.toNumber(),
       isConfirmed: false,
-      amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
+      amlCheck,
       type: CryptoInputType.BUY_CRYPTO,
       vout: utxo.vout,
     });
