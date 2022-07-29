@@ -7,7 +7,6 @@ import { StakingRewardService } from '../staking-reward/staking-reward.service';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
-import { CryptoSellService } from '../crypto-sell/crypto-sell.service';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
@@ -22,7 +21,6 @@ export class HistoryService {
   constructor(
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly cryptoSellService: CryptoSellService,
     private readonly stakingRewardService: StakingRewardService,
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
