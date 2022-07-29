@@ -1,11 +1,7 @@
+import { Blockchain } from 'src/ain/node/node.service';
 import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column, OneToOne } from 'typeorm';
 import { DepositRoute } from '../route/deposit-route.entity';
-
-export enum Blockchain {
-  DEFICHAIN = 'DeFiChain',
-  BITCOIN = 'Bitcoin',
-}
 
 @Entity()
 export class Deposit extends IEntity {

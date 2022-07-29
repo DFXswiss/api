@@ -3,7 +3,7 @@ import { DeFiClient } from 'src/ain/node/defi-client';
 import { Config } from 'src/config/config';
 
 @Injectable()
-export class BuyCryptoChainUtil {
+export class DeFiChainUtil {
   async getHistoryEntryForTx(
     txId: string,
     client: DeFiClient,
@@ -15,9 +15,18 @@ export class BuyCryptoChainUtil {
 
       return client
         .getHistories([Config.node.dexWalletAddress], height, height + 1)
-        .then((h) =>
-          h.map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts })).find((t) => t.txId === txId),
+        .then((histories) =>
+          histories
+            .map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts }))
+            .find((t) => t.txId === txId),
         );
     }
+  }
+
+  async getAvailableTokenAmount(asset: string, client: DeFiClient): Promise<number> {
+    const tokens = await client.getToken();
+    const token = tokens.map((t) => client.parseAmount(t.amount)).find((pt) => pt.asset === asset);
+
+    return token ? token.amount : 0;
   }
 }

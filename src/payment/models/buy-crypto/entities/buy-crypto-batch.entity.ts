@@ -34,9 +34,6 @@ export class BuyCryptoBatch extends IEntity {
   @Column({ length: 256, nullable: true })
   outTxId: string;
 
-  @Column({ length: 256, nullable: true })
-  purchaseTxId: string;
-
   addTransaction(tx: BuyCrypto): this {
     tx.batch = this;
 
@@ -68,8 +65,7 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  pending(purchaseTxId: string): this {
-    this.purchaseTxId = purchaseTxId;
+  pending(): this {
     this.status = BuyCryptoBatchStatus.PENDING_LIQUIDITY;
 
     return this;
