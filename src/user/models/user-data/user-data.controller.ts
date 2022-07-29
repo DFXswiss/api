@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
