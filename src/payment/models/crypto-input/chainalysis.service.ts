@@ -25,7 +25,7 @@ export class ChainalysisService {
 
   async checkTransaction(
     userDataId: number,
-    address: string,
+    txId: string,
     vout: number,
     asset: string,
     blockchain: string,
@@ -34,7 +34,7 @@ export class ChainalysisService {
       {
         network: blockchain,
         asset: asset,
-        transferReference: `${address}:${vout.toString()}`,
+        transferReference: `${txId}:${vout.toString()}`,
       },
     ];
     const transferResponse = await this.callApi<Transfer[]>(

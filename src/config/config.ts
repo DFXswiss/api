@@ -237,7 +237,7 @@ export class Configuration {
   };
 
   chainalysis = {
-    apiKey: process.env.CHAINALYSIS_API_KEX,
+    apiKey: process.env.CHAINALYSIS_API_KEY,
   };
 
   // --- GETTERS --- //

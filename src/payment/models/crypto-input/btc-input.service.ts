@@ -119,12 +119,12 @@ export class BtcInputService extends CryptoInputService {
     //aml check with chainalysis
     const amlCheck = await this.chainalysisService.checkTransaction(
       route.user.userData.id,
-      utxo.address,
+      utxo.txid,
       utxo.vout,
       'BTC',
       'Bitcoin',
     );
-    
+
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
       amount: utxo.amount.toNumber(),
