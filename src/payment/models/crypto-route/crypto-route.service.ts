@@ -110,8 +110,7 @@ export class CryptoRouteService {
         throw new ConflictException('Crypto route already exists');
       } else {
         existing.active = true;
-        this.cryptoRepo.save(existing);
-        return existing;
+        return this.cryptoRepo.save(existing);
       }
     }
 

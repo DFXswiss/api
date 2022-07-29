@@ -93,8 +93,7 @@ export class BuyService {
         throw new ConflictException('Crypto route already exists');
       } else {
         existing.active = true;
-        this.buyRepo.save(existing);
-        return existing;
+        return this.buyRepo.save(existing);
       }
     }
     // create the entity
