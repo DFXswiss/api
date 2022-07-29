@@ -19,7 +19,7 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
     super(monitoringService, 'olkypay', 'balance');
   }
 
-  @Interval(10000)
+  @Interval(900000)
   async fetch() {
     const data = await this.getOlkypay();
 
