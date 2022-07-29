@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/ain/ain.module';
-import { BankTxBatchRepository } from 'src/payment/models/bank-tx/bank-tx-batch.repository';
-import { OlkypayService } from 'src/payment/models/bank-tx/olkypay.service';
 import { PaymentModule } from 'src/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
