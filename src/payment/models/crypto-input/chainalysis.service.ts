@@ -2,7 +2,6 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
-import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 
 enum Rating {
   LOW_RISK = 'lowRisk',

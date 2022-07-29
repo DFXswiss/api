@@ -105,7 +105,15 @@ export class CryptoRouteService {
       },
       relations: ['deposit'],
     });
-    if (existing) return existing;
+    if (existing) {
+      if (existing.active) {
+        throw new ConflictException('Crypto route already exists');
+      } else {
+        existing.active = true;
+        this.cryptoRepo.save(existing);
+        return existing;
+      }
+    }
 
     // create the entity
     const crypto = this.cryptoRepo.create();

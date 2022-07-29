@@ -88,8 +88,15 @@ export class BuyService {
       },
       relations: ['deposit'],
     });
-    if (existing) return existing;
-
+    if (existing) {
+      if (existing.active) {
+        throw new ConflictException('Crypto route already exists');
+      } else {
+        existing.active = true;
+        this.buyRepo.save(existing);
+        return existing;
+      }
+    }
     // create the entity
     const buy = this.buyRepo.create(dto);
     buy.user = { id: userId } as User;

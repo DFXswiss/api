@@ -57,8 +57,15 @@ export class SellService {
 
     // check if exists
     const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
-    if (existing) return existing;
-
+    if (existing) {
+      if (existing.active) {
+        throw new ConflictException('Crypto route already exists');
+      } else {
+        existing.active = true;
+        this.sellRepo.save(existing);
+        return existing;
+      }
+    }
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = { id: userId } as User;
