@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNotEmpty, IsEnum, IsString, ValidateIf, IsNotEmptyObject, ValidateNested, IsEmail } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
@@ -6,89 +6,101 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { AccountType } from '../../user-data/account-type.enum';
 
 export class KycUserDataDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.accountType !== undefined)
   @IsNotEmpty()
   @IsEnum(AccountType)
   accountType: AccountType;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.firstname !== undefined)
   @IsNotEmpty()
   @IsString()
   firstname: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.surname !== undefined)
   @IsNotEmpty()
   @IsString()
   surname: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.street !== undefined)
   @IsNotEmpty()
   @IsString()
   street: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.houseNumber !== undefined)
   @IsNotEmpty()
   @IsString()
   houseNumber: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.location !== undefined)
   @IsNotEmpty()
   @IsString()
   location: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.zip !== undefined)
   @IsNotEmpty()
   @IsString()
   zip: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.country !== undefined)
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   country: Country;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.mail !== undefined)
   @IsNotEmpty()
   @IsEmail()
   mail: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @ValidateIf((d: KycUserDataDto) => d.phone !== undefined)
   @IsNotEmpty()
   @IsString()
   phone: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType && d.organizationName && d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationName: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType && d.organizationStreet && d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationStreet: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf(
+    (d: KycUserDataDto) => d.accountType && d.organizationHouseNumber && d.accountType !== AccountType.PERSONAL,
+  )
   @IsNotEmpty()
   @IsString()
   organizationHouseNumber: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType && d.organizationLocation && d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationLocation: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType && d.organizationZip && d.accountType !== AccountType.PERSONAL)
   @IsNotEmpty()
   @IsString()
   organizationZip: string;
 
   @ApiPropertyOptional()
-  @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
+  @ValidateIf((d: KycUserDataDto) => d.accountType && d.organizationCountry && d.accountType !== AccountType.PERSONAL)
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)

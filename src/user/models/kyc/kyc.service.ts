@@ -60,16 +60,16 @@ export class KycService {
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
     const user = await this.getUser(code, userId);
+    const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
-      this.countryService.getCountry(data.country.id),
-      this.countryService.getCountry(data.organizationCountry?.id),
+      this.countryService.getCountry(data.country?.id ?? user.country?.id),
+      this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
     ]);
-    if (!country || (data.accountType !== AccountType.PERSONAL && !organizationCountry))
-      throw new BadRequestException('Country not found');
+    if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
 
-    if (data.accountType === AccountType.PERSONAL) {
+    if (isPersonalAccount) {
       data.organizationName = null;
       data.organizationStreet = null;
       data.organizationHouseNumber = null;
