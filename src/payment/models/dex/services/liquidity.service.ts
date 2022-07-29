@@ -186,10 +186,22 @@ export class LiquidityService {
 
   private async calculatePrice(sourceAsset: string, targetAsset: string): Promise<number> {
     // how much of sourceAsset you going to pay for 1 unit of targetAsset, caution - only indicative calculation
-    return 1 / ((await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, 0.001)) / 0.001);
+    return (
+      1 /
+      ((await this.#dexClient.testCompositeSwap(
+        sourceAsset,
+        targetAsset,
+        this.getMinimalPriceReferenceAmount(sourceAsset),
+      )) /
+        this.getMinimalPriceReferenceAmount(sourceAsset))
+    );
   }
 
   private isCompositeSwapSlippageError(e: Error): boolean {
     return e.message && e.message.includes('Price is higher than indicated');
+  }
+
+  private getMinimalPriceReferenceAmount(sourceAsset: string): number {
+    return sourceAsset === 'BTC' ? 0.001 : 1;
   }
 }
