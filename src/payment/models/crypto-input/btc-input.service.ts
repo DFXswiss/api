@@ -8,7 +8,7 @@ import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { IsNull, Not } from 'typeorm';
-import { KycStatus } from 'src/user/models/user-data/user-data.entity';
+import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { Blockchain } from '../deposit/deposit.entity';
@@ -117,13 +117,7 @@ export class BtcInputService extends CryptoInputService {
     if (existingInput) return null;
 
     //aml check with chainalysis
-    const amlCheck = await this.chainalysisService.checkTransaction(
-      route.user.userData.id,
-      utxo.txid,
-      utxo.vout,
-      'BTC',
-      'Bitcoin',
-    );
+    const amlCheck = await this.amlCheck(route.user.userData, utxo);
 
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
@@ -136,6 +130,14 @@ export class BtcInputService extends CryptoInputService {
       type: CryptoInputType.BUY_CRYPTO,
       vout: utxo.vout,
     });
+  }
+
+  private async amlCheck(userData: UserData, utxo: UTXO): Promise<AmlCheck> {
+    if (userData.kycStatus == KycStatus.REJECTED) return AmlCheck.FAIL; //TODO add || userData.highRisk
+
+    return (await this.chainalysisService.checkTransaction(userData.id, utxo.txid, utxo.vout, 'BTC', 'Bitcoin'))
+      ? AmlCheck.PASS
+      : AmlCheck.FAIL; //TODO just check chainalysis if amount in EUR > 10k
   }
 
   private async forwardInputs(): Promise<void> {

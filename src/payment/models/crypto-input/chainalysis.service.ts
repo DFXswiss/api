@@ -29,7 +29,7 @@ export class ChainalysisService {
     vout: number,
     asset: string,
     blockchain: string,
-  ): Promise<AmlCheck> {
+  ): Promise<boolean> {
     const data = [
       {
         network: blockchain,
@@ -43,7 +43,7 @@ export class ChainalysisService {
       data,
     );
 
-    return transferResponse[0].rating == Rating.HIGH_RISK ? AmlCheck.FAIL : AmlCheck.PASS;
+    return transferResponse[0].rating != Rating.HIGH_RISK;
   }
 
   // --- HELPER METHODS --- //
