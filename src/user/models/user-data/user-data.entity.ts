@@ -197,7 +197,7 @@ export function IdentCompleted(kycStatus?: KycStatus): boolean {
 const numberOfLastVisibleNumbers = 2;
 
 export function Blank(value: string, type: BlankType): string {
-  if (!value || value.length === 0) return;
+  if (!value || value.length === 0) return value;
   switch (type) {
     case BlankType.PHONE:
       return `${createStringOf('*', value.length - numberOfLastVisibleNumbers)}${value.substring(
