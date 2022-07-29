@@ -140,9 +140,9 @@ export class LiquidityService {
     swapAsset: string,
   ): Promise<number> {
     if (referenceAsset === targetAsset) {
-      const swapAssetPrice = await this.calculatePrice(referenceAsset, swapAsset);
+      const swapAssetPrice = await this.calculatePrice(swapAsset, referenceAsset);
 
-      const swapAmount = referenceAmount / swapAssetPrice;
+      const swapAmount = referenceAmount * swapAssetPrice;
 
       // adding 5% cap to liquidity swap to cover meantime referenceAmount price difference (initially taken from Kraken/Binance)
       return Util.round(swapAmount + swapAmount * 0.05, 8);
