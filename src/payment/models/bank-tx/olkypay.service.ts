@@ -133,7 +133,7 @@ export class OlkypayService {
   }
 
   private parseDate(olkypayDate: number[]): Date {
-    return new Date(olkypayDate[0], olkypayDate[1], olkypayDate[2]);
+    return new Date(olkypayDate[0], olkypayDate[1]-1, olkypayDate[2]);
   }
 
   private getNameAndAddress(tx: Transaction): { name?: string; addressLine1?: string } {
