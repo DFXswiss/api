@@ -140,6 +140,6 @@ export class BankTx extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
   buyCrypto?: BuyCrypto;
 
-  @OneToOne(() => BuyFiat, (sell) => sell.bankTx, { nullable: true })
+  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
   buyFiat?: BuyFiat;
 }

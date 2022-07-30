@@ -122,16 +122,8 @@ export class HistoryService {
           buyAsset: c.outputAsset,
           sellAmount: c.inputAmount,
           sellAsset: this.getAssetSymbol(c.cryptoInput.asset?.dexName),
-          fee:
-            c.percentFeeAmount && c.inputReferenceAsset
-              ? c.percentFeeAmount
-              : c.percentFee && c.inputReferenceAsset && c.inputReferenceAmount
-              ? c.percentFee * c.inputReferenceAmount
-              : null,
-          feeAsset:
-            (c.percentFeeAmount || (c.inputReferenceAmount && c.percentFee)) && c.inputReferenceAsset
-              ? this.getAssetSymbol(c.inputReferenceAsset)
-              : null,
+          fee: c.percentFeeAmount && c.inputReferenceAsset ? c.percentFeeAmount : null,
+          feeAsset: c.percentFeeAmount && c.inputReferenceAsset ? this.getAssetSymbol(c.inputReferenceAsset) : null,
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Sale',
