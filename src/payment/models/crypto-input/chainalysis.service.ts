@@ -1,8 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
+import { Blockchain } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
-import { Blockchain } from '../deposit/deposit.entity';
 
 enum Rating {
   LOW_RISK = 'lowRisk',
