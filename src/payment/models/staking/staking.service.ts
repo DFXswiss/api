@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { In } from 'typeorm';
+import { In, Raw } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
@@ -81,6 +81,29 @@ export class StakingService {
     if (routeCount >= 10) throw new BadRequestException('Max. 10 staking routes allowed');
 
     const staking = await this.createEntity(userId, dto);
+
+    // check if exists
+    const existingInactive = await this.stakingRepo.findOne({
+      where: {
+        rewardDeposit: {
+          id: dto.rewardType === PayoutType.REINVEST ? Raw('depositId') : staking.rewardDeposit?.id ?? null,
+        },
+        paybackDeposit: {
+          id: dto.paybackType === PayoutType.REINVEST ? Raw('depositId') : staking.paybackDeposit?.id ?? null,
+        },
+        rewardAsset: { id: dto.rewardType === PayoutType.WALLET ? staking.rewardAsset.id : null },
+        paybackAsset: { id: dto.paybackType === PayoutType.WALLET ? staking.paybackAsset.id : null },
+        user: { id: userId },
+        active: false,
+      },
+      relations: ['rewardDeposit', 'paybackDeposit', 'rewardAsset', 'paybackAsset'],
+    });
+
+    if (existingInactive) {
+      existingInactive.active = true;
+      return this.stakingRepo.save(existingInactive);
+    }
+
     return this.stakingRepo.save(staking);
   }
 
