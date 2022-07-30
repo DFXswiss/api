@@ -116,8 +116,8 @@ export class BtcInputService extends CryptoInputService {
     });
     if (existingInput) return null;
 
-    //aml check with chainalysis
-    const amlCheck = await this.amlCheck(route.user.userData, utxo);
+    // AML check
+    const amlCheck = await this.doAmlCheck(route.user.userData, utxo);
 
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
@@ -132,12 +132,18 @@ export class BtcInputService extends CryptoInputService {
     });
   }
 
-  private async amlCheck(userData: UserData, utxo: UTXO): Promise<AmlCheck> {
-    if (userData.kycStatus == KycStatus.REJECTED) return AmlCheck.FAIL; //TODO add || userData.highRisk
+  private async doAmlCheck(userData: UserData, utxo: UTXO): Promise<AmlCheck> {
+    if (userData.kycStatus === KycStatus.REJECTED) return AmlCheck.FAIL;
 
-    return (await this.chainalysisService.checkTransaction(userData.id, utxo.txid, utxo.vout, 'BTC', 'Bitcoin'))
-      ? AmlCheck.PASS
-      : AmlCheck.FAIL; //TODO just check chainalysis if amount in EUR > 10k
+    // TODO just check chainalysis if amount in EUR > 10k or userData.highRisk
+    const highRisk = await this.chainalysisService.isHighRiskTx(
+      userData.id,
+      utxo.txid,
+      utxo.vout,
+      'BTC',
+      Blockchain.BITCOIN,
+    );
+    return highRisk ? AmlCheck.FAIL : AmlCheck.PASS;
   }
 
   private async forwardInputs(): Promise<void> {

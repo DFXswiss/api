@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
+import { Blockchain } from '../deposit/deposit.entity';
 
 enum Rating {
   LOW_RISK = 'lowRisk',
@@ -22,27 +23,23 @@ export class ChainalysisService {
 
   constructor(private readonly http: HttpService) {}
 
-  async checkTransaction(
+  async isHighRiskTx(
     userDataId: number,
     txId: string,
     vout: number,
     asset: string,
-    blockchain: string,
+    blockchain: Blockchain,
   ): Promise<boolean> {
     const data = [
       {
         network: blockchain,
         asset: asset,
-        transferReference: `${txId}:${vout.toString()}`,
+        transferReference: `${txId}:${vout}`,
       },
     ];
-    const transferResponse = await this.callApi<Transfer[]>(
-      `${userDataId.toString()}/transfers/received`,
-      'POST',
-      data,
-    );
+    const transferResponse = await this.callApi<Transfer[]>(`${userDataId}/transfers/received`, 'POST', data);
 
-    return transferResponse[0].rating != Rating.HIGH_RISK;
+    return transferResponse[0].rating === Rating.HIGH_RISK;
   }
 
   // --- HELPER METHODS --- //
