@@ -236,6 +236,10 @@ export class Configuration {
     },
   };
 
+  chainalysis = {
+    apiKey: process.env.CHAINALYSIS_API_KEY,
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {

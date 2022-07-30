@@ -19,7 +19,7 @@ export class CryptoInputService {
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
     return await this.cryptoInputRepo.find({
       where: { route: { user: { id: In(userIds) } } },
-      relations: ['cryptoSell', 'cryptoStaking', 'route', 'route.user'],
+      relations: ['buyFiat', 'cryptoStaking', 'route', 'route.user'],
     });
   }
 

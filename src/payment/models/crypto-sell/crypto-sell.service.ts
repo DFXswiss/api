@@ -33,7 +33,7 @@ export class CryptoSellService {
     entity = await this.createEntity(dto);
     entity = await this.cryptoSellRepo.save(entity);
 
-    await this.updateSellVolume([entity.cryptoInput.route.id]);
+    //await this.updateSellVolume([entity.cryptoInput.route.id]);
 
     return entity;
   }
@@ -50,7 +50,7 @@ export class CryptoSellService {
     if (cryptoInputWithOtherSell)
       throw new ConflictException('There is already a crypto sell for the specified crypto input');
 
-    const sellIdBefore = entity.cryptoInput.route.id;
+    //const sellIdBefore = entity.cryptoInput.route.id;
 
     const update = await this.createEntity(dto);
 
@@ -59,14 +59,14 @@ export class CryptoSellService {
     // TODO update aller Felder wieder deaktivieren
     entity = await this.cryptoSellRepo.save({ ...entity, ...update });
 
-    await this.updateSellVolume([sellIdBefore, entity.cryptoInput.route.id]);
+    //await this.updateSellVolume([sellIdBefore, entity.cryptoInput.route.id]);
 
     return entity;
   }
 
   async updateVolumes(): Promise<void> {
-    const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
-    await this.updateSellVolume(sellIds);
+    //const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
+    //await this.updateSellVolume(sellIds);
   }
 
   async getUserTransactions(

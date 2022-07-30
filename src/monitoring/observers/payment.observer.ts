@@ -5,9 +5,9 @@ import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
 import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
 import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/repositories/buy-crypto.repository';
+import { BuyFiatRepository } from 'src/payment/models/buy-fiat/buy-fiat.repository';
 import { CryptoInputType } from 'src/payment/models/crypto-input/crypto-input.entity';
 import { CryptoInputRepository } from 'src/payment/models/crypto-input/crypto-input.repository';
-import { CryptoSellRepository } from 'src/payment/models/crypto-sell/crypto-sell.repository';
 import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
 import { StakingRefRewardRepository } from 'src/payment/models/staking-ref-reward/staking-ref-reward.repository';
 import { StakingRewardRepository } from 'src/payment/models/staking-reward/staking-reward.respository';
@@ -23,13 +23,13 @@ interface PaymentData {
 
 interface LastOutputDates {
   buyCrypto: Date;
-  cryptoSell: Date;
+  buyFiat: Date;
   stakingReward: Date;
 }
 
 interface IncompleteTransactions {
   buyCrypto: number;
-  cryptoSell: number;
+  buyFiat: number;
   stakingRefRewards: number;
 }
 
@@ -78,7 +78,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         mailSendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
-      cryptoSell: await getCustomRepository(CryptoSellRepository).count({
+      buyFiat: await getCustomRepository(BuyFiatRepository).count({
         mail3SendDate: IsNull(),
         amlCheck: Not(AmlCheck.FAIL),
       }),
@@ -91,7 +91,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
       buyCrypto: await getCustomRepository(BuyCryptoRepository)
         .findOne({ order: { outputDate: 'DESC' } })
         .then((b) => b.outputDate),
-      cryptoSell: await getCustomRepository(CryptoSellRepository)
+      buyFiat: await getCustomRepository(BuyFiatRepository)
         .findOne({ order: { outputDate: 'DESC' } })
         .then((b) => b.outputDate),
       stakingReward: await getCustomRepository(StakingRewardRepository)

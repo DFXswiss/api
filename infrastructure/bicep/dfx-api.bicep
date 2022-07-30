@@ -76,6 +76,9 @@ param btcVmUser string
 @secure()
 param btcVmPassword string
 
+@secure()
+param chainalysisApiKey string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -590,6 +593,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'OLKY_PASSWORD'
           value: olkyPassword
+        }
+        {
+          name: 'CHAINALYSIS_API_KEY'
+          value: chainalysisApiKey
         }
       ]
     }

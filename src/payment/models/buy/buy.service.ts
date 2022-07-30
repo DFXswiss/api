@@ -88,7 +88,14 @@ export class BuyService {
       },
       relations: ['deposit'],
     });
-    if (existing) throw new ConflictException('Buy route already exists');
+
+    if (existing) {
+      if (existing.active) throw new ConflictException('Buy route already exists');
+
+      // reactivate deleted route
+      existing.active = true;
+      return this.buyRepo.save(existing);
+    }
 
     // create the entity
     const buy = this.buyRepo.create(dto);

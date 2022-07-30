@@ -21,6 +21,7 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
 
   @Interval(900000)
   async fetch() {
+    if (!Config.bank.olkypay.clientId) return;
     const data = await this.getOlkypay();
 
     this.emit(data);

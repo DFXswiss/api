@@ -8,7 +8,7 @@ import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/lock';
 import { IsNull, Not } from 'typeorm';
-import { KycStatus } from 'src/user/models/user-data/user-data.entity';
+import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoInputService } from './crypto-input.service';
@@ -16,6 +16,7 @@ import { BtcClient } from 'src/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { ChainalysisService } from './chainalysis.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -31,6 +32,7 @@ export class BtcInputService extends CryptoInputService {
     private readonly assetService: AssetService,
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly chainalysisService: ChainalysisService,
   ) {
     super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
@@ -113,6 +115,9 @@ export class BtcInputService extends CryptoInputService {
     });
     if (existingInput) return null;
 
+    // AML check
+    const amlCheck = await this.doAmlCheck(route.user.userData, utxo);
+
     return this.cryptoInputRepo.create({
       inTxId: utxo.txid,
       amount: utxo.amount.toNumber(),
@@ -120,10 +125,24 @@ export class BtcInputService extends CryptoInputService {
       route: route,
       btcAmount: utxo.amount.toNumber(),
       isConfirmed: false,
-      amlCheck: route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS,
+      amlCheck,
       type: CryptoInputType.BUY_CRYPTO,
       vout: utxo.vout,
     });
+  }
+
+  private async doAmlCheck(userData: UserData, utxo: UTXO): Promise<AmlCheck> {
+    if (userData.kycStatus === KycStatus.REJECTED) return AmlCheck.FAIL;
+
+    // TODO just check chainalysis if amount in EUR > 10k or userData.highRisk
+    const highRisk = await this.chainalysisService.isHighRiskTx(
+      userData.id,
+      utxo.txid,
+      utxo.vout,
+      'BTC',
+      Blockchain.BITCOIN,
+    );
+    return highRisk ? AmlCheck.FAIL : AmlCheck.PASS;
   }
 
   private async forwardInputs(): Promise<void> {

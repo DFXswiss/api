@@ -68,10 +68,8 @@ export class UserService {
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string): Promise<User> {
     let user = this.userRepo.create(dto);
 
-    user.ipCountry = await this.geoLocationService.getCountry(userIp);
-    const country = await this.countryService.getCountryWithSymbol(user.ipCountry);
-    if (!country || !country.ipEnable) throw new ForbiddenException('The country of IP address is not allowed');
     user.ip = userIp;
+    user.ipCountry = await this.checkIpCountry(userIp);
     user.wallet = await this.walletService.getWalletOrDefault(dto.walletId);
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
@@ -107,6 +105,16 @@ export class UserService {
     if (!user) throw new NotFoundException('User not found');
 
     return await this.userRepo.save({ ...user, ...update });
+  }
+
+  private async checkIpCountry(userIp: string): Promise<string> {
+    const ipCountry = await this.geoLocationService.getCountry(userIp);
+
+    const country = await this.countryService.getCountryWithSymbol(ipCountry);
+    if (!country?.ipEnable && Config.environment !== 'loc')
+      throw new ForbiddenException('The country of IP address is not allowed');
+
+    return ipCountry;
   }
 
   // --- VOLUMES --- //
@@ -160,45 +168,6 @@ export class UserService {
     await this.userDataService.updateVolumes(userData.id);
   }
 
-  // --- REF --- //
-  async updateRefProvision(userId: number, provision: number): Promise<number> {
-    const user = await this.userRepo.findOne(userId);
-    if (!user) throw new NotFoundException('User not found');
-
-    if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
-    await this.userRepo.update({ id: userId }, { refFeePercent: provision });
-    return provision;
-  }
-
-  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
-    // get ref users
-    const refUser = await this.userRepo.find({
-      select: ['id'],
-      where: {
-        created: Between(query.from, query.to),
-        status: UserStatus.ACTIVE,
-        ...(query.refCode ? { usedRef: query.refCode } : {}),
-        ...(query.origin ? { origin: query.origin } : {}),
-      },
-    });
-
-    // get ref volume
-    let dbQuery = this.userRepo
-      .createQueryBuilder('user')
-      .select('SUM(buyCryptos.amountInEur)', 'volume')
-      .leftJoin('user.buys', 'buys')
-      .leftJoin('buys.buyCryptos', 'buyCryptos')
-      .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
-
-    if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
-    if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
-
-    const { volume } = await dbQuery.getRawOne<{ volume: number }>();
-
-    return { activeUser: refUser.length, volume: volume };
-  }
-
   async getUserVolumes(query: VolumeQuery): Promise<{ buy: number; sell: number }> {
     const { buyVolume } = await this.userRepo
       .createQueryBuilder('user')
@@ -210,21 +179,20 @@ export class UserService {
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ buyVolume: number }>();
 
-    // TODO cryptoSell -> buyFiat
     const { sellVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(cryptoSell.amountInEur)', 'sellVolume')
+      .select('SUM(buyFiats.amountInEur)', 'sellVolume')
       .leftJoin('user.sells', 'sells')
-      .leftJoin('sells.cryptoInputs', 'cryptoInputs')
-      .leftJoin('cryptoInputs.cryptoSell', 'cryptoSell')
-      .where('cryptoSell.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('cryptoSell.amlCheck = :check', { check: AmlCheck.PASS })
+      .leftJoin('sells.buyFiats', 'buyFiats')
+      .where('buyFiats.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('buyFiats.amlCheck = :check', { check: AmlCheck.PASS })
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ sellVolume: number }>();
 
     return { buy: buyVolume ?? 0, sell: sellVolume ?? 0 };
   }
 
+  // --- FEES --- //
   async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
     const { usedRef, accountType, buyFee } = await this.userRepo.findOne({
       select: ['id', 'usedRef', 'accountType', 'buyFee'],
@@ -288,6 +256,45 @@ export class UserService {
       (user?.stakingFee ?? (hasFreeStaking ? 0 : Config.staking.fee)) * 100,
       Config.defaultPercentageDecimal,
     );
+  }
+
+  // --- REF --- //
+  async updateRefProvision(userId: number, provision: number): Promise<number> {
+    const user = await this.userRepo.findOne(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
+    await this.userRepo.update({ id: userId }, { refFeePercent: provision });
+    return provision;
+  }
+
+  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
+    // get ref users
+    const refUser = await this.userRepo.find({
+      select: ['id'],
+      where: {
+        created: Between(query.from, query.to),
+        status: UserStatus.ACTIVE,
+        ...(query.refCode ? { usedRef: query.refCode } : {}),
+        ...(query.origin ? { origin: query.origin } : {}),
+      },
+    });
+
+    // get ref volume
+    let dbQuery = this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(buyCryptos.amountInEur)', 'volume')
+      .leftJoin('user.buys', 'buys')
+      .leftJoin('buys.buyCryptos', 'buyCryptos')
+      .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
+
+    if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
+    if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
+
+    const { volume } = await dbQuery.getRawOne<{ volume: number }>();
+
+    return { activeUser: refUser.length, volume: volume };
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
