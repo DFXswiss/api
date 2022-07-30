@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { In } from 'typeorm';
-import { Blockchain, Deposit } from '../deposit/deposit.entity';
+import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
 import { Sell } from '../sell/sell.entity';
 import { SellRepository } from '../sell/sell.repository';
@@ -21,6 +21,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingRepository } from '../crypto-staking/crypto-staking.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
+import { Blockchain } from 'src/ain/node/node.service';
 
 @Injectable()
 export class StakingService {

@@ -111,7 +111,7 @@ export class UserService {
     const ipCountry = await this.geoLocationService.getCountry(userIp);
 
     const country = await this.countryService.getCountryWithSymbol(ipCountry);
-    if (!country.ipEnable && Config.environment !== 'loc')
+    if (!country?.ipEnable && Config.environment !== 'loc')
       throw new ForbiddenException('The country of IP address is not allowed');
 
     return ipCountry;

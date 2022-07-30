@@ -1,5 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
+import {
+  Blank,
+  BlankType,
+  KycInProgress,
+  KycState,
+  KycStatus,
+  UserData,
+} from 'src/user/models/user-data/user-data.entity';
 import { KycDocument } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
 import { SpiderService } from 'src/user/services/spider/spider.service';
@@ -13,9 +20,13 @@ import { KycProcessService } from './kyc-process.service';
 export interface KycInfo {
   kycStatus: KycStatus;
   kycState: KycState;
+  kycHash: string;
+  kycDataComplete: boolean;
   depositLimit: number;
   sessionUrl?: string;
   setupUrl?: string;
+  blankedPhone?: string;
+  blankedMail?: string;
 }
 
 @Injectable()
@@ -47,19 +58,18 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
-  async updateKycData(userId: number, data: KycUserDataDto): Promise<void> {
-    const user = await this.userDataService.getUserDataByUser(userId);
-    if (!user) throw new NotFoundException(`User data not found`);
+  async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
+    const user = await this.getUser(code, userId);
+    const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
 
     // check countries
     const [country, organizationCountry] = await Promise.all([
-      this.countryService.getCountry(data.country.id),
-      this.countryService.getCountry(data.organizationCountry?.id),
+      this.countryService.getCountry(data.country?.id ?? user.country?.id),
+      this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
     ]);
-    if (!country || (data.accountType !== AccountType.PERSONAL && !organizationCountry))
-      throw new BadRequestException('Country not found');
+    if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
 
-    if (data.accountType === AccountType.PERSONAL) {
+    if (isPersonalAccount) {
       data.organizationName = null;
       data.organizationStreet = null;
       data.organizationHouseNumber = null;
@@ -68,7 +78,11 @@ export class KycService {
       data.organizationCountry = null;
     }
 
-    await this.userDataRepo.save({ ...user, ...data });
+    await this.userDataService.updateSpiderIfNeeded(user, data);
+
+    const updatedUser = await this.userDataRepo.save({ ...user, ...data });
+
+    return this.createKycInfoBasedOn(updatedUser);
   }
 
   async userDataComplete(userId: number): Promise<boolean> {
@@ -102,9 +116,13 @@ export class KycService {
     return requiredFields.filter((f) => !user[f]).length === 0;
   }
 
-  async uploadDocument(userId: number, document: Express.Multer.File, kycDocument: KycDocument): Promise<boolean> {
-    const userData = await this.userDataService.getUserDataByUser(userId);
-    if (!userData) throw new NotFoundException(`User data not found`);
+  async uploadDocument(
+    code: string,
+    document: Express.Multer.File,
+    kycDocument: KycDocument,
+    userId?: number,
+  ): Promise<boolean> {
+    const userData = await this.getUser(code, userId);
 
     // create customer, if not existing
     await this.spiderService.createCustomer(userData.id, userData.surname);
@@ -120,8 +138,8 @@ export class KycService {
   }
 
   // --- KYC PROCESS --- //
-  async requestKyc(userId: number): Promise<string> {
-    let user = await this.userDataService.getUserDataByUser(userId);
+  async requestKyc(code: string, userId?: number): Promise<KycInfo> {
+    let user = await this.getUser(code, userId);
 
     // check if KYC already started
     if (user.kycStatus !== KycStatus.NA) {
@@ -136,7 +154,7 @@ export class KycService {
     user = await this.startKyc(user);
     await this.userDataRepo.save(user);
 
-    return user.kycHash;
+    return this.createKycInfoBasedOn(user);
   }
 
   private async startKyc(userData: UserData): Promise<UserData> {
@@ -150,9 +168,8 @@ export class KycService {
     return await this.kycProcess.startKycProcess(userData);
   }
 
-  async getKycStatus(kycHash: string): Promise<KycInfo> {
-    let userData = await this.userDataRepo.findOne({ where: { kycHash }, relations: ['spiderData'] });
-    if (!userData) throw new NotFoundException('User not found');
+  async getKycStatus(code: string): Promise<KycInfo> {
+    let userData = await this.getUserByKycCode(code);
 
     if (KycInProgress(userData.kycStatus)) {
       // update
@@ -160,13 +177,41 @@ export class KycService {
       await this.userDataRepo.save(userData);
     }
 
+    return this.createKycInfoBasedOn(userData);
+  }
+
+  // --- CREATE KYC INFO --- //
+
+  private createKycInfoBasedOn(userData: UserData): KycInfo {
     const hasSecondUrl = Boolean(userData.spiderData?.secondUrl);
     return {
       kycStatus: userData.kycStatus,
       kycState: userData.kycState,
+      kycHash: userData.kycHash,
+      kycDataComplete: this.isDataComplete(userData),
       depositLimit: userData.depositLimit,
+      blankedPhone: Blank(userData.phone, BlankType.PHONE),
+      blankedMail: Blank(userData.mail, BlankType.MAIL),
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
       setupUrl: hasSecondUrl ? userData.spiderData?.url : undefined,
     };
+  }
+
+  // --- GET USER --- //
+
+  private async getUser(code: string, userId?: number): Promise<UserData> {
+    return userId ? await this.getUserById(userId) : await this.getUserByKycCode(code);
+  }
+
+  private async getUserById(id: number): Promise<UserData> {
+    const userData = await this.userDataService.getUserDataByUser(id);
+    if (!userData) throw new NotFoundException('User not found');
+    return userData;
+  }
+
+  private async getUserByKycCode(code: string): Promise<UserData> {
+    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] });
+    if (!userData) throw new NotFoundException('User not found');
+    return userData;
   }
 }
