@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
-import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
+import { BuyFiatService } from 'src/payment/models/buy-fiat/buy-fiat.service';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
 import { RefRewardService } from 'src/payment/models/ref-reward/ref-reward.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
@@ -15,7 +15,7 @@ export class StatisticController {
     private readonly statisticService: StatisticService,
     private readonly cfpService: CfpService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly cryptoSellService: CryptoSellService,
+    private readonly buyFiatService: BuyFiatService,
     private readonly stakingRewardService: StakingRewardService,
     private readonly refRewardService: RefRewardService,
     private readonly masternodeService: MasternodeService,
@@ -35,7 +35,7 @@ export class StatisticController {
   async getTransactions(@Query('dateFrom') dateFrom: Date, @Query('dateTo') dateTo: Date): Promise<any> {
     return {
       buy: await this.buyCryptoService.getTransactions(dateFrom, dateTo),
-      sell: await this.cryptoSellService.getTransactions(dateFrom, dateTo),
+      sell: await this.buyFiatService.getTransactions(dateFrom, dateTo),
       stakingRewards: await this.stakingRewardService.getTransactions(dateFrom, dateTo),
       refRewards: await this.refRewardService.getTransactions(dateFrom, dateTo),
     };

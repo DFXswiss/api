@@ -35,7 +35,7 @@ export class BuyFiatService {
     let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user'] });
     if (!entity) throw new NotFoundException('Buy fiat not found');
 
-    //const sellIdBefore = entity.sell?.id;
+    const sellIdBefore = entity.sell?.id;
 
     const update = this.buyFiatRepo.create(dto);
 
@@ -58,15 +58,14 @@ export class BuyFiatService {
       await this.userService.activateUser(entity.sell?.user);
     }
 
-    //TODO cryptoSell -> buyFiat Umstellung
-    //await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
+    await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
 
     return entity;
   }
 
   async updateVolumes(): Promise<void> {
-    //const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
-    //await this.updateSellVolume(sellIds);
+    const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
+    await this.updateSellVolume(sellIds);
   }
 
   async getUserTransactions(
@@ -134,8 +133,8 @@ export class BuyFiatService {
 
     return buyFiats.map((v) => ({
       id: v.id,
-      fiatAmount: v.outputAmount,
-      fiatCurrency: v.outputAsset,
+      fiatAmount: v.amountInEur,
+      fiatCurrency: 'EUR',
       date: v.outputDate,
       cryptoAmount: v.cryptoInput?.amount,
       cryptoCurrency: v.cryptoInput?.asset?.name,

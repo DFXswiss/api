@@ -179,15 +179,13 @@ export class UserService {
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ buyVolume: number }>();
 
-    // TODO cryptoSell -> buyFiat
     const { sellVolume } = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(cryptoSell.amountInEur)', 'sellVolume')
+      .select('SUM(buyFiats.amountInEur)', 'sellVolume')
       .leftJoin('user.sells', 'sells')
-      .leftJoin('sells.cryptoInputs', 'cryptoInputs')
-      .leftJoin('cryptoInputs.cryptoSell', 'cryptoSell')
-      .where('cryptoSell.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
-      .andWhere('cryptoSell.amlCheck = :check', { check: AmlCheck.PASS })
+      .leftJoin('sells.buyFiats', 'buyFiats')
+      .where('buyFiats.outputDate BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('buyFiats.amlCheck = :check', { check: AmlCheck.PASS })
       .andWhere('user.id = :userId', { userId: query.userId })
       .getRawOne<{ sellVolume: number }>();
 

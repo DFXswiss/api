@@ -14,6 +14,8 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { BankTxType } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
+import { BuyFiat } from 'src/payment/models/buy-fiat/buy-fiat.entity';
+import { BuyFiatService } from 'src/payment/models/buy-fiat/buy-fiat.service';
 import { CryptoInput } from 'src/payment/models/crypto-input/crypto-input.entity';
 import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
 import { CryptoSell } from 'src/payment/models/crypto-sell/crypto-sell.entity';
@@ -49,6 +51,7 @@ export class AdminController {
     private readonly letterService: LetterService,
     private readonly userDataService: UserDataService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyFiatService: BuyFiatService,
     private readonly cryptoSellService: CryptoSellService,
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
@@ -213,16 +216,14 @@ export class AdminController {
         throw new BadRequestException(e.message);
       });
 
-    //TODO cryptoSell -> buyFiat wechseln
     const buyFiatData = await getConnection()
       .createQueryBuilder()
       .from(table, table)
       .select('bank_tx', 'bankTx')
       .addSelect('userData.id', 'userDataId')
-      .leftJoin('bank_tx.cryptoSell', 'cryptoSell')
-      .leftJoin('cryptoSell.cryptoInput', 'cryptoInput')
-      .leftJoin('cryptoInput.route', 'route')
-      .leftJoin('route.user', 'user')
+      .leftJoin('bank_tx.buyFiat', 'buyFiat')
+      .leftJoin('buyFiat.sell', 'sell')
+      .leftJoin('sell.user', 'user')
       .leftJoin('user.userData', 'userData')
       .where('bank_tx.id >= :id', { id })
       .andWhere('bank_tx.updated >= :updated', { updated })
@@ -253,7 +254,9 @@ export class AdminController {
 
     bankTxRestData.map((a) => (a.userDataId = null));
 
-    return buyCryptoData.concat(buyFiatData, bankTxRestData).sort((a, b) => a.bank_tx_id - b.bank_tx_id);
+    return buyCryptoData
+      .concat(buyFiatData, bankTxRestData)
+      .sort((a, b) => (sorting == 'ASC' ? a.bank_tx_id - b.bank_tx_id : b.bank_tx_id - a.bank_tx_id));
   }
 
   @Get('support')
@@ -262,6 +265,7 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getSupportData(@Query('id') id: string): Promise<{
     buy: BuyCrypto[];
+    buyFiat: BuyFiat[];
     sell: CryptoSell[];
     ref: BuyCrypto[];
     refReward: RefReward[];
@@ -278,6 +282,8 @@ export class AdminController {
 
     return {
       buy: await this.buyCryptoService.getAllUserTransactions(userIds),
+      buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
+      //TODO: remove sell
       sell: await this.cryptoSellService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
       refReward: await this.refRewardService.getAllUserRewards(userIds),
