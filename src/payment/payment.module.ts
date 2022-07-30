@@ -71,6 +71,7 @@ import { BuyFiatController } from './models/buy-fiat/buy-fiat.controller';
 import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
 import { DexModule } from './models/dex/dex.module';
 import { OlkypayService } from './models/bank-tx/olkypay.service';
+import { ChainalysisService } from './models/crypto-input/chainalysis.service';
 
 @Module({
   imports: [
@@ -157,6 +158,7 @@ import { OlkypayService } from './models/bank-tx/olkypay.service';
     BankAccountService,
     CryptoRouteController,
     CryptoRouteService,
+    ChainalysisService,
   ],
   exports: [
     BuyService,
