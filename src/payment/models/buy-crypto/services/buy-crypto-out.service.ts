@@ -38,7 +38,7 @@ export class BuyCryptoOutService {
     const tokens = await this.outClient.getToken();
 
     const utxoBalance = { amount: +utxo, asset: 'DFI' };
-    const tokensBalance = tokens.map((t) => this.outClient.parseAmount(t.amount));
+    const tokensBalance = tokens.map((t) => this.outClient.parseAmount(t.amount)).filter((t) => t.asset !== 'DFI');
 
     return [...tokensBalance, utxoBalance];
   }
