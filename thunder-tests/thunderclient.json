@@ -1577,5 +1577,33 @@
       ]
     },
     "tests": []
+  },
+  {
+    "_id": "48818cd5-8953-40c9-81f0-59956591e650",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
+    "name": "All Buy",
+    "url": "{{url}}/v1/buy",
+    "method": "GET",
+    "sortNum": 590000,
+    "created": "2022-08-01T09:37:45.430Z",
+    "modified": "2022-08-01T09:37:55.289Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "dce2de5b-8145-4990-ab18-fcece074bf86",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
+    "name": "Buy Tx History",
+    "url": "{{url}}/v1/buy/114/history",
+    "method": "GET",
+    "sortNum": 600000,
+    "created": "2022-08-01T09:38:52.337Z",
+    "modified": "2022-08-01T12:45:53.735Z",
+    "headers": [],
+    "params": [],
+    "tests": []
   }
 ]

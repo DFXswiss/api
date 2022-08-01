@@ -14,6 +14,7 @@ import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
+import { BuyHistoryDto } from './dto/buy-history.dto';
 import { BuyType } from './dto/buy-type.enum';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
@@ -52,6 +53,13 @@ export class BuyController {
     @Body() updateBuyDto: UpdateBuyDto,
   ): Promise<BuyDto> {
     return this.buyService.updateBuy(jwt.id, +id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyHistoryDto[]> {
+    return this.buyService.getHistory(jwt.id, +id);
   }
 
   // --- DTO --- //
