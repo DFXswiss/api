@@ -233,7 +233,7 @@ export class UserService {
     });
 
     // if user has used ref, he will have a reduced fee, otherwise default. exception user has a custom crypto fee set
-    const defaultFee = user?.usedRef && user?.usedRef !== '000-000' ? Config.crypto.feeUsedRef : Config.crypto.fee
+    const defaultFee = user?.usedRef && user?.usedRef !== '000-000' ? Config.crypto.feeUsedRef : Config.crypto.fee;
 
     return Util.round((user?.cryptoFee ?? defaultFee) * 100, Config.defaultPercentageDecimal);
   }

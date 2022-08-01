@@ -148,20 +148,20 @@ describe('UserService', () => {
   });
 
   it('should return a fee of 1.2 for crypto routes, if no ref was used', async () => {
-    setup(AccountType.PERSONAL, undefined, undefined, '000-000')
+    setup(AccountType.PERSONAL, undefined, undefined, '000-000');
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(1.2)
-  })
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(1.2);
+  });
 
   it('should return a fee of 1.2 for crypto routes, if ref is undefined', async () => {
-    setup(AccountType.PERSONAL)
+    setup(AccountType.PERSONAL);
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(1.2)
-  })
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(1.2);
+  });
 
   it('should return a fee of 1.1 for crypto routes, if ref was used', async () => {
-    setup(AccountType.PERSONAL, undefined, undefined, '000-001')
+    setup(AccountType.PERSONAL, undefined, undefined, '000-001');
 
-    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(1.1)
-  })
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual(1.1);
+  });
 });
