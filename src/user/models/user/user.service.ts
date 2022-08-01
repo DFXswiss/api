@@ -228,11 +228,14 @@ export class UserService {
 
   async getUserCryptoFee(userId: number): Promise<number> {
     const user = await this.userRepo.findOne({
-      select: ['id', 'cryptoFee'],
+      select: ['id', 'cryptoFee', 'usedRef'],
       where: { id: userId },
     });
 
-    return Util.round((user?.cryptoFee ?? Config.crypto.fee) * 100, Config.defaultPercentageDecimal);
+    // if user has used ref, he will have a reduced fee, otherwise default. exception user has a custom crypto fee set
+    const defaultFee = user?.usedRef && user?.usedRef !== '000-000' ? Config.crypto.feeUsedRef : Config.crypto.fee
+
+    return Util.round((user?.cryptoFee ?? defaultFee) * 100, Config.defaultPercentageDecimal);
   }
 
   async getUserSellFee(userId: number): Promise<number> {
