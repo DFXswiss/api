@@ -120,4 +120,27 @@ export class BuyFiat extends IEntity {
   //
   @Column({ default: false })
   isComplete: boolean;
+
+  offRampInitiated(recipientMail: string): this {
+    if (!recipientMail) {
+      throw new Error(`Cannot record off-ramp first email, no recipientMail provided. BuyFiat ID: ${this.id}`);
+    }
+
+    this.recipientMail = recipientMail;
+    this.mail1SendDate = new Date();
+
+    return this;
+  }
+
+  cryptoExchangedToFiat(): this {
+    this.mail2SendDate = new Date();
+
+    return this;
+  }
+
+  fiatToBankTransferInitiated(): this {
+    this.mail3SendDate = new Date();
+
+    return this;
+  }
 }
