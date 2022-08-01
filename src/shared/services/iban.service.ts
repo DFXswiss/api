@@ -71,15 +71,20 @@ export interface IbanDetailsDto {
   www_seen_until: string;
 }
 
+interface IbanBalance {
+  message: string;
+  balance: number;
+}
+
 @Injectable()
 export class IbanService {
-  private readonly baseUrl = 'https://rest.sepatools.eu/validate_iban';
+  private readonly baseUrl = 'https://rest.sepatools.eu';
   private ibanApiBalance: number;
 
   constructor(private readonly http: HttpService) {}
 
   async getIbanInfos(iban: string): Promise<IbanDetailsDto> {
-    const url = `${this.baseUrl}/${iban}`;
+    const url = `${this.baseUrl}/validate_iban${iban}`;
 
     try {
       const result = await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
@@ -92,7 +97,12 @@ export class IbanService {
     }
   }
 
-  public getBalance(): number {
+  async getBalance(): Promise<number> {
+    if (!this.ibanApiBalance)
+      this.ibanApiBalance = await this.http
+        .get<IbanBalance>(`${this.baseUrl}/get_balance`, Config.sepaTools)
+        .then((r) => r.balance);
+
     return this.ibanApiBalance;
   }
 }

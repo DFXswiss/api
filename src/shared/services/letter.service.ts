@@ -23,6 +23,12 @@ interface LetterResponse {
   message: string;
 }
 
+interface BalanceResponse {
+  message: string;
+  status: string;
+  balance: { value: string; currency: string };
+}
+
 @Injectable()
 export class LetterService {
   constructor(private readonly http: HttpService) {}
@@ -43,5 +49,15 @@ export class LetterService {
         },
       })
       .then((r) => r.status == 200);
+  }
+
+  async getBalance(): Promise<number> {
+    const balance = await this.http
+      .post<BalanceResponse>(`${Config.letter.url}/getBalance`, {
+        auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
+      })
+      .then((r) => r.balance.value);
+
+    return +balance;
   }
 }
