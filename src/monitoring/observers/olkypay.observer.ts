@@ -11,6 +11,7 @@ interface OlkypayData {
   balance: number;
   dbBalance: number;
   difference: number;
+  balanceOperationYesterday: number;
 }
 
 @Injectable()
@@ -19,7 +20,7 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
     super(monitoringService, 'olkypay', 'balance');
   }
 
-  @Interval(900000)
+  @Interval(10000)
   async fetch() {
     if (!Config.bank.olkypay.clientId) return;
     const data = await this.getOlkypay();
@@ -32,9 +33,9 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
   // *** HELPER METHODS *** //
 
   private async getOlkypay(): Promise<OlkypayData> {
-    const balance = await this.olkypayService.getBalance();
+    const { balance, balanceOperationYesterday } = await this.olkypayService.getBalance();
 
-    const dbBalance = await getCustomRepository(BankTxRepository)
+    const { dbBalance } = await getCustomRepository(BankTxRepository)
       .createQueryBuilder('bankTx')
       .select(
         "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
@@ -42,12 +43,13 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
       )
       .innerJoin('bankTx.batch', 'bankTxBatch')
       .where('bankTxBatch.iban = :iban', { iban: Config.bank.olkypay.iban })
-      .getRawOne<{ balance: number }>();
+      .getRawOne<{ dbBalance: number }>();
 
     return {
       balance,
-      dbBalance: dbBalance.balance,
-      difference: balance - dbBalance.balance,
+      dbBalance,
+      difference: balance - dbBalance,
+      balanceOperationYesterday,
     };
   }
 }
