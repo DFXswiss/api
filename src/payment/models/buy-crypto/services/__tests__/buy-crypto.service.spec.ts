@@ -8,7 +8,6 @@ import { CryptoRouteService } from 'src/payment/models/crypto-route/crypto-route
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { UserService } from 'src/user/models/user/user.service';
-import { BuyCryptoHistoryDto } from '../../dto/buy-crypto-history.dto';
 import { createCustomBuyCryptoHistory } from '../../dto/__tests__/mock/buy-crypto-history.dto.mock';
 import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { createCustomBuyCrypto } from '../../entities/__tests__/mock/buy-crypto.entity.mock';
@@ -77,6 +76,7 @@ describe('BuyCryptoService', () => {
 
     service = module.get<BuyCryptoService>(BuyCryptoService);
   });
+
   const txOne = {
     inputAmount: 1,
     inputAsset: 'EUR',
