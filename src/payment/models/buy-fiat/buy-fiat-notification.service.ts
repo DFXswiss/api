@@ -29,6 +29,8 @@ export class BuyFiatNotificationService {
       relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
+    entities.length > 0 && console.log(`Sending ${entities.length} 'off-ramp initiated' email(s)`);
+
     for (const entity of entities) {
       try {
         const recipientMail = entity.sell.user?.userData?.mail;
@@ -58,6 +60,8 @@ export class BuyFiatNotificationService {
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
 
+    entities.length > 0 && console.log(`Sending ${entities.length} 'crypto exchanged to fiat' email(s)`);
+
     for (const entity of entities) {
       try {
         entity.cryptoExchangedToFiat();
@@ -84,9 +88,11 @@ export class BuyFiatNotificationService {
 
   private async fiatToBankTransferInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
-      where: { mail2SendDate: Not(IsNull()), mail3SendDate: IsNull(), bankTxId: Not(IsNull()) },
+      where: { mail2SendDate: Not(IsNull()), mail3SendDate: IsNull(), bankTx: Not(IsNull()) },
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
+
+    entities.length > 0 && console.log(`Sending ${entities.length} 'fiat to bank transfer' email(s)`);
 
     for (const entity of entities) {
       try {
