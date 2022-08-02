@@ -7,6 +7,8 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserService } from 'src/user/models/user/user.service';
 import { In } from 'typeorm';
+import { BuyCryptoHistoryDto } from '../buy-crypto/dto/buy-crypto-history.dto';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { Deposit } from '../deposit/deposit.entity';
 import { StakingDto } from '../staking/dto/staking.dto';
 import { Staking } from '../staking/staking.entity';
@@ -14,7 +16,6 @@ import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { Buy } from './buy.entity';
 import { BuyService } from './buy.service';
-import { BuyHistoryDto } from './dto/buy-history.dto';
 import { BuyType } from './dto/buy-type.enum';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
@@ -28,6 +29,7 @@ export class BuyController {
     private readonly userService: UserService,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   @Get()
@@ -58,8 +60,8 @@ export class BuyController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyHistoryDto[]> {
-    return this.buyService.getHistory(jwt.id, +id);
+  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyCryptoHistoryDto[]> {
+    return this.buyCryptoService.getHistory(jwt.id, +id);
   }
 
   // --- DTO --- //

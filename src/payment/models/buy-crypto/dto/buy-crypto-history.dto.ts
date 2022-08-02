@@ -1,12 +1,12 @@
 import { AmlCheck } from '../../buy-crypto/enums/aml-check.enum';
 
-export class BuyHistoryDto {
+export class BuyCryptoHistoryDto {
   inputAmount: number;
   inputAsset: string;
   outputAmount: number;
   outputAsset: string;
   txId: string;
-  date: string;
+  date: Date;
   amlCheck: AmlCheck;
   isComplete: boolean;
 }

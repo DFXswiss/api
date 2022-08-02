@@ -13,16 +13,11 @@ import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
-import { BuyHistoryDto } from './dto/buy-history.dto';
-import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
-import { BuyCryptoRepository } from '../buy-crypto/repositories/buy-crypto.repository';
-import BigNumber from 'bignumber.js';
 
 @Injectable()
 export class BuyService {
   constructor(
     private readonly buyRepo: BuyRepository,
-    private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly assetService: AssetService,
     private readonly stakingService: StakingService,
     private readonly userService: UserService,
@@ -128,30 +123,5 @@ export class BuyService {
     if (!buy) throw new NotFoundException('Buy route not found');
 
     return await this.buyRepo.save({ ...buy, ...dto });
-  }
-
-  async getHistory(userId: number, buyId: number): Promise<BuyHistoryDto[]> {
-    return this.getTransactionEntries(userId, buyId);
-  }
-
-  async getTransactionEntries(userId: number, buyId: number): Promise<BuyHistoryDto[]> {
-    return (
-      this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('buyCrypto.inputAmount', 'inputAmount')
-        .addSelect('buyCrypto.inputAsset', 'inputAsset')
-        .addSelect('buyCrypto.outputAmount', 'outputAmount')
-        .addSelect('buyCrypto.outputAsset', 'outputAsset')
-        .addSelect('buyCrypto.txId', 'txId')
-        .addSelect('buyCrypto.outputDate', 'date')
-        .addSelect('buyCrypto.amlCheck', 'amlCheck')
-        .addSelect('buyCrypto.isComplete', 'isComplete')
-        .leftJoin('buyCrypto.buy', 'buy')
-        .where('buy.id = :id', { id: buyId })
-        .andWhere('buy.userId = :userId', { userId: userId })
-        // Krysh: this is only temporary and will be removed in near future
-        .andWhere('buyCrypto.amlCheck = :amlCheck', { amlCheck: AmlCheck.PASS })
-        .getRawMany<BuyHistoryDto>()
-    );
   }
 }
