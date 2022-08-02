@@ -33,6 +33,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
     usedRef,
     refProvision,
     refFactor,
+    isComplete,
   } = customValues;
 
   const keys = Object.keys(customValues);
@@ -64,6 +65,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   entity.usedRef = keys.includes('usedRef') ? usedRef : '';
   entity.refProvision = keys.includes('refProvision') ? refProvision : 0;
   entity.refFactor = keys.includes('refFactor') ? refFactor : 0;
+  entity.isComplete = keys.includes('isComplete') ? isComplete : false;
 
   return entity;
 }

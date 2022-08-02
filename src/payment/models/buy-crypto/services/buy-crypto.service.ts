@@ -21,6 +21,7 @@ import { CryptoRouteRepository } from '../../crypto-route/crypto-route.repositor
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
+import { BuyCryptoHistoryDto } from '../dto/buy-crypto-history.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -176,7 +177,29 @@ export class BuyCryptoService {
     });
   }
 
+  async getHistory(userId: number, buyId: number): Promise<BuyCryptoHistoryDto[]> {
+    return this.buyCryptoRepo
+      .find({
+        where: { buy: { id: buyId, user: { id: userId } } },
+        relations: ['buy', 'buy.user'],
+      })
+      .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
+  }
+
   // --- HELPER METHODS --- //
+
+  private toHistoryDto(buyCrypto: BuyCrypto): BuyCryptoHistoryDto {
+    return {
+      inputAmount: buyCrypto.inputAmount,
+      inputAsset: buyCrypto.inputAsset,
+      amlCheck: buyCrypto.amlCheck,
+      outputAmount: buyCrypto.outputAmount,
+      outputAsset: buyCrypto.outputAsset,
+      txId: buyCrypto.txId,
+      isComplete: buyCrypto.isComplete,
+      date: buyCrypto.outputDate,
+    };
+  }
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
