@@ -15,6 +15,7 @@ import { StakingRefReward, StakingRefType } from '../staking-ref-reward/staking-
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
+import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 
 @Injectable()
 export class HistoryService {
@@ -52,7 +53,102 @@ export class HistoryService {
 
   // --- HELPER METHODS --- //
   private async getBuyTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const buyCryptos = await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo);
+    const buyTransaction = await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo);
+    return [...this.getCryptoBuyTransactions(buyTransaction), ...this.getBuyCryptoTransactions(buyTransaction)];
+  }
+
+  private getCryptoBuyTransactions(buyCryptos: BuyCrypto[]): HistoryDto[] {
+    return buyCryptos
+      .filter(
+        (c) =>
+          c.amlCheck === AmlCheck.PASS &&
+          c.inputAmount &&
+          c.outputAmount &&
+          c.inputAsset &&
+          c.bankTx &&
+          c.outputDate &&
+          c.txId &&
+          c.cryptoInput &&
+          c.cryptoInput.outTxId &&
+          c.cryptoRoute,
+      )
+      .map((c) =>
+        c.cryptoInput.asset.dexName == c.outputAsset
+          ? [
+              {
+                type: 'Deposit',
+                buyAmount: c.inputAmount,
+                buyAsset: c.inputAsset,
+                sellAmount: null,
+                sellAsset: null,
+                fee: null,
+                feeAsset: null,
+                exchange: 'DFX',
+                tradeGroup: null,
+                comment: 'DFX Purchase',
+                date: c.cryptoInput.created,
+                txid: c.cryptoInput.inTxId,
+                buyValueInEur: null,
+                sellValueInEur: null,
+              },
+              c.percentFeeAmount && c.inputReferenceAsset
+                ? {
+                    type: 'Other Fee',
+                    buyAmount: null,
+                    buyAsset: null,
+                    sellAmount: c.percentFeeAmount,
+                    sellAsset: c.inputReferenceAsset,
+                    fee: null,
+                    feeAsset: null,
+                    exchange: 'DFX',
+                    tradeGroup: null,
+                    comment: 'DFX Purchase Fee',
+                    date: c.outputDate,
+                    txid: c.txId,
+                    buyValueInEur: null,
+                    sellValueInEur: null,
+                  }
+                : null,
+            ]
+          : [
+              {
+                type: 'Deposit',
+                buyAmount: c.inputAmount,
+                buyAsset: c.inputAsset,
+                sellAmount: null,
+                sellAsset: null,
+                fee: null,
+                feeAsset: null,
+                exchange: 'DFX',
+                tradeGroup: null,
+                comment: 'DFX Purchase',
+                date: c.cryptoInput.created,
+                txid: c.cryptoInput.inTxId,
+                buyValueInEur: null,
+                sellValueInEur: null,
+              },
+              {
+                type: 'Trade',
+                buyAmount: c.outputAmount,
+                buyAsset: c.cryptoRoute?.deposit ? 'DFI' : this.getAssetSymbol(c.cryptoRoute?.asset?.dexName),
+                sellAmount: c.inputAmount,
+                sellAsset: c.inputAsset,
+                fee: c.percentFeeAmount && c.inputReferenceAsset ? c.percentFeeAmount : null,
+                feeAsset: c.percentFeeAmount && c.inputReferenceAsset ? c.inputReferenceAsset : null,
+                exchange: 'DFX',
+                tradeGroup: null,
+                comment: 'DFX Purchase',
+                date: c.outputDate ? c.outputDate : null,
+                txid: c.txId,
+                buyValueInEur: null,
+                sellValueInEur: null,
+              },
+            ],
+      )
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private getBuyCryptoTransactions(buyCryptos: BuyCrypto[]): HistoryDto[] {
     return buyCryptos
       .filter(
         (c) =>
@@ -113,6 +209,7 @@ export class HistoryService {
           c.outputAmount &&
           c.outputAsset &&
           c.inputAmount &&
+          c.remittanceInfo &&
           c.outputDate,
       )
       .map((c) => [
@@ -144,7 +241,7 @@ export class HistoryService {
           tradeGroup: null,
           comment: 'DFX Sale',
           date: c.outputDate ? c.outputDate : null,
-          txid: c.bankTx?.remittanceInfo,
+          txid: c.remittanceInfo,
           buyValueInEur: null,
           sellValueInEur: null,
         },

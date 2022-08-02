@@ -147,7 +147,7 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return await this.buyCryptoRepo.find({
       where: { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'buy', 'buy.user'],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoInput.asset', 'cryptoRoute'],
     });
   }
 
