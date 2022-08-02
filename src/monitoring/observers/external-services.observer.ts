@@ -8,6 +8,12 @@ import { LetterService } from 'src/shared/services/letter.service';
 interface ExternalServicesData {
   name: string;
   balance: number;
+  status: Status;
+}
+
+enum Status {
+  ONLINE = 'Online',
+  OFFLINE = 'Offline',
 }
 
 @Injectable()
@@ -17,7 +23,7 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
     private readonly ibanService: IbanService,
     private readonly letterService: LetterService,
   ) {
-    super(monitoringService, 'externalServices', 'balance');
+    super(monitoringService, 'externalServices', 'combined');
   }
 
   @Interval(900000)
@@ -36,10 +42,12 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
   }
 
   private async getIbanService(): Promise<ExternalServicesData> {
-    return { name: 'Iban', balance: await this.ibanService.getBalance() };
+    const { balance } = await this.ibanService.getBalance();
+    return { name: 'IBAN', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
   }
 
   private async getLetterService(): Promise<ExternalServicesData> {
-    return { name: 'Letter', balance: await this.letterService.getBalance() };
+    const { balance } = await this.letterService.getBalance();
+    return { name: 'Letter', balance: +balance.value, status: balance ? Status.ONLINE : Status.OFFLINE };
   }
 }

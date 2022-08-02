@@ -51,13 +51,9 @@ export class LetterService {
       .then((r) => r.status == 200);
   }
 
-  async getBalance(): Promise<number> {
-    const balance = await this.http
-      .post<BalanceResponse>(`${Config.letter.url}/getBalance`, {
-        auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
-      })
-      .then((r) => r.balance.value);
-
-    return +balance;
+  async getBalance(): Promise<BalanceResponse> {
+    return await this.http.post<BalanceResponse>(`${Config.letter.url}/getBalance`, {
+      auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
+    });
   }
 }
