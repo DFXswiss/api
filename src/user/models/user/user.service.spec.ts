@@ -27,8 +27,16 @@ describe('UserService', () => {
   let geoLocationService: GeoLocationService;
   let countryService: CountryService;
 
-  function setup(accountType: AccountType, refFeePercent?: number, buyFee?: number, usedRef?: string) {
-    jest.spyOn(userRepo, 'findOne').mockResolvedValue({ accountType, refFeePercent, buyFee, usedRef } as User);
+  function setup(
+    accountType: AccountType,
+    refFeePercent?: number,
+    buyFee?: number,
+    usedRef?: string,
+    cryptoFee?: number,
+  ) {
+    jest
+      .spyOn(userRepo, 'findOne')
+      .mockResolvedValue({ accountType, refFeePercent, buyFee, usedRef, cryptoFee } as User);
   }
 
   beforeEach(async () => {
@@ -163,5 +171,11 @@ describe('UserService', () => {
     setup(AccountType.PERSONAL, undefined, undefined, '000-001');
 
     await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 1.1, refBonus: 0.1 });
+  });
+
+  it('should return a fee of 0.5 and refBonus of 0 for crypto routes, if cryptoFee is defined', async () => {
+    setup(AccountType.PERSONAL, undefined, undefined, '000-001', 0.005);
+
+    await expect(service.getUserCryptoFee(1)).resolves.toStrictEqual({ fee: 0.5, refBonus: 0 });
   });
 });
