@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
 import { MailService } from 'src/shared/services/mail.service';
+import { Util } from 'src/shared/util';
 import { IsNull, Not } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
 
@@ -13,27 +14,35 @@ export class BuyFiatNotificationService {
 
   @Interval(60000)
   async sendNotificationMails(): Promise<void> {
+    if (!this.lock.acquire()) return;
+
     await this.offRampInitiated();
     await this.cryptoExchangedToFiat();
     await this.fiatToBankTransferInitiated();
+
+    this.lock.release();
   }
 
   private async offRampInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
-      where: { mail1SendDate: IsNull() },
-      relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'cryptoInput.route.user.userData'],
+      where: { mail1SendDate: IsNull(), cryptoInput: Not(IsNull()) },
+      relations: ['cryptoInput', 'sell', 'sell.user', 'sell.user.userData'],
     });
 
     for (const entity of entities) {
       try {
-        const recipientMail = entity.cryptoInput?.route?.user?.userData?.mail;
+        const recipientMail = entity.sell.user?.userData?.mail;
 
         entity.offRampInitiated(recipientMail);
 
         await this.mailService.sendTranslatedMail({
-          userData: entity.cryptoInput.route.user.userData,
+          userData: entity.sell.user.userData,
           translationKey: 'mail.payment.withdrawal.offRampInitiated',
-          params: {},
+          params: {
+            inputAmount: entity.cryptoInput.amount,
+            inputAsset: entity.cryptoInput.asset.dexName,
+            inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
+          },
         });
 
         await this.buyFiatRepo.save(entity);
@@ -46,7 +55,7 @@ export class BuyFiatNotificationService {
   private async cryptoExchangedToFiat(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: { mail1SendDate: Not(IsNull()), mail2SendDate: IsNull(), outputAmount: Not(IsNull()) },
-      relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'cryptoInput.route.user.userData'],
+      relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
 
     for (const entity of entities) {
@@ -54,9 +63,16 @@ export class BuyFiatNotificationService {
         entity.cryptoExchangedToFiat();
 
         await this.mailService.sendTranslatedMail({
-          userData: entity.cryptoInput.route.user.userData,
+          userData: entity.sell.user.userData,
           translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
-          params: {},
+          params: {
+            inputAmount: entity.inputAmount,
+            inputAsset: entity.inputAsset,
+            percentFee: entity.percentFeeString,
+            exchangeRate: entity.exchangeRateString,
+            outputAmount: entity.outputAmount,
+            outputAsset: entity.outputAsset,
+          },
         });
 
         await this.buyFiatRepo.save(entity);
@@ -69,7 +85,7 @@ export class BuyFiatNotificationService {
   private async fiatToBankTransferInitiated(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: { mail2SendDate: Not(IsNull()), mail3SendDate: IsNull(), bankTxId: Not(IsNull()) },
-      relations: ['cryptoInput', 'cryptoInput.route', 'cryptoInput.route.user', 'cryptoInput.route.user.userData'],
+      relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
 
     for (const entity of entities) {
@@ -77,9 +93,14 @@ export class BuyFiatNotificationService {
         entity.fiatToBankTransferInitiated();
 
         await this.mailService.sendTranslatedMail({
-          userData: entity.cryptoInput.route.user.userData,
+          userData: entity.sell.user.userData,
           translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
-          params: {},
+          params: {
+            outputAmount: entity.outputAmount,
+            outputAsset: entity.outputAsset,
+            bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
+            remittanceInfo: entity.remittanceInfo,
+          },
         });
 
         await this.buyFiatRepo.save(entity);

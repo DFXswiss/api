@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/util';
 import { Entity, OneToOne, JoinColumn, ManyToOne, Column } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
@@ -142,5 +143,13 @@ export class BuyFiat extends IEntity {
     this.mail3SendDate = new Date();
 
     return this;
+  }
+
+  get exchangeRateString(): string {
+    return `${Util.round(this.outputAmount / this.inputAmount, 2)} ${this.outputAsset}/${this.inputAsset}`;
+  }
+
+  get percentFeeString(): string {
+    return `${Util.round(this.percentFee * 100, 2)}%`;
   }
 }
