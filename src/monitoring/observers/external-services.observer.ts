@@ -48,6 +48,6 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
 
   private async getLetterService(): Promise<ExternalServicesData> {
     const { balance } = await this.letterService.getBalance();
-    return { name: 'Letter', balance: +balance.value, status: balance ? Status.ONLINE : Status.OFFLINE };
+    return { name: 'Letter', balance: +balance?.value, status: balance ? Status.ONLINE : Status.OFFLINE };
   }
 }
