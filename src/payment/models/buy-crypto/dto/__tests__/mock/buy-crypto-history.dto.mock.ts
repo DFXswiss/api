@@ -1,7 +1,7 @@
 import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
 import { BuyCryptoHistoryDto } from '../../buy-crypto-history.dto';
 
-const defaultBuyHistory: BuyCryptoHistoryDto = {
+const defaultBuyCryptoHistory: BuyCryptoHistoryDto = {
   inputAmount: 10,
   inputAsset: 'EUR',
   outputAmount: 0.0005,
@@ -13,9 +13,9 @@ const defaultBuyHistory: BuyCryptoHistoryDto = {
 };
 
 export function createDefaultBuyCryptoHistory(): BuyCryptoHistoryDto {
-  return defaultBuyHistory;
+  return defaultBuyCryptoHistory;
 }
 
 export function createCustomBuyCryptoHistory(customValues: Partial<BuyCryptoHistoryDto>): BuyCryptoHistoryDto {
-  return { ...defaultBuyHistory, ...customValues };
+  return { ...defaultBuyCryptoHistory, ...customValues };
 }

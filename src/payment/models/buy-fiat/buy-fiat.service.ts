@@ -11,6 +11,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { SellRepository } from '../sell/sell.repository';
 import { SellService } from '../sell/sell.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
+import { BuyFiatHistoryDto } from './dto/buy-fiat-history.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -87,7 +88,29 @@ export class BuyFiatService {
     });
   }
 
+  async getHistory(userId: number, sellId: number): Promise<BuyFiatHistoryDto[]> {
+    return this.buyFiatRepo
+      .find({
+        where: { sell: { id: sellId, user: { id: userId } } },
+        relations: ['sell', 'sell.user', 'cryptoInput'],
+      })
+      .then((buyFiats) => buyFiats.map(this.toHistoryDto));
+  }
+
   // --- HELPER METHODS --- //
+  private toHistoryDto(buyFiat: BuyFiat): BuyFiatHistoryDto {
+    return {
+      inputAmount: buyFiat.inputAmount,
+      inputAsset: buyFiat.inputAsset,
+      outputAmount: buyFiat.outputAmount,
+      outputAsset: buyFiat.outputAsset,
+      txId: buyFiat.cryptoInput.inTxId,
+      date: buyFiat.cryptoInput.created,
+      amlCheck: buyFiat.amlCheck,
+      isComplete: buyFiat.isComplete,
+    };
+  }
+
   private async getSell(sellId: number): Promise<Sell> {
     // sell
     const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['user'] });
