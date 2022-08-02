@@ -132,18 +132,12 @@ describe('BuyCryptoService', () => {
 
     await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
       createCustomBuyCryptoHistory({
-        inputAmount: 1,
-        inputAsset: 'EUR',
-        outputAmount: 0.00005,
-        outputAsset: 'BTC',
         date: date,
+        ...txOne,
       }),
       createCustomBuyCryptoHistory({
-        inputAmount: 10,
-        inputAsset: 'EUR',
-        outputAmount: 0.0005,
-        outputAsset: 'BTC',
         date: date,
+        ...txTwo,
       }),
     ]);
   });
@@ -154,11 +148,8 @@ describe('BuyCryptoService', () => {
 
     await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
       createCustomBuyCryptoHistory({
-        inputAmount: 1,
-        inputAsset: 'EUR',
-        outputAmount: 0.00000003,
-        outputAsset: 'GOOGL',
         date: date,
+        ...txSmallAmount,
       }),
     ]);
   });

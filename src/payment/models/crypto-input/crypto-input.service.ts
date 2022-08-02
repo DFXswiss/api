@@ -4,6 +4,7 @@ import { CryptoInputRepository } from './crypto-input.repository';
 import { In } from 'typeorm';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 import { NodeClient } from 'src/ain/node/node-client';
+import { CryptoInputHistoryDto } from './dto/crypto-input-history.dto';
 
 @Injectable()
 export class CryptoInputService {
@@ -23,11 +24,33 @@ export class CryptoInputService {
     });
   }
 
+  async getHistory(userId: number, routeId: number): Promise<CryptoInputHistoryDto[]> {
+    return this.cryptoInputRepo
+      .find({
+        where: { route: { id: routeId, user: { id: userId } } },
+        relations: ['buyCrypto'],
+      })
+      .then((inputs) => inputs.map(this.toHistoryDto));
+  }
+
   // --- HELPER METHODS --- //
   protected async checkNodeInSync(client: NodeClient): Promise<{ headers: number; blocks: number }> {
     const { blocks, headers } = await client.getInfo();
     if (blocks < headers - 1) throw new Error(`Node not in sync by ${headers - blocks} block(s)`);
 
     return { headers, blocks };
+  }
+
+  private toHistoryDto(input: CryptoInput): CryptoInputHistoryDto {
+    return {
+      inputAmount: input.amount,
+      inputAsset: input.asset.dexName,
+      outputAmount: input.buyCrypto.outputAmount,
+      outputAsset: input.buyCrypto.outputAsset,
+      txId: input.buyCrypto.txId,
+      date: input.created,
+      amlCheck: input.amlCheck,
+      isComplete: input.buyCrypto.isComplete,
+    };
   }
 }
