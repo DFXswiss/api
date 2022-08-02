@@ -18,6 +18,8 @@ import { StakingDto } from '../staking/dto/staking.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
+import { CryptoInputService } from '../crypto-input/crypto-input.service';
+import { CryptoInputHistoryDto } from '../crypto-input/dto/crypto-input-history.dto';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')
@@ -27,6 +29,7 @@ export class CryptoRouteController {
     private readonly userService: UserService,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
+    private readonly cryptoInputService: CryptoInputService,
   ) {}
 
   @Get()
@@ -52,6 +55,13 @@ export class CryptoRouteController {
     @Body() updateCryptoDto: UpdateCryptoRouteDto,
   ): Promise<CryptoRouteDto> {
     return this.cryptoRouteService.updateCrypto(jwt.id, +id, updateCryptoDto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoInputHistoryDto[]> {
+    return this.cryptoInputService.getHistory(jwt.id, +id);
   }
 
   // --- DTO --- //

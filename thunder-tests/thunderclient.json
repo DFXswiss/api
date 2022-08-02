@@ -1633,5 +1633,19 @@
     "headers": [],
     "params": [],
     "tests": []
+  },
+  {
+    "_id": "5cdfd463-6de0-4952-b541-4a1b27beb5c7",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0dfedb35-f836-48a1-b010-04736f083788",
+    "name": "Get Crypto Route Tx History",
+    "url": "{{url}}/v1/cryptoRoute/83/history",
+    "method": "GET",
+    "sortNum": 630000,
+    "created": "2022-08-02T15:22:34.867Z",
+    "modified": "2022-08-02T15:22:45.519Z",
+    "headers": [],
+    "params": [],
+    "tests": []
   }
 ]

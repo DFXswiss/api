@@ -6,6 +6,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 
 describe('BuyController', () => {
   let controller: BuyController;
@@ -14,12 +15,14 @@ describe('BuyController', () => {
   let userService: UserService;
   let stakingRepo: StakingRepository;
   let stakingService: StakingService;
+  let buyCryptoService: BuyCryptoService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
     userService = createMock<UserService>();
     stakingRepo = createMock<StakingRepository>();
     stakingService = createMock<StakingService>();
+    buyCryptoService = createMock<BuyCryptoService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -29,6 +32,7 @@ describe('BuyController', () => {
         { provide: UserService, useValue: userService },
         { provide: StakingRepository, useValue: stakingRepo },
         { provide: StakingService, useValue: stakingService },
+        { provide: BuyCryptoService, useValue: buyCryptoService },
       ],
     }).compile();
 

@@ -116,20 +116,14 @@ describe('BuyFiatService', () => {
 
     await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
       createCustomBuyFiatHistory({
-        inputAmount: 0.00005,
-        inputAsset: 'BTC',
-        outputAmount: 1,
-        outputAsset: 'EUR',
         date: date,
         txId: 'IN_TX_ID_0',
+        ...txOne,
       }),
       createCustomBuyFiatHistory({
-        inputAmount: 0.0005,
-        inputAsset: 'BTC',
-        outputAmount: 10,
-        outputAsset: 'EUR',
         date: date,
         txId: 'IN_TX_ID_1',
+        ...txTwo,
       }),
     ]);
   });
@@ -140,12 +134,9 @@ describe('BuyFiatService', () => {
 
     await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
       createCustomBuyFiatHistory({
-        inputAmount: 0.00000003,
-        inputAsset: 'GOOGL',
-        outputAmount: 1,
-        outputAsset: 'EUR',
         date: date,
         txId: 'IN_TX_ID_0',
+        ...txSmallAmount,
       }),
     ]);
   });
