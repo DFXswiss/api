@@ -251,6 +251,7 @@ export class HistoryService {
 
   private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
     const stakingRewards = await this.stakingRewardService.getUserRewards([userId], dateFrom, dateTo);
+    let txCount = 0;
     return stakingRewards
       .map((c) => [
         {
@@ -265,7 +266,7 @@ export class HistoryService {
           tradeGroup: c.payoutType === PayoutType.REINVEST ? 'Staking' : null,
           comment: 'DFX Staking Reward',
           date: c.outputDate,
-          txid: c.txId,
+          txid: c.txId + txCount++,
           buyValueInEur: null,
           sellValueInEur: null,
         },
