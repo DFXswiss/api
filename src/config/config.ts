@@ -205,6 +205,7 @@ export class Configuration {
 
   crypto = {
     fee: 0.012,
+    refBonus: 0.001,
   };
 
   ftp = {
