@@ -149,4 +149,8 @@ export class Util {
   static trimBlockchainAddress(address: string): string {
     return '***' + address.slice(address.length - 6);
   }
+
+  static trimIBAN(iban: string): string {
+    return '***' + iban.slice(iban.length - 4);
+  }
 }
