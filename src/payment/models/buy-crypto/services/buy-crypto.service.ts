@@ -145,10 +145,25 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
-      where: { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoInput.asset', 'cryptoRoute'],
-    });
+    return await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .leftJoinAndSelect('buyCrypto.bankTx', 'bankTx')
+      .leftJoinAndSelect('buyCrypto.buy', 'buy')
+      .leftJoinAndSelect('buy.user', 'buyUser')
+      .leftJoinAndSelect('buy.asset', 'buyAsset')
+      .leftJoinAndSelect('buyCrypto.cryptoInput', 'cryptoInput')
+      .leftJoinAndSelect('cryptoInput.asset', 'asset')
+      .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
+      .leftJoinAndSelect('cryptoRoute.user', 'cryptoRouteUser')
+      .leftJoinAndSelect('cryptoRoute.asset', 'cryptoRouteAsset')
+      .where('buyCrypto.outputDate BETWEEN :from AND :to', { from: dateFrom, to: dateTo })
+      .andWhere('(buyUser.id = :id OR cryptoRouteUser.id = :id)', {
+        id: userId,
+      })
+      .getMany()
+      .catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      });
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {

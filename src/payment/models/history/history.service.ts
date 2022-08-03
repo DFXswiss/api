@@ -65,7 +65,6 @@ export class HistoryService {
           c.inputAmount &&
           c.outputAmount &&
           c.inputAsset &&
-          c.bankTx &&
           c.outputDate &&
           c.txId &&
           c.cryptoInput &&
