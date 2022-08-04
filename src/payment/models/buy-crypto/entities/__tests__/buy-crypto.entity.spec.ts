@@ -192,52 +192,31 @@ describe('BuyCrypto', () => {
     });
   });
 
-  describe('#recordTransactionPayout(...)', () => {
-    it('adds txId to the entity', () => {
-      const entity = createCustomBuyCrypto({ txId: undefined });
-
-      expect(entity.txId).toBe(undefined);
-
-      entity.recordTransactionPayout('TX_ID_01');
-
-      expect(entity.txId).toBe('TX_ID_01');
-    });
-
-    it('adds outputDate to the entity', () => {
-      const entity = createCustomBuyCrypto({ outputDate: undefined });
-
-      expect(entity.outputDate).toBe(undefined);
-
-      entity.recordTransactionPayout('TX_ID_01');
-
-      expect(entity.outputDate).toBeTruthy();
-      expect(entity.outputDate).toBeInstanceOf(Date);
-    });
-
-    it('returns instance of BuyCrypto', () => {
-      const entity = createDefaultBuyCrypto();
-
-      const updatedEntity = entity.recordTransactionPayout('TX_ID_01');
-
-      expect(updatedEntity).toBeInstanceOf(BuyCrypto);
-    });
-  });
-
   describe('#complete(...)', () => {
     it('sets isComplete to true', () => {
       const entity = createCustomBuyCrypto({ isComplete: undefined });
 
       expect(entity.isComplete).toBe(undefined);
 
-      entity.complete();
+      entity.complete('TX_ID_01');
 
       expect(entity.isComplete).toBe(true);
+    });
+
+    it('adds txId to the entity', () => {
+      const entity = createCustomBuyCrypto({ txId: undefined });
+
+      expect(entity.txId).toBe(undefined);
+
+      entity.complete('TX_ID_01');
+
+      expect(entity.txId).toBe('TX_ID_01');
     });
 
     it('returns instance of BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
 
-      const updatedEntity = entity.complete();
+      const updatedEntity = entity.complete('TX_ID_01');
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
     });

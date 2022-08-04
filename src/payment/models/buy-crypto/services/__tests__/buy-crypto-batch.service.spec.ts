@@ -29,7 +29,6 @@ describe('BuyCryptoBatchService', () => {
   let buyCryptoBatchRepoFindOne: jest.SpyInstance;
   let buyCryptoBatchRepoSave: jest.SpyInstance;
   let buyCryptoBatchRepoCreate: jest.SpyInstance;
-  let buyCryptoOutServiceGetAssetsOnOutNode: jest.SpyInstance;
   let exchangeUtilityServiceGetMatchingPrice: jest.SpyInstance;
 
   beforeEach(() => {
@@ -86,21 +85,6 @@ describe('BuyCryptoBatchService', () => {
       await service.batchTransactionsByAssets();
 
       expect(buyCryptoBatchRepoSave).toBeCalledTimes(1);
-      expect(buyCryptoOutServiceGetAssetsOnOutNode).toBeCalledTimes(1);
-    });
-
-    it('blocks creating a batch if there is a matching existingAsset', async () => {
-      buyCryptoBatchRepoFindOne = jest
-        .spyOn(buyCryptoBatchRepo, 'findOne')
-        .mockImplementation(async () => createCustomBuyCryptoBatch({ outputAsset: 'dDOGE' }));
-
-      buyCryptoOutServiceGetAssetsOnOutNode = jest
-        .spyOn(buyCryptoOutService, 'getAssetsOnOutNode')
-        .mockImplementation(async () => [{ asset: 'dDOGE', amount: 10 }]);
-
-      await service.batchTransactionsByAssets();
-
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(0);
     });
 
     it('blocks creating a batch if there already existing batch for an asset', async () => {
@@ -199,10 +183,6 @@ describe('BuyCryptoBatchService', () => {
       .spyOn(buyCryptoBatchRepo, 'create')
       .mockImplementation(() => createDefaultBuyCryptoBatch());
 
-    buyCryptoOutServiceGetAssetsOnOutNode = jest
-      .spyOn(buyCryptoOutService, 'getAssetsOnOutNode')
-      .mockImplementation(async () => []);
-
     exchangeUtilityServiceGetMatchingPrice = jest
       .spyOn(exchangeUtilityService, 'getMatchingPrice')
       .mockImplementation(async () => {
@@ -217,7 +197,6 @@ describe('BuyCryptoBatchService', () => {
     buyCryptoBatchRepoFindOne.mockClear();
     buyCryptoBatchRepoSave.mockClear();
     buyCryptoBatchRepoCreate.mockClear();
-    buyCryptoOutServiceGetAssetsOnOutNode.mockClear();
     exchangeUtilityServiceGetMatchingPrice.mockClear();
   }
 });

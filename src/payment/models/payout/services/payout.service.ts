@@ -51,10 +51,14 @@ export class PayoutService {
     await this.payoutOrderRepo.save(order);
   }
 
-  async checkOrderCompletion(context: PayoutOrderContext, correlationId: string): Promise<boolean> {
+  async checkOrderCompletion(
+    context: PayoutOrderContext,
+    correlationId: string,
+  ): Promise<{ isComplete: boolean; payoutTxId: string }> {
     const order = await this.payoutOrderRepo.findOne({ context, correlationId });
+    const payoutTxId = order && order.payoutTxId;
 
-    return order && order.status === PayoutOrderStatus.COMPLETED;
+    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETED, payoutTxId };
   }
 
   //*** JOBS ***//
