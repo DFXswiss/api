@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DeFiClient } from 'src/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { DeFiChainUtil } from 'src/ain/utils/defichain.util';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
@@ -8,7 +9,6 @@ import { ChainSwapId, LiquidityOrder, TargetAmount } from '../entities/liquidity
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { DeFiChainUtil } from '../utils/defichain.util';
 
 @Injectable()
 export class LiquidityService {
@@ -75,6 +75,20 @@ export class LiquidityService {
 
       throw e;
     }
+  }
+
+  async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
+    return this.#dexClient.sendToken(Config.node.dexWalletAddress, addressTo, asset, amount);
+  }
+
+  async transferMinimalUtxo(address: string): Promise<string> {
+    return this.#dexClient.sendToken(Config.node.dexWalletAddress, address, 'DFI', Config.node.minDfiDeposit / 2);
+  }
+
+  async checkTransferCompletion(transferTxId: string): Promise<boolean> {
+    const transaction = await this.#dexClient.getTx(transferTxId);
+
+    return transaction && transaction.blockhash && transaction.confirmations > 0;
   }
 
   async getPurchasedAmount(txId: string, asset: string): Promise<number> {

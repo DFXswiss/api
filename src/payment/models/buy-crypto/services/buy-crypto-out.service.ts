@@ -11,7 +11,7 @@ import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { Util } from 'src/shared/util';
 import { InWalletTransaction } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { DeFiChainUtil } from '../../dex/utils/defichain.util';
+import { DeFiChainUtil } from 'src/ain/utils/defichain.util';
 import { DexService } from '../../dex/services/dex.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
 

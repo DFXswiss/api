@@ -11,14 +11,12 @@ import { CheckPoolPairLiquidityStrategy } from './strategies/check-liquidity/che
 import { PurchaseCryptoLiquidityStrategy } from './strategies/purchase-liquidity/purchase-crypto-liquidity.strategy';
 import { PurchasePoolPairLiquidityStrategy } from './strategies/purchase-liquidity/purchase-poolpair-liquidity.strategy';
 import { PurchaseStockLiquidityStrategy } from './strategies/purchase-liquidity/purchase-stock-liquidity.strategy';
-import { DeFiChainUtil } from './utils/defichain.util';
 
 @Module({
   imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, SharedModule],
   controllers: [],
   providers: [
     LiquidityService,
-    DeFiChainUtil,
     LiquidityOrderFactory,
     DexService,
     CheckPoolPairLiquidityStrategy,
@@ -27,6 +25,6 @@ import { DeFiChainUtil } from './utils/defichain.util';
     PurchasePoolPairLiquidityStrategy,
     PurchaseStockLiquidityStrategy,
   ],
-  exports: [DexService, DeFiChainUtil],
+  exports: [DexService],
 })
 export class DexModule {}

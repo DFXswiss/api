@@ -30,6 +30,12 @@ export interface LiquidityRequest {
   targetAsset: Asset;
 }
 
+export interface TransferRequest {
+  asset: string;
+  amount: number;
+  destinationAddress: string;
+}
+
 @Injectable()
 export class DexService {
   private readonly verifyPurchaseOrdersLock = new Lock(1800);
@@ -139,6 +145,18 @@ export class DexService {
     }
   }
 
+  async transferLiquidity(request: TransferRequest): Promise<string> {
+    const { destinationAddress, asset, amount } = request;
+
+    try {
+      return this.liquidityService.transferLiquidity(destinationAddress, asset, amount);
+    } catch (e) {}
+  }
+
+  async transferMinimalUtxo(adderess: string): Promise<string> {
+    return this.liquidityService.transferMinimalUtxo(adderess);
+  }
+
   async fetchTargetLiquidityAfterPurchase(context: LiquidityOrderContext, correlationId: string): Promise<number> {
     const order = await this.liquidityOrderRepo.findOne({ where: { context, correlationId } });
 
@@ -151,6 +169,10 @@ export class DexService {
     }
 
     return order.targetAmount;
+  }
+
+  async checkTransferCompletion(transferTxId: string): Promise<boolean> {
+    return this.liquidityService.checkTransferCompletion(transferTxId);
   }
 
   async completeOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
