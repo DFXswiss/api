@@ -79,25 +79,20 @@ interface IbanBalance {
 @Injectable()
 export class IbanService {
   private readonly baseUrl = 'https://rest.sepatools.eu';
-  private ibanApiBalance: number;
 
   constructor(private readonly http: HttpService) {}
 
   async getIbanInfos(iban: string): Promise<IbanDetailsDto> {
-    const url = `${this.baseUrl}/validate_iban${iban}`;
+    const url = `${this.baseUrl}/validate_iban/${iban}`;
 
     try {
-      const result = await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
-
-      this.ibanApiBalance = result.balance;
-
-      return result;
+      return await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
     } catch (error) {
       throw new ServiceUnavailableException(`Failed to get IBAN infos for ${iban}:`, error);
     }
   }
 
-  async getBalance(): Promise<IbanBalance> {
-    return await this.http.get<IbanBalance>(`${this.baseUrl}/get_balance`, Config.sepaTools);
+  async getBalance(): Promise<number> {
+    return await this.http.get<IbanBalance>(`${this.baseUrl}/get_balance`, Config.sepaTools).then((r) => r.balance);
   }
 }

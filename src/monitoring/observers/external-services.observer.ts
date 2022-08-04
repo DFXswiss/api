@@ -42,12 +42,12 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
   }
 
   private async getIbanService(): Promise<ExternalServicesData> {
-    const { balance } = await this.ibanService.getBalance();
+    const balance = await this.ibanService.getBalance();
     return { name: 'IBAN', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
   }
 
   private async getLetterService(): Promise<ExternalServicesData> {
-    const { balance } = await this.letterService.getBalance();
-    return { name: 'Letter', balance: +balance?.value, status: balance ? Status.ONLINE : Status.OFFLINE };
+    const balance = await this.letterService.getBalance();
+    return { name: 'Letter', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
   }
 }
