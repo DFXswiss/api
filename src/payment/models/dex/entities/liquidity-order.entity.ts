@@ -4,6 +4,7 @@ import { Column, Entity, ManyToOne } from 'typeorm';
 
 export enum LiquidityOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
+  STAKING_REWARD = 'StakingReward',
   CREATE_POOL_PAIR = 'CreatePoolPair',
 }
 

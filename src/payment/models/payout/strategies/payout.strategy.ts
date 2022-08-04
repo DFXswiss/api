@@ -1,11 +1,35 @@
 import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
-import { PayoutOrder } from '../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
 
 export abstract class PayoutStrategy {
   constructor(protected readonly mailService: MailService) {}
 
-  abstract doPayout(order: PayoutOrder[]): Promise<void>;
+  async doPayout(orders: PayoutOrder[]): Promise<void> {
+    const groups = this.groupOrdersByContext(orders);
+
+    for (const [context, group] of [...groups.entries()]) {
+      await this.payoutForContext(context, group);
+    }
+  }
+
+  protected groupOrdersByContext(orders: PayoutOrder[]): Map<PayoutOrderContext, PayoutOrder[]> {
+    const groups = new Map<PayoutOrderContext, PayoutOrder[]>();
+
+    orders.forEach((order) => {
+      const existingGroup = groups.get(order.context);
+
+      if (existingGroup) {
+        existingGroup.push(order);
+      } else {
+        groups.set(order.context, [order]);
+      }
+    });
+
+    return groups;
+  }
+
+  protected abstract payoutForContext(context: PayoutOrderContext, group: PayoutOrder[]): Promise<void>;
 
   protected createPayoutGroups(orders: PayoutOrder[], maxGroupSize: number): PayoutOrder[][] {
     const result: Map<number, PayoutOrder[]> = new Map();

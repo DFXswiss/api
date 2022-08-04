@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { NodeService } from 'src/ain/node/node.service';
 import { MailService } from 'src/shared/services/mail.service';
-import { PayoutOrder } from '../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { PayoutChainService } from '../services/payout-chain.service';
+import { PayoutDeFiChainService } from '../services/payout-defichain.service';
 import { PayoutStrategy } from './payout.strategy';
 
 @Injectable()
@@ -11,16 +11,16 @@ export class PayoutDFIStrategy extends PayoutStrategy {
   constructor(
     mailService: MailService,
     readonly nodeService: NodeService,
-    private readonly chainService: PayoutChainService,
+    private readonly defichainService: PayoutDeFiChainService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(mailService);
   }
 
-  async doPayout(orders: PayoutOrder[]): Promise<void> {
-    const groups = this.createPayoutGroups(orders, 100);
+  protected async payoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    const payoutGroups = this.createPayoutGroups(orders, 100);
 
-    for (const group of groups) {
+    for (const group of payoutGroups) {
       try {
         if (group.length === 0) {
           continue;
@@ -28,7 +28,7 @@ export class PayoutDFIStrategy extends PayoutStrategy {
 
         console.info(`Paying out ${group.length} orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
-        await this.sendDFI(group);
+        await this.sendDFI(context, group);
       } catch (e) {
         console.error(`Failed to payout group of ${group.length} orders(s). Order ID(s): ${group.map((o) => o.id)}`);
         // continue with next group in case payout failed
@@ -37,13 +37,13 @@ export class PayoutDFIStrategy extends PayoutStrategy {
     }
   }
 
-  private async sendDFI(orders: PayoutOrder[]): Promise<void> {
+  private async sendDFI(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     let payoutTxId: string;
 
     try {
       const payout = this.aggregatePayout(orders);
 
-      payoutTxId = await this.chainService.sendUtxoToMany(payout);
+      payoutTxId = await this.defichainService.sendUtxoToMany(context, payout);
     } catch (e) {
       console.error(`Error on sending DFI for output. Order IDs: ${orders.map((o) => o.id)}`, e);
     }

@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { NodeService } from 'src/ain/node/node.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { DexService } from '../../dex/services/dex.service';
-import { PayoutOrder } from '../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { PayoutChainService } from '../services/payout-chain.service';
+import { PayoutDeFiChainService } from '../services/payout-defichain.service';
 import { PayoutStrategy } from './payout.strategy';
 
 type TokenName = string;
@@ -14,21 +14,21 @@ export class PayoutTokenStrategy extends PayoutStrategy {
   constructor(
     mailService: MailService,
     readonly nodeService: NodeService,
-    private readonly chainService: PayoutChainService,
+    private readonly defichainService: PayoutDeFiChainService,
     private readonly dexService: DexService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(mailService);
   }
 
-  async doPayout(orders: PayoutOrder[]): Promise<void> {
+  protected async payoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     const tokenGroups = this.groupsOrdersByTokens(orders);
 
     for (const [tokenName, tokenGroup] of [...tokenGroups.entries()]) {
       const payoutGroups = this.createPayoutGroups(tokenGroup, 10);
 
       for (const group of payoutGroups) {
-        await this.sendToken(group, tokenName);
+        await this.sendToken(context, group, tokenName);
       }
     }
   }
@@ -49,7 +49,7 @@ export class PayoutTokenStrategy extends PayoutStrategy {
     return groups;
   }
 
-  private async sendToken(orders: PayoutOrder[], outputAsset: string): Promise<void> {
+  private async sendToken(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {
     let payoutTxId: string;
 
     try {
@@ -58,7 +58,7 @@ export class PayoutTokenStrategy extends PayoutStrategy {
       }
       const payout = this.aggregatePayout(orders);
 
-      payoutTxId = await this.chainService.sendTokenToMany(outputAsset, payout);
+      payoutTxId = await this.defichainService.sendTokenToMany(context, outputAsset, payout);
     } catch (e) {
       console.error(`Error on sending ${outputAsset} for output. Transaction IDs: ${orders.map((t) => t.id)}`, e);
     }
@@ -77,7 +77,7 @@ export class PayoutTokenStrategy extends PayoutStrategy {
   }
 
   private async checkUtxo(address: string): Promise<void> {
-    const utxo = await this.chainService.getUtxoForAddress(address);
+    const utxo = await this.defichainService.getUtxoForAddress(address);
 
     if (!parseFloat(utxo)) {
       await this.dexService.transferMinimalUtxo(address);

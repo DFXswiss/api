@@ -10,7 +10,7 @@ import { Config } from 'src/config/config';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutTokenStrategy } from '../strategies/payout-token.strategy';
 import { PayoutDFIStrategy } from '../strategies/payout-dfi.strategy';
-import { PayoutChainService } from './payout-chain.service';
+import { PayoutDeFiChainService } from './payout-defichain.service';
 
 export interface PayoutRequest {
   context: PayoutOrderContext;
@@ -28,7 +28,7 @@ export class PayoutService {
     readonly payoutDFIStrategy: PayoutDFIStrategy,
     readonly payoutTokenStrategy: PayoutTokenStrategy,
     private readonly dexService: DexService,
-    private readonly chainService: PayoutChainService,
+    private readonly defichainService: PayoutDeFiChainService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
   ) {}
@@ -113,7 +113,7 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const isComplete = await this.chainService.checkPayoutCompletion(order.payoutTxId);
+      const isComplete = await this.defichainService.checkPayoutCompletion(order.context, order.payoutTxId);
 
       if (isComplete) {
         order.complete();
@@ -130,8 +130,9 @@ export class PayoutService {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.CREATED });
 
     for (const order of orders) {
-      const { asset, amount } = order;
-      const request = { asset, amount, destinationAddress: Config.node.outWalletAddress };
+      const { asset, amount, context } = order;
+      const destinationAddress = this.defichainService.getWallet(context);
+      const request = { asset, amount, destinationAddress };
 
       const transferTxId = await this.dexService.transferLiquidity(request);
 
