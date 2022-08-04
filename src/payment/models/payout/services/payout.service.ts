@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
 import { Blockchain } from 'src/ain/node/node.service';
-import { PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DexService } from '../../dex/services/dex.service';
@@ -33,6 +33,8 @@ export class PayoutService {
     private readonly payoutOrderFactory: PayoutOrderFactory,
   ) {}
 
+  //*** PUBLIC API ***//
+
   async payout(request: PayoutRequest): Promise<void> {
     const { context, correlationId } = request;
 
@@ -49,6 +51,14 @@ export class PayoutService {
     await this.payoutOrderRepo.save(order);
   }
 
+  async checkOrderCompletion(context: PayoutOrderContext, correlationId: string): Promise<boolean> {
+    const order = await this.payoutOrderRepo.findOne({ context, correlationId });
+
+    return order && order.status === PayoutOrderStatus.COMPLETED;
+  }
+
+  //*** JOBS ***//
+
   @Interval(30000)
   async processOrders(): Promise<void> {
     if (!this.processOrdersLock.acquire()) return;
@@ -60,6 +70,8 @@ export class PayoutService {
     this.processOrdersLock.release();
   }
 
+  //*** HELPER METHODS ***//
+
   private async checkExistingOrders(): Promise<void> {
     await this.checkTransferCompletion();
     await this.checkPayoutCompletion();
@@ -67,28 +79,38 @@ export class PayoutService {
 
   private async checkTransferCompletion(): Promise<void> {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.TRANSFER_PENDING });
+    const confirmedOrders = [];
 
     for (const order of orders) {
-      const isComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
+      const isTransferComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
 
-      if (isComplete) {
+      if (isTransferComplete) {
         order.transferConfirmed();
+        confirmedOrders.push(order);
+
         await this.payoutOrderRepo.save(order);
       }
     }
+
+    this.logTransferCompletion(confirmedOrders);
   }
 
   private async checkPayoutCompletion(): Promise<void> {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PAYOUT_PENDING });
+    const confirmedOrders = [];
 
     for (const order of orders) {
       const isComplete = await this.chainService.checkPayoutCompletion(order.payoutTxId);
 
       if (isComplete) {
-        order.payoutConfirmed();
+        order.complete();
+        confirmedOrders.push(order);
+
         await this.payoutOrderRepo.save(order);
       }
     }
+
+    this.logPayoutCompletion(confirmedOrders);
   }
 
   private async prepareNewOrders(): Promise<void> {
@@ -103,6 +125,8 @@ export class PayoutService {
       order.pendingTransfer(transferTxId);
       await this.payoutOrderRepo.save(order);
     }
+
+    this.logNewPayoutOrders(orders);
   }
 
   private async payoutOrders(): Promise<void> {
@@ -113,5 +137,31 @@ export class PayoutService {
 
     await this.payoutDFIStrategy.doPayout(DFIOrders);
     await this.payoutTokenStrategy.doPayout(tokenOrders);
+  }
+
+  //*** LOGS ***//
+
+  private logTransferCompletion(confirmedOrders: PayoutOrder[]): void {
+    const confirmedOrdersLogs = this.createDefaultOrdersLog(confirmedOrders);
+
+    confirmedOrders.length &&
+      console.info(`Prepared liquidity for ${confirmedOrders.length} PayoutOrder(s). ${confirmedOrdersLogs}`);
+  }
+
+  private logPayoutCompletion(confirmedOrders: PayoutOrder[]): void {
+    const confirmedOrdersLogs = this.createDefaultOrdersLog(confirmedOrders);
+
+    confirmedOrders.length &&
+      console.info(`Completed ${confirmedOrders.length} PayoutOrder(s). ${confirmedOrdersLogs}`);
+  }
+
+  private logNewPayoutOrders(newOrders: PayoutOrder[]): void {
+    const newOrdersLogs = this.createDefaultOrdersLog(newOrders);
+
+    newOrders.length && console.info(`Processing ${newOrders.length} new PayoutOrder(s). ${newOrdersLogs}`);
+  }
+
+  private createDefaultOrdersLog(orders: PayoutOrder[]): string[] {
+    return orders.map((o) => `Order ID: ${o.id}, Context: ${o.context}, CorrelationID: ${o.correlationId}`);
   }
 }

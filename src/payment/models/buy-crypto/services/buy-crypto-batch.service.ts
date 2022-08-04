@@ -42,8 +42,7 @@ export class BuyCryptoBatchService {
       const txWithAssets = await this.defineAssetPair(txInput);
       const referencePrices = await this.getReferencePrices(txWithAssets);
       const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
-      const existingAssets = await this.buyCryptoOutService.getAssetsOnOutNode();
-      const batches = await this.batchTransactions(txWithReferenceAmount, existingAssets);
+      const batches = await this.batchTransactions(txWithReferenceAmount);
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
@@ -84,10 +83,7 @@ export class BuyCryptoBatchService {
     return transactions.filter((tx) => tx.outputReferenceAmount);
   }
 
-  private async batchTransactions(
-    transactions: BuyCrypto[],
-    existingAssets: { amount: number; asset: string }[],
-  ): Promise<BuyCryptoBatch[]> {
+  private async batchTransactions(transactions: BuyCrypto[]): Promise<BuyCryptoBatch[]> {
     const batches = new Map<string, BuyCryptoBatch>();
 
     for (const tx of transactions) {
@@ -101,14 +97,6 @@ export class BuyCryptoBatchService {
       if (existingBatch) {
         console.info(
           `Halting with creation of a new batch for asset: ${outputAsset}, existing batch for this asset is not complete yet. Transaction ID: ${tx.id}`,
-        );
-
-        continue;
-      }
-
-      if (this.isExistingOutBalance(existingAssets, outputAsset)) {
-        console.warn(
-          `Halting with creation of a new batch for asset: ${outputAsset}, balance still available on OUT node`,
         );
 
         continue;
@@ -130,19 +118,5 @@ export class BuyCryptoBatchService {
     }
 
     return [...batches.values()];
-  }
-
-  private isExistingOutBalance(existingAssets: { amount: number; asset: string }[], outputAsset: string): boolean {
-    const existingAsset = existingAssets.find((a) => a.asset === outputAsset);
-
-    if (!existingAsset) {
-      return false;
-    }
-
-    if (existingAsset.asset === 'DFI') {
-      return existingAsset.amount > 1;
-    }
-
-    return true;
   }
 }

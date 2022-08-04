@@ -67,7 +67,7 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
-  payoutConfirmed(): this {
+  complete(): this {
     this.status = PayoutOrderStatus.COMPLETED;
 
     return this;
