@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-07-21T12:06:07.059Z",
+    "modified": "2022-08-04T22:37:13.825Z",
     "headers": [],
     "params": [],
     "body": {
@@ -281,27 +281,28 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
     "name": "Get History",
-    "url": "{{url}}/v1/history?sell=asdf&staking=false&ref",
+    "url": "{{url}}/v1/history?buy",
     "method": "GET",
     "sortNum": 150000,
     "created": "2022-01-18T14:02:11.871Z",
-    "modified": "2022-03-03T21:43:21.341Z",
+    "modified": "2022-08-03T13:19:14.493Z",
     "headers": [],
     "params": [
       {
         "name": "buy",
         "value": "",
-        "isDisabled": true,
         "isPath": false
       },
       {
         "name": "sell",
         "value": "asdf",
+        "isDisabled": true,
         "isPath": false
       },
       {
         "name": "staking",
         "value": "false",
+        "isDisabled": true,
         "isPath": false
       },
       {
@@ -319,6 +320,7 @@
       {
         "name": "ref",
         "value": "",
+        "isDisabled": true,
         "isPath": false
       },
       {
@@ -740,13 +742,42 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
     "name": "Create CT API Key",
-    "url": "{{url}}/v1/user/apiKey/CT",
+    "url": "{{url}}/v1/user/apiKey/CT?sell&staking",
     "method": "POST",
     "sortNum": 280000,
     "created": "2022-03-19T19:53:52.315Z",
-    "modified": "2022-03-19T19:54:11.710Z",
+    "modified": "2022-08-04T22:29:31.276Z",
     "headers": [],
-    "params": [],
+    "params": [
+      {
+        "name": "buy",
+        "value": "",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "sell",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "lm",
+        "value": "",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "ref",
+        "value": "",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "staking",
+        "value": "",
+        "isPath": false
+      }
+    ],
     "tests": []
   },
   {
@@ -1576,6 +1607,72 @@
         }
       ]
     },
+    "tests": []
+  },
+  {
+    "_id": "a26b3ee4-4e9b-4917-8e5f-4be2caa249ac",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
+    "name": "Get CT history",
+    "url": "{{url}}/v1/history/CT?buy&lm&from=2021-08-19&to=2022-08-19",
+    "method": "GET",
+    "sortNum": 590000,
+    "created": "2022-08-04T22:09:08.504Z",
+    "modified": "2022-08-04T22:30:28.179Z",
+    "headers": [
+      {
+        "name": "DFX-ACCESS-KEY",
+        "value": "000F92E6F7CBD393DBFEB0CE7AF00061"
+      },
+      {
+        "name": "DFX-ACCESS-SIGN",
+        "value": "977a6996cd5be2194efd9a82555d9e287b44f4a76c9dd681564c587f058125fe"
+      },
+      {
+        "name": "DFX-ACCESS-TIMESTAMP",
+        "value": "04.08.2022T21:00:20.100"
+      }
+    ],
+    "params": [
+      {
+        "name": "buy",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "sell",
+        "value": "",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "lm",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "ref",
+        "value": "",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "staking",
+        "value": "",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "from",
+        "value": "2021-08-19",
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "2022-08-19",
+        "isPath": false
+      }
+    ],
     "tests": []
   }
 ]

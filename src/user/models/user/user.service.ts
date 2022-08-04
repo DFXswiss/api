@@ -28,6 +28,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
+import { ApiKeyService } from 'src/shared/services/api-key.service';
+import { HistoryFilter } from 'src/payment/models/history/dto/history-filter.dto';
 
 @Injectable()
 export class UserService {
@@ -38,6 +40,7 @@ export class UserService {
     private readonly walletService: WalletService,
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
+    private readonly apiKeyCT: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
   ) {}
@@ -377,21 +380,17 @@ export class UserService {
   }
 
   // --- API KEY --- //
-  async createApiKey(userId: number): Promise<ApiKey> {
+  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKey> {
     const user = await this.userRepo.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
-    const hash = Util.createHash(
-      Util.createHash(user.address + new Date().toISOString(), 'sha256'),
-      'md5',
-    ).toUpperCase();
-
-    user.apiKeyCT = hash.substring(0, hash.length - 1) + Config.apiKeyVersionCT;
+    user.apiKeyCT = this.apiKeyCT.createKey(user.address, filter);
 
     await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT });
 
-    const secret = await this.getApiSecret(user);
+    const secret = this.apiKeyCT.getSecret(user);
+
     return { key: user.apiKeyCT, secret: secret };
   }
 
@@ -403,22 +402,9 @@ export class UserService {
     const user = await this.userRepo.findOne({ apiKeyCT: key });
     if (!user) throw new NotFoundException('API key not found');
 
-    const userSign = await this.getApiSign(user, timestamp);
-
-    if (!user || sign.toUpperCase() != userSign || Util.daysDiff(new Date(timestamp), new Date()) > 1)
-      throw new ForbiddenException('Invalid API key/sign');
+    if (!this.apiKeyCT.checkKeySign(user, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
 
     return user;
-  }
-
-  async getApiSign(user: User, timestamp: string): Promise<string> {
-    const secret = await this.getApiSecret(user);
-    return Util.createHash(secret + timestamp, 'sha256').toUpperCase();
-  }
-
-  async getApiSecret(user: User): Promise<string> {
-    if (!user.apiKeyCT) throw new BadRequestException('API key is null');
-    return Util.createHash(user.apiKeyCT + user.created, 'sha256').toUpperCase();
   }
 
   // --- DTO --- //

@@ -23,7 +23,15 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  apiKeyVersionCT = '0'; // single digit hex number
+  apiKeyVersionCT = '1'; // single digit hex number
+
+  HistoryFilter = {
+    buy: 0,
+    sell: 1,
+    staking: 2,
+    ref: 3,
+    lm: 4,
+  };
 
   colors = {
     white: '#FFFFFF',
