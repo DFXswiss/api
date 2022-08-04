@@ -33,11 +33,11 @@ export class ApiKeyService {
 
   public getActiveFilter(apiKey: string, filter: HistoryQuery): HistoryQuery {
     const apiKeyFilter = parseInt(apiKey.substring(apiKey.length - 5, apiKey.length - 1), 16);
-    const apiKeyVersion = parseInt(apiKey.substring(apiKey.length - 1, apiKey.length));
+    const apiKeyVersion = apiKey.substring(apiKey.length - 1, apiKey.length);
 
-    if (apiKeyVersion == 0) {
+    if (apiKeyVersion == '0') {
       return filter;
-    } else if (apiKeyVersion == 1) {
+    } else if (apiKeyVersion == '1') {
       Object.entries(Config.HistoryFilter).map(
         ([key, value]) =>
           (filter[key] =
