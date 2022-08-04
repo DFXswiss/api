@@ -70,7 +70,7 @@ export class OlkypayService {
       const newModificationTime = new Date().toISOString();
       this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
 
-      const transactions = await this.getTransactions(new Date(lastModificationTime));
+      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1, new Date()));
 
       for (const transaction of transactions) {
         try {
@@ -88,9 +88,7 @@ export class OlkypayService {
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
-    const url = `ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(
-      Util.daysAfter(1, toDate),
-    )}`;
+    const url = `ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(toDate)}`;
 
     return await this.callApi<Transaction[]>(url);
   }

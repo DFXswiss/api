@@ -20,7 +20,7 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
     super(monitoringService, 'olkypay', 'balance');
   }
 
-  @Interval(10000)
+  @Interval(900000)
   async fetch() {
     if (!Config.bank.olkypay.clientId) return;
     const data = await this.getOlkypay();
@@ -39,7 +39,7 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
       .createQueryBuilder('bankTx')
       .select(
         "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
-        'balance',
+        'dbBalance',
       )
       .innerJoin('bankTx.batch', 'bankTxBatch')
       .where('bankTxBatch.iban = :iban', { iban: Config.bank.olkypay.iban })
