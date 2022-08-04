@@ -157,6 +157,7 @@ export class BuyCrypto extends IEntity {
 
   complete(payoutTxId: string): this {
     this.txId = payoutTxId;
+    this.outputDate = new Date();
     this.isComplete = true;
 
     return this;

@@ -25,6 +25,7 @@ export class BuyCryptoOutService {
     try {
       const batches = await this.buyCryptoBatchRepo.find({
         where: {
+          // PAYING_OUT batches are fetch for retry in case of failure in previous iteration
           status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
         },
         relations: [
@@ -59,7 +60,7 @@ export class BuyCryptoOutService {
 
         for (const transaction of batch.transactions) {
           try {
-            const payoutRequest: PayoutRequest = {
+            const request: PayoutRequest = {
               context: PayoutOrderContext.BUY_CRYPTO,
               correlationId: transaction.id.toString(),
               asset: transaction.outputAsset,
@@ -67,13 +68,10 @@ export class BuyCryptoOutService {
               destinationAddress: transaction.target.address,
             };
 
-            await this.payoutService.payout(payoutRequest);
+            await this.payoutService.doPayout(request);
             successfulRequests.push(transaction);
           } catch (e) {
             if (e instanceof DuplicatedEntryException) {
-              console.warn(
-                `Skipping duplicated buy-crypto payout request, PayoutOrder already exists. Transaction ID: ${transaction.id}`,
-              );
               continue;
             }
 
@@ -129,6 +127,6 @@ export class BuyCryptoOutService {
     const transactionsLogs = transactions.map((tx) => tx.id);
 
     transactions.length &&
-      console.info(`Paying out ${transactionsLogs.length} transaction(s). Transaction ID(s):${transactionsLogs}`);
+      console.info(`Paying out ${transactionsLogs.length} transaction(s). Transaction ID(s):`, transactionsLogs);
   }
 }

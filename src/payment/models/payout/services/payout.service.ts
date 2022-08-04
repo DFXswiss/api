@@ -35,20 +35,29 @@ export class PayoutService {
 
   //*** PUBLIC API ***//
 
-  async payout(request: PayoutRequest): Promise<void> {
-    const { context, correlationId } = request;
+  async doPayout(request: PayoutRequest): Promise<void> {
+    try {
+      const { context, correlationId } = request;
 
-    const existingOrder = await this.payoutOrderRepo.findOne({ context, correlationId });
+      const existingOrder = await this.payoutOrderRepo.findOne({ context, correlationId });
 
-    if (existingOrder) {
-      throw new DuplicatedEntryException(
-        `Payout order for context ${context} and correlationId ${correlationId} already exists. Order ID: ${existingOrder.id}`,
+      if (existingOrder) {
+        throw new DuplicatedEntryException(
+          `Payout order for context ${context} and correlationId ${correlationId} already exists. Order ID: ${existingOrder.id}`,
+        );
+      }
+
+      const order = this.payoutOrderFactory.createOrder(request, Blockchain.DEFICHAIN);
+
+      await this.payoutOrderRepo.save(order);
+    } catch (e) {
+      if (e instanceof DuplicatedEntryException) throw e;
+
+      console.error(e);
+      throw new Error(
+        `Error while trying to create PayoutOrder for context ${request.context} and correlationId: ${request.correlationId}`,
       );
     }
-
-    const order = this.payoutOrderFactory.createOrder(request, Blockchain.DEFICHAIN);
-
-    await this.payoutOrderRepo.save(order);
   }
 
   async checkOrderCompletion(
@@ -58,7 +67,7 @@ export class PayoutService {
     const order = await this.payoutOrderRepo.findOne({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
 
-    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETED, payoutTxId };
+    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId };
   }
 
   //*** JOBS ***//
@@ -149,23 +158,23 @@ export class PayoutService {
     const confirmedOrdersLogs = this.createDefaultOrdersLog(confirmedOrders);
 
     confirmedOrders.length &&
-      console.info(`Prepared liquidity for ${confirmedOrders.length} PayoutOrder(s). ${confirmedOrdersLogs}`);
+      console.info(`Prepared funds for ${confirmedOrders.length} payout order(s). ${confirmedOrdersLogs}`);
   }
 
   private logPayoutCompletion(confirmedOrders: PayoutOrder[]): void {
     const confirmedOrdersLogs = this.createDefaultOrdersLog(confirmedOrders);
 
     confirmedOrders.length &&
-      console.info(`Completed ${confirmedOrders.length} PayoutOrder(s). ${confirmedOrdersLogs}`);
+      console.info(`Completed ${confirmedOrders.length} payout order(s). ${confirmedOrdersLogs}`);
   }
 
   private logNewPayoutOrders(newOrders: PayoutOrder[]): void {
     const newOrdersLogs = this.createDefaultOrdersLog(newOrders);
 
-    newOrders.length && console.info(`Processing ${newOrders.length} new PayoutOrder(s). ${newOrdersLogs}`);
+    newOrders.length && console.info(`Processing ${newOrders.length} new payout order(s). ${newOrdersLogs}`);
   }
 
   private createDefaultOrdersLog(orders: PayoutOrder[]): string[] {
-    return orders.map((o) => `Order ID: ${o.id}, Context: ${o.context}, CorrelationID: ${o.correlationId}`);
+    return orders.map((o) => `[Order ID: ${o.id}, Context: ${o.context}, CorrelationID: ${o.correlationId}] `);
   }
 }

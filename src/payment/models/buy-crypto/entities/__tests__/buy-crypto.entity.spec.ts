@@ -213,6 +213,16 @@ describe('BuyCrypto', () => {
       expect(entity.txId).toBe('TX_ID_01');
     });
 
+    it('adds outputDate to the entity', () => {
+      const entity = createCustomBuyCrypto({ outputDate: undefined });
+
+      expect(entity.outputDate).toBe(undefined);
+
+      entity.complete('TX_ID_01');
+
+      expect(entity.outputDate).toBeInstanceOf(Date);
+    });
+
     it('returns instance of BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
 

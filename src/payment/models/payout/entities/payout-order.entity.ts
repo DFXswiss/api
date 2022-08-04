@@ -12,7 +12,7 @@ export enum PayoutOrderStatus {
   TRANSFER_PENDING = 'TransferPending',
   TRANSFER_CONFIRMED = 'TransferConfirmed',
   PAYOUT_PENDING = 'PayoutPending',
-  COMPLETED = 'Completed',
+  COMPLETE = 'Complete',
 }
 
 @Entity()
@@ -26,10 +26,10 @@ export class PayoutOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   chain: string;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  @Column({ length: 256, nullable: false })
   asset: string;
 
-  @Column({ type: 'float', nullable: true })
+  @Column({ type: 'float', nullable: false })
   amount: number;
 
   @Column({ length: 256, nullable: false })
@@ -43,9 +43,6 @@ export class PayoutOrder extends IEntity {
 
   @Column({ length: 256, nullable: true })
   payoutTxId: string;
-
-  @Column({ nullable: false, default: false })
-  isAcknowledged: boolean;
 
   pendingTransfer(transferTxId: string): this {
     this.transferTxId = transferTxId;
@@ -68,7 +65,7 @@ export class PayoutOrder extends IEntity {
   }
 
   complete(): this {
-    this.status = PayoutOrderStatus.COMPLETED;
+    this.status = PayoutOrderStatus.COMPLETE;
 
     return this;
   }
