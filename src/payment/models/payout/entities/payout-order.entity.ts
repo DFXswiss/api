@@ -1,6 +1,5 @@
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity } from 'typeorm';
 
 export enum PayoutOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
