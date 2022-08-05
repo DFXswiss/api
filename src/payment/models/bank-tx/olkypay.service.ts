@@ -10,6 +10,7 @@ import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { stringify } from 'qs';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
+import { UserData } from 'src/user/models/user-data/user-data.entity';
 
 interface Transaction {
   idCtp: number;
@@ -39,6 +40,11 @@ interface TokenAuth {
   session_state: string;
 }
 
+interface Supplier {
+  id: string;
+  entity: string;
+}
+
 enum TransactionType {
   RECEIVED = 'SCT_RECEIVED',
   SENT = 'SCT_SENT',
@@ -47,7 +53,7 @@ enum TransactionType {
 
 @Injectable()
 export class OlkypayService {
-  private readonly baseUrl = 'https://ws.olkypay.com/reporting';
+  private readonly baseUrl = 'https://ws.olkypay.com';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
   private accessToken = 'access-token-will-be-updated';
   private bankTxBatch: BankTxBatch;
@@ -87,14 +93,33 @@ export class OlkypayService {
     }
   }
 
+  private async createSupplier(userData: UserData): Promise<Transaction[]> {
+    const data = {
+      externalClientCode: userData.id.toString(),
+      firstName: userData.firstname,
+      lastName: userData.surname,
+      gender: '',
+      moralPerson: false,
+      zipCode: userData.zip,
+      city: userData.location,
+      supplierId: userData.id,
+      countryCode: userData.country.symbol,
+      address1: userData.street + ' ' + userData.houseNumber,
+      beneficiary: true,
+    };
+    const url = `reporting/ecritures/${Config.bank.olkypay.clientId}`;
+
+    return await this.callApi<Transaction[]>(url);
+  }
+
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
-    const url = `ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(toDate)}`;
+    const url = `reporting/ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(toDate)}`;
 
     return await this.callApi<Transaction[]>(url);
   }
 
   async getBalance(): Promise<number> {
-    const url = `balance/today/${Config.bank.olkypay.clientId}`;
+    const url = `reporting/balance/today/${Config.bank.olkypay.clientId}`;
 
     const balance = await this.callApi<Balance>(url);
 
@@ -133,7 +158,7 @@ export class OlkypayService {
   }
 
   private parseDate(olkypayDate: number[]): Date {
-    return new Date(olkypayDate[0], olkypayDate[1]-1, olkypayDate[2]);
+    return new Date(olkypayDate[0], olkypayDate[1] - 1, olkypayDate[2]);
   }
 
   private getNameAndAddress(tx: Transaction): { name?: string; addressLine1?: string } {
