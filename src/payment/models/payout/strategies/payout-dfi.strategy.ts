@@ -12,12 +12,12 @@ export class PayoutDFIStrategy extends PayoutStrategy {
     mailService: MailService,
     readonly nodeService: NodeService,
     private readonly defichainService: PayoutDeFiChainService,
-    private readonly payoutOrderRepo: PayoutOrderRepository,
+    protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService);
+    super(mailService, payoutOrderRepo);
   }
 
-  protected async payoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+  protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     const payoutGroups = this.createPayoutGroups(orders, 100);
 
     for (const group of payoutGroups) {
@@ -26,11 +26,13 @@ export class PayoutDFIStrategy extends PayoutStrategy {
           continue;
         }
 
-        console.info(`Paying out ${group.length} orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        console.info(`Paying out ${group.length} DFI orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
         await this.sendDFI(context, group);
       } catch (e) {
-        console.error(`Failed to payout group of ${group.length} orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+        console.error(
+          `Error in paying out a group of ${group.length} DFI orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+        );
         // continue with next group in case payout failed
         continue;
       }
@@ -43,9 +45,11 @@ export class PayoutDFIStrategy extends PayoutStrategy {
     try {
       const payout = this.aggregatePayout(orders);
 
+      await this.designatePayout(orders);
       payoutTxId = await this.defichainService.sendUtxoToMany(context, payout);
     } catch (e) {
-      console.error(`Error on sending DFI for output. Order IDs: ${orders.map((o) => o.id)}`, e);
+      console.error(`Error on sending DFI for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
+      throw e;
     }
 
     for (const order of orders) {

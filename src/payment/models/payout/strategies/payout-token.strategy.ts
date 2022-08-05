@@ -16,19 +16,33 @@ export class PayoutTokenStrategy extends PayoutStrategy {
     readonly nodeService: NodeService,
     private readonly defichainService: PayoutDeFiChainService,
     private readonly dexService: DexService,
-    private readonly payoutOrderRepo: PayoutOrderRepository,
+    protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService);
+    super(mailService, payoutOrderRepo);
   }
 
-  protected async payoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+  protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     const tokenGroups = this.groupsOrdersByTokens(orders);
 
     for (const [tokenName, tokenGroup] of [...tokenGroups.entries()]) {
       const payoutGroups = this.createPayoutGroups(tokenGroup, 10);
 
       for (const group of payoutGroups) {
-        await this.sendToken(context, group, tokenName);
+        try {
+          if (group.length === 0) {
+            continue;
+          }
+
+          console.info(`Paying out ${group.length} Token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+
+          await this.sendToken(context, group, tokenName);
+        } catch (e) {
+          console.error(
+            `Error in paying out a group of ${group.length} Token orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+          );
+          // continue with next group in case payout failed
+          continue;
+        }
       }
     }
   }
@@ -58,9 +72,11 @@ export class PayoutTokenStrategy extends PayoutStrategy {
       }
       const payout = this.aggregatePayout(orders);
 
+      await this.designatePayout(orders);
       payoutTxId = await this.defichainService.sendTokenToMany(context, outputAsset, payout);
     } catch (e) {
-      console.error(`Error on sending ${outputAsset} for output. Transaction IDs: ${orders.map((t) => t.id)}`, e);
+      console.error(`Error on sending ${outputAsset} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
+      throw e;
     }
 
     for (const order of orders) {

@@ -1,15 +1,20 @@
 import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 
 export abstract class PayoutStrategy {
-  constructor(protected readonly mailService: MailService) {}
+  constructor(protected readonly mailService: MailService, protected readonly payoutOrderRepo: PayoutOrderRepository) {}
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
-    const groups = this.groupOrdersByContext(orders);
+    try {
+      const groups = this.groupOrdersByContext(orders);
 
-    for (const [context, group] of [...groups.entries()]) {
-      await this.payoutForContext(context, group);
+      for (const [context, group] of [...groups.entries()]) {
+        await this.doPayoutForContext(context, group);
+      }
+    } catch (e) {
+      console.error('Error while executing payout orders', e);
     }
   }
 
@@ -29,7 +34,7 @@ export abstract class PayoutStrategy {
     return groups;
   }
 
-  protected abstract payoutForContext(context: PayoutOrderContext, group: PayoutOrder[]): Promise<void>;
+  protected abstract doPayoutForContext(context: PayoutOrderContext, group: PayoutOrder[]): Promise<void>;
 
   protected createPayoutGroups(orders: PayoutOrder[], maxGroupSize: number): PayoutOrder[][] {
     const result: Map<number, PayoutOrder[]> = new Map();
@@ -63,7 +68,14 @@ export abstract class PayoutStrategy {
     return [...uniqueAddresses.entries()].map(([addressTo, amount]) => ({ addressTo, amount }));
   }
 
-  async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
+  protected async designatePayout(orders: PayoutOrder[]): Promise<void> {
+    for (const order of orders) {
+      order.designatePayout();
+      await this.payoutOrderRepo.save(order);
+    }
+  }
+
+  protected async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
     const body = e ? [message, e.message] : [message];
 
     await this.mailService.sendErrorMail('Payout Error', body);

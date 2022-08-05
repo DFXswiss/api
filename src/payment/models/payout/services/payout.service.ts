@@ -6,11 +6,11 @@ import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DexService } from '../../dex/services/dex.service';
-import { Config } from 'src/config/config';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutTokenStrategy } from '../strategies/payout-token.strategy';
 import { PayoutDFIStrategy } from '../strategies/payout-dfi.strategy';
 import { PayoutDeFiChainService } from './payout-defichain.service';
+import { MailService } from 'src/shared/services/mail.service';
 
 export interface PayoutRequest {
   context: PayoutOrderContext;
@@ -27,6 +27,7 @@ export class PayoutService {
   constructor(
     readonly payoutDFIStrategy: PayoutDFIStrategy,
     readonly payoutTokenStrategy: PayoutTokenStrategy,
+    private readonly mailService: MailService,
     private readonly dexService: DexService,
     private readonly defichainService: PayoutDeFiChainService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
@@ -79,6 +80,7 @@ export class PayoutService {
     await this.checkExistingOrders();
     await this.prepareNewOrders();
     await this.payoutOrders();
+    await this.processFailedOrders();
 
     this.processOrdersLock.release();
   }
@@ -95,13 +97,18 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const isTransferComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
+      try {
+        const isTransferComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
 
-      if (isTransferComplete) {
-        order.transferConfirmed();
-        confirmedOrders.push(order);
+        if (isTransferComplete) {
+          order.transferConfirmed();
+          confirmedOrders.push(order);
 
-        await this.payoutOrderRepo.save(order);
+          await this.payoutOrderRepo.save(order);
+        }
+      } catch (e) {
+        console.error(`Error in checking completion of funds transfer for payout order. Order ID: ${order.id}`, e);
+        continue;
       }
     }
 
@@ -113,13 +120,17 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const isComplete = await this.defichainService.checkPayoutCompletion(order.context, order.payoutTxId);
+      try {
+        const isComplete = await this.defichainService.checkPayoutCompletion(order.context, order.payoutTxId);
 
-      if (isComplete) {
-        order.complete();
-        confirmedOrders.push(order);
+        if (isComplete) {
+          order.complete();
+          confirmedOrders.push(order);
 
-        await this.payoutOrderRepo.save(order);
+          await this.payoutOrderRepo.save(order);
+        }
+      } catch (e) {
+        console.error(`Error in checking payout order completion. Order ID: ${order.id}`, e);
       }
     }
 
@@ -130,14 +141,25 @@ export class PayoutService {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.CREATED });
 
     for (const order of orders) {
-      const { asset, amount, context } = order;
-      const destinationAddress = this.defichainService.getWallet(context);
-      const request = { asset, amount, destinationAddress };
+      try {
+        const { asset, amount, context } = order;
+        const destinationAddress = this.defichainService.getWallet(context);
+        const request = { asset, amount, destinationAddress };
 
-      const transferTxId = await this.dexService.transferLiquidity(request);
+        const transferTxId = await this.dexService.transferLiquidity(request);
 
-      order.pendingTransfer(transferTxId);
-      await this.payoutOrderRepo.save(order);
+        order.pendingTransfer(transferTxId);
+      } catch (e) {
+        console.error(`Error in transferring liquidity for payout order. Order ID: ${order.id}`, e);
+        return;
+      }
+
+      try {
+        await this.payoutOrderRepo.save(order);
+      } catch (e) {
+        // db failure case, internal transfer - just logging is sufficient
+        console.error(`Error in saving liquidity transfer txId to payout order. Order ID: ${order.id}`, e);
+      }
     }
 
     this.logNewPayoutOrders(orders);
@@ -151,6 +173,20 @@ export class PayoutService {
 
     await this.payoutDFIStrategy.doPayout(DFIOrders);
     await this.payoutTokenStrategy.doPayout(tokenOrders);
+  }
+
+  private async processFailedOrders(): Promise<void> {
+    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+
+    if (orders.length === 0) return;
+
+    const logMessage = this.logFailedOrders(orders);
+    await this.mailService.sendErrorMail('Payout Error', [logMessage]);
+
+    for (const order of orders) {
+      order.pendingInvestigation();
+      await this.payoutOrderRepo.save(order);
+    }
   }
 
   //*** LOGS ***//
@@ -173,6 +209,15 @@ export class PayoutService {
     const newOrdersLogs = this.createDefaultOrdersLog(newOrders);
 
     newOrders.length && console.info(`Processing ${newOrders.length} new payout order(s). ${newOrdersLogs}`);
+  }
+
+  private logFailedOrders(failedOrders: PayoutOrder[]): string {
+    const failedOrdersLogs = this.createDefaultOrdersLog(failedOrders);
+    const message = `${failedOrders.length} payout order(s) failed and pending investigation. ${failedOrdersLogs}`;
+
+    failedOrders.length && console.info(message);
+
+    return message;
   }
 
   private createDefaultOrdersLog(orders: PayoutOrder[]): string[] {

@@ -10,6 +10,8 @@ export enum PayoutOrderStatus {
   CREATED = 'Created',
   TRANSFER_PENDING = 'TransferPending',
   TRANSFER_CONFIRMED = 'TransferConfirmed',
+  PAYOUT_DESIGNATED = 'PayoutDesignated',
+  PAYOUT_UNCERTAIN = 'PayoutUncertain',
   PAYOUT_PENDING = 'PayoutPending',
   COMPLETE = 'Complete',
 }
@@ -52,6 +54,18 @@ export class PayoutOrder extends IEntity {
 
   transferConfirmed(): this {
     this.status = PayoutOrderStatus.TRANSFER_CONFIRMED;
+
+    return this;
+  }
+
+  designatePayout(): this {
+    this.status = PayoutOrderStatus.PAYOUT_DESIGNATED;
+
+    return this;
+  }
+
+  pendingInvestigation(): this {
+    this.status = PayoutOrderStatus.PAYOUT_UNCERTAIN;
 
     return this;
   }
