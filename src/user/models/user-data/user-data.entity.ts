@@ -124,6 +124,9 @@ export class UserData extends IEntity {
   @Column({ type: 'integer', nullable: true })
   kycCustomerId: number;
 
+  @Column({ type: 'integer', nullable: true })
+  olkypaySupplierId: number;
+
   @Column()
   @Generated('uuid')
   @Index({ unique: true })

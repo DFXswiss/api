@@ -59,7 +59,7 @@ export class Util {
     return this.daysAfter(-days, from);
   }
 
-  static isoDate(date: Date): string {
+  static isoDate(date: Date = new Date()): string {
     return date.toISOString().split('T')[0];
   }
 

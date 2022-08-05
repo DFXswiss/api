@@ -23,6 +23,9 @@ export class BankData extends IEntity {
   @Column({ length: 256, nullable: true })
   bic: string;
 
+  @Column({ type: 'integer', nullable: true })
+  olkypayPaymentId: number;
+
   @ManyToOne(() => UserData)
   userData: UserData;
 }

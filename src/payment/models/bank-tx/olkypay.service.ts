@@ -10,7 +10,11 @@ import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { BankTxService } from './bank-tx.service';
 import { stringify } from 'qs';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
-import { UserData } from 'src/user/models/user-data/user-data.entity';
+import { CreatePaymentDto } from './dto/olkypay-create-payment.dto';
+import { CreateBankAccountDto } from './dto/olkypay-create-bank-account.dto';
+import { ChangeSupplierDto } from './dto/olkypay-change-supplier.dto';
+import { CreateSupplierDto } from './dto/olkypay-create-supplier.dto';
+import { CreateInstantPaymentDto } from './dto/olkypay-create-instant-payment.dto';
 
 interface Transaction {
   idCtp: number;
@@ -40,7 +44,7 @@ interface TokenAuth {
   session_state: string;
 }
 
-interface Supplier {
+interface CreateResponse {
   id: string;
   entity: string;
 }
@@ -93,25 +97,6 @@ export class OlkypayService {
     }
   }
 
-  private async createSupplier(userData: UserData): Promise<Transaction[]> {
-    const data = {
-      externalClientCode: userData.id.toString(),
-      firstName: userData.firstname,
-      lastName: userData.surname,
-      gender: '',
-      moralPerson: false,
-      zipCode: userData.zip,
-      city: userData.location,
-      supplierId: userData.id,
-      countryCode: userData.country.symbol,
-      address1: userData.street + ' ' + userData.houseNumber,
-      beneficiary: true,
-    };
-    const url = `reporting/ecritures/${Config.bank.olkypay.clientId}`;
-
-    return await this.callApi<Transaction[]>(url);
-  }
-
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
     const url = `reporting/ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(toDate)}`;
 
@@ -125,6 +110,31 @@ export class OlkypayService {
       balance: Util.round(balance.balance / 100, 2),
       balanceOperationYesterday: Util.round(balance.balanceOperationYesterday / 100, 2),
     };
+  }
+
+  private async createSupplier(createSupplierDto: CreateSupplierDto): Promise<CreateResponse> {
+    const url = `payer`;
+    return await this.callApi<CreateResponse>(url, 'POST', createSupplierDto);
+  }
+
+  private async changeSupplier(changeSupplierDto: ChangeSupplierDto): Promise<CreateResponse> {
+    const url = `payer`;
+    return await this.callApi<CreateResponse>(url, 'PUT', changeSupplierDto);
+  }
+
+  private async createBankAccount(createBankAccountDto: CreateBankAccountDto): Promise<CreateResponse> {
+    const url = `bankaccount`;
+    return await this.callApi<CreateResponse>(url, 'POST', createBankAccountDto);
+  }
+
+  private async createPayment(createPaymentDto: CreatePaymentDto): Promise<CreateResponse> {
+    const url = `order/vir`;
+    return await this.callApi<CreateResponse>(url, 'POST', createPaymentDto);
+  }
+
+  private async createInstantPayment(createInstantPaymentDto: CreateInstantPaymentDto): Promise<CreateResponse> {
+    const url = `order/vir`;
+    return await this.callApi<CreateResponse>(url, 'POST', createInstantPaymentDto);
   }
 
   // --- PARSING --- //
