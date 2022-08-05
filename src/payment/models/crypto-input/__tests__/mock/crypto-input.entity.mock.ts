@@ -24,5 +24,5 @@ export function createDefaultCryptoInput(): CryptoInput {
 }
 
 export function createCustomCryptoInput(customValues: Partial<CryptoInput>): CryptoInput {
-  return { ...new CryptoInput(), ...defaultCryptoInput, ...customValues };
+  return Object.assign(new CryptoInput(), { ...defaultCryptoInput, ...customValues });
 }

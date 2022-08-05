@@ -1,6 +1,6 @@
 import { AmlCheck } from '../../buy-crypto/enums/aml-check.enum';
 
-export class CryptoInputHistoryDto {
+export class CryptoRouteHistoryDto {
   inputAmount: number;
   inputAsset: string;
   outputAmount: number;

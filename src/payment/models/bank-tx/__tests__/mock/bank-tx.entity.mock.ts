@@ -10,5 +10,5 @@ export function createDefaultBankTx(): BankTx {
 }
 
 export function createCustomBankTx(customValues: Partial<BankTx>): BankTx {
-  return { ...new BankTx(), ...defaultBankTx, ...customValues };
+  return Object.assign(new BankTx(), { ...defaultBankTx, ...customValues });
 }

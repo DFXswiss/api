@@ -13,5 +13,5 @@ export function createDefaultBankAccount(): BankAccount {
 }
 
 export function createCustomBankAccount(customValues: Partial<BankAccount>): BankAccount {
-  return { ...new BankAccount(), ...defaultBankAccount, ...customValues };
+  return Object.assign(new BankAccount(), { ...defaultBankAccount, ...customValues });
 }

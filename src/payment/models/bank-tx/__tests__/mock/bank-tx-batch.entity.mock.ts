@@ -9,5 +9,5 @@ export function createDefaultBankTxBatch(): BankTxBatch {
 }
 
 export function createCustomBankTxBatch(customValues: Partial<BankTxBatch>): BankTxBatch {
-  return { ...new BankTxBatch(), ...defaultBankTxBatch, ...customValues };
+  return Object.assign(new BankTxBatch(), { ...defaultBankTxBatch, ...customValues });
 }

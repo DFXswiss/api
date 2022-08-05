@@ -47,5 +47,5 @@ export function createDefaultBuyFiat(): BuyFiat {
 }
 
 export function createCustomBuyFiat(customValues: Partial<BuyFiat>): BuyFiat {
-  return { ...new BuyFiat(), ...defaultBuyFiat, ...customValues };
+  return Object.assign(new BuyFiat(), { ...defaultBuyFiat, ...customValues });
 }
