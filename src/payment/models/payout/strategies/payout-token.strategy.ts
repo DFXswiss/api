@@ -33,12 +33,12 @@ export class PayoutTokenStrategy extends PayoutStrategy {
             continue;
           }
 
-          console.info(`Paying out ${group.length} Token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+          console.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
           await this.sendToken(context, group, tokenName);
         } catch (e) {
           console.error(
-            `Error in paying out a group of ${group.length} Token orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+            `Error in paying out a group of ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`,
           );
           // continue with next group in case payout failed
           continue;
