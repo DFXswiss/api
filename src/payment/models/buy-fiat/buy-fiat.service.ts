@@ -46,6 +46,7 @@ export class BuyFiatService {
     if (dto.bankTxId) {
       update.bankTx = await this.bankTxRepo.findOne({ id: dto.bankTxId });
       if (!update.bankTx) throw new BadRequestException('Bank TX not found');
+      await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
     }
 
     Util.removeNullFields(entity);
