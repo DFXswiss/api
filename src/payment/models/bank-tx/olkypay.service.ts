@@ -70,7 +70,7 @@ export class OlkypayService {
       const newModificationTime = new Date().toISOString();
       this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
 
-      const transactions = await this.getTransactions(new Date(lastModificationTime));
+      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
 
       for (const transaction of transactions) {
         try {
@@ -93,12 +93,13 @@ export class OlkypayService {
     return await this.callApi<Transaction[]>(url);
   }
 
-  async getBalance(): Promise<number> {
+  async getBalance(): Promise<Balance> {
     const url = `balance/today/${Config.bank.olkypay.clientId}`;
-
     const balance = await this.callApi<Balance>(url);
-
-    return Util.round(balance.balance / 100, 2);
+    return {
+      balance: Util.round(balance.balance / 100, 2),
+      balanceOperationYesterday: Util.round(balance.balanceOperationYesterday / 100, 2),
+    };
   }
 
   // --- PARSING --- //
@@ -133,7 +134,7 @@ export class OlkypayService {
   }
 
   private parseDate(olkypayDate: number[]): Date {
-    return new Date(olkypayDate[0], olkypayDate[1]-1, olkypayDate[2]);
+    return new Date(olkypayDate[0], olkypayDate[1] - 1, olkypayDate[2]);
   }
 
   private getNameAndAddress(tx: Transaction): { name?: string; addressLine1?: string } {

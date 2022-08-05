@@ -11,6 +11,7 @@ export class CryptoRouteDto {
   volume: number;
   annualVolume: number;
   fee: number;
+  refBonus: number;
   staking: StakingDto;
   blockchain: Blockchain;
 }
