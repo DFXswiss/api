@@ -139,6 +139,7 @@ export class PayoutService {
 
   private async prepareNewOrders(): Promise<void> {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.CREATED });
+    const confirmedOrders = [];
 
     for (const order of orders) {
       try {
@@ -156,13 +157,14 @@ export class PayoutService {
 
       try {
         await this.payoutOrderRepo.save(order);
+        confirmedOrders.push(order);
       } catch (e) {
         // db failure case, internal transfer - just logging is sufficient
         console.error(`Error in saving liquidity transfer txId to payout order. Order ID: ${order.id}`, e);
       }
     }
 
-    this.logNewPayoutOrders(orders);
+    this.logNewPayoutOrders(confirmedOrders);
   }
 
   private async payoutOrders(): Promise<void> {
