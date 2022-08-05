@@ -71,28 +71,28 @@ export interface IbanDetailsDto {
   www_seen_until: string;
 }
 
+interface IbanBalance {
+  message: string;
+  balance: number;
+}
+
 @Injectable()
 export class IbanService {
-  private readonly baseUrl = 'https://rest.sepatools.eu/validate_iban';
-  private ibanApiBalance: number;
+  private readonly baseUrl = 'https://rest.sepatools.eu';
 
   constructor(private readonly http: HttpService) {}
 
   async getIbanInfos(iban: string): Promise<IbanDetailsDto> {
-    const url = `${this.baseUrl}/${iban}`;
+    const url = `${this.baseUrl}/validate_iban/${iban}`;
 
     try {
-      const result = await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
-
-      this.ibanApiBalance = result.balance;
-
-      return result;
+      return await this.http.get<IbanDetailsDto>(url, Config.sepaTools);
     } catch (error) {
       throw new ServiceUnavailableException(`Failed to get IBAN infos for ${iban}:`, error);
     }
   }
 
-  public getBalance(): number {
-    return this.ibanApiBalance;
+  async getBalance(): Promise<number> {
+    return await this.http.get<IbanBalance>(`${this.baseUrl}/get_balance`, Config.sepaTools).then((r) => r.balance);
   }
 }

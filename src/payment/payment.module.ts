@@ -73,6 +73,7 @@ import { DexModule } from './models/dex/dex.module';
 import { OlkypayService } from './models/bank-tx/olkypay.service';
 import { ChainalysisService } from './models/crypto-input/chainalysis.service';
 import { PayoutModule } from './models/payout/payout.module';
+import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
 
 @Module({
   imports: [
@@ -130,6 +131,7 @@ import { PayoutModule } from './models/payout/payout.module';
     DeFiInputService,
     CryptoBuyService,
     CryptoSellService,
+    BuyFiatNotificationService,
     BuyFiatService,
     BuyCryptoService,
     BuyCryptoBatchService,

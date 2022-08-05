@@ -7,6 +7,7 @@ import { UserModule } from 'src/user/user.module';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
 import { BankingBotObserver } from './observers/banking-bot.observer';
+import { ExternalServicesObserver } from './observers/external-services.observer';
 import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { NodeHealthObserver } from './observers/node-health.observer';
 import { OlkypayObserver } from './observers/olkypay.observer';
@@ -32,6 +33,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     UserObserver,
     BankingBotObserver,
     OlkypayObserver,
+    ExternalServicesObserver,
   ],
   controllers: [MonitoringController],
   exports: [MonitoringService],
