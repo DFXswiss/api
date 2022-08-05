@@ -37,7 +37,7 @@ export class PayoutDeFiChainService {
 
   getWallet(context: PayoutOrderContext): string {
     if (context === PayoutOrderContext.BUY_CRYPTO) return Config.node.outWalletAddress;
-    if (context === PayoutOrderContext.STAKING_REWARD) return Config.node.stakingWalletAddress;
+    if (context === PayoutOrderContext.STAKING_REWARD) return Config.node.intWalletAddress;
   }
 
   private getClient(context: PayoutOrderContext): DeFiClient {
