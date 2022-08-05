@@ -23,6 +23,12 @@ interface LetterResponse {
   message: string;
 }
 
+interface BalanceResponse {
+  message: string;
+  status: string;
+  balance: { value: string; currency: string };
+}
+
 @Injectable()
 export class LetterService {
   constructor(private readonly http: HttpService) {}
@@ -30,7 +36,7 @@ export class LetterService {
   async sendLetter(sendLetterDTO: SendLetterDto): Promise<boolean> {
     return await this.http
       .post<LetterResponse>(`${Config.letter.url}/setJob`, {
-        auth: { username: Config.letter.userName, apikey: Config.letter.apiKey },
+        auth: Config.letter.auth,
         letter: {
           base64_file: sendLetterDTO.data,
           base64_checksum: Util.createHash(sendLetterDTO.data, 'md5'),
@@ -43,5 +49,11 @@ export class LetterService {
         },
       })
       .then((r) => r.status == 200);
+  }
+
+  async getBalance(): Promise<number> {
+    return await this.http
+      .post<BalanceResponse>(`${Config.letter.url}/getBalance`, { auth: Config.letter.auth })
+      .then((r) => +r.balance.value);
   }
 }
