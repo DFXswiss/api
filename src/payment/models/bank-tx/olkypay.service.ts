@@ -70,7 +70,7 @@ export class OlkypayService {
       const newModificationTime = new Date().toISOString();
       this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
 
-      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1, new Date()));
+      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
 
       for (const transaction of transactions) {
         try {
