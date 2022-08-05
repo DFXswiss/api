@@ -11,7 +11,7 @@ export class RefController {
   async createRef(@RealIP() ip: string, @Query('code') ref: string, @Res() res: Response): Promise<void> {
     if (ip && ref) {
       // redirect to app controller
-      res.redirect(307, `/app?code=${ref}`);
+      res.redirect(301, `/app?code=${ref}`);
     }
   }
 }

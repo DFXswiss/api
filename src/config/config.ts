@@ -98,8 +98,7 @@ export class Configuration {
   };
 
   letter = {
-    userName: process.env.LETTER_USER,
-    apiKey: process.env.LETTER_AUTH,
+    auth: { userName: process.env.LETTER_USER, apiKey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
   };
 
