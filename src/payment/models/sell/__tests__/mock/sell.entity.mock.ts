@@ -18,5 +18,5 @@ export function createDefaultSell(): Sell {
 }
 
 export function createCustomSell(customValues: Partial<Sell>): Sell {
-  return { ...new Sell(), ...defaultSell, ...customValues };
+  return Object.assign(new Sell(), { ...defaultSell, ...customValues });
 }

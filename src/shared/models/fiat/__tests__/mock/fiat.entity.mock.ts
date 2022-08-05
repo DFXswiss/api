@@ -10,5 +10,5 @@ export function createDefaultFiat(): Fiat {
 }
 
 export function createCustomFiat(customValues: Partial<Fiat>): Fiat {
-  return { ...new Fiat(), ...defaultFiat, ...customValues };
+  return Object.assign(new Fiat(), { ...defaultFiat, ...customValues });
 }

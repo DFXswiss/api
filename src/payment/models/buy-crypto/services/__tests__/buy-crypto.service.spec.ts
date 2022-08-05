@@ -3,8 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
 import { BuyRepository } from 'src/payment/models/buy/buy.repository';
 import { BuyService } from 'src/payment/models/buy/buy.service';
+import { CryptoInputType } from 'src/payment/models/crypto-input/crypto-input.entity';
+import { createCustomCryptoInput } from 'src/payment/models/crypto-input/__tests__/mock/crypto-input.entity.mock';
 import { CryptoRouteRepository } from 'src/payment/models/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/payment/models/crypto-route/crypto-route.service';
+import { createCustomCryptoRouteHistory } from 'src/payment/models/crypto-route/dto/__tests__/mock/crypto-route-history.dto.mock';
+import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { UserService } from 'src/user/models/user/user.service';
@@ -23,6 +27,8 @@ enum MockBuyData {
   BUY_HISTORY_EMPTY,
   BUY_HISTORY,
   BUY_HISTORY_SMALL,
+  CRYPTO_HISTORY_EMPTY,
+  CRYPTO_HISTORY,
 }
 
 describe('BuyCryptoService', () => {
@@ -98,6 +104,14 @@ describe('BuyCryptoService', () => {
     outputAsset: 'GOOGL',
   };
 
+  const txCrypto = {
+    inputAmount: 1,
+    inputAsset: 'BTC',
+    outputAmount: 0.988,
+    outputAsset: 'BTC',
+    txId: 'TX_ID_01',
+  };
+
   function setup(mock: MockBuyData, date?: Date) {
     if (mock !== MockBuyData.DEFAULT) {
       let wantedData: BuyCrypto[] = [];
@@ -110,6 +124,22 @@ describe('BuyCryptoService', () => {
           break;
         case MockBuyData.BUY_HISTORY_SMALL:
           wantedData = [createCustomBuyCrypto({ outputDate: date, ...txSmallAmount })];
+          break;
+        case MockBuyData.CRYPTO_HISTORY:
+          wantedData = [
+            createCustomBuyCrypto({
+              outputDate: date,
+              outputAmount: txCrypto.outputAmount,
+              outputAsset: txCrypto.outputAsset,
+              cryptoInput: createCustomCryptoInput({
+                type: CryptoInputType.BUY_CRYPTO,
+                amount: txCrypto.inputAmount,
+                asset: createCustomAsset({ dexName: txCrypto.inputAsset }),
+              }),
+              txId: txCrypto.txId,
+            }),
+          ];
+          break;
       }
 
       jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue(wantedData);
@@ -150,6 +180,24 @@ describe('BuyCryptoService', () => {
       createCustomBuyCryptoHistory({
         date: date,
         ...txSmallAmount,
+      }),
+    ]);
+  });
+
+  it('should return an empty history, if crypto route has no transactions', async () => {
+    setup(MockBuyData.CRYPTO_HISTORY_EMPTY);
+
+    await expect(service.getCryptoRouteHistory(1, 1)).resolves.toStrictEqual([]);
+  });
+
+  it('should return a history, if crypto route has transactions', async () => {
+    const date = new Date();
+    setup(MockBuyData.CRYPTO_HISTORY, date);
+
+    await expect(service.getCryptoRouteHistory(1, 1)).resolves.toStrictEqual([
+      createCustomCryptoRouteHistory({
+        date: date,
+        ...txCrypto,
       }),
     ]);
   });
