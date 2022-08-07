@@ -4,7 +4,7 @@ import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
-import { PayoutType } from '../staking-reward/staking-reward.entity';
+import { PayoutType, StakingReward } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -12,10 +12,10 @@ import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
 import { RefReward } from '../ref-reward/ref-reward.entity';
 import { StakingRefReward, StakingRefType } from '../staking-ref-reward/staking-ref-reward.entity';
-import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
+import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 
 @Injectable()
 export class HistoryService {
@@ -249,8 +249,9 @@ export class HistoryService {
   }
 
   private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const stakingRewards = await this.stakingRewardService.getUserRewards([userId], dateFrom, dateTo);
-    let txCount = 0;
+    const stakingRewards = this.fixDuplicateTxRewards(
+      await this.stakingRewardService.getUserRewards([userId], dateFrom, dateTo),
+    );
     return stakingRewards
       .map((c) => [
         {
@@ -265,12 +266,31 @@ export class HistoryService {
           tradeGroup: c.payoutType === PayoutType.REINVEST ? 'Staking' : null,
           comment: 'DFX Staking Reward',
           date: c.outputDate,
-          txid: c.txId + txCount++,
+          txid: c.txId,
           buyValueInEur: null,
           sellValueInEur: null,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private fixDuplicateTxRewards(rewards: StakingReward[]): StakingReward[] {
+    if (!rewards) return;
+    const res = Array.from(
+      rewards.reduce((a, { txId, ...rest }) => {
+        return a.set(txId, [rest].concat(a.get(txId) || []));
+      }, new Map()),
+    ).map(([txId, stakingReward]) => ({ txId, stakingReward }));
+
+    res.forEach((r) =>
+      r.stakingReward.length > 1
+        ? r.stakingReward.forEach((rr, index) =>
+            index > 0 ? rewards.find((rrr) => (rrr.id == rr.id ? (rrr.txId += index) : null)) : null,
+          )
+        : null,
+    );
+
+    return rewards;
   }
 
   private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
