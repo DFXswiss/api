@@ -1,12 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { BuyService } from '../../../payment/models/buy/buy.service';
-import { BuyController } from './buy.controller';
+import { BuyService } from '../buy.service';
+import { BuyController } from '../buy.controller';
 import { UserService } from 'src/user/models/user/user.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
-import { StakingRepository } from '../staking/staking.repository';
-import { StakingService } from '../staking/staking.service';
-import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { StakingRepository } from '../../staking/staking.repository';
+import { StakingService } from '../../staking/staking.service';
+import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
+import { createDefaultBuy } from './mock/buy.entity.mock';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { TestUtil } from 'src/shared/test.util';
 
 describe('BuyController', () => {
   let controller: BuyController;
@@ -33,6 +36,7 @@ describe('BuyController', () => {
         { provide: StakingRepository, useValue: stakingRepo },
         { provide: StakingService, useValue: stakingService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
+        TestUtil.provideConfig(),
       ],
     }).compile();
 
@@ -41,5 +45,13 @@ describe('BuyController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('should return a min deposit of 1 for a default buy route', async () => {
+    jest.spyOn(buyService, 'getUserBuys').mockResolvedValue([createDefaultBuy()]);
+
+    await expect(controller.getAllBuy({ id: 0, address: '', role: UserRole.USER })).resolves.toMatchObject([
+      { minDeposit: 1 },
+    ]);
   });
 });

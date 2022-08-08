@@ -18,4 +18,5 @@ export class StakingDto {
   isInUse: boolean;
   fee: number;
   period: number;
+  minInvestment: number;
 }

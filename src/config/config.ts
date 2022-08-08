@@ -187,10 +187,15 @@ export class Configuration {
         moreThan100k: 2.3,
       },
     },
+    minDeposit: 1, // USD
   };
 
   sell = {
     fee: 0.029,
+    minDeposit: {
+      dfi: 0.1,
+      usd: 1,
+    },
   };
 
   staking = {
@@ -205,6 +210,9 @@ export class Configuration {
   crypto = {
     fee: 0.012,
     refBonus: 0.001,
+    minDeposit: {
+      btc: 0.0005,
+    },
   };
 
   ftp = {

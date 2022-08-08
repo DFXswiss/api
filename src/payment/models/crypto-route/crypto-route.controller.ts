@@ -20,6 +20,7 @@ import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
+import { Config } from 'src/config/config';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')
@@ -79,6 +80,8 @@ export class CryptoRouteController {
     stakingRoutes?: Staking[],
   ): Promise<CryptoRouteDto> {
     fees ??= await this.getFees(userId);
+    // in future we need to change based on crypto.deposit.blockchain on which minDeposit should be used
+    const minDeposit = Config.crypto.minDeposit.btc;
 
     return {
       ...crypto,
@@ -86,6 +89,7 @@ export class CryptoRouteController {
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       ...fees,
+      minDeposit: minDeposit,
     };
   }
 
