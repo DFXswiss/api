@@ -15,6 +15,7 @@ import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User } from '../user/user.entity';
 import { RefService } from '../referral/ref.service';
+import { isEthereumAddress } from 'class-validator';
 
 @Injectable()
 export class AuthService {
@@ -61,6 +62,7 @@ export class AuthService {
   }
 
   getSignMessage(address: string): string {
+    if (isEthereumAddress(address)) return Config.auth.signMessageGeneral + address;
     return Config.auth.signMessage + address;
   }
 
