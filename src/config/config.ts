@@ -202,6 +202,7 @@ export class Configuration {
     fee: 0.125,
     period: 28, // days
     minInvestment: 100, // DFI
+    minDeposit: 1, // DFI
     freeDays: 28,
     refSystemStart: new Date('2022-05-22T16:00:00.000Z'),
     refReward: 20, // EUR

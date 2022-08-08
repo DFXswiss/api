@@ -19,4 +19,5 @@ export class StakingDto {
   fee: number;
   period: number;
   minInvestment: number;
+  minDeposit: number;
 }
