@@ -14,4 +14,5 @@ export class CryptoRouteDto {
   refBonus: number;
   staking: StakingDto;
   blockchain: Blockchain;
+  minDeposit: number;
 }

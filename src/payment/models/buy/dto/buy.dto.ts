@@ -14,4 +14,5 @@ export class BuyDto {
   annualVolume: number;
   fee: number;
   refBonus: number;
+  minDeposit: number;
 }
