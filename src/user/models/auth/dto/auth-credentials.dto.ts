@@ -12,6 +12,6 @@ export class AuthCredentialsDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(/^.{87}=$/)
+  @Matches(GetConfig().signatureFormat)
   signature: string;
 }

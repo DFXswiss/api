@@ -12,7 +12,7 @@ export class CreateUserDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(/^.{87}=$/)
+  @Matches(GetConfig().signatureFormat)
   signature: string;
 
   @ApiPropertyOptional()
