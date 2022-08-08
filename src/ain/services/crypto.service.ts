@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { MainNet } from '@defichain/jellyfish-network';
+import { isEthereumAddress } from 'class-validator';
+import { arrayify, splitSignature, verifyMessage } from 'ethers/lib/utils';
 
 @Injectable()
 export class CryptoService {
@@ -34,6 +36,17 @@ export class CryptoService {
   }
 
   private verify(message: string, address: string, signature: string): boolean {
+    if (isEthereumAddress(address)) return this.verifyEthereum(message, address, signature);
+    return this.verifyDefichain(message, address, signature);
+  }
+
+  private verifyEthereum(message: string, address: string, signature: string): boolean {
+    // there are ETH signings out there, which do not have '0x' in the beginning, but for verification this is needed
+    const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
+    return verifyMessage(message, signatureToUse) === address;
+  }
+
+  private verifyDefichain(message: string, address: string, signature: string): boolean {
     return verify(message, address, signature, MainNet.messagePrefix);
   }
 }
