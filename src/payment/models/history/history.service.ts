@@ -274,27 +274,10 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private fixDuplicateTxRewards(rewards: StakingReward[]): StakingReward[] {
-    if (!rewards) return;
-    const res = Array.from(
-      rewards.reduce((a, { txId, ...rest }) => {
-        return a.set(txId, [rest].concat(a.get(txId) || []));
-      }, new Map()),
-    ).map(([txId, stakingReward]) => ({ txId, stakingReward }));
-
-    res.forEach((r) =>
-      r.stakingReward.length > 1
-        ? r.stakingReward.forEach((rr, index) =>
-            index > 0 ? rewards.find((rrr) => (rrr.id == rr.id ? (rrr.txId += index) : null)) : null,
-          )
-        : null,
-    );
-
-    return rewards;
-  }
-
   private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const { deposits, withdrawals } = await this.cryptoStakingService.getUserInvests(userId, dateFrom, dateTo);
+    let { deposits, withdrawals } = this.fixDuplicateTxInvest(
+      await this.cryptoStakingService.getUserInvests(userId, dateFrom, dateTo),
+    );
 
     return [...this.getStakingDeposits(deposits), ...this.getStakingWithdrawals(withdrawals)];
   }
@@ -503,5 +486,68 @@ export class HistoryService {
       : ['DFI', 'BTC', 'ETH', 'BCH', 'DOGE', 'LTC', 'USDC', 'USDT'].includes(dexName)
       ? dexName
       : `d${dexName}`;
+  }
+
+  private fixDuplicateTxRewards(rewards: StakingReward[]): StakingReward[] {
+    Array.from(
+      rewards.reduce((a, { txId, ...rest }) => {
+        return a.set(txId, [rest].concat(a.get(txId) || []));
+      }, new Map()),
+    )
+      .map(([txId, stakingRewards]) => ({ txId, stakingRewards }))
+      .forEach((r) =>
+        r.stakingRewards.length > 1
+          ? r.stakingRewards.forEach((reward: StakingReward, index: number) =>
+              index > 0
+                ? rewards.find((origReward) => (origReward.id == reward.id ? (origReward.txId += index) : null))
+                : null,
+            )
+          : null,
+      );
+
+    return rewards;
+  }
+
+  private fixDuplicateTxInvest(invests: { deposits: CryptoStaking[]; withdrawals: CryptoStaking[] }): {
+    deposits: CryptoStaking[];
+    withdrawals: CryptoStaking[];
+  } {
+    Array.from(
+      invests.deposits.reduce((a, { inTxId, ...rest }) => {
+        return a.set(inTxId, [rest].concat(a.get(inTxId) || []));
+      }, new Map()),
+    )
+      .map(([inTxId, stakingInvests]) => ({ inTxId, stakingInvests }))
+      .forEach((r) =>
+        r.stakingInvests.length > 1
+          ? r.stakingInvests.forEach((invest: CryptoStaking, index: number) =>
+              index > 0
+                ? invests.deposits.find((origInvest) =>
+                    origInvest.id == invest.id ? (origInvest.inTxId += index) : null,
+                  )
+                : null,
+            )
+          : null,
+      );
+
+    Array.from(
+      invests.withdrawals.reduce((a, { outTxId, ...rest }) => {
+        return a.set(outTxId, [rest].concat(a.get(outTxId) || []));
+      }, new Map()),
+    )
+      .map(([inTxId, stakingInvests]) => ({ inTxId, stakingInvests }))
+      .forEach((r) =>
+        r.stakingInvests.length > 1
+          ? r.stakingInvests.forEach((invest: CryptoStaking, index: number) =>
+              index > 0
+                ? invests.withdrawals.find((origInvest) =>
+                    origInvest.id == invest.id ? (origInvest.outTxId += index) : null,
+                  )
+                : null,
+            )
+          : null,
+      );
+
+    return invests;
   }
 }

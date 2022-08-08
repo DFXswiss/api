@@ -109,6 +109,7 @@ export class CryptoStakingService {
         },
       ],
       relations: ['cryptoInput', 'stakingRoute', 'stakingRoute.user'],
+      order: { id: 'ASC' },
     });
 
     return {
