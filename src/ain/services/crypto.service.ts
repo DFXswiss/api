@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
-import { arrayify, splitSignature, verifyMessage } from 'ethers/lib/utils';
+import { verifyMessage } from 'ethers/lib/utils';
 
 @Injectable()
 export class CryptoService {
@@ -16,6 +16,10 @@ export class CryptoService {
       isValid = this.fallbackVerify(message, address, signature);
     }
     return isValid;
+  }
+
+  public isBitcoinAddress(address: string): boolean {
+    return address.match(/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/)?.length > 1 ?? false;
   }
 
   private fallbackVerify(message: string, address: string, signature: string) {
@@ -37,6 +41,7 @@ export class CryptoService {
 
   private verify(message: string, address: string, signature: string): boolean {
     if (isEthereumAddress(address)) return this.verifyEthereum(message, address, signature);
+    if (this.isBitcoinAddress(address)) return this.verifyBitcoin(message, address, signature);
     return this.verifyDefichain(message, address, signature);
   }
 
@@ -44,6 +49,20 @@ export class CryptoService {
     // there are ETH signings out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
     return verifyMessage(message, signatureToUse) === address;
+  }
+
+  private verifyBitcoin(message: string, address: string, signature: string): boolean {
+    try {
+      return verify(message, address, signature, null, true);
+    } catch (e) {
+      if (e.message === 'checkSegwitAlways can only be used with a compressed pubkey signature flagbyte') {
+        // If message created with uncompressed private key, it will throw this error
+        // in this case we should re-try with checkSegwitAlways flag off
+        // node_modules/bitcoinjs-message/index.js:187
+        return verify(message, address, signature);
+      }
+      throw e;
+    }
   }
 
   private verifyDefichain(message: string, address: string, signature: string): boolean {
