@@ -1,12 +1,3 @@
-import { AmlCheck } from '../../buy-crypto/enums/aml-check.enum';
+import { RouteHistoryDto } from '../../route/dto/route-history.dto';
 
-export class BuyCryptoHistoryDto {
-  inputAmount: number;
-  inputAsset: string;
-  outputAmount: number;
-  outputAsset: string;
-  txId: string;
-  date: Date;
-  amlCheck: AmlCheck;
-  isComplete: boolean;
-}
+export class BuyCryptoHistoryDto extends RouteHistoryDto {}

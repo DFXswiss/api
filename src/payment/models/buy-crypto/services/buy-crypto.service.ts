@@ -23,6 +23,7 @@ import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
 import { BuyCryptoHistoryDto } from '../dto/buy-crypto-history.dto';
 import { CryptoRouteHistoryDto } from '../../crypto-route/dto/crypto-route-history.dto';
+import { RouteHistoryDto } from '../../route/dto/route-history.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -191,14 +192,14 @@ export class BuyCryptoService {
     return this.buyCryptoRepo
       .find({
         where: { cryptoRoute: { id: routeId, user: { id: userId } } },
-        relations: ['cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+        relations: ['cryptoRoute', 'cryptoRoute.user'],
       })
-      .then((history) => history.map(this.toCryptoRouteHistoryDto));
+      .then((history) => history.map(this.toHistoryDto));
   }
 
   // --- HELPER METHODS --- //
 
-  private toHistoryDto(buyCrypto: BuyCrypto): BuyCryptoHistoryDto {
+  private toHistoryDto(buyCrypto: BuyCrypto): RouteHistoryDto {
     return {
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,
@@ -208,19 +209,6 @@ export class BuyCryptoService {
       txId: buyCrypto.txId,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,
-    };
-  }
-
-  private toCryptoRouteHistoryDto(buyCrypto: BuyCrypto): CryptoRouteHistoryDto {
-    return {
-      inputAmount: buyCrypto.cryptoInput.amount,
-      inputAsset: buyCrypto.cryptoInput.asset.dexName,
-      outputAmount: buyCrypto.outputAmount,
-      outputAsset: buyCrypto.outputAsset,
-      txId: buyCrypto.txId,
-      date: buyCrypto.outputDate,
-      amlCheck: buyCrypto.amlCheck,
-      isComplete: buyCrypto.isComplete,
     };
   }
 
