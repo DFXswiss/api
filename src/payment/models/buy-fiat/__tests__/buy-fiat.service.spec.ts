@@ -78,11 +78,13 @@ describe('BuyFiatService', () => {
         case MockBuyData.BUY_HISTORY:
           wantedData = [
             createCustomBuyFiat({
-              cryptoInput: createCustomCryptoInput({ created: date, inTxId: 'IN_TX_ID_0' }),
+              outputDate: date,
+              cryptoInput: createCustomCryptoInput({ inTxId: 'IN_TX_ID_0' }),
               ...txOne,
             }),
             createCustomBuyFiat({
-              cryptoInput: createCustomCryptoInput({ created: date, inTxId: 'IN_TX_ID_1' }),
+              outputDate: date,
+              cryptoInput: createCustomCryptoInput({ inTxId: 'IN_TX_ID_1' }),
               ...txTwo,
             }),
           ];
@@ -90,6 +92,7 @@ describe('BuyFiatService', () => {
         case MockBuyData.BUY_HISTORY_SMALL:
           wantedData = [
             createCustomBuyFiat({
+              outputDate: date,
               cryptoInput: createCustomCryptoInput({ created: date, inTxId: 'IN_TX_ID_0' }),
               ...txSmallAmount,
             }),

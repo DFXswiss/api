@@ -129,14 +129,10 @@ describe('BuyCryptoService', () => {
           wantedData = [
             createCustomBuyCrypto({
               outputDate: date,
-              outputAmount: txCrypto.outputAmount,
-              outputAsset: txCrypto.outputAsset,
               cryptoInput: createCustomCryptoInput({
                 type: CryptoInputType.BUY_CRYPTO,
-                amount: txCrypto.inputAmount,
-                asset: createCustomAsset({ dexName: txCrypto.inputAsset }),
               }),
-              txId: txCrypto.txId,
+              ...txCrypto,
             }),
           ];
           break;

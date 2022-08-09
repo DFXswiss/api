@@ -105,7 +105,7 @@ export class BuyFiatService {
       outputAmount: buyFiat.outputAmount,
       outputAsset: buyFiat.outputAsset,
       txId: buyFiat.cryptoInput.inTxId,
-      date: buyFiat.cryptoInput.created,
+      date: buyFiat.outputDate,
       amlCheck: buyFiat.amlCheck,
       isComplete: buyFiat.isComplete,
     };
