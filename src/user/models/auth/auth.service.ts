@@ -62,7 +62,8 @@ export class AuthService {
   }
 
   getSignMessage(address: string): string {
-    if (isEthereumAddress(address)) return Config.auth.signMessageGeneral + address;
+    if (isEthereumAddress(address) || this.cryptoService.isBitcoinAddress(address))
+      return Config.auth.signMessageGeneral + address;
     return Config.auth.signMessage + address;
   }
 
