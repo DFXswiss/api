@@ -18,6 +18,10 @@ export class CryptoService {
     return isValid;
   }
 
+  public isDefichainAddress(address: string): boolean {
+    return !isEthereumAddress(address) && !this.isBitcoinAddress(address);
+  }
+
   public isBitcoinAddress(address: string): boolean {
     return address.match(/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/)?.length > 1 ?? false;
   }
