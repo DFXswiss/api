@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Blank,
   BlankType,
@@ -16,6 +16,7 @@ import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
+import { MailService } from 'src/shared/services/mail.service';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -38,6 +39,7 @@ export class KycService {
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
+    private readonly mailService: MailService,
   ) {}
 
   // --- NAME CHECK --- //
@@ -150,6 +152,27 @@ export class KycService {
     const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
+    const [users, numberOfUsersWithSameInformation] = await this.userDataService.getUsersByInformation(user);
+    if (users) {
+      const completedUser = users.find((data) => data.kycStatus === KycStatus.COMPLETED);
+      const shouldSendLinkEmail = numberOfUsersWithSameInformation > 1;
+      if (shouldSendLinkEmail && completedUser) {
+        await this.mailService.sendTranslatedMail({
+          userData: user,
+          translationKey: 'mail.link.address',
+          params: {
+            firstname: completedUser.firstname,
+            surname: completedUser.surname,
+            organizationName: completedUser.organizationName ?? '',
+            existingAddress: completedUser.users[0].address, // this is not correct, where do we know. Which address is the correct one, if there are already linked addresses?
+            newAddress: user.users[0].address, // this should be fine, as a new user_data should have only one address
+            url: 'todo',
+          },
+        });
+        throw new ConflictException();
+      }
+    }
+
     // update
     user = await this.startKyc(user);
     await this.userDataRepo.save(user);
@@ -210,7 +233,7 @@ export class KycService {
   }
 
   private async getUserByKycCode(code: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] });
+    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['users', 'spiderData'] });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
   }
