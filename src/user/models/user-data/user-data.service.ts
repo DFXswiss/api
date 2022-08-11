@@ -49,6 +49,13 @@ export class UserDataService {
     return this.userDataRepo.findOne({ kycHash });
   }
 
+  async getUsersByInformation(data: UserData): Promise<[UserData[], number]> {
+    return this.userDataRepo.findAndCount({
+      where: { mail: data.mail, firstname: data.firstname, surname: data.surname },
+      relations: ['users'],
+    });
+  }
+
   async createUserData(): Promise<UserData> {
     const userData = await this.userDataRepo.save({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
