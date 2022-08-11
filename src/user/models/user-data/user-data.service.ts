@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, UserData } from './user-data.entity';
@@ -51,6 +46,13 @@ export class UserDataService {
 
   async getUserDataByKycHash(kycHash: string): Promise<UserData | undefined> {
     return this.userDataRepo.findOne({ kycHash });
+  }
+
+  async getUsersByInformation(data: UserData): Promise<[UserData[], number]> {
+    return this.userDataRepo.findAndCount({
+      where: { mail: data.mail, firstname: data.firstname, surname: data.surname },
+      relations: ['users'],
+    });
   }
 
   async createUserData(): Promise<UserData> {
@@ -125,7 +127,7 @@ export class UserDataService {
     }
 
     // update spider
-    await this.updateSpiderIfNeeded(user, dto)
+    await this.updateSpiderIfNeeded(user, dto);
 
     return this.userDataRepo.save({ ...user, ...dto });
   }

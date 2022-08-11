@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { createDefaultCountry } from 'src/shared/models/country/__tests__/mock/country.entity.mock';
+import { MailService } from 'src/shared/services/mail.service';
 import { TestUtil } from 'src/shared/test.util';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
@@ -29,6 +30,7 @@ describe('KycService', () => {
   let spiderSyncService: SpiderSyncService;
   let countryService: CountryService;
   let kycProcess: KycProcessService;
+  let mailService: MailService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -115,6 +117,7 @@ describe('KycService', () => {
     spiderSyncService = createMock<SpiderSyncService>();
     countryService = createMock<CountryService>();
     kycProcess = createMock<KycProcessService>();
+    mailService = createMock<MailService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -125,6 +128,7 @@ describe('KycService', () => {
         { provide: SpiderSyncService, useValue: spiderSyncService },
         { provide: CountryService, useValue: countryService },
         { provide: KycProcessService, useValue: kycProcess },
+        { provide: MailService, useValue: mailService },
         TestUtil.provideConfig(),
       ],
     }).compile();
