@@ -6,7 +6,6 @@ import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { CryptoRouteService } from './crypto-route.service';
-import { CryptoInputService } from '../crypto-input/crypto-input.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 
 describe('CryptoRouteController', () => {
