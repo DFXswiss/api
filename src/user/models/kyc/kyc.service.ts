@@ -17,6 +17,7 @@ import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
 import { MailService } from 'src/shared/services/mail.service';
+import { Config } from 'src/config/config';
 import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 
 export interface KycInfo {
@@ -182,6 +183,10 @@ export class KycService {
       const completedUser = users.find((data) => data.kycStatus === KycStatus.COMPLETED);
       const shouldSendLinkEmail = numberOfUsersWithSameInformation > 1;
       if (shouldSendLinkEmail && completedUser) {
+        // this is not correct, where do we know. Which address is the correct one, if there are already linked addresses?
+        const existingAddress = completedUser.users[0].address;
+        // this should be fine, as a new user_data should have only one address
+        const newAddress = user.users[0].address;
         await this.mailService.sendTranslatedMail({
           userData: user,
           translationKey: 'mail.link.address',
@@ -189,9 +194,9 @@ export class KycService {
             firstname: completedUser.firstname,
             surname: completedUser.surname,
             organizationName: completedUser.organizationName ?? '',
-            existingAddress: completedUser.users[0].address, // this is not correct, where do we know. Which address is the correct one, if there are already linked addresses?
-            newAddress: user.users[0].address, // this should be fine, as a new user_data should have only one address
-            url: 'todo',
+            existingAddress,
+            newAddress,
+            url: this.buildLinkUrl(existingAddress, newAddress),
           },
         });
         throw new ConflictException();
@@ -203,6 +208,12 @@ export class KycService {
     await this.userDataRepo.save(user);
 
     return this.createKycInfoBasedOn(user);
+  }
+
+  private buildLinkUrl(existingAddress: string, newAddress: string): string {
+    return `${Config.payment.url}/link?existing=${encodeURIComponent(existingAddress)}&new=${encodeURIComponent(
+      newAddress,
+    )}`;
   }
 
   private async startKyc(userData: UserData): Promise<UserData> {
