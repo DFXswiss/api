@@ -79,6 +79,7 @@ param btcVmPassword string
 @secure()
 param chainalysisApiKey string
 
+param paymentUrl string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -597,6 +598,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'CHAINALYSIS_API_KEY'
           value: chainalysisApiKey
+        }
+        {
+          name: 'PAYMENT_URL'
+          value: paymentUrl
         }
       ]
     }

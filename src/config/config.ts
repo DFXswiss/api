@@ -104,6 +104,10 @@ export class Configuration {
     url: process.env.LETTER_URL,
   };
 
+  payment = {
+    url: process.env.PAYMENT_URL,
+  };
+
   mail: MailOptions = {
     options: {
       transport: {
