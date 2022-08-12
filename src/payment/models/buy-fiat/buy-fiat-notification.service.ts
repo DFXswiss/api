@@ -49,7 +49,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(
           { id: entity.id },
-          { recipientMail: recipientMail, mail1SendDate: entity.mail1SendDate },
+          { recipientMail: entity.recipientMail, mail1SendDate: entity.mail1SendDate },
         );
       } catch (e) {
         console.error(e);
