@@ -291,24 +291,20 @@ export class BuyCryptoService {
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
     // Admin Support-Tool method
-    return await this.buyCryptoRepo
-      .createQueryBuilder('buyCrypto')
-      .leftJoinAndSelect('buyCrypto.bankTx', 'bankTx')
-      .leftJoinAndSelect('buyCrypto.buy', 'buy')
-      .leftJoinAndSelect('buy.user', 'buyUser')
-      .leftJoinAndSelect('buy.asset', 'buyAsset')
-      .leftJoinAndSelect('buyCrypto.cryptoInput', 'cryptoInput')
-      .leftJoinAndSelect('cryptoInput.asset', 'asset')
-      .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
-      .leftJoinAndSelect('cryptoRoute.user', 'cryptoRouteUser')
-      .leftJoinAndSelect('cryptoRoute.asset', 'cryptoRouteAsset')
-      .where('(buyUser.id = :id OR cryptoRouteUser.id = :id)', {
-        id: In(userIds),
-      })
-      .getMany()
-      .catch((e: Error) => {
-        throw new BadRequestException(e.message);
-      });
+    return await this.buyCryptoRepo.find({
+      where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
+      relations: [
+        'bankTx',
+        'buy',
+        'buy.user',
+        'buy.asset',
+        'cryptoInput',
+        'cryptoInput.asset',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.asset',
+      ],
+    });
   }
 
   // Statistics
