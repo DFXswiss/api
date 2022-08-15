@@ -275,17 +275,7 @@ export class BuyCryptoService {
     // Admin Support-Tool method
     return await this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
-      relations: [
-        'bankTx',
-        'buy',
-        'buy.user',
-        'buy.asset',
-        'cryptoInput',
-        'cryptoInput.asset',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.asset',
-      ],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -313,7 +303,7 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
-    // Without cryptoInput buyCryptos
+    // TODO Add cryptoInput buyCryptos, consultation with Daniel regarding statistic data
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
       relations: ['buy'],

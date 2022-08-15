@@ -149,4 +149,12 @@ export class Util {
   static trimBlockchainAddress(address: string): string {
     return '***' + address.slice(address.length - 6);
   }
+
+  static groupBy<T>(list: T[], key: KeyType<T, string>): Map<string, T[]> {
+    return list.reduce(
+      (map, item) =>
+        map.set(item[key] as unknown as string, (map.get(item[key] as unknown as string) ?? []).concat(item)),
+      new Map<string, T[]>(),
+    );
+  }
 }

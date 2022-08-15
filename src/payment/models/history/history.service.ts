@@ -68,82 +68,61 @@ export class HistoryService {
           c.outputDate &&
           c.txId &&
           c.cryptoInput &&
-          c.cryptoInput.outTxId &&
           c.cryptoRoute,
       )
-      .map((c) =>
-        c.cryptoInput.asset.dexName == c.outputAsset
-          ? [
-              {
-                type: 'Deposit',
-                buyAmount: c.inputAmount,
-                buyAsset: c.inputAsset,
-                sellAmount: null,
-                sellAsset: null,
-                fee: null,
-                feeAsset: null,
-                exchange: 'DFX',
-                tradeGroup: null,
-                comment: 'DFX Purchase',
-                date: c.cryptoInput.created,
-                txid: c.cryptoInput.inTxId,
-                buyValueInEur: null,
-                sellValueInEur: null,
-              },
-              c.percentFee && c.inputAmount && c.inputAsset
-                ? {
-                    type: 'Other Fee',
-                    buyAmount: null,
-                    buyAsset: null,
-                    sellAmount: c.percentFee * c.inputAmount,
-                    sellAsset: this.getAssetSymbol(c.inputAsset),
-                    fee: null,
-                    feeAsset: null,
-                    exchange: 'DFX',
-                    tradeGroup: null,
-                    comment: 'DFX Purchase Fee',
-                    date: c.outputDate,
-                    txid: c.txId,
-                    buyValueInEur: null,
-                    sellValueInEur: null,
-                  }
-                : null,
-            ]
-          : [
-              {
-                type: 'Deposit',
-                buyAmount: c.inputAmount,
-                buyAsset: c.inputAsset,
-                sellAmount: null,
-                sellAsset: null,
-                fee: null,
-                feeAsset: null,
-                exchange: 'DFX',
-                tradeGroup: null,
-                comment: 'DFX Purchase',
-                date: c.cryptoInput.created,
-                txid: c.cryptoInput.inTxId,
-                buyValueInEur: null,
-                sellValueInEur: null,
-              },
-              {
-                type: 'Trade',
-                buyAmount: c.outputAmount,
-                buyAsset: c.cryptoRoute?.deposit ? 'DFI' : this.getAssetSymbol(c.cryptoRoute?.asset?.dexName),
-                sellAmount: c.inputAmount,
+      .map((c) => [
+        {
+          type: 'Deposit',
+          buyAmount: c.inputAmount,
+          buyAsset: c.inputAsset,
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX Purchase',
+          date: c.cryptoInput.created,
+          txid: c.cryptoInput.inTxId,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+        c.inputAsset == c.outputAsset
+          ? c.percentFee && c.inputAmount && c.inputAsset
+            ? {
+                type: 'Other Fee',
+                buyAmount: null,
+                buyAsset: null,
+                sellAmount: c.percentFee * c.inputAmount,
                 sellAsset: this.getAssetSymbol(c.inputAsset),
-                fee: c.percentFee ? c.percentFee * c.inputAmount : null,
-                feeAsset: c.percentFee ? this.getAssetSymbol(c.inputAsset) : null,
+                fee: null,
+                feeAsset: null,
                 exchange: 'DFX',
                 tradeGroup: null,
-                comment: 'DFX Purchase',
-                date: c.outputDate ? c.outputDate : null,
+                comment: 'DFX Purchase Fee',
+                date: c.outputDate,
                 txid: c.txId,
                 buyValueInEur: null,
                 sellValueInEur: null,
-              },
-            ],
-      )
+              }
+            : null
+          : {
+              type: 'Trade',
+              buyAmount: c.outputAmount,
+              buyAsset: c.cryptoRoute?.deposit ? 'DFI' : this.getAssetSymbol(c.cryptoRoute?.asset?.dexName),
+              sellAmount: c.inputAmount,
+              sellAsset: this.getAssetSymbol(c.inputAsset),
+              fee: c.percentFee ? c.percentFee * c.inputAmount : null,
+              feeAsset: c.percentFee ? this.getAssetSymbol(c.inputAsset) : null,
+              exchange: 'DFX',
+              tradeGroup: null,
+              comment: 'DFX Purchase',
+              date: c.outputDate ? c.outputDate : null,
+              txid: c.txId,
+              buyValueInEur: null,
+              sellValueInEur: null,
+            },
+      ])
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
@@ -249,9 +228,9 @@ export class HistoryService {
   }
 
   private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    const stakingRewards = this.fixDuplicateTxRewards(
-      await this.stakingRewardService.getUserRewards([userId], dateFrom, dateTo),
-    );
+    const stakingRewards = await this.stakingRewardService
+      .getUserRewards([userId], dateFrom, dateTo)
+      .then(this.fixDuplicateTxRewards);
     return stakingRewards
       .map((c) => [
         {
@@ -275,10 +254,9 @@ export class HistoryService {
   }
 
   private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    let { deposits, withdrawals } = this.fixDuplicateTxInvest(
-      await this.cryptoStakingService.getUserInvests(userId, dateFrom, dateTo),
-    );
-
+    let { deposits, withdrawals } = await this.cryptoStakingService
+      .getUserInvests(userId, dateFrom, dateTo)
+      .then(this.fixDuplicateTxInvest);
     return [...this.getStakingDeposits(deposits), ...this.getStakingWithdrawals(withdrawals)];
   }
 
@@ -489,21 +467,10 @@ export class HistoryService {
   }
 
   private fixDuplicateTxRewards(rewards: StakingReward[]): StakingReward[] {
-    Array.from(
-      rewards.reduce((a, { txId, ...rest }) => {
-        return a.set(txId, [rest].concat(a.get(txId) || []));
-      }, new Map()),
-    )
-      .map(([txId, stakingRewards]) => ({ txId, stakingRewards }))
-      .forEach((r) =>
-        r.stakingRewards.length > 1
-          ? r.stakingRewards.forEach((reward: StakingReward, index: number) =>
-              index > 0
-                ? rewards.find((origReward) => (origReward.id == reward.id ? (origReward.txId += index) : null))
-                : null,
-            )
-          : null,
-      );
+    Array.from(Util.groupBy(rewards, 'txId'))
+      .map(([_, rewards]) => rewards)
+      .filter((r) => r.length > 1)
+      .forEach((rewards) => rewards.forEach((r, i) => (r.txId += i > 0 ? i : '')));
 
     return rewards;
   }
@@ -512,41 +479,15 @@ export class HistoryService {
     deposits: CryptoStaking[];
     withdrawals: CryptoStaking[];
   } {
-    Array.from(
-      invests.deposits.reduce((a, { inTxId, ...rest }) => {
-        return a.set(inTxId, [rest].concat(a.get(inTxId) || []));
-      }, new Map()),
-    )
-      .map(([inTxId, stakingInvests]) => ({ inTxId, stakingInvests }))
-      .forEach((r) =>
-        r.stakingInvests.length > 1
-          ? r.stakingInvests.forEach((invest: CryptoStaking, index: number) =>
-              index > 0
-                ? invests.deposits.find((origInvest) =>
-                    origInvest.id == invest.id ? (origInvest.inTxId += index) : null,
-                  )
-                : null,
-            )
-          : null,
-      );
+    Array.from(Util.groupBy(invests.deposits, 'inTxId'))
+      .map(([_, stakingInvests]) => stakingInvests)
+      .filter((r) => r.length > 1)
+      .forEach((stakingInvests) => stakingInvests.forEach((r, i) => (r.inTxId += i > 0 ? i : '')));
 
-    Array.from(
-      invests.withdrawals.reduce((a, { outTxId, ...rest }) => {
-        return a.set(outTxId, [rest].concat(a.get(outTxId) || []));
-      }, new Map()),
-    )
-      .map(([inTxId, stakingInvests]) => ({ inTxId, stakingInvests }))
-      .forEach((r) =>
-        r.stakingInvests.length > 1
-          ? r.stakingInvests.forEach((invest: CryptoStaking, index: number) =>
-              index > 0
-                ? invests.withdrawals.find((origInvest) =>
-                    origInvest.id == invest.id ? (origInvest.outTxId += index) : null,
-                  )
-                : null,
-            )
-          : null,
-      );
+    Array.from(Util.groupBy(invests.withdrawals, 'outTxId'))
+      .map(([_, stakingInvests]) => stakingInvests)
+      .filter((r) => r.length > 1)
+      .forEach((stakingInvests) => stakingInvests.forEach((r, i) => (r.outTxId += i > 0 ? i : '')));
 
     return invests;
   }
