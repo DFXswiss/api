@@ -5,6 +5,14 @@ import { HistoryQuery } from 'src/payment/models/history/dto/history-query.dto';
 import { User } from 'src/user/models/user/user.entity';
 import { Util } from '../util';
 
+export enum HistoryFilterCode {
+  buy = '0',
+  sell = '1',
+  staking = '2',
+  ref = '3',
+  lm = '4',
+}
+
 @Injectable()
 export class ApiKeyService {
   constructor() {}
@@ -12,7 +20,7 @@ export class ApiKeyService {
   public createKey(address: string, queryFilter: HistoryFilter): string {
     let hash = Util.createHash(Util.createHash(address + new Date().toISOString(), 'sha256'), 'md5').toUpperCase();
 
-    return hash.substring(0, hash.length - 5) + this.getFilterHash(queryFilter) + Config.apiKeyVersionCT;
+    return hash.substring(0, hash.length - 4) + this.getFilterCode(queryFilter) + Config.apiKeyVersionCT;
   }
 
   public getSecret(user: User): string {
@@ -25,24 +33,24 @@ export class ApiKeyService {
     return Util.createHash(secret + timestamp, 'sha256').toUpperCase();
   }
 
-  public checkKeySign(user: User, sign: string, timestamp: string): boolean {
+  public isValidSign(user: User, sign: string, timestamp: string): boolean {
     const userSign = this.getSign(user, timestamp);
 
-    return sign.toUpperCase() == userSign || Util.daysDiff(new Date(timestamp), new Date()) <= 1;
+    return sign.toUpperCase() == userSign && Util.daysDiff(new Date(timestamp), new Date()) <= 1;
   }
 
-  public getActiveFilter(apiKey: string, filter: HistoryQuery): HistoryQuery {
+  public getActiveFilter(apiKey: string, filter: HistoryQuery): HistoryFilter {
     const apiKeyFilter = parseInt(apiKey.substring(apiKey.length - 5, apiKey.length - 1), 16);
     const apiKeyVersion = apiKey.substring(apiKey.length - 1, apiKey.length);
 
     if (apiKeyVersion == '0') {
-      return filter;
+      return;
     } else if (apiKeyVersion == '1') {
-      Object.entries(Config.HistoryFilter).map(
+      Object.entries(HistoryFilterCode).map(
         ([key, value]) =>
           (filter[key] =
-            (apiKeyFilter & Math.pow(2, value)) > 0
-              ? ((apiKeyFilter & Math.pow(2, value)) > 0).toString()
+            (apiKeyFilter & Math.pow(2, Number(value))) > 0
+              ? ((apiKeyFilter & Math.pow(2, Number(value))) > 0).toString()
               : filter[key] != null
               ? filter[key]
               : null),
@@ -52,11 +60,8 @@ export class ApiKeyService {
     }
   }
 
-  private getFilterHash(queryFilter: HistoryFilter): string {
-    let filterHashSubString = null;
-    Object.entries(queryFilter).map(([key]) => (filterHashSubString += Math.pow(2, Number(Config.HistoryFilter[key]))));
-    filterHashSubString = '0000' + (filterHashSubString ? filterHashSubString.toString(16) : '');
-    filterHashSubString = filterHashSubString.substring(filterHashSubString.length - 4, filterHashSubString.length);
-    return filterHashSubString;
+  private getFilterCode(queryFilter: HistoryFilter): string {
+    const filterCode = Util.sum(Object.keys(queryFilter).map((key) => Math.pow(2, HistoryFilterCode[key])));
+    return filterCode.toString(16).padStart(3, '0');
   }
 }

@@ -40,7 +40,7 @@ export class UserService {
     private readonly walletService: WalletService,
     private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
-    private readonly apiKeyCT: ApiKeyService,
+    private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
   ) {}
@@ -385,11 +385,11 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
 
-    user.apiKeyCT = this.apiKeyCT.createKey(user.address, filter);
+    user.apiKeyCT = this.apiKeyService.createKey(user.address, filter);
 
     await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT });
 
-    const secret = this.apiKeyCT.getSecret(user);
+    const secret = this.apiKeyService.getSecret(user);
 
     return { key: user.apiKeyCT, secret: secret };
   }
@@ -402,7 +402,7 @@ export class UserService {
     const user = await this.userRepo.findOne({ apiKeyCT: key });
     if (!user) throw new NotFoundException('API key not found');
 
-    if (!this.apiKeyCT.checkKeySign(user, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
+    if (!this.apiKeyService.isValidSign(user, sign, timestamp)) throw new ForbiddenException('Invalid API key/sign');
 
     return user;
   }

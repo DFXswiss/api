@@ -25,14 +25,6 @@ export class Configuration {
   defaultPercentageDecimal = 2;
   apiKeyVersionCT = '1'; // single digit hex number
 
-  HistoryFilter = {
-    buy: 0,
-    sell: 1,
-    staking: 2,
-    ref: 3,
-    lm: 4,
-  };
-
   colors = {
     white: '#FFFFFF',
     red: '#F5516C',
