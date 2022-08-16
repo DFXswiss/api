@@ -1,7 +1,6 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { RealIP } from 'nestjs-real-ip';
-import { LinkDto } from './dto/link.dto';
+import { LinkAddress } from './link-address.entity';
 import { LinkService } from './link.service';
 
 @ApiTags('link')
@@ -9,8 +8,13 @@ import { LinkService } from './link.service';
 export class LinkController {
   constructor(private readonly linkService: LinkService) {}
 
-  @Post()
-  async linkAddressToUser(@Body() data: LinkDto, @RealIP() ip: string): Promise<void> {
-    return this.linkService.linkAddressToUser(data, ip);
+  @Get(':authentication')
+  async getLinkAddress(@Param('authentication') authentication: string): Promise<LinkAddress> {
+    return this.linkService.getLinkAddress(authentication);
+  }
+
+  @Post(':authentication')
+  async executeLinkAddress(@Param('authentication') authentication: string): Promise<LinkAddress> {
+    return this.linkService.executeLinkAddress(authentication);
   }
 }

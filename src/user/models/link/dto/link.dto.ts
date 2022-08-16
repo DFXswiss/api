@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsObject, IsString, Matches, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsObject, IsString, IsUUID, Matches, ValidateNested } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 
 export class AddressInformationDto {
@@ -20,10 +20,8 @@ export class AddressInformationDto {
 export class LinkDto {
   @ApiProperty()
   @IsNotEmpty()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => AddressInformationDto)
-  existing: AddressInformationDto;
+  @IsUUID()
+  authentication: string;
 
   @ApiProperty()
   @IsNotEmpty()
