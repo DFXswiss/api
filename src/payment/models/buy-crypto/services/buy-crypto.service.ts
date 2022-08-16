@@ -286,7 +286,6 @@ export class BuyCryptoService {
   // Admin Support Tool methods
 
   async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
-    // Admin Support-Tool method
     return await this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes) },
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
@@ -294,7 +293,6 @@ export class BuyCryptoService {
   }
 
   async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
-    // Admin Support-Tool method
     return await this.buyCryptoRepo.find({
       where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
       relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
