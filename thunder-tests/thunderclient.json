@@ -1840,5 +1840,33 @@
       "form": []
     },
     "tests": []
+  },
+  {
+    "_id": "fa56fa09-5885-4546-af2c-811cf8f34023",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "8ac64d00-b99f-4b15-bc4b-98d06a3d3bff",
+    "name": "Get Link Address",
+    "url": "{{url}}/v1/link/07CD20CE-5B1D-ED11-BD6E-281878153E35",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-08-16T13:21:36.513Z",
+    "modified": "2022-08-16T13:21:39.645Z",    
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "0b962c9a-0902-4513-be3b-31cf599371f0",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "8ac64d00-b99f-4b15-bc4b-98d06a3d3bff",
+    "name": "Execute Link Address",
+    "url": "{{url}}/v1/link/07CD20CE-5B1D-ED11-BD6E-281878153E35",
+    "method": "POST",
+    "sortNum": 650000,
+    "created": "2022-08-16T13:22:28.410Z",
+    "modified": "2022-08-16T13:22:34.517Z",
+    "headers": [],
+    "params": [],
+    "tests": []
   }
 ]

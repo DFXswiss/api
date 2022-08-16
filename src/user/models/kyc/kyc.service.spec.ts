@@ -7,6 +7,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { TestUtil } from 'src/shared/test.util';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
+import { LinkAddressRepository } from '../link/link-address.repository';
 import { AccountType } from '../user-data/account-type.enum';
 import { KycState, KycStatus, UserData } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -31,6 +32,7 @@ describe('KycService', () => {
   let countryService: CountryService;
   let kycProcess: KycProcessService;
   let mailService: MailService;
+  let linkAddressRepo: LinkAddressRepository;
 
   const defaultCountry = createDefaultCountry();
 
@@ -120,6 +122,7 @@ describe('KycService', () => {
     countryService = createMock<CountryService>();
     kycProcess = createMock<KycProcessService>();
     mailService = createMock<MailService>();
+    linkAddressRepo = createMock<LinkAddressRepository>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -131,6 +134,7 @@ describe('KycService', () => {
         { provide: CountryService, useValue: countryService },
         { provide: KycProcessService, useValue: kycProcess },
         { provide: MailService, useValue: mailService },
+        { provide: LinkAddressRepository, useValue: linkAddressRepo },
         TestUtil.provideConfig(),
       ],
     }).compile();
