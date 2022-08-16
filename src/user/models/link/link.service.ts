@@ -1,11 +1,16 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import { LinkAddress } from './link-address.entity';
 import { LinkAddressRepository } from './link-address.repository';
 
 @Injectable()
 export class LinkService {
-  constructor(private readonly linkAddressRepo: LinkAddressRepository, private readonly userService: UserService) {}
+  constructor(
+    private readonly linkAddressRepo: LinkAddressRepository,
+    private readonly userService: UserService,
+    private readonly userDataService: UserDataService,
+  ) {}
 
   async getLinkAddress(authentication: string): Promise<LinkAddress> {
     return this.linkAddressRepo.findOne({
@@ -23,10 +28,10 @@ export class LinkService {
     const existingUser = await this.userService.getUserByAddress(linkAddress.existingAddress, true);
     if (!existingUser) throw new NotFoundException('User not found');
 
-    const userToBeLinked = await this.userService.getUserByAddress(linkAddress.newAddress);
+    const userToBeLinked = await this.userService.getUserByAddress(linkAddress.newAddress, true);
     if (!userToBeLinked) throw new NotFoundException('User not found');
 
-    await this.userService.updateUserInternal(userToBeLinked.id, { userData: existingUser.userData });
+    await this.userDataService.mergeUserData(existingUser.userData.id, userToBeLinked.userData.id);
     await this.linkAddressRepo.save(linkAddress.complete());
 
     return linkAddress;
