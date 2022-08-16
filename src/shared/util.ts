@@ -36,6 +36,14 @@ export class Util {
     }, {} as { [key: string]: number });
   }
 
+  static groupBy<T>(list: T[], key: KeyType<T, string>): Map<string, T[]> {
+    return list.reduce(
+      (map, item) =>
+        map.set(item[key] as unknown as string, (map.get(item[key] as unknown as string) ?? []).concat(item)),
+      new Map<string, T[]>(),
+    );
+  }
+
   static randomId(): number {
     return Math.round(Math.random() * 1000000000);
   }
@@ -150,11 +158,7 @@ export class Util {
     return '***' + address.slice(address.length - 6);
   }
 
-  static groupBy<T>(list: T[], key: KeyType<T, string>): Map<string, T[]> {
-    return list.reduce(
-      (map, item) =>
-        map.set(item[key] as unknown as string, (map.get(item[key] as unknown as string) ?? []).concat(item)),
-      new Map<string, T[]>(),
-    );
+  static trimIBAN(iban: string): string {
+    return '***' + iban.slice(iban.length - 4);
   }
 }

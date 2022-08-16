@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/util';
 import { Entity, OneToOne, JoinColumn, ManyToOne, Column } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
@@ -120,4 +121,35 @@ export class BuyFiat extends IEntity {
   //
   @Column({ default: false })
   isComplete: boolean;
+
+  offRampInitiated(recipientMail: string): this {
+    if (!recipientMail) {
+      throw new Error(`Cannot record off-ramp first email, no recipientMail provided. BuyFiat ID: ${this.id}`);
+    }
+
+    this.recipientMail = recipientMail;
+    this.mail1SendDate = new Date();
+
+    return this;
+  }
+
+  cryptoExchangedToFiat(): this {
+    this.mail2SendDate = new Date();
+
+    return this;
+  }
+
+  fiatToBankTransferInitiated(): this {
+    this.mail3SendDate = new Date();
+
+    return this;
+  }
+
+  get exchangeRateString(): string {
+    return `${Util.round(this.outputAmount / this.inputAmount, 2)} ${this.outputAsset}/${this.inputAsset}`;
+  }
+
+  get percentFeeString(): string {
+    return `${Util.round(this.percentFee * 100, 2)}%`;
+  }
 }

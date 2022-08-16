@@ -18,6 +18,8 @@ import { StakingDto } from '../staking/dto/staking.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')
@@ -27,6 +29,7 @@ export class CryptoRouteController {
     private readonly userService: UserService,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   @Get()
@@ -54,28 +57,35 @@ export class CryptoRouteController {
     return this.cryptoRouteService.updateCrypto(jwt.id, +id, updateCryptoDto).then((b) => this.toDto(jwt.id, b));
   }
 
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoRouteHistoryDto[]> {
+    return this.buyCryptoService.getCryptoRouteHistory(jwt.id, +id);
+  }
+
   // --- DTO --- //
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
-    const fee = await this.getFees(userId);
+    const fees = await this.getFees(userId);
 
     const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(cryptos.map((b) => b.targetDeposit?.id)) } });
-    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fee, stakingRoutes)));
+    return Promise.all(cryptos.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
   }
 
   private async toDto(
     userId: number,
     crypto: CryptoRoute,
-    fee?: number,
+    fees?: { fee: number; refBonus: number },
     stakingRoutes?: Staking[],
   ): Promise<CryptoRouteDto> {
-    fee ??= await this.getFees(userId);
+    fees ??= await this.getFees(userId);
 
     return {
       ...crypto,
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
-      fee,
+      ...fees,
     };
   }
 
@@ -94,7 +104,7 @@ export class CryptoRouteController {
     );
   }
 
-  async getFees(userId: number): Promise<number> {
+  async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
     return this.userService.getUserCryptoFee(userId);
   }
 }

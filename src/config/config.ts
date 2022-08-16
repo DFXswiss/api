@@ -98,8 +98,7 @@ export class Configuration {
   };
 
   letter = {
-    userName: process.env.LETTER_USER,
-    apiKey: process.env.LETTER_AUTH,
+    auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
   };
 
@@ -205,6 +204,7 @@ export class Configuration {
 
   crypto = {
     fee: 0.012,
+    refBonus: 0.001,
   };
 
   ftp = {

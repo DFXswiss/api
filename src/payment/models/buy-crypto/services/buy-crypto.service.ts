@@ -21,6 +21,9 @@ import { CryptoRouteRepository } from '../../crypto-route/crypto-route.repositor
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
+import { BuyCryptoHistoryDto } from '../dto/buy-crypto-history.dto';
+import { CryptoRouteHistoryDto } from '../../crypto-route/dto/crypto-route-history.dto';
+import { RouteHistoryDto } from '../../route/dto/route-history.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -165,7 +168,38 @@ export class BuyCryptoService {
     });
   }
 
+  async getHistory(userId: number, buyId: number): Promise<BuyCryptoHistoryDto[]> {
+    return this.buyCryptoRepo
+      .find({
+        where: { buy: { id: buyId, user: { id: userId } } },
+        relations: ['buy', 'buy.user'],
+      })
+      .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
+  }
+
+  async getCryptoRouteHistory(userId: number, routeId: number): Promise<CryptoRouteHistoryDto[]> {
+    return this.buyCryptoRepo
+      .find({
+        where: { cryptoRoute: { id: routeId, user: { id: userId } } },
+        relations: ['cryptoRoute', 'cryptoRoute.user'],
+      })
+      .then((history) => history.map(this.toHistoryDto));
+  }
+
   // --- HELPER METHODS --- //
+
+  private toHistoryDto(buyCrypto: BuyCrypto): RouteHistoryDto {
+    return {
+      inputAmount: buyCrypto.inputAmount,
+      inputAsset: buyCrypto.inputAsset,
+      amlCheck: buyCrypto.amlCheck,
+      outputAmount: buyCrypto.outputAmount,
+      outputAsset: buyCrypto.outputAsset,
+      txId: buyCrypto.txId,
+      isComplete: buyCrypto.isComplete,
+      date: buyCrypto.outputDate,
+    };
+  }
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy

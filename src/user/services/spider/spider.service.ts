@@ -93,7 +93,7 @@ export class SpiderService {
     const customerInfo = {
       type: 'AdditionalPersonInformation',
       nickName: user.firstname,
-      onlyOwner: 'YES',
+      onlyOwner: user.accountType === AccountType.BUSINESS ? undefined : 'YES',
       authorisesConversationPartner: 'YES',
       contribution: '0',
       businessActivity: {

@@ -226,13 +226,23 @@ export class UserService {
     };
   }
 
-  async getUserCryptoFee(userId: number): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'cryptoFee'],
+  async getUserCryptoFee(userId: number): Promise<{ fee: number; refBonus: number }> {
+    const { cryptoFee, usedRef } = await this.userRepo.findOne({
+      select: ['id', 'cryptoFee', 'usedRef'],
       where: { id: userId },
     });
 
-    return Util.round((user?.cryptoFee ?? Config.crypto.fee) * 100, Config.defaultPercentageDecimal);
+    if (cryptoFee != null) return { fee: Util.round(cryptoFee * 100, Config.defaultPercentageDecimal), refBonus: 0 };
+
+    const baseFee = Config.crypto.fee;
+
+    const hasUsedRef = usedRef && usedRef !== '000-000';
+    let refBonus = hasUsedRef ? Config.crypto.refBonus : 0;
+
+    const fee = Util.round((baseFee - refBonus) * 100, Config.defaultPercentageDecimal);
+    refBonus = Util.round(refBonus * 100, Config.defaultPercentageDecimal);
+
+    return { fee, refBonus };
   }
 
   async getUserSellFee(userId: number): Promise<number> {
