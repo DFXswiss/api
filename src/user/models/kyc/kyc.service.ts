@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import {
   Blank,
   BlankType,
+  KycCompleted,
   KycInProgress,
   KycState,
   KycStatus,
@@ -184,7 +185,7 @@ export class KycService {
 
     const [users, numberOfUsersWithSameInformation] = await this.userDataService.getUsersByInformation(user);
     if (users) {
-      const completedUser = users.find((data) => data.kycStatus === KycStatus.COMPLETED);
+      const completedUser = users.find((data) => KycCompleted(data.kycStatus));
       const shouldSendLinkEmail = numberOfUsersWithSameInformation > 1;
       if (shouldSendLinkEmail && completedUser) {
         // this is not correct, where do we know. Which address is the correct one, if there are already linked addresses?
