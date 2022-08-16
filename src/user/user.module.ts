@@ -32,6 +32,7 @@ import { KycController } from './models/kyc/kyc.controller';
 import { GeoLocationService } from './services/geo-location.service';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
+import { LinkAddressRepository } from './models/link/link-address.repository';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { LinkService } from './models/link/link.service';
       BankDataRepository,
       RefRepository,
       LimitRequestRepository,
+      LinkAddressRepository,
     ]),
     SharedModule,
     AinModule,
