@@ -255,7 +255,7 @@ export class HistoryService {
   }
 
   private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
-    let { deposits, withdrawals } = await this.cryptoStakingService
+    const { deposits, withdrawals } = await this.cryptoStakingService
       .getUserInvests(userId, dateFrom, dateTo)
       .then(this.fixDuplicateTxInvest);
     return [...this.getStakingDeposits(deposits), ...this.getStakingWithdrawals(withdrawals)];
