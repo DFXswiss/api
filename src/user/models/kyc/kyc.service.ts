@@ -18,6 +18,9 @@ import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service'
 import { KycProcessService } from './kyc-process.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { Config } from 'src/config/config';
+import { LinkService } from '../link/link.service';
+import { LinkAddressRepository } from '../link/link-address.repository';
+import { LinkAddress } from '../link/link-address.entity';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -41,6 +44,7 @@ export class KycService {
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
     private readonly mailService: MailService,
+    private readonly linkAddressRepo: LinkAddressRepository,
   ) {}
 
   // --- NAME CHECK --- //
@@ -162,6 +166,9 @@ export class KycService {
         const existingAddress = completedUser.users[0].address;
         // this should be fine, as a new user_data should have only one address
         const newAddress = user.users[0].address;
+
+        const linkAddress = await this.linkAddressRepo.save(new LinkAddress().create(existingAddress, newAddress));
+
         await this.mailService.sendTranslatedMail({
           userData: user,
           translationKey: 'mail.link.address',
@@ -171,7 +178,7 @@ export class KycService {
             organizationName: completedUser.organizationName ?? '',
             existingAddress,
             newAddress,
-            url: this.buildLinkUrl(existingAddress, newAddress),
+            url: this.buildLinkUrl(linkAddress.authentication),
           },
         });
         throw new ConflictException();
@@ -185,10 +192,8 @@ export class KycService {
     return this.createKycInfoBasedOn(user);
   }
 
-  private buildLinkUrl(existingAddress: string, newAddress: string): string {
-    return `${Config.payment.url}/link?existing=${encodeURIComponent(existingAddress)}&new=${encodeURIComponent(
-      newAddress,
-    )}`;
+  private buildLinkUrl(authentication: string): string {
+    return `${Config.payment.url}/link?authentication=${authentication}`;
   }
 
   private async startKyc(userData: UserData): Promise<UserData> {
