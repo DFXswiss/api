@@ -25,7 +25,7 @@ export class LinkAddress extends IEntity {
     this.newAddress = newAddress;
 
     const tomorrow = new Date();
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     this.expiration = tomorrow;
 
     return this;

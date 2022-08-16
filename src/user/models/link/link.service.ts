@@ -1,52 +1,34 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CryptoService } from 'src/ain/services/crypto.service';
-import { AuthService } from '../auth/auth.service';
-import { UserRepository } from '../user/user.repository';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserService } from '../user/user.service';
-import { LinkDto } from './dto/link.dto';
 import { LinkAddress } from './link-address.entity';
 import { LinkAddressRepository } from './link-address.repository';
 
 @Injectable()
 export class LinkService {
-  constructor(
-    private readonly userService: UserService,
-    private readonly cryptoService: CryptoService,
-    private readonly authService: AuthService,
-    private readonly linkAddressRepo: LinkAddressRepository,
-  ) {}
+  constructor(private readonly linkAddressRepo: LinkAddressRepository, private readonly userService: UserService) {}
 
-  async linkAddressToUser(data: LinkDto, ip: string): Promise<void> {
-    const user = await this.userService.getUserByAddress(data.existing.address, true);
-    // it doesn't matter what went wrong in our link process, we should always throw the same exception
-    // just from a security aspect the best thing we can do, otherwise attackers could brute-force registered addresses
-    if (!user) throw new BadRequestException();
+  async getLinkAddress(authentication: string): Promise<LinkAddress> {
+    return this.linkAddressRepo.findOne({
+      where: { authentication },
+    });
+  }
 
-    const signingMessageForExisting = this.authService.getSignMessage(data.existing.address);
-    const existingSignatureIsValid = this.cryptoService.verifySignature(
-      signingMessageForExisting,
-      data.existing.address,
-      data.existing.signature,
-    );
+  async executeLinkAddress(authentication: string): Promise<LinkAddress> {
+    const linkAddress = await this.getLinkAddress(authentication);
+    if (!linkAddress) throw new NotFoundException('Link address information not found');
 
-    const signingMessageForLink = this.authService.getSignMessage(data.linkTo.address);
-    const linkSignatureIsValid = this.cryptoService.verifySignature(
-      signingMessageForLink,
-      data.linkTo.address,
-      data.linkTo.signature,
-    );
+    if (linkAddress.isExpired()) throw new BadRequestException('Link address request is expired');
+    if (linkAddress.isCompleted) throw new ConflictException('Link address request is already completed');
 
-    if (!existingSignatureIsValid || !linkSignatureIsValid) throw new BadRequestException();
+    const existingUser = await this.userService.getUserByAddress(linkAddress.existingAddress, true);
+    if (!existingUser) throw new NotFoundException('User not found');
 
-    let isCreatedOrUpdated = false;
-    try {
-      isCreatedOrUpdated = await this.userService.createOrUpdateUser(user, data.linkTo, ip);
-    } catch (e) {
-      console.log(e);
-      // maybe we want to log that error somewhere
-      throw new BadRequestException();
-    }
+    const userToBeLinked = await this.userService.getUserByAddress(linkAddress.newAddress);
+    if (!userToBeLinked) throw new NotFoundException('User not found');
 
-    if (!isCreatedOrUpdated) throw new BadRequestException();
+    await this.userService.updateUserInternal(userToBeLinked.id, { userData: existingUser.userData });
+    await this.linkAddressRepo.save(linkAddress.complete());
+
+    return linkAddress;
   }
 }
