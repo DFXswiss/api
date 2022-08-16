@@ -150,17 +150,7 @@ export class BuyCryptoService {
         { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
         { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
       ],
-      relations: [
-        'bankTx',
-        'buy',
-        'buy.user',
-        'buy.asset',
-        'cryptoInput',
-        'cryptoInput.asset',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.asset',
-      ],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -171,17 +161,7 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return await this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
-      relations: [
-        'bankTx',
-        'buy',
-        'buy.user',
-        'buy.asset',
-        'cryptoInput',
-        'cryptoInput.asset',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.asset',
-      ],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -283,17 +263,7 @@ export class BuyCryptoService {
     // Admin Support-Tool method
     return await this.buyCryptoRepo.find({
       where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
-      relations: [
-        'bankTx',
-        'buy',
-        'buy.user',
-        'buy.asset',
-        'cryptoInput',
-        'cryptoInput.asset',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.asset',
-      ],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
