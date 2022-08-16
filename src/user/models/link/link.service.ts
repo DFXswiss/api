@@ -4,6 +4,8 @@ import { AuthService } from '../auth/auth.service';
 import { UserRepository } from '../user/user.repository';
 import { UserService } from '../user/user.service';
 import { LinkDto } from './dto/link.dto';
+import { LinkAddress } from './link-address.entity';
+import { LinkAddressRepository } from './link-address.repository';
 
 @Injectable()
 export class LinkService {
@@ -11,6 +13,7 @@ export class LinkService {
     private readonly userService: UserService,
     private readonly cryptoService: CryptoService,
     private readonly authService: AuthService,
+    private readonly linkAddressRepo: LinkAddressRepository,
   ) {}
 
   async linkAddressToUser(data: LinkDto, ip: string): Promise<void> {
