@@ -44,7 +44,7 @@ export class ApiKeyService {
   }
 
   public getFilter(apiKey: string): HistoryFilter {
-    const version = apiKey.substring(apiKey.length - 1, apiKey.length);
+    const version = apiKey.substring(apiKey.length - this.versionLength, apiKey.length);
 
     switch (version) {
       case '0':

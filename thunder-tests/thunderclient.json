@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-08-04T22:37:13.825Z",
+    "modified": "2022-08-16T09:21:50.063Z",
     "headers": [],
     "params": [],
     "body": {
@@ -742,17 +742,16 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
     "name": "Create CT API Key",
-    "url": "{{url}}/v1/user/apiKey/CT?sell&staking",
+    "url": "{{url}}/v1/user/apiKey/CT?buy&sell",
     "method": "POST",
     "sortNum": 280000,
     "created": "2022-03-19T19:53:52.315Z",
-    "modified": "2022-08-04T22:29:31.276Z",
+    "modified": "2022-08-16T09:18:42.462Z",
     "headers": [],
     "params": [
       {
         "name": "buy",
         "value": "",
-        "isDisabled": true,
         "isPath": false
       },
       {
@@ -775,6 +774,7 @@
       {
         "name": "staking",
         "value": "",
+        "isDisabled": true,
         "isPath": false
       }
     ],
@@ -1618,19 +1618,19 @@
     "method": "GET",
     "sortNum": 590000,
     "created": "2022-08-04T22:09:08.504Z",
-    "modified": "2022-08-04T22:30:28.179Z",
+    "modified": "2022-08-16T09:19:55.725Z",
     "headers": [
       {
         "name": "DFX-ACCESS-KEY",
-        "value": "000F92E6F7CBD393DBFEB0CE7AF00061"
+        "value": "005571ECD9D72DD925D6EA3547FB0031"
       },
       {
         "name": "DFX-ACCESS-SIGN",
-        "value": "977a6996cd5be2194efd9a82555d9e287b44f4a76c9dd681564c587f058125fe"
+        "value": "58c74b4592a152dee85bcea969f957392acb59c539453546e9f4d46cd9bfe68e"
       },
       {
         "name": "DFX-ACCESS-TIMESTAMP",
-        "value": "04.08.2022T21:00:20.100"
+        "value": "2022-08-16T10:00:20.100"
       }
     ],
     "params": [
