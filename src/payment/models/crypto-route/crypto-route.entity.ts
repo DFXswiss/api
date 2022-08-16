@@ -20,7 +20,7 @@ export class CryptoRoute extends DepositRoute {
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   targetDeposit: Deposit;
 
-  @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.buy)
+  @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoRoute)
   buyCryptos: BuyCrypto[];
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)
