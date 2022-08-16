@@ -278,7 +278,7 @@ export class UserService {
     return provision;
   }
 
-  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
+  async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     // get ref users
     const refUser = await this.userRepo.find({
       select: ['id'],
@@ -293,7 +293,7 @@ export class UserService {
     // get ref volume
     let dbQuery = this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyCryptos.amountInEur)', 'volume')
+      .select('SUM(buyCryptos.amountInEur)', 'fiatVolume')
       .leftJoin('user.buys', 'buys')
       .leftJoin('buys.buyCryptos', 'buyCryptos')
       .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
@@ -302,9 +302,22 @@ export class UserService {
     if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
     if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
 
-    const { volume } = await dbQuery.getRawOne<{ volume: number }>();
+    const { fiatVolume } = await dbQuery.getRawOne<{ fiatVolume: number }>();
 
-    return { activeUser: refUser.length, volume: volume };
+    dbQuery = this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(buyCryptos.amountInEur)', 'cryptoVolume')
+      .leftJoin('user.cryptoRoutes', 'cryptoRoutes')
+      .leftJoin('cryptoRoutes.buyCryptos', 'buyCryptos')
+      .where('user.created BETWEEN :from AND :to', { from: query.from, to: query.to })
+      .andWhere('buyCryptos.amlCheck = :check', { check: AmlCheck.PASS });
+
+    if (query.refCode) dbQuery = dbQuery.andWhere('user.usedRef = :ref', { ref: query.refCode });
+    if (query.origin) dbQuery = dbQuery.andWhere('user.origin = :origin', { origin: query.origin });
+
+    const { cryptoVolume } = await dbQuery.getRawOne<{ cryptoVolume: number }>();
+
+    return { activeUser: refUser.length, fiatVolume: fiatVolume, cryptoVolume: cryptoVolume };
   }
 
   async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {

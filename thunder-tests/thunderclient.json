@@ -1577,5 +1577,75 @@
       ]
     },
     "tests": []
+  },
+  {
+    "_id": "48818cd5-8953-40c9-81f0-59956591e650",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
+    "name": "All Buy",
+    "url": "{{url}}/v1/buy",
+    "method": "GET",
+    "sortNum": 590000,
+    "created": "2022-08-01T09:37:45.430Z",
+    "modified": "2022-08-01T09:37:55.289Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "dce2de5b-8145-4990-ab18-fcece074bf86",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
+    "name": "Buy Tx History",
+    "url": "{{url}}/v1/buy/114/history",
+    "method": "GET",
+    "sortNum": 600000,
+    "created": "2022-08-01T09:38:52.337Z",
+    "modified": "2022-08-02T09:24:03.483Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "eca4ef8c-0558-4881-a658-3bcf9fd20ed5",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
+    "name": "All Sell",
+    "url": "{{url}}/v1/sell",
+    "method": "GET",
+    "sortNum": 610000,
+    "created": "2022-08-02T13:18:43.861Z",
+    "modified": "2022-08-02T13:19:15.643Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "94fe0dae-4d03-4b5b-a419-25035f50f812",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
+    "name": "Sell Tx History",
+    "url": "{{url}}/v1/sell/1/history",
+    "method": "GET",
+    "sortNum": 620000,
+    "created": "2022-08-02T13:19:27.256Z",
+    "modified": "2022-08-02T13:19:33.775Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "5cdfd463-6de0-4952-b541-4a1b27beb5c7",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0dfedb35-f836-48a1-b010-04736f083788",
+    "name": "Get Crypto Route Tx History",
+    "url": "{{url}}/v1/cryptoRoute/83/history",
+    "method": "GET",
+    "sortNum": 630000,
+    "created": "2022-08-02T15:22:34.867Z",
+    "modified": "2022-08-02T15:22:45.519Z",
+    "headers": [],
+    "params": [],
+    "tests": []
   }
 ]
