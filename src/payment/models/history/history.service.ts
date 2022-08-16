@@ -123,7 +123,8 @@ export class HistoryService {
               sellValueInEur: null,
             },
       ])
-      .reduce((prev, curr) => prev.concat(curr), []);
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((e) => e != null);
   }
 
   private getBuyCryptoTransactions(buyCryptos: BuyCrypto[]): HistoryDto[] {
