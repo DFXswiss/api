@@ -1,6 +1,8 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Asset } from './asset.entity';
@@ -14,7 +16,7 @@ export class AssetController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllAsset(): Promise<Asset[]> {
-    return await this.assetService.getAllAsset();
+  async getAllAsset(@GetJwt() jwt: JwtPayload): Promise<Asset[]> {
+    return this.assetService.getAllAsset(jwt.blockchain);
   }
 }

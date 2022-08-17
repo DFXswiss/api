@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/ain/node/node.service';
 import { HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
@@ -8,6 +9,7 @@ import { UserStatus } from '../user.entity';
 export interface UserDto {
   accountType: AccountType;
   address: string;
+  blockchain: Blockchain;
   status: UserStatus;
   usedRef: string;
   currency: Fiat;

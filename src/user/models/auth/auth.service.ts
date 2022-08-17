@@ -15,7 +15,7 @@ import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User } from '../user/user.entity';
 import { RefService } from '../referral/ref.service';
-import { isEthereumAddress } from 'class-validator';
+import { Blockchain } from 'src/ain/node/node.service';
 
 @Injectable()
 export class AuthService {
@@ -33,7 +33,8 @@ export class AuthService {
       throw new ConflictException('User already exists');
     }
 
-    if (!this.verifySignature(dto.address, dto.signature)) {
+    const blockchain = this.cryptoService.getBlockchainBasedOn(dto.address);
+    if (!this.verifySignature(dto.address, dto.signature, blockchain)) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -42,7 +43,7 @@ export class AuthService {
       dto.usedRef ??= ref.ref;
     }
 
-    const user = await this.userService.createUser(dto, userIp, ref?.origin);
+    const user = await this.userService.createUser(dto, userIp, blockchain, ref?.origin);
     return { accessToken: this.generateToken(user) };
   }
 
@@ -50,7 +51,7 @@ export class AuthService {
     const user = await this.userService.getUserByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
-    const credentialsValid = this.verifySignature(address, signature);
+    const credentialsValid = this.verifySignature(address, signature, user.blockchain);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
@@ -61,19 +62,19 @@ export class AuthService {
     return { accessToken: this.generateToken(user) };
   }
 
-  getSignMessage(address: string): string {
-    if (isEthereumAddress(address) || this.cryptoService.isBitcoinAddress(address))
+  getSignMessage(address: string, blockchain: Blockchain): string {
+    if (blockchain === Blockchain.ETHEREUM || blockchain === Blockchain.BITCOIN)
       return Config.auth.signMessageGeneral + address;
     return Config.auth.signMessage + address;
   }
 
-  private verifySignature(address: string, signature: string): boolean {
-    const signatureMessage = this.getSignMessage(address);
-    return this.cryptoService.verifySignature(signatureMessage, address, signature);
+  private verifySignature(address: string, signature: string, blockchain: Blockchain): boolean {
+    const signatureMessage = this.getSignMessage(address, blockchain);
+    return this.cryptoService.verifySignature(signatureMessage, address, signature, blockchain);
   }
 
   private generateToken(user: User): string {
-    const payload: JwtPayload = { id: user.id, address: user.address, role: user.role };
+    const payload: JwtPayload = { id: user.id, address: user.address, role: user.role, blockchain: user.blockchain };
     return this.jwtService.sign(payload);
   }
 }
