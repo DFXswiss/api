@@ -12,6 +12,7 @@ import { NodeClient, NodeMode } from './node-client';
 export enum Blockchain {
   DEFICHAIN = 'DeFiChain',
   BITCOIN = 'Bitcoin',
+  ETHEREUM = 'Ethereum',
 }
 
 export enum NodeType {
