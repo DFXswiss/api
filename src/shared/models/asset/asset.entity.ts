@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/ain/node/node.service';
 import { Entity, Column } from 'typeorm';
 import { IEntity } from '../entity';
 
@@ -38,4 +39,7 @@ export class Asset extends IEntity {
 
   @Column({ default: true })
   sellable: boolean;
+
+  @Column({ length: 256, default: Blockchain.DEFICHAIN })
+  blockchain: Blockchain;
 }
