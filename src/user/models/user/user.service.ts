@@ -30,6 +30,7 @@ import { VolumeQuery } from './dto/volume-query.dto';
 import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
 import { UserData } from '../user-data/user-data.entity';
 import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
+import { LinkedUserDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 
@@ -65,6 +66,29 @@ export class UserService {
 
   async getUserByAddress(address: string, needsRelation = false): Promise<User> {
     return this.userRepo.findOne({ where: { address }, relations: needsRelation ? ['userData', 'wallet'] : [] });
+  }
+
+  async getLinkedUser(id: number, address: string, blockchain: string): Promise<User> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select('linkedUser.*')
+      .leftJoin('user.userData', 'userData')
+      .leftJoin('userData.users', 'linkedUser')
+      .where('user.id = :id', { id })
+      .andWhere('linkedUser.address = :address AND linkedUser.blockchain = :blockchain', { address, blockchain })
+      .getRawOne<User>();
+  }
+
+  async getAllLinkedUsers(id: number): Promise<LinkedUserDto[]> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select(
+        'linkedUser.address, linkedUser.blockchain, isSwitchable = CASE WHEN linkedUser.stakingBalance = 0 then 1 else 0 end',
+      )
+      .leftJoin('user.userData', 'userData')
+      .leftJoin('userData.users', 'linkedUser')
+      .where('user.id = :id', { id })
+      .getRawMany<LinkedUserDto>();
   }
 
   async getRefUser(ref: string): Promise<User> {
@@ -112,6 +136,13 @@ export class UserService {
     if (!user) throw new NotFoundException('User not found');
 
     return await this.userRepo.save({ ...user, ...update });
+  }
+
+  async changeUser(id: number, changeUser: LinkedUserDto): Promise<{ address: string; signature: string }> {
+    const user = await this.getLinkedUser(id, changeUser.address, changeUser.blockchain);
+    if (!user) throw new NotFoundException('User not found');
+    if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
+    return { address: user.address, signature: user.signature };
   }
 
   private async checkIpCountry(userIp: string): Promise<string> {
@@ -458,6 +489,7 @@ export class UserService {
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
 
       ...(detailed ? await this.getUserDetails(user) : undefined),
+      linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };
   }
 
