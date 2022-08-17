@@ -3,13 +3,14 @@ import { verify } from 'bitcoinjs-message';
 import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
+import { Blockchain } from '../node/node.service';
 
 @Injectable()
 export class CryptoService {
-  public verifySignature(message: string, address: string, signature: string): boolean {
+  public verifySignature(message: string, address: string, signature: string, blockchain: Blockchain): boolean {
     let isValid = false;
     try {
-      isValid = this.verify(message, address, signature);
+      isValid = this.verify(message, address, signature, blockchain);
     } catch (e) {}
 
     if (!isValid) {
@@ -18,11 +19,13 @@ export class CryptoService {
     return isValid;
   }
 
-  public isDefichainAddress(address: string): boolean {
-    return !isEthereumAddress(address) && !this.isBitcoinAddress(address);
+  public getBlockchainBasedOn(address: string): Blockchain {
+    if (isEthereumAddress(address)) return Blockchain.ETHEREUM;
+    if (this.isBitcoinAddress(address)) return Blockchain.BITCOIN;
+    return Blockchain.DEFICHAIN;
   }
 
-  public isBitcoinAddress(address: string): boolean {
+  private isBitcoinAddress(address: string): boolean {
     return address.match(/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/)?.length > 1 ?? false;
   }
 
@@ -36,17 +39,22 @@ export class CryptoService {
       sigBuffer = Buffer.concat([flagByte, sigBuffer]);
       const candidateSig = sigBuffer.toString('base64');
       try {
-        isValid = this.verify(message, address, candidateSig);
+        isValid = this.verify(message, address, candidateSig, Blockchain.DEFICHAIN);
         if (isValid) break;
       } catch (e) {}
     }
     return isValid;
   }
 
-  private verify(message: string, address: string, signature: string): boolean {
-    if (isEthereumAddress(address)) return this.verifyEthereum(message, address, signature);
-    if (this.isBitcoinAddress(address)) return this.verifyBitcoin(message, address, signature);
-    return this.verifyDefichain(message, address, signature);
+  private verify(message: string, address: string, signature: string, blockchain: Blockchain): boolean {
+    switch (blockchain) {
+      case Blockchain.ETHEREUM:
+        return this.verifyEthereum(message, address, signature);
+      case Blockchain.BITCOIN:
+        return this.verifyBitcoin(message, address, signature);
+      default:
+        return this.verifyDefichain(message, address, signature);
+    }
   }
 
   private verifyEthereum(message: string, address: string, signature: string): boolean {
