@@ -3,6 +3,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Buy } from '../buy/buy.entity';
 import { Sell } from '../sell/sell.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export interface BankAccountInfos {
   result: string;
@@ -42,6 +43,9 @@ export class BankAccount extends IEntity implements BankAccountInfos {
 
   @ManyToOne(() => User, (user) => user.bankAccounts, { nullable: false })
   user: User;
+
+  @ManyToOne(() => Fiat, { nullable: true })
+  preferredCurrency: Fiat;
 
   @OneToMany(() => Buy, (buy) => buy.bankAccount)
   buys: Buy[];

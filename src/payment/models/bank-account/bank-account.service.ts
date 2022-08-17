@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { IbanService } from 'src/shared/services/iban.service';
 import { User } from 'src/user/models/user/user.entity';
 import { BankAccountRepository } from './bank-account.repository';
 import { IbanDetailsDto } from 'src/shared/services/iban.service';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class BankAccountService {
@@ -17,11 +21,49 @@ export class BankAccountService {
     });
 
     return (
-      bankAccounts.find((b) => b.user.id === userId) ?? (await this.createBankAccount(iban, userId, bankAccounts[0]))
+      bankAccounts.find((b) => b.user.id === userId) ??
+      (await this.createBankAccountInternal(iban, userId, bankAccounts[0]))
     );
   }
 
-  private async createBankAccount(iban: string, userId: number, copyFrom?: BankAccount): Promise<BankAccount> {
+  //
+
+  async getUserBankAccounts(userId: number): Promise<BankAccount[]> {
+    return this.bankAccountRepo.find({ user: { id: userId } });
+  }
+
+  async createBankAccount(userId: number, createBankAccountDto: CreateBankAccountDto): Promise<BankAccount> {
+    const bankAccounts = await this.bankAccountRepo.find({
+      where: { iban: createBankAccountDto.iban, user: { id: userId } },
+      relations: ['user'],
+    });
+    if (bankAccounts) throw new ForbiddenException('bankAccount already exists');
+
+    const bankAccount = await this.initBankAccount(createBankAccountDto.iban);
+    bankAccount.user = { id: userId } as User;
+    bankAccount.preferredCurrency = { id: createBankAccountDto.preferredCurrency.id } as Fiat;
+    if (createBankAccountDto.label) bankAccount.label = createBankAccountDto.label;
+
+    return this.bankAccountRepo.save(bankAccount);
+  }
+
+  async updateBankAccount(userId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
+    let entity = await this.bankAccountRepo.findOne({
+      where: { iban: dto.iban, user: { id: userId } },
+      relations: ['user'],
+    });
+    if (!entity) throw new NotFoundException('bankAccount not found');
+
+    const update = this.bankAccountRepo.create(dto);
+
+    Util.removeNullFields(entity);
+
+    return await this.bankAccountRepo.save({ ...entity, ...update });
+  }
+
+  // --- HELPER METHODS --- //
+
+  private async createBankAccountInternal(iban: string, userId: number, copyFrom?: BankAccount): Promise<BankAccount> {
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
     bankAccount.user = { id: userId } as User;
 
