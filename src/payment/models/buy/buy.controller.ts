@@ -86,7 +86,7 @@ export class BuyController {
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fees,
-      minDeposit: Config.buy.minDeposit,
+      minDeposits: Config.buy.minDeposits,
     };
   }
 

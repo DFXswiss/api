@@ -51,7 +51,7 @@ describe('CryptoRouteController', () => {
     jest.spyOn(cryptoRouteService, 'getUserCryptos').mockResolvedValue([createDefaultCryptoRoute()]);
 
     await expect(controller.getAllCrypto({ id: 0, address: '', role: UserRole.USER })).resolves.toMatchObject([
-      { minDeposit: 0.0005 },
+      { minDeposits: [{ amount: 0.0005, asset: 'BTC' }] },
     ]);
   });
 });

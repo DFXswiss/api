@@ -43,7 +43,12 @@ describe('SellController', () => {
     jest.spyOn(sellService, 'getUserSells').mockResolvedValue([createDefaultSell()]);
 
     await expect(controller.getAllSell({ id: 0, address: '', role: UserRole.USER })).resolves.toMatchObject([
-      { minDeposit: { dfi: 0.1, usd: 1 } },
+      {
+        minDeposits: [
+          { amount: 0.1, asset: 'DFI' },
+          { amount: 1, asset: 'USD' },
+        ],
+      },
     ]);
   });
 });

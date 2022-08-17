@@ -51,7 +51,7 @@ describe('BuyController', () => {
     jest.spyOn(buyService, 'getUserBuys').mockResolvedValue([createDefaultBuy()]);
 
     await expect(controller.getAllBuy({ id: 0, address: '', role: UserRole.USER })).resolves.toMatchObject([
-      { minDeposit: 1 },
+      { minDeposits: [{ amount: 1, asset: 'USD' }] },
     ]);
   });
 });

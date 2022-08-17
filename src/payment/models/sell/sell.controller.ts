@@ -71,7 +71,7 @@ export class SellController {
       ...sell,
       fee: fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposit: Config.sell.minDeposit,
+      minDeposits: Config.sell.minDeposits,
     };
   }
 }

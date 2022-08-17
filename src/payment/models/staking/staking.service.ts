@@ -282,7 +282,7 @@ export class StakingService {
       fee: fee,
       period: Config.staking.period,
       minInvestment: Config.staking.minInvestment,
-      minDeposit: Config.staking.minDeposit,
+      minDeposits: Config.staking.minDeposits,
     };
   }
 

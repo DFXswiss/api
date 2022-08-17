@@ -80,8 +80,6 @@ export class CryptoRouteController {
     stakingRoutes?: Staking[],
   ): Promise<CryptoRouteDto> {
     fees ??= await this.getFees(userId);
-    // in future we need to change based on crypto.deposit.blockchain on which minDeposit should be used
-    const minDeposit = Config.crypto.minDeposit.btc;
 
     return {
       ...crypto,
@@ -89,7 +87,7 @@ export class CryptoRouteController {
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       ...fees,
-      minDeposit: minDeposit,
+      minDeposits: Config.crypto.minDeposits,
     };
   }
 

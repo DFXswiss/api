@@ -1,10 +1,6 @@
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Deposit } from '../../deposit/deposit.entity';
-
-interface SellMinDeposit {
-  dfi: number;
-  usd: number;
-}
+import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
 
 export class SellDto {
   id: number;
@@ -15,5 +11,5 @@ export class SellDto {
   volume: number;
   fee: number;
   isInUse: boolean;
-  minDeposit: SellMinDeposit;
+  minDeposits: MinDeposit[];
 }
