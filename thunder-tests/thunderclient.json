@@ -1671,9 +1671,14 @@
     "method": "POST",
     "sortNum": 650000,
     "created": "2022-08-17T00:43:02.099Z",
-    "modified": "2022-08-17T00:43:56.516Z",
+    "modified": "2022-08-17T10:33:43.925Z",
     "headers": [],
     "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"preferredCurrency\": {\n    \"id\": 1\n  },\n  \"iban\": \"DE12345678910113\",\n  \"label\": \"Testlabel\"\n}",
+      "form": []
+    },
     "tests": []
   },
   {
@@ -1685,9 +1690,14 @@
     "method": "PUT",
     "sortNum": 660000,
     "created": "2022-08-17T00:43:19.673Z",
-    "modified": "2022-08-17T00:44:00.289Z",
+    "modified": "2022-08-17T10:33:23.896Z",
     "headers": [],
     "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\":\"DE1234567891011\",\n  \"label\":\"Test98765432\"\n}",
+      "form": []
+    },
     "tests": []
   }
 ]

@@ -33,7 +33,7 @@ export class BankAccountService {
   }
 
   async createBankAccount(userId: number, createBankAccountDto: CreateBankAccountDto): Promise<BankAccount> {
-    const bankAccounts = await this.bankAccountRepo.find({
+    const bankAccounts = await this.bankAccountRepo.findOne({
       where: { iban: createBankAccountDto.iban, user: { id: userId } },
       relations: ['user'],
     });
