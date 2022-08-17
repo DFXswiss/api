@@ -32,17 +32,18 @@ export class BankAccountService {
     return this.bankAccountRepo.find({ user: { id: userId } });
   }
 
-  async createBankAccount(userId: number, createBankAccountDto: CreateBankAccountDto): Promise<BankAccount> {
+  async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.findOne({
-      where: { iban: createBankAccountDto.iban, user: { id: userId } },
+      where: { iban: dto.iban, user: { id: userId } },
       relations: ['user'],
     });
     if (bankAccounts) throw new ForbiddenException('bankAccount already exists');
 
-    const bankAccount = await this.initBankAccount(createBankAccountDto.iban);
+    const bankAccount = await this.getBankAccount(dto.iban, userId);
+
     bankAccount.user = { id: userId } as User;
-    bankAccount.preferredCurrency = { id: createBankAccountDto.preferredCurrency.id } as Fiat;
-    if (createBankAccountDto.label) bankAccount.label = createBankAccountDto.label;
+    bankAccount.preferredCurrency = { id: dto.preferredCurrency.id } as Fiat;
+    if (dto.label) bankAccount.label = dto.label;
 
     return this.bankAccountRepo.save(bankAccount);
   }
