@@ -73,6 +73,7 @@ import { DexModule } from './models/dex/dex.module';
 import { OlkypayService } from './models/bank-tx/olkypay.service';
 import { ChainalysisService } from './models/crypto-input/chainalysis.service';
 import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
+import { FrickService } from './models/bank-tx/frick.service';
 
 @Module({
   imports: [
@@ -138,6 +139,7 @@ import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notificat
     BuyCryptoOutService,
     BankTxService,
     OlkypayService,
+    FrickService,
     BankService,
     KrakenService,
     BinanceService,
@@ -182,6 +184,7 @@ import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notificat
     BankAccountService,
     CryptoRouteService,
     OlkypayService,
+    FrickService,
   ],
 })
 export class PaymentModule {}

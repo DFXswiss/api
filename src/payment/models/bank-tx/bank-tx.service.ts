@@ -8,7 +8,11 @@ import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType } from './bank-tx.entity';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
-
+import { Interval } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { FrickService } from './frick.service';
+import { OlkypayService } from './olkypay.service';
 @Injectable()
 export class BankTxService {
   constructor(
@@ -16,7 +20,37 @@ export class BankTxService {
     private readonly bankTxBatchRepo: BankTxBatchRepository,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly mailService: MailService,
+    private readonly settingService: SettingService,
+    private readonly frickService: FrickService,
+    private readonly olkyService: OlkypayService,
+    private readonly bankTxService: BankTxService,
   ) {}
+
+  // --- TRANSACTION HANDLING --- //
+  @Interval(10000)
+  async checkTransactions(): Promise<void> {
+    try {
+      if (!Config.bank.frick.key) return;
+      const settingKey = 'lastBankDate';
+      const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
+
+      const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTime);
+      const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTime);
+
+      for (const bankTx of [...frickTransactions, ...olkyTransactions]) {
+        try {
+          await this.bankTxService.create(bankTx);
+        } catch (e) {
+          if (!(e instanceof ConflictException)) console.error(`Failed to import transaction:`, e);
+        }
+      }
+
+      const newModificationTime = new Date().toISOString();
+      await this.settingService.set(settingKey, newModificationTime);
+    } catch (e) {
+      console.error(`Failed to check olkypay transactions:`, e);
+    }
+  }
 
   async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {
     let entity = await this.bankTxRepo.findOne({ accountServiceRef: bankTx.accountServiceRef });

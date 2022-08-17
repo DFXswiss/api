@@ -234,6 +234,12 @@ export class Configuration {
       password: process.env.OLKY_PASSWORD,
       clientSecret: process.env.OLKY_CLIENT_SECRET,
     },
+    frick: {
+      iban: 'LU116060002000005040',
+      url: process.env.FRICK_URL,
+      key: process.env.FICK_KEY,
+      password: process.env.FICK_PASSWORD,
+    },
   };
 
   chainalysis = {

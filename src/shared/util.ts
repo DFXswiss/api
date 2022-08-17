@@ -1,4 +1,4 @@
-import { BinaryLike, createHash } from 'crypto';
+import { BinaryLike, createHash, createSign } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
 

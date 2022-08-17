@@ -1,13 +1,10 @@
-import { ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
-import { BankTxService } from './bank-tx.service';
 import { stringify } from 'qs';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 
@@ -52,39 +49,14 @@ export class OlkypayService {
   private accessToken = 'access-token-will-be-updated';
   private bankTxBatch: BankTxBatch;
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly bankTxService: BankTxService,
-    private readonly bankTxBatchService: BankTxBatchRepository,
-    private readonly settingService: SettingService,
-  ) {}
+  constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
 
-  // --- TRANSACTION HANDLING --- //
-  @Interval(60000)
-  async checkTransactions(): Promise<void> {
-    try {
-      if (!Config.bank.olkypay.clientId) return;
-      const settingKey = 'lastOlkypayDate';
-      const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
+  async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
+    this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
 
-      const newModificationTime = new Date().toISOString();
-      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
-
-      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
-
-      for (const transaction of transactions) {
-        try {
-          const bankTx = this.parseTransaction(transaction);
-          await this.bankTxService.create(bankTx);
-        } catch (e) {
-          if (!(e instanceof ConflictException)) console.error(`Failed to import transaction:`, e);
-        }
-      }
-
-      await this.settingService.set(settingKey, newModificationTime);
-    } catch (e) {
-      console.error(`Failed to check olkypay transactions:`, e);
-    }
+    return await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1)).then((t) =>
+      t.map((t) => this.parseTransaction(t)),
+    );
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
