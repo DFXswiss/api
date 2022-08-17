@@ -44,7 +44,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @ManyToOne(() => User, (user) => user.bankAccounts, { nullable: false })
   user: User;
 
-  @ManyToOne(() => Fiat, { nullable: true })
+  @ManyToOne(() => Fiat, { nullable: true, eager: true })
   preferredCurrency: Fiat;
 
   @OneToMany(() => Buy, (buy) => buy.bankAccount)
