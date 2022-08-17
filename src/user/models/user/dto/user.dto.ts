@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/ain/node/node.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { AccountType } from '../../user-data/account-type.enum';
@@ -7,6 +8,7 @@ import { UserStatus } from '../user.entity';
 export interface UserDto {
   accountType: AccountType;
   address: string;
+  blockchain: Blockchain;
   status: UserStatus;
   usedRef: string;
   currency: Fiat;
