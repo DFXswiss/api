@@ -45,13 +45,16 @@ export class BankAccountController {
   }
 
   // --- DTO --- //
-  private async toDtoList(buys: BankAccount[]): Promise<BankAccountDto[]> {
-    return Promise.all(buys.map((b) => this.toDto(b)));
+  private async toDtoList(bankAccounts: BankAccount[]): Promise<BankAccountDto[]> {
+    return Promise.all(bankAccounts.map((b) => this.toDto(b)));
   }
 
-  private async toDto(buy: BankAccount): Promise<BankAccountDto> {
+  private async toDto(bankAccount: BankAccount): Promise<BankAccountDto> {
     return {
-      ...buy,
+      iban: bankAccount.iban,
+      label: bankAccount.label,
+      preferredCurrency: bankAccount.preferredCurrency,
+      sepaInstant: bankAccount.sctInst,
     };
   }
 }

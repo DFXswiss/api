@@ -4,5 +4,5 @@ export class BankAccountDto {
   iban: string;
   preferredCurrency: Fiat;
   label: string;
-  sctInst: boolean;
+  sepaInstant: boolean;
 }

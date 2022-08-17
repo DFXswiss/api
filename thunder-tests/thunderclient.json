@@ -1647,5 +1647,47 @@
     "headers": [],
     "params": [],
     "tests": []
+  },
+  {
+    "_id": "9805e163-d163-45b4-8ed9-ff7a68756572",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "getUserBankAccounts",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-08-17T00:42:27.836Z",
+    "modified": "2022-08-17T00:43:52.894Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "226ff795-9e8b-4b19-918a-afe00e87b1dc",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "createBankAccount",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "POST",
+    "sortNum": 650000,
+    "created": "2022-08-17T00:43:02.099Z",
+    "modified": "2022-08-17T00:43:56.516Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "ebc7e465-342c-4939-b6e2-f56e2d560de4",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "updateBankAccount",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "PUT",
+    "sortNum": 660000,
+    "created": "2022-08-17T00:43:19.673Z",
+    "modified": "2022-08-17T00:44:00.289Z",
+    "headers": [],
+    "params": [],
+    "tests": []
   }
 ]
