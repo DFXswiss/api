@@ -9,7 +9,7 @@ export class ApiKeyService {
   private versionLength = 1;
   private filterLength = 3;
   private get suffixLength(): number {
-    return this.versionLength + this.filterLength;
+    return this.versionLength;
   }
 
   private filterCodes: { [k in keyof HistoryFilter]: number } = {
@@ -38,23 +38,24 @@ export class ApiKeyService {
   }
 
   // --- KEY HANDLING --- //
-  public create(address: string, filter: HistoryFilter): string {
+  public createKey(address: string): string {
     const hash = Util.createHash(Util.createHash(address + new Date().toISOString(), 'sha256'), 'md5').toUpperCase();
-    return hash.substring(0, hash.length - this.suffixLength) + this.filterToCode(filter) + Config.apiKeyVersionCT;
+    return hash.substring(0, hash.length - this.suffixLength) + Config.apiKeyVersionCT;
   }
 
-  public getFilter(apiKey: string): HistoryFilter {
+  public getFilter(apiKey: string, filterCode: string): HistoryFilter {
     const version = apiKey.substring(apiKey.length - this.versionLength, apiKey.length);
 
     switch (version) {
       case '0':
         return {};
       case '1':
-        const filterPos = apiKey.length - this.suffixLength;
-        const filterCode = apiKey.substring(filterPos, filterPos + this.filterLength);
-
         return this.codeToFilter(filterCode);
     }
+  }
+
+  public getFilterCode(filter: HistoryFilter): string {
+    return this.filterToCode(filter);
   }
 
   // --- HELPER METHODS --- //
