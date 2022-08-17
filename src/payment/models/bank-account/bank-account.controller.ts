@@ -20,28 +20,28 @@ export class BankAccountController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
+  async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
     return this.bankAccountService.getUserBankAccounts(jwt.id).then((l) => this.toDtoList(l));
   }
 
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createBuy(
+  async createBankAccount(
     @GetJwt() jwt: JwtPayload,
     @Body() createBankAccountDto: CreateBankAccountDto,
   ): Promise<BankAccountDto> {
     return this.bankAccountService.createBankAccount(jwt.id, createBankAccountDto).then((b) => this.toDto(b));
   }
 
-  @Put()
+  @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(
-    @GetJwt() jwt: JwtPayload,
+  async updateBankAccount(
+    @Param('id') id: string,
     @Body() updateBankAccountDto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
-    return this.bankAccountService.updateBankAccount(jwt.id, updateBankAccountDto).then((b) => this.toDto(b));
+    return this.bankAccountService.updateBankAccount(+id, updateBankAccountDto).then((b) => this.toDto(b));
   }
 
   // --- DTO --- //
@@ -51,6 +51,7 @@ export class BankAccountController {
 
   private async toDto(bankAccount: BankAccount): Promise<BankAccountDto> {
     return {
+      id: bankAccount.id,
       iban: bankAccount.iban,
       label: bankAccount.label,
       preferredCurrency: bankAccount.preferredCurrency,

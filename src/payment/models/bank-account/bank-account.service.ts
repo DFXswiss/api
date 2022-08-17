@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { IbanService } from 'src/shared/services/iban.service';
 import { User } from 'src/user/models/user/user.entity';
 import { BankAccountRepository } from './bank-account.repository';
@@ -9,12 +9,54 @@ import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/util';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @Injectable()
 export class BankAccountService {
-  constructor(private readonly bankAccountRepo: BankAccountRepository, private readonly ibanService: IbanService) {}
+  constructor(
+    private readonly bankAccountRepo: BankAccountRepository,
+    private readonly ibanService: IbanService,
+    private readonly fiatService: FiatService,
+  ) {}
 
-  async getBankAccount(iban: string, userId: number): Promise<BankAccount> {
+  async getUserBankAccounts(userId: number): Promise<BankAccount[]> {
+    return this.bankAccountRepo.find({ user: { id: userId } });
+  }
+
+  async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
+    const existing = await this.bankAccountRepo.findOne({
+      where: { iban: dto.iban, user: { id: userId } },
+      relations: ['user'],
+    });
+    if (existing) throw new ConflictException('BankAccount already exists');
+
+    const bankAccount = await this.getOrCreateBankAccount(dto.iban, userId);
+
+    // check currency
+    if (dto.preferredCurrency) {
+      bankAccount.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
+      if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
+    }
+    if (dto.label) bankAccount.label = dto.label;
+
+    return this.bankAccountRepo.save(bankAccount);
+  }
+
+  async updateBankAccount(id: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
+    let entity = await this.bankAccountRepo.findOne({
+      where: { id },
+      relations: ['user'],
+    });
+    if (!entity) throw new NotFoundException('BankAccount not found');
+
+    const update = this.bankAccountRepo.create(dto);
+
+    return await this.bankAccountRepo.save({ ...entity, ...update });
+  }
+
+  // --- INTERNAL METHODS --- //
+
+  async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
       where: { iban },
       relations: ['user'],
@@ -24,42 +66,6 @@ export class BankAccountService {
       bankAccounts.find((b) => b.user.id === userId) ??
       (await this.createBankAccountInternal(iban, userId, bankAccounts[0]))
     );
-  }
-
-  //
-
-  async getUserBankAccounts(userId: number): Promise<BankAccount[]> {
-    return this.bankAccountRepo.find({ user: { id: userId } });
-  }
-
-  async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const bankAccounts = await this.bankAccountRepo.findOne({
-      where: { iban: dto.iban, user: { id: userId } },
-      relations: ['user'],
-    });
-    if (bankAccounts) throw new ForbiddenException('bankAccount already exists');
-
-    const bankAccount = await this.getBankAccount(dto.iban, userId);
-
-    bankAccount.user = { id: userId } as User;
-    bankAccount.preferredCurrency = { id: dto.preferredCurrency.id } as Fiat;
-    if (dto.label) bankAccount.label = dto.label;
-
-    return this.bankAccountRepo.save(bankAccount);
-  }
-
-  async updateBankAccount(userId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
-    let entity = await this.bankAccountRepo.findOne({
-      where: { iban: dto.iban, user: { id: userId } },
-      relations: ['user'],
-    });
-    if (!entity) throw new NotFoundException('bankAccount not found');
-
-    const update = this.bankAccountRepo.create(dto);
-
-    Util.removeNullFields(entity);
-
-    return await this.bankAccountRepo.save({ ...entity, ...update });
   }
 
   // --- HELPER METHODS --- //

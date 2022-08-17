@@ -5,10 +5,6 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export class UpdateBankAccountDto {
-  @ApiProperty()
-  @IsNotEmpty()
-  iban: string;
-
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
