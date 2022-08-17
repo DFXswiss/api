@@ -66,7 +66,7 @@ describe('StakingService', () => {
   it('should return a min investment of 100 and min deposit of 1 for a default staking route', async () => {
     await expect(service.toDto(1, createCustomStaking({ deposit: createDefaultDeposit() }))).resolves.toMatchObject({
       minInvestment: 100,
-      minDeposit: 1,
+      minDeposits: [{ amount: 1, asset: 'DFI' }],
     });
   });
 });

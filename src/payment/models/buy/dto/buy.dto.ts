@@ -1,4 +1,5 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
 import { StakingDto } from '../../staking/dto/staking.dto';
 import { BuyType } from './buy-type.enum';
 
@@ -14,5 +15,5 @@ export class BuyDto {
   annualVolume: number;
   fee: number;
   refBonus: number;
-  minDeposit: number;
+  minDeposits: MinDeposit[];
 }
