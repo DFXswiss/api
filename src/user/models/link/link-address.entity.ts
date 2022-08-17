@@ -20,15 +20,16 @@ export class LinkAddress extends IEntity {
   @Column({ type: 'datetime2' })
   expiration: Date;
 
-  create(existingAddress: string, newAddress: string): this {
-    this.existingAddress = existingAddress;
-    this.newAddress = newAddress;
+  static create(existingAddress: string, newAddress: string): LinkAddress {
+    const linkAddress = new LinkAddress();
+    linkAddress.existingAddress = existingAddress;
+    linkAddress.newAddress = newAddress;
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    this.expiration = tomorrow;
+    linkAddress.expiration = tomorrow;
 
-    return this;
+    return linkAddress;
   }
 
   complete(): this {

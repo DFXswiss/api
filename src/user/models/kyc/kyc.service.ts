@@ -168,7 +168,7 @@ export class KycService {
         // this should be fine, as a new user_data should have only one address
         const newAddress = user.users[0].address;
 
-        const linkAddress = await this.linkAddressRepo.save(new LinkAddress().create(existingAddress, newAddress));
+        const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
         await this.mailService.sendTranslatedMail({
           userData: user,
