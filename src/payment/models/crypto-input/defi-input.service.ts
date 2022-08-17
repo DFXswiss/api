@@ -79,7 +79,7 @@ export class DeFiInputService extends CryptoInputService {
             // check for min. deposit
             // TODO: remove temporary DUSD pool fix
             const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
-            if (usdtAmount < Config.node.minTokenDeposit) {
+            if (usdtAmount < Config.node.minDeposit.DeFiChain.USD * 0.4) {
               console.log('Retrieving small token:', token);
 
               await this.doTokenTx(
@@ -212,8 +212,8 @@ export class DeFiInputService extends CryptoInputService {
 
     // min. deposit
     if (
-      (asset === 'DFI' && amount < Config.node.minDfiDeposit) ||
-      (asset !== 'DFI' && usdtAmount < Config.node.minTokenDeposit)
+      (asset === 'DFI' && amount < Config.node.minDeposit.DeFiChain.DFI) ||
+      (asset !== 'DFI' && usdtAmount < Config.node.minDeposit.DeFiChain.USD * 0.4)
     ) {
       console.log(`Ignoring too small DeFiChain input (${amount} ${asset}). History entry:`, history);
       return null;
@@ -379,9 +379,11 @@ export class DeFiInputService extends CryptoInputService {
         try {
           if (
             utxo.address != Config.node.utxoSpenderAddress &&
-            utxo.amount.toNumber() < Config.node.minDfiDeposit &&
+            utxo.amount.toNumber() < Config.node.minDeposit.DeFiChain.DFI &&
             utxo.amount.toNumber() - this.client.utxoFee >= Config.node.minTxAmount &&
-            !utxos.find((u) => u.address === utxo.address && u.amount.toNumber() >= Config.node.minDfiDeposit)
+            !utxos.find(
+              (u) => u.address === utxo.address && u.amount.toNumber() >= Config.node.minDeposit.DeFiChain.DFI,
+            )
           ) {
             await this.client.sendCompleteUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
           }
@@ -397,7 +399,9 @@ export class DeFiInputService extends CryptoInputService {
   // --- HELPER METHODS --- //
 
   async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
-    const utxoAddresses = utxo.filter((u) => u.amount.toNumber() >= Config.node.minDfiDeposit).map((u) => u.address);
+    const utxoAddresses = utxo
+      .filter((u) => u.amount.toNumber() >= Config.node.minDeposit.DeFiChain.DFI)
+      .map((u) => u.address);
     const tokenAddresses = token.map((t) => t.owner);
 
     return [...new Set(utxoAddresses.concat(tokenAddresses))];
@@ -454,14 +458,18 @@ export class DeFiInputService extends CryptoInputService {
         utxos.find(
           (u) =>
             u.address === address &&
-            u.amount.toNumber() < Config.node.minDfiDeposit &&
-            u.amount.toNumber() > Config.node.minDfiDeposit / 4,
+            u.amount.toNumber() < Config.node.minDeposit.DeFiChain.DFI &&
+            u.amount.toNumber() > Config.node.minDeposit.DeFiChain.DFI / 4,
         ),
       );
   }
 
   private async sendFeeUtxo(address: string): Promise<string> {
-    return await this.client.sendUtxo(Config.node.utxoSpenderAddress, address, Config.node.minDfiDeposit / 2);
+    return await this.client.sendUtxo(
+      Config.node.utxoSpenderAddress,
+      address,
+      Config.node.minDeposit.DeFiChain.DFI / 2,
+    );
   }
 
   private hasMatchingBalance(input: CryptoInput, utxo: UTXO[], token: AccountResult<string, string>[]): boolean {
