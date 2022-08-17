@@ -282,7 +282,7 @@ export class StakingService {
       fee: fee,
       period: Config.staking.period,
       minInvestment: Config.staking.minInvestment,
-      minDeposits: Config.staking.minDeposits,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };
   }
 

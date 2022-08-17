@@ -172,9 +172,18 @@ export class Configuration {
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
     btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
     minTxAmount: 0.00000297,
-    minDfiDeposit: 0.01,
-    minBtcDeposit: 0.0005,
-    minTokenDeposit: 0.4, // USDT
+    minDeposit: {
+      Fiat: {
+        USD: 1,
+      },
+      Bitcoin: {
+        BTC: 0.0005,
+      },
+      DeFiChain: {
+        DFI: 0.01,
+        USD: 1,
+      },
+    },
   };
 
   buy = {
@@ -187,22 +196,16 @@ export class Configuration {
         moreThan100k: 2.3,
       },
     },
-    minDeposits: [{ amount: 1, asset: 'USD' }],
   };
 
   sell = {
     fee: 0.029,
-    minDeposits: [
-      { amount: 0.1, asset: 'DFI' },
-      { amount: 1, asset: 'USD' },
-    ],
   };
 
   staking = {
     fee: 0.125,
     period: 28, // days
     minInvestment: 100, // DFI
-    minDeposits: [{ amount: 1, asset: 'DFI' }],
     freeDays: 28,
     refSystemStart: new Date('2022-05-22T16:00:00.000Z'),
     refReward: 20, // EUR
@@ -211,7 +214,6 @@ export class Configuration {
   crypto = {
     fee: 0.012,
     refBonus: 0.001,
-    minDeposits: [{ amount: 0.0005, asset: 'BTC' }],
   };
 
   ftp = {

@@ -21,6 +21,9 @@ import { In } from 'typeorm';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/util';
+import { Blockchain } from 'src/ain/node/node.service';
+import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')
@@ -81,13 +84,20 @@ export class CryptoRouteController {
   ): Promise<CryptoRouteDto> {
     fees ??= await this.getFees(userId);
 
+    let minDeposits: MinDeposit[] = [];
+    switch (crypto.deposit.blockchain) {
+      case Blockchain.BITCOIN:
+        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
+        break;
+    }
+
     return {
       ...crypto,
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       ...fees,
-      minDeposits: Config.crypto.minDeposits,
+      minDeposits: minDeposits,
     };
   }
 

@@ -14,6 +14,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyFiatHistoryDto } from '../buy-fiat/dto/buy-fiat-history.dto';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/util';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -71,7 +72,7 @@ export class SellController {
       ...sell,
       fee: fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Config.sell.minDeposits,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };
   }
 }
