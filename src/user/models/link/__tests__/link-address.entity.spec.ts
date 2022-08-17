@@ -6,11 +6,11 @@ describe('LinkAddress', () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const linkAddress = new LinkAddress().create('existing-address', 'new-address');
+    const linkAddress = LinkAddress.create('existing-address', 'new-address');
     expect(linkAddress.existingAddress).toStrictEqual('existing-address');
     expect(linkAddress.newAddress).toStrictEqual('new-address');
     expect(linkAddress.expiration.getTime()).toBeGreaterThan(Date.now());
-    expect(linkAddress.expiration.getTime()).toBeLessThanOrEqual(tomorrow.getTime());
+    expect(linkAddress.expiration.getTime()).toBeLessThanOrEqual(tomorrow.getTime() + 100); // + 100 to make it more stable
   });
 
   it('should set is completed to true on complete', () => {
@@ -18,7 +18,7 @@ describe('LinkAddress', () => {
   });
 
   it('should return false if date is not expired', () => {
-    const linkAddress = new LinkAddress().create('existing-address', 'new-address');
+    const linkAddress = LinkAddress.create('existing-address', 'new-address');
     expect(linkAddress.isExpired()).toBeFalsy();
   });
 
