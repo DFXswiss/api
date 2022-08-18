@@ -14,7 +14,7 @@ import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
 import { StakingRefReward } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
 import { CryptoRoute } from 'src/payment/models/crypto-route/crypto-route.entity';
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 export enum UserStatus {
   NA = 'NA',

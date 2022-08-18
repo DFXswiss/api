@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { AccountType } from '../../user-data/account-type.enum';

@@ -9,13 +9,12 @@ import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { CryptoService } from 'src/ain/services/crypto.service';
+import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
 import { Config } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User } from '../user/user.entity';
 import { RefService } from '../referral/ref.service';
-import { Blockchain } from 'src/ain/node/node.service';
 
 @Injectable()
 export class AuthService {
@@ -33,8 +32,7 @@ export class AuthService {
       throw new ConflictException('User already exists');
     }
 
-    const blockchain = this.cryptoService.getBlockchainBasedOn(dto.address);
-    if (!this.verifySignature(dto.address, dto.signature, blockchain)) {
+    if (!this.verifySignature(dto.address, dto.signature)) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -43,7 +41,7 @@ export class AuthService {
       dto.usedRef ??= ref.ref;
     }
 
-    const user = await this.userService.createUser(dto, userIp, blockchain, ref?.origin);
+    const user = await this.userService.createUser(dto, userIp, ref?.origin);
     return { accessToken: this.generateToken(user) };
   }
 
@@ -51,7 +49,7 @@ export class AuthService {
     const user = await this.userService.getUserByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
-    const credentialsValid = this.verifySignature(address, signature, user.blockchain);
+    const credentialsValid = this.verifySignature(address, signature);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
@@ -62,15 +60,16 @@ export class AuthService {
     return { accessToken: this.generateToken(user) };
   }
 
-  getSignMessage(address: string, blockchain: Blockchain): string {
+  getSignMessage(address: string): string {
+    const blockchain = this.cryptoService.getBlockchainBasedOn(address);
     if (blockchain === Blockchain.ETHEREUM || blockchain === Blockchain.BITCOIN)
       return Config.auth.signMessageGeneral + address;
     return Config.auth.signMessage + address;
   }
 
-  private verifySignature(address: string, signature: string, blockchain: Blockchain): boolean {
-    const signatureMessage = this.getSignMessage(address, blockchain);
-    return this.cryptoService.verifySignature(signatureMessage, address, signature, blockchain);
+  private verifySignature(address: string, signature: string): boolean {
+    const signatureMessage = this.getSignMessage(address);
+    return this.cryptoService.verifySignature(signatureMessage, address, signature);
   }
 
   private generateToken(user: User): string {

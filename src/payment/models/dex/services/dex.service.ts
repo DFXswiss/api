@@ -20,7 +20,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { CheckLiquidityStrategy } from '../strategies/check-liquidity/check-liquidity.strategy';
 import { CheckPoolPairLiquidityStrategy } from '../strategies/check-liquidity/check-poolpair-liquidity.strategy';
 import { CheckLiquidityDefaultStrategy } from '../strategies/check-liquidity/check-liquidity-default.strategy';
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
