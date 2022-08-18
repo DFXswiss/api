@@ -28,10 +28,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
-import { AddressInformationDto } from '../link/dto/link.dto';
 import { UserData } from '../user-data/user-data.entity';
-import { Blockchain } from 'src/ain/node/node.service';
-import { CryptoService } from 'src/ain/services/crypto.service';
+import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 
@@ -47,6 +45,7 @@ export class UserService {
     private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -72,13 +71,7 @@ export class UserService {
     return await this.userRepo.findOne({ where: { ref }, relations: ['userData'] });
   }
 
-  async createUser(
-    dto: CreateUserDto,
-    userIp: string,
-    blockchain: Blockchain,
-    userOrigin?: string,
-    userData?: UserData,
-  ): Promise<User> {
+  async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
     let user = this.userRepo.create(dto);
 
     user.ip = userIp;
@@ -88,7 +81,7 @@ export class UserService {
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData());
-    user.blockchain = blockchain;
+    user.blockchain = this.cryptoService.getBlockchainBasedOn(dto.address);
 
     user = await this.userRepo.save(user);
 

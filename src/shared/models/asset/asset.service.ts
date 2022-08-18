@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { Asset } from './asset.entity';
 
@@ -8,6 +8,7 @@ export class AssetService {
   constructor(private assetRepo: AssetRepository) {}
 
   async getAllAsset(blockchain: Blockchain): Promise<Asset[]> {
+    if (!blockchain) blockchain = Blockchain.DEFICHAIN;
     return this.assetRepo.find({ where: { blockchain } });
   }
 
