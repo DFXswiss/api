@@ -9,12 +9,6 @@ import { BtcClient } from './btc-client';
 import { DeFiClient } from './defi-client';
 import { NodeClient, NodeMode } from './node-client';
 
-export enum Blockchain {
-  DEFICHAIN = 'DeFiChain',
-  BITCOIN = 'Bitcoin',
-  ETHEREUM = 'Ethereum',
-}
-
 export enum NodeType {
   INPUT = 'inp',
   DEX = 'dex',

@@ -21,7 +21,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingRepository } from '../crypto-staking/crypto-staking.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 @Injectable()
 export class StakingService {
