@@ -1,23 +1,10 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNotEmptyObject, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString } from 'class-validator';
+import { BaseBankAccountDto } from './base-bank-account.dto';
 
-export class CreateBankAccountDto {
+export class CreateBankAccountDto extends BaseBankAccountDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   iban: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  label: string;
-
-  @ApiProperty()
-  @IsNotEmptyObject()
-  @ValidateNested()
-  @Type(() => EntityDto)
-  preferredCurrency: Fiat;
 }

@@ -37,7 +37,7 @@ export class BankAccountService {
       bankAccount.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
       if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
     }
-    if (dto.label) bankAccount.label = dto.label;
+    bankAccount.label = dto.label;
 
     return this.bankAccountRepo.save(bankAccount);
   }
