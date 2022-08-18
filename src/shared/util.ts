@@ -163,15 +163,9 @@ export class Util {
     return '***' + iban.slice(iban.length - 4);
   }
 
-  static transformToMinDeposit(deposit: any, filter?: string[] | string): MinDeposit[] {
-    return Object.keys(deposit)
-      .filter((key) => {
-        if (typeof filter === 'string') return filter === key;
-        if (typeof filter === 'object') return filter.includes(key);
-        return true;
-      })
-      .map((key) => {
-        return { amount: deposit[key], asset: key };
-      });
+  static transformToMinDeposit(deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] {
+    return Object.entries(deposit)
+      .filter(([key, _]) => filter?.includes(key) ?? true)
+      .map(([key, value]) => ({ amount: value, asset: key }));
   }
 }

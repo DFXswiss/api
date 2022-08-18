@@ -39,13 +39,13 @@ describe('SellController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('should return a min deposit of 0.1 DFI and 1 USD for a default sell route', async () => {
+  it('should return a min deposit of 0.01 DFI and 1 USD for a default sell route', async () => {
     jest.spyOn(sellService, 'getUserSells').mockResolvedValue([createDefaultSell()]);
 
     await expect(controller.getAllSell({ id: 0, address: '', role: UserRole.USER })).resolves.toMatchObject([
       {
         minDeposits: [
-          { amount: 0.1, asset: 'DFI' },
+          { amount: 0.01, asset: 'DFI' },
           { amount: 1, asset: 'USD' },
         ],
       },

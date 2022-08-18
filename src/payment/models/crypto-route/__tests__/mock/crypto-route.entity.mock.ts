@@ -1,10 +1,14 @@
-import { createDefaultDeposit } from 'src/payment/models/deposit/__tests__/mock/deposit.entity.mock';
+import { Blockchain } from 'src/ain/node/node.service';
+import {
+  createCustomDeposit,
+  createDefaultDeposit,
+} from 'src/payment/models/deposit/__tests__/mock/deposit.entity.mock';
 import { createDefaultUser } from 'src/user/models/user/__tests__/mock/user.entity.mock';
 import { CryptoRoute } from '../../crypto-route.entity';
 
 const defaultCryptoRoute: Partial<CryptoRoute> = {
   user: createDefaultUser(),
-  deposit: createDefaultDeposit(),
+  deposit: createCustomDeposit({ blockchain: Blockchain.BITCOIN }),
   targetDeposit: createDefaultDeposit(),
   buyCryptos: [],
   cryptoInputs: [],
