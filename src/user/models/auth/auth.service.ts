@@ -60,16 +60,16 @@ export class AuthService {
     return { accessToken: this.generateToken(user) };
   }
 
-  getSignMessage(address: string): string {
+  getSignMessage(address: string): { message: string; blockchain: Blockchain } {
     const blockchain = this.cryptoService.getBlockchainBasedOn(address);
     if (blockchain === Blockchain.ETHEREUM || blockchain === Blockchain.BITCOIN)
-      return Config.auth.signMessageGeneral + address;
-    return Config.auth.signMessage + address;
+      return { message: Config.auth.signMessageGeneral + address, blockchain };
+    return { message: Config.auth.signMessage + address, blockchain };
   }
 
   private verifySignature(address: string, signature: string): boolean {
     const signatureMessage = this.getSignMessage(address);
-    return this.cryptoService.verifySignature(signatureMessage, address, signature);
+    return this.cryptoService.verifySignature(signatureMessage.message, address, signature);
   }
 
   private generateToken(user: User): string {
