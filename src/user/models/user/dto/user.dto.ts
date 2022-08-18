@@ -20,6 +20,7 @@ export interface UserDto {
   depositLimit: number;
   kycDataComplete: boolean;
   apiKeyCT: string;
+  apiKeyFilterCT: string;
 }
 
 export interface UserDetails {

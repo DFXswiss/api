@@ -72,7 +72,7 @@ export class User extends IEntity {
   apiKeyCT: string;
 
   @Column({ length: 256, nullable: true })
-  apiKeyFilterCode: string;
+  apiKeyFilterCT: string;
 
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number;

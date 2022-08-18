@@ -8,9 +8,6 @@ import { Util } from '../util';
 export class ApiKeyService {
   private versionLength = 1;
   private filterLength = 3;
-  private get suffixLength(): number {
-    return this.versionLength;
-  }
 
   private filterCodes: { [k in keyof HistoryFilter]: number } = {
     buy: 0,
@@ -40,18 +37,11 @@ export class ApiKeyService {
   // --- KEY HANDLING --- //
   public createKey(address: string): string {
     const hash = Util.createHash(Util.createHash(address + new Date().toISOString(), 'sha256'), 'md5').toUpperCase();
-    return hash.substring(0, hash.length - this.suffixLength) + Config.apiKeyVersionCT;
+    return hash.substring(0, hash.length - this.versionLength) + Config.apiKeyVersionCT;
   }
 
-  public getFilter(apiKey: string, filterCode: string): HistoryFilter {
-    const version = apiKey.substring(apiKey.length - this.versionLength, apiKey.length);
-
-    switch (version) {
-      case '0':
-        return {};
-      case '1':
-        return this.codeToFilter(filterCode);
-    }
+  public getFilter(filterCode: string): HistoryFilter {
+    return this.codeToFilter(filterCode);
   }
 
   public getFilterCode(filter: HistoryFilter): string {

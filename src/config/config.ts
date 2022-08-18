@@ -23,7 +23,7 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  apiKeyVersionCT = '1'; // single digit hex number
+  apiKeyVersionCT = '0'; // single digit hex number
 
   colors = {
     white: '#FFFFFF',

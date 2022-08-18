@@ -58,6 +58,20 @@ export class UserController {
     return this.userService.deleteApiKey(jwt.id);
   }
 
+  @Get('apiKey/filter/CT')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getApiKeyFilter(@GetJwt() jwt: JwtPayload): Promise<HistoryFilter> {
+    return this.userService.getApiKeyFilter(jwt.id);
+  }
+
+  @Put('apiKey/filter/CT')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async updateApiKeyFilter(@Query() filter: HistoryFilter, @GetJwt() jwt: JwtPayload): Promise<UserDto> {
+    return this.userService.updateApiKeyFilter(jwt.id, filter);
+  }
+
   // --- CFP VOTING --- //
   @Get('cfpVotes')
   @ApiBearerAuth()
