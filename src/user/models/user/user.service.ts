@@ -414,7 +414,7 @@ export class UserService {
   async getApiKeyFilter(userId: number): Promise<HistoryFilter> {
     const user = await this.userRepo.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
-    if (!user.apiKeyFilterCT) return {};
+    if (!user.apiKeyFilterCT) return undefined;
 
     return this.apiKeyService.getFilter(user.apiKeyFilterCT);
   }
