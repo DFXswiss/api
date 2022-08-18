@@ -4,12 +4,11 @@ import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { RealIP } from 'nestjs-real-ip';
-import { CryptoService } from 'src/ain/services/crypto.service';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService, private cryptoService: CryptoService) {}
+  constructor(private authService: AuthService) {}
 
   @Post('signUp')
   signUp(@Body() dto: CreateUserDto, @RealIP() ip: string): Promise<{ accessToken: string }> {
@@ -23,6 +22,6 @@ export class AuthController {
 
   @Get('signMessage')
   getSignMessage(@Query('address') address: string): { message: string } {
-    return { message: this.authService.getSignMessage(address, this.cryptoService.getBlockchainBasedOn(address)) };
+    return { message: this.authService.getSignMessage(address) };
   }
 }
