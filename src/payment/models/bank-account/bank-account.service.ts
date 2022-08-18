@@ -7,8 +7,6 @@ import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Util } from 'src/shared/util';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @Injectable()
@@ -32,26 +30,19 @@ export class BankAccountService {
 
     const bankAccount = await this.getOrCreateBankAccount(dto.iban, userId);
 
-    // check currency
-    if (dto.preferredCurrency) {
-      bankAccount.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
-      if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
-    }
-    bankAccount.label = dto.label;
-
-    return this.bankAccountRepo.save(bankAccount);
+    const update = await this.updateEntity(dto, bankAccount);
+    return this.bankAccountRepo.save(update);
   }
 
   async updateBankAccount(id: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
-    let entity = await this.bankAccountRepo.findOne({
+    const bankAccount = await this.bankAccountRepo.findOne({
       where: { id },
       relations: ['user'],
     });
-    if (!entity) throw new NotFoundException('BankAccount not found');
+    if (!bankAccount) throw new NotFoundException('BankAccount not found');
 
-    const update = this.bankAccountRepo.create(dto);
-
-    return await this.bankAccountRepo.save({ ...entity, ...update });
+    const update = await this.updateEntity(dto, bankAccount);
+    return await this.bankAccountRepo.save(update);
   }
 
   // --- INTERNAL METHODS --- //
@@ -69,6 +60,20 @@ export class BankAccountService {
   }
 
   // --- HELPER METHODS --- //
+  private async updateEntity(
+    dto: CreateBankAccountDto | UpdateBankAccountDto,
+    bankAccount: BankAccount,
+  ): Promise<BankAccount> {
+    // check currency
+    if (dto.preferredCurrency) {
+      bankAccount.preferredCurrency = await this.fiatService.getFiat(dto.preferredCurrency.id);
+      if (!bankAccount.preferredCurrency) throw new BadRequestException('Currency not found');
+    }
+
+    bankAccount.label = dto.label;
+
+    return bankAccount;
+  }
 
   private async createBankAccountInternal(iban: string, userId: number, copyFrom?: BankAccount): Promise<BankAccount> {
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);

@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
-import { BaseBankAccountDto } from './base-bank-account.dto';
+import { UpdateBankAccountDto } from './update-bank-account.dto';
 
-export class CreateBankAccountDto extends BaseBankAccountDto {
+export class CreateBankAccountDto extends UpdateBankAccountDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
