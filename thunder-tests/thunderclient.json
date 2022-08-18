@@ -1675,5 +1675,38 @@
     "headers": [],
     "params": [],
     "tests": []
+  },
+  {
+    "_id": "4b688135-4727-4a99-9347-15ab1786da48",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Change User",
+    "url": "{{url}}/v1/user/change",
+    "method": "POST",
+    "sortNum": 660000,
+    "created": "2022-08-17T18:59:22.763Z",
+    "modified": "2022-08-17T18:59:58.732Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"address\": \"address\",\n  \"blockchain\": \"blockchain\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "9a256870-adc4-4e14-9687-69fb3391ef85",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "User Detail",
+    "url": "{{url}}/v1/user/detail",
+    "method": "GET",
+    "sortNum": 590000,
+    "created": "2022-08-17T19:45:29.480Z",
+    "modified": "2022-08-17T19:45:37.551Z",
+    "headers": [],
+    "params": [],
+    "tests": []
   }
 ]
