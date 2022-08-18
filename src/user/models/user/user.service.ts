@@ -83,7 +83,7 @@ export class UserService {
     return this.userRepo
       .createQueryBuilder('user')
       .select(
-        'linkedUser.address, linkedUser.blockchain, isSwitchable = CASE WHEN linkedUser.stakingBalance = 0 then 1 else 0 end',
+        'linkedUser.address, linkedUser.blockchain, isSwitchable = CASE WHEN linkedUser.stakingBalance = 0 then CAST(1 AS BIT) else CAST(0 AS BIT) end',
       )
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
