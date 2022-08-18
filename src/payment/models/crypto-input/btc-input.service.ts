@@ -1,7 +1,7 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { Blockchain, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
@@ -17,6 +17,7 @@ import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { ChainalysisService } from './chainalysis.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {

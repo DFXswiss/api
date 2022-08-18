@@ -3,18 +3,25 @@ import { verify } from 'bitcoinjs-message';
 import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
-import { Blockchain } from '../node/node.service';
+
+export enum Blockchain {
+  DEFICHAIN = 'DeFiChain',
+  BITCOIN = 'Bitcoin',
+  ETHEREUM = 'Ethereum',
+}
 
 @Injectable()
 export class CryptoService {
-  public verifySignature(message: string, address: string, signature: string, blockchain: Blockchain): boolean {
+  public verifySignature(message: string, address: string, signature: string): boolean {
+    const blockchain = this.getBlockchainBasedOn(address);
+
     let isValid = false;
     try {
       isValid = this.verify(message, address, signature, blockchain);
     } catch (e) {}
 
-    if (!isValid) {
-      isValid = this.fallbackVerify(message, address, signature);
+    if (!isValid && blockchain !== Blockchain.ETHEREUM) {
+      isValid = this.fallbackVerify(message, address, signature, blockchain);
     }
     return isValid;
   }
@@ -29,7 +36,7 @@ export class CryptoService {
     return address.match(/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/)?.length > 1 ?? false;
   }
 
-  private fallbackVerify(message: string, address: string, signature: string) {
+  private fallbackVerify(message: string, address: string, signature: string, blockchain: Blockchain) {
     let isValid = false;
     const flags = [...Array(12).keys()].map((i) => i + 31);
     for (const flag of flags) {
@@ -39,7 +46,7 @@ export class CryptoService {
       sigBuffer = Buffer.concat([flagByte, sigBuffer]);
       const candidateSig = sigBuffer.toString('base64');
       try {
-        isValid = this.verify(message, address, candidateSig, Blockchain.DEFICHAIN);
+        isValid = this.verify(message, address, candidateSig, blockchain);
         if (isValid) break;
       } catch (e) {}
     }

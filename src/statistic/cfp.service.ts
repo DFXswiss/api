@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
-import { CryptoService } from 'src/ain/services/crypto.service';
+import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
 import * as CakeMasterNodes from './assets/cake-mn.json';
@@ -10,7 +10,6 @@ import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
 import { Masternode } from 'src/payment/models/masternode/masternode.entity';
-import { Blockchain } from 'src/ain/node/node.service';
 
 export interface CfpSettings {
   inProgress: boolean;
@@ -292,7 +291,7 @@ export class CfpService {
       this.masterNodes[vote.address] &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
       new Date(vote.createdAt) < new Date(this.settings.endDate) &&
-      this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature, Blockchain.DEFICHAIN)
+      this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
     );
   }
 
