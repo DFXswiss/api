@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsNumber, IsOptional } from 'class-validator';
+import { IsDate, IsOptional } from 'class-validator';
 
 export class UpdateCryptoStakingDto {
   @IsOptional()
@@ -8,10 +8,12 @@ export class UpdateCryptoStakingDto {
   outputDate: Date;
 
   @IsOptional()
-  @IsNumber()
-  outputMailSendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  outputMailSendDate: Date;
 
   @IsOptional()
-  @IsNumber()
-  inputMailSendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  inputMailSendDate: Date;
 }

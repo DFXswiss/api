@@ -62,7 +62,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   entity.txId = keys.includes('txId') ? txId : 'TX_ID_01';
   entity.outputDate = keys.includes('outputDate') ? outputDate : new Date();
   entity.recipientMail = keys.includes('recipientMail') ? recipientMail : '';
-  entity.mailSendDate = keys.includes('mailSendDate') ? mailSendDate : Date.now();
+  entity.mailSendDate = keys.includes('mailSendDate') ? mailSendDate : new Date();
   entity.usedRef = keys.includes('usedRef') ? usedRef : '';
   entity.refProvision = keys.includes('refProvision') ? refProvision : 0;
   entity.refFactor = keys.includes('refFactor') ? refFactor : 0;

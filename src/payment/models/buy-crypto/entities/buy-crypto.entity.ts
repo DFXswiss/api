@@ -87,8 +87,8 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail: string;
 
-  @Column({ type: 'float', nullable: true })
-  mailSendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  mailSendDate: Date;
 
   @Column({ length: 256, nullable: true })
   usedRef: string;
@@ -170,7 +170,7 @@ export class BuyCrypto extends IEntity {
 
   confirmSentMail(): this {
     this.recipientMail = this.user.userData.mail;
-    this.mailSendDate = Date.now();
+    this.mailSendDate = new Date();
 
     return this;
   }
