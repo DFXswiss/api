@@ -1652,12 +1652,12 @@
     "_id": "0d85860c-d4e6-448a-98b0-e1903fbd1cc2",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
-    "name": "Update CT API Key Filter",
+    "name": "Update CT API Filter",
     "url": "{{url}}/v1/user/apiKey/filter/CT?lm&staking&buy",
     "method": "PUT",
-    "sortNum": 287500,
+    "sortNum": 315000,
     "created": "2022-08-18T14:14:09.032Z",
-    "modified": "2022-08-18T14:31:27.717Z",
+    "modified": "2022-08-19T13:47:17.419Z",
     "headers": [],
     "params": [
       {
