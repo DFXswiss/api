@@ -1,7 +1,6 @@
-import { Controller, UseGuards, Post, UseInterceptors, UploadedFiles, Put, Param, Body, Get } from '@nestjs/common';
+import { Controller, UseGuards, Post, Put, Param, Body, Get } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -38,10 +37,11 @@ export class BankAccountController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async updateBankAccount(
+    @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
     @Body() updateBankAccountDto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
-    return this.bankAccountService.updateBankAccount(+id, updateBankAccountDto).then((b) => this.toDto(b));
+    return this.bankAccountService.updateBankAccount(+id, jwt.id, updateBankAccountDto).then((b) => this.toDto(b));
   }
 
   // --- DTO --- //

@@ -34,9 +34,9 @@ export class BankAccountService {
     return this.bankAccountRepo.save(update);
   }
 
-  async updateBankAccount(id: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
+  async updateBankAccount(id: number, userId: number, dto: UpdateBankAccountDto): Promise<BankAccount> {
     const bankAccount = await this.bankAccountRepo.findOne({
-      where: { id },
+      where: { id, user: { id: userId } },
       relations: ['user'],
     });
     if (!bankAccount) throw new NotFoundException('BankAccount not found');
