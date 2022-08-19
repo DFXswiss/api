@@ -58,7 +58,7 @@ export class UserController {
     return this.userService.deleteApiKey(jwt.id);
   }
 
-  @Put('apiKey/CT/filter')
+  @Put('apiFilter/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async updateApiKeyFilter(@Query() filter: HistoryFilter, @GetJwt() jwt: JwtPayload): Promise<HistoryFilterKey[]> {

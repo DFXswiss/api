@@ -1649,20 +1649,6 @@
     "tests": []
   },
   {
-    "_id": "86fccc16-138f-4721-be6c-7b22ea8acade",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
-    "name": "Get CT API Key Filter",
-    "url": "{{url}}/v1/user/apiKey/filter/CT",
-    "method": "GET",
-    "sortNum": 285000,
-    "created": "2022-08-18T14:13:46.305Z",
-    "modified": "2022-08-18T14:20:04.872Z",
-    "headers": [],
-    "params": [],
-    "tests": []
-  },
-  {
     "_id": "0d85860c-d4e6-448a-98b0-e1903fbd1cc2",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
