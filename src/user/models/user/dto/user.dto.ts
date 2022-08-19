@@ -21,7 +21,7 @@ export interface UserDto {
   depositLimit: number;
   kycDataComplete: boolean;
   apiKeyCT: string;
-  apiFilterCt: HistoryFilterKey[];
+  apiFilterCT: HistoryFilterKey[];
 }
 
 export interface UserDetails {

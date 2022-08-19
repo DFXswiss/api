@@ -437,7 +437,7 @@ export class UserService {
       depositLimit: user.userData?.depositLimit,
       kycDataComplete: this.kycService.isDataComplete(user.userData),
       apiKeyCT: user.apiKeyCT,
-      apiFilterCt: this.apiKeyService.getFilterArray(user.apiFilterCT),
+      apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
 
       ...(detailed ? await this.getUserDetails(user) : undefined),
     };
