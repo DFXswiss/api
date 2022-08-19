@@ -27,3 +27,5 @@ export class HistoryFilter {
   @IsString()
   lm?: string;
 }
+
+export type HistoryFilterKey = keyof HistoryFilter;

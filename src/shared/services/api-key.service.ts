@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { HistoryFilter } from 'src/payment/models/history/dto/history-filter.dto';
+import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 import { User } from 'src/user/models/user/user.entity';
 import { Util } from '../util';
 
@@ -40,8 +40,16 @@ export class ApiKeyService {
     return hash.substring(0, hash.length - this.versionLength) + Config.apiKeyVersionCT;
   }
 
-  public getFilter(filterCode: string): HistoryFilter {
-    return this.codeToFilter(filterCode);
+  public getFilter(filterCode?: string): HistoryFilter {
+    return filterCode ? this.codeToFilter(filterCode) : undefined;
+  }
+
+  public getFilterArray(filterCode?: string): HistoryFilterKey[] {
+    return filterCode
+      ? Object.entries(this.getFilter(filterCode))
+          .filter(([_, value]) => value)
+          .map(([key, _]) => key as HistoryFilterKey)
+      : undefined;
   }
 
   public getFilterCode(filter: HistoryFilter): string {

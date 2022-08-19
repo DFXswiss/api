@@ -51,7 +51,7 @@ export class HistoryController {
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
   ): Promise<CoinTrackingHistoryDto[]> {
     const user = await this.userService.checkApiKey(key, sign, timestamp);
-    const filter = user.apiKeyFilterCT ? this.apiKeyService.getFilter(user.apiKeyFilterCT) : {};
+    const filter = this.apiKeyService.getFilter(user.apiFilterCT);
     query = Object.assign(query, filter);
 
     const tx = await this.historyService.getHistory(user.id, user.address, query, 300000);

@@ -11,7 +11,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Util } from 'src/shared/util';
 import { CfpVotes } from './dto/cfp-votes.dto';
-import { UserDetailDto, UserDetails, UserDto } from './dto/user.dto';
+import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Between, Like, Not } from 'typeorm';
@@ -29,7 +29,7 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
-import { HistoryFilter } from 'src/payment/models/history/dto/history-filter.dto';
+import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 
 @Injectable()
 export class UserService {
@@ -384,13 +384,11 @@ export class UserService {
     const user = await this.userRepo.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');
-    if (!user.apiKeyFilterCT && Object.keys(filter).length === 0)
-      throw new ConflictException('API key filter must be set');
 
     user.apiKeyCT = this.apiKeyService.createKey(user.address);
-    if (!user.apiKeyFilterCT) user.apiKeyFilterCT = this.apiKeyService.getFilterCode(filter);
+    user.apiFilterCT = this.apiKeyService.getFilterCode(filter);
 
-    await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT, apiKeyFilterCT: user.apiKeyFilterCT });
+    await this.userRepo.update(userId, { apiKeyCT: user.apiKeyCT, apiFilterCT: user.apiFilterCT });
 
     const secret = this.apiKeyService.getSecret(user);
 
@@ -411,22 +409,14 @@ export class UserService {
     return user;
   }
 
-  async getApiKeyFilter(userId: number): Promise<HistoryFilter> {
-    const user = await this.userRepo.findOne(userId);
-    if (!user) throw new BadRequestException('User not found');
-    if (!user.apiKeyFilterCT) return undefined;
-
-    return this.apiKeyService.getFilter(user.apiKeyFilterCT);
-  }
-
-  async updateApiKeyFilter(userId: number, filter: HistoryFilter): Promise<UserDto> {
+  async updateApiKeyFilter(userId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!user) throw new BadRequestException('User not found');
 
-    user.apiKeyFilterCT = this.apiKeyService.getFilterCode(filter);
-    await this.userRepo.update(userId, { apiKeyFilterCT: user.apiKeyFilterCT });
+    user.apiFilterCT = this.apiKeyService.getFilterCode(filter);
+    await this.userRepo.update(userId, { apiFilterCT: user.apiFilterCT });
 
-    return await this.toDto(user, false);
+    return this.apiKeyService.getFilterArray(user.apiFilterCT);
   }
 
   // --- DTO --- //
@@ -447,7 +437,7 @@ export class UserService {
       depositLimit: user.userData?.depositLimit,
       kycDataComplete: this.kycService.isDataComplete(user.userData),
       apiKeyCT: user.apiKeyCT,
-      apiKeyFilterCT: user.apiKeyFilterCT,
+      apiFilterCt: this.apiKeyService.getFilterArray(user.apiFilterCT),
 
       ...(detailed ? await this.getUserDetails(user) : undefined),
     };
