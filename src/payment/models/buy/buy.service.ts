@@ -102,7 +102,7 @@ export class BuyService {
     buy.user = { id: userId } as User;
     buy.asset = asset;
     buy.deposit = staking?.deposit ?? null;
-    buy.bankAccount = await this.bankAccountService.getBankAccount(dto.iban, userId);
+    buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     // create hash
     const hash = Util.createHash(
