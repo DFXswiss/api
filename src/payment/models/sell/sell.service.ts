@@ -71,7 +71,7 @@ export class SellService {
     sell.user = { id: userId } as User;
     sell.fiat = fiat;
     sell.deposit = await this.depositService.getNextDeposit(Blockchain.DEFICHAIN);
-    sell.bankAccount = await this.bankAccountService.getBankAccount(dto.iban, userId);
+    sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     return this.sellRepo.save(sell);
   }

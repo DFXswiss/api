@@ -281,6 +281,8 @@ export class StakingService {
       isInUse: staking.volume > 0 || stakingDepositsInUse.includes(staking.deposit?.id),
       fee: fee,
       period: Config.staking.period,
+      minInvestment: Config.staking.minInvestment,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain, 'DFI'),
     };
   }
 

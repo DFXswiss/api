@@ -1,5 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Deposit } from '../../deposit/deposit.entity';
+import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
 import { Sell } from '../../sell/sell.entity';
 import { PayoutType } from '../../staking-reward/staking-reward.entity';
 
@@ -18,4 +19,6 @@ export class StakingDto {
   isInUse: boolean;
   fee: number;
   period: number;
+  minInvestment: number;
+  minDeposits: MinDeposit[];
 }

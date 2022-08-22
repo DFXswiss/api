@@ -11,11 +11,19 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { SellDto } from './dto/sell.dto';
 import { Sell } from './sell.entity';
 import { UserService } from 'src/user/models/user/user.service';
+import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
+import { BuyFiatHistoryDto } from '../buy-fiat/dto/buy-fiat-history.dto';
+import { Config } from 'src/config/config';
+import { Util } from 'src/shared/util';
 
 @ApiTags('sell')
 @Controller('sell')
 export class SellController {
-  constructor(private readonly sellService: SellService, private readonly userService: UserService) {}
+  constructor(
+    private readonly sellService: SellService,
+    private readonly userService: UserService,
+    private readonly buyFiatService: BuyFiatService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -42,6 +50,13 @@ export class SellController {
     return this.sellService.updateSell(jwt.id, +id, updateSellDto).then((s) => this.toDto(jwt.id, s));
   }
 
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyFiatHistoryDto[]> {
+    return this.buyFiatService.getHistory(jwt.id, +id);
+  }
+
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
     const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
     const fee = await this.userService.getUserSellFee(userId);
@@ -57,6 +72,7 @@ export class SellController {
       ...sell,
       fee: fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };
   }
 }

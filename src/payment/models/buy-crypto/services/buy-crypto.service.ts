@@ -21,6 +21,9 @@ import { CryptoRouteRepository } from '../../crypto-route/crypto-route.repositor
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
+import { BuyCryptoHistoryDto } from '../dto/buy-crypto-history.dto';
+import { CryptoRouteHistoryDto } from '../../crypto-route/dto/crypto-route-history.dto';
+import { RouteHistoryDto } from '../../route/dto/route-history.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -146,15 +149,11 @@ export class BuyCryptoService {
     dateTo: Date = new Date(),
   ): Promise<BuyCrypto[]> {
     return await this.buyCryptoRepo.find({
-      where: { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'buy', 'buy.user'],
-    });
-  }
-
-  async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
-      where: { buy: { user: { id: In(userIds) } } },
-      relations: ['bankTx', 'buy', 'buy.user'],
+      where: [
+        { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+      ],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
@@ -165,18 +164,42 @@ export class BuyCryptoService {
   ): Promise<BuyCrypto[]> {
     return await this.buyCryptoRepo.find({
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
-      relations: ['bankTx', 'buy', 'buy.user'],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
     });
   }
 
-  async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
-    return await this.buyCryptoRepo.find({
-      where: { usedRef: In(refCodes) },
-      relations: ['bankTx', 'buy', 'buy.user'],
-    });
+  async getHistory(userId: number, buyId: number): Promise<BuyCryptoHistoryDto[]> {
+    return this.buyCryptoRepo
+      .find({
+        where: { buy: { id: buyId, user: { id: userId } } },
+        relations: ['buy', 'buy.user'],
+      })
+      .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
+  }
+
+  async getCryptoRouteHistory(userId: number, routeId: number): Promise<CryptoRouteHistoryDto[]> {
+    return this.buyCryptoRepo
+      .find({
+        where: { cryptoRoute: { id: routeId, user: { id: userId } } },
+        relations: ['cryptoRoute', 'cryptoRoute.user'],
+      })
+      .then((history) => history.map(this.toHistoryDto));
   }
 
   // --- HELPER METHODS --- //
+
+  private toHistoryDto(buyCrypto: BuyCrypto): RouteHistoryDto {
+    return {
+      inputAmount: buyCrypto.inputAmount,
+      inputAsset: buyCrypto.inputAsset,
+      amlCheck: buyCrypto.amlCheck,
+      outputAmount: buyCrypto.outputAmount,
+      outputAsset: buyCrypto.outputAsset,
+      txId: buyCrypto.txId,
+      isComplete: buyCrypto.isComplete,
+      date: buyCrypto.outputDate,
+    };
+  }
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
@@ -260,12 +283,29 @@ export class BuyCryptoService {
     }
   }
 
+  // Admin Support Tool methods
+
+  async getAllRefTransactions(refCodes: string[]): Promise<BuyCrypto[]> {
+    return await this.buyCryptoRepo.find({
+      where: { usedRef: In(refCodes) },
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+    });
+  }
+
+  async getAllUserTransactions(userIds: number[]): Promise<BuyCrypto[]> {
+    return await this.buyCryptoRepo.find({
+      where: [{ buy: { user: { id: In(userIds) } } }, { cryptoRoute: { user: { id: In(userIds) } } }],
+      relations: ['bankTx', 'buy', 'buy.user', 'cryptoInput', 'cryptoRoute', 'cryptoRoute.user'],
+    });
+  }
+
   // Statistics
 
   async getTransactions(
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
   ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+    // TODO Add cryptoInput buyCryptos, consultation with Daniel regarding statistic data
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
       relations: ['buy'],

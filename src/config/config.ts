@@ -98,8 +98,7 @@ export class Configuration {
   };
 
   letter = {
-    userName: process.env.LETTER_USER,
-    apiKey: process.env.LETTER_AUTH,
+    auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
   };
 
@@ -173,9 +172,18 @@ export class Configuration {
     stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
     btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
     minTxAmount: 0.00000297,
-    minDfiDeposit: 0.01,
-    minBtcDeposit: 0.0005,
-    minTokenDeposit: 0.4, // USDT
+    minDeposit: {
+      Fiat: {
+        USD: 1,
+      },
+      Bitcoin: {
+        BTC: 0.0005,
+      },
+      DeFiChain: {
+        DFI: 0.01,
+        USD: 1,
+      },
+    },
   };
 
   buy = {

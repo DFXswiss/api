@@ -84,7 +84,9 @@ export class UserController {
   @Get('ref')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getRefInfo(@Query() query: RefInfoQuery): Promise<{ activeUser: number; volume?: number }> {
+  async getRefInfo(
+    @Query() query: RefInfoQuery,
+  ): Promise<{ activeUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     return this.userService.getRefInfo(query);
   }
 

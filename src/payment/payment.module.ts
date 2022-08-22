@@ -73,6 +73,7 @@ import { DexModule } from './models/dex/dex.module';
 import { OlkypayService } from './models/bank-tx/olkypay.service';
 import { ChainalysisService } from './models/crypto-input/chainalysis.service';
 import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
+import { BankAccountController } from './models/bank-account/bank-account.controller';
 
 @Module({
   imports: [
@@ -122,6 +123,7 @@ import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notificat
     CryptoStakingController,
     CryptoInputController,
     CryptoRouteController,
+    BankAccountController,
   ],
   providers: [
     CryptoInputService,

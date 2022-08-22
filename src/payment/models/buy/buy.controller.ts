@@ -1,12 +1,16 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
 import { In } from 'typeorm';
+import { BuyCryptoHistoryDto } from '../buy-crypto/dto/buy-crypto-history.dto';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { Deposit } from '../deposit/deposit.entity';
 import { StakingDto } from '../staking/dto/staking.dto';
 import { Staking } from '../staking/staking.entity';
@@ -27,6 +31,7 @@ export class BuyController {
     private readonly userService: UserService,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   @Get()
@@ -54,6 +59,13 @@ export class BuyController {
     return this.buyService.updateBuy(jwt.id, +id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
   }
 
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyCryptoHistoryDto[]> {
+    return this.buyCryptoService.getHistory(jwt.id, +id);
+  }
+
   // --- DTO --- //
   private async toDtoList(userId: number, buys: Buy[]): Promise<BuyDto[]> {
     const fees = await this.getFees(userId);
@@ -75,6 +87,7 @@ export class BuyController {
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fees,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
 
