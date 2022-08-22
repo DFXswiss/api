@@ -22,6 +22,8 @@ import { BuyType } from './dto/buy-type.enum';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
+import { Bank, BankInfo, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
+import { CreateBuyPaymentInfoDto } from './dto/create-buy-payment-info.dto';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -44,8 +46,21 @@ export class BuyController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createBuy(@GetJwt() jwt: JwtPayload, @Body() createBuyDto: CreateBuyDto): Promise<BuyDto> {
+  async createBuy(@GetJwt() jwt: JwtPayload, @Body() createBuyDto: CreateBuyDto): Promise<BuyDto> {
     return this.buyService.createBuy(jwt.id, jwt.address, createBuyDto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Put('/paymentInfos')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async createBuyWithAccount(
+    @GetJwt() jwt: JwtPayload,
+    @Body() createBuyDto: CreateBuyPaymentInfoDto,
+  ): Promise<BuyPaymentInfoDto> {
+    const fees = await this.getFees(jwt.id);
+    return this.buyService
+      .getBuyPaymentInfos(jwt.id, jwt.address, createBuyDto)
+      .then((b) => this.toPaymentInfoDto(b.buy, b.bank, fees));
   }
 
   @Put(':id')
@@ -72,6 +87,20 @@ export class BuyController {
 
     const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
     return Promise.all(buys.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
+  }
+
+  private async toPaymentInfoDto(
+    buy: Buy,
+    bankName: Bank,
+    fees: { fee: number; refBonus: number },
+  ): Promise<BuyPaymentInfoDto> {
+    return {
+      ...BankInfo.dfxInfo,
+      ...(bankName === Bank.MAERKI ? BankInfo.maerki : BankInfo.olky),
+      bankUsage: buy.bankUsage,
+      fee: fees.fee,
+      refBonus: fees.refBonus,
+    };
   }
 
   private async toDto(
