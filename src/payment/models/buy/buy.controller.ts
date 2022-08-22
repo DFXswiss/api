@@ -1,10 +1,12 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
 import { In } from 'typeorm';
 import { BuyCryptoHistoryDto } from '../buy-crypto/dto/buy-crypto-history.dto';
@@ -85,6 +87,7 @@ export class BuyController {
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fees,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
 

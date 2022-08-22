@@ -230,7 +230,12 @@ export class BuyCryptoOutService {
     const utxo = await this.whaleService.getClient().getBalance(address);
 
     if (!parseFloat(utxo)) {
-      await this.dexClient.sendToken(Config.node.dexWalletAddress, address, 'DFI', Config.node.minDfiDeposit / 2);
+      await this.dexClient.sendToken(
+        Config.node.dexWalletAddress,
+        address,
+        'DFI',
+        Config.node.minDeposit.DeFiChain.DFI / 2,
+      );
     }
   }
 

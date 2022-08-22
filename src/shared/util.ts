@@ -1,6 +1,7 @@
 import { BinaryLike, createHash } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import { MinDeposit } from 'src/payment/models/deposit/dto/min-deposit.dto';
 
 type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -160,5 +161,11 @@ export class Util {
 
   static trimIBAN(iban: string): string {
     return '***' + iban.slice(iban.length - 4);
+  }
+
+  static transformToMinDeposit(deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] {
+    return Object.entries(deposit)
+      .filter(([key, _]) => filter?.includes(key) ?? true)
+      .map(([key, value]) => ({ amount: value, asset: key }));
   }
 }
