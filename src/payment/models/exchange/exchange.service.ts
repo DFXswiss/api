@@ -20,6 +20,10 @@ export class ExchangeService {
 
   constructor(private readonly exchange: Exchange) {}
 
+  get name(): string {
+    return this.exchange.name;
+  }
+
   async getBalances() {
     return this.callApi((e) => e.fetchBalance());
   }
