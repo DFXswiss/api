@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/blockchain/ain/ain.module';
+import { EthereumModule } from 'src/blockchain/eth/ethereum.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { LiquidityOrderFactory } from './factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from './repositories/liquidity-order.repository';
@@ -13,7 +14,7 @@ import { PurchasePoolPairLiquidityStrategy } from './strategies/purchase-liquidi
 import { PurchaseStockLiquidityStrategy } from './strategies/purchase-liquidity/purchase-stock-liquidity.strategy';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, SharedModule],
+  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, SharedModule],
   controllers: [],
   providers: [
     LiquidityService,

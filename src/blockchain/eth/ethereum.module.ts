@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { EthereumClient } from './ethereum-client';
+import { EthereumService } from './ethereum.service';
 
 @Module({
   imports: [],
-  providers: [EthereumClient],
-  exports: [EthereumClient],
+  providers: [EthereumService],
+  exports: [EthereumService],
 })
 export class EthereumModule {}
