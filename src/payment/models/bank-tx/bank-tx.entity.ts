@@ -13,6 +13,8 @@ export enum BankTxType {
   REPEAT = 'Repeat',
   BUY_CRYPTO = 'BuyCrypto',
   BUY_FIAT = 'BuyFiat',
+  FIAT_FIAT = 'FiatFiat',
+  TEST_FIAT_FIAT = 'TestFiatFiat',
   UNKNOWN = 'Unknown',
 }
 

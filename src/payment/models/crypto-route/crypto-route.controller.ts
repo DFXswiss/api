@@ -18,6 +18,12 @@ import { StakingDto } from '../staking/dto/staking.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
+import { Config } from 'src/config/config';
+import { Util } from 'src/shared/util';
+import { Blockchain } from 'src/ain/node/node.service';
+import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')
@@ -27,6 +33,7 @@ export class CryptoRouteController {
     private readonly userService: UserService,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   @Get()
@@ -54,6 +61,13 @@ export class CryptoRouteController {
     return this.cryptoRouteService.updateCrypto(jwt.id, +id, updateCryptoDto).then((b) => this.toDto(jwt.id, b));
   }
 
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoRouteHistoryDto[]> {
+    return this.buyCryptoService.getCryptoRouteHistory(jwt.id, +id);
+  }
+
   // --- DTO --- //
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
     const fees = await this.getFees(userId);
@@ -70,12 +84,20 @@ export class CryptoRouteController {
   ): Promise<CryptoRouteDto> {
     fees ??= await this.getFees(userId);
 
+    let minDeposits: MinDeposit[] = [];
+    switch (crypto.deposit.blockchain) {
+      case Blockchain.BITCOIN:
+        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
+        break;
+    }
+
     return {
       ...crypto,
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       ...fees,
+      minDeposits: minDeposits,
     };
   }
 
