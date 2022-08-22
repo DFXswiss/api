@@ -35,11 +35,19 @@ export class ExchangeService {
   async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
     const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
     const price = await Util.retry(() => this.fetchOrderPrice(pair, direction), 3);
-    return {
-      currencyPair: pair,
-      orderSide: direction,
-      price: direction === OrderSide.BUY ? price : 1 / price,
-    };
+    const [left, right] = pair.split('/');
+
+    return direction === OrderSide.BUY
+      ? {
+          source: right,
+          target: left,
+          price: price,
+        }
+      : {
+          source: left,
+          target: right,
+          price: 1 / price,
+        };
   }
 
   async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<TradeResponse> {
