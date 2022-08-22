@@ -46,6 +46,7 @@ export class PayoutDFIStrategy extends PayoutStrategy {
       const payout = this.aggregatePayout(orders);
 
       await this.designatePayout(orders);
+      // TODO - retry mechanism? catch only for timeouts?
       payoutTxId = await this.defichainService.sendUtxoToMany(context, payout);
     } catch (e) {
       console.error(`Error on sending DFI for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);

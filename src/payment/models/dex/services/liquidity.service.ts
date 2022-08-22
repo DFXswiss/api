@@ -58,9 +58,9 @@ export class LiquidityService {
 
     try {
       return await this.#dexClient.compositeSwap(
-        Config.node.dexWalletAddress,
+        Config.blockchain.default.dexWalletAddress,
         swapAsset,
-        Config.node.dexWalletAddress,
+        Config.blockchain.default.dexWalletAddress,
         targetAsset,
         swapAmount,
         [],
@@ -78,11 +78,16 @@ export class LiquidityService {
   }
 
   async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
-    return this.#dexClient.sendToken(Config.node.dexWalletAddress, addressTo, asset, amount);
+    return this.#dexClient.sendToken(Config.blockchain.default.dexWalletAddress, addressTo, asset, amount);
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {
-    return this.#dexClient.sendToken(Config.node.dexWalletAddress, address, 'DFI', Config.node.minDfiDeposit / 2);
+    return this.#dexClient.sendToken(
+      Config.blockchain.default.dexWalletAddress,
+      address,
+      'DFI',
+      Config.blockchain.default.minDfiDeposit / 2,
+    );
   }
 
   async checkTransferCompletion(transferTxId: string): Promise<boolean> {

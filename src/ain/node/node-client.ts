@@ -122,7 +122,7 @@ export class NodeClient {
 
   private async unlock(timeout = 60): Promise<any> {
     return await this.call((client: ApiClient) =>
-      client.call(NodeCommand.UNLOCK, [Config.node.walletPassword, timeout], 'number'),
+      client.call(NodeCommand.UNLOCK, [Config.blockchain.default.walletPassword, timeout], 'number'),
     );
   }
 
@@ -135,7 +135,9 @@ export class NodeClient {
   }
 
   private createHeaders(): { [key: string]: string } {
-    const passwordHash = Buffer.from(`${Config.node.user}:${Config.node.password}`).toString('base64');
+    const passwordHash = Buffer.from(
+      `${Config.blockchain.default.user}:${Config.blockchain.default.password}`,
+    ).toString('base64');
     return { Authorization: 'Basic ' + passwordHash };
   }
 

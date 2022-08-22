@@ -96,7 +96,7 @@ export class BtcInputService extends CryptoInputService {
     }
 
     // min. deposit
-    if (utxo.amount.toNumber() < Config.node.minDeposit.Bitcoin.BTC) {
+    if (utxo.amount.toNumber() < Config.blockchain.default.minDeposit.Bitcoin.BTC) {
       console.log(`Ignoring too small Bitcoin input (${utxo.amount.toNumber()} 'BTC'. UTXO:`, utxo);
       return null;
     }
@@ -157,7 +157,7 @@ export class BtcInputService extends CryptoInputService {
 
     for (const input of inputs) {
       try {
-        await this.forwardUtxo(input, Config.node.btcCollectorAddress);
+        await this.forwardUtxo(input, Config.blockchain.default.btcCollectorAddress);
       } catch (e) {
         console.error(`Failed to forward Bitcoin input ${input.id}:`, e);
       }

@@ -72,7 +72,7 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
         resignHash: IsNull(),
       },
     });
-    const addresses = [...activeMasternodes.map((m) => m.owner), Config.node.stakingWalletAddress];
+    const addresses = [...activeMasternodes.map((m) => m.owner), Config.blockchain.default.stakingWalletAddress];
     const balance = await Promise.all(addresses.map((a) => whaleClient.getBalance(a).then((b) => +b)));
     const actual = Util.sum(balance);
 

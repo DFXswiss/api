@@ -72,7 +72,7 @@ export class SellController {
       ...sell,
       fee: fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
+      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain),
     };
   }
 }

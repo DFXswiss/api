@@ -138,52 +138,60 @@ export class Configuration {
     url: 'https://ocean.defichain.com',
   };
 
-  node = {
-    user: process.env.NODE_USER,
-    password: process.env.NODE_PASSWORD,
-    inp: {
-      active: process.env.NODE_INP_URL_ACTIVE,
-      passive: process.env.NODE_INP_URL_PASSIVE,
-    },
-    dex: {
-      active: process.env.NODE_DEX_URL_ACTIVE,
-      passive: process.env.NODE_DEX_URL_PASSIVE,
-    },
-    out: {
-      active: process.env.NODE_OUT_URL_ACTIVE,
-      passive: process.env.NODE_OUT_URL_PASSIVE,
-    },
-    int: {
-      active: process.env.NODE_INT_URL_ACTIVE,
-      passive: process.env.NODE_INT_URL_PASSIVE,
-    },
-    ref: {
-      active: process.env.NODE_REF_URL_ACTIVE,
-      passive: process.env.NODE_REF_URL_PASSIVE,
-    },
-    btcInput: {
-      active: process.env.NODE_BTC_INP_URL_ACTIVE,
-      passive: process.env.NODE_BTC_INP_URL_PASSIVE,
-    },
-    walletPassword: process.env.NODE_WALLET_PASSWORD,
-    utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
-    dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
-    outWalletAddress: process.env.OUT_WALLET_ADDRESS,
-    intWalletAddress: process.env.INT_WALLET_ADDRESS,
-    stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
-    btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
-    minTxAmount: 0.00000297,
-    minDeposit: {
-      Fiat: {
-        USD: 1,
+  blockchain = {
+    default: {
+      user: process.env.NODE_USER,
+      password: process.env.NODE_PASSWORD,
+      inp: {
+        active: process.env.NODE_INP_URL_ACTIVE,
+        passive: process.env.NODE_INP_URL_PASSIVE,
       },
-      Bitcoin: {
-        BTC: 0.0005,
+      dex: {
+        active: process.env.NODE_DEX_URL_ACTIVE,
+        passive: process.env.NODE_DEX_URL_PASSIVE,
       },
-      DeFiChain: {
-        DFI: 0.01,
-        USD: 1,
+      out: {
+        active: process.env.NODE_OUT_URL_ACTIVE,
+        passive: process.env.NODE_OUT_URL_PASSIVE,
       },
+      int: {
+        active: process.env.NODE_INT_URL_ACTIVE,
+        passive: process.env.NODE_INT_URL_PASSIVE,
+      },
+      ref: {
+        active: process.env.NODE_REF_URL_ACTIVE,
+        passive: process.env.NODE_REF_URL_PASSIVE,
+      },
+      btcInput: {
+        active: process.env.NODE_BTC_INP_URL_ACTIVE,
+        passive: process.env.NODE_BTC_INP_URL_PASSIVE,
+      },
+      walletPassword: process.env.NODE_WALLET_PASSWORD,
+      utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
+      dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
+      outWalletAddress: process.env.OUT_WALLET_ADDRESS,
+      intWalletAddress: process.env.INT_WALLET_ADDRESS,
+      stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
+      btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
+      minTxAmount: 0.00000297,
+      minDeposit: {
+        Fiat: {
+          USD: 1,
+        },
+        Bitcoin: {
+          BTC: 0.0005,
+        },
+        DeFiChain: {
+          DFI: 0.01,
+          USD: 1,
+        },
+      },
+    },
+    ethereum: {
+      ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
+      ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
+      ethGatewayUrl: process.env.ETH_GATEWAY_URL,
+      ethExplorerUrl: process.env.ETH_EXPLORER_URL,
     },
   };
 

@@ -6,14 +6,12 @@ import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repos
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { BuyCryptoOutService } from './buy-crypto-out.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-    private readonly buyCryptoOutService: BuyCryptoOutService,
     private readonly exchangeUtilityService: ExchangeUtilityService,
   ) {}
 

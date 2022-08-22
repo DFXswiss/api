@@ -182,7 +182,7 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
   ): Promise<void> {
     const poolPair: [string, string] = [`${leftAmount}@${leftAsset}`, `${rightAmount}@${rightAsset}`];
 
-    const txId = await this.chainClient.addPoolLiquidity(Config.node.dexWalletAddress, poolPair);
+    const txId = await this.chainClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
 
     order.addPurchaseMetadata(txId);
 

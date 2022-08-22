@@ -73,7 +73,9 @@ describe('DeFiInputService', () => {
         { provide: CryptoStakingService, useValue: cryptoStakingService },
         { provide: HttpService, useValue: http },
         { provide: BuyFiatService, useValue: buyFiatService },
-        TestUtil.provideConfig({ node: { utxoSpenderAddress: 'addr2', minDeposit: { DeFiChain: { DFI: 0.01 } } } }),
+        TestUtil.provideConfig({
+          blockchain: { default: { utxoSpenderAddress: 'addr2', minDeposit: { DeFiChain: { DFI: 0.01 } } } },
+        }),
       ],
     }).compile();
 

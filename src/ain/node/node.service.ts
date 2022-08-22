@@ -104,33 +104,49 @@ export class NodeService {
 
   private initAllNodes(): void {
     this.allNodes.set(NodeType.INPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.inp.active, NodeType.INPUT, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.inp.passive, NodeType.INPUT, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.inp.active, NodeType.INPUT, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(
+        Config.blockchain.default.inp.passive,
+        NodeType.INPUT,
+        NodeMode.PASSIVE,
+      ),
     });
 
     this.allNodes.set(NodeType.DEX, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.dex.active, NodeType.DEX, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.dex.passive, NodeType.DEX, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.dex.active, NodeType.DEX, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.blockchain.default.dex.passive, NodeType.DEX, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.OUTPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.out.active, NodeType.OUTPUT, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.out.passive, NodeType.OUTPUT, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.out.active, NodeType.OUTPUT, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(
+        Config.blockchain.default.out.passive,
+        NodeType.OUTPUT,
+        NodeMode.PASSIVE,
+      ),
     });
 
     this.allNodes.set(NodeType.INT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.int.active, NodeType.INT, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.int.passive, NodeType.INT, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.int.active, NodeType.INT, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.blockchain.default.int.passive, NodeType.INT, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.REF, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.ref.active, NodeType.REF, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.ref.passive, NodeType.REF, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.ref.active, NodeType.REF, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(Config.blockchain.default.ref.passive, NodeType.REF, NodeMode.PASSIVE),
     });
 
     this.allNodes.set(NodeType.BTC_INPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.btcInput.active, NodeType.BTC_INPUT, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.btcInput.passive, NodeType.BTC_INPUT, NodeMode.PASSIVE),
+      [NodeMode.ACTIVE]: this.createNodeClient(
+        Config.blockchain.default.btcInput.active,
+        NodeType.BTC_INPUT,
+        NodeMode.ACTIVE,
+      ),
+      [NodeMode.PASSIVE]: this.createNodeClient(
+        Config.blockchain.default.btcInput.passive,
+        NodeType.BTC_INPUT,
+        NodeMode.PASSIVE,
+      ),
     });
   }
 

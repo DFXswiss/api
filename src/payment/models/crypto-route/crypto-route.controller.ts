@@ -87,7 +87,7 @@ export class CryptoRouteController {
     let minDeposits: MinDeposit[] = [];
     switch (crypto.deposit.blockchain) {
       case Blockchain.BITCOIN:
-        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
+        minDeposits = Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
         break;
     }
 
