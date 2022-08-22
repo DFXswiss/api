@@ -1,4 +1,4 @@
-import { Method } from 'axios';
+import { AxiosRequestHeaders, Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
@@ -146,12 +146,13 @@ export class FrickService {
   private bankTxBatch: BankTxBatch;
 
   constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {
-    const a = this.getTest();
+    this.getTest();
   }
 
+  // TODO: remove
   async getTest(): Promise<void> {
-    const a = await this.getTokenAuth();
-    const b = 2;
+    const token = await this.getAccessToken();
+    console.log(token);
   }
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
@@ -232,45 +233,40 @@ export class FrickService {
 
   private async request<T>(url: string, method: Method, data?: any, nthTry = 3, getNewAccessToken = false): Promise<T> {
     try {
-      if (getNewAccessToken) {
-        this.accessToken = await this.getTokenAuth().then((t) => t.token);
-      }
-      let signature;
-      if (data) signature = Util.signMessage(data);
+      if (getNewAccessToken) this.accessToken = await this.getAccessToken();
+
       return await this.http.request<T>({
         url: `${this.baseUrl}/${url}`,
         method: method,
         data: data,
-        headers: {
-          Accept: 'application/json',
-          algorithm: 'rsa-sha512',
-          signature,
-        },
+        headers: this.getHeaders(data),
       });
     } catch (e) {
-      if (nthTry > 1) {
+      if (nthTry > 1) { // TODO: only if 403?
         return this.request(url, method, data, nthTry - 1, true);
       }
       throw e;
     }
   }
 
-  private async getTokenAuth(): Promise<{ token: string }> {
+  private async getAccessToken(): Promise<string> {
     const data = { key: Config.bank.frick.key, password: Config.bank.frick.password };
-    const signature = Util.signMessage(data);
 
-    const token = await this.http.request<any>({
+    const { token } = await this.http.request<{ token: string }>({
       url: `${this.baseUrl}/authorize`,
       method: 'POST',
       data: data,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        algorithm: 'rsa-sha256',
-        Signature: signature,
-      },
+      headers: this.getHeaders(data),
     });
 
-    return { token };
+    return token;
+  }
+
+  private getHeaders(data?: any): AxiosRequestHeaders {
+    return {
+      Accept: 'application/json',
+      algorithm: 'rsa-sha256',
+      Signature: data ? Util.createSign(JSON.stringify(data), Config.bank.frick.privateKey, 'sha512') : undefined,
+    };
   }
 }

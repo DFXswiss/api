@@ -1,11 +1,12 @@
-import { BinaryLike, createHash, createSign } from 'crypto';
+import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
-import { Config } from 'src/config/config';
 
 type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
 }[keyof T];
+
+type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
 export class Util {
   // --- MATH --- //
@@ -119,18 +120,16 @@ export class Util {
     Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
   }
 
-  static createHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5' = 'sha256'): string {
-    const hash = createHash(hashAlgo);
+  static createHash(data: BinaryLike, algo: CryptoAlgorithm = 'sha256'): string {
+    const hash = createHash(algo);
     hash.update(data);
     return hash.digest('hex');
   }
 
-  static signMessage(message: any): string {
-    const privateKey = Config.bank.frick.privateKey;
-    const sign = createSign('RSA-SHA256');
-    sign.update(JSON.stringify(message));
-    const signature = sign.sign(privateKey, 'base64');
-    return signature;
+  static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
+    const sign = createSign(algo);
+    sign.update(data);
+    return sign.sign(key, 'base64');
   }
 
   static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {
