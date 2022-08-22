@@ -23,14 +23,12 @@ export class BankTxService {
     private readonly settingService: SettingService,
     private readonly frickService: FrickService,
     private readonly olkyService: OlkypayService,
-    private readonly bankTxService: BankTxService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Interval(10000)
+  @Interval(900000)
   async checkTransactions(): Promise<void> {
     try {
-      if (!Config.bank.frick.key) return;
       const settingKey = 'lastBankDate';
       const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
 
@@ -39,7 +37,7 @@ export class BankTxService {
 
       for (const bankTx of [...frickTransactions, ...olkyTransactions]) {
         try {
-          await this.bankTxService.create(bankTx);
+          await this.create(bankTx);
         } catch (e) {
           if (!(e instanceof ConflictException)) console.error(`Failed to import transaction:`, e);
         }

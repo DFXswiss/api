@@ -237,8 +237,9 @@ export class Configuration {
     frick: {
       iban: 'LU116060002000005040',
       url: process.env.FRICK_URL,
-      key: process.env.FICK_KEY,
-      password: process.env.FICK_PASSWORD,
+      key: process.env.FRICK_KEY,
+      password: process.env.FRICK_PASSWORD,
+      privateKey: process.env.FRICK_PRIVATE_KEY.split('<br>').join('\n'),
     },
   };
 

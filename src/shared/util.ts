@@ -1,6 +1,7 @@
 import { BinaryLike, createHash, createSign } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import { Config } from 'src/config/config';
 
 type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -122,6 +123,14 @@ export class Util {
     const hash = createHash(hashAlgo);
     hash.update(data);
     return hash.digest('hex');
+  }
+
+  static signMessage(message: any): string {
+    const privateKey = Config.bank.frick.privateKey;
+    const sign = createSign('RSA-SHA256');
+    sign.update(JSON.stringify(message));
+    const signature = sign.sign(privateKey, 'base64');
+    return signature;
   }
 
   static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {

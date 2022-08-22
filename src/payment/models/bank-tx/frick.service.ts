@@ -145,14 +145,24 @@ export class FrickService {
   private accessToken = 'access-token-will-be-updated';
   private bankTxBatch: BankTxBatch;
 
-  constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
+  constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {
+    const a = this.getTest();
+  }
+
+  async getTest(): Promise<void> {
+    const a = await this.getTokenAuth();
+    const b = 2;
+  }
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
-    this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.frick.iban } });
-
-    return await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1)).then((t) =>
-      t.transactions.map((t) => this.parseTransaction(t)),
-    );
+    try {
+      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.frick.iban } });
+      return await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1)).then((t) =>
+        t.transactions.map((t) => this.parseTransaction(t)),
+      );
+    } catch {
+      console.error('Error during get frick transactions');
+    }
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transactions> {
@@ -213,29 +223,54 @@ export class FrickService {
   }
 
   // --- HELPER METHODS --- //
+
   private async callApi<T>(url: string, method: Method = 'GET', data?: any): Promise<T> {
     return this.request<T>(url, method, data).catch((e: HttpError) => {
       throw new ServiceUnavailableException(e);
     });
   }
 
-  private async request<T>(url: string, method: Method, data?: any, nthTry = 3): Promise<T> {
+  private async request<T>(url: string, method: Method, data?: any, nthTry = 3, getNewAccessToken = false): Promise<T> {
     try {
+      if (getNewAccessToken) {
+        this.accessToken = await this.getTokenAuth().then((t) => t.token);
+      }
+      let signature;
+      if (data) signature = Util.signMessage(data);
       return await this.http.request<T>({
         url: `${this.baseUrl}/${url}`,
         method: method,
         data: data,
         headers: {
           Accept: 'application/json',
-          'x-pay-token': this.accessToken,
-          'network-id': 19077,
+          algorithm: 'rsa-sha512',
+          signature,
         },
       });
     } catch (e) {
-      if (nthTry > 1 && e.response.status == 403) {
-        return this.request(url, method, data, nthTry - 1);
+      if (nthTry > 1) {
+        return this.request(url, method, data, nthTry - 1, true);
       }
       throw e;
     }
+  }
+
+  private async getTokenAuth(): Promise<{ token: string }> {
+    const data = { key: Config.bank.frick.key, password: Config.bank.frick.password };
+    const signature = Util.signMessage(data);
+
+    const token = await this.http.request<any>({
+      url: `${this.baseUrl}/authorize`,
+      method: 'POST',
+      data: data,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        algorithm: 'rsa-sha256',
+        Signature: signature,
+      },
+    });
+
+    return { token };
   }
 }
