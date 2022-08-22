@@ -5,7 +5,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { TestUtil } from 'src/shared/test.util';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import { NodeService } from 'src/ain/node/node.service';
+import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { StakingService } from '../staking/staking.service';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';

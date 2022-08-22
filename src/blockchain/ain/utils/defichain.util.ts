@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DeFiClient } from 'src/ain/node/defi-client';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 import { Config } from 'src/config/config';
 
 @Injectable()

@@ -9,7 +9,7 @@ import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
-import { CryptoService } from 'src/ain/services/crypto.service';
+import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
 import { Config } from 'src/config/config';
 import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';

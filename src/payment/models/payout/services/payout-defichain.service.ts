@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
-import { WhaleService } from 'src/ain/whale/whale.service';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
+import { WhaleService } from 'src/blockchain/ain/whale/whale.service';
 import { Config } from 'src/config/config';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 

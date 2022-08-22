@@ -9,9 +9,9 @@ import { User } from 'src/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { ExchangeUtilityService } from '../exchange/exchange-utility.service';
-import { DeFiClient } from 'src/ain/node/defi-client';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 
 @Injectable()
 export class StakingRefRewardService {

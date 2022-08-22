@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { WhaleService } from 'src/ain/whale/whale.service';
+import { WhaleService } from 'src/blockchain/ain/whale/whale.service';
 import { Config } from 'src/config/config';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';

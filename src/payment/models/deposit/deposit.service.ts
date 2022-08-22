@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/blockchain/ain/node/node.service';
 import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
 import { Deposit } from './deposit.entity';
 

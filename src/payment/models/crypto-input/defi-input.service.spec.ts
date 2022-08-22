@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeService } from 'src/ain/node/node.service';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { CryptoInputRepository } from './crypto-input.repository';

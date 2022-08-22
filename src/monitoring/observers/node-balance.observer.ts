@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
-import { BtcClient } from 'src/ain/node/btc-client';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { BtcClient } from 'src/blockchain/ain/node/btc-client';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 

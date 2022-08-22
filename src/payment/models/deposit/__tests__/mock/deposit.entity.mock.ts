@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/blockchain/ain/node/node.service';
 import { Deposit } from '../../deposit.entity';
 
 const defaultDeposit: Partial<Deposit> = {

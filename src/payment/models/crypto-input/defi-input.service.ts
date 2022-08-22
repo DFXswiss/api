@@ -2,8 +2,8 @@ import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dis
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression, Interval } from '@nestjs/schedule';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { Blockchain, NodeService, NodeType } from 'src/ain/node/node.service';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { Blockchain, NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';

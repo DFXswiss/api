@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
-import { DeFiChainUtil } from 'src/ain/utils/defichain.util';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
+import { DeFiChainUtil } from 'src/blockchain/ain/utils/defichain.util';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
@@ -86,7 +86,7 @@ export class LiquidityService {
       Config.blockchain.default.dexWalletAddress,
       address,
       'DFI',
-      Config.blockchain.default.minDfiDeposit / 2,
+      Config.blockchain.default.minDeposit.DeFiChain.DFI / 2,
     );
   }
 

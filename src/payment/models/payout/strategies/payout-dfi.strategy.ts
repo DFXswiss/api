@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NodeService } from 'src/ain/node/node.service';
+import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';

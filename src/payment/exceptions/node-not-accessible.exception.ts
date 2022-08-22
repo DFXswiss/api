@@ -1,4 +1,4 @@
-import { NodeType } from 'src/ain/node/node.service';
+import { NodeType } from 'src/blockchain/ain/node/node.service';
 
 export class NodeNotAccessibleError extends Error {
   constructor(nodeType: NodeType, e: Error) {

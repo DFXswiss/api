@@ -1,6 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { DeFiClient } from 'src/ain/node/defi-client';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 import { Not } from 'typeorm';
 import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
@@ -16,7 +16,7 @@ import { Lock } from 'src/shared/lock';
 import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { Blockchain, NodeService, NodeType } from 'src/ain/node/node.service';
+import { Blockchain, NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 
 @Injectable()
 export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {

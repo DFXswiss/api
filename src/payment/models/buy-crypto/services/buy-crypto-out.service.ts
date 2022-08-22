@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NodeService } from 'src/ain/node/node.service';
+import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { In } from 'typeorm';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';

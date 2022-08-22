@@ -14,7 +14,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/blockchain/ain/node/node.service';
 
 @Injectable()
 export class SellService {
