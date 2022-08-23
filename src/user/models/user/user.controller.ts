@@ -47,7 +47,7 @@ export class UserController {
   @Post('apiKey/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createApiKey(@Query() filter: HistoryFilter, @GetJwt() jwt: JwtPayload): Promise<ApiKey> {
+  async createApiKey(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<ApiKey> {
     return this.userService.createApiKey(jwt.id, filter);
   }
 
@@ -61,8 +61,8 @@ export class UserController {
   @Put('apiFilter/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateApiKeyFilter(@Query() filter: HistoryFilter, @GetJwt() jwt: JwtPayload): Promise<HistoryFilterKey[]> {
-    return this.userService.updateApiKeyFilter(jwt.id, filter);
+  async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> {
+    return this.userService.updateApiFilter(jwt.id, filter);
   }
 
   // --- CFP VOTING --- //

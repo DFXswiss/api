@@ -422,7 +422,7 @@ export class UserService {
     return user;
   }
 
-  async updateApiKeyFilter(userId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
+  async updateApiFilter(userId: number, filter: HistoryFilter): Promise<HistoryFilterKey[]> {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!user) throw new BadRequestException('User not found');
 
