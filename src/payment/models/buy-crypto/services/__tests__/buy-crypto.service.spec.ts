@@ -8,7 +8,6 @@ import { createCustomCryptoInput } from 'src/payment/models/crypto-input/__tests
 import { CryptoRouteRepository } from 'src/payment/models/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/payment/models/crypto-route/crypto-route.service';
 import { createCustomCryptoRouteHistory } from 'src/payment/models/crypto-route/dto/__tests__/mock/crypto-route-history.dto.mock';
-import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { UserService } from 'src/user/models/user/user.service';

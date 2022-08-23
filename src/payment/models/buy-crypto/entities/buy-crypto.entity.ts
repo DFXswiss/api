@@ -125,9 +125,7 @@ export class BuyCrypto extends IEntity {
     if (this.inputReferenceAsset === this.outputReferenceAsset) {
       this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee, 8);
     } else {
-      const price = prices.find(
-        (p) => p.currencyPair.includes(this.inputReferenceAsset) && p.currencyPair.includes(this.outputReferenceAsset),
-      );
+      const price = prices.find((p) => p.source === this.inputReferenceAsset && p.target === this.outputReferenceAsset);
 
       if (!price) {
         throw new Error(

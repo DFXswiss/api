@@ -1647,5 +1647,57 @@
     "headers": [],
     "params": [],
     "tests": []
+  },
+  {
+    "_id": "9805e163-d163-45b4-8ed9-ff7a68756572",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Get My Bank Accounts",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-08-17T00:42:27.836Z",
+    "modified": "2022-08-17T00:43:52.894Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "226ff795-9e8b-4b19-918a-afe00e87b1dc",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Create Bank Account",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "POST",
+    "sortNum": 650000,
+    "created": "2022-08-17T00:43:02.099Z",
+    "modified": "2022-08-17T10:33:43.925Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"preferredCurrency\": {\n    \"id\": 1\n  },\n  \"iban\": \"DE12345678910113\",\n  \"label\": \"Testlabel\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "ebc7e465-342c-4939-b6e2-f56e2d560de4",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Update Bank Account",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "PUT",
+    "sortNum": 660000,
+    "created": "2022-08-17T00:43:19.673Z",
+    "modified": "2022-08-17T10:33:23.896Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\":\"DE1234567891011\",\n  \"label\":\"Test98765432\"\n}",
+      "form": []
+    },
+    "tests": []
   }
 ]

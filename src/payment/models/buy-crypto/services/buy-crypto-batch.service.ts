@@ -57,10 +57,12 @@ export class BuyCryptoBatchService {
   }
 
   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
-    const referenceAssets = [...new Set(txWithAssets.map((tx) => tx.outputReferenceAsset))];
+    const referenceAssetPairs = [
+      ...new Set(txWithAssets.map((tx) => `${tx.inputReferenceAsset}/${tx.outputReferenceAsset}`)),
+    ].map((assets) => assets.split('/'));
 
     return await Promise.all(
-      referenceAssets.map(async (asset) => await this.exchangeUtilityService.getMatchingPrice('EUR', asset)),
+      referenceAssetPairs.map(async (pair) => await this.exchangeUtilityService.getMatchingPrice(pair[0], pair[1])),
     );
   }
 

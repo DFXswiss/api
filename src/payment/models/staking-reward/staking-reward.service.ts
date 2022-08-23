@@ -76,6 +76,7 @@ export class StakingRewardService {
     return await this.stakingRewardRepo.find({
       where: { staking: { user: { id: In(userIds) } }, outputDate: Between(dateFrom, dateTo), txId: Not(IsNull()) },
       relations: ['staking', 'staking.user'],
+      order: { id: 'ASC' },
     });
   }
 
@@ -167,5 +168,4 @@ export class StakingRewardService {
   private getApy(apr: number): number {
     return Math.pow(1 + apr / 365, 365) - 1;
   }
-
 }

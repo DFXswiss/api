@@ -1,6 +1,7 @@
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import { MinDeposit } from 'src/payment/models/deposit/dto/min-deposit.dto';
 
 type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -36,6 +37,14 @@ export class Util {
       }
       return prev;
     }, {} as { [key: string]: number });
+  }
+
+  static groupBy<T>(list: T[], key: KeyType<T, string>): Map<string, T[]> {
+    return list.reduce(
+      (map, item) =>
+        map.set(item[key] as unknown as string, (map.get(item[key] as unknown as string) ?? []).concat(item)),
+      new Map<string, T[]>(),
+    );
   }
 
   static randomId(): number {
@@ -160,5 +169,11 @@ export class Util {
 
   static trimIBAN(iban: string): string {
     return '***' + iban.slice(iban.length - 4);
+  }
+
+  static transformToMinDeposit(deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] {
+    return Object.entries(deposit)
+      .filter(([key, _]) => filter?.includes(key) ?? true)
+      .map(([key, value]) => ({ amount: value, asset: key }));
   }
 }
