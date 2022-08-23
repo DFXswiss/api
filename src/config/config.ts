@@ -228,14 +228,16 @@ export class Configuration {
 
   bank = {
     olkypay: {
-      iban: 'LU116060002000005040',
+      ibanEur: 'LU116060002000005040',
       clientId: process.env.OLKY_CLIENT,
       username: process.env.OLKY_USERNAME,
       password: process.env.OLKY_PASSWORD,
       clientSecret: process.env.OLKY_CLIENT_SECRET,
     },
     frick: {
-      iban: 'LU116060002000005040',
+      ibanEur: 'LI95088110104693K000E',
+      ibanChf: 'LI95088110104693K000E',
+      ibanUsd: 'LI95088110104693K000E',
       url: process.env.FRICK_URL,
       key: process.env.FRICK_KEY,
       password: process.env.FRICK_PASSWORD,

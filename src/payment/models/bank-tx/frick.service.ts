@@ -151,14 +151,14 @@ export class FrickService {
 
   // TODO: remove
   async getTest(): Promise<void> {
-    const token = await this.getAccessToken();
+    const token = await this.getBalance();
     console.log(token);
   }
 
-  async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
+  async getFrickTransactions(lastModificationTime: string, iban: string): Promise<Partial<BankTx>[]> {
     try {
-      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.frick.iban } });
-      return await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1)).then((t) =>
+      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban } });
+      return await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1), iban).then((t) =>
         t.transactions.map((t) => this.parseTransaction(t)),
       );
     } catch {
@@ -166,10 +166,8 @@ export class FrickService {
     }
   }
 
-  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transactions> {
-    const url = `transactions?fromDate=${Util.isoDate(fromDate)}&toDate=${Util.isoDate(toDate)}&iban=${
-      Config.bank.frick.iban
-    }`;
+  private async getTransactions(fromDate: Date, toDate: Date = new Date(), iban: string): Promise<Transactions> {
+    const url = `transactions?fromDate=${Util.isoDate(fromDate)}&toDate=${Util.isoDate(toDate)}&iban=${iban}`;
     return await this.callApi<Transactions>(url);
   }
 
@@ -178,10 +176,9 @@ export class FrickService {
     return await this.callApi<Accounts>(url);
   }
 
-  async getBalance(): Promise<number> {
-    const accounts = await this.getAccounts();
-    const account = accounts.accounts.filter((a) => (a.type = 'CURRENT ACCOUNT'));
-    return account[0].balance;
+  async getBalance(): Promise<Account[]> {
+    const { accounts } = await this.getAccounts();
+    return accounts;
   }
 
   // --- PARSING --- //
@@ -199,10 +196,12 @@ export class FrickService {
       instructedCurrency: tx.fxTransactionCurrency,
       txCurrency: tx.currency,
       chargeCurrency: tx.currency,
+      creditDebitIndicator: tx.direction == TransactionDirection.OUTGOING ? 'CRDT' : 'DBIT',
       ...this.getCustomerInformation,
       remittanceInfo: tx.reference,
       type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
       batch: this.bankTxBatch,
+      txInfo: JSON.stringify(tx),
     };
   }
 
@@ -242,7 +241,7 @@ export class FrickService {
         headers: this.getHeaders(data),
       });
     } catch (e) {
-      if (nthTry > 1) { // TODO: only if 403?
+      if (nthTry > 1 && e.response?.status == 401) {
         return this.request(url, method, data, nthTry - 1, true);
       }
       throw e;
@@ -265,8 +264,9 @@ export class FrickService {
   private getHeaders(data?: any): AxiosRequestHeaders {
     return {
       Accept: 'application/json',
-      algorithm: 'rsa-sha256',
-      Signature: data ? Util.createSign(JSON.stringify(data), Config.bank.frick.privateKey, 'sha512') : undefined,
+      algorithm: 'rsa-sha512',
+      Signature: data ? Util.createSign(JSON.stringify(data), Config.bank.frick.privateKey, 'sha512') : null,
+      Authorization: `Bearer ${this.accessToken}`,
     };
   }
 }

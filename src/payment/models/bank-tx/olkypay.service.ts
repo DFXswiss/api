@@ -51,9 +51,9 @@ export class OlkypayService {
 
   constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
 
-  async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
+  async getOlkyTransactions(lastModificationTime: string, iban: string): Promise<Partial<BankTx>[]> {
     try {
-      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
+      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban } });
       return await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1)).then((t) =>
         t.map((t) => this.parseTransaction(t)),
       );

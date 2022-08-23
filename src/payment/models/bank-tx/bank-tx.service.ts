@@ -32,10 +32,29 @@ export class BankTxService {
       const settingKey = 'lastBankDate';
       const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
 
-      const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTime);
-      const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTime);
+      const olkyEurTransactions = await this.olkyService.getOlkyTransactions(
+        lastModificationTime,
+        Config.bank.olkypay.ibanEur,
+      );
+      const frickEurTransactions = await this.frickService.getFrickTransactions(
+        lastModificationTime,
+        Config.bank.frick.ibanEur,
+      );
+      const frickUsdTransactions = await this.frickService.getFrickTransactions(
+        lastModificationTime,
+        Config.bank.frick.ibanUsd,
+      );
+      const frickChfTransactions = await this.frickService.getFrickTransactions(
+        lastModificationTime,
+        Config.bank.frick.ibanChf,
+      );
 
-      for (const bankTx of [...frickTransactions, ...olkyTransactions]) {
+      for (const bankTx of [
+        ...frickEurTransactions,
+        ...frickUsdTransactions,
+        ...frickChfTransactions,
+        ...olkyEurTransactions,
+      ]) {
         try {
           await this.create(bankTx);
         } catch (e) {
