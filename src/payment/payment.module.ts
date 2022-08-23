@@ -74,7 +74,6 @@ import { OlkypayService } from './models/bank-tx/olkypay.service';
 import { ChainalysisService } from './models/crypto-input/chainalysis.service';
 import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
 import { BankAccountController } from './models/bank-account/bank-account.controller';
-import { BankInfoService } from './models/buy/dto/buy-payment-info.dto';
 
 @Module({
   imports: [
@@ -164,7 +163,6 @@ import { BankInfoService } from './models/buy/dto/buy-payment-info.dto';
     CryptoRouteController,
     CryptoRouteService,
     ChainalysisService,
-    BankInfoService,
   ],
   exports: [
     BuyService,
@@ -186,7 +184,6 @@ import { BankInfoService } from './models/buy/dto/buy-payment-info.dto';
     BankAccountService,
     CryptoRouteService,
     OlkypayService,
-    BankInfoService,
   ],
 })
 export class PaymentModule {}

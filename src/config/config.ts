@@ -245,6 +245,25 @@ export class Configuration {
     },
   };
 
+  bankInfos = {
+    dfxInfo: {
+      receiveName: 'DFX AG',
+      location: 'Bahnhofstrasse 7',
+      zipLocation: '6300 Zug',
+      country: 'Schweiz',
+    },
+
+    maerki: {
+      iban: 'CH6808573177975201814',
+      bic: 'MAEBCHZZ',
+    },
+
+    olky: {
+      iban: 'LU116060002000005040',
+      bic: 'OLKILUL1',
+    },
+  };
+
   chainalysis = {
     apiKey: process.env.CHAINALYSIS_API_KEY,
   };

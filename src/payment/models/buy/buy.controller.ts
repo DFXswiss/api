@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -22,7 +22,7 @@ import { BuyType } from './dto/buy-type.enum';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
-import { Bank, BankInfo, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
+import { Bank, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { CreateBuyPaymentInfoDto } from './dto/create-buy-payment-info.dto';
 
 @ApiTags('buy')
@@ -53,6 +53,7 @@ export class BuyController {
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() createBuyDto: CreateBuyPaymentInfoDto,
@@ -95,11 +96,12 @@ export class BuyController {
     fees: { fee: number; refBonus: number },
   ): Promise<BuyPaymentInfoDto> {
     return {
-      ...BankInfo.dfxInfo,
-      ...(bankName === Bank.MAERKI ? BankInfo.maerki : BankInfo.olky),
+      ...Config.bankInfos.dfxInfo,
+      ...(bankName === Bank.MAERKI ? Config.bankInfos.maerki : Config.bankInfos.olky),
       bankUsage: buy.bankUsage,
       fee: fees.fee,
       refBonus: fees.refBonus,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
 

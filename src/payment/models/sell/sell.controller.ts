@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { SellService } from './sell.service';
 import { CreateSellDto } from './dto/create-sell.dto';
@@ -44,6 +44,7 @@ export class SellController {
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() createSellDto: CreateSellPaymentInfoDto,
@@ -75,6 +76,7 @@ export class SellController {
     return {
       fee: fee,
       depositAddress: sell.deposit.address,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };
   }
 

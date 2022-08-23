@@ -1,6 +1,6 @@
 import { Controller, UseGuards, Post, Put, Param, Body, Get } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -26,6 +26,7 @@ export class BankAccountController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 201, type: BankAccountDto })
   async createBankAccount(
     @GetJwt() jwt: JwtPayload,
     @Body() createBankAccountDto: CreateBankAccountDto,

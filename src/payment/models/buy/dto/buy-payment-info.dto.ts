@@ -1,51 +1,39 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { ApiProperty } from '@nestjs/swagger';
+import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
 
 export class BankInfoDto {
+  @ApiProperty()
   receiveName: string;
+
+  @ApiProperty()
   location: string;
+
+  @ApiProperty()
   zipLocation: string;
+
+  @ApiProperty()
   country: string;
+
+  @ApiProperty()
   iban: string;
+
+  @ApiProperty()
   bic: string;
 }
 
 export class BuyPaymentInfoDto extends BankInfoDto {
+  @ApiProperty()
   fee: number;
+
+  @ApiProperty()
   bankUsage: string;
+
+  @ApiProperty()
   refBonus: number;
+
+  @ApiProperty()
+  minDeposits: MinDeposit[];
 }
-
-export function GetBankInfo(): BankInfoClass {
-  return new BankInfoClass();
-}
-
-export class BankInfoClass {
-  dfxInfo = {
-    receiveName: 'DFX AG',
-    location: 'Bahnhofstrasse 7',
-    zipLocation: '6300 Zug',
-    country: 'Schweiz',
-  };
-
-  maerki = {
-    iban: 'CH6808573177975201814',
-    bic: 'MAEBCHZZ',
-  };
-
-  olky = {
-    iban: 'LU116060002000005040',
-    bic: 'OLKILUL1',
-  };
-}
-
-@Injectable()
-export class BankInfoService {
-  constructor(@Optional() readonly bankInfo?: BankInfoClass) {
-    BankInfo = bankInfo ?? GetBankInfo();
-  }
-}
-
-export let BankInfo: BankInfoClass;
 
 export enum Bank {
   MAERKI = 'MaerkiBaumann',
