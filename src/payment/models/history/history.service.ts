@@ -84,7 +84,7 @@ export class HistoryService {
           comment: 'DFX Purchase',
           date: c.cryptoInput.created,
           txid: c.cryptoInput.inTxId,
-          buyValueInEur: null,
+          buyValueInEur: c.amountInEur,
           sellValueInEur: null,
         },
         c.inputAsset == c.outputAsset
@@ -103,7 +103,7 @@ export class HistoryService {
                 date: c.outputDate,
                 txid: c.txId,
                 buyValueInEur: null,
-                sellValueInEur: null,
+                sellValueInEur: c.amountInEur,
               }
             : null
           : {
@@ -119,8 +119,8 @@ export class HistoryService {
               comment: 'DFX Purchase',
               date: c.outputDate ? c.outputDate : null,
               txid: c.txId,
-              buyValueInEur: null,
-              sellValueInEur: null,
+              buyValueInEur: c.amountInEur,
+              sellValueInEur: c.amountInEur,
             },
       ])
       .reduce((prev, curr) => prev.concat(curr), [])
@@ -154,7 +154,7 @@ export class HistoryService {
           comment: 'DFX Purchase',
           date: c.outputDate ? this.createRandomDate(c.outputDate, -20, c.inputAmount) : null,
           txid: c.bankTx?.id.toString(),
-          buyValueInEur: null,
+          buyValueInEur: c.amountInEur,
           sellValueInEur: null,
         },
         {
@@ -170,8 +170,8 @@ export class HistoryService {
           comment: 'DFX Purchase',
           date: c.outputDate ? c.outputDate : null,
           txid: c.txId,
-          buyValueInEur: null,
-          sellValueInEur: null,
+          buyValueInEur: c.amountInEur,
+          sellValueInEur: c.amountInEur,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
@@ -205,8 +205,8 @@ export class HistoryService {
           comment: 'DFX Sale',
           date: c.cryptoInput.created,
           txid: c.cryptoInput.inTxId,
-          buyValueInEur: null,
-          sellValueInEur: null,
+          buyValueInEur: c.amountInEur,
+          sellValueInEur: c.amountInEur,
         },
         {
           type: 'Withdrawal',
@@ -222,7 +222,7 @@ export class HistoryService {
           date: c.outputDate ? c.outputDate : null,
           txid: c.remittanceInfo,
           buyValueInEur: null,
-          sellValueInEur: null,
+          sellValueInEur: c.amountInEur,
         },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
@@ -240,14 +240,14 @@ export class HistoryService {
           buyAsset: this.getAssetSymbol(c.outputAsset),
           sellAmount: null,
           sellAsset: null,
-          fee: c.fee ? c.fee * c.inputAmount : null,
-          feeAsset: c.fee ? this.getAssetSymbol(c.inputAsset) : null,
+          fee: c.fee && c.fee != 0 ? (c.outputAmount * c.fee) / (1 - c.fee) : null,
+          feeAsset: c.fee && c.fee != 0 ? this.getAssetSymbol(c.outputAsset) : null,
           exchange: c.payoutType === PayoutType.REINVEST ? 'DFX Staking' : 'DFX',
           tradeGroup: c.payoutType === PayoutType.REINVEST ? 'Staking' : null,
           comment: 'DFX Staking Reward',
           date: c.outputDate,
           txid: c.txId,
-          buyValueInEur: null,
+          buyValueInEur: c.amountInEur,
           sellValueInEur: null,
         },
       ])
@@ -381,7 +381,7 @@ export class HistoryService {
           comment: 'DFX Referral Reward',
           date: c.outputDate,
           txid: c.txId,
-          buyValueInEur: null,
+          buyValueInEur: c.amountInEur,
           sellValueInEur: null,
         },
       ])
@@ -404,7 +404,7 @@ export class HistoryService {
           comment: 'DFX Staking Referral Reward',
           date: c.outputDate,
           txid: c.txId,
-          buyValueInEur: null,
+          buyValueInEur: c.amountInEur,
           sellValueInEur: null,
         },
       ])
