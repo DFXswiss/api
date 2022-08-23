@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-08-22T15:17:29.297Z",
+    "modified": "2022-08-23T10:49:18.425Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1720,6 +1720,25 @@
     "body": {
       "type": "json",
       "raw": "{\n\"iban\": \"DE9237 0502 9913 2003 89722\",\n\"asset\": {\n        \"buyable\": true,\n        \"id\": 1,\n        \"name\": \"DFI\",\n        \"sellable\": true,\n        \"type\": \"Coin\"\n    },\n    \"amount\":1234,\n    \"currency\": {\n      \"id\":1\n    }\n    \n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "3f652740-526d-42b1-8492-0f559e58de4c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
+    "name": "Sell PaymentInfo",
+    "url": "{{url}}/v1/sell/paymentInfos",
+    "method": "PUT",
+    "sortNum": 505000,
+    "created": "2022-08-23T10:43:40.957Z",
+    "modified": "2022-08-23T10:51:19.543Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"iban\": \"DE12346789124569901\",\n    \"currency\": {\n        \"id\": 4,\n        \"name\": \"USD\",\n        \"enable\": 1\n    }\n}",
       "form": []
     },
     "tests": []

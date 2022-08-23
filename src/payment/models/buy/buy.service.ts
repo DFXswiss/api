@@ -99,6 +99,9 @@ export class BuyService {
 
   // --- BUYS --- //
   async createBuy(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
+    // remove spaces in IBAN
+    dto.iban = dto.iban.split(' ').join('');
+
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {

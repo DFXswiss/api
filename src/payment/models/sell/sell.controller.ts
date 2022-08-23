@@ -15,6 +15,8 @@ import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyFiatHistoryDto } from '../buy-fiat/dto/buy-fiat-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
+import { CreateSellPaymentInfoDto } from './dto/create-sell-payment-info.dto';
+import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -35,8 +37,19 @@ export class SellController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<SellDto> {
+  async createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<SellDto> {
     return this.sellService.createSell(jwt.id, createSellDto).then((s) => this.toDto(jwt.id, s));
+  }
+
+  @Put('/paymentInfos')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async createSellWithPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() createSellDto: CreateSellPaymentInfoDto,
+  ): Promise<SellPaymentInfoDto> {
+    const fees = await this.getFees(jwt.id);
+    return this.sellService.getSellPaymentInfos(jwt.id, createSellDto).then((b) => this.toPaymentInfoDto(b, fees));
   }
 
   @Put(':id')
@@ -57,6 +70,14 @@ export class SellController {
     return this.buyFiatService.getHistory(jwt.id, +id);
   }
 
+  // --- DTO --- //
+  private async toPaymentInfoDto(sell: Sell, fee: number): Promise<SellPaymentInfoDto> {
+    return {
+      fee: fee,
+      depositAddress: sell.deposit.address,
+    };
+  }
+
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
     const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
     const fee = await this.userService.getUserSellFee(userId);
@@ -74,5 +95,10 @@ export class SellController {
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };
+  }
+
+  // --- HELPER-METHODS --- //
+  async getFees(userId: number): Promise<number> {
+    return this.userService.getUserSellFee(userId);
   }
 }

@@ -53,7 +53,7 @@ export class BuyController {
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createBuyWithAccount(
+  async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() createBuyDto: CreateBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
@@ -120,6 +120,7 @@ export class BuyController {
     };
   }
 
+  // --- HELPER-METHODS --- //
   private async getStaking(
     userId: number,
     deposit?: Deposit,

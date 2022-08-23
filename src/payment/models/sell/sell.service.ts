@@ -15,6 +15,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/ain/node/node.service';
+import { CreateSellPaymentInfoDto } from './dto/create-sell-payment-info.dto';
 
 @Injectable()
 export class SellService {
@@ -28,6 +29,30 @@ export class SellService {
     private readonly bankAccountService: BankAccountService,
   ) {}
 
+  // --- PAYMENT-INFO --- //
+  async getSellPaymentInfos(userId: number, dto: CreateSellPaymentInfoDto): Promise<Sell> {
+    // remove spaces in IBAN
+    dto.iban = dto.iban.split(' ').join('');
+
+    let sell = await this.sellRepo.findOne({
+      where: { iban: dto.iban, fiat: dto.currency, user: { id: userId } },
+    });
+    if (!sell)
+      sell = await this.createSellInternal(userId, {
+        ...dto,
+        fiat: dto.currency,
+      });
+
+    // reactivate deleted route
+    if (!sell.active) {
+      sell.active = true;
+      this.sellRepo.save(sell);
+    }
+
+    return sell;
+  }
+
+  // --- SELLS --- //
   async getSellByAddress(depositAddress: string): Promise<Sell> {
     // does not work with find options
     return this.sellRepo
@@ -44,19 +69,11 @@ export class SellService {
   }
 
   async createSell(userId: number, dto: CreateSellDto): Promise<Sell> {
-    // check user data
-    const dataComplete = await this.kycService.userDataComplete(userId);
-    if (!dataComplete) throw new BadRequestException('Ident data incomplete');
-
-    // check fiat
-    const fiat = await this.fiatService.getFiat(dto.fiat.id);
-    if (!fiat) throw new BadRequestException('Fiat not found');
-
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
 
     // check if exists
-    const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
+    const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: dto.fiat, user: { id: userId } } });
 
     if (existing) {
       if (existing.active) throw new ConflictException('Sell route already exists');
@@ -66,14 +83,7 @@ export class SellService {
       return this.sellRepo.save(existing);
     }
 
-    // create the entity
-    const sell = this.sellRepo.create(dto);
-    sell.user = { id: userId } as User;
-    sell.fiat = fiat;
-    sell.deposit = await this.depositService.getNextDeposit(Blockchain.DEFICHAIN);
-    sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
-
-    return this.sellRepo.save(sell);
+    return this.createSellInternal(userId, dto);
   }
 
   async updateSell(userId: number, sellId: number, dto: UpdateSellDto): Promise<Sell> {
@@ -85,6 +95,29 @@ export class SellService {
 
   async count(): Promise<number> {
     return this.sellRepo.count();
+  }
+
+  // --- HELPER-METHODS --- //
+  async createSellInternal(userId: number, dto: CreateSellDto): Promise<Sell> {
+    // check user data
+    const dataComplete = await this.kycService.userDataComplete(userId);
+    if (!dataComplete) throw new BadRequestException('Ident data incomplete');
+
+    // check fiat
+    const fiat = await this.fiatService.getFiat(dto.fiat.id);
+    if (!fiat) throw new BadRequestException('Fiat not found');
+
+    // remove spaces in IBAN
+    dto.iban = dto.iban.split(' ').join('');
+
+    // create the entity
+    const sell = this.sellRepo.create(dto);
+    sell.user = { id: userId } as User;
+    sell.fiat = fiat;
+    sell.deposit = await this.depositService.getNextDeposit(Blockchain.DEFICHAIN);
+    sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
+
+    return this.sellRepo.save(sell);
   }
 
   // --- VOLUMES --- //
