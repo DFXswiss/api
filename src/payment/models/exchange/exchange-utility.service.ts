@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BinanceService } from './binance.service';
+import { BitpandaService } from './bitpanda.service';
 import { BitstampService } from './bitstamp.service';
 import { Price } from './dto/price.dto';
 import { KrakenService } from './kraken.service';
@@ -12,6 +13,7 @@ export class ExchangeUtilityService {
     private readonly krakenService: KrakenService,
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
+    private readonly bitpandaService: BitpandaService,
   ) {}
 
   async getMatchingPrice(fromCurrency: string, toCurrency: string, matchThreshold = 0.02): Promise<Price> {
@@ -30,16 +32,16 @@ export class ExchangeUtilityService {
   }
 
   private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceSource]> {
-    try {
-      return [await this.binanceService.getPrice(fromCurrency, toCurrency), 'binance'];
-    } catch {}
+    const referenceExchanges = [this.binanceService, this.bitstampService, this.bitpandaService];
 
-    try {
-      return [await this.bitstampService.getPrice(fromCurrency, toCurrency), 'bitstamp'];
-    } catch {}
+    for (const exchange of referenceExchanges) {
+      try {
+        return [await exchange.getPrice(fromCurrency, toCurrency), exchange.name];
+      } catch {}
+    }
 
     throw new Error(
-      `Could not find reference price at both Binance and Bitstamp. From ${fromCurrency} to ${toCurrency}`,
+      `Could not find reference price at Binance, Bitstamp and Bitpanda. From ${fromCurrency} to ${toCurrency}`,
     );
   }
 }
