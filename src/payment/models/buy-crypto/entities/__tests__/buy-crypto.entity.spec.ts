@@ -71,17 +71,20 @@ describe('BuyCrypto', () => {
     it('throws an error if input pricePair does not contain EUR', () => {
       const entity = createDefaultBuyCrypto();
       const wrongPrice = new Price();
-      wrongPrice.currencyPair = 'CHF/BTC';
+      wrongPrice.source = 'CHF';
+      wrongPrice.target = 'BTC';
 
       const testCall = () => entity.calculateOutputReferenceAmount([wrongPrice]);
 
       expect(testCall).toThrow();
       expect(testCall).toThrowError('Cannot calculate outputReferenceAmount, EUR/BTC price is missing');
     });
+
     it('throws an error if input pricePair does not contain BTC', () => {
       const entity = createDefaultBuyCrypto();
       const wrongPrice = new Price();
-      wrongPrice.currencyPair = 'EUR/ETH';
+      wrongPrice.source = 'EUR';
+      wrongPrice.target = 'ETH';
 
       const testCall = () => entity.calculateOutputReferenceAmount([wrongPrice]);
 
@@ -92,7 +95,8 @@ describe('BuyCrypto', () => {
     it('throws an error if input price is zero', () => {
       const entity = createDefaultBuyCrypto();
       const wrongPrice = new Price();
-      wrongPrice.currencyPair = 'EUR/BTC';
+      wrongPrice.source = 'EUR';
+      wrongPrice.target = 'BTC';
       wrongPrice.price = 0;
 
       const testCall = () => entity.calculateOutputReferenceAmount([wrongPrice]);
@@ -104,7 +108,8 @@ describe('BuyCrypto', () => {
     it('calculates outputReferenceAmount given a valid price', () => {
       const entity = createCustomBuyCrypto({ inputReferenceAmountMinusFee: 10, outputReferenceAmount: undefined });
       const price = new Price();
-      price.currencyPair = 'EUR/BTC';
+      price.source = 'EUR';
+      price.target = 'BTC';
       price.price = 2;
 
       expect(entity.outputReferenceAmount).toBeUndefined();
@@ -131,7 +136,8 @@ describe('BuyCrypto', () => {
     it('rounds outputReferenceAmount to 8 digits after decimal', () => {
       const entity = createCustomBuyCrypto({ inputReferenceAmountMinusFee: 1, outputReferenceAmount: undefined });
       const price = new Price();
-      price.currencyPair = 'EUR/BTC';
+      price.source = 'EUR';
+      price.target = 'BTC';
       price.price = 3;
 
       expect(entity.outputReferenceAmount).toBeUndefined();
@@ -144,7 +150,8 @@ describe('BuyCrypto', () => {
     it('returns instance of BuyCrypto', () => {
       const entity = createCustomBuyCrypto({ inputReferenceAmountMinusFee: 10 });
       const price = new Price();
-      price.currencyPair = 'EUR/BTC';
+      price.source = 'EUR';
+      price.target = 'BTC';
       price.price = 2;
 
       const updatedEntity = entity.calculateOutputReferenceAmount([price]);
