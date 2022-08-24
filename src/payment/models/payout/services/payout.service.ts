@@ -7,7 +7,7 @@ import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { MailService } from 'src/shared/services/mail.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PayoutStrategiesFacade } from '../strategies/strategies.facade';
+import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/strategies.facade';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 export interface PayoutRequest {
@@ -157,12 +157,9 @@ export class PayoutService {
 
     const ethOrders = orders.filter((o) => o.asset.blockchain === Blockchain.ETHEREUM && o.asset.dexName === 'ETH');
 
-    const DFIStrategy = this.strategies.getPayoutStrategy({ blockchain: 'default', assetName: 'DFI' });
-    const tokenStrategy = this.strategies.getPayoutStrategy({ blockchain: 'default', assetName: 'default' });
-    const ethStrategy = this.strategies.getPayoutStrategy({
-      blockchain: Blockchain.ETHEREUM,
-      assetName: 'ETH',
-    });
+    const DFIStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI_STRATEGY);
+    const tokenStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN_STRATEGY);
+    const ethStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_STRATEGY);
 
     await DFIStrategy.doPayout(DFIOrders);
     await tokenStrategy.doPayout(tokenOrders);

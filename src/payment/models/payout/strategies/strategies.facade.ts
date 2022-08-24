@@ -10,8 +10,13 @@ import { PrepareOnEthereumStrategy } from './prepare/prepare-on-ethereum.strateg
 import { PrepareStrategy } from './prepare/prepare.strategy';
 
 export enum PayoutStrategyAlias {
-  DFI_STRATEGY = 'DFIStrategy',
+  DEFICHAIN_DFI_STRATEGY = 'DeFiChainDFIStrategy',
   DEFICHAIN_TOKEN_STRATEGY = 'DeFiChainTokenStrategy',
+  ETHEREUM_STRATEGY = 'EthereumStrategy',
+}
+
+export enum PrepareStrategyAlias {
+  DEFICHAIN_STRATEGY = 'DeFiChainStrategy',
   ETHEREUM_STRATEGY = 'EthereumStrategy',
 }
 
@@ -26,8 +31,8 @@ export interface PrepareStrategyQuery {
 
 @Injectable()
 export class PayoutStrategiesFacade {
-  private readonly payoutStrategies: [PayoutStrategyQuery, PayoutStrategy][] = [];
-  private readonly prepareStrategies: [PrepareStrategyQuery, PrepareStrategy][] = [];
+  private readonly payoutStrategies: Map<PayoutStrategyAlias, PayoutStrategy> = new Map();
+  private readonly prepareStrategies: Map<PrepareStrategyAlias, PrepareStrategy> = new Map();
 
   constructor(
     readonly payoutDFIStrategy: PayoutDFIStrategy,
@@ -36,55 +41,68 @@ export class PayoutStrategiesFacade {
     readonly prepareOnDefichainStrategy: PrepareOnDefichainStrategy,
     readonly prepareOnEthereumStrategy: PrepareOnEthereumStrategy,
   ) {
-    this.payoutStrategies.push([{ blockchain: 'default', assetName: 'DFI' }, payoutDFIStrategy]);
-    this.payoutStrategies.push([{ blockchain: 'default', assetName: 'default' }, payoutTokenStrategy]);
-    this.payoutStrategies.push([{ blockchain: Blockchain.ETHEREUM, assetName: 'ETH' }, payoutETHStrategy]);
+    this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_DFI_STRATEGY, payoutDFIStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_TOKEN_STRATEGY, payoutTokenStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.ETHEREUM_STRATEGY, payoutETHStrategy);
 
-    this.prepareStrategies.push([{ blockchain: 'default' }, prepareOnDefichainStrategy]);
-    this.prepareStrategies.push([{ blockchain: Blockchain.ETHEREUM }, prepareOnEthereumStrategy]);
+    this.prepareStrategies.set(PrepareStrategyAlias.DEFICHAIN_STRATEGY, prepareOnDefichainStrategy);
+    this.prepareStrategies.set(PrepareStrategyAlias.ETHEREUM_STRATEGY, prepareOnEthereumStrategy);
   }
 
-  getPayoutStrategy(criteria: Asset | PayoutStrategyQuery): PayoutStrategy {
+  getPayoutStrategy(criteria: Asset | PayoutStrategyAlias): PayoutStrategy {
     return criteria instanceof Asset
       ? this.getPayoutStrategyByAsset(criteria)
-      : this.getPayoutStrategyByQuery(criteria);
+      : this.getPayoutStrategyByAlias(criteria);
   }
 
-  getPrepareStrategy(criteria: Asset | PrepareStrategyQuery): PrepareStrategy {
+  getPrepareStrategy(criteria: Asset | PrepareStrategyAlias): PrepareStrategy {
     return criteria instanceof Asset
       ? this.getPrepareStrategyByAsset(criteria)
-      : this.getPrepareStrategyByQuery(criteria);
+      : this.getPrepareStrategyByAlias(criteria);
   }
 
-  private getPayoutStrategyByQuery(query: PayoutStrategyQuery): PayoutStrategy {
-    const { blockchain, assetName } = query;
+  //*** HELPER METHODS ***//
 
-    const strategiesForBlockchain = this.payoutStrategies.filter(
-      (s) => s[0].blockchain === blockchain || (Array.isArray(s[0].blockchain) && s[0].blockchain.includes(blockchain)),
-    );
+  private getPayoutStrategyByAlias(alias: PayoutStrategyAlias): PayoutStrategy {
+    const strategy = this.payoutStrategies.get(alias);
 
-    const strategyTuple =
-      strategiesForBlockchain.find((s) => s[0].assetName === assetName) ||
-      strategiesForBlockchain.find((s) => s[0].assetName === 'default');
+    if (!strategy) throw new Error(`No PayoutStrategy found. Alias: ${JSON.stringify(alias)}`);
 
-    if (!strategyTuple) throw new Error(`No PayoutStrategy found. Query: ${JSON.stringify(query)}`);
-
-    return strategyTuple[1];
+    return strategy;
   }
 
   private getPayoutStrategyByAsset(asset: Asset): PayoutStrategy {
-    const { blockchain, dexName: assetName, category: assetCategory } = asset;
+    const alias = this.getPayoutStrategyAlias(asset);
+
+    return this.getPayoutStrategyByAlias(alias);
   }
 
-  private getPrepareStrategyByQuery(query: PrepareStrategyQuery): PrepareStrategy {
-    const { blockchain } = query;
+  private getPrepareStrategyByAlias(alias: PrepareStrategyAlias): PrepareStrategy {
+    const strategy = this.prepareStrategies.get(alias);
 
-    const strategyTuple = this.prepareStrategies.find((s) => s[0].blockchain === blockchain);
+    if (!strategy) throw new Error(`No PrepareStrategy found. Alias: ${JSON.stringify(alias)}`);
 
-    if (!strategyTuple) throw new Error(`No PrepareStrategy found. Query: ${JSON.stringify(query)}`);
-
-    return strategyTuple[1];
+    return strategy;
   }
 
-  private getPrepareStrategyByAsset(asset: Asset): PrepareStrategy {}
+  private getPrepareStrategyByAsset(asset: Asset): PrepareStrategy {
+    const alias = this.getPrepareStrategyAlias(asset);
+
+    return this.getPrepareStrategyByAlias(alias);
+  }
+
+  private getPayoutStrategyAlias(asset: Asset): PayoutStrategyAlias {
+    const { blockchain, dexName: assetName } = asset;
+
+    if (blockchain === Blockchain.ETHEREUM) return PayoutStrategyAlias.ETHEREUM_STRATEGY;
+    if (assetName === 'DFI') return PayoutStrategyAlias.DEFICHAIN_DFI_STRATEGY;
+    return PayoutStrategyAlias.DEFICHAIN_TOKEN_STRATEGY;
+  }
+
+  private getPrepareStrategyAlias(asset: Asset): PrepareStrategyAlias {
+    const { blockchain } = asset;
+
+    if (blockchain === Blockchain.ETHEREUM) return PrepareStrategyAlias.ETHEREUM_STRATEGY;
+    return PrepareStrategyAlias.DEFICHAIN_STRATEGY;
+  }
 }
