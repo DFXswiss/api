@@ -12,7 +12,7 @@ import { Interval } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FrickService } from './frick.service';
 import { OlkypayService } from './olkypay.service';
-import { Config } from 'src/config/config';
+
 @Injectable()
 export class BankTxService {
   constructor(
