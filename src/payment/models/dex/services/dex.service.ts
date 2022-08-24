@@ -20,7 +20,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { CheckLiquidityStrategy } from '../strategies/check-liquidity/check-liquidity.strategy';
 import { CheckPoolPairLiquidityStrategy } from '../strategies/check-liquidity/check-poolpair-liquidity.strategy';
 import { CheckLiquidityDefaultStrategy } from '../strategies/check-liquidity/check-liquidity-default.strategy';
-import { Blockchain } from 'src/blockchain/ain/node/node.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
@@ -31,7 +31,7 @@ export interface LiquidityRequest {
 }
 
 export interface TransferRequest {
-  asset: string;
+  asset: Asset;
   amount: number;
   destinationAddress: string;
 }
@@ -149,7 +149,7 @@ export class DexService {
     const { destinationAddress, asset, amount } = request;
 
     try {
-      return this.liquidityService.transferLiquidity(destinationAddress, asset, amount);
+      return this.liquidityService.transferLiquidity(destinationAddress, asset.dexName, amount);
     } catch (e) {}
   }
 

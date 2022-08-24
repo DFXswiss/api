@@ -22,8 +22,8 @@ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
-import { Blockchain } from 'src/blockchain/ain/node/node.service';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')

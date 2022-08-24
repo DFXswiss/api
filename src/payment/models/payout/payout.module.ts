@@ -7,14 +7,30 @@ import { DexModule } from '../dex/dex.module';
 import { PayoutOrderFactory } from './factories/payout-order.factory';
 import { PayoutOrderRepository } from './repositories/payout-order.repository';
 import { PayoutDeFiChainService } from './services/payout-defichain.service';
+import { PayoutEthereumService } from './services/payout-ethereum.service';
 import { PayoutService } from './services/payout.service';
-import { PayoutDFIStrategy } from './strategies/payout-dfi.strategy';
-import { PayoutTokenStrategy } from './strategies/payout-token.strategy';
+import { PayoutDFIStrategy } from './strategies/payout/payout-dfi.strategy';
+import { PayoutETHStrategy } from './strategies/payout/payout-eth.strategy';
+import { PayoutTokenStrategy } from './strategies/payout/payout-token.strategy';
+import { PrepareOnDefichainStrategy } from './strategies/prepare/prepare-on-defichain.strategy';
+import { PrepareOnEthereumStrategy } from './strategies/prepare/prepare-on-ethereum.strategy';
+import { PayoutStrategiesFacade } from './strategies/strategies.facade';
 
 @Module({
   imports: [TypeOrmModule.forFeature([PayoutOrderRepository]), AinModule, EthereumModule, SharedModule, DexModule],
   controllers: [],
-  providers: [PayoutOrderFactory, PayoutService, PayoutDeFiChainService, PayoutDFIStrategy, PayoutTokenStrategy],
+  providers: [
+    PayoutOrderFactory,
+    PayoutService,
+    PayoutDeFiChainService,
+    PayoutEthereumService,
+    PayoutDFIStrategy,
+    PayoutTokenStrategy,
+    PayoutETHStrategy,
+    PrepareOnDefichainStrategy,
+    PrepareOnEthereumStrategy,
+    PayoutStrategiesFacade,
+  ],
   exports: [PayoutService],
 })
 export class PayoutModule {}

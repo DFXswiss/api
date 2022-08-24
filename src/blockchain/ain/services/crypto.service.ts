@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { verify } from 'bitcoinjs-message';
 import { MainNet } from '@defichain/jellyfish-network';
 
+// TODO - this is shared
 @Injectable()
 export class CryptoService {
   public verifySignature(message: string, address: string, signature: string): boolean {

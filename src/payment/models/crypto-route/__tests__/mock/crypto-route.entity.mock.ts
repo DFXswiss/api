@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/blockchain/ain/node/node.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import {
   createCustomDeposit,
   createDefaultDeposit,

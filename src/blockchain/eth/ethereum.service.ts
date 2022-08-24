@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { EthereumClient } from './ethereum-client';
 
 @Injectable()
@@ -13,9 +14,11 @@ export class EthereumService {
     return this.#clients.get('default');
   }
 
-  // --- INIT METHODS --- //
+  // *** INIT METHODS *** //
 
   private initClient(): void {
-    this.#clients.set('default', new EthereumClient());
+    const { ethGatewayUrl, ethWalletPrivateKey, ethWalletAddress } = Config.blockchain.ethereum;
+
+    this.#clients.set('default', new EthereumClient(ethGatewayUrl, ethWalletPrivateKey, ethWalletAddress));
   }
 }

@@ -10,12 +10,14 @@ import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity
 import { PayoutRequest, PayoutService } from '../../payout/services/payout.service';
 import { PayoutOrderContext } from '../../payout/entities/payout-order.entity';
 import { DuplicatedEntryException } from '../../payout/exceptions/duplicated-entry.exception';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @Injectable()
 export class BuyCryptoOutService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
+    private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
     readonly nodeService: NodeService,
@@ -60,10 +62,12 @@ export class BuyCryptoOutService {
 
         for (const transaction of batch.transactions) {
           try {
+            const asset = await this.assetService.getAssetByDexName(transaction.outputAsset);
+
             const request: PayoutRequest = {
               context: PayoutOrderContext.BUY_CRYPTO,
               correlationId: transaction.id.toString(),
-              asset: transaction.outputAsset,
+              asset,
               amount: transaction.outputAmount,
               destinationAddress: transaction.target.address,
             };

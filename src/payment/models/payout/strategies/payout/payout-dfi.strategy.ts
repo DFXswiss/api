@@ -1,20 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { MailService } from 'src/shared/services/mail.service';
-import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { PayoutDeFiChainService } from '../services/payout-defichain.service';
-import { PayoutStrategy } from './payout.strategy';
+import { PayoutOrder, PayoutOrderContext } from '../../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
+import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
+import { PayoutDeFiChainStrategy } from './payout-defichain.strategy';
 
 @Injectable()
-export class PayoutDFIStrategy extends PayoutStrategy {
+export class PayoutDFIStrategy extends PayoutDeFiChainStrategy {
   constructor(
     mailService: MailService,
     readonly nodeService: NodeService,
-    private readonly defichainService: PayoutDeFiChainService,
+    protected readonly defichainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo);
+    super(mailService, payoutOrderRepo, defichainService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

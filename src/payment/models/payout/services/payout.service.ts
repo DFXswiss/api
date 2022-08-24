@@ -1,21 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
-import { Blockchain } from 'src/blockchain/ain/node/node.service';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { DexService } from '../../dex/services/dex.service';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
-import { PayoutTokenStrategy } from '../strategies/payout-token.strategy';
-import { PayoutDFIStrategy } from '../strategies/payout-dfi.strategy';
-import { PayoutDeFiChainService } from './payout-defichain.service';
 import { MailService } from 'src/shared/services/mail.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { PayoutStrategiesFacade } from '../strategies/strategies.facade';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 export interface PayoutRequest {
   context: PayoutOrderContext;
   correlationId: string;
-  asset: string;
+  asset: Asset;
   amount: number;
   destinationAddress: string;
 }
@@ -25,11 +23,8 @@ export class PayoutService {
   private readonly processOrdersLock = new Lock(1800);
 
   constructor(
-    readonly payoutDFIStrategy: PayoutDFIStrategy,
-    readonly payoutTokenStrategy: PayoutTokenStrategy,
+    private readonly strategies: PayoutStrategiesFacade,
     private readonly mailService: MailService,
-    private readonly dexService: DexService,
-    private readonly defichainService: PayoutDeFiChainService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
   ) {}
@@ -48,7 +43,7 @@ export class PayoutService {
         );
       }
 
-      const order = this.payoutOrderFactory.createOrder(request, Blockchain.DEFICHAIN);
+      const order = this.payoutOrderFactory.createOrder(request);
 
       await this.payoutOrderRepo.save(order);
     } catch (e) {
@@ -88,28 +83,24 @@ export class PayoutService {
   //*** HELPER METHODS ***//
 
   private async checkExistingOrders(): Promise<void> {
-    await this.checkTransferCompletion();
+    await this.checkPreparationCompletion();
     await this.checkPayoutCompletion();
   }
 
-  private async checkTransferCompletion(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.TRANSFER_PENDING });
+  private async checkPreparationCompletion(): Promise<void> {
+    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PREPARATION_PENDING });
     const confirmedOrders = [];
 
     for (const order of orders) {
+      const strategy = this.strategies.getPrepareStrategy(order.asset);
+
       try {
-        const isTransferComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
-
-        if (isTransferComplete) {
-          order.transferConfirmed();
-          confirmedOrders.push(order);
-
-          await this.payoutOrderRepo.save(order);
-        }
-      } catch (e) {
-        console.error(`Error in checking completion of funds transfer for payout order. Order ID: ${order.id}`, e);
+        await strategy.checkPreparationCompletion(order);
+      } catch {
         continue;
       }
+
+      confirmedOrders.push(order);
     }
 
     this.logTransferCompletion(confirmedOrders);
@@ -120,18 +111,15 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
+      const strategy = this.strategies.getPayoutStrategy(order.asset);
+
       try {
-        const isComplete = await this.defichainService.checkPayoutCompletion(order.context, order.payoutTxId);
-
-        if (isComplete) {
-          order.complete();
-          confirmedOrders.push(order);
-
-          await this.payoutOrderRepo.save(order);
-        }
-      } catch (e) {
-        console.error(`Error in checking payout order completion. Order ID: ${order.id}`, e);
+        await strategy.checkPayoutCompletion(order);
+      } catch {
+        continue;
       }
+
+      confirmedOrders.push(order);
     }
 
     this.logPayoutCompletion(confirmedOrders);
@@ -142,39 +130,43 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      try {
-        const { asset, amount, context } = order;
-        const destinationAddress = this.defichainService.getWallet(context);
-        const request = { asset, amount, destinationAddress };
-
-        const transferTxId = await this.dexService.transferLiquidity(request);
-
-        order.pendingTransfer(transferTxId);
-      } catch (e) {
-        console.error(`Error in transferring liquidity for payout order. Order ID: ${order.id}`, e);
-        return;
-      }
+      const strategy = this.strategies.getPrepareStrategy(order.asset);
 
       try {
-        await this.payoutOrderRepo.save(order);
-        confirmedOrders.push(order);
-      } catch (e) {
-        // db failure case, internal transfer - just logging is sufficient
-        console.error(`Error in saving liquidity transfer txId to payout order. Order ID: ${order.id}`, e);
+        await strategy.preparePayout(order);
+      } catch {
+        continue;
       }
+
+      confirmedOrders.push(order);
     }
 
     this.logNewPayoutOrders(confirmedOrders);
   }
 
   private async payoutOrders(): Promise<void> {
-    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.TRANSFER_CONFIRMED });
+    const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PREPARATION_CONFIRMED });
 
-    const DFIOrders = orders.filter((o) => o.asset === 'DFI');
-    const tokenOrders = orders.filter((o) => o.asset !== 'DFI');
+    const DFIOrders = orders.filter(
+      (o) => [Blockchain.DEFICHAIN, Blockchain.BITCOIN].includes(o.asset.blockchain) && o.asset.dexName === 'DFI',
+    );
 
-    await this.payoutDFIStrategy.doPayout(DFIOrders);
-    await this.payoutTokenStrategy.doPayout(tokenOrders);
+    const tokenOrders = orders.filter(
+      (o) => [Blockchain.DEFICHAIN, Blockchain.BITCOIN].includes(o.asset.blockchain) && o.asset.dexName !== 'DFI',
+    );
+
+    const ethOrders = orders.filter((o) => o.asset.blockchain === Blockchain.ETHEREUM && o.asset.dexName === 'ETH');
+
+    const DFIStrategy = this.strategies.getPayoutStrategy({ blockchain: 'default', assetName: 'DFI' });
+    const tokenStrategy = this.strategies.getPayoutStrategy({ blockchain: 'default', assetName: 'default' });
+    const ethStrategy = this.strategies.getPayoutStrategy({
+      blockchain: Blockchain.ETHEREUM,
+      assetName: 'ETH',
+    });
+
+    await DFIStrategy.doPayout(DFIOrders);
+    await tokenStrategy.doPayout(tokenOrders);
+    await ethStrategy.doPayout(ethOrders);
   }
 
   private async processFailedOrders(): Promise<void> {

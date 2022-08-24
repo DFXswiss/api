@@ -1,10 +1,18 @@
 import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
-import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutOrderRepository } from '../repositories/payout-order.repository';
+import { PayoutOrder, PayoutOrderContext } from '../../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
+import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
+import { PayoutStrategy } from './payout.strategy';
 
-export abstract class PayoutStrategy {
-  constructor(protected readonly mailService: MailService, protected readonly payoutOrderRepo: PayoutOrderRepository) {}
+export abstract class PayoutDeFiChainStrategy extends PayoutStrategy {
+  constructor(
+    protected readonly mailService: MailService,
+    protected readonly payoutOrderRepo: PayoutOrderRepository,
+    protected readonly defichainService: PayoutDeFiChainService,
+  ) {
+    super();
+  }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {
@@ -15,6 +23,20 @@ export abstract class PayoutStrategy {
       }
     } catch (e) {
       console.error('Error while executing payout orders', e);
+    }
+  }
+
+  async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
+    try {
+      const isComplete = await this.defichainService.checkPayoutCompletion(order.context, order.payoutTxId);
+
+      if (isComplete) {
+        order.complete();
+
+        await this.payoutOrderRepo.save(order);
+      }
+    } catch (e) {
+      console.error(`Error in checking payout order completion. Order ID: ${order.id}`, e);
     }
   }
 

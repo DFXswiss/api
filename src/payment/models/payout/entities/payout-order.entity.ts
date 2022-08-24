@@ -1,5 +1,6 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, ManyToOne } from 'typeorm';
 
 export enum PayoutOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
@@ -8,8 +9,8 @@ export enum PayoutOrderContext {
 
 export enum PayoutOrderStatus {
   CREATED = 'Created',
-  TRANSFER_PENDING = 'TransferPending',
-  TRANSFER_CONFIRMED = 'TransferConfirmed',
+  PREPARATION_PENDING = 'PreparationPending',
+  PREPARATION_CONFIRMED = 'PreparationConfirmed',
   PAYOUT_DESIGNATED = 'PayoutDesignated',
   PAYOUT_UNCERTAIN = 'PayoutUncertain',
   PAYOUT_PENDING = 'PayoutPending',
@@ -27,8 +28,8 @@ export class PayoutOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   chain: string;
 
-  @Column({ length: 256, nullable: false })
-  asset: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  asset: Asset;
 
   @Column({ type: 'float', nullable: false })
   amount: number;
@@ -45,15 +46,15 @@ export class PayoutOrder extends IEntity {
   @Column({ length: 256, nullable: true })
   payoutTxId: string;
 
-  pendingTransfer(transferTxId: string): this {
+  pendingPreparation(transferTxId: string): this {
     this.transferTxId = transferTxId;
-    this.status = PayoutOrderStatus.TRANSFER_PENDING;
+    this.status = PayoutOrderStatus.PREPARATION_PENDING;
 
     return this;
   }
 
-  transferConfirmed(): this {
-    this.status = PayoutOrderStatus.TRANSFER_CONFIRMED;
+  preparationConfirmed(): this {
+    this.status = PayoutOrderStatus.PREPARATION_CONFIRMED;
 
     return this;
   }

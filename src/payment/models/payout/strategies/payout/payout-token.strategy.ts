@@ -1,24 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { NodeService } from 'src/blockchain/ain/node/node.service';
+import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { MailService } from 'src/shared/services/mail.service';
-import { DexService } from '../../dex/services/dex.service';
-import { PayoutOrder, PayoutOrderContext } from '../entities/payout-order.entity';
-import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { PayoutDeFiChainService } from '../services/payout-defichain.service';
-import { PayoutStrategy } from './payout.strategy';
+import { PayoutOrderContext, PayoutOrder } from '../../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
+import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
+import { PayoutDeFiChainStrategy } from './payout-defichain.strategy';
 
 type TokenName = string;
 
 @Injectable()
-export class PayoutTokenStrategy extends PayoutStrategy {
+export class PayoutTokenStrategy extends PayoutDeFiChainStrategy {
   constructor(
     mailService: MailService,
     readonly nodeService: NodeService,
-    private readonly defichainService: PayoutDeFiChainService,
     private readonly dexService: DexService,
+    protected readonly defichainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo);
+    super(mailService, payoutOrderRepo, defichainService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -51,12 +51,12 @@ export class PayoutTokenStrategy extends PayoutStrategy {
     const groups = new Map<TokenName, PayoutOrder[]>();
 
     orders.forEach((order) => {
-      const existingGroup = groups.get(order.asset);
+      const existingGroup = groups.get(order.asset.dexName);
 
       if (existingGroup) {
         existingGroup.push(order);
       } else {
-        groups.set(order.asset, [order]);
+        groups.set(order.asset.dexName, [order]);
       }
     });
 

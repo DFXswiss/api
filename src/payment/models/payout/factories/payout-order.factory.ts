@@ -7,13 +7,13 @@ import { PayoutRequest } from '../services/payout.service';
 export class PayoutOrderFactory {
   constructor(private readonly payoutOrderRepo: PayoutOrderRepository) {}
 
-  createOrder(request: PayoutRequest, chain: string): PayoutOrder {
+  createOrder(request: PayoutRequest): PayoutOrder {
     const { context, correlationId, asset, amount, destinationAddress } = request;
 
     return this.payoutOrderRepo.create({
       context,
       correlationId,
-      chain,
+      chain: asset.blockchain,
       asset,
       amount,
       destinationAddress,
