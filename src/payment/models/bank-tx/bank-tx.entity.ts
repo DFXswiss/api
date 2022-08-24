@@ -103,7 +103,7 @@ export class BankTx extends IEntity {
   iban?: string;
 
   @Column({ length: 256, nullable: true })
-  aba?: string;
+  accountIban?: string;
 
   // related bank info
   @Column({ length: 256, nullable: true })
@@ -133,7 +133,7 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   type: BankTxType;
 
-  @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: false })
+  @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: true })
   batch: BankTxBatch;
 
   @OneToOne(() => CryptoSell, (sell) => sell.bankTx, { nullable: true })

@@ -143,17 +143,13 @@ enum TransactionState {
 @Injectable()
 export class FrickService {
   private accessToken = 'access-token-will-be-updated';
-  private bankTxBatch: BankTxBatch[];
 
   constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     try {
       if (!Config.bank.frick.key) return;
-      this.bankTxBatch = await this.bankTxBatchService.find({
-        where: { iban: In([Config.bank.frick.ibanEur, Config.bank.frick.ibanChf, Config.bank.frick.ibanUsd]) },
-      });
-      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+      const transactions = await this.getTransactions(new Date(lastModificationTime));
 
       if (!transactions.transactions) return [];
 
@@ -169,7 +165,9 @@ export class FrickService {
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transactions> {
-    const url = `transactions?fromDate=${Util.isoDate(fromDate)}&toDate=${Util.isoDate(toDate)}&maxResults=2500`;
+    const url = `transactions?fromDate=${Util.isoDate(fromDate)}&toDate=${Util.isoDate(
+      toDate,
+    )}&maxResults=2500&status=BOOKED `;
     return await this.callApi<Transactions>(url);
   }
 
@@ -180,27 +178,39 @@ export class FrickService {
 
   // --- PARSING --- //
   private parseTransaction(tx: Transaction): Partial<BankTx> {
-    const customerInformation = this.getCustomerInformation(tx);
     return {
-      accountServiceRef: tx.orderId.toString(),
+      accountServiceRef: tx.orderId ? tx.orderId.toString() : tx.transactionNr?.toString(),
       bookingDate: tx.valutaIsExecutionDate ? new Date(tx.valuta) : new Date(tx.bookingDate),
       valueDate: new Date(tx.valuta),
       txCount: 1,
-      amount: tx.amount,
-      instructedAmount: tx.fxTransactionAmount,
-      txAmount: tx.amount,
-      chargeAmount: 0,
+      txId: tx.transactionNr?.toString(),
+      ...this.getExchangeInformation(tx),
+      amount: this.getPositiveAmount(tx.totalAmount),
+      instructedAmount: this.getPositiveAmount(tx.fxTransactionAmount),
+      txAmount: this.getPositiveAmount(tx.amount),
+      chargeAmount: this.getPositiveAmount(tx.fees),
       currency: tx.currency,
       instructedCurrency: tx.fxTransactionCurrency,
       txCurrency: tx.currency,
-      chargeCurrency: tx.currency,
-      ...customerInformation,
+      chargeCurrency: tx.fees ? tx.currency : undefined,
+      ...this.getCustomerInformation(tx),
       remittanceInfo: tx.reference,
       type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
-      batch: this.bankTxBatch.find(
-        (a) => (a.iban = tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban),
-      ),
+      accountIban: tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban,
       txInfo: JSON.stringify(tx),
+    };
+  }
+
+  private getExchangeInformation(tx: Transaction): {
+    exchangeRate: number;
+    exchangeTargetCurrency: string;
+    exchangeSourceCurrency: string;
+  } {
+    if (!tx.md) return null;
+    return {
+      exchangeRate: tx.md == 'D' ? tx.fxrate : Util.round(1 / tx.fxrate, 2),
+      exchangeTargetCurrency: tx.fxTransactionCurrency,
+      exchangeSourceCurrency: tx.currency,
     };
   }
 
@@ -211,8 +221,9 @@ export class FrickService {
     iban: string;
     country: string;
     city: string;
-    aba: string;
+    memberId: string;
     bankName: string;
+    bic: string;
   } {
     const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
     return {
@@ -220,12 +231,17 @@ export class FrickService {
       addressLine1: account.address,
       city: account.city,
       iban: account.iban,
-      aba: account.aba,
+      memberId: account.accountNumber,
       country: account.country,
       bankName: account.creditInstitution,
       creditDebitIndicator:
-        tx.direction == TransactionDirection.INCOMING ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
+        tx.direction == TransactionDirection.INCOMING ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      bic: account.bic,
     };
+  }
+
+  private getPositiveAmount(amount: number): number {
+    return amount < 0 ? amount * -1 : amount;
   }
 
   // --- HELPER METHODS --- //

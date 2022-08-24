@@ -6,6 +6,7 @@ import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
 import { FrickService } from 'src/payment/models/bank-tx/frick.service';
 import { OlkypayService } from 'src/payment/models/bank-tx/olkypay.service';
+import { Util } from 'src/shared/util';
 import { getCustomRepository } from 'typeorm';
 
 interface BankData {
@@ -48,16 +49,15 @@ export class BankObserver extends MetricObserver<BankData[]> {
         "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
         'dbBalance',
       )
-      .innerJoin('bankTx.batch', 'bankTxBatch')
-      .where('bankTxBatch.iban = :iban', { iban: Config.bank.olkypay.ibanEur })
+      .where('bankTx.accountIban = :iban', { iban: Config.bank.olkypay.ibanEur })
       .getRawOne<{ dbBalance: number }>();
 
     return {
       name: 'Olkypay',
       currency: 'EUR',
       balance,
-      dbBalance,
-      difference: balance - dbBalance,
+      dbBalance: Util.round(dbBalance, 2),
+      difference: balance - Util.round(dbBalance, 2),
       balanceOperationYesterday,
     };
   }
@@ -73,16 +73,15 @@ export class BankObserver extends MetricObserver<BankData[]> {
           "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
           'dbBalance',
         )
-        .innerJoin('bankTx.batch', 'bankTxBatch')
-        .where('bankTxBatch.iban = :iban', { iban: account.iban })
+        .where('bankTx.accountIban = :iban', { iban: account.iban })
         .getRawOne<{ dbBalance: number }>();
 
       bankData.push({
         name: 'Frick',
         currency: account.currency,
         balance: account.balance,
-        dbBalance,
-        difference: account.balance - dbBalance,
+        dbBalance: Util.round(dbBalance, 2),
+        difference: account.balance - Util.round(dbBalance, 2),
         balanceOperationYesterday: account.available,
       });
     }

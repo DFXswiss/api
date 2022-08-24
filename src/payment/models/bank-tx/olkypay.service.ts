@@ -47,14 +47,12 @@ export class OlkypayService {
   private readonly baseUrl = 'https://ws.olkypay.com/reporting';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
   private accessToken = 'access-token-will-be-updated';
-  private bankTxBatch: BankTxBatch;
 
   constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
 
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     try {
       if (!Config.bank.olkypay.clientId) return;
-      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.ibanEur } });
 
       const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
       if (!transactions) return [];
@@ -106,8 +104,8 @@ export class OlkypayService {
       ...this.getNameAndAddress(tx),
       txInfo: tx.line1,
       remittanceInfo: tx.line2,
+      accountIban: Config.bank.olkypay.ibanEur,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
-      batch: this.bankTxBatch,
     };
   }
 
