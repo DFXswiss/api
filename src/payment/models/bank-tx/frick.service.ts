@@ -2,11 +2,8 @@ import { AxiosRequestHeaders, Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
-import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
-import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { In } from 'typeorm';
 
 interface Transactions {
   moreResults: boolean;
@@ -144,7 +141,7 @@ enum TransactionState {
 export class FrickService {
   private accessToken = 'access-token-will-be-updated';
 
-  constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
+  constructor(private readonly http: HttpService) {}
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     try {

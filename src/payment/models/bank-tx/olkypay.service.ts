@@ -3,10 +3,8 @@ import { Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
-import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { stringify } from 'qs';
-import { BankTxBatchRepository } from './bank-tx-batch.repository';
 
 interface Transaction {
   idCtp: number;
@@ -48,7 +46,7 @@ export class OlkypayService {
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
   private accessToken = 'access-token-will-be-updated';
 
-  constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
+  constructor(private readonly http: HttpService) {}
 
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     try {
