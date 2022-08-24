@@ -6,7 +6,7 @@ import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidi
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { LiquidityRequest } from '../../services/dex.service';
-import { LiquidityService } from '../../services/liquidity.service';
+import { DexDeFiChainService } from '../../services/dex-defichain.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
 export abstract class PurchaseNonPoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {
@@ -14,7 +14,7 @@ export abstract class PurchaseNonPoolPairLiquidityStrategy extends PurchaseLiqui
 
   constructor(
     mailService: MailService,
-    protected readonly liquidityService: LiquidityService,
+    protected readonly dexDeFiChainService: DexDeFiChainService,
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
     prioritySwapAssets: string[],
@@ -43,7 +43,7 @@ export abstract class PurchaseNonPoolPairLiquidityStrategy extends PurchaseLiqui
       targetAsset.dexName,
     );
 
-    const txId = await this.liquidityService.purchaseLiquidity(
+    const txId = await this.dexDeFiChainService.purchaseLiquidity(
       swapAsset,
       swapAmount,
       targetAsset.dexName,
@@ -69,7 +69,7 @@ export abstract class PurchaseNonPoolPairLiquidityStrategy extends PurchaseLiqui
         try {
           return {
             asset: prioritySwapAsset,
-            amount: await this.liquidityService.getSwapAmountForPurchase(
+            amount: await this.dexDeFiChainService.getSwapAmountForPurchase(
               referenceAsset,
               referenceAmount,
               targetAsset,

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
-import { LiquidityService } from '../../services/liquidity.service';
+import { DexDeFiChainService } from '../../services/dex-defichain.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { PurchaseNonPoolPairLiquidityStrategy } from './purchase-non-poolpair-liquidity.strategy';
@@ -9,10 +9,10 @@ import { PurchaseNonPoolPairLiquidityStrategy } from './purchase-non-poolpair-li
 export class PurchaseStockLiquidityStrategy extends PurchaseNonPoolPairLiquidityStrategy {
   constructor(
     readonly mailService: MailService,
-    readonly liquidityService: LiquidityService,
+    readonly dexDeFiChainService: DexDeFiChainService,
     readonly liquidityOrderRepo: LiquidityOrderRepository,
     readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {
-    super(mailService, liquidityService, liquidityOrderRepo, liquidityOrderFactory, ['DUSD', 'DFI']);
+    super(mailService, dexDeFiChainService, liquidityOrderRepo, liquidityOrderFactory, ['DUSD', 'DFI']);
   }
 }

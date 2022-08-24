@@ -11,7 +11,7 @@ import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
 @Injectable()
-export class LiquidityService {
+export class DexDeFiChainService {
   #dexClient: DeFiClient;
 
   constructor(

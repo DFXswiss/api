@@ -28,7 +28,7 @@ export class PayoutOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   chain: string;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   asset: Asset;
 
   @Column({ type: 'float', nullable: false })

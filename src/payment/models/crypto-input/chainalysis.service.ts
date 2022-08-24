@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
-import { Blockchain } from 'src/blockchain/ain/node/node.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 

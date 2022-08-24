@@ -159,9 +159,9 @@ export class PayoutService {
 
     const ethOrders = orders.filter((o) => o.asset.blockchain === Blockchain.ETHEREUM && o.asset.dexName === 'ETH');
 
-    const DFIStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI_STRATEGY);
-    const tokenStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN_STRATEGY);
-    const ethStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_STRATEGY);
+    const DFIStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
+    const tokenStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN);
+    const ethStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_DEFAULT);
 
     await DFIStrategy.doPayout(DFIOrders);
     await tokenStrategy.doPayout(tokenOrders);

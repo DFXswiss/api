@@ -10,23 +10,14 @@ import { PrepareOnEthereumStrategy } from './prepare/prepare-on-ethereum.strateg
 import { PrepareStrategy } from './prepare/prepare.strategy';
 
 export enum PayoutStrategyAlias {
-  DEFICHAIN_DFI_STRATEGY = 'DeFiChainDFIStrategy',
-  DEFICHAIN_TOKEN_STRATEGY = 'DeFiChainTokenStrategy',
-  ETHEREUM_STRATEGY = 'EthereumStrategy',
+  DEFICHAIN_DFI = 'DeFiChainDFI',
+  DEFICHAIN_TOKEN = 'DeFiChainToken',
+  ETHEREUM_DEFAULT = 'Ethereum',
 }
 
 export enum PrepareStrategyAlias {
-  DEFICHAIN_STRATEGY = 'DeFiChainStrategy',
-  ETHEREUM_STRATEGY = 'EthereumStrategy',
-}
-
-export interface PayoutStrategyQuery {
-  blockchain?: Blockchain | 'default';
-  assetName?: string | 'default';
-}
-
-export interface PrepareStrategyQuery {
-  blockchain?: Blockchain | 'default';
+  DEFICHAIN = 'DeFiChain',
+  ETHEREUM = 'Ethereum',
 }
 
 @Injectable()
@@ -35,18 +26,18 @@ export class PayoutStrategiesFacade {
   private readonly prepareStrategies: Map<PrepareStrategyAlias, PrepareStrategy> = new Map();
 
   constructor(
-    readonly payoutDFIStrategy: PayoutDFIStrategy,
-    readonly payoutTokenStrategy: PayoutTokenStrategy,
-    readonly payoutETHStrategy: PayoutETHStrategy,
-    readonly prepareOnDefichainStrategy: PrepareOnDefichainStrategy,
-    readonly prepareOnEthereumStrategy: PrepareOnEthereumStrategy,
+    payoutDFIStrategy: PayoutDFIStrategy,
+    payoutTokenStrategy: PayoutTokenStrategy,
+    payoutETHStrategy: PayoutETHStrategy,
+    prepareOnDefichainStrategy: PrepareOnDefichainStrategy,
+    prepareOnEthereumStrategy: PrepareOnEthereumStrategy,
   ) {
-    this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_DFI_STRATEGY, payoutDFIStrategy);
-    this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_TOKEN_STRATEGY, payoutTokenStrategy);
-    this.payoutStrategies.set(PayoutStrategyAlias.ETHEREUM_STRATEGY, payoutETHStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_DFI, payoutDFIStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_TOKEN, payoutTokenStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.ETHEREUM_DEFAULT, payoutETHStrategy);
 
-    this.prepareStrategies.set(PrepareStrategyAlias.DEFICHAIN_STRATEGY, prepareOnDefichainStrategy);
-    this.prepareStrategies.set(PrepareStrategyAlias.ETHEREUM_STRATEGY, prepareOnEthereumStrategy);
+    this.prepareStrategies.set(PrepareStrategyAlias.DEFICHAIN, prepareOnDefichainStrategy);
+    this.prepareStrategies.set(PrepareStrategyAlias.ETHEREUM, prepareOnEthereumStrategy);
   }
 
   getPayoutStrategy(criteria: Asset | PayoutStrategyAlias): PayoutStrategy {
@@ -94,15 +85,15 @@ export class PayoutStrategiesFacade {
   private getPayoutStrategyAlias(asset: Asset): PayoutStrategyAlias {
     const { blockchain, dexName: assetName } = asset;
 
-    if (blockchain === Blockchain.ETHEREUM) return PayoutStrategyAlias.ETHEREUM_STRATEGY;
-    if (assetName === 'DFI') return PayoutStrategyAlias.DEFICHAIN_DFI_STRATEGY;
-    return PayoutStrategyAlias.DEFICHAIN_TOKEN_STRATEGY;
+    if (blockchain === Blockchain.ETHEREUM) return PayoutStrategyAlias.ETHEREUM_DEFAULT;
+    if (assetName === 'DFI') return PayoutStrategyAlias.DEFICHAIN_DFI;
+    return PayoutStrategyAlias.DEFICHAIN_TOKEN;
   }
 
   private getPrepareStrategyAlias(asset: Asset): PrepareStrategyAlias {
     const { blockchain } = asset;
 
-    if (blockchain === Blockchain.ETHEREUM) return PrepareStrategyAlias.ETHEREUM_STRATEGY;
-    return PrepareStrategyAlias.DEFICHAIN_STRATEGY;
+    if (blockchain === Blockchain.ETHEREUM) return PrepareStrategyAlias.ETHEREUM;
+    return PrepareStrategyAlias.DEFICHAIN;
   }
 }
