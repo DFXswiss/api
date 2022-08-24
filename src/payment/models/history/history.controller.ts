@@ -15,6 +15,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
 import { HistoryQuery } from './dto/history-query.dto';
@@ -26,7 +27,11 @@ import { HistoryService } from './history.service';
 export class HistoryController {
   private files: { [key: number]: StreamableFile } = {};
 
-  constructor(private readonly historyService: HistoryService, private readonly userService: UserService) {}
+  constructor(
+    private readonly historyService: HistoryService,
+    private readonly userService: UserService,
+    private readonly apiKeyService: ApiKeyService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -46,6 +51,8 @@ export class HistoryController {
     @Headers('DFX-ACCESS-TIMESTAMP') timestamp: string,
   ): Promise<CoinTrackingHistoryDto[]> {
     const user = await this.userService.checkApiKey(key, sign, timestamp);
+    query = Object.assign(query, this.apiKeyService.getFilter(user.apiFilterCT));
+
     const tx = await this.historyService.getHistory(user.id, user.address, query, 300000);
     return tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } }));
   }

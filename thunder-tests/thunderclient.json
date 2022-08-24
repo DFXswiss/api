@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-07-21T12:06:07.059Z",
+    "modified": "2022-08-18T11:09:12.844Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1645,6 +1645,63 @@
     "created": "2022-08-02T15:22:34.867Z",
     "modified": "2022-08-02T15:22:45.519Z",
     "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "0d85860c-d4e6-448a-98b0-e1903fbd1cc2",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Update CT API Filter",
+    "url": "{{url}}/v1/user/apiKey/filter/CT?lm&staking&buy",
+    "method": "PUT",
+    "sortNum": 315000,
+    "created": "2022-08-18T14:14:09.032Z",
+    "modified": "2022-08-19T13:47:17.419Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "lm",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "staking",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "buy",
+        "value": "",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "2be46b02-7d04-4f16-8939-1ef1a6badbb9",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
+    "name": "Get History CT",
+    "url": "{{url}}/v1/history/CT",
+    "method": "GET",
+    "sortNum": 160000,
+    "created": "2022-08-18T15:08:15.494Z",
+    "modified": "2022-08-18T15:09:47.169Z",
+    "headers": [
+      {
+        "name": "DFX-ACCESS-KEY",
+        "value": "CF505D58F7B8319C4491FE2EB25D8D20"
+      },
+      {
+        "name": "DFX-ACCESS-SIGN",
+        "value": "ee6783abbe9b5beb9053cbdabf914cd2c4145bedef9fa32db0e380d73e9d093f"
+      },
+      {
+        "name": "DFX-ACCESS-TIMESTAMP",
+        "value": "2022-08-18T10:00:20.100"
+      }
+    ],
     "params": [],
     "tests": []
   },
