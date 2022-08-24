@@ -81,6 +81,7 @@ export class SepaParser {
           ...this.getTotalCharge(entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
+          accountIban: Config.bank.maerkiBaumann.ibanEur,
           remittanceInfo: entry?.NtryDtls?.TxDtls?.RmtInf?.Ustrd,
           txInfo: entry?.NtryDtls?.TxDtls?.AddtlTxInf,
         };

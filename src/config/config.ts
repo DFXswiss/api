@@ -236,6 +236,9 @@ export class Configuration {
   };
 
   bank = {
+    maerkiBaumann: {
+      ibanEur: 'CH6808573177975201814',
+    },
     olkypay: {
       ibanEur: 'LU116060002000005040',
       clientId: process.env.OLKY_CLIENT,
