@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
-import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
+import { PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
@@ -9,6 +9,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/strategies.facade';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { PayoutLogService } from './payout-log.service';
 
 export interface PayoutRequest {
   context: PayoutOrderContext;
@@ -24,6 +25,7 @@ export class PayoutService {
 
   constructor(
     private readonly strategies: PayoutStrategiesFacade,
+    private readonly logs: PayoutLogService,
     private readonly mailService: MailService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
@@ -103,7 +105,7 @@ export class PayoutService {
       confirmedOrders.push(order);
     }
 
-    this.logTransferCompletion(confirmedOrders);
+    this.logs.logTransferCompletion(confirmedOrders);
   }
 
   private async checkPayoutCompletion(): Promise<void> {
@@ -122,7 +124,7 @@ export class PayoutService {
       confirmedOrders.push(order);
     }
 
-    this.logPayoutCompletion(confirmedOrders);
+    this.logs.logPayoutCompletion(confirmedOrders);
   }
 
   private async prepareNewOrders(): Promise<void> {
@@ -141,7 +143,7 @@ export class PayoutService {
       confirmedOrders.push(order);
     }
 
-    this.logNewPayoutOrders(confirmedOrders);
+    this.logs.logNewPayoutOrders(confirmedOrders);
   }
 
   private async payoutOrders(): Promise<void> {
@@ -171,47 +173,12 @@ export class PayoutService {
 
     if (orders.length === 0) return;
 
-    const logMessage = this.logFailedOrders(orders);
+    const logMessage = this.logs.logFailedOrders(orders);
     await this.mailService.sendErrorMail('Payout Error', [logMessage]);
 
     for (const order of orders) {
       order.pendingInvestigation();
       await this.payoutOrderRepo.save(order);
     }
-  }
-
-  //*** LOGS ***//
-
-  private logTransferCompletion(confirmedOrders: PayoutOrder[]): void {
-    const confirmedOrdersLogs = this.createDefaultOrdersLog(confirmedOrders);
-
-    confirmedOrders.length &&
-      console.info(`Prepared funds for ${confirmedOrders.length} payout order(s). ${confirmedOrdersLogs}`);
-  }
-
-  private logPayoutCompletion(confirmedOrders: PayoutOrder[]): void {
-    const confirmedOrdersLogs = this.createDefaultOrdersLog(confirmedOrders);
-
-    confirmedOrders.length &&
-      console.info(`Completed ${confirmedOrders.length} payout order(s). ${confirmedOrdersLogs}`);
-  }
-
-  private logNewPayoutOrders(newOrders: PayoutOrder[]): void {
-    const newOrdersLogs = this.createDefaultOrdersLog(newOrders);
-
-    newOrders.length && console.info(`Processing ${newOrders.length} new payout order(s). ${newOrdersLogs}`);
-  }
-
-  private logFailedOrders(failedOrders: PayoutOrder[]): string {
-    const failedOrdersLogs = this.createDefaultOrdersLog(failedOrders);
-    const message = `${failedOrders.length} payout order(s) failed and pending investigation. ${failedOrdersLogs}`;
-
-    failedOrders.length && console.info(message);
-
-    return message;
-  }
-
-  private createDefaultOrdersLog(orders: PayoutOrder[]): string[] {
-    return orders.map((o) => `[Order ID: ${o.id}, Context: ${o.context}, CorrelationID: ${o.correlationId}] `);
   }
 }

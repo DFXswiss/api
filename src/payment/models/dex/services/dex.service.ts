@@ -153,8 +153,8 @@ export class DexService {
     } catch (e) {}
   }
 
-  async transferMinimalUtxo(adderess: string): Promise<string> {
-    return this.liquidityService.transferMinimalUtxo(adderess);
+  async transferMinimalUtxo(address: string): Promise<string> {
+    return this.liquidityService.transferMinimalUtxo(address);
   }
 
   async fetchTargetLiquidityAfterPurchase(context: LiquidityOrderContext, correlationId: string): Promise<number> {

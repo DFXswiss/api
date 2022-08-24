@@ -8,6 +8,7 @@ import { PayoutOrderFactory } from './factories/payout-order.factory';
 import { PayoutOrderRepository } from './repositories/payout-order.repository';
 import { PayoutDeFiChainService } from './services/payout-defichain.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
+import { PayoutLogService } from './services/payout-log.service';
 import { PayoutService } from './services/payout.service';
 import { PayoutDFIStrategy } from './strategies/payout/payout-dfi.strategy';
 import { PayoutETHStrategy } from './strategies/payout/payout-eth.strategy';
@@ -21,6 +22,7 @@ import { PayoutStrategiesFacade } from './strategies/strategies.facade';
   controllers: [],
   providers: [
     PayoutOrderFactory,
+    PayoutLogService,
     PayoutService,
     PayoutDeFiChainService,
     PayoutEthereumService,
