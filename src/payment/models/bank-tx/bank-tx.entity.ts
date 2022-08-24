@@ -102,6 +102,9 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   iban?: string;
 
+  @Column({ length: 256, nullable: true })
+  aba?: string;
+
   // related bank info
   @Column({ length: 256, nullable: true })
   bic?: string;
@@ -124,7 +127,7 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   remittanceInfo?: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   txInfo?: string;
 
   @Column({ length: 256, nullable: true })

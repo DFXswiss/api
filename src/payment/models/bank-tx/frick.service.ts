@@ -6,6 +6,7 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { In } from 'typeorm';
 
 interface Transactions {
   moreResults: boolean;
@@ -33,7 +34,7 @@ interface Transaction {
   express: boolean;
   valuta: string;
   bookingDate: string;
-  valutalsExecutionDate: boolean;
+  valutaIsExecutionDate: boolean;
   reference: string;
   charge: TransactionCharge;
   correspondence: boolean;
@@ -141,33 +142,34 @@ enum TransactionState {
 
 @Injectable()
 export class FrickService {
-  private readonly baseUrl = Config.bank.frick.url;
   private accessToken = 'access-token-will-be-updated';
-  private bankTxBatch: BankTxBatch;
+  private bankTxBatch: BankTxBatch[];
 
-  constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {
-    this.getTest();
-  }
+  constructor(private readonly http: HttpService, private readonly bankTxBatchService: BankTxBatchRepository) {}
 
-  // TODO: remove
-  async getTest(): Promise<void> {
-    const token = await this.getBalance();
-    console.log(token);
-  }
-
-  async getFrickTransactions(lastModificationTime: string, iban: string): Promise<Partial<BankTx>[]> {
+  async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     try {
-      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban } });
-      return await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1), iban).then((t) =>
-        t.transactions.map((t) => this.parseTransaction(t)),
-      );
-    } catch {
-      console.error('Error during get frick transactions');
+      if (!Config.bank.frick.key) return;
+      this.bankTxBatch = await this.bankTxBatchService.find({
+        where: { iban: In([Config.bank.frick.ibanEur, Config.bank.frick.ibanChf, Config.bank.frick.ibanUsd]) },
+      });
+      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+
+      if (!transactions.transactions) return [];
+
+      return transactions.transactions.map((t) => this.parseTransaction(t));
+    } catch (e) {
+      console.error('Error during get frick transactions:', e);
     }
   }
 
-  private async getTransactions(fromDate: Date, toDate: Date = new Date(), iban: string): Promise<Transactions> {
-    const url = `transactions?fromDate=${Util.isoDate(fromDate)}&toDate=${Util.isoDate(toDate)}&iban=${iban}`;
+  async getBalance(): Promise<Account[]> {
+    const { accounts } = await this.getAccounts();
+    return accounts;
+  }
+
+  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transactions> {
+    const url = `transactions?fromDate=${Util.isoDate(fromDate)}&toDate=${Util.isoDate(toDate)}&maxResults=2500`;
     return await this.callApi<Transactions>(url);
   }
 
@@ -176,31 +178,28 @@ export class FrickService {
     return await this.callApi<Accounts>(url);
   }
 
-  async getBalance(): Promise<Account[]> {
-    const { accounts } = await this.getAccounts();
-    return accounts;
-  }
-
   // --- PARSING --- //
   private parseTransaction(tx: Transaction): Partial<BankTx> {
+    const customerInformation = this.getCustomerInformation(tx);
     return {
-      accountServiceRef: tx.transactionNr.toString(),
-      bookingDate: new Date(tx.bookingDate),
+      accountServiceRef: tx.orderId.toString(),
+      bookingDate: tx.valutaIsExecutionDate ? new Date(tx.valuta) : new Date(tx.bookingDate),
       valueDate: new Date(tx.valuta),
       txCount: 1,
-      amount: tx.totalAmount,
+      amount: tx.amount,
       instructedAmount: tx.fxTransactionAmount,
-      txAmount: tx.totalAmount,
+      txAmount: tx.amount,
       chargeAmount: 0,
       currency: tx.currency,
       instructedCurrency: tx.fxTransactionCurrency,
       txCurrency: tx.currency,
       chargeCurrency: tx.currency,
-      creditDebitIndicator: tx.direction == TransactionDirection.OUTGOING ? 'CRDT' : 'DBIT',
-      ...this.getCustomerInformation,
+      ...customerInformation,
       remittanceInfo: tx.reference,
       type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
-      batch: this.bankTxBatch,
+      batch: this.bankTxBatch.find(
+        (a) => (a.iban = tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban),
+      ),
       txInfo: JSON.stringify(tx),
     };
   }
@@ -208,17 +207,24 @@ export class FrickService {
   private getCustomerInformation(tx: Transaction): {
     name?: string;
     addressLine1?: string;
-    direction: BankTxIndicator;
+    creditDebitIndicator: BankTxIndicator;
     iban: string;
     country: string;
+    city: string;
+    aba: string;
+    bankName: string;
   } {
-    const account = tx.direction == TransactionDirection.INCOMING ? tx.creditor : tx.debitor;
+    const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
     return {
       name: account.name,
       addressLine1: account.address,
+      city: account.city,
       iban: account.iban,
+      aba: account.aba,
       country: account.country,
-      direction: tx.direction == TransactionDirection.INCOMING ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
+      bankName: account.creditInstitution,
+      creditDebitIndicator:
+        tx.direction == TransactionDirection.INCOMING ? BankTxIndicator.DEBIT : BankTxIndicator.CREDIT,
     };
   }
 
@@ -235,7 +241,7 @@ export class FrickService {
       if (getNewAccessToken) this.accessToken = await this.getAccessToken();
 
       return await this.http.request<T>({
-        url: `${this.baseUrl}/${url}`,
+        url: `${Config.bank.frick.url}/${url}`,
         method: method,
         data: data,
         headers: this.getHeaders(data),
@@ -252,7 +258,7 @@ export class FrickService {
     const data = { key: Config.bank.frick.key, password: Config.bank.frick.password };
 
     const { token } = await this.http.request<{ token: string }>({
-      url: `${this.baseUrl}/authorize`,
+      url: `${Config.bank.frick.url}/authorize`,
       method: 'POST',
       data: data,
       headers: this.getHeaders(data),

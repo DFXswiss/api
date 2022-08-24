@@ -245,8 +245,8 @@ export class Configuration {
     },
     frick: {
       ibanEur: 'LI95088110104693K000E',
-      ibanChf: 'LI95088110104693K000E',
-      ibanUsd: 'LI95088110104693K000E',
+      ibanChf: 'LI52088110104693K000C',
+      ibanUsd: 'LI51088110104693K000U',
       url: process.env.FRICK_URL,
       key: process.env.FRICK_KEY,
       password: process.env.FRICK_PASSWORD,

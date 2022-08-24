@@ -9,10 +9,10 @@ import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType } from './bank-tx.entity';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { Interval } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FrickService } from './frick.service';
 import { OlkypayService } from './olkypay.service';
+import { Config } from 'src/config/config';
 @Injectable()
 export class BankTxService {
   constructor(
@@ -26,35 +26,18 @@ export class BankTxService {
   ) {}
 
   // --- TRANSACTION HANDLING --- //
-  @Interval(900000)
+  @Interval(60000)
   async checkTransactions(): Promise<void> {
     try {
       const settingKey = 'lastBankDate';
       const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
 
-      const olkyEurTransactions = await this.olkyService.getOlkyTransactions(
-        lastModificationTime,
-        Config.bank.olkypay.ibanEur,
-      );
-      const frickEurTransactions = await this.frickService.getFrickTransactions(
-        lastModificationTime,
-        Config.bank.frick.ibanEur,
-      );
-      const frickUsdTransactions = await this.frickService.getFrickTransactions(
-        lastModificationTime,
-        Config.bank.frick.ibanUsd,
-      );
-      const frickChfTransactions = await this.frickService.getFrickTransactions(
-        lastModificationTime,
-        Config.bank.frick.ibanChf,
-      );
+      const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTime);
+      const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTime);
 
-      for (const bankTx of [
-        ...frickEurTransactions,
-        ...frickUsdTransactions,
-        ...frickChfTransactions,
-        ...olkyEurTransactions,
-      ]) {
+      if (!olkyTransactions && !frickTransactions) return;
+
+      for (const bankTx of [...olkyTransactions, ...frickTransactions]) {
         try {
           await this.create(bankTx);
         } catch (e) {
@@ -65,7 +48,7 @@ export class BankTxService {
       const newModificationTime = new Date().toISOString();
       await this.settingService.set(settingKey, newModificationTime);
     } catch (e) {
-      console.error(`Failed to check olkypay transactions:`, e);
+      console.error(`Failed to check bank transactions:`, e);
     }
   }
 
