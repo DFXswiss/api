@@ -34,7 +34,7 @@ export class IdentService {
     }
 
     console.log(
-      `Received webhook call for user ${user.id} (${result.identificationprocess.transactionnumber}): ${result.identificationprocess.result}`,
+      `Received webhook call for user ${user.id} (${result.identificationprocess.id}): ${result.identificationprocess.result}`,
     );
 
     if (IdentSucceeded(result)) {
