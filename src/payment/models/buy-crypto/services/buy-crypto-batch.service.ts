@@ -100,7 +100,7 @@ export class BuyCryptoBatchService {
         continue;
       }
 
-      let batch = batches.get(outputReferenceAsset + '&' + outputAsset);
+      let batch = batches.get(outputReferenceAsset + '&' + outputAsset + '&' + tx.buy.asset.blockchain);
 
       if (!batch) {
         batch = this.buyCryptoBatchRepo.create({

@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
 import { Column, Entity, OneToMany } from 'typeorm';
@@ -30,6 +31,9 @@ export class BuyCryptoBatch extends IEntity {
 
   @Column({ length: 256, nullable: true })
   status: BuyCryptoBatchStatus;
+
+  @Column({ length: 256, nullable: true })
+  blockchain: Blockchain;
 
   addTransaction(tx: BuyCrypto): this {
     tx.batch = this;

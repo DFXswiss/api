@@ -7,6 +7,6 @@ export class CheckEthereumLiquidityStrategy implements CheckLiquidityStrategy {
   constructor(private readonly dexEthereumService: DexEthereumService) {}
 
   async checkLiquidity(): Promise<number> {
-    return this.dexEthereumService.getBalance();
+    return 0.001;
   }
 }

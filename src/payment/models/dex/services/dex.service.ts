@@ -13,7 +13,6 @@ import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MailService } from 'src/shared/services/mail.service';
-import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { DexStrategiesFacade } from '../strategies/strategies.facade';
 
 export interface LiquidityRequest {
@@ -76,7 +75,7 @@ export class DexService {
       const liquidity = await strategy.checkLiquidity(request);
 
       if (liquidity !== 0) {
-        const order = this.liquidityOrderFactory.createReservationOrder(request, Blockchain.DEFICHAIN);
+        const order = this.liquidityOrderFactory.createReservationOrder(request, targetAsset.blockchain);
         order.reserved(liquidity);
 
         await this.liquidityOrderRepo.save(order);

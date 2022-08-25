@@ -98,11 +98,10 @@ export class PayoutService {
 
       try {
         await strategy.checkPreparationCompletion(order);
+        order.status === PayoutOrderStatus.PREPARATION_CONFIRMED && confirmedOrders.push(order);
       } catch {
         continue;
       }
-
-      confirmedOrders.push(order);
     }
 
     this.logs.logTransferCompletion(confirmedOrders);

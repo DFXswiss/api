@@ -25,15 +25,16 @@ export class EthereumClient {
   }
 
   async send(address: string, amount: number, denomination = EthereumDenomination.ETH): Promise<string> {
-    const sendAmount = denomination === EthereumDenomination.ETH ? amount : ethers.utils.formatEther(amount);
+    const sendAmount =
+      denomination === EthereumDenomination.ETH
+        ? ethers.utils.parseEther(`${amount}`)
+        : ethers.utils.formatEther(amount);
 
     const tx = await this.#wallet.sendTransaction({
       from: this.#address,
       to: address,
       value: sendAmount,
     });
-
-    await tx.wait();
 
     return tx.hash;
   }
