@@ -236,7 +236,14 @@ export class Configuration {
   };
 
   bank = {
-    dfxBankInfo: { name: 'DFX AG', street: 'Bahnhofstrasse', number: 7, zip: '6300', city: 'Zug', country: 'Schweiz' },
+    dfxBankInfo: {
+      name: 'DFX AG',
+      street: 'Bahnhofstrasse',
+      number: '7',
+      zip: '6300',
+      city: 'Zug',
+      country: 'Schweiz',
+    },
     olkypay: {
       credentials: {
         clientId: process.env.OLKY_CLIENT,

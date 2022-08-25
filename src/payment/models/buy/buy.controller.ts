@@ -107,7 +107,7 @@ export class BuyController {
 
     return {
       ...this.getBankInfo(buy, dto),
-      bankUsage: buy.bankUsage,
+      remittanceInfo: buy.bankUsage,
       ...fees,
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };

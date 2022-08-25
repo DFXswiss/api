@@ -19,6 +19,7 @@ export class BankAccountController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: BankAccountDto, isArray: true })
   async getAllUserBankAccount(@GetJwt() jwt: JwtPayload): Promise<BankAccountDto[]> {
     return this.bankAccountService.getUserBankAccounts(jwt.id).then((l) => this.toDtoList(l));
   }
@@ -37,6 +38,7 @@ export class BankAccountController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: BankAccountDto })
   async updateBankAccount(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,

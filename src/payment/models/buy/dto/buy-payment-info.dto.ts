@@ -9,7 +9,7 @@ export class BankInfoDto {
   street: string;
 
   @ApiProperty()
-  number: number;
+  number: string;
 
   @ApiProperty()
   zip: string;
@@ -32,11 +32,11 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   fee: number;
 
   @ApiProperty()
-  bankUsage: string;
+  remittanceInfo: string;
 
   @ApiProperty()
   refBonus: number;
 
-  @ApiProperty({ type: Array<MinDeposit>() })
+  @ApiProperty({ type: MinDeposit, isArray: true })
   minDeposits: MinDeposit[];
 }

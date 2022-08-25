@@ -8,6 +8,6 @@ export class SellPaymentInfoDto {
   @ApiProperty()
   depositAddress: string;
 
-  @ApiProperty({ type: Array<MinDeposit>() })
+  @ApiProperty({ type: MinDeposit, isArray: true })
   minDeposits: MinDeposit[];
 }
