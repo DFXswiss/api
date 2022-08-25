@@ -40,8 +40,3 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ type: Array<MinDeposit>() })
   minDeposits: MinDeposit[];
 }
-
-export enum Bank {
-  MAERKI = 'MaerkiBaumann',
-  OLKY = 'Olky',
-}

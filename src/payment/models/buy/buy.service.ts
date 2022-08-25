@@ -13,8 +13,6 @@ import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
-import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
-import { Bank } from './dto/buy-payment-info.dto';
 
 @Injectable()
 export class BuyService {
@@ -65,77 +63,8 @@ export class BuyService {
       .then((r) => r.volume);
   }
 
-  // --- PAYMENT-INFO --- //
-  async getBuyPaymentInfos(
-    userId: number,
-    userAddress: string,
-    dto: GetBuyPaymentInfoDto,
-  ): Promise<{ buy: Buy; bank: Bank }> {
-    const buy = await this.createBuy(
-      userId,
-      userAddress,
-      {
-        ...dto,
-        type: BuyType.WALLET,
-        staking: null,
-      },
-      true,
-    );
-
-    return {
-      buy: buy,
-      bank: dto.currency.name === 'EUR' && buy.bankAccount.sctInst ? Bank.OLKY : Bank.MAERKI,
-    };
-  }
-
   // --- BUYS --- //
-  async createBuy(
-    userId: number,
-    userAddress: string,
-    dto: CreateBuyDto,
-    ingnoreExistingConflict: boolean = false,
-  ): Promise<Buy> {
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
-
-    // check if exists
-    const existing = await this.buyRepo.findOne({
-      where: {
-        iban: dto.iban,
-        ...(dto.type === BuyType.WALLET ? { asset: dto.asset, deposit: IsNull() } : { deposit: dto.staking?.deposit }),
-        user: { id: userId },
-      },
-      relations: ['deposit', 'bankAccount'],
-    });
-
-    if (existing) {
-      if (existing.active && !ingnoreExistingConflict) throw new ConflictException('Buy route already exists');
-
-      if (!existing.active) {
-        // reactivate deleted route
-        existing.active = true;
-        this.buyRepo.save(existing);
-      }
-
-      return existing;
-    }
-
-    return await this.createBuyInternal(userId, userAddress, dto);
-  }
-
-  async getUserBuys(userId: number): Promise<Buy[]> {
-    return this.buyRepo.find({ user: { id: userId } });
-  }
-
-  async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {
-    const buy = await this.buyRepo.findOne({ id: buyId, user: { id: userId } });
-    if (!buy) throw new NotFoundException('Buy route not found');
-
-    return await this.buyRepo.save({ ...buy, ...dto });
-  }
-
-  // --- HELPER-METHODS --- //
-  private async createBuyInternal(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
+  async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
     // check asset
     const asset =
       dto.type === BuyType.WALLET
@@ -149,6 +78,28 @@ export class BuyService {
 
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
+
+    // check if exists
+    const existing = await this.buyRepo.findOne({
+      where: {
+        iban: dto.iban,
+        ...(dto.type === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
+        user: { id: userId },
+      },
+      relations: ['deposit'],
+    });
+
+    if (existing) {
+      if (existing.active && !ignoreExisting) throw new ConflictException('Buy route already exists');
+
+      if (!existing.active) {
+        // reactivate deleted route
+        existing.active = true;
+        this.buyRepo.save(existing);
+      }
+
+      return existing;
+    }
 
     // create the entity
     const buy = this.buyRepo.create(dto);
@@ -165,5 +116,16 @@ export class BuyService {
 
     // save
     return this.buyRepo.save(buy);
+  }
+
+  async getUserBuys(userId: number): Promise<Buy[]> {
+    return this.buyRepo.find({ user: { id: userId } });
+  }
+
+  async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {
+    const buy = await this.buyRepo.findOne({ id: buyId, user: { id: userId } });
+    if (!buy) throw new NotFoundException('Buy route not found');
+
+    return await this.buyRepo.save({ ...buy, ...dto });
   }
 }

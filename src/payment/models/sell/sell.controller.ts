@@ -37,8 +37,8 @@ export class SellController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createSell(@GetJwt() jwt: JwtPayload, @Body() createSellDto: CreateSellDto): Promise<SellDto> {
-    return this.sellService.createSell(jwt.id, createSellDto).then((s) => this.toDto(jwt.id, s));
+  async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
+    return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(jwt.id, s));
   }
 
   @Put('/paymentInfos')
@@ -47,20 +47,18 @@ export class SellController {
   @ApiResponse({ status: 200, type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
-    @Body() createSellDto: GetSellPaymentInfoDto,
+    @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
-    return this.sellService.getSellPaymentInfos(jwt.id, createSellDto).then((b) => this.toPaymentInfoDto(jwt.id, b));
+    return this.sellService
+      .createSell(jwt.id, { ...dto, fiat: dto.currency }, true)
+      .then((sell) => this.toPaymentInfoDto(jwt.id, sell));
   }
 
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateSell(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() updateSellDto: UpdateSellDto,
-  ): Promise<SellDto> {
-    return this.sellService.updateSell(jwt.id, +id, updateSellDto).then((s) => this.toDto(jwt.id, s));
+  async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
+    return this.sellService.updateSell(jwt.id, +id, dto).then((s) => this.toDto(jwt.id, s));
   }
 
   @Get(':id/history')
@@ -71,33 +69,35 @@ export class SellController {
   }
 
   // --- DTO --- //
-  private async toPaymentInfoDto(userId: number, sell: Sell): Promise<SellPaymentInfoDto> {
-    return {
-      fee: await this.getFees(userId),
-      depositAddress: sell.deposit.address,
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
-    };
-  }
-
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
     const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
+    const fee = await this.getFee(userId);
 
-    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse)));
+    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse, fee)));
   }
 
-  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[]): Promise<SellDto> {
+  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[], fee?: number): Promise<SellDto> {
     sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
+    fee ??= await this.userService.getUserSellFee(userId);
 
     return {
       ...sell,
-      fee: await this.getFees(userId),
+      fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };
   }
 
+  private async toPaymentInfoDto(userId: number, sell: Sell): Promise<SellPaymentInfoDto> {
+    return {
+      fee: await this.getFee(userId),
+      depositAddress: sell.deposit.address,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
+    };
+  }
+
   // --- HELPER-METHODS --- //
-  async getFees(userId: number): Promise<number> {
+  async getFee(userId: number): Promise<number> {
     return this.userService.getUserSellFee(userId);
   }
 }

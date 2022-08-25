@@ -15,7 +15,6 @@ import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/ain/node/node.service';
-import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 
 @Injectable()
 export class SellService {
@@ -28,20 +27,6 @@ export class SellService {
     private readonly userService: UserService,
     private readonly bankAccountService: BankAccountService,
   ) {}
-
-  // --- PAYMENT-INFO --- //
-  async getSellPaymentInfos(userId: number, dto: GetSellPaymentInfoDto): Promise<Sell> {
-    const sell = await this.createSell(
-      userId,
-      {
-        ...dto,
-        fiat: dto.currency,
-      },
-      true,
-    );
-
-    return sell;
-  }
 
   // --- SELLS --- //
   async getSellByAddress(depositAddress: string): Promise<Sell> {
@@ -59,41 +44,7 @@ export class SellService {
     return this.sellRepo.find({ user: { id: userId } });
   }
 
-  async createSell(userId: number, dto: CreateSellDto, ingnoreExistingConflict: boolean = false): Promise<Sell> {
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
-
-    // check if exists
-    const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: dto.fiat, user: { id: userId } } });
-
-    if (existing) {
-      if (existing.active && !ingnoreExistingConflict) throw new ConflictException('Sell route already exists');
-
-      if (!existing.active) {
-        // reactivate deleted route
-        existing.active = true;
-        this.sellRepo.save(existing);
-      }
-
-      return existing;
-    }
-
-    return this.createSellInternal(userId, dto);
-  }
-
-  async updateSell(userId: number, sellId: number, dto: UpdateSellDto): Promise<Sell> {
-    const sell = await this.sellRepo.findOne({ id: sellId, user: { id: userId } });
-    if (!sell) throw new NotFoundException('Sell route not found');
-
-    return await this.sellRepo.save({ ...sell, ...dto });
-  }
-
-  async count(): Promise<number> {
-    return this.sellRepo.count();
-  }
-
-  // --- HELPER-METHODS --- //
-  async createSellInternal(userId: number, dto: CreateSellDto): Promise<Sell> {
+  async createSell(userId: number, dto: CreateSellDto, ignoreExisting = false): Promise<Sell> {
     // check user data
     const dataComplete = await this.kycService.userDataComplete(userId);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
@@ -105,6 +56,21 @@ export class SellService {
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
 
+    // check if exists
+    const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
+
+    if (existing) {
+      if (existing.active && !ignoreExisting) throw new ConflictException('Sell route already exists');
+
+      if (!existing.active) {
+        // reactivate deleted route
+        existing.active = true;
+        this.sellRepo.save(existing);
+      }
+
+      return existing;
+    }
+
     // create the entity
     const sell = this.sellRepo.create(dto);
     sell.user = { id: userId } as User;
@@ -113,6 +79,17 @@ export class SellService {
     sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     return this.sellRepo.save(sell);
+  }
+
+  async updateSell(userId: number, sellId: number, dto: UpdateSellDto): Promise<Sell> {
+    const sell = await this.sellRepo.findOne({ id: sellId, user: { id: userId } });
+    if (!sell) throw new NotFoundException('Sell route not found');
+
+    return await this.sellRepo.save({ ...sell, ...dto });
+  }
+
+  async count(): Promise<number> {
+    return this.sellRepo.count();
   }
 
   // --- VOLUMES --- //
