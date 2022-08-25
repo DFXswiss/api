@@ -14,6 +14,7 @@ import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { ApiKey } from './dto/api-key.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
+import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -46,8 +47,8 @@ export class UserController {
   @Post('apiKey/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async createApiKey(@GetJwt() jwt: JwtPayload): Promise<ApiKey> {
-    return this.userService.createApiKey(jwt.id);
+  async createApiKey(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<ApiKey> {
+    return this.userService.createApiKey(jwt.id, filter);
   }
 
   @Delete('apiKey/CT')
@@ -55,6 +56,13 @@ export class UserController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async deleteApiKey(@GetJwt() jwt: JwtPayload): Promise<void> {
     return this.userService.deleteApiKey(jwt.id);
+  }
+
+  @Put('apiFilter/CT')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> {
+    return this.userService.updateApiFilter(jwt.id, filter);
   }
 
   // --- CFP VOTING --- //
