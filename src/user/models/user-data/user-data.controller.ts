@@ -96,4 +96,12 @@ export class UserDataController {
   async resyncKycData(@Param('id') id: string): Promise<void> {
     return this.kycService.resyncKycData(+id);
   }
+
+  @Put(':id/videoId')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async requestVideoId(@Param('id') id: string): Promise<void> {
+    return this.kycService.requestVideoId(+id);
+  }
 }

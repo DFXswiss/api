@@ -58,6 +58,16 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
+  async requestVideoId(userDataId: number): Promise<void> {
+    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+
+    if (!userData) throw new NotFoundException('User data not found');
+    if (userData.kycStatus !== KycStatus.ONLINE_ID)
+      throw new BadRequestException('User data is not in status OnlineId');
+
+    await this.kycProcess.goToStatus(userData, KycStatus.VIDEO_ID);
+  }
+
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
     const user = await this.getUser(code, userId);
     const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
