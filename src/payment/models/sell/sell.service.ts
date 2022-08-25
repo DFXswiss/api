@@ -31,23 +31,14 @@ export class SellService {
 
   // --- PAYMENT-INFO --- //
   async getSellPaymentInfos(userId: number, dto: GetSellPaymentInfoDto): Promise<Sell> {
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
-
-    let sell = await this.sellRepo.findOne({
-      where: { iban: dto.iban, fiat: dto.currency, user: { id: userId } },
-    });
-    if (!sell)
-      sell = await this.createSellInternal(userId, {
+    const sell = await this.createSell(
+      userId,
+      {
         ...dto,
         fiat: dto.currency,
-      });
-
-    // reactivate deleted route
-    if (!sell.active) {
-      sell.active = true;
-      this.sellRepo.save(sell);
-    }
+      },
+      true,
+    );
 
     return sell;
   }
@@ -68,7 +59,7 @@ export class SellService {
     return this.sellRepo.find({ user: { id: userId } });
   }
 
-  async createSell(userId: number, dto: CreateSellDto): Promise<Sell> {
+  async createSell(userId: number, dto: CreateSellDto, ingnoreExistingConflict: boolean = false): Promise<Sell> {
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
 
@@ -76,11 +67,15 @@ export class SellService {
     const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: dto.fiat, user: { id: userId } } });
 
     if (existing) {
-      if (existing.active) throw new ConflictException('Sell route already exists');
+      if (existing.active && !ingnoreExistingConflict) throw new ConflictException('Sell route already exists');
 
-      // reactivate deleted route
-      existing.active = true;
-      return this.sellRepo.save(existing);
+      if (!existing.active) {
+        // reactivate deleted route
+        existing.active = true;
+        this.sellRepo.save(existing);
+      }
+
+      return existing;
     }
 
     return this.createSellInternal(userId, dto);

@@ -71,25 +71,16 @@ export class BuyService {
     userAddress: string,
     dto: GetBuyPaymentInfoDto,
   ): Promise<{ buy: Buy; bank: Bank }> {
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
-
-    let buy = await this.buyRepo.findOne({
-      where: { iban: dto.iban, asset: dto.asset, user: { id: userId }, deposit: IsNull() },
-      relations: ['bankAccount'],
-    });
-    if (!buy)
-      buy = await this.createBuyInternal(userId, userAddress, {
+    const buy = await this.createBuy(
+      userId,
+      userAddress,
+      {
         ...dto,
         type: BuyType.WALLET,
         staking: null,
-      });
-
-    // reactivate deleted route
-    if (!buy.active) {
-      buy.active = true;
-      this.buyRepo.save(buy);
-    }
+      },
+      true,
+    );
 
     return {
       buy: buy,
@@ -98,7 +89,12 @@ export class BuyService {
   }
 
   // --- BUYS --- //
-  async createBuy(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
+  async createBuy(
+    userId: number,
+    userAddress: string,
+    dto: CreateBuyDto,
+    ingnoreExistingConflict: boolean = false,
+  ): Promise<Buy> {
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
 
@@ -109,15 +105,19 @@ export class BuyService {
         ...(dto.type === BuyType.WALLET ? { asset: dto.asset, deposit: IsNull() } : { deposit: dto.staking?.deposit }),
         user: { id: userId },
       },
-      relations: ['deposit'],
+      relations: ['deposit', 'bankAccount'],
     });
 
     if (existing) {
-      if (existing.active) throw new ConflictException('Buy route already exists');
+      if (existing.active && !ingnoreExistingConflict) throw new ConflictException('Buy route already exists');
 
-      // reactivate deleted route
-      existing.active = true;
-      return this.buyRepo.save(existing);
+      if (!existing.active) {
+        // reactivate deleted route
+        existing.active = true;
+        this.buyRepo.save(existing);
+      }
+
+      return existing;
     }
 
     return await this.createBuyInternal(userId, userAddress, dto);

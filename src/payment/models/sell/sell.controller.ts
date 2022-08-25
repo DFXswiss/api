@@ -49,7 +49,6 @@ export class SellController {
     @GetJwt() jwt: JwtPayload,
     @Body() createSellDto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
-    const fees = await this.getFees(jwt.id);
     return this.sellService.getSellPaymentInfos(jwt.id, createSellDto).then((b) => this.toPaymentInfoDto(jwt.id, b));
   }
 
@@ -73,9 +72,8 @@ export class SellController {
 
   // --- DTO --- //
   private async toPaymentInfoDto(userId: number, sell: Sell): Promise<SellPaymentInfoDto> {
-    const fee = await this.getFees(userId);
     return {
-      fee: fee,
+      fee: await this.getFees(userId),
       depositAddress: sell.deposit.address,
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };
@@ -83,18 +81,16 @@ export class SellController {
 
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
     const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
-    const fee = await this.getFees(userId);
 
-    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse, fee)));
+    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse)));
   }
 
-  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[], fee?: number): Promise<SellDto> {
+  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[]): Promise<SellDto> {
     sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
-    fee ??= await this.getFees(userId);
 
     return {
       ...sell,
-      fee: fee,
+      fee: await this.getFees(userId),
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
     };

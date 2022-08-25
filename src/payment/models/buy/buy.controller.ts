@@ -58,10 +58,9 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() createBuyDto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
-    const fees = await this.getFees(jwt.id);
     return this.buyService
       .getBuyPaymentInfos(jwt.id, jwt.address, createBuyDto)
-      .then((b) => this.toPaymentInfoDto(b.buy, b.bank, fees));
+      .then((b) => this.toPaymentInfoDto(jwt.id, b.buy, b.bank));
   }
 
   @Put(':id')
@@ -84,40 +83,26 @@ export class BuyController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, buys: Buy[]): Promise<BuyDto[]> {
-    const fees = await this.getFees(userId);
-
     const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
-    return Promise.all(buys.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
+    return Promise.all(buys.map((b) => this.toDto(userId, b, stakingRoutes)));
   }
 
-  private async toPaymentInfoDto(
-    buy: Buy,
-    bankName: Bank,
-    fees: { fee: number; refBonus: number },
-  ): Promise<BuyPaymentInfoDto> {
+  private async toPaymentInfoDto(userId: number, buy: Buy, bankName: Bank): Promise<BuyPaymentInfoDto> {
     return {
       ...Config.bank.dfxBankInfo,
       ...(bankName === Bank.MAERKI ? Config.bank.maerki.accounts[0] : Config.bank.olkypay.accounts[0]),
       bankUsage: buy.bankUsage,
-      fee: fees.fee,
-      refBonus: fees.refBonus,
+      ...(await this.getFees(userId)),
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
 
-  private async toDto(
-    userId: number,
-    buy: Buy,
-    fees?: { fee: number; refBonus: number },
-    stakingRoutes?: Staking[],
-  ): Promise<BuyDto> {
-    fees ??= await this.getFees(userId);
-
+  private async toDto(userId: number, buy: Buy, stakingRoutes?: Staking[]): Promise<BuyDto> {
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
-      ...fees,
+      ...(await this.getFees(userId)),
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
