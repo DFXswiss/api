@@ -1,7 +1,7 @@
 import { IsOptional, IsEnum } from 'class-validator';
 import { KycState, KycStatus } from '../user-data.entity';
 
-export class UpdateUserDataKycDto {
+export class UpdateKycStatusDto {
   @IsOptional()
   @IsEnum(KycStatus)
   kycStatus: KycStatus;

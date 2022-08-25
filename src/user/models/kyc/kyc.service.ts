@@ -16,7 +16,7 @@ import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
-import { UpdateUserDataKycDto } from '../user-data/dto/update-user-data-kyc.dto';
+import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -41,7 +41,7 @@ export class KycService {
     private readonly kycProcess: KycProcessService,
   ) {}
 
-  // --- NAME CHECK --- //
+  // --- ADMIN/SUPPORT --- //
   async doNameCheck(userDataId: number): Promise<string> {
     const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
     if (!userData) throw new NotFoundException('User data not found');
@@ -54,25 +54,32 @@ export class KycService {
     return userData.riskState;
   }
 
+  async updateKycStatus(userDataId: number, dto: UpdateKycStatusDto): Promise<void> {
+    let userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    if (!userData) throw new NotFoundException('User data not found');
+
+    // update status
+    if (dto.kycStatus) {
+      if (!this.isKycChangeAllowed(userData.kycStatus, dto.kycStatus))
+        throw new BadRequestException(`Invalid KYC status change ${userData.kycStatus} -> ${dto.kycStatus}`);
+
+      userData = await this.kycProcess.goToStatus(userData, dto.kycStatus);
+    }
+
+    // update state
+    if (dto.kycState) userData = this.kycProcess.updateKycState(userData, dto.kycState);
+
+    await this.userDataRepo.save(userData);
+  }
+
+  private isKycChangeAllowed(from: KycStatus, to: KycStatus): boolean {
+    const allowedChanges = { [KycStatus.ONLINE_ID]: [KycStatus.VIDEO_ID] };
+    return allowedChanges[from]?.includes(to);
+  }
+
   // --- KYC DATA --- //
   async resyncKycData(userId: number): Promise<void> {
     await this.spiderSyncService.syncKycUser(userId, true);
-  }
-
-  async updateKyc(userDataId: number, updateUserDataKyc: UpdateUserDataKycDto): Promise<void> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
-
-    if (!userData) throw new NotFoundException('User data not found');
-    if (userData.kycStatus !== KycStatus.ONLINE_ID)
-      throw new BadRequestException('User data is not in status OnlineId');
-    if (updateUserDataKyc.kycStatus !== KycStatus.VIDEO_ID)
-      throw new BadRequestException('Kyc state in body is not status VideoId');
-
-    if (updateUserDataKyc.kycStatus) userData = await this.kycProcess.goToStatus(userData, updateUserDataKyc.kycStatus);
-    if (updateUserDataKyc.kycState)
-      userData = await this.kycProcess.updateKycState(userData, updateUserDataKyc.kycState);
-
-    await this.userDataRepo.save(userData);
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
