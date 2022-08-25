@@ -10,6 +10,7 @@ import { UserDataRepository } from './user-data.repository';
 import { BankDataDto } from 'src/user/models/bank-data/dto/bank-data.dto';
 import { BankDataService } from 'src/user/models/bank-data/bank-data.service';
 import { KycService } from '../kyc/kyc.service';
+import { UpdateUserDataKycDto } from './dto/update-user-data-kyc.dto';
 
 @ApiTags('userData')
 @Controller('userData')
@@ -97,11 +98,11 @@ export class UserDataController {
     return this.kycService.resyncKycData(+id);
   }
 
-  @Put(':id/videoId')
+  @Put(':id/updateKyc')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async requestVideoId(@Param('id') id: string): Promise<void> {
-    return this.kycService.requestVideoId(+id);
+  async updateKyc(@Param('id') id: string, @Body() updateKycDto: UpdateUserDataKycDto): Promise<void> {
+    return this.kycService.updateKyc(+id, updateKycDto);
   }
 }

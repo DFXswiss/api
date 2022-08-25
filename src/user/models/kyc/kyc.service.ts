@@ -16,6 +16,7 @@ import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
+import { UpdateUserDataKycDto } from '../user-data/dto/update-user-data-kyc.dto';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -58,14 +59,20 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
-  async requestVideoId(userDataId: number): Promise<void> {
-    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+  async updateKyc(userDataId: number, updateUserDataKyc: UpdateUserDataKycDto): Promise<void> {
+    let userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
 
     if (!userData) throw new NotFoundException('User data not found');
     if (userData.kycStatus !== KycStatus.ONLINE_ID)
       throw new BadRequestException('User data is not in status OnlineId');
+    if (updateUserDataKyc.kycStatus !== KycStatus.VIDEO_ID)
+      throw new BadRequestException('Kyc state in body is not status VideoId');
 
-    await this.kycProcess.goToStatus(userData, KycStatus.VIDEO_ID);
+    if (updateUserDataKyc.kycStatus) userData = await this.kycProcess.goToStatus(userData, updateUserDataKyc.kycStatus);
+    if (updateUserDataKyc.kycState)
+      userData = await this.kycProcess.updateKycState(userData, updateUserDataKyc.kycState);
+
+    await this.userDataRepo.save(userData);
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
