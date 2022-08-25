@@ -15,7 +15,7 @@ import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyFiatHistoryDto } from '../buy-fiat/dto/buy-fiat-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
-import { CreateSellPaymentInfoDto } from './dto/create-sell-payment-info.dto';
+import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 
 @ApiTags('sell')
@@ -47,10 +47,10 @@ export class SellController {
   @ApiResponse({ status: 200, type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
-    @Body() createSellDto: CreateSellPaymentInfoDto,
+    @Body() createSellDto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
     const fees = await this.getFees(jwt.id);
-    return this.sellService.getSellPaymentInfos(jwt.id, createSellDto).then((b) => this.toPaymentInfoDto(b, fees));
+    return this.sellService.getSellPaymentInfos(jwt.id, createSellDto).then((b) => this.toPaymentInfoDto(jwt.id, b));
   }
 
   @Put(':id')
@@ -72,7 +72,8 @@ export class SellController {
   }
 
   // --- DTO --- //
-  private async toPaymentInfoDto(sell: Sell, fee: number): Promise<SellPaymentInfoDto> {
+  private async toPaymentInfoDto(userId: number, sell: Sell): Promise<SellPaymentInfoDto> {
+    const fee = await this.getFees(userId);
     return {
       fee: fee,
       depositAddress: sell.deposit.address,
@@ -82,14 +83,14 @@ export class SellController {
 
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
     const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
-    const fee = await this.userService.getUserSellFee(userId);
+    const fee = await this.getFees(userId);
 
     return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse, fee)));
   }
 
   private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[], fee?: number): Promise<SellDto> {
     sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
-    fee ??= await this.userService.getUserSellFee(userId);
+    fee ??= await this.getFees(userId);
 
     return {
       ...sell,

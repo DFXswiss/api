@@ -22,7 +22,7 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
 
   @Interval(900000)
   async fetch() {
-    if (!Config.bank.olkypay.clientId) return;
+    if (!Config.bank.olkypay.credentials.clientId) return;
     const data = await this.getOlkypay();
 
     this.emit(data);
@@ -42,7 +42,7 @@ export class OlkypayObserver extends MetricObserver<OlkypayData> {
         'dbBalance',
       )
       .innerJoin('bankTx.batch', 'bankTxBatch')
-      .where('bankTxBatch.iban = :iban', { iban: Config.bank.olkypay.iban })
+      .where('bankTxBatch.iban = :iban', { iban: Config.bank.olkypay.accounts[0].iban })
       .getRawOne<{ dbBalance: number }>();
 
     return {

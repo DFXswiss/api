@@ -236,31 +236,18 @@ export class Configuration {
   };
 
   bank = {
+    dfxBankInfo: { name: 'DFX AG', street: 'Bahnhofstrasse', number: 7, zip: '6300', city: 'Zug', country: 'Schweiz' },
     olkypay: {
-      iban: 'LU116060002000005040',
-      clientId: process.env.OLKY_CLIENT,
-      username: process.env.OLKY_USERNAME,
-      password: process.env.OLKY_PASSWORD,
-      clientSecret: process.env.OLKY_CLIENT_SECRET,
+      credentials: {
+        clientId: process.env.OLKY_CLIENT,
+        username: process.env.OLKY_USERNAME,
+        password: process.env.OLKY_PASSWORD,
+        clientSecret: process.env.OLKY_CLIENT_SECRET,
+      },
+      accounts: [{ currency: 'EUR', iban: 'LU116060002000005040', bic: 'OLKILUL1' }],
     },
-  };
-
-  bankInfos = {
-    dfxInfo: {
-      receiveName: 'DFX AG',
-      location: 'Bahnhofstrasse 7',
-      zipLocation: '6300 Zug',
-      country: 'Schweiz',
-    },
-
     maerki: {
-      iban: 'CH6808573177975201814',
-      bic: 'MAEBCHZZ',
-    },
-
-    olky: {
-      iban: 'LU116060002000005040',
-      bic: 'OLKILUL1',
+      accounts: [{ currency: 'EUR', iban: 'CH6808573177975201814', bic: 'MAEBCHZZ' }],
     },
   };
 

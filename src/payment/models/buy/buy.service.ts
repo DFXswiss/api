@@ -13,7 +13,7 @@ import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
-import { CreateBuyPaymentInfoDto } from './dto/create-buy-payment-info.dto';
+import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { Bank } from './dto/buy-payment-info.dto';
 
 @Injectable()
@@ -69,7 +69,7 @@ export class BuyService {
   async getBuyPaymentInfos(
     userId: number,
     userAddress: string,
-    dto: CreateBuyPaymentInfoDto,
+    dto: GetBuyPaymentInfoDto,
   ): Promise<{ buy: Buy; bank: Bank }> {
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');

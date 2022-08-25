@@ -8,7 +8,7 @@ export class BankAccountDto {
   @ApiProperty()
   iban: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: Fiat })
   preferredCurrency: Fiat;
 
   @ApiProperty()

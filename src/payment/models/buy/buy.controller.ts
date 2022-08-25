@@ -23,7 +23,7 @@ import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { Bank, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
-import { CreateBuyPaymentInfoDto } from './dto/create-buy-payment-info.dto';
+import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -56,7 +56,7 @@ export class BuyController {
   @ApiResponse({ status: 200, type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
-    @Body() createBuyDto: CreateBuyPaymentInfoDto,
+    @Body() createBuyDto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
     const fees = await this.getFees(jwt.id);
     return this.buyService
@@ -96,8 +96,8 @@ export class BuyController {
     fees: { fee: number; refBonus: number },
   ): Promise<BuyPaymentInfoDto> {
     return {
-      ...Config.bankInfos.dfxInfo,
-      ...(bankName === Bank.MAERKI ? Config.bankInfos.maerki : Config.bankInfos.olky),
+      ...Config.bank.dfxBankInfo,
+      ...(bankName === Bank.MAERKI ? Config.bank.maerki.accounts[0] : Config.bank.olkypay.accounts[0]),
       bankUsage: buy.bankUsage,
       fee: fees.fee,
       refBonus: fees.refBonus,

@@ -15,7 +15,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/ain/node/node.service';
-import { CreateSellPaymentInfoDto } from './dto/create-sell-payment-info.dto';
+import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 
 @Injectable()
 export class SellService {
@@ -30,7 +30,7 @@ export class SellService {
   ) {}
 
   // --- PAYMENT-INFO --- //
-  async getSellPaymentInfos(userId: number, dto: CreateSellPaymentInfoDto): Promise<Sell> {
+  async getSellPaymentInfos(userId: number, dto: GetSellPaymentInfoDto): Promise<Sell> {
     // remove spaces in IBAN
     dto.iban = dto.iban.split(' ').join('');
 

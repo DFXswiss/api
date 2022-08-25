@@ -3,13 +3,19 @@ import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
 
 export class BankInfoDto {
   @ApiProperty()
-  receiveName: string;
+  name: string;
 
   @ApiProperty()
-  location: string;
+  street: string;
 
   @ApiProperty()
-  zipLocation: string;
+  number: number;
+
+  @ApiProperty()
+  zip: string;
+
+  @ApiProperty()
+  city: string;
 
   @ApiProperty()
   country: string;
@@ -31,7 +37,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty()
   refBonus: number;
 
-  @ApiProperty()
+  @ApiProperty({ type: Array<MinDeposit>() })
   minDeposits: MinDeposit[];
 }
 
