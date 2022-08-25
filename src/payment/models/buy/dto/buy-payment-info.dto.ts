@@ -32,10 +32,10 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   fee: number;
 
   @ApiProperty()
-  remittanceInfo: string;
+  refBonus: number;
 
   @ApiProperty()
-  refBonus: number;
+  remittanceInfo: string;
 
   @ApiProperty({ type: MinDeposit, isArray: true })
   minDeposits: MinDeposit[];
