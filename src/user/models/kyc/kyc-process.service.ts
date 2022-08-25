@@ -189,8 +189,8 @@ export class KycProcessService {
     spiderData.url = sessionData.url;
     spiderData.secondUrl = sessionData.secondUrl;
     if (sessionData.identIdentificationId) {
-      spiderData.identIdentificationId = spiderData.identIdentificationId
-        ? `${spiderData.identIdentificationId},${sessionData.identIdentificationId}`
+      spiderData.identIdentificationIds = spiderData.identIdentificationIds
+        ? `${spiderData.identIdentificationIds},${sessionData.identIdentificationId}`
         : sessionData.identIdentificationId;
     }
 

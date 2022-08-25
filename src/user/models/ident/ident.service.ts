@@ -14,10 +14,10 @@ export class IdentService {
     let user = await this.userDataRepo.findOne({
       where: [
         {
-          spiderData: { identIdentificationId: Like(`%${result?.identificationprocess?.transactionnumber}%`) },
+          spiderData: { identIdentificationIds: Like(`%${result?.identificationprocess?.transactionnumber}%`) },
         },
         {
-          spiderData: { identIdentificationId: Like(`%${result?.identificationprocess?.id}%`) },
+          spiderData: { identIdentificationIds: Like(`%${result?.identificationprocess?.id}%`) },
         },
       ],
       relations: ['spiderData'],
