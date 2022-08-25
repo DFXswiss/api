@@ -35,7 +35,7 @@ export class ApiKeyService {
     const [date, time] = timestamp.split('T');
     timestamp = `${date.split('.').reverse().join('-')}T${time}`;
 
-    return sign.toUpperCase() == userSign && Util.daysDiff(new Date(timestamp), new Date()) <= 1;
+    return sign.toUpperCase() === userSign && Util.daysDiff(new Date(timestamp), new Date()) <= 1;
   }
 
   // --- KEY HANDLING --- //
