@@ -1,5 +1,5 @@
 export class Price {
-    currencyPair: string;
-    orderSide: string;
+    source: string;
+    target: string;
     price: number;
 }

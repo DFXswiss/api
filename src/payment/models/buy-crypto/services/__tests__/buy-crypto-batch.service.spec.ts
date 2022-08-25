@@ -187,7 +187,7 @@ describe('BuyCryptoBatchService', () => {
       .spyOn(exchangeUtilityService, 'getMatchingPrice')
       .mockImplementation(async () => {
         const price = new Price();
-        (price.price = 10), (price.currencyPair = 'EUR/BTC');
+        (price.price = 10), (price.source = 'EUR'), (price.target = 'BTC');
         return price;
       });
   }

@@ -75,6 +75,7 @@ import { ChainalysisService } from './models/crypto-input/chainalysis.service';
 import { PayoutModule } from './models/payout/payout.module';
 import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
 import { BankAccountController } from './models/bank-account/bank-account.controller';
+import { BitpandaService } from './models/exchange/bitpanda.service';
 
 @Module({
   imports: [
@@ -146,6 +147,7 @@ import { BankAccountController } from './models/bank-account/bank-account.contro
     KrakenService,
     BinanceService,
     BitstampService,
+    BitpandaService,
     ExchangeUtilityService,
     HistoryService,
     BuyService,

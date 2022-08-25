@@ -1,3 +1,4 @@
+import { HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { AccountType } from '../../user-data/account-type.enum';
@@ -20,6 +21,7 @@ export interface UserDto {
   depositLimit: number;
   kycDataComplete: boolean;
   apiKeyCT: string;
+  apiFilterCT: HistoryFilterKey[];
 }
 
 export interface UserDetails {

@@ -71,6 +71,9 @@ export class User extends IEntity {
   @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
   apiKeyCT: string;
 
+  @Column({ length: 256, nullable: true })
+  apiFilterCT: string;
+
   @Column({ type: 'float', default: 0 })
   annualBuyVolume: number;
 

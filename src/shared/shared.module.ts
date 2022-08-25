@@ -30,6 +30,7 @@ import { SettingController } from './models/setting/setting.controller';
 import { DfiTaxService } from './services/dfi-tax.service';
 import { LetterService } from './services/letter.service';
 import { IbanService } from './services/iban.service';
+import { ApiKeyService } from './services/api-key.service';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { IbanService } from './services/iban.service';
     DfiTaxService,
     LetterService,
     IbanService,
+    ApiKeyService,
   ],
   exports: [
     PassportModule,
@@ -78,6 +80,7 @@ import { IbanService } from './services/iban.service';
     DfiTaxService,
     LetterService,
     IbanService,
+    ApiKeyService,
   ],
 })
 export class SharedModule {}
