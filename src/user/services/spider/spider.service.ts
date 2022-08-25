@@ -249,7 +249,7 @@ export class SpiderService {
     );
   }
 
-  async getVideoTransactionId(sessionUrl: string): Promise<string> {
+  async getVideoIdentificationId(sessionUrl: string): Promise<string> {
     const request = await this.http.getRaw(sessionUrl).then((r) => r.request as ClientRequest);
     return request.path.substring(request.path.lastIndexOf('/') + 1);
   }

@@ -188,10 +188,10 @@ export class KycProcessService {
 
     spiderData.url = sessionData.url;
     spiderData.secondUrl = sessionData.secondUrl;
-    if (sessionData.identTransactionId) {
-      spiderData.identTransactionId = spiderData.identTransactionId
-        ? `${spiderData.identTransactionId},${sessionData.identTransactionId}`
-        : sessionData.identTransactionId;
+    if (sessionData.identIdentificationId) {
+      spiderData.identIdentificationId = spiderData.identIdentificationId
+        ? `${spiderData.identIdentificationId},${sessionData.identIdentificationId}`
+        : sessionData.identIdentificationId;
     }
 
     return await this.spiderDataRepo.save(spiderData);
@@ -200,7 +200,7 @@ export class KycProcessService {
   private async getSessionData(
     userData: UserData,
     initiateData: InitiateResponse,
-  ): Promise<{ url: string; secondUrl?: string; identTransactionId?: string }> {
+  ): Promise<{ url: string; secondUrl?: string; identIdentificationId?: string }> {
     const locator = initiateData.locators?.[0];
     if (!locator) {
       console.error(`Failed to initiate identification. Initiate result:`, initiateData);
@@ -217,14 +217,14 @@ export class KycProcessService {
         return {
           url: initiateData.sessionUrl,
           secondUrl: log ? this.spiderService.getOnlineIdUrl(log.identificationId) : null,
-          identTransactionId: log ? log.transactionId : null,
+          identIdentificationId: log ? log.identificationId : null,
         };
 
       case KycDocument.VIDEO_IDENTIFICATION:
         return {
           url: initiateData.sessionUrl,
           secondUrl: null,
-          identTransactionId: await this.spiderService.getVideoTransactionId(initiateData.sessionUrl),
+          identIdentificationId: await this.spiderService.getVideoIdentificationId(initiateData.sessionUrl),
         };
     }
   }

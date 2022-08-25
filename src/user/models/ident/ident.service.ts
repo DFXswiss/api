@@ -12,7 +12,14 @@ export class IdentService {
   // --- WEBHOOK UPDATES --- //
   async identUpdate(result: IdentResultDto): Promise<void> {
     let user = await this.userDataRepo.findOne({
-      where: { spiderData: { identTransactionId: Like(`%${result?.identificationprocess?.transactionnumber}%`) } },
+      where: [
+        {
+          spiderData: { identIdentificationId: Like(`%${result?.identificationprocess?.transactionnumber}%`) },
+        },
+        {
+          spiderData: { identIdentificationId: Like(`%${result?.identificationprocess?.id}%`) },
+        },
+      ],
       relations: ['spiderData'],
     });
 
