@@ -31,21 +31,11 @@ export class ApiKeyService {
   public isValidSign(user: User, sign: string, timestamp: string): boolean {
     const userSign = this.getSign(user, timestamp);
 
-    return sign.toUpperCase() === userSign && Util.daysDiff(this.parseCtTimestamp(timestamp), new Date()) <= 1;
-  }
+    // TODO: temp code until CT changed its timestamp
+    const [date, time] = timestamp.split('T');
+    timestamp = `${date.split('.').reverse().join('-')}T${time}`;
 
-  private parseCtTimestamp(timestamp: string): Date {
-    let dateTime = new Date(timestamp);
-
-    if (isNaN(dateTime.getTime())) {
-      // TODO: temp code until CT changed its timestamp
-      const [date, time] = timestamp.split('T');
-      timestamp = `${date.split('.').reverse().join('-')}T${time}`;
-
-      dateTime = new Date(timestamp);
-    }
-
-    return dateTime;
+    return sign.toUpperCase() == userSign && Util.daysDiff(new Date(timestamp), new Date()) <= 1;
   }
 
   // --- KEY HANDLING --- //
