@@ -65,9 +65,17 @@ export class BuyCryptoBatchService {
       ),
     ].map((assets) => assets.split('/'));
 
-    return await Promise.all(
-      referenceAssetPairs.map(async (pair) => await this.exchangeUtilityService.getMatchingPrice(pair[0], pair[1])),
+    const prices = await Promise.all(
+      referenceAssetPairs.map(
+        async (pair) =>
+          await this.exchangeUtilityService.getMatchingPrice(pair[0], pair[1]).catch((e) => {
+            console.error('Failed to get price:', e);
+            return undefined;
+          }),
+      ),
     );
+
+    return prices.filter((p) => p);
   }
 
   private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {

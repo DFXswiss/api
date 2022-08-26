@@ -47,7 +47,10 @@ export class BuyFiatNotificationService {
           },
         });
 
-        await this.buyFiatRepo.save(entity);
+        await this.buyFiatRepo.update(
+          { id: entity.id },
+          { recipientMail: entity.recipientMail, mail1SendDate: entity.mail1SendDate },
+        );
       } catch (e) {
         console.error(e);
       }
@@ -79,7 +82,7 @@ export class BuyFiatNotificationService {
           },
         });
 
-        await this.buyFiatRepo.save(entity);
+        await this.buyFiatRepo.update({ id: entity.id }, { mail2SendDate: entity.mail2SendDate });
       } catch (e) {
         console.error(e);
       }
@@ -109,7 +112,7 @@ export class BuyFiatNotificationService {
           },
         });
 
-        await this.buyFiatRepo.save(entity);
+        await this.buyFiatRepo.update({ id: entity.id }, { mail3SendDate: entity.mail3SendDate });
       } catch (e) {
         console.error(e);
       }
