@@ -85,7 +85,7 @@ export class BankTxService {
 
     // parse the file
     const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
-    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile));
+    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
 
     // store the batch
     await this.bankTxBatchRepo.save(batch);

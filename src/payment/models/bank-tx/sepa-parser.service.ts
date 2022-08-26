@@ -49,7 +49,7 @@ export class SepaParser {
     };
   }
 
-  static parseEntries(file: SepaFile): Partial<BankTx>[] {
+  static parseEntries(file: SepaFile, accountIban: string): Partial<BankTx>[] {
     const entries = Array.isArray(file.BkToCstmrStmt.Stmt.Ntry)
       ? file.BkToCstmrStmt.Stmt.Ntry
       : [file.BkToCstmrStmt.Stmt.Ntry];
@@ -81,7 +81,7 @@ export class SepaParser {
           ...this.getTotalCharge(entry?.NtryDtls?.TxDtls?.Chrgs?.Rcrd),
           ...this.getRelatedPartyInfo(entry),
           ...this.getRelatedAgentInfo(entry),
-          accountIban: Config.bank.maerkiBaumann.ibanEur,
+          accountIban,
           remittanceInfo: entry?.NtryDtls?.TxDtls?.RmtInf?.Ustrd,
           txInfo: entry?.NtryDtls?.TxDtls?.AddtlTxInf,
         };

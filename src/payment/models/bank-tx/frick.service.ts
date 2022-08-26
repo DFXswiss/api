@@ -144,16 +144,12 @@ export class FrickService {
   constructor(private readonly http: HttpService) {}
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
-    try {
-      if (!Config.bank.frick.key) return;
-      const transactions = await this.getTransactions(new Date(lastModificationTime));
+    if (!Config.bank.frick.key) return;
+    const { transactions } = await this.getTransactions(new Date(lastModificationTime));
 
-      if (!transactions.transactions) return [];
+    if (!transactions) return [];
 
-      return transactions.transactions.map((t) => this.parseTransaction(t));
-    } catch (e) {
-      console.error('Error during get frick transactions:', e);
-    }
+    return transactions.map((t) => this.parseTransaction(t));
   }
 
   async getBalance(): Promise<Account[]> {
@@ -162,10 +158,13 @@ export class FrickService {
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transactions> {
-    const url = `transactions?fromDate=${Util.isoDate(fromDate)}&toDate=${Util.isoDate(
-      toDate,
-    )}&maxResults=2500&status=BOOKED `;
-    return await this.callApi<Transactions>(url);
+    const params = {
+      fromDate: Util.isoDate(fromDate),
+      toDate: Util.isoDate(toDate),
+      maxResults: 2500,
+      status: TransactionState.BOOKED,
+    };
+    return await this.callApi<Transactions>(`transactions`, 'GET', params);
   }
 
   async getAccounts(): Promise<Accounts> {
@@ -176,18 +175,18 @@ export class FrickService {
   // --- PARSING --- //
   private parseTransaction(tx: Transaction): Partial<BankTx> {
     return {
-      accountServiceRef: tx.orderId ? tx.orderId.toString() : tx.transactionNr?.toString(),
+      accountServiceRef: (tx.orderId ?? tx.transactionNr)?.toString(),
       bookingDate: tx.valutaIsExecutionDate ? new Date(tx.valuta) : new Date(tx.bookingDate),
       valueDate: new Date(tx.valuta),
       txCount: 1,
       txId: tx.transactionNr?.toString(),
       ...this.getExchangeInformation(tx),
-      amount: this.getPositiveAmount(tx.totalAmount),
-      instructedAmount: this.getPositiveAmount(tx.fxTransactionAmount),
-      txAmount: this.getPositiveAmount(tx.amount),
-      chargeAmount: this.getPositiveAmount(tx.fees),
+      amount: Math.abs(tx.totalAmount),
+      instructedAmount: tx.fxTransactionAmount ? Math.abs(tx.fxTransactionAmount) : Math.abs(tx.amount),
+      txAmount: Math.abs(tx.amount),
+      chargeAmount: Math.abs(tx.fees),
       currency: tx.currency,
-      instructedCurrency: tx.fxTransactionCurrency,
+      instructedCurrency: tx.fxTransactionCurrency ?? tx.currency,
       txCurrency: tx.currency,
       chargeCurrency: tx.fees ? tx.currency : undefined,
       ...this.getCustomerInformation(tx),
@@ -205,7 +204,7 @@ export class FrickService {
   } {
     if (!tx.md) return null;
     return {
-      exchangeRate: tx.md == 'D' ? tx.fxrate : Util.round(1 / tx.fxrate, 2),
+      exchangeRate: tx.md == MD.D ? tx.fxrate : Util.round(1 / tx.fxrate, 2),
       exchangeTargetCurrency: tx.fxTransactionCurrency,
       exchangeSourceCurrency: tx.currency,
     };
@@ -231,14 +230,9 @@ export class FrickService {
       memberId: account.accountNumber,
       country: account.country,
       bankName: account.creditInstitution,
-      creditDebitIndicator:
-        tx.direction == TransactionDirection.INCOMING ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       bic: account.bic,
     };
-  }
-
-  private getPositiveAmount(amount: number): number {
-    return amount < 0 ? amount * -1 : amount;
   }
 
   // --- HELPER METHODS --- //
@@ -256,7 +250,8 @@ export class FrickService {
       return await this.http.request<T>({
         url: `${Config.bank.frick.url}/${url}`,
         method: method,
-        data: data,
+        data: method !== 'GET' ? data : undefined,
+        params: method === 'GET' ? data : undefined,
         headers: this.getHeaders(data),
       });
     } catch (e) {

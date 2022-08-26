@@ -49,16 +49,12 @@ export class OlkypayService {
   constructor(private readonly http: HttpService) {}
 
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
-    try {
-      if (!Config.bank.olkypay.clientId) return;
+    if (!Config.bank.olkypay.clientId) return;
 
-      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
-      if (!transactions) return [];
+    const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+    if (!transactions) return [];
 
-      return transactions.map((t) => this.parseTransaction(t));
-    } catch {
-      console.error('Error during get olky transactions');
-    }
+    return transactions.map((t) => this.parseTransaction(t));
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
