@@ -253,7 +253,7 @@ export class Configuration {
       url: process.env.FRICK_URL,
       key: process.env.FRICK_KEY,
       password: process.env.FRICK_PASSWORD,
-      privateKey: process.env.FRICK_PRIVATE_KEY.split('<br>').join('\n'),
+      privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
     },
   };
 
