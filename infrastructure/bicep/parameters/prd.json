@@ -113,6 +113,18 @@
     "olkyPassword": {
       "value": "xxx"
     },
+    "frickUrl": {
+      "value": "xxx"
+    },
+    "frickKey": {
+      "value": "xxx"
+    },
+    "frickPassword": {
+      "value": "xxx"
+    },
+    "frickPrivateKey": {
+      "value": "xxx"
+    },
     "letterUrl": {
       "value": "https://api.letterxpress.de/v1"
     },
