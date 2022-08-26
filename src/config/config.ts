@@ -264,7 +264,7 @@ export class Configuration {
         url: process.env.FRICK_URL,
         key: process.env.FRICK_KEY,
         password: process.env.FRICK_PASSWORD,
-        privateKey: process.env.FRICK_PRIVATE_KEY.split('<br>').join('\n'),
+        privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
       },
       accounts: [
         { currency: 'EUR', iban: 'LI95088110104693K000E', bic: 'BFRILI22' },

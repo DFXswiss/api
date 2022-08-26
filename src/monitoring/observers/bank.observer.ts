@@ -30,9 +30,10 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
   @Interval(90000)
   async fetch() {
-    if (!Config.bank.olkypay.credentials.clientId) return;
+    let data = [];
 
-    const data = [await this.getOlkypay(), ...(await this.getFrick())];
+    if (Config.bank.olkypay.credentials.clientId) data = data.concat(await this.getOlkypay());
+    if (Config.bank.frick.credentials.privateKey) data = data.concat(await this.getFrick());
 
     this.emit(data);
 
