@@ -78,7 +78,7 @@ export class SellController {
 
   private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[], fee?: number): Promise<SellDto> {
     sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
-    fee ??= await this.userService.getUserSellFee(userId);
+    fee ??= await this.getFee(userId);
 
     return {
       ...sell,
