@@ -23,6 +23,7 @@ import { ExchangeService } from './exchange.service';
 import { KrakenService } from './kraken.service';
 import { Util } from 'src/shared/util';
 import { BitstampService } from './bitstamp.service';
+import { BitpandaService } from './bitpanda.service';
 
 @ApiTags('exchange')
 @Controller('exchange')
@@ -33,6 +34,7 @@ export class ExchangeController {
     private readonly krakenService: KrakenService,
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
+    private readonly bitpandaService: BitpandaService,
   ) {}
 
   @Get(':exchange/balances')
@@ -137,6 +139,8 @@ export class ExchangeController {
         return this.binanceService;
       case 'bitstamp':
         return this.bitstampService;
+      case 'bitpanda':
+        return this.bitpandaService;
       default:
         throw new BadRequestException(`No service for exchange '${exchange}'`);
     }

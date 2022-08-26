@@ -1,6 +1,663 @@
 {
-  "2207": [],
-  "2206": [],
+  "2207": [
+    [
+      {
+        "title": "DFIP-2207-C: Deactivation of DFI burn to payback DUSD loan & activation condition of DFI->DUSD future swap",
+        "number": 191,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/191",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 261,
+          "possible": 11299,
+          "turnout": 2.31,
+          "yes": 241,
+          "neutral": 18,
+          "no": 2
+        },
+        "cakeVotes": {
+          "total": 68,
+          "yes": 62,
+          "neutral": 6,
+          "no": 0
+        },
+        "dfxVotes": {
+          "total": 0,
+          "yes": 0,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-18: Decentralize DeFiChain Ocean (8 000 DFI)",
+        "number": 187,
+        "type": "cfp",
+        "dfiAmount": 8000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/187",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 503,
+          "possible": 11299,
+          "turnout": 4.45,
+          "yes": 500,
+          "neutral": 2,
+          "no": 1
+        },
+        "cakeVotes": {
+          "total": 81,
+          "yes": 81,
+          "neutral": 0,
+          "no": 0
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-17: Liquidity mining reward for DFI ERC20 pairs at Uniswap (1 000 000 DFI)",
+        "number": 186,
+        "type": "cfp",
+        "dfiAmount": 1000000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/186",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 509,
+          "possible": 11299,
+          "turnout": 4.5,
+          "yes": 489,
+          "neutral": 17,
+          "no": 3
+        },
+        "cakeVotes": {
+          "total": 86,
+          "yes": 81,
+          "neutral": 5,
+          "no": 0
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-16: DeFiChain Community Explorer - An alternative explorer (20 000 DFI)",
+        "number": 185,
+        "type": "cfp",
+        "dfiAmount": 20000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/185",
+        "currentResult": "Not approved",
+        "totalVotes": {
+          "total": 509,
+          "possible": 11299,
+          "turnout": 4.5,
+          "yes": 77,
+          "neutral": 3,
+          "no": 429
+        },
+        "cakeVotes": {
+          "total": 88,
+          "yes": 38,
+          "neutral": 3,
+          "no": 47
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 0,
+          "neutral": 0,
+          "no": 220
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2207-B: Introduce USDC-DUSD and USDT-DUSD pool for a stable DUSD peg (including shortterm relief for DUSD discount)",
+        "number": 184,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/184",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 514,
+          "possible": 11299,
+          "turnout": 4.55,
+          "yes": 476,
+          "neutral": 5,
+          "no": 33
+        },
+        "cakeVotes": {
+          "total": 95,
+          "yes": 71,
+          "neutral": 5,
+          "no": 19
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-15: DeFiChain-Wizard - Automation for mass adoption (42 000 DFI)",
+        "number": 183,
+        "type": "cfp",
+        "dfiAmount": 42000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/183",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 510,
+          "possible": 11299,
+          "turnout": 4.51,
+          "yes": 325,
+          "neutral": 2,
+          "no": 183
+        },
+        "cakeVotes": {
+          "total": 90,
+          "yes": 74,
+          "neutral": 2,
+          "no": 14
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-14: JELLYWALLET FINAL CFP (168 975 DFI)",
+        "number": 182,
+        "type": "cfp",
+        "dfiAmount": 168975,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/182",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 515,
+          "possible": 11299,
+          "turnout": 4.56,
+          "yes": 416,
+          "neutral": 0,
+          "no": 99
+        },
+        "cakeVotes": {
+          "total": 96,
+          "yes": 86,
+          "neutral": 0,
+          "no": 10
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-13: APOLLO MISSION - BRAND AWARENESS CAMPAIGN (281 250 DFI)",
+        "number": 181,
+        "type": "cfp",
+        "dfiAmount": 281250,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/181",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 513,
+          "possible": 11299,
+          "turnout": 4.54,
+          "yes": 421,
+          "neutral": 9,
+          "no": 83
+        },
+        "cakeVotes": {
+          "total": 95,
+          "yes": 88,
+          "neutral": 7,
+          "no": 0
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-12: APOLLO MISSION - TRADE SHOWS (132 278 DFI)",
+        "number": 180,
+        "type": "cfp",
+        "dfiAmount": 132278,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/180",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 527,
+          "possible": 11299,
+          "turnout": 4.66,
+          "yes": 420,
+          "neutral": 4,
+          "no": 103
+        },
+        "cakeVotes": {
+          "total": 110,
+          "yes": 88,
+          "neutral": 2,
+          "no": 20
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-11: dSTOCKS.io - Trading wallet for synthetic assets (85 000 DFI)",
+        "number": 179,
+        "type": "cfp",
+        "dfiAmount": 85000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/179",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 502,
+          "possible": 11299,
+          "turnout": 4.44,
+          "yes": 304,
+          "neutral": 6,
+          "no": 192
+        },
+        "cakeVotes": {
+          "total": 83,
+          "yes": 61,
+          "neutral": 4,
+          "no": 18
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-10: Vault-maxi v2 and command center (20 000 DFI)",
+        "number": 178,
+        "type": "cfp",
+        "dfiAmount": 20000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/178",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 510,
+          "possible": 11299,
+          "turnout": 4.51,
+          "yes": 482,
+          "neutral": 8,
+          "no": 20
+        },
+        "cakeVotes": {
+          "total": 96,
+          "yes": 83,
+          "neutral": 8,
+          "no": 5
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-09: Sharing is caring - DeFiChain Wiki Updates (3 000 DFI)",
+        "number": 177,
+        "type": "cfp",
+        "dfiAmount": 3000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/177",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 503,
+          "possible": 11299,
+          "turnout": 4.45,
+          "yes": 481,
+          "neutral": 4,
+          "no": 18
+        },
+        "cakeVotes": {
+          "total": 87,
+          "yes": 79,
+          "neutral": 3,
+          "no": 5
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-07: DeFiChain-Cockpit - everything under control (45 000 DFI)",
+        "number": 175,
+        "type": "cfp",
+        "dfiAmount": 45000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/175",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 512,
+          "possible": 11299,
+          "turnout": 4.53,
+          "yes": 403,
+          "neutral": 3,
+          "no": 106
+        },
+        "cakeVotes": {
+          "total": 90,
+          "yes": 73,
+          "neutral": 1,
+          "no": 16
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-06: Cashflow Butler - cashflow for everyone without crypto assets (175 000 DFI)",
+        "number": 174,
+        "type": "cfp",
+        "dfiAmount": 175000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/174",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 522,
+          "possible": 11299,
+          "turnout": 4.62,
+          "yes": 367,
+          "neutral": 5,
+          "no": 150
+        },
+        "cakeVotes": {
+          "total": 101,
+          "yes": 40,
+          "neutral": 5,
+          "no": 56
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-04: saiive.live Infrastructure funding till end of year (6 000 DFI)",
+        "number": 172,
+        "type": "cfp",
+        "dfiAmount": 6000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/172",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 514,
+          "possible": 11299,
+          "turnout": 4.55,
+          "yes": 288,
+          "neutral": 8,
+          "no": 218
+        },
+        "cakeVotes": {
+          "total": 89,
+          "yes": 43,
+          "neutral": 6,
+          "no": 40
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-03: Improvement and maintenance of DeFiChain-Analytics (25 000 DFI)",
+        "number": 171,
+        "type": "cfp",
+        "dfiAmount": 25000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/171",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 519,
+          "possible": 11299,
+          "turnout": 4.59,
+          "yes": 511,
+          "neutral": 1,
+          "no": 7
+        },
+        "cakeVotes": {
+          "total": 103,
+          "yes": 97,
+          "neutral": 0,
+          "no": 6
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-02: Development of a Wallet Monitoring System (28 000 DFI)",
+        "number": 169,
+        "type": "cfp",
+        "dfiAmount": 28000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/169",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 513,
+          "possible": 11299,
+          "turnout": 4.54,
+          "yes": 466,
+          "neutral": 8,
+          "no": 39
+        },
+        "cakeVotes": {
+          "total": 95,
+          "yes": 73,
+          "neutral": 5,
+          "no": 17
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "CFP-2207-01: Pond, decentralize Ocean API and run it everywhere (30 000 DFI)",
+        "number": 168,
+        "type": "cfp",
+        "dfiAmount": 30000,
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/168",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 503,
+          "possible": 11299,
+          "turnout": 4.45,
+          "yes": 466,
+          "neutral": 10,
+          "no": 27
+        },
+        "cakeVotes": {
+          "total": 85,
+          "yes": 69,
+          "neutral": 10,
+          "no": 6
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2207-A: New vault liquidation rules",
+        "number": 161,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/161",
+        "currentResult": "Approved",
+        "totalVotes": {
+          "total": 520,
+          "possible": 11299,
+          "turnout": 4.6,
+          "yes": 473,
+          "neutral": 8,
+          "no": 39
+        },
+        "cakeVotes": {
+          "total": 102,
+          "yes": 75,
+          "neutral": 8,
+          "no": 19
+        },
+        "dfxVotes": {
+          "total": 220,
+          "yes": 220,
+          "neutral": 0,
+          "no": 0
+        },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      }
+    ]
+  ],
+  "2206": [
+    [
+      {
+        "title": "DFIP-2206-F: FutureSwaps for DFI -> DUSD (only one way) and deactivate DFI payback for DUSD",
+        "number": 167,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/167",
+        "currentResult": "Approved",
+        "totalVotes": { "total": 406, "possible": 11126, "turnout": 3.65, "yes": 400, "neutral": 6, "no": 0 },
+        "cakeVotes": { "total": 60, "yes": 55, "neutral": 5, "no": 0 },
+        "dfxVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2206-E: Dynamic interest rates on DUSD loans",
+        "number": 166,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/166",
+        "currentResult": "Approved",
+        "totalVotes": { "total": 407, "possible": 11126, "turnout": 3.66, "yes": 393, "neutral": 0, "no": 14 },
+        "cakeVotes": { "total": 52, "yes": 51, "neutral": 0, "no": 1 },
+        "dfxVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2206-D: Dynamic DEX stabilization fee for DUSD on the DUSD-DFI pair",
+        "number": 165,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/165",
+        "currentResult": "Approved",
+        "totalVotes": { "total": 407, "possible": 11126, "turnout": 3.66, "yes": 391, "neutral": 1, "no": 15 },
+        "cakeVotes": { "total": 52, "yes": 47, "neutral": 1, "no": 4 },
+        "dfxVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2206-C: Increase the payback DFI fee of DUSD to 5%",
+        "number": 164,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/164",
+        "currentResult": "Approved",
+        "totalVotes": { "total": 406, "possible": 11126, "turnout": 3.65, "yes": 405, "neutral": 1, "no": 0 },
+        "cakeVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "dfxVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2206-B: Making the DEX burn on DUSD-DFI asymmetric",
+        "number": 163,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/163",
+        "currentResult": "Approved",
+        "totalVotes": { "total": 398, "possible": 11126, "turnout": 3.58, "yes": 393, "neutral": 5, "no": 0 },
+        "cakeVotes": { "total": 52, "yes": 47, "neutral": 5, "no": 0 },
+        "dfxVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2206-A: Burning interest rates and liquidation penalty in DUSD",
+        "number": 162,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/162",
+        "currentResult": "Approved",
+        "totalVotes": { "total": 408, "possible": 11126, "turnout": 3.67, "yes": 408, "neutral": 0, "no": 0 },
+        "cakeVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "dfxVotes": { "total": 60, "yes": 60, "neutral": 0, "no": 0 },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      },
+      {
+        "title": "DFIP-2206-G: Allow liquidity mining tokens as collateral",
+        "number": 160,
+        "type": "dfip",
+        "htmlUrl": "https://github.com/DeFiCh/dfips/issues/160",
+        "currentResult": "Not approved",
+        "totalVotes": { "total": 380, "possible": 11126, "turnout": 3.42, "yes": 24, "neutral": 9, "no": 347 },
+        "cakeVotes": { "total": 38, "yes": 18, "neutral": 8, "no": 12 },
+        "dfxVotes": { "total": 60, "yes": 0, "neutral": 0, "no": 60 },
+        "startDate": "2022-06-19T23:59:59.000Z",
+        "endDate": "2022-07-22T23:59:59.000Z"
+      }
+    ]
+  ],
   "2205": [
     {
       "title": "DFIP-2205-F: Ticker Council's role & functions",

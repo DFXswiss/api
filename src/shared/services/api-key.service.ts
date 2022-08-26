@@ -30,8 +30,12 @@ export class ApiKeyService {
 
   public isValidSign(user: User, sign: string, timestamp: string): boolean {
     const userSign = this.getSign(user, timestamp);
-    console.log('CT timestamp: ' + timestamp);
-    return sign.toUpperCase() == userSign; //TODO  && Util.daysDiff(new Date(timestamp), new Date()) <= 1;
+
+    // TODO: temp code until CT changed its timestamp
+    const [date, time] = timestamp.split('T');
+    timestamp = `${date.split('.').reverse().join('-')}T${time}`;
+
+    return sign.toUpperCase() == userSign && Util.daysDiff(new Date(timestamp), new Date()) <= 1;
   }
 
   // --- KEY HANDLING --- //
