@@ -150,7 +150,11 @@ export class CfpService {
   }
 
   getCfpList(): string[] {
-    return Object.keys(CfpResults).reverse();
+    const cfpList = Object.keys(CfpResults);
+    if (this.settings.currentRound && !cfpList.includes(this.settings.currentRound))
+      cfpList.push(this.settings.currentRound);
+
+    return cfpList.reverse();
   }
 
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
