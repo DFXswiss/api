@@ -1,4 +1,4 @@
-import { BinaryLike, createHash } from 'crypto';
+import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import { MinDeposit } from 'src/payment/models/deposit/dto/min-deposit.dto';
@@ -6,6 +6,8 @@ import { MinDeposit } from 'src/payment/models/deposit/dto/min-deposit.dto';
 type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
 }[keyof T];
+
+type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
 
 export class Util {
   // --- MATH --- //
@@ -127,10 +129,16 @@ export class Util {
     Object.keys(entity).forEach((k) => !entity[k] && delete entity[k]);
   }
 
-  static createHash(data: BinaryLike, hashAlgo: 'sha256' | 'md5' = 'sha256'): string {
-    const hash = createHash(hashAlgo);
+  static createHash(data: BinaryLike, algo: CryptoAlgorithm = 'sha256'): string {
+    const hash = createHash(algo);
     hash.update(data);
     return hash.digest('hex');
+  }
+
+  static createSign(data: BinaryLike, key: KeyLike, algo: CryptoAlgorithm): string {
+    const sign = createSign(algo);
+    sign.update(data);
+    return sign.sign(key, 'base64');
   }
 
   static async retry<T>(action: () => Promise<T>, tryCount = 3, delay = 0): Promise<T> {

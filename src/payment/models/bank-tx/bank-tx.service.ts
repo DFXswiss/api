@@ -8,6 +8,10 @@ import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType } from './bank-tx.entity';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { Interval } from '@nestjs/schedule';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { FrickService } from './frick.service';
+import { OlkypayService } from './olkypay.service';
 
 @Injectable()
 export class BankTxService {
@@ -16,7 +20,37 @@ export class BankTxService {
     private readonly bankTxBatchRepo: BankTxBatchRepository,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly mailService: MailService,
+    private readonly settingService: SettingService,
+    private readonly frickService: FrickService,
+    private readonly olkyService: OlkypayService,
   ) {}
+
+  // --- TRANSACTION HANDLING --- //
+  @Interval(60000)
+  async checkTransactions(): Promise<void> {
+    try {
+      const settingKey = 'lastBankDate';
+      const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
+
+      const transactions = await Promise.all([
+        this.olkyService.getOlkyTransactions(lastModificationTime),
+        this.frickService.getFrickTransactions(lastModificationTime),
+      ]).then(([olky, frick]) => olky.concat(frick));
+
+      for (const bankTx of transactions) {
+        try {
+          await this.create(bankTx);
+        } catch (e) {
+          if (!(e instanceof ConflictException)) console.error(`Failed to import transaction:`, e);
+        }
+      }
+
+      const newModificationTime = new Date().toISOString();
+      await this.settingService.set(settingKey, newModificationTime);
+    } catch (e) {
+      console.error(`Failed to check bank transactions:`, e);
+    }
+  }
 
   async create(bankTx: Partial<BankTx>): Promise<Partial<BankTx>> {
     let entity = await this.bankTxRepo.findOne({ accountServiceRef: bankTx.accountServiceRef });
@@ -51,7 +85,7 @@ export class BankTxService {
 
     // parse the file
     const batch = this.bankTxBatchRepo.create(SepaParser.parseBatch(sepaFile));
-    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile));
+    const txList = this.bankTxRepo.create(SepaParser.parseEntries(sepaFile, batch.iban));
 
     // store the batch
     await this.bankTxBatchRepo.save(batch);

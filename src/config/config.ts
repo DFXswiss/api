@@ -236,12 +236,24 @@ export class Configuration {
   };
 
   bank = {
+    maerkiBaumann: {
+      ibanEur: 'CH6808573177975201814',
+    },
     olkypay: {
-      iban: 'LU116060002000005040',
+      ibanEur: 'LU116060002000005040',
       clientId: process.env.OLKY_CLIENT,
       username: process.env.OLKY_USERNAME,
       password: process.env.OLKY_PASSWORD,
       clientSecret: process.env.OLKY_CLIENT_SECRET,
+    },
+    frick: {
+      ibanEur: 'LI95088110104693K000E',
+      ibanChf: 'LI52088110104693K000C',
+      ibanUsd: 'LI51088110104693K000U',
+      url: process.env.FRICK_URL,
+      key: process.env.FRICK_KEY,
+      password: process.env.FRICK_PASSWORD,
+      privateKey: process.env.FRICK_PRIVATE_KEY.split('<br>').join('\n'),
     },
   };
 
