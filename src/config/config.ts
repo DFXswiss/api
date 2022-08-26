@@ -253,8 +253,21 @@ export class Configuration {
       },
       accounts: [{ currency: 'EUR', iban: 'LU116060002000005040', bic: 'OLKILUL1' }],
     },
-    maerki: {
+    maerkiBaumann: {
       accounts: [{ currency: 'EUR', iban: 'CH6808573177975201814', bic: 'MAEBCHZZ' }],
+    },
+    frick: {
+      credentials: {
+        url: process.env.FRICK_URL,
+        key: process.env.FRICK_KEY,
+        password: process.env.FRICK_PASSWORD,
+        privateKey: process.env.FRICK_PRIVATE_KEY.split('<br>').join('\n'),
+      },
+      accounts: [
+        { currency: 'EUR', iban: 'LI95088110104693K000E', bic: 'BFRILI22XXX' },
+        { currency: 'CHF', iban: 'LI52088110104693K000C', bic: 'BFRILI22XXX' },
+        { currency: 'USD', iban: 'LI51088110104693K000U', bic: 'BFRILI22XXX' },
+      ],
     },
   };
 

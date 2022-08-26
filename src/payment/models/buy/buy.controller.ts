@@ -143,7 +143,7 @@ export class BuyController {
       account = Config.bank.olkypay.accounts.find((a) => a.currency === 'EUR');
     } else {
       // default => Maerki Baumann / EUR
-      account = Config.bank.maerki.accounts.find((a) => a.currency === 'EUR');
+      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'EUR');
     }
 
     return { ...Config.bank.dfxBankInfo, iban: account.iban, bic: account.bic };
