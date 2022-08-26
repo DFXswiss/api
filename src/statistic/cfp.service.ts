@@ -151,8 +151,8 @@ export class CfpService {
 
   getCfpList(): string[] {
     const cfpList = Object.keys(CfpResults);
-    if (this.settings.currentRound)
-      if (!cfpList.includes(this.settings.currentRound)) cfpList.push(this.settings.currentRound);
+    if (this.settings.currentRound && !cfpList.includes(this.settings.currentRound))
+      cfpList.push(this.settings.currentRound);
 
     return cfpList.reverse();
   }
