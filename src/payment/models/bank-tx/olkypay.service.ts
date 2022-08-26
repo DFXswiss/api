@@ -49,7 +49,7 @@ export class OlkypayService {
   constructor(private readonly http: HttpService) {}
 
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
-    if (!Config.bank.olkypay.clientId) return;
+    if (!Config.bank.olkypay.clientId) return [];
 
     const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
     if (!transactions) return [];
