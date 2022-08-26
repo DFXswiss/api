@@ -3,6 +3,7 @@ import { BinanceService } from './binance.service';
 import { BitpandaService } from './bitpanda.service';
 import { BitstampService } from './bitstamp.service';
 import { Price } from './dto/price.dto';
+import { PriceMismatchException } from './exceptions/price-mismatch.exception';
 import { KrakenService } from './kraken.service';
 
 type PriceSource = string;
@@ -18,15 +19,24 @@ export class ExchangeUtilityService {
 
   async getMatchingPrice(fromCurrency: string, toCurrency: string, matchThreshold = 0.02): Promise<Price> {
     const mainPrice = await this.krakenService.getPrice(fromCurrency, toCurrency);
-    const [refPrice, refSource] = await this.getReferencePrice(fromCurrency, toCurrency);
 
-    const { price: _mainPrice } = mainPrice;
-    const { price: _refPrice } = refPrice;
+    try {
+      const [refPrice, refSource] = await this.getReferencePrice(fromCurrency, toCurrency);
 
-    if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold)
-      throw new Error(
-        `${fromCurrency} to ${toCurrency} price mismatch (kraken: ${_mainPrice}, ${refSource}: ${_refPrice})`,
+      const { price: _mainPrice } = mainPrice;
+      const { price: _refPrice } = refPrice;
+
+      if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold)
+        throw new PriceMismatchException(
+          `${fromCurrency} to ${toCurrency} price mismatch (kraken: ${_mainPrice}, ${refSource}: ${_refPrice})`,
+        );
+    } catch (e) {
+      if (e instanceof PriceMismatchException) throw e;
+
+      console.warn(
+        `Proceeding without reference check from Binance, Bitstamp and Bitpanda. From ${fromCurrency} to ${toCurrency}`,
       );
+    }
 
     return mainPrice;
   }
