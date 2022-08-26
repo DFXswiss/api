@@ -130,7 +130,7 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   txInfo?: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 'MAX', nullable: true })
   txRaw?: string;
 
   @Column({ length: 256, nullable: true })
