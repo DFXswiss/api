@@ -32,12 +32,12 @@ export class BankTxService {
       const settingKey = 'lastBankDate';
       const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
 
-      const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTime);
-      const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTime);
+      const transactions = await Promise.all([
+        this.olkyService.getOlkyTransactions(lastModificationTime),
+        this.frickService.getFrickTransactions(lastModificationTime),
+      ]).then(([olky, frick]) => olky.concat(frick));
 
-      if (!olkyTransactions && !frickTransactions) return;
-
-      for (const bankTx of [...olkyTransactions, ...frickTransactions]) {
+      for (const bankTx of transactions) {
         try {
           await this.create(bankTx);
         } catch (e) {
