@@ -31,6 +31,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
   @Interval(90000)
   async fetch() {
     if (!Config.bank.olkypay.credentials.clientId) return;
+
     const data = [await this.getOlkypay(), ...(await this.getFrick())];
 
     this.emit(data);
@@ -49,9 +50,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
         "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
         'dbBalance',
       )
-      .where('bankTx.accountIban = :iban', {
-        iban: Config.bank.olkypay.accounts.find((a) => a.currency === 'EUR').iban,
-      })
+      .where('bankTx.accountIban = :iban', { iban: Config.bank.olkypay.account.iban })
       .getRawOne<{ dbBalance: number }>();
 
     return {

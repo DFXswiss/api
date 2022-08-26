@@ -101,7 +101,7 @@ export class OlkypayService {
       txInfo: tx.line1,
       txRaw: JSON.stringify(tx),
       remittanceInfo: tx.line2,
-      accountIban: Config.bank.olkypay.accounts.find((a) => a.currency === 'EUR')?.iban,
+      accountIban: Config.bank.olkypay.account.iban,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
     };
   }

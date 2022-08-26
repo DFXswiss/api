@@ -251,10 +251,13 @@ export class Configuration {
         password: process.env.OLKY_PASSWORD,
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
-      accounts: [{ currency: 'EUR', iban: 'LU116060002000005040', bic: 'OLKILUL1' }],
+      account: { currency: 'EUR', iban: 'LU116060002000005040', bic: 'OLKILUL1' },
     },
     maerkiBaumann: {
-      accounts: [{ currency: 'EUR', iban: 'CH6808573177975201814', bic: 'MAEBCHZZ' }],
+      accounts: [
+        { currency: 'EUR', iban: 'CH6808573177975201814', bic: 'MAEBCHZZ' },
+        { currency: 'CHF', iban: 'CH3408573177975200001', bic: 'MAEBCHZZ' },
+      ],
     },
     frick: {
       credentials: {
@@ -264,9 +267,9 @@ export class Configuration {
         privateKey: process.env.FRICK_PRIVATE_KEY.split('<br>').join('\n'),
       },
       accounts: [
-        { currency: 'EUR', iban: 'LI95088110104693K000E', bic: 'BFRILI22XXX' },
-        { currency: 'CHF', iban: 'LI52088110104693K000C', bic: 'BFRILI22XXX' },
-        { currency: 'USD', iban: 'LI51088110104693K000U', bic: 'BFRILI22XXX' },
+        { currency: 'EUR', iban: 'LI95088110104693K000E', bic: 'BFRILI22' },
+        { currency: 'CHF', iban: 'LI52088110104693K000C', bic: 'BFRILI22' },
+        { currency: 'USD', iban: 'LI51088110104693K000U', bic: 'BFRILI22' },
       ],
     },
   };

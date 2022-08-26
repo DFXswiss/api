@@ -140,7 +140,7 @@ export class BuyController {
     // select the matching bank account
     if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
-      account = Config.bank.olkypay.accounts.find((a) => a.currency === 'EUR');
+      account = Config.bank.olkypay.account;
     } else {
       // default => Maerki Baumann / EUR
       account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'EUR');
