@@ -28,6 +28,7 @@ export class SellService {
     private readonly bankAccountService: BankAccountService,
   ) {}
 
+  // --- SELLS --- //
   async getSellByAddress(depositAddress: string): Promise<Sell> {
     // does not work with find options
     return this.sellRepo
@@ -43,7 +44,7 @@ export class SellService {
     return this.sellRepo.find({ user: { id: userId } });
   }
 
-  async createSell(userId: number, dto: CreateSellDto): Promise<Sell> {
+  async createSell(userId: number, dto: CreateSellDto, ignoreExisting = false): Promise<Sell> {
     // check user data
     const dataComplete = await this.kycService.userDataComplete(userId);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
@@ -59,11 +60,15 @@ export class SellService {
     const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
 
     if (existing) {
-      if (existing.active) throw new ConflictException('Sell route already exists');
+      if (existing.active && !ignoreExisting) throw new ConflictException('Sell route already exists');
 
-      // reactivate deleted route
-      existing.active = true;
-      return this.sellRepo.save(existing);
+      if (!existing.active) {
+        // reactivate deleted route
+        existing.active = true;
+        this.sellRepo.save(existing);
+      }
+
+      return existing;
     }
 
     // create the entity

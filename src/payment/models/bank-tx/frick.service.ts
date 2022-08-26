@@ -144,7 +144,7 @@ export class FrickService {
   constructor(private readonly http: HttpService) {}
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
-    if (!Config.bank.frick.key) return;
+    if (!Config.bank.frick.credentials.key) return;
     const { transactions } = await this.getTransactions(new Date(lastModificationTime));
 
     if (!transactions) return [];
@@ -248,7 +248,7 @@ export class FrickService {
       if (getNewAccessToken) this.accessToken = await this.getAccessToken();
 
       return await this.http.request<T>({
-        url: `${Config.bank.frick.url}/${url}`,
+        url: `${Config.bank.frick.credentials.url}/${url}`,
         method: method,
         data: method !== 'GET' ? data : undefined,
         params: method === 'GET' ? data : undefined,
@@ -263,10 +263,10 @@ export class FrickService {
   }
 
   private async getAccessToken(): Promise<string> {
-    const data = { key: Config.bank.frick.key, password: Config.bank.frick.password };
+    const data = { key: Config.bank.frick.credentials.key, password: Config.bank.frick.credentials.password };
 
     const { token } = await this.http.request<{ token: string }>({
-      url: `${Config.bank.frick.url}/authorize`,
+      url: `${Config.bank.frick.credentials.url}/authorize`,
       method: 'POST',
       data: data,
       headers: this.getHeaders(data),
@@ -279,7 +279,7 @@ export class FrickService {
     return {
       Accept: 'application/json',
       algorithm: 'rsa-sha512',
-      Signature: data ? Util.createSign(JSON.stringify(data), Config.bank.frick.privateKey, 'sha512') : null,
+      Signature: data ? Util.createSign(JSON.stringify(data), Config.bank.frick.credentials.privateKey, 'sha512') : null,
       Authorization: `Bearer ${this.accessToken}`,
     };
   }

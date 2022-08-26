@@ -22,12 +22,12 @@ export class CreateBuyDto {
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  asset: Asset;
+  asset?: Asset;
 
   @ApiPropertyOptional()
   @ValidateIf((b: CreateBuyDto) => b.type === BuyType.STAKING)
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
-  staking: StakingDto;
+  staking?: StakingDto;
 }

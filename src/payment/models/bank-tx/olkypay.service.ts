@@ -49,7 +49,7 @@ export class OlkypayService {
   constructor(private readonly http: HttpService) {}
 
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
-    if (!Config.bank.olkypay.clientId) return [];
+    if (!Config.bank.olkypay.credentials.clientId) return [];
 
     const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
     if (!transactions) return [];
@@ -58,13 +58,15 @@ export class OlkypayService {
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
-    const url = `ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(toDate)}`;
+    const url = `ecritures/${Config.bank.olkypay.credentials.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(
+      toDate,
+    )}`;
 
     return await this.callApi<Transaction[]>(url);
   }
 
   async getBalance(): Promise<Balance> {
-    const url = `balance/today/${Config.bank.olkypay.clientId}`;
+    const url = `balance/today/${Config.bank.olkypay.credentials.clientId}`;
     const balance = await this.callApi<Balance>(url);
     return {
       balance: Util.round(balance.balance / 100, 2),
@@ -99,7 +101,7 @@ export class OlkypayService {
       txInfo: tx.line1,
       txRaw: JSON.stringify(tx),
       remittanceInfo: tx.line2,
-      accountIban: Config.bank.olkypay.ibanEur,
+      accountIban: Config.bank.olkypay.account.iban,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
     };
   }
@@ -159,9 +161,9 @@ export class OlkypayService {
     const data = stringify({
       grant_type: 'password',
       client_id: 'wsapi',
-      client_secret: Config.bank.olkypay.clientSecret,
-      username: Config.bank.olkypay.username,
-      password: Config.bank.olkypay.password,
+      client_secret: Config.bank.olkypay.credentials.clientSecret,
+      username: Config.bank.olkypay.credentials.username,
+      password: Config.bank.olkypay.credentials.password,
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
     });
 
