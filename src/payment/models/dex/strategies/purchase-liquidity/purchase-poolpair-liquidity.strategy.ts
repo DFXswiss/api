@@ -105,8 +105,14 @@ export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy
   private async getAssetPair(asset: Asset): Promise<[Asset, Asset]> {
     const assetPair = this.parseAssetPair(asset);
 
-    const leftAsset = await this.assetService.getAssetByDexName(assetPair[0]);
-    const rightAsset = await this.assetService.getAssetByDexName(assetPair[1]);
+    const leftAsset = await this.assetService.getAssetByQuery({
+      dexName: assetPair[0],
+      blockchain: Blockchain.DEFICHAIN,
+    });
+    const rightAsset = await this.assetService.getAssetByQuery({
+      dexName: assetPair[1],
+      blockchain: Blockchain.DEFICHAIN,
+    });
 
     if (!leftAsset || !rightAsset) {
       throw new Error(

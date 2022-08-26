@@ -137,7 +137,8 @@ export class BuyCryptoDexService {
   }
 
   private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
-    const targetAsset = await this.assetService.getAssetByDexName(batch.outputAsset);
+    const { outputAsset, blockchain } = batch;
+    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
 
     return {
       context: LiquidityOrderContext.BUY_CRYPTO,

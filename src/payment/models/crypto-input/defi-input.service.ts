@@ -61,7 +61,12 @@ export class DeFiInputService extends CryptoInputService {
       for (const token of tokens) {
         try {
           const { amount, asset } = this.client.parseAmount(token.amount);
-          const assetEntity = await this.assetService.getAssetByDexName(asset, true);
+          // TODO - double check if if only Blockchain.DEFICHAIN affected
+          const assetEntity = await this.assetService.getAssetByQuery({
+            dexName: asset,
+            blockchain: Blockchain.DEFICHAIN,
+            isToken: true,
+          });
 
           if (assetEntity?.category === AssetCategory.POOL_PAIR) {
             console.log('Removing pool liquidity:', token);
@@ -199,7 +204,12 @@ export class DeFiInputService extends CryptoInputService {
 
   private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
     // get asset
-    const assetEntity = await this.assetService.getAssetByDexName(asset, isToken);
+    // TODO - double check if if only Blockchain.DEFICHAIN affected
+    const assetEntity = await this.assetService.getAssetByQuery({
+      dexName: asset,
+      blockchain: Blockchain.DEFICHAIN,
+      isToken,
+    });
     if (!assetEntity) {
       console.error(`Failed to process DeFiChain input. No asset ${asset} found. History entry:`, history);
       return null;

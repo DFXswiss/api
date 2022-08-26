@@ -10,6 +10,7 @@ import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Entity()
 export class BuyCrypto extends IEntity {
@@ -112,6 +113,24 @@ export class BuyCrypto extends IEntity {
   defineAssetExchangePair(): this {
     this.outputAsset = this.target?.asset?.dexName;
 
+    if (this.outputAsset === this.inputReferenceAsset) {
+      this.outputReferenceAsset = this.outputAsset;
+      return this;
+    }
+
+    if (['USDC', 'USDT'].includes(this.outputAsset)) {
+      this.outputReferenceAsset = this.outputAsset;
+      return this;
+    }
+
+    // TODO - consider getting defaults native coin for blockchain from utility, but not sure (think BTC instead of DFI)
+    this.outputReferenceAsset = this.target.asset.blockchain === Blockchain.ETHEREUM ? 'ETH' : 'BTC';
+
+    return this;
+
+    /*
+    this.outputAsset = this.target?.asset?.dexName;
+
     if (this.outputAsset === 'BTC' || this.outputAsset === 'USDC' || this.outputAsset === 'USDT') {
       this.outputReferenceAsset = this.outputAsset;
     } else {
@@ -119,6 +138,7 @@ export class BuyCrypto extends IEntity {
     }
 
     return this;
+    */
   }
 
   calculateOutputReferenceAmount(prices: Price[]): this {

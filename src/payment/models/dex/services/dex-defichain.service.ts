@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { DeFiChainUtil } from 'src/blockchain/ain/utils/defichain.util';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
@@ -136,7 +137,9 @@ export class DexDeFiChainService {
 
   private async checkAssetAvailability(asset: string, amount: number): Promise<{ asset: string; amount: number }> {
     const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === asset,
+      (o) =>
+        o.targetAsset.dexName === asset &&
+        (o.targetAsset.blockchain === Blockchain.DEFICHAIN || o.targetAsset.blockchain === Blockchain.BITCOIN),
     );
     const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
 

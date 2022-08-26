@@ -25,7 +25,7 @@ export class BuyCryptoBatchService {
           outputAsset: IsNull(),
           batch: IsNull(),
         },
-        relations: ['bankTx', 'buy', 'buy.user', 'batch', 'cryptoRoute', 'cryptoRoute.user'],
+        relations: ['bankTx', 'buy', 'buy.user', 'buy.asset', 'batch', 'cryptoRoute', 'cryptoRoute.user'],
       });
 
       if (txInput.length === 0) {
@@ -53,6 +53,14 @@ export class BuyCryptoBatchService {
     }
   }
 
+  private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
+    for (const tx of transactions) {
+      tx.defineAssetExchangePair();
+    }
+
+    return transactions.filter((tx) => tx.outputAsset);
+  }
+
   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
     const referenceAssetPairs = [
       ...new Set(
@@ -65,14 +73,6 @@ export class BuyCryptoBatchService {
     return await Promise.all(
       referenceAssetPairs.map(async (pair) => await this.exchangeUtilityService.getMatchingPrice(pair[0], pair[1])),
     );
-  }
-
-  private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
-    for (const tx of transactions) {
-      tx.defineAssetExchangePair();
-    }
-
-    return transactions.filter((tx) => tx.outputAsset);
   }
 
   private async defineReferenceAmount(transactions: BuyCrypto[], referencePrices: Price[]): Promise<BuyCrypto[]> {
@@ -91,7 +91,7 @@ export class BuyCryptoBatchService {
     const batches = new Map<string, BuyCryptoBatch>();
 
     for (const tx of transactions) {
-      const { outputReferenceAsset, outputAsset } = tx;
+      const { outputReferenceAsset, outputAsset, buy } = tx;
 
       const existingBatch = await this.buyCryptoBatchRepo.findOne({
         outputAsset: tx.outputAsset,
@@ -112,10 +112,11 @@ export class BuyCryptoBatchService {
         batch = this.buyCryptoBatchRepo.create({
           outputReferenceAsset,
           outputAsset,
+          blockchain: buy.asset.blockchain,
           status: BuyCryptoBatchStatus.CREATED,
           transactions: [],
         });
-        batches.set(outputReferenceAsset + '&' + outputAsset, batch);
+        batches.set(outputReferenceAsset + '&' + outputAsset + '&' + tx.buy.asset.blockchain, batch);
       }
 
       batch.addTransaction(tx);

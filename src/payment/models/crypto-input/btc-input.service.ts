@@ -90,7 +90,8 @@ export class BtcInputService extends CryptoInputService {
 
   private async createEntity(utxo: UTXO): Promise<CryptoInput> {
     // get asset
-    const assetEntity = await this.assetService.getAssetByDexName('BTC');
+    // TODO - double check if prod DB has BTC record with Blockchain.BITCOIN
+    const assetEntity = await this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
     if (!assetEntity) {
       console.error(`Failed to process Bitcoin input. No asset BTC found. UTXO:`, utxo);
       return null;
