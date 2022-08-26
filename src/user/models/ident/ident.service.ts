@@ -13,6 +13,7 @@ export class IdentService {
   async identUpdate(result: IdentResultDto): Promise<void> {
     let user = await this.userDataRepo.findOne({
       where: [
+        // TODO: remove check for transaction number
         {
           spiderData: { identIdentificationIds: Like(`%${result?.identificationprocess?.transactionnumber}%`) },
         },
