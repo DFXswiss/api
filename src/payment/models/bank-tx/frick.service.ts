@@ -193,7 +193,7 @@ export class FrickService {
       remittanceInfo: tx.reference,
       type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
       accountIban: tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban,
-      txInfo: JSON.stringify(tx),
+      txRaw: JSON.stringify(tx),
     };
   }
 

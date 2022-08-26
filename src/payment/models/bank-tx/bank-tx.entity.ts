@@ -127,8 +127,11 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   remittanceInfo?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ length: 256, nullable: true })
   txInfo?: string;
+
+  @Column({ length: 256, nullable: true })
+  txRaw?: string;
 
   @Column({ length: 256, nullable: true })
   type: BankTxType;

@@ -97,6 +97,7 @@ export class OlkypayService {
       iban: tx.instructingIban,
       ...this.getNameAndAddress(tx),
       txInfo: tx.line1,
+      txRaw: JSON.stringify(tx),
       remittanceInfo: tx.line2,
       accountIban: Config.bank.olkypay.ibanEur,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
