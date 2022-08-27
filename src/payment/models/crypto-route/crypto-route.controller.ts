@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -24,6 +24,8 @@ import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { Blockchain } from 'src/ain/node/node.service';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
+import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
+import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')
@@ -48,6 +50,19 @@ export class CryptoRouteController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   createCrypto(@GetJwt() jwt: JwtPayload, @Body() createCryptoDto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
     return this.cryptoRouteService.createCrypto(jwt.id, createCryptoDto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Put('/paymentInfos')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: CryptoPaymentInfoDto })
+  async createCryptoWithPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: GetCryptoPaymentInfoDto,
+  ): Promise<CryptoPaymentInfoDto> {
+    return this.cryptoRouteService
+      .createCrypto(jwt.id, { ...dto, type: BuyType.WALLET, staking: null }, true)
+      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
   }
 
   @Put(':id')
@@ -101,6 +116,15 @@ export class CryptoRouteController {
     };
   }
 
+  private async toPaymentInfoDto(userId: number, cryptoRoute: CryptoRoute): Promise<CryptoPaymentInfoDto> {
+    return {
+      depositAddress: cryptoRoute.deposit.address,
+      ...(await this.getFees(userId)),
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
+    };
+  }
+
+  // --- HELPER-METHODS --- //
   private async getStaking(
     userId: number,
     deposit?: Deposit,
