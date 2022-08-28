@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +22,7 @@ import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { Util } from 'src/shared/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { KycProcessService } from '../kyc/kyc-process.service';
 
 @Injectable()
 export class UserDataService {
@@ -32,6 +35,8 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
+    @Inject(forwardRef(() => KycProcessService))
+    private readonly kycProcessService: KycProcessService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -78,10 +83,6 @@ export class UserDataService {
       if (!userData.organizationCountry) throw new BadRequestException('Country not found');
     }
 
-    if (dto.kycStatus && !dto.kycState) {
-      dto.kycState = KycState.NA;
-    }
-
     if (dto.mainBankDataId) {
       userData.mainBankData = await this.bankDataRepo.findOne(dto.mainBankDataId);
       if (!userData.mainBankData) throw new BadRequestException('Bank data not found');
@@ -104,9 +105,8 @@ export class UserDataService {
         );
     }
 
-    if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
-      userData.kycStatusChangeDate = new Date();
-    }
+    if (dto.kycStatus && userData.kycStatus != dto.kycStatus)
+      this.kycProcessService.goToStatus(userData, dto.kycStatus);
 
     return await this.userDataRepo.save({ ...userData, ...dto });
   }
@@ -125,7 +125,7 @@ export class UserDataService {
     }
 
     // update spider
-    await this.updateSpiderIfNeeded(user, dto)
+    await this.updateSpiderIfNeeded(user, dto);
 
     return this.userDataRepo.save({ ...user, ...dto });
   }

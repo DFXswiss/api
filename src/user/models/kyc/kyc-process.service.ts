@@ -1,5 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { forwardRef, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.repository';
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { KycDocument, KycDocuments, InitiateResponse } from '../../services/spider/dto/spider.dto';
@@ -8,14 +7,16 @@ import { MailService } from 'src/shared/services/mail.service';
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 import { DocumentState, SpiderService } from 'src/user/services/spider/spider.service';
 import { UserDataService } from '../user-data/user-data.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 
 @Injectable()
 export class KycProcessService {
   constructor(
-    private readonly userDataService: UserDataService,
     private readonly spiderDataRepo: SpiderDataRepository,
     private readonly spiderService: SpiderService,
     private readonly mailService: MailService,
+    @Inject(forwardRef(() => UserDataService))
+    private readonly userDataService: UserDataService,
   ) {}
 
   // --- GENERAL METHODS --- //
@@ -51,6 +52,12 @@ export class KycProcessService {
       const initiateData = await this.spiderService.initiateIdentification(userData.id, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
+    if (status === KycStatus.MANUAL)
+      await this.mailService.sendTranslatedMail({
+        userData: userData,
+        translationKey: 'mail.kyc.success',
+        params: {},
+      });
 
     return this.updateKycStatus(userData, status);
   }
@@ -100,6 +107,7 @@ export class KycProcessService {
     userData = await this.storeChatbotResult(userData);
 
     const isVipUser = await this.userDataService.hasRole(userData.id, UserRole.VIP);
+
     return isVipUser
       ? await this.goToStatus(userData, KycStatus.VIDEO_ID)
       : await this.goToStatus(userData, KycStatus.ONLINE_ID);
