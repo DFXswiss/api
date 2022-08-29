@@ -1,13 +1,13 @@
 import { Price } from '../../exchange/dto/price.dto';
 import { PriceMismatchException } from '../../exchange/exceptions/price-mismatch.exception';
-import { PriceVendor, PriceStepResult, PriceVendorName } from '../services/pricing.service';
+import { PriceStepResult, PriceProvider, PriceProviderName } from '../interfaces';
 
 export class PriceStep {
   constructor(
     private options: {
       from?: string | 'input';
       to?: string | 'output';
-      vendors?: { primary: PriceVendor; secondary: PriceVendor[] };
+      vendors?: { primary: PriceProvider; secondary: PriceProvider[] };
       fixedPrice?: number;
     },
   ) {
@@ -33,10 +33,10 @@ export class PriceStep {
     const [price, vendor] =
       this.options.fixedPrice !== undefined ? this.getFixedPrice(_from, _to) : await this.getMatchingPrice(_from, _to);
 
-    return { price, vendor, timestamp: new Date() };
+    return { price, provider: vendor, timestamp: new Date() };
   }
 
-  private getFixedPrice(fromCurrency: string, toCurrency: string): [Price, PriceVendorName] {
+  private getFixedPrice(fromCurrency: string, toCurrency: string): [Price, PriceProviderName] {
     const price = new Price();
 
     price.source = fromCurrency;
@@ -50,7 +50,7 @@ export class PriceStep {
     fromCurrency: string,
     toCurrency: string,
     matchThreshold = 0.02,
-  ): Promise<[Price, PriceVendorName]> {
+  ): Promise<[Price, PriceProviderName]> {
     const mainPrice = await this.options.vendors.primary.getPrice(fromCurrency, toCurrency);
 
     try {
@@ -74,7 +74,7 @@ export class PriceStep {
     return [mainPrice, this.options.vendors.primary.name];
   }
 
-  private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceVendorName]> {
+  private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
     const referenceExchanges = this.options.vendors.secondary;
 
     for (const exchange of referenceExchanges) {

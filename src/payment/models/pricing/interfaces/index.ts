@@ -23,13 +23,13 @@ export interface PricePathResult {
 
 export interface PriceStepResult {
   price: Price;
-  vendor: PriceVendorName;
+  provider: PriceProviderName;
   timestamp: Date;
 }
 
-export type PriceVendorName = string;
+export type PriceProviderName = string;
 
-export interface PriceVendor {
-  name: PriceVendorName;
+export interface PriceProvider {
+  name: PriceProviderName;
   getPrice(from: string, to: string): Promise<Price>;
 }

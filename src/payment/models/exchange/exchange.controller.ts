@@ -14,7 +14,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { BinanceService } from './binance.service';
+import { BinanceService } from './services/binance.service';
 import { TradeOrder } from './dto/trade-order.dto';
 import { Price } from './dto/price.dto';
 import { TradeResult, TradeStatus } from './dto/trade-result.dto';

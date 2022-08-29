@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { BinanceService } from '../../exchange/binance.service';
-import { BitpandaService } from '../../exchange/bitpanda.service';
-import { BitstampService } from '../../exchange/bitstamp.service';
-import { KrakenService } from '../../exchange/kraken.service';
+import { BinanceService } from '../../exchange/services/binance.service';
+import { BitpandaService } from '../../exchange/services/bitpanda.service';
+import { BitstampService } from '../../exchange/services/bitstamp.service';
+import { FixerService } from '../../exchange/services/fixer.service';
+import { KrakenService } from '../../exchange/services/kraken.service';
 import { NativeCoin, StableCoin, Fiat } from '../enums';
-import { PriceVendor, PriceRequest, PriceResult } from '../interfaces';
+import { PriceRequest, PriceResult } from '../interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 
 export enum PricingPathAlias {
-  TO_BTC = 'ToBCT',
+  TO_BTC = 'ToBTC',
   TO_NATIVE_COIN = 'ToNativeCoin',
   MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
   MATCHING_ASSETS = 'MatchingAssets',
@@ -25,8 +26,7 @@ export class PricingService {
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
-    private readonly fixerService: PriceVendor,
-    private readonly currencyLayerService: PriceVendor,
+    private readonly fixerService: FixerService,
   ) {
     this.addPath(
       new PricePath(PricingPathAlias.TO_BTC, [
@@ -80,7 +80,7 @@ export class PricingService {
         new PriceStep({
           vendors: {
             primary: this.fixerService,
-            secondary: [this.currencyLayerService],
+            secondary: [],
           },
         }),
       ]),

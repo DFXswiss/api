@@ -1,8 +1,9 @@
 import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Exchange, ExchangeError, Market, Order, Transaction, WithdrawalResponse } from 'ccxt';
-import { TradeResponse, PartialTradeResponse } from './dto/trade-response.dto';
-import { Price } from './dto/price.dto';
+import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
+import { Price } from '../dto/price.dto';
 import { Util } from 'src/shared/util';
+import { PriceProvider } from '../../pricing/interfaces';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -15,7 +16,7 @@ enum OrderStatus {
   CANCELED = 'canceled',
 }
 
-export class ExchangeService {
+export class ExchangeService implements PriceProvider {
   private markets: Market[];
 
   constructor(private readonly exchange: Exchange) {}
@@ -74,7 +75,13 @@ export class ExchangeService {
     return this.tryToOrder(pair, 'limit', direction, amount);
   }
 
-  async withdrawFunds(token: string, amount: number, address: string, key: string, network?: string): Promise<WithdrawalResponse> {
+  async withdrawFunds(
+    token: string,
+    amount: number,
+    address: string,
+    key: string,
+    network?: string,
+  ): Promise<WithdrawalResponse> {
     return await this.callApi((e) => e.withdraw(token, amount, address, undefined, { key, network }));
   }
 
@@ -219,9 +226,15 @@ export class ExchangeService {
 
   getWeightedAveragePrice(list: any[]): { price: number; amountSum: number; feeSum: number } {
     const priceSum = list.reduce((a, b) => a + b.price * b.amount, 0);
-    const amountSum = Util.round(list.reduce((a, b) => a + b.amount, 0), 8);
+    const amountSum = Util.round(
+      list.reduce((a, b) => a + b.amount, 0),
+      8,
+    );
     const price = Util.round(priceSum / amountSum, 8);
-    const feeSum = Util.round(list.reduce((a, b) => a + b.fee.cost, 0), 8);
+    const feeSum = Util.round(
+      list.reduce((a, b) => a + b.fee.cost, 0),
+      8,
+    );
 
     return { price, amountSum, feeSum };
   }

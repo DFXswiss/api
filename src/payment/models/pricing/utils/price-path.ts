@@ -1,6 +1,7 @@
 import { Util } from 'src/shared/util';
 import { Price } from '../../exchange/dto/price.dto';
-import { PriceRequest, PriceResult, PricingPathAlias, PriceStepResult } from '../services/pricing.service';
+import { PriceRequest, PriceResult, PriceStepResult } from '../interfaces';
+import { PricingPathAlias } from '../services/pricing.service';
 import { PriceStep } from './price-step';
 
 export class PricePath {
