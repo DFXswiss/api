@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Not, IsNull } from 'typeorm';
 import { Price } from '../../exchange/dto/price.dto';
-import { ExchangeUtilityService } from '../../exchange/exchange-utility.service';
+import { PricingService } from '../../pricing/services/pricing.service';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
@@ -12,7 +12,7 @@ export class BuyCryptoBatchService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-    private readonly exchangeUtilityService: ExchangeUtilityService,
+    private readonly exchangeUtilityService: PricingService,
   ) {}
 
   async batchTransactionsByAssets(): Promise<void> {

@@ -10,7 +10,7 @@ import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
-import { ExchangeUtilityService } from '../exchange/exchange-utility.service';
+import { PricingService } from '../pricing/services/pricing.service';
 import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 
 @Injectable()
@@ -22,7 +22,7 @@ export class StakingRefRewardService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
     private readonly conversionService: ConversionService,
-    private readonly exchangeUtilityService: ExchangeUtilityService,
+    private readonly exchangeUtilityService: PricingService,
     private readonly mailService: MailService,
   ) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));

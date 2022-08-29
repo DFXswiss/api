@@ -1,7 +1,7 @@
 import { mock } from 'jest-mock-extended';
 import { createCustomBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
-import { ExchangeUtilityService } from 'src/payment/models/exchange/exchange-utility.service';
+import { PricingService } from 'src/payment/models/pricing/services/pricing.service';
 import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
 import {
   createCustomBuyCryptoBatch,
@@ -21,7 +21,7 @@ describe('BuyCryptoBatchService', () => {
   let buyCryptoRepo: BuyCryptoRepository;
   let buyCryptoBatchRepo: BuyCryptoBatchRepository;
   let buyCryptoOutService: BuyCryptoOutService;
-  let exchangeUtilityService: ExchangeUtilityService;
+  let exchangeUtilityService: PricingService;
 
   /*** Spies ***/
 
@@ -165,7 +165,7 @@ describe('BuyCryptoBatchService', () => {
     buyCryptoRepo = mock<BuyCryptoRepository>();
     buyCryptoBatchRepo = mock<BuyCryptoBatchRepository>();
     buyCryptoOutService = mock<BuyCryptoOutService>();
-    exchangeUtilityService = mock<ExchangeUtilityService>();
+    exchangeUtilityService = mock<PricingService>();
 
     service = new BuyCryptoBatchService(buyCryptoRepo, buyCryptoBatchRepo, buyCryptoOutService, exchangeUtilityService);
   }

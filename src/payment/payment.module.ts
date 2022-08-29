@@ -53,7 +53,6 @@ import { BuyCryptoController } from './models/buy-crypto/buy-crypto.controller';
 import { BuyCryptoService } from './models/buy-crypto/services/buy-crypto.service';
 import { StakingRefRewardService } from './models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-ref-reward.repository';
-import { ExchangeUtilityService } from './models/exchange/exchange-utility.service';
 import { BuyCryptoBatchService } from './models/buy-crypto/services/buy-crypto-batch.service';
 import { BuyCryptoOutService } from './models/buy-crypto/services/buy-crypto-out.service';
 import { BuyCryptoDexService } from './models/buy-crypto/services/buy-crypto-dex.service';
@@ -150,7 +149,6 @@ import { BitpandaService } from './models/exchange/bitpanda.service';
     BinanceService,
     BitstampService,
     BitpandaService,
-    ExchangeUtilityService,
     HistoryService,
     BuyService,
     SellService,
