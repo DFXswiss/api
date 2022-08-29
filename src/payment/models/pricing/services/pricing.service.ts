@@ -11,9 +11,9 @@ import { PriceStep } from '../utils/price-step';
 export enum PricingPathAlias {
   TO_BTC = 'ToBCT',
   TO_NATIVE_COIN = 'ToNativeCoin',
-  MATCHING_FIAT_TO_STABLE_COIN = 'FiatToStableCoin',
-  MATCHING_ASSETS = 'FiatToStableCoin',
-  NON_MATCHING_FIAT_TO_STABLE_COIN = 'FiatToStableCoin',
+  MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
+  MATCHING_ASSETS = 'MatchingAssets',
+  NON_MATCHING_FIAT_TO_STABLE_COIN = 'NonMatchingFiatToStableCoin',
 }
 
 @Injectable()
