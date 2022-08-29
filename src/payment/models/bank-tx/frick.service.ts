@@ -120,7 +120,7 @@ enum TransactionType {
 }
 
 enum ServiceType {
-  SWIFT = 'SWIFT ',
+  SWIFT = 'SWIFT',
   SIC = 'SIC',
   EUROSIC = 'EUROSIC',
 }
@@ -149,6 +149,14 @@ export class FrickService {
 
     if (!transactions) return [];
 
+    for (const transaction of transactions) {
+      if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
+        const foreignTransaction = await this.getTransactionAccount(transaction.orderId.toString());
+        transaction.creditor = { ...transaction.creditor, ...foreignTransaction.transactions[0].creditor };
+        transaction.debitor = { ...transaction.debitor, ...foreignTransaction.transactions[0].debitor };
+      }
+    }
+
     return transactions.map((t) => this.parseTransaction(t));
   }
 
@@ -165,6 +173,10 @@ export class FrickService {
       status: TransactionState.BOOKED,
     };
     return await this.callApi<Transactions>(`transactions`, 'GET', params);
+  }
+
+  private async getTransactionAccount(orderId: string): Promise<Transactions> {
+    return await this.callApi<Transactions>(`transactions/${orderId}`, 'GET');
   }
 
   async getAccounts(): Promise<Accounts> {
@@ -215,6 +227,7 @@ export class FrickService {
     addressLine1?: string;
     creditDebitIndicator: BankTxIndicator;
     iban: string;
+    aba: string;
     country: string;
     city: string;
     memberId: string;
@@ -222,16 +235,18 @@ export class FrickService {
     bic: string;
   } {
     const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
+
     return {
-      name: account.name,
+      aba: account.aba,
       addressLine1: account.address,
+      bankName: account.creditInstitution,
+      bic: account.bic,
+      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      country: account.country,
       city: account.city,
       iban: account.iban,
       memberId: account.accountNumber,
-      country: account.country,
-      bankName: account.creditInstitution,
-      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
-      bic: account.bic,
+      name: account.name,
     };
   }
 
