@@ -70,7 +70,8 @@ export class UserDataService {
     let userData = await this.userDataRepo.findOne(userDataId);
     if (!userData) throw new NotFoundException('User data not found');
 
-    userData = await this.updateUserSettings(userData, dto);
+    // Is this needed here?
+    userData = await this.updateUserSettings(userData, {});
 
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
