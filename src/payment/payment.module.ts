@@ -74,6 +74,7 @@ import { OlkypayService } from './models/bank-tx/olkypay.service';
 import { ChainalysisService } from './models/crypto-input/chainalysis.service';
 import { PayoutModule } from './models/payout/payout.module';
 import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
+import { FrickService } from './models/bank-tx/frick.service';
 import { BankAccountController } from './models/bank-account/bank-account.controller';
 import { BitpandaService } from './models/exchange/bitpanda.service';
 
@@ -143,6 +144,7 @@ import { BitpandaService } from './models/exchange/bitpanda.service';
     BuyCryptoOutService,
     BankTxService,
     OlkypayService,
+    FrickService,
     BankService,
     KrakenService,
     BinanceService,
@@ -188,6 +190,7 @@ import { BitpandaService } from './models/exchange/bitpanda.service';
     BankAccountService,
     CryptoRouteService,
     OlkypayService,
+    FrickService,
   ],
 })
 export class PaymentModule {}
