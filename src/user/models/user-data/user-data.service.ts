@@ -35,7 +35,6 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
-    @Inject(forwardRef(() => KycProcessService))
     private readonly kycProcessService: KycProcessService,
   ) {}
 
@@ -201,10 +200,6 @@ export class UserDataService {
     // update volumes
     await this.updateVolumes(masterId);
     await this.updateVolumes(slaveId);
-  }
-
-  async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return await this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
   }
 
   async getAllUserDataWithEmptyFileId(): Promise<number[]> {
