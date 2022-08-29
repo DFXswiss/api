@@ -151,9 +151,9 @@ export class FrickService {
 
     for (const transaction of transactions) {
       if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
-        const foreignTransaction = await this.getTransactionAccount(transaction.orderId.toString());
-        transaction.creditor = { ...transaction.creditor, ...foreignTransaction.transactions[0].creditor };
-        transaction.debitor = { ...transaction.debitor, ...foreignTransaction.transactions[0].debitor };
+        const { transactions } = await this.getTransactionAccount(transaction.orderId.toString());
+        transaction.creditor = { ...transaction.creditor, ...transactions[0].creditor };
+        transaction.debitor = { ...transaction.debitor, ...transactions[0].debitor };
       }
     }
 
