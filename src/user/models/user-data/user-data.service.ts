@@ -1,11 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  forwardRef,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, UserData } from './user-data.entity';
@@ -70,8 +63,7 @@ export class UserDataService {
     let userData = await this.userDataRepo.findOne(userDataId);
     if (!userData) throw new NotFoundException('User data not found');
 
-    // Is this needed here?
-    userData = await this.updateUserSettings(userData, {});
+    userData = await this.updateSpiderIfNeeded(userData, dto);
 
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
@@ -106,7 +98,7 @@ export class UserDataService {
     }
 
     if (dto.kycStatus && userData.kycStatus != dto.kycStatus)
-      this.kycProcessService.goToStatus(userData, dto.kycStatus);
+      userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
 
     return await this.userDataRepo.save({ ...userData, ...dto });
   }
@@ -130,7 +122,7 @@ export class UserDataService {
     return this.userDataRepo.save({ ...user, ...dto });
   }
 
-  async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto) {
+  async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
       await this.spiderService.updateCustomer(userData.id, {
         telephones: dto.phone ? [dto.phone.replace('+', '').split(' ').join('')] : undefined,
@@ -141,6 +133,8 @@ export class UserDataService {
         userData.kycState = KycState.FAILED;
       }
     }
+
+    return userData;
   }
 
   // --- VOLUMES --- //
