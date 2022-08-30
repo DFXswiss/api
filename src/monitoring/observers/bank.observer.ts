@@ -44,15 +44,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
   private async getOlkypay(): Promise<BankData> {
     const { balance, balanceOperationYesterday } = await this.olkypayService.getBalance();
-
-    const { dbBalance } = await getCustomRepository(BankTxRepository)
-      .createQueryBuilder('bankTx')
-      .select(
-        "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
-        'dbBalance',
-      )
-      .where('bankTx.accountIban = :iban', { iban: Config.bank.olkypay.account.iban })
-      .getRawOne<{ dbBalance: number }>();
+    const dbBalance = await this.getDbBalance(Config.bank.olkypay.account.iban);
 
     return {
       name: 'Olkypay',
@@ -69,14 +61,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     const bankData = [];
 
     for (const account of accounts) {
-      const { dbBalance } = await getCustomRepository(BankTxRepository)
-        .createQueryBuilder('bankTx')
-        .select(
-          "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
-          'dbBalance',
-        )
-        .where('bankTx.accountIban = :iban', { iban: account.iban })
-        .getRawOne<{ dbBalance: number }>();
+      const dbBalance = await this.getDbBalance(account.iban);
 
       bankData.push({
         name: 'Frick',
@@ -89,5 +74,17 @@ export class BankObserver extends MetricObserver<BankData[]> {
     }
 
     return bankData;
+  }
+
+  private async getDbBalance(iban: string): Promise<number> {
+    const { dbBalance } = await getCustomRepository(BankTxRepository)
+      .createQueryBuilder('bankTx')
+      .select(
+        "SUM(CASE WHEN bankTx.creditDebitIndicator = 'DBIT' THEN bankTx.amount * -1 ELSE bankTx.amount END)",
+        'dbBalance',
+      )
+      .where('bankTx.accountIban = :iban', { iban })
+      .getRawOne<{ dbBalance: number }>();
+    return dbBalance;
   }
 }
