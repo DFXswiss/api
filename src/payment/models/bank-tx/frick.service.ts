@@ -152,10 +152,10 @@ export class FrickService {
     //get all aba information
     for (const transaction of transactions) {
       if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
-        const { transactions } = await this.getTransaction(transaction.orderId);
-        if (transactions) {
-          transaction.creditor = { ...transaction.creditor, ...transactions[0].creditor };
-          transaction.debitor = { ...transaction.debitor, ...transactions[0].debitor };
+        const abaTransaction = await this.getTransaction(transaction.orderId);
+        if (abaTransaction) {
+          transaction.creditor = { ...transaction.creditor, ...abaTransaction.creditor };
+          transaction.debitor = { ...transaction.debitor, ...abaTransaction.debitor };
         }
       }
     }
@@ -178,8 +178,9 @@ export class FrickService {
     return await this.callApi<Transactions>(`transactions`, 'GET', params);
   }
 
-  private async getTransaction(orderId: number): Promise<Transactions> {
-    return await this.callApi<Transactions>(`transactions/${orderId}`, 'GET');
+  private async getTransaction(orderId: number): Promise<undefined | Transaction> {
+    const { transactions } = await this.callApi<Transactions>(`transactions/${orderId}`, 'GET');
+    return transactions ? transactions[0] : undefined;
   }
 
   async getAccounts(): Promise<Accounts> {
