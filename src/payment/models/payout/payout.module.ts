@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/blockchain/ain/ain.module';
-import { EthereumModule } from 'src/blockchain/eth/ethereum.module';
+import { EthereumModule } from 'src/blockchain/ethereum/ethereum.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from '../dex/dex.module';
 import { PayoutOrderFactory } from './factories/payout-order.factory';

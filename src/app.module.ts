@@ -12,7 +12,7 @@ import { AdminController } from './admin/admin.controller';
 import { GetConfig } from './config/config';
 import { SeedService } from './shared/seed/seed.service';
 import { MonitoringModule } from './monitoring/monitoring.module';
-import { EthereumModule } from './blockchain/eth/ethereum.module';
+import { EthereumModule } from './blockchain/ethereum/ethereum.module';
 
 @Module({
   imports: [

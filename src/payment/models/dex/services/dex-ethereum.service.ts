@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { EthereumClient } from 'src/blockchain/eth/ethereum-client';
-import { EthereumService } from 'src/blockchain/eth/ethereum.service';
+import { EthereumClient } from 'src/blockchain/ethereum/ethereum-client';
+import { EthereumService } from 'src/blockchain/ethereum/ethereum.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
