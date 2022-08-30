@@ -6,13 +6,14 @@ import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repos
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
+import { PriceResult } from '../../pricing/interfaces';
 
 @Injectable()
 export class BuyCryptoBatchService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-    private readonly exchangeUtilityService: PricingService,
+    private readonly pricingService: PricingService,
   ) {}
 
   async batchTransactionsByAssets(): Promise<void> {
@@ -70,17 +71,18 @@ export class BuyCryptoBatchService {
       ),
     ].map((assets) => assets.split('/'));
 
-    const prices = await Promise.all(
-      referenceAssetPairs.map(
-        async (pair) =>
-          await this.exchangeUtilityService.getMatchingPrice(pair[0], pair[1]).catch((e) => {
-            console.error('Failed to get price:', e);
-            return undefined;
-          }),
-      ),
+    const prices = await Promise.all<PriceResult>(
+      referenceAssetPairs.map(async (pair) => {
+        const priceRequest = { from: pair[0], to: pair[1] };
+
+        return this.pricingService.getPrice(priceRequest).catch((e) => {
+          console.error('Failed to get price:', e);
+          return undefined;
+        });
+      }),
     );
 
-    return prices.filter((p) => p);
+    return prices.filter((p) => p).map((p) => p.price);
   }
 
   private async defineReferenceAmount(transactions: BuyCrypto[], referencePrices: Price[]): Promise<BuyCrypto[]> {

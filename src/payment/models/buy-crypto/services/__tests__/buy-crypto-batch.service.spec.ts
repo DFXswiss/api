@@ -11,7 +11,6 @@ import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__
 import { BuyCryptoBatchRepository } from '../../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
-import { BuyCryptoOutService } from '../buy-crypto-out.service';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -20,8 +19,7 @@ describe('BuyCryptoBatchService', () => {
 
   let buyCryptoRepo: BuyCryptoRepository;
   let buyCryptoBatchRepo: BuyCryptoBatchRepository;
-  let buyCryptoOutService: BuyCryptoOutService;
-  let exchangeUtilityService: PricingService;
+  let pricingService: PricingService;
 
   /*** Spies ***/
 
@@ -164,10 +162,9 @@ describe('BuyCryptoBatchService', () => {
   function setupMocks() {
     buyCryptoRepo = mock<BuyCryptoRepository>();
     buyCryptoBatchRepo = mock<BuyCryptoBatchRepository>();
-    buyCryptoOutService = mock<BuyCryptoOutService>();
-    exchangeUtilityService = mock<PricingService>();
+    pricingService = mock<PricingService>();
 
-    service = new BuyCryptoBatchService(buyCryptoRepo, buyCryptoBatchRepo, buyCryptoOutService, exchangeUtilityService);
+    service = new BuyCryptoBatchService(buyCryptoRepo, buyCryptoBatchRepo, pricingService);
   }
 
   function setupSpies() {
@@ -183,13 +180,11 @@ describe('BuyCryptoBatchService', () => {
       .spyOn(buyCryptoBatchRepo, 'create')
       .mockImplementation(() => createDefaultBuyCryptoBatch());
 
-    exchangeUtilityServiceGetMatchingPrice = jest
-      .spyOn(exchangeUtilityService, 'getMatchingPrice')
-      .mockImplementation(async () => {
-        const price = new Price();
-        (price.price = 10), (price.source = 'EUR'), (price.target = 'BTC');
-        return price;
-      });
+    exchangeUtilityServiceGetMatchingPrice = jest.spyOn(pricingService, 'getPrice').mockImplementation(async () => {
+      const price = new Price();
+      (price.price = 10), (price.source = 'EUR'), (price.target = 'BTC');
+      return { price, path: [] };
+    });
   }
 
   function clearSpies() {

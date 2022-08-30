@@ -4,17 +4,17 @@ import { BitpandaService } from '../../exchange/services/bitpanda.service';
 import { BitstampService } from '../../exchange/services/bitstamp.service';
 import { FixerService } from '../../exchange/services/fixer.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
-import { NativeCoin, StableCoin, Fiat } from '../enums';
+import { Altcoin, USDStableCoin, Fiat } from '../enums';
 import { PriceRequest, PriceResult } from '../interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
 
 export enum PricingPathAlias {
-  TO_BTC = 'ToBTC',
-  TO_NATIVE_COIN = 'ToNativeCoin',
-  MATCHING_FIAT_TO_STABLE_COIN = 'MatchingFiatToStableCoin',
   MATCHING_ASSETS = 'MatchingAssets',
-  NON_MATCHING_FIAT_TO_STABLE_COIN = 'NonMatchingFiatToStableCoin',
+  TO_BTC = 'ToBTC',
+  TO_ALTCOIN = 'ToAltcoin',
+  MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
+  NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
 }
 
 @Injectable()
@@ -29,45 +29,6 @@ export class PricingService {
     private readonly fixerService: FixerService,
   ) {
     this.addPath(
-      new PricePath(PricingPathAlias.TO_BTC, [
-        new PriceStep({
-          to: 'BTC',
-          vendors: {
-            primary: this.krakenService,
-            secondary: [this.binanceService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.TO_NATIVE_COIN, [
-        new PriceStep({
-          to: 'BTC',
-          vendors: {
-            primary: this.krakenService,
-            secondary: [this.binanceService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-        new PriceStep({
-          from: 'BTC',
-          vendors: {
-            primary: this.binanceService,
-            secondary: [this.krakenService, this.bitstampService, this.bitpandaService],
-          },
-        }),
-      ]),
-    );
-
-    this.addPath(
-      new PricePath(PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN, [
-        new PriceStep({
-          fixedPrice: 1,
-        }),
-      ]),
-    );
-
-    this.addPath(
       new PricePath(PricingPathAlias.MATCHING_ASSETS, [
         new PriceStep({
           fixedPrice: 1,
@@ -76,11 +37,51 @@ export class PricingService {
     );
 
     this.addPath(
-      new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_STABLE_COIN, [
+      new PricePath(PricingPathAlias.TO_BTC, [
         new PriceStep({
-          vendors: {
-            primary: this.fixerService,
-            secondary: [],
+          to: 'BTC',
+          providers: {
+            primary: [this.krakenService],
+            reference: [this.binanceService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.TO_ALTCOIN, [
+        new PriceStep({
+          to: 'BTC',
+          providers: {
+            primary: [this.krakenService],
+            reference: [this.binanceService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+        new PriceStep({
+          from: 'BTC',
+          providers: {
+            primary: [this.binanceService],
+            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN, [
+        new PriceStep({
+          fixedPrice: 1,
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN, [
+        new PriceStep({
+          toAlternatives: ['USD'],
+          providers: {
+            primary: [this.krakenService, this.fixerService],
+            reference: [],
           },
         }),
       ]),
@@ -110,19 +111,21 @@ export class PricingService {
   private getAlias(request: PriceRequest): PricingPathAlias {
     const { from, to } = request;
 
+    if (from === to) return PricingPathAlias.MATCHING_ASSETS;
+
     if (to === 'BTC') return PricingPathAlias.TO_BTC;
 
-    if (Object.values(NativeCoin).includes(to as unknown as NativeCoin)) return PricingPathAlias.TO_NATIVE_COIN;
+    if (Object.values(Altcoin).includes(to as unknown as Altcoin)) return PricingPathAlias.TO_ALTCOIN;
 
-    if (from === 'USD' && [StableCoin.USDC, StableCoin.USDT].includes(to as unknown as StableCoin)) {
-      return PricingPathAlias.MATCHING_FIAT_TO_STABLE_COIN;
+    if (from === 'USD' && [USDStableCoin.USDC, USDStableCoin.USDT].includes(to as unknown as USDStableCoin)) {
+      return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
     }
 
     if (
       Object.values(Fiat).includes(from as unknown as Fiat) &&
-      Object.values(StableCoin).includes(to as unknown as StableCoin)
+      Object.values(USDStableCoin).includes(to as unknown as USDStableCoin)
     ) {
-      return PricingPathAlias.NON_MATCHING_FIAT_TO_STABLE_COIN;
+      return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
     }
 
     throw new Error('No matching pricing path found');

@@ -7,7 +7,8 @@ export class PriceStep {
     private options: {
       from?: string | 'input';
       to?: string | 'output';
-      vendors?: { primary: PriceProvider; secondary: PriceProvider[] };
+      toAlternatives?: string[];
+      providers?: { primary: PriceProvider[]; reference: PriceProvider[] };
       fixedPrice?: number;
     },
   ) {
@@ -51,12 +52,12 @@ export class PriceStep {
     toCurrency: string,
     matchThreshold = 0.02,
   ): Promise<[Price, PriceProviderName]> {
-    const mainPrice = await this.options.vendors.primary.getPrice(fromCurrency, toCurrency);
+    const [primaryPrice, primaryProvider] = await this.getPrimaryPrice(fromCurrency, toCurrency);
 
     try {
       const [refPrice, refSource] = await this.getReferencePrice(fromCurrency, toCurrency);
 
-      const { price: _mainPrice } = mainPrice;
+      const { price: _mainPrice } = primaryPrice;
       const { price: _refPrice } = refPrice;
 
       if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold)
@@ -71,20 +72,73 @@ export class PriceStep {
       );
     }
 
-    return [mainPrice, this.options.vendors.primary.name];
+    return [primaryPrice, primaryProvider];
+  }
+
+  private async getPrimaryPrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
+    const primaryProviders = this.options.providers.primary;
+
+    let [price, providerName] = await this.tryProviders(fromCurrency, toCurrency, primaryProviders);
+
+    if (!price) {
+      console.info(
+        `Could not find primary price for target '${toCurrency}', trying alternatives: ${this.options.toAlternatives.map(
+          (a) => a + ', ',
+        )}`,
+      );
+
+      [price, providerName] = await this.getAlternativePrice(fromCurrency);
+    }
+
+    if (!price) {
+      throw new Error(
+        `Could not find primary price at: ${primaryProviders.map(
+          (p) => p.name + '; ',
+        )}. From ${fromCurrency} to ${toCurrency}`,
+      );
+    }
+
+    return [price, providerName];
+  }
+
+  private async getAlternativePrice(fromCurrency: string): Promise<[Price, PriceProviderName]> {
+    const primaryProviders = this.options.providers.primary;
+    const alternativeTargets = this.options.toAlternatives || [];
+
+    for (const alternative of alternativeTargets) {
+      return this.tryProviders(fromCurrency, alternative, primaryProviders);
+    }
+
+    console.warn(`Could not find prices for alternative targets: ${this.options.toAlternatives.map((a) => a + '; ')}`);
   }
 
   private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
-    const referenceExchanges = this.options.vendors.secondary;
+    const referenceProviders = this.options.providers.reference;
 
-    for (const exchange of referenceExchanges) {
-      try {
-        return [await exchange.getPrice(fromCurrency, toCurrency), exchange.name];
-      } catch {}
+    const [price, providerName] = await this.tryProviders(fromCurrency, toCurrency, referenceProviders);
+
+    if (!price) {
+      throw new Error(
+        `Could not find reference price at: ${referenceProviders.map(
+          (p) => p.name + '; ',
+        )}. From ${fromCurrency} to ${toCurrency}`,
+      );
     }
 
-    throw new Error(
-      `Could not find reference price at Binance, Bitstamp and Bitpanda. From ${fromCurrency} to ${toCurrency}`,
-    );
+    return [price, providerName];
+  }
+
+  private async tryProviders(
+    fromCurrency: string,
+    toCurrency: string,
+    providers: PriceProvider[] = [],
+  ): Promise<[Price, PriceProviderName]> {
+    for (const provider of providers) {
+      try {
+        return [await provider.getPrice(fromCurrency, toCurrency), provider.name];
+      } catch {
+        return null;
+      }
+    }
   }
 }

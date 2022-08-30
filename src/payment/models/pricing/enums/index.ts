@@ -5,12 +5,12 @@ export enum Fiat {
   GBP = 'GBP',
 }
 
-export enum StableCoin {
+export enum USDStableCoin {
   USDC = 'USDC',
   USDT = 'USDT',
 }
 
-export enum NativeCoin {
+export enum Altcoin {
   ETH = 'ETH',
   BNB = 'BNB',
 }

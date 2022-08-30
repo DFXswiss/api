@@ -22,7 +22,7 @@ export class StakingRefRewardService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
     private readonly conversionService: ConversionService,
-    private readonly exchangeUtilityService: PricingService,
+    private readonly pricingService: PricingService,
     private readonly mailService: MailService,
   ) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
@@ -95,11 +95,11 @@ export class StakingRefRewardService {
       });
 
       if (openRewards.length > 0) {
-        const { price } = await this.exchangeUtilityService.getMatchingPrice('EUR', 'BTC');
+        const { price } = await this.pricingService.getPrice({ from: 'EUR', to: 'BTC' });
 
         for (const reward of openRewards) {
           try {
-            await this.sendReward(reward, price);
+            await this.sendReward(reward, price.price);
           } catch (e) {
             console.error(`Failed to send staking ref reward ${reward.id}:`, e);
           }
