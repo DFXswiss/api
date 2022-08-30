@@ -145,18 +145,16 @@ export class FrickService {
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.frick.credentials.key) return [];
-    const { transactions } = await this.getTransactions(new Date(lastModificationTime));
 
+    const { transactions } = await this.getTransactions(new Date(lastModificationTime));
     if (!transactions) return [];
 
-    //get all aba information
+    // get additional information (required for ABA transactions)
     for (const transaction of transactions) {
       if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
-        const abaTransaction = await this.getTransaction(transaction.orderId);
-        if (abaTransaction) {
-          transaction.creditor = { ...transaction.creditor, ...abaTransaction.creditor };
-          transaction.debitor = { ...transaction.debitor, ...abaTransaction.debitor };
-        }
+        const txDetail = await this.getTransaction(transaction.orderId);
+        transaction.creditor = { ...transaction.creditor, ...txDetail?.creditor };
+        transaction.debitor = { ...transaction.debitor, ...txDetail?.debitor };
       }
     }
 
@@ -180,7 +178,7 @@ export class FrickService {
 
   private async getTransaction(orderId: number): Promise<undefined | Transaction> {
     const { transactions } = await this.callApi<Transactions>(`transactions/${orderId}`, 'GET');
-    return transactions ? transactions[0] : undefined;
+    return transactions?.[0];
   }
 
   async getAccounts(): Promise<Accounts> {
