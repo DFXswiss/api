@@ -196,6 +196,7 @@ export class Configuration {
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
+      ethApiKey: process.env.ETH_API_KEY,
       ethExplorerUrl: process.env.ETH_EXPLORER_URL,
     },
   };

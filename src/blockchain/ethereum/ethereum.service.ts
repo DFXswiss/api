@@ -19,8 +19,11 @@ export class EthereumService {
   // *** INIT METHODS *** //
 
   private initClient(): void {
-    const { ethGatewayUrl, ethWalletPrivateKey, ethWalletAddress } = Config.blockchain.ethereum;
+    const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethWalletAddress } = Config.blockchain.ethereum;
 
-    this.#clients.set('default', new EthereumClient(ethGatewayUrl, ethWalletPrivateKey, ethWalletAddress));
+    this.#clients.set(
+      'default',
+      new EthereumClient(`${ethGatewayUrl}/${ethApiKey}`, ethWalletPrivateKey, ethWalletAddress),
+    );
   }
 }
