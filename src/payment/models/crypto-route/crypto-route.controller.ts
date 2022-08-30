@@ -99,20 +99,13 @@ export class CryptoRouteController {
   ): Promise<CryptoRouteDto> {
     fees ??= await this.getFees(userId);
 
-    let minDeposits: MinDeposit[] = [];
-    switch (crypto.deposit.blockchain) {
-      case Blockchain.BITCOIN:
-        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
-        break;
-    }
-
     return {
       ...crypto,
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       ...fees,
-      minDeposits: minDeposits,
+      minDeposits: this.getMinDeposits(crypto.deposit.blockchain),
     };
   }
 
@@ -120,7 +113,7 @@ export class CryptoRouteController {
     return {
       depositAddress: cryptoRoute.deposit.address,
       ...(await this.getFees(userId)),
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
+      minDeposits: this.getMinDeposits(cryptoRoute.deposit.blockchain),
     };
   }
 
@@ -138,6 +131,19 @@ export class CryptoRouteController {
         ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
         : await this.stakingRepo.findOne({ where: { deposit: deposit.id } }),
     );
+  }
+
+  private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
+    let minDeposits: MinDeposit[] = [];
+    switch (blockchain) {
+      case Blockchain.BITCOIN:
+        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
+        break;
+      case Blockchain.DEFICHAIN:
+        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain);
+        break;
+    }
+    return minDeposits;
   }
 
   async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
