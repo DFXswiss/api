@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MailService } from 'src/shared/services/mail.service';
 import { BinanceService } from './binance.service';
 import { BitpandaService } from './bitpanda.service';
 import { BitstampService } from './bitstamp.service';
@@ -15,9 +16,10 @@ export class ExchangeUtilityService {
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
+    private readonly mailService: MailService,
   ) {}
 
-  async getMatchingPrice(fromCurrency: string, toCurrency: string, matchThreshold = 0.02): Promise<Price> {
+  async getMatchingPrice(fromCurrency: string, toCurrency: string, matchThreshold = 0.005): Promise<Price> {
     const mainPrice = await this.krakenService.getPrice(fromCurrency, toCurrency);
 
     try {
@@ -28,10 +30,13 @@ export class ExchangeUtilityService {
 
       if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold)
         throw new PriceMismatchException(
-          `${fromCurrency} to ${toCurrency} price mismatch (kraken: ${_mainPrice}, ${refSource}: ${_refPrice})`,
+          `${fromCurrency} to ${toCurrency} price mismatch (Kraken: ${_mainPrice}, ${refSource}: ${_refPrice})`,
         );
     } catch (e) {
-      if (e instanceof PriceMismatchException) throw e;
+      if (e instanceof PriceMismatchException) {
+        await this.mailService.sendErrorMail('Exchange Price Mismatch', [e.message]);
+        throw e;
+      }
 
       console.warn(
         `Proceeding without reference check from Binance, Bitstamp and Bitpanda. From ${fromCurrency} to ${toCurrency}`,
