@@ -134,6 +134,9 @@ export class BankTx extends IEntity {
   txRaw?: string;
 
   @Column({ length: 256, nullable: true })
+  aba?: string;
+
+  @Column({ length: 256, nullable: true })
   type: BankTxType;
 
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: true })
