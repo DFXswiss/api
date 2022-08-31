@@ -16,9 +16,10 @@ import { PurchaseStockLiquidityStrategy } from './strategies/purchase-liquidity/
 import { CheckEthereumLiquidityStrategy } from './strategies/check-liquidity/check-liquidity-ethereum.strategy';
 import { DexStrategiesFacade } from './strategies/strategies.facade';
 import { PurchaseETHLiquidityStrategy } from './strategies/purchase-liquidity/purchase-eth-liquiduity.strategy';
+import { BNBModule } from 'src/blockchain/bnb/bnb.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, SharedModule],
+  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, BNBModule, SharedModule],
   controllers: [],
   providers: [
     LiquidityOrderFactory,

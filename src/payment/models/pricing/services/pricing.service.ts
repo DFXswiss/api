@@ -164,38 +164,32 @@ export class PricingService {
 
     if (from === to) return PricingPathAlias.MATCHING_ASSETS;
 
-    if (Object.values(Fiat).includes(from as unknown as Fiat) && to === 'BTC') return PricingPathAlias.FIAT_TO_BTC;
-    if (!Object.values(Fiat).includes(from as unknown as Fiat) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
+    if (this.isFiat(from) && to === 'BTC') return PricingPathAlias.FIAT_TO_BTC;
 
-    if (
-      Object.values(Fiat).includes(from as unknown as Fiat) &&
-      Object.values(Altcoin).includes(to as unknown as Altcoin)
-    ) {
-      return PricingPathAlias.FIAT_TO_ALTCOIN;
-    }
+    if (!this.isFiat(from) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
 
-    if (
-      !Object.values(Fiat).includes(from as unknown as Fiat) &&
-      Object.values(Altcoin).includes(to as unknown as Altcoin)
-    ) {
-      return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
-    }
+    if (this.isFiat(from) && this.isAltcoin(to)) return PricingPathAlias.FIAT_TO_ALTCOIN;
 
-    if (from === 'BTC' && Object.values(Altcoin).includes(to as unknown as Altcoin)) {
-      return PricingPathAlias.BTC_TO_ALTCOIN;
-    }
+    if (!this.isFiat(from) && this.isAltcoin(to)) return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
 
-    if (from === 'USD' && [USDStableCoin.USDC, USDStableCoin.USDT].includes(to as unknown as USDStableCoin)) {
-      return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
-    }
+    if (from === 'BTC' && this.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
-    if (
-      Object.values(Fiat).includes(from as unknown as Fiat) &&
-      Object.values(USDStableCoin).includes(to as unknown as USDStableCoin)
-    ) {
-      return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
-    }
+    if (from === 'USD' && this.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
+
+    if (this.isFiat(from) && this.isUSDStablecoin(to)) return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
 
     throw new Error('No matching pricing path found');
+  }
+
+  private isFiat(asset: string): boolean {
+    return Object.values(Fiat).includes(asset as unknown as Fiat);
+  }
+
+  private isAltcoin(asset: string): boolean {
+    return Object.values(Altcoin).includes(asset as unknown as Altcoin);
+  }
+
+  private isUSDStablecoin(asset: string): boolean {
+    return Object.values(USDStableCoin).includes(asset as unknown as USDStableCoin);
   }
 }

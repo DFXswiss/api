@@ -13,6 +13,7 @@ import { GetConfig } from './config/config';
 import { SeedService } from './shared/seed/seed.service';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { EthereumModule } from './blockchain/ethereum/ethereum.module';
+import { BNBModule } from './blockchain/bnb/bnb.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { EthereumModule } from './blockchain/ethereum/ethereum.module';
     SharedModule,
     AinModule,
     EthereumModule,
+    BNBModule,
     PaymentModule,
     UserModule,
     MonitoringModule,

@@ -1,6 +1,6 @@
-import { EthereumBaseClient } from './ethereum-base-client';
+import { EthereumBaseClient } from '../ethereum/ethereum-base-client';
 
-export class EthereumClient extends EthereumBaseClient {
+export class BNBClient extends EthereumBaseClient {
   constructor(gatewayUrl: string, privateKey: string, address: string) {
     super(gatewayUrl, privateKey, address);
   }

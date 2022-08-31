@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/blockchain/ain/ain.module';
+import { BNBModule } from 'src/blockchain/bnb/bnb.module';
 import { EthereumModule } from 'src/blockchain/ethereum/ethereum.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from '../dex/dex.module';
@@ -18,7 +19,14 @@ import { PrepareOnEthereumStrategy } from './strategies/prepare/prepare-on-ether
 import { PayoutStrategiesFacade } from './strategies/strategies.facade';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PayoutOrderRepository]), AinModule, EthereumModule, SharedModule, DexModule],
+  imports: [
+    TypeOrmModule.forFeature([PayoutOrderRepository]),
+    AinModule,
+    EthereumModule,
+    BNBModule,
+    SharedModule,
+    DexModule,
+  ],
   controllers: [],
   providers: [
     PayoutOrderFactory,
