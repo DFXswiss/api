@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { PayoutBSCStrategy } from './payout/payout-bsc.strategy';
 import { PayoutDFIStrategy } from './payout/payout-dfi.strategy';
 import { PayoutETHStrategy } from './payout/payout-eth.strategy';
 import { PayoutTokenStrategy } from './payout/payout-token.strategy';
 import { PayoutStrategy } from './payout/payout.strategy';
+import { PrepareOnBSCStrategy } from './prepare/prepare-on-bsc.strategy';
 import { PrepareOnDefichainStrategy } from './prepare/prepare-on-defichain.strategy';
 import { PrepareOnEthereumStrategy } from './prepare/prepare-on-ethereum.strategy';
 import { PrepareStrategy } from './prepare/prepare.strategy';
@@ -13,11 +15,13 @@ export enum PayoutStrategyAlias {
   DEFICHAIN_DFI = 'DeFiChainDFI',
   DEFICHAIN_TOKEN = 'DeFiChainToken',
   ETHEREUM_DEFAULT = 'Ethereum',
+  BSC_DEFAULT = 'BscDefault',
 }
 
 export enum PrepareStrategyAlias {
   DEFICHAIN = 'DeFiChain',
   ETHEREUM = 'Ethereum',
+  BSC = 'Bsc',
 }
 
 @Injectable()
@@ -29,15 +33,19 @@ export class PayoutStrategiesFacade {
     payoutDFIStrategy: PayoutDFIStrategy,
     payoutTokenStrategy: PayoutTokenStrategy,
     payoutETHStrategy: PayoutETHStrategy,
+    payoutBSCStrategy: PayoutBSCStrategy,
     prepareOnDefichainStrategy: PrepareOnDefichainStrategy,
     prepareOnEthereumStrategy: PrepareOnEthereumStrategy,
+    prepareOnBscStrategy: PrepareOnBSCStrategy,
   ) {
     this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_DFI, payoutDFIStrategy);
     this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_TOKEN, payoutTokenStrategy);
     this.payoutStrategies.set(PayoutStrategyAlias.ETHEREUM_DEFAULT, payoutETHStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.BSC_DEFAULT, payoutBSCStrategy);
 
     this.prepareStrategies.set(PrepareStrategyAlias.DEFICHAIN, prepareOnDefichainStrategy);
     this.prepareStrategies.set(PrepareStrategyAlias.ETHEREUM, prepareOnEthereumStrategy);
+    this.prepareStrategies.set(PrepareStrategyAlias.BSC, prepareOnBscStrategy);
   }
 
   getPayoutStrategy(criteria: Asset | PayoutStrategyAlias): PayoutStrategy {
@@ -86,6 +94,7 @@ export class PayoutStrategiesFacade {
     const { blockchain, dexName: assetName } = asset;
 
     if (blockchain === Blockchain.ETHEREUM) return PayoutStrategyAlias.ETHEREUM_DEFAULT;
+    if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return PayoutStrategyAlias.BSC_DEFAULT;
     if (assetName === 'DFI') return PayoutStrategyAlias.DEFICHAIN_DFI;
     return PayoutStrategyAlias.DEFICHAIN_TOKEN;
   }
@@ -94,6 +103,7 @@ export class PayoutStrategiesFacade {
     const { blockchain } = asset;
 
     if (blockchain === Blockchain.ETHEREUM) return PrepareStrategyAlias.ETHEREUM;
+    if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return PrepareStrategyAlias.BSC;
     return PrepareStrategyAlias.DEFICHAIN;
   }
 }

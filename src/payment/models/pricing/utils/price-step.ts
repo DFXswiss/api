@@ -12,6 +12,14 @@ export class PriceStep {
       fixedPrice?: number;
     },
   ) {
+    this.options.from = options.from || 'input';
+    this.options.to = options.to || 'output';
+    this.options.referenceTo = options.referenceTo;
+    this.options.providers = {
+      primary: this.options?.providers?.primary || [],
+      reference: this.options?.providers?.reference || [],
+    };
+    this.options.fixedPrice = options.fixedPrice;
     // step validation
   }
 
@@ -69,7 +77,7 @@ export class PriceStep {
 
       console.warn(
         `Proceeding without reference check at: ${this.options.providers.reference.map(
-          (p) => p.name + ' ',
+          (p) => p.name,
         )}. From ${fromCurrency} to ${toCurrency}`,
       );
     }

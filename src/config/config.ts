@@ -199,12 +199,12 @@ export class Configuration {
       ethApiKey: process.env.ETH_API_KEY,
       ethExplorerUrl: process.env.ETH_EXPLORER_URL,
     },
-    bnb: {
-      bnbWalletAddress: process.env.BNB_WALLET_ADDRESS,
-      bnbWalletPrivateKey: process.env.BNB_WALLET_PRIVATE_KEY,
-      bnbGatewayUrl: process.env.BNB_GATEWAY_URL,
-      bnbApiKey: process.env.BNB_API_KEY,
-      bnbExplorerUrl: process.env.BNB_EXPLORER_URL,
+    bsc: {
+      bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
+      bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
+      bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      bscApiKey: process.env.BSC_API_KEY,
+      bscExplorerUrl: process.env.BSC_EXPLORER_URL,
     },
   };
 

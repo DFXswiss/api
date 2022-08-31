@@ -1,10 +1,12 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { CheckBSCLiquidityStrategy } from './check-liquidity/check-liquidity-bsc.strategy';
 import { CheckLiquidityDefaultStrategy } from './check-liquidity/check-liquidity-default.strategy';
-import { CheckEthereumLiquidityStrategy } from './check-liquidity/check-liquidity-ethereum.strategy';
+import { CheckETHLiquidityStrategy } from './check-liquidity/check-liquidity-eth.strategy';
 import { CheckLiquidityStrategy } from './check-liquidity/check-liquidity.strategy';
 import { CheckPoolPairLiquidityStrategy } from './check-liquidity/check-poolpair-liquidity.strategy';
+import { PurchaseBSCLiquidityStrategy } from './purchase-liquidity/purchase-bsc-liquiduity.strategy';
 import { PurchaseCryptoLiquidityStrategy } from './purchase-liquidity/purchase-crypto-liquidity.strategy';
 import { PurchaseETHLiquidityStrategy } from './purchase-liquidity/purchase-eth-liquiduity.strategy';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity/purchase-liquidity.strategy';
@@ -15,6 +17,7 @@ export enum CheckLiquidityStrategyAlias {
   DEFICHAIN_POOL_PAIR = 'DeFiChainPoolPair',
   DEFICHAIN_DEFAULT = 'DeFiChainDefault',
   ETHEREUM_DEFAULT = 'EthereumDefault',
+  BSC_DEFAULT = 'BSCDefault',
 }
 
 export enum PurchaseLiquidityStrategyAlias {
@@ -22,6 +25,7 @@ export enum PurchaseLiquidityStrategyAlias {
   DEFICHAIN_STOCK = 'DeFiChainStock',
   DEFICHAIN_CRYPTO = 'DeFiChainCrypto',
   ETHEREUM_DEFAULT = 'EthereumDefault',
+  BSC_DEFAULT = 'BSCDefault',
 }
 
 @Injectable()
@@ -32,16 +36,19 @@ export class DexStrategiesFacade {
   constructor(
     checkPoolPairLiquidityStrategy: CheckPoolPairLiquidityStrategy,
     checkLiquidityDefaultStrategy: CheckLiquidityDefaultStrategy,
-    checkEthereumLiquidityStrategy: CheckEthereumLiquidityStrategy,
+    checkEthLiquidityStrategy: CheckETHLiquidityStrategy,
+    checkBscLiquidityStrategy: CheckBSCLiquidityStrategy,
     @Inject(forwardRef(() => PurchasePoolPairLiquidityStrategy))
     purchasePoolPairLiquidityStrategy: PurchasePoolPairLiquidityStrategy,
     purchaseStockLiquidityStrategy: PurchaseStockLiquidityStrategy,
     purchaseCryptoLiquidityStrategy: PurchaseCryptoLiquidityStrategy,
     purchaseEthLiquidityStrategy: PurchaseETHLiquidityStrategy,
+    purchaseBscLiquidityStrategy: PurchaseBSCLiquidityStrategy,
   ) {
     this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR, checkPoolPairLiquidityStrategy);
     this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.DEFICHAIN_DEFAULT, checkLiquidityDefaultStrategy);
-    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT, checkEthereumLiquidityStrategy);
+    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT, checkEthLiquidityStrategy);
+    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.BSC_DEFAULT, checkBscLiquidityStrategy);
 
     this.purchaseLiquidityStrategies.set(
       PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR,
@@ -59,6 +66,7 @@ export class DexStrategiesFacade {
     );
 
     this.purchaseLiquidityStrategies.set(PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT, purchaseEthLiquidityStrategy);
+    this.purchaseLiquidityStrategies.set(PurchaseLiquidityStrategyAlias.BSC_DEFAULT, purchaseBscLiquidityStrategy);
   }
 
   getCheckLiquidityStrategy(criteria: Asset | CheckLiquidityStrategyAlias): CheckLiquidityStrategy {
@@ -112,6 +120,7 @@ export class DexStrategiesFacade {
     }
 
     if (blockchain === Blockchain.ETHEREUM) return CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT;
+    if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT;
   }
 
   private getPurchaseLiquidityStrategyAlias(asset: Asset): PurchaseLiquidityStrategyAlias {
@@ -120,9 +129,10 @@ export class DexStrategiesFacade {
     if (blockchain === Blockchain.DEFICHAIN || blockchain === Blockchain.BITCOIN) {
       if (assetCategory === AssetCategory.POOL_PAIR) return PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR;
       if (assetCategory === AssetCategory.STOCK) return PurchaseLiquidityStrategyAlias.DEFICHAIN_STOCK;
-      if (assetCategory === AssetCategory.CRYPTO) return PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO;
+      if (assetCategory === AssetCategory.CRYPTO) return PurchaseLiquidityStrategyAlias.BSC_DEFAULT;
     }
 
     if (blockchain === Blockchain.ETHEREUM) return PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT;
+    if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return PurchaseLiquidityStrategyAlias.BSC_DEFAULT;
   }
 }

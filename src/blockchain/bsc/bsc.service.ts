@@ -1,26 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { Config } from 'src/config/config';
-import { BNBClient } from './bnb-client';
+import { BSCClient } from './bsc-client';
 
 @Injectable()
-export class BNBService {
-  readonly #clients: Map<'default', BNBClient> = new Map();
+export class BSCService {
+  readonly #clients: Map<'default', BSCClient> = new Map();
 
   // TODO - fix dependency injection, without SharedModule injection - initialized before Config
   constructor(private readonly http: HttpService) {
     this.initClient();
   }
 
-  getClient(): BNBClient {
+  getClient(): BSCClient {
     return this.#clients.get('default');
   }
 
   // *** INIT METHODS *** //
 
   private initClient(): void {
-    const { bnbGatewayUrl, bnbApiKey, bnbWalletPrivateKey, bnbWalletAddress } = Config.blockchain.bnb;
+    const { bscGatewayUrl, bscApiKey, bscWalletPrivateKey, bscWalletAddress } = Config.blockchain.bsc;
 
-    this.#clients.set('default', new BNBClient(`${bnbGatewayUrl}/${bnbApiKey}`, bnbWalletPrivateKey, bnbWalletAddress));
+    this.#clients.set('default', new BSCClient(`${bscGatewayUrl}/${bscApiKey}`, bscWalletPrivateKey, bscWalletAddress));
   }
 }

@@ -1,4 +1,3 @@
-import { Util } from 'src/shared/util';
 import { Price } from '../../exchange/dto/price.dto';
 import { PriceRequest, PriceResult, PriceStepResult } from '../interfaces';
 import { PricingPathAlias } from '../services/pricing.service';
@@ -39,7 +38,11 @@ export class PricePath {
 
     price.source = firstStep.price.source;
     price.target = lastStep.price.target;
-    price.price = Util.round(lastStep.price.price / firstStep.price.price, 8);
+    price.price = 1;
+
+    path.forEach((step) => {
+      price.price = price.price * step.price.price;
+    });
 
     return { path, price };
   }

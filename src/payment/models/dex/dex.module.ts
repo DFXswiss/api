@@ -13,27 +13,33 @@ import { CheckPoolPairLiquidityStrategy } from './strategies/check-liquidity/che
 import { PurchaseCryptoLiquidityStrategy } from './strategies/purchase-liquidity/purchase-crypto-liquidity.strategy';
 import { PurchasePoolPairLiquidityStrategy } from './strategies/purchase-liquidity/purchase-poolpair-liquidity.strategy';
 import { PurchaseStockLiquidityStrategy } from './strategies/purchase-liquidity/purchase-stock-liquidity.strategy';
-import { CheckEthereumLiquidityStrategy } from './strategies/check-liquidity/check-liquidity-ethereum.strategy';
+import { CheckETHLiquidityStrategy } from './strategies/check-liquidity/check-liquidity-eth.strategy';
 import { DexStrategiesFacade } from './strategies/strategies.facade';
 import { PurchaseETHLiquidityStrategy } from './strategies/purchase-liquidity/purchase-eth-liquiduity.strategy';
-import { BNBModule } from 'src/blockchain/bnb/bnb.module';
+import { BSCModule } from 'src/blockchain/bsc/bsc.module';
+import { DexBSCService } from './services/dex-bsc.service';
+import { PurchaseBSCLiquidityStrategy } from './strategies/purchase-liquidity/purchase-bsc-liquiduity.strategy';
+import { CheckBSCLiquidityStrategy } from './strategies/check-liquidity/check-liquidity-bsc.strategy';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, BNBModule, SharedModule],
+  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, BSCModule, SharedModule],
   controllers: [],
   providers: [
     LiquidityOrderFactory,
     DexDeFiChainService,
     DexEthereumService,
+    DexBSCService,
     DexStrategiesFacade,
     DexService,
     CheckPoolPairLiquidityStrategy,
     CheckLiquidityDefaultStrategy,
-    CheckEthereumLiquidityStrategy,
+    CheckETHLiquidityStrategy,
+    CheckBSCLiquidityStrategy,
     PurchaseCryptoLiquidityStrategy,
     PurchasePoolPairLiquidityStrategy,
     PurchaseStockLiquidityStrategy,
     PurchaseETHLiquidityStrategy,
+    PurchaseBSCLiquidityStrategy,
   ],
   exports: [DexService],
 })

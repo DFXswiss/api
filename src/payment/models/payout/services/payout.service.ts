@@ -157,14 +157,19 @@ export class PayoutService {
     );
 
     const ethOrders = orders.filter((o) => o.asset.blockchain === Blockchain.ETHEREUM && o.asset.dexName === 'ETH');
+    const bnbOrders = orders.filter(
+      (o) => o.asset.blockchain === Blockchain.BINANCE_SMART_CHAIN && o.asset.dexName === 'BNB',
+    );
 
     const DFIStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
     const tokenStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN);
     const ethStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_DEFAULT);
+    const bnbStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.BSC_DEFAULT);
 
     await DFIStrategy.doPayout(DFIOrders);
     await tokenStrategy.doPayout(tokenOrders);
     await ethStrategy.doPayout(ethOrders);
+    await bnbStrategy.doPayout(bnbOrders);
   }
 
   private async processFailedOrders(): Promise<void> {

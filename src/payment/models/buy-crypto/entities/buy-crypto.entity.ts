@@ -124,7 +124,18 @@ export class BuyCrypto extends IEntity {
     }
 
     // TODO - consider getting defaults native coin for blockchain from utility, but not sure (think BTC instead of DFI)
-    this.outputReferenceAsset = this.target.asset.blockchain === Blockchain.ETHEREUM ? 'ETH' : 'BTC';
+    switch (this.target.asset.blockchain) {
+      case Blockchain.ETHEREUM:
+        this.outputReferenceAsset = 'ETH';
+        break;
+
+      case Blockchain.BINANCE_SMART_CHAIN:
+        this.outputReferenceAsset = 'BNB';
+        break;
+
+      default:
+        this.outputReferenceAsset = 'BTC';
+    }
 
     return this;
 

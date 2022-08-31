@@ -11,11 +11,11 @@ import { PriceStep } from '../utils/price-step';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
-  FIAT_TO_BTC = 'ToBTC',
-  ALTCOIN_TO_BTC = 'ToBTC',
-  FIAT_TO_ALTCOIN = 'ToAltcoin',
-  ALTCOIN_TO_ALTCOIN = 'ToAltcoin',
-  BTC_TO_ALTCOIN = 'ToAltcoin',
+  FIAT_TO_BTC = 'FiatToBTC',
+  ALTCOIN_TO_BTC = 'AltcoinToBTC',
+  FIAT_TO_ALTCOIN = 'FiatToAltcoin',
+  ALTCOIN_TO_ALTCOIN = 'AltcoinToAltcoin',
+  BTC_TO_ALTCOIN = 'BTCToAltcoin',
   MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
 }

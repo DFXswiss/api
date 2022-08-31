@@ -109,7 +109,7 @@ export class BuyController {
       ...this.getBankInfo(buy, dto),
       remittanceInfo: buy.bankUsage,
       ...fees,
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
+      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
     };
   }
 
