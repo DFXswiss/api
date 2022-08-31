@@ -1,15 +1,10 @@
-import { ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
-import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
-import { BankTxService } from './bank-tx.service';
 import { stringify } from 'qs';
-import { BankTxBatchRepository } from './bank-tx-batch.repository';
 
 interface Transaction {
   idCtp: number;
@@ -50,51 +45,28 @@ export class OlkypayService {
   private readonly baseUrl = 'https://ws.olkypay.com/reporting';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
   private accessToken = 'access-token-will-be-updated';
-  private bankTxBatch: BankTxBatch;
 
-  constructor(
-    private readonly http: HttpService,
-    private readonly bankTxService: BankTxService,
-    private readonly bankTxBatchService: BankTxBatchRepository,
-    private readonly settingService: SettingService,
-  ) {}
+  constructor(private readonly http: HttpService) {}
 
-  // --- TRANSACTION HANDLING --- //
-  @Interval(60000)
-  async checkTransactions(): Promise<void> {
-    try {
-      if (!Config.bank.olkypay.clientId) return;
-      const settingKey = 'lastOlkypayDate';
-      const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
+  async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
+    if (!Config.bank.olkypay.credentials.clientId) return [];
 
-      const newModificationTime = new Date().toISOString();
-      this.bankTxBatch = await this.bankTxBatchService.findOne({ where: { iban: Config.bank.olkypay.iban } });
+    const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
+    if (!transactions) return [];
 
-      const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
-
-      for (const transaction of transactions) {
-        try {
-          const bankTx = this.parseTransaction(transaction);
-          await this.bankTxService.create(bankTx);
-        } catch (e) {
-          if (!(e instanceof ConflictException)) console.error(`Failed to import transaction:`, e);
-        }
-      }
-
-      await this.settingService.set(settingKey, newModificationTime);
-    } catch (e) {
-      console.error(`Failed to check olkypay transactions:`, e);
-    }
+    return transactions.map((t) => this.parseTransaction(t));
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
-    const url = `ecritures/${Config.bank.olkypay.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(toDate)}`;
+    const url = `ecritures/${Config.bank.olkypay.credentials.clientId}/${Util.isoDate(fromDate)}/${Util.isoDate(
+      toDate,
+    )}`;
 
     return await this.callApi<Transaction[]>(url);
   }
 
   async getBalance(): Promise<Balance> {
-    const url = `balance/today/${Config.bank.olkypay.clientId}`;
+    const url = `balance/today/${Config.bank.olkypay.credentials.clientId}`;
     const balance = await this.callApi<Balance>(url);
     return {
       balance: Util.round(balance.balance / 100, 2),
@@ -127,9 +99,10 @@ export class OlkypayService {
       iban: tx.instructingIban,
       ...this.getNameAndAddress(tx),
       txInfo: tx.line1,
+      txRaw: JSON.stringify(tx),
       remittanceInfo: tx.line2,
+      accountIban: Config.bank.olkypay.account.iban,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
-      batch: this.bankTxBatch,
     };
   }
 
@@ -188,9 +161,9 @@ export class OlkypayService {
     const data = stringify({
       grant_type: 'password',
       client_id: 'wsapi',
-      client_secret: Config.bank.olkypay.clientSecret,
-      username: Config.bank.olkypay.username,
-      password: Config.bank.olkypay.password,
+      client_secret: Config.bank.olkypay.credentials.clientSecret,
+      username: Config.bank.olkypay.credentials.username,
+      password: Config.bank.olkypay.credentials.password,
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
     });
 

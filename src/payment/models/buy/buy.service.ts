@@ -64,7 +64,7 @@ export class BuyService {
   }
 
   // --- BUYS --- //
-  async createBuy(userId: number, userAddress: string, dto: CreateBuyDto): Promise<Buy> {
+  async createBuy(userId: number, userAddress: string, dto: CreateBuyDto, ignoreExisting = false): Promise<Buy> {
     // check asset
     const asset =
       dto.type === BuyType.WALLET
@@ -90,11 +90,15 @@ export class BuyService {
     });
 
     if (existing) {
-      if (existing.active) throw new ConflictException('Buy route already exists');
+      if (existing.active && !ignoreExisting) throw new ConflictException('Buy route already exists');
 
-      // reactivate deleted route
-      existing.active = true;
-      return this.buyRepo.save(existing);
+      if (!existing.active) {
+        // reactivate deleted route
+        existing.active = true;
+        this.buyRepo.save(existing);
+      }
+
+      return existing;
     }
 
     // create the entity

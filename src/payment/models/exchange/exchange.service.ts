@@ -124,12 +124,13 @@ export class ExchangeService {
     currencyPair: string,
     orderType: string,
     orderSide: OrderSide,
-    amount: number,
+    totalAmount: number,
     maxRetries = 100,
   ): Promise<TradeResponse> {
-    const orderList: PartialTradeResponse[] = [];
+    const orders: { [id: string]: PartialTradeResponse } = {};
     let order: Order;
     let numRetries = 0;
+    let amount = totalAmount;
 
     do {
       // (re)create order
@@ -145,15 +146,20 @@ export class ExchangeService {
         true,
       );
 
+      console.log(
+        `${this.name}: order ${order.id} is ${order.status} (filled: ${order.filled})/${amount} at price ${order.price}, total: ${totalAmount})`,
+      );
+
       // check for partial orders
       if (order?.status != OrderStatus.CANCELED && order?.filled) {
-        orderList.push({
+        orders[order.id] = {
           id: order.id,
           price: order.price,
           amount: orderSide == OrderSide.BUY ? order.filled : order.filled * order.price,
           timestamp: new Date(order.timestamp),
           fee: order.fee,
-        });
+        };
+
         amount -= orderSide == OrderSide.BUY ? order.filled * order.price : order.filled;
       }
 
@@ -165,6 +171,7 @@ export class ExchangeService {
       await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
     }
 
+    const orderList = Object.values(orders);
     const avg = this.getWeightedAveragePrice(orderList);
     return {
       orderSummary: {
@@ -199,7 +206,7 @@ export class ExchangeService {
         await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
       }
 
-      console.log(`Creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
+      console.log(`${this.name}: creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
       return this.callApi((e) =>
         e.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
           oflags: 'post',

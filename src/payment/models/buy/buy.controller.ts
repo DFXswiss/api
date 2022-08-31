@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -22,6 +22,8 @@ import { BuyType } from './dto/buy-type.enum';
 import { BuyDto } from './dto/buy.dto';
 import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
+import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
+import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -44,19 +46,28 @@ export class BuyController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createBuy(@GetJwt() jwt: JwtPayload, @Body() createBuyDto: CreateBuyDto): Promise<BuyDto> {
-    return this.buyService.createBuy(jwt.id, jwt.address, createBuyDto).then((b) => this.toDto(jwt.id, b));
+  async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
+    return this.buyService.createBuy(jwt.id, jwt.address, dto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Put('/paymentInfos')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: BuyPaymentInfoDto })
+  async createBuyWithPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: GetBuyPaymentInfoDto,
+  ): Promise<BuyPaymentInfoDto> {
+    return this.buyService
+      .createBuy(jwt.id, jwt.address, { ...dto, type: BuyType.WALLET }, true)
+      .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
   }
 
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateBuyRoute(
-    @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Body() updateBuyDto: UpdateBuyDto,
-  ): Promise<BuyDto> {
-    return this.buyService.updateBuy(jwt.id, +id, updateBuyDto).then((b) => this.toDto(jwt.id, b));
+  async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
+    return this.buyService.updateBuy(jwt.id, +id, dto).then((b) => this.toDto(jwt.id, b));
   }
 
   @Get(':id/history')
@@ -91,6 +102,18 @@ export class BuyController {
     };
   }
 
+  private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+    const fees = await this.getFees(userId);
+
+    return {
+      ...this.getBankInfo(buy, dto),
+      remittanceInfo: buy.bankUsage,
+      ...fees,
+      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
+    };
+  }
+
+  // --- HELPER-METHODS --- //
   private async getStaking(
     userId: number,
     deposit?: Deposit,
@@ -109,5 +132,20 @@ export class BuyController {
   async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
     const { annualVolume } = await this.buyService.getUserVolume(userId);
     return this.userService.getUserBuyFee(userId, annualVolume);
+  }
+
+  private getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): BankInfoDto {
+    let account: { currency: string; iban: string; bic: string };
+
+    // select the matching bank account
+    if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
+      // instant => Olkypay / EUR
+      account = Config.bank.olkypay.account;
+    } else {
+      // default => Maerki Baumann / EUR
+      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'EUR');
+    }
+
+    return { ...Config.bank.dfxBankInfo, iban: account.iban, bic: account.bic };
   }
 }

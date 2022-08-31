@@ -1038,12 +1038,12 @@
     "method": "POST",
     "sortNum": 390000,
     "created": "2022-06-21T21:40:20.592Z",
-    "modified": "2022-06-21T21:43:57.467Z",
+    "modified": "2022-08-22T13:54:19.857Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\r\n\"iban\": \"DE9237 0502 9913 2003 89722\",\r\n\"asset\": {\r\n        \"buyable\": true,\r\n        \"id\": 1,\r\n        \"name\": \"DFI\",\r\n        \"sellable\": true,\r\n        \"type\": \"Coin\"\r\n    },\r\n    \"type\":\"Wallet\"\r\n    \r\n}",
+      "raw": "{\n\"iban\": \"DE9237 0502 9913 2003 89722\",\n\"asset\": {\n        \"buyable\": true,\n        \"id\": 1,\n        \"name\": \"DFI\",\n        \"sellable\": true,\n        \"type\": \"Coin\"\n    },\n    \"type\":\"Wallet\"\n    \n}",
       "form": []
     },
     "tests": []
@@ -1057,12 +1057,12 @@
     "method": "POST",
     "sortNum": 400000,
     "created": "2022-06-21T21:40:27.307Z",
-    "modified": "2022-06-21T21:41:49.650Z",
+    "modified": "2022-08-25T14:14:11.223Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\r\n    \"iban\": \"DE123467891245699\",\r\n    \"fiat\": {\r\n        \"id\": 3,\r\n        \"name\": \"USD\",\r\n        \"enable\": 1\r\n    }\r\n}",
+      "raw": "{\n    \"iban\": \"DE123467891245699\",\n    \"fiat\": {\n        \"id\": 3,\n        \"name\": \"USD\",\n        \"enable\": 1\n    }\n}",
       "form": []
     },
     "tests": []
@@ -1653,7 +1653,7 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
     "name": "Update CT API Filter",
-    "url": "{{url}}/v1/user/apiKey/filter/CT?lm&staking&buy",
+    "url": "{{url}}/v1/user/apiFilter/CT?lm&staking&buy",
     "method": "PUT",
     "sortNum": 315000,
     "created": "2022-08-18T14:14:09.032Z",
@@ -1714,7 +1714,7 @@
     "method": "GET",
     "sortNum": 640000,
     "created": "2022-08-17T00:42:27.836Z",
-    "modified": "2022-08-17T00:43:52.894Z",
+    "modified": "2022-08-25T15:50:47.599Z",
     "headers": [],
     "params": [],
     "tests": []
@@ -1753,6 +1753,71 @@
     "body": {
       "type": "json",
       "raw": "{\n  \"iban\":\"DE1234567891011\",\n  \"label\":\"Test98765432\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "2be46b02-7d04-4f16-8939-1ef1a6badbb9",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
+    "name": "Get History CT",
+    "url": "{{url}}/v1/history/CT",
+    "method": "GET",
+    "sortNum": 160000,
+    "created": "2022-08-18T15:08:15.494Z",
+    "modified": "2022-08-18T15:09:47.169Z",
+    "headers": [
+      {
+        "name": "DFX-ACCESS-KEY",
+        "value": "CF505D58F7B8319C4491FE2EB25D8D20"
+      },
+      {
+        "name": "DFX-ACCESS-SIGN",
+        "value": "ee6783abbe9b5beb9053cbdabf914cd2c4145bedef9fa32db0e380d73e9d093f"
+      },
+      {
+        "name": "DFX-ACCESS-TIMESTAMP",
+        "value": "2022-08-18T10:00:20.100"
+      }
+    ],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "46ce06f0-29c6-4f46-b307-c413881b5ee8",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
+    "name": "Buy PaymentInfo",
+    "url": "{{url}}/v1/buy/paymentInfos",
+    "method": "PUT",
+    "sortNum": 490000,
+    "created": "2022-08-22T14:03:51.375Z",
+    "modified": "2022-08-25T15:51:46.899Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\": \"DE9237 0502 9913 2003 89722\",\n  \"asset\": {\n    \"id\": 1\n  },\n  \"amount\": 1234,\n  \"currency\": {\n    \"id\": 1\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "3f652740-526d-42b1-8492-0f559e58de4c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
+    "name": "Sell PaymentInfo",
+    "url": "{{url}}/v1/sell/paymentInfos",
+    "method": "PUT",
+    "sortNum": 505000,
+    "created": "2022-08-23T10:43:40.957Z",
+    "modified": "2022-08-25T15:51:59.670Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\": \"DE123467891245699\",\n  \"currency\": {\n    \"id\": 4\n  }\n}",
       "form": []
     },
     "tests": []
