@@ -3,18 +3,11 @@ import { Price } from '../../exchange/dto/price.dto';
 export interface PriceRequest {
   from: string;
   to: string;
-  options?: PriceRequestOptions;
-}
-
-export interface PriceRequestOptions {
-  includeReversePrice?: boolean;
 }
 
 export interface PriceResult {
   path: PricePathResult;
   price: Price;
-  reversePath?: PricePathResult;
-  reversePrice?: Price;
 }
 
 export interface PricePathResult {

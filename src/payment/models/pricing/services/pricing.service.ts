@@ -11,8 +11,11 @@ import { PriceStep } from '../utils/price-step';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
-  TO_BTC = 'ToBTC',
-  TO_ALTCOIN = 'ToAltcoin',
+  FIAT_TO_BTC = 'ToBTC',
+  ALTCOIN_TO_BTC = 'ToBTC',
+  FIAT_TO_ALTCOIN = 'ToAltcoin',
+  ALTCOIN_TO_ALTCOIN = 'ToAltcoin',
+  BTC_TO_ALTCOIN = 'ToAltcoin',
   MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
 }
@@ -36,8 +39,10 @@ export class PricingService {
       ]),
     );
 
+    // everywhere FIAT is kraken, Altcoin - Binance
+    // Fiat to BTC only and NOT Altcoin to BTC
     this.addPath(
-      new PricePath(PricingPathAlias.TO_BTC, [
+      new PricePath(PricingPathAlias.FIAT_TO_BTC, [
         new PriceStep({
           to: 'BTC',
           providers: {
@@ -48,8 +53,21 @@ export class PricingService {
       ]),
     );
 
+    // BNB to BTC
     this.addPath(
-      new PricePath(PricingPathAlias.TO_ALTCOIN, [
+      new PricePath(PricingPathAlias.ALTCOIN_TO_BTC, [
+        new PriceStep({
+          to: 'BTC',
+          providers: {
+            primary: [this.binanceService],
+            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.FIAT_TO_ALTCOIN, [
         new PriceStep({
           to: 'BTC',
           providers: {
@@ -57,6 +75,37 @@ export class PricingService {
             reference: [this.binanceService, this.bitstampService, this.bitpandaService],
           },
         }),
+        new PriceStep({
+          from: 'BTC',
+          providers: {
+            primary: [this.binanceService],
+            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.ALTCOIN_TO_ALTCOIN, [
+        new PriceStep({
+          to: 'BTC',
+          providers: {
+            primary: [this.binanceService],
+            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+        new PriceStep({
+          from: 'BTC',
+          providers: {
+            primary: [this.binanceService],
+            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.BTC_TO_ALTCOIN, [
         new PriceStep({
           from: 'BTC',
           providers: {
@@ -78,14 +127,16 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN, [
         new PriceStep({
-          toAlternatives: ['USD'],
+          referenceTo: 'USD',
           providers: {
-            primary: [this.krakenService, this.fixerService],
-            reference: [],
+            primary: [this.krakenService],
+            reference: [this.fixerService],
           },
         }),
       ]),
     );
+
+    // TODO - think about automatic reverse conversion.... somehow
   }
 
   //*** PUBLIC API ***//
@@ -113,9 +164,26 @@ export class PricingService {
 
     if (from === to) return PricingPathAlias.MATCHING_ASSETS;
 
-    if (to === 'BTC') return PricingPathAlias.TO_BTC;
+    if (Object.values(Fiat).includes(from as unknown as Fiat) && to === 'BTC') return PricingPathAlias.FIAT_TO_BTC;
+    if (!Object.values(Fiat).includes(from as unknown as Fiat) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
 
-    if (Object.values(Altcoin).includes(to as unknown as Altcoin)) return PricingPathAlias.TO_ALTCOIN;
+    if (
+      Object.values(Fiat).includes(from as unknown as Fiat) &&
+      Object.values(Altcoin).includes(to as unknown as Altcoin)
+    ) {
+      return PricingPathAlias.FIAT_TO_ALTCOIN;
+    }
+
+    if (
+      !Object.values(Fiat).includes(from as unknown as Fiat) &&
+      Object.values(Altcoin).includes(to as unknown as Altcoin)
+    ) {
+      return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
+    }
+
+    if (from === 'BTC' && Object.values(Altcoin).includes(to as unknown as Altcoin)) {
+      return PricingPathAlias.BTC_TO_ALTCOIN;
+    }
 
     if (from === 'USD' && [USDStableCoin.USDC, USDStableCoin.USDT].includes(to as unknown as USDStableCoin)) {
       return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;

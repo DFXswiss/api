@@ -7,7 +7,7 @@ export class PriceStep {
     private options: {
       from?: string | 'input';
       to?: string | 'output';
-      toAlternatives?: string[];
+      referenceTo?: string;
       providers?: { primary: PriceProvider[]; reference: PriceProvider[] };
       fixedPrice?: number;
     },
@@ -78,17 +78,7 @@ export class PriceStep {
   private async getPrimaryPrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
     const primaryProviders = this.options.providers.primary;
 
-    let [price, providerName] = await this.tryProviders(fromCurrency, toCurrency, primaryProviders);
-
-    if (!price) {
-      console.info(
-        `Could not find primary price for target '${toCurrency}', trying alternatives: ${this.options.toAlternatives.map(
-          (a) => a + ', ',
-        )}`,
-      );
-
-      [price, providerName] = await this.getAlternativePrice(fromCurrency);
-    }
+    const [price, providerName] = await this.tryProviders(fromCurrency, toCurrency, primaryProviders);
 
     if (!price) {
       throw new Error(
@@ -101,21 +91,12 @@ export class PriceStep {
     return [price, providerName];
   }
 
-  private async getAlternativePrice(fromCurrency: string): Promise<[Price, PriceProviderName]> {
-    const primaryProviders = this.options.providers.primary;
-    const alternativeTargets = this.options.toAlternatives || [];
-
-    for (const alternative of alternativeTargets) {
-      return this.tryProviders(fromCurrency, alternative, primaryProviders);
-    }
-
-    console.warn(`Could not find prices for alternative targets: ${this.options.toAlternatives.map((a) => a + '; ')}`);
-  }
-
   private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
     const referenceProviders = this.options.providers.reference;
 
-    const [price, providerName] = await this.tryProviders(fromCurrency, toCurrency, referenceProviders);
+    const [price, providerName] = this.options.referenceTo
+      ? await this.tryProviders(fromCurrency, this.options.referenceTo, referenceProviders)
+      : await this.tryProviders(fromCurrency, toCurrency, referenceProviders);
 
     if (!price) {
       throw new Error(
