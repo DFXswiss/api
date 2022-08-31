@@ -74,7 +74,7 @@ describe('KycService', () => {
       ) {
         userData.kycState = KycState.FAILED;
       }
-      return Promise.resolve();
+      return Promise.resolve(userData);
     });
     jest.spyOn(kycProcess, 'checkKycProcess').mockImplementation((userData) => {
       return Promise.resolve(userData);
