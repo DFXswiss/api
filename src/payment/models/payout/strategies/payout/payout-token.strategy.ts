@@ -76,7 +76,10 @@ export class PayoutTokenStrategy extends PayoutDeFiChainStrategy {
       payoutTxId = await this.defichainService.sendTokenToMany(context, outputAsset, payout);
     } catch (e) {
       console.error(`Error on sending ${outputAsset} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
-      throw e;
+
+      if (e.message.includes('timeout')) throw e;
+
+      await this.rollbackPayoutDesignation(orders);
     }
 
     for (const order of orders) {

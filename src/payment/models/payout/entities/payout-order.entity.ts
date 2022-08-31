@@ -65,6 +65,12 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
+  rollbackPayoutDesignation(): this {
+    this.preparationConfirmed();
+
+    return this;
+  }
+
   pendingInvestigation(): this {
     this.status = PayoutOrderStatus.PAYOUT_UNCERTAIN;
 

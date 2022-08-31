@@ -99,6 +99,13 @@ export abstract class PayoutDeFiChainStrategy extends PayoutStrategy {
     }
   }
 
+  protected async rollbackPayoutDesignation(orders: PayoutOrder[]): Promise<void> {
+    for (const order of orders) {
+      order.rollbackPayoutDesignation();
+      await this.payoutOrderRepo.save(order);
+    }
+  }
+
   protected async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
     const body = e ? [message, e.message] : [message];
 
