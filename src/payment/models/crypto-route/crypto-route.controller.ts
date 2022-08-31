@@ -134,16 +134,12 @@ export class CryptoRouteController {
   }
 
   private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
-    let minDeposits: MinDeposit[] = [];
     switch (blockchain) {
       case Blockchain.BITCOIN:
-        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
-        break;
+        return Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
       case Blockchain.DEFICHAIN:
-        minDeposits = Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain);
-        break;
+        return Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain);
     }
-    return minDeposits;
   }
 
   async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
