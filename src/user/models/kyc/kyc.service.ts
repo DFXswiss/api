@@ -83,7 +83,7 @@ export class KycService {
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
-    const user = await this.getUser(code, userId);
+    let user = await this.getUser(code, userId);
     const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
 
     // check countries
@@ -102,7 +102,7 @@ export class KycService {
       data.organizationCountry = null;
     }
 
-    await this.userDataService.updateSpiderIfNeeded(user, data);
+    user = await this.userDataService.updateSpiderIfNeeded(user, data);
 
     const updatedUser = await this.userDataRepo.save({ ...user, ...data });
 

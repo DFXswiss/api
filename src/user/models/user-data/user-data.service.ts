@@ -117,7 +117,7 @@ export class UserDataService {
     }
 
     // update spider
-    await this.updateSpiderIfNeeded(user, dto);
+    user = await this.updateSpiderIfNeeded(user, dto);
 
     return this.userDataRepo.save({ ...user, ...dto });
   }
