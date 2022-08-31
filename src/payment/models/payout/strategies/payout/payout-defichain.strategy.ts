@@ -19,6 +19,8 @@ export abstract class PayoutDeFiChainStrategy extends PayoutStrategy {
       const groups = this.groupOrdersByContext(orders);
 
       for (const [context, group] of [...groups.entries()]) {
+        if (!(await this.defichainService.isHealthy(context))) return;
+
         await this.doPayoutForContext(context, group);
       }
     } catch (e) {

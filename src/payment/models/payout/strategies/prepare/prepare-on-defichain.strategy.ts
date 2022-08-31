@@ -18,6 +18,9 @@ export class PrepareOnDefichainStrategy extends PrepareStrategy {
   async preparePayout(order: PayoutOrder): Promise<void> {
     try {
       const { asset, amount, context } = order;
+
+      if (!(await this.defichainService.isHealthy(context))) return;
+
       const destinationAddress = this.defichainService.getWallet(context);
       const request = { asset, amount, destinationAddress };
 
@@ -39,6 +42,8 @@ export class PrepareOnDefichainStrategy extends PrepareStrategy {
 
   async checkPreparationCompletion(order: PayoutOrder): Promise<void> {
     try {
+      if (!(await this.defichainService.isHealthy(order.context))) return;
+
       const isTransferComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
 
       if (isTransferComplete) {

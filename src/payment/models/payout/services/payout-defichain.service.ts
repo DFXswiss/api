@@ -17,6 +17,14 @@ export class PayoutDeFiChainService {
     nodeService.getConnectedNode(NodeType.INT).subscribe((client) => (this.#intClient = client));
   }
 
+  async isHealthy(context: PayoutOrderContext): Promise<boolean> {
+    try {
+      return !!(await this.getClient(context).getInfo());
+    } catch {
+      return false;
+    }
+  }
+
   async sendUtxoToMany(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     return this.getClient(context).sendUtxoToMany(payout);
   }
