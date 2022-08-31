@@ -137,10 +137,22 @@ export class BuyController {
   private getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): BankInfoDto {
     let account: { currency: string; iban: string; bic: string };
 
+    const frickAmountLimit = 9000;
+    const frickCurrencies = ['EUR', 'CHF', 'USD'];
+
     // select the matching bank account
-    if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
+    if (frickCurrencies.includes(dto.currency.name) && dto.amount > frickAmountLimit) {
+      // amount > 9k, EUR/CHF/USD => Frick
+      account = Config.bank.frick.accounts.find((b) => b.currency === dto.currency.name);
+    } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
+    } else if (dto.currency.name === 'CHF') {
+      // CHF => Maerki Baumann
+      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'CHF');
+    } else if (dto.currency.name === 'USD') {
+      // USD => Frick
+      account = Config.bank.frick.accounts.find((a) => a.currency === 'USD');
     } else {
       // default => Maerki Baumann / EUR
       account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'EUR');
