@@ -24,6 +24,7 @@ import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -34,6 +35,7 @@ export class BuyController {
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly fiatService: FiatService,
   ) {}
 
   @Get()
@@ -82,33 +84,24 @@ export class BuyController {
     const fees = await this.getFees(userId);
 
     const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
-    return Promise.all(buys.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
+    return Promise.all(buys.map((b) => this.toDto(userId, b, stakingRoutes)));
   }
 
-  private async toDto(
-    userId: number,
-    buy: Buy,
-    fees?: { fee: number; refBonus: number },
-    stakingRoutes?: Staking[],
-  ): Promise<BuyDto> {
-    fees ??= await this.getFees(userId);
-
+  private async toDto(userId: number, buy: Buy, stakingRoutes?: Staking[]): Promise<BuyDto> {
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
-      ...fees,
+      ...(await this.getFees(userId)),
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const fees = await this.getFees(userId);
-
     return {
-      ...this.getBankInfo(buy, dto),
+      ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
-      ...fees,
+      ...(await this.getFees(userId)),
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
@@ -134,11 +127,13 @@ export class BuyController {
     return this.userService.getUserBuyFee(userId, annualVolume);
   }
 
-  private getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): BankInfoDto {
+  private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
     let account: { currency: string; iban: string; bic: string };
 
     const frickAmountLimit = 9000;
     const frickCurrencies = ['EUR', 'CHF', 'USD'];
+
+    dto.currency = await this.fiatService.getFiat(dto.currency.id);
 
     // select the matching bank account
     if (frickCurrencies.includes(dto.currency.name) && dto.amount > frickAmountLimit) {
