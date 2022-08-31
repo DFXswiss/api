@@ -62,13 +62,15 @@ export class PriceStep {
 
       if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold)
         throw new PriceMismatchException(
-          `${fromCurrency} to ${toCurrency} price mismatch (kraken: ${_mainPrice}, ${refSource}: ${_refPrice})`,
+          `${fromCurrency} to ${toCurrency} price mismatch (${primaryProvider}: ${_mainPrice}, ${refSource}: ${_refPrice})`,
         );
     } catch (e) {
       if (e instanceof PriceMismatchException) throw e;
 
       console.warn(
-        `Proceeding without reference check from Binance, Bitstamp and Bitpanda. From ${fromCurrency} to ${toCurrency}`,
+        `Proceeding without reference check at: ${this.options.providers.reference.map(
+          (p) => p.name + ' ',
+        )}. From ${fromCurrency} to ${toCurrency}`,
       );
     }
 
@@ -83,7 +85,7 @@ export class PriceStep {
     if (!price) {
       throw new Error(
         `Could not find primary price at: ${primaryProviders.map(
-          (p) => p.name + '; ',
+          (p) => p.name + ' ',
         )}. From ${fromCurrency} to ${toCurrency}`,
       );
     }
