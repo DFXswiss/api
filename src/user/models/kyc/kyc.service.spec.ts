@@ -89,6 +89,7 @@ describe('KycService', () => {
     kycStatus: KycStatus,
     kycHash: string,
     kycDataComplete: boolean,
+    accountType: AccountType,
     depositLimit?: number,
     blankedMail?: string,
     blankedPhone?: string,
@@ -100,6 +101,7 @@ describe('KycService', () => {
       kycStatus,
       kycHash,
       kycDataComplete,
+      accountType,
       blankedMail,
       blankedPhone,
       depositLimit,
@@ -141,7 +143,7 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
     await expect(service.getKycStatus(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, false, 90000),
+      createKycInfo(KycState.NA, KycStatus.NA, kycHash, false, AccountType.PERSONAL, 90000),
     );
   });
 
@@ -150,7 +152,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.COMPLETE);
     await expect(service.getKycStatus(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.NA,
+        kycHash,
+        true,
+        AccountType.PERSONAL,
+        90000,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -159,7 +170,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.STARTED);
     await expect(service.getKycStatus(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.CHATBOT, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.CHATBOT,
+        kycHash,
+        true,
+        AccountType.PERSONAL,
+        90000,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -179,7 +199,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.COMPLETE);
     await expect(service.requestKyc(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.CHATBOT, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.CHATBOT,
+        kycHash,
+        true,
+        AccountType.PERSONAL,
+        90000,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -190,7 +219,16 @@ describe('KycService', () => {
     // in our test setup: user id and user data id are equal
     const userDataId = userDataIdFor(MockUserData.COMPLETE);
     await expect(service.requestKyc('', userDataId)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.CHATBOT, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.CHATBOT,
+        kycHash,
+        true,
+        AccountType.PERSONAL,
+        90000,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -221,7 +259,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
     await expect(service.updateKycData(kycHash, updatePersonalData)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, true, 90000, 't***@update.com', '***********12'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.NA,
+        kycHash,
+        true,
+        AccountType.PERSONAL,
+        90000,
+        't***@update.com',
+        '***********12',
+      ),
     );
   });
 
@@ -231,7 +278,16 @@ describe('KycService', () => {
     const kycHash = kycHashFor(MockUserData.EMPTY);
     const userDataId = userDataIdFor(MockUserData.EMPTY);
     await expect(service.updateKycData('', updatePersonalData, userDataId)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, true, 90000, 't***@update.com', '***********12'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.NA,
+        kycHash,
+        true,
+        AccountType.PERSONAL,
+        90000,
+        't***@update.com',
+        '***********12',
+      ),
     );
   });
 
