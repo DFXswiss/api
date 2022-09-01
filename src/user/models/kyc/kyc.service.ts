@@ -23,6 +23,7 @@ export interface KycInfo {
   kycState: KycState;
   kycHash: string;
   kycDataComplete: boolean;
+  accountType: AccountType;
   depositLimit: number;
   sessionUrl?: string;
   setupUrl?: string;
@@ -213,6 +214,7 @@ export class KycService {
       kycState: userData.kycState,
       kycHash: userData.kycHash,
       kycDataComplete: this.isDataComplete(userData),
+      accountType: userData.accountType,
       depositLimit: userData.depositLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),

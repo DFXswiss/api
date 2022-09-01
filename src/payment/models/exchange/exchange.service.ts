@@ -146,12 +146,13 @@ export class ExchangeService {
         true,
       );
 
+      const filledAmount = orderSide === OrderSide.BUY ? order.filled * order.price : order.filled;
       console.log(
-        `${this.name}: order ${order.id} is ${order.status} (filled: ${order.filled})/${amount} at price ${order.price}, total: ${totalAmount})`,
+        `${this.name}: order ${order.id} is ${order.status} (filled: ${filledAmount}/${amount} at price ${order.price}, total: ${totalAmount})`,
       );
 
       // check for partial orders
-      if (order?.status != OrderStatus.CANCELED && order?.filled) {
+      if (order.status != OrderStatus.CANCELED && order.filled) {
         orders[order.id] = {
           id: order.id,
           price: order.price,
@@ -160,7 +161,7 @@ export class ExchangeService {
           fee: order.fee,
         };
 
-        amount -= orderSide == OrderSide.BUY ? order.filled * order.price : order.filled;
+        amount -= filledAmount;
       }
 
       numRetries++;
