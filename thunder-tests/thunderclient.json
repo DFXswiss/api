@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-08-18T11:09:12.844Z",
+    "modified": "2022-08-30T09:00:18.054Z",
     "headers": [],
     "params": [],
     "body": {
@@ -201,12 +201,12 @@
     "method": "PUT",
     "sortNum": 120000,
     "created": "2022-01-15T13:47:31.522Z",
-    "modified": "2022-07-15T10:00:33.475Z",
+    "modified": "2022-08-29T15:55:59.800Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"NA\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null\n}",
+      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"Manual\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null\n}",
       "form": []
     },
     "tests": []
@@ -1279,12 +1279,12 @@
     "method": "POST",
     "sortNum": 420000,
     "created": "2022-07-08T16:29:53.792Z",
-    "modified": "2022-07-08T16:49:16.378Z",
+    "modified": "2022-08-30T08:59:21.556Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"buyType\": \"Wallet\",\n  \"blockchain\": \"Bitcoin\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
+      "raw": "{\n  \"type\": \"Wallet\",\n  \"blockchain\": \"Bitcoin\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
       "form": []
     },
     "tests": []
@@ -1649,6 +1649,58 @@
     "tests": []
   },
   {
+    "_id": "9805e163-d163-45b4-8ed9-ff7a68756572",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Get My Bank Accounts",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-08-17T00:42:27.836Z",
+    "modified": "2022-08-25T15:50:47.599Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "226ff795-9e8b-4b19-918a-afe00e87b1dc",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Create Bank Account",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "POST",
+    "sortNum": 650000,
+    "created": "2022-08-17T00:43:02.099Z",
+    "modified": "2022-08-17T10:33:43.925Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"preferredCurrency\": {\n    \"id\": 1\n  },\n  \"iban\": \"DE12345678910113\",\n  \"label\": \"Testlabel\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "ebc7e465-342c-4939-b6e2-f56e2d560de4",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Update Bank Account",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "PUT",
+    "sortNum": 660000,
+    "created": "2022-08-17T00:43:19.673Z",
+    "modified": "2022-08-17T10:33:23.896Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\":\"DE1234567891011\",\n  \"label\":\"Test98765432\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
     "_id": "0d85860c-d4e6-448a-98b0-e1903fbd1cc2",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
@@ -1703,58 +1755,6 @@
       }
     ],
     "params": [],
-    "tests": []
-  },
-  {
-    "_id": "9805e163-d163-45b4-8ed9-ff7a68756572",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
-    "name": "Get My Bank Accounts",
-    "url": "{{url}}/v1/bankAccount",
-    "method": "GET",
-    "sortNum": 640000,
-    "created": "2022-08-17T00:42:27.836Z",
-    "modified": "2022-08-25T15:50:47.599Z",
-    "headers": [],
-    "params": [],
-    "tests": []
-  },
-  {
-    "_id": "226ff795-9e8b-4b19-918a-afe00e87b1dc",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
-    "name": "Create Bank Account",
-    "url": "{{url}}/v1/bankAccount",
-    "method": "POST",
-    "sortNum": 650000,
-    "created": "2022-08-17T00:43:02.099Z",
-    "modified": "2022-08-17T10:33:43.925Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n  \"preferredCurrency\": {\n    \"id\": 1\n  },\n  \"iban\": \"DE12345678910113\",\n  \"label\": \"Testlabel\"\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
-    "_id": "ebc7e465-342c-4939-b6e2-f56e2d560de4",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
-    "name": "Update Bank Account",
-    "url": "{{url}}/v1/bankAccount",
-    "method": "PUT",
-    "sortNum": 660000,
-    "created": "2022-08-17T00:43:19.673Z",
-    "modified": "2022-08-17T10:33:23.896Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n  \"iban\":\"DE1234567891011\",\n  \"label\":\"Test98765432\"\n}",
-      "form": []
-    },
     "tests": []
   },
   {
@@ -1818,6 +1818,25 @@
     "body": {
       "type": "json",
       "raw": "{\n  \"iban\": \"DE123467891245699\",\n  \"currency\": {\n    \"id\": 4\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "5fb2f654-a733-421b-8efd-4e12a409e141",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0dfedb35-f836-48a1-b010-04736f083788",
+    "name": "Crypto Route Payment Infos",
+    "url": "{{url}}/v1/cryptoRoute/paymentInfos",
+    "method": "PUT",
+    "sortNum": 525000,
+    "created": "2022-08-30T08:38:53.799Z",
+    "modified": "2022-08-30T08:58:59.278Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"blockchain\": \"DeFiChain\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
       "form": []
     },
     "tests": []

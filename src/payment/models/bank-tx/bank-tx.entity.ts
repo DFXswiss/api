@@ -112,6 +112,7 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   clearingSystemId?: string;
 
+  // bank account number like IBAN
   @Column({ length: 256, nullable: true })
   memberId?: string;
 
@@ -133,6 +134,7 @@ export class BankTx extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   txRaw?: string;
 
+  // routing id for american banks
   @Column({ length: 256, nullable: true })
   aba?: string;
 
