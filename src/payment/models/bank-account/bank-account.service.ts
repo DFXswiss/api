@@ -8,6 +8,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class BankAccountService {
@@ -46,6 +47,12 @@ export class BankAccountService {
   }
 
   // --- INTERNAL METHODS --- //
+
+  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async checkFailedBankAccounts(): Promise<void> {
+    const failedBankAccounts = await this.bankAccountRepo.find({ where: { returnCode: 256 } });
+    failedBankAccounts.forEach((bankAccount) => this.reloadBankAccount(bankAccount.id, bankAccount.iban));
+  }
 
   async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
@@ -87,6 +94,11 @@ export class BankAccountService {
     return this.bankAccountRepo.create({ ...this.parseBankDetails(bankDetails), iban });
   }
 
+  private async reloadBankAccount(bankAccountId: number, iban: string): Promise<void> {
+    const bankDetails = await this.ibanService.getIbanInfos(iban);
+    this.bankAccountRepo.save({ id: bankAccountId, ...this.parseBankDetails(bankDetails), iban });
+  }
+
   private parseBankDetails(bankDetails: IbanDetailsDto): BankAccountInfos {
     return {
       result: this.parseString(bankDetails.result),
@@ -114,7 +126,7 @@ export class BankAccountService {
       scc: this.parseBoolean(bankDetails.scc),
       sctInst: this.parseBoolean(bankDetails.sct_inst),
       sctInstReadinessDate: !bankDetails.sct_inst_readiness_date ? null : new Date(bankDetails.sct_inst_readiness_date),
-      acountNumber: this.parseString(bankDetails.account_number),
+      accountNumber: this.parseString(bankDetails.account_number),
       dataAge: this.parseString(bankDetails.data_age),
       ibanListed: this.parseString(bankDetails.iban_listed),
       ibanWwwOccurrences: !bankDetails.iban_www_occurrences ? null : bankDetails.iban_www_occurrences,
