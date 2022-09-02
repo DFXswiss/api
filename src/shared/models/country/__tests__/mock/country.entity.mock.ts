@@ -7,6 +7,7 @@ export function createDefaultCountry(): Country {
     name: 'Germany',
     enable: true,
     ipEnable: true,
+    maerkiBaumannEnable: true,
     updated: undefined,
     created: undefined,
   };

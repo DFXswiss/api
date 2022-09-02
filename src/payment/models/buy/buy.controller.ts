@@ -25,6 +25,7 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { CountryService } from 'src/shared/models/country/country.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -36,6 +37,7 @@ export class BuyController {
     private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly fiatService: FiatService,
+    private readonly countryService: CountryService,
   ) {}
 
   @Get()
@@ -84,15 +86,21 @@ export class BuyController {
     const fees = await this.getFees(userId);
 
     const stakingRoutes = await this.stakingRepo.find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
-    return Promise.all(buys.map((b) => this.toDto(userId, b, stakingRoutes)));
+    return Promise.all(buys.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
   }
 
-  private async toDto(userId: number, buy: Buy, stakingRoutes?: Staking[]): Promise<BuyDto> {
+  private async toDto(
+    userId: number,
+    buy: Buy,
+    fees?: { fee: number; refBonus: number },
+    stakingRoutes?: Staking[],
+  ): Promise<BuyDto> {
+    fees ??= await this.getFees(userId);
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
-      ...(await this.getFees(userId)),
+      ...fees,
       minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
     };
   }
@@ -135,6 +143,8 @@ export class BuyController {
 
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
 
+    const ibanCodeCountry = await this.countryService.getCountryWithSymbol(buy.bankAccount.iban.substring(0, 2));
+
     // select the matching bank account
     if (frickCurrencies.includes(dto.currency.name) && dto.amount > frickAmountLimit) {
       // amount > 9k, EUR/CHF/USD => Frick
@@ -142,12 +152,18 @@ export class BuyController {
     } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
-    } else if (dto.currency.name === 'CHF') {
-      // CHF => Maerki Baumann
-      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'CHF');
     } else if (dto.currency.name === 'USD') {
       // USD => Frick
       account = Config.bank.frick.accounts.find((a) => a.currency === 'USD');
+    } else if (
+      (!ibanCodeCountry.maerkiBaumannEnable || !buy.user.userData.country.maerkiBaumannEnable) &&
+      frickCurrencies.includes(dto.currency.name)
+    ) {
+      // Invalid Maerki Baumann country => Frick EUR/CHF/USD
+      account = Config.bank.frick.accounts.find((b) => b.currency === dto.currency.name);
+    } else if (dto.currency.name === 'CHF') {
+      // CHF => Maerki Baumann
+      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'CHF');
     } else {
       // default => Maerki Baumann / EUR
       account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'EUR');
