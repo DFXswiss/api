@@ -88,7 +88,7 @@ export class KycProcessService {
           userData,
           translationKey: 'mail.kyc.failed',
           params: {
-            url: `${Config.paymentUrl}kyc?code=${userData.kycHash}`,
+            url: `${Config.paymentUrl}/kyc?code=${userData.kycHash}`,
           },
         })
         .catch(() => null);
