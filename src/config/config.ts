@@ -14,6 +14,7 @@ export class Configuration {
   environment = process.env.ENVIRONMENT;
   network = process.env.NETWORK;
   githubToken = process.env.GH_TOKEN;
+  paymentUrl = process.env.PAYMENT_URL;
   defaultLanguage = 'en';
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';

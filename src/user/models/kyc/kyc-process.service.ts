@@ -8,6 +8,7 @@ import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 import { DocumentState, SpiderService } from 'src/user/services/spider/spider.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserRepository } from '../user/user.repository';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class KycProcessService {
@@ -87,7 +88,7 @@ export class KycProcessService {
           userData,
           translationKey: 'mail.kyc.failed',
           params: {
-            url: userData.spiderData?.url,
+            url: `${Config.paymentUrl}kyc?code=${userData.kycHash}`,
           },
         })
         .catch(() => null);
