@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { MailService } from 'src/shared/services/mail.service';
+import { PriceMismatchException } from '../../exchange/exceptions/price-mismatch.exception';
 import { BinanceService } from '../../exchange/services/binance.service';
 import { BitpandaService } from '../../exchange/services/bitpanda.service';
 import { BitstampService } from '../../exchange/services/bitstamp.service';
 import { FixerService } from '../../exchange/services/fixer.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
 import { Altcoin, USDStableCoin, Fiat } from '../enums';
+import { BadPriceRequestException } from '../exceptions/bad-price-request.exception';
+import { PathNotConfiguredException } from '../exceptions/path-not-configured.exception';
 import { PriceRequest, PriceResult } from '../interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
@@ -25,12 +29,44 @@ export class PricingService {
   private readonly pricingPaths: Map<PricingPathAlias, PricePath> = new Map();
 
   constructor(
+    private readonly mailService: MailService,
     private readonly krakenService: KrakenService,
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
     private readonly fixerService: FixerService,
   ) {
+    this.configurePaths();
+  }
+
+  //*** PUBLIC API ***//
+
+  async getPrice(request: PriceRequest): Promise<PriceResult> {
+    this.validatePriceRequest(request);
+
+    let path: PricePath;
+
+    try {
+      path = this.getPath(request);
+    } catch (e) {
+      console.error(e);
+      throw new PathNotConfiguredException(request.from, request.to);
+    }
+
+    try {
+      return await path.execute(request);
+    } catch (e) {
+      if (e instanceof PriceMismatchException) {
+        await this.mailService.sendErrorMail('Exchange Price Mismatch', [e.message]);
+      }
+
+      throw e;
+    }
+  }
+
+  //*** CONFIGURATION ***//
+
+  private configurePaths(): void {
     this.addPath(
       new PricePath(PricingPathAlias.MATCHING_ASSETS, [
         new PriceStep({
@@ -39,12 +75,9 @@ export class PricingService {
       ]),
     );
 
-    // everywhere FIAT is kraken, Altcoin - Binance
-    // Fiat to BTC only and NOT Altcoin to BTC
     this.addPath(
       new PricePath(PricingPathAlias.FIAT_TO_BTC, [
         new PriceStep({
-          to: 'BTC',
           providers: {
             primary: [this.krakenService],
             reference: [this.binanceService, this.bitstampService, this.bitpandaService],
@@ -53,11 +86,9 @@ export class PricingService {
       ]),
     );
 
-    // BNB to BTC
     this.addPath(
       new PricePath(PricingPathAlias.ALTCOIN_TO_BTC, [
         new PriceStep({
-          to: 'BTC',
           providers: {
             primary: [this.binanceService],
             reference: [this.krakenService, this.bitstampService, this.bitpandaService],
@@ -107,7 +138,6 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.BTC_TO_ALTCOIN, [
         new PriceStep({
-          from: 'BTC',
           providers: {
             primary: [this.binanceService],
             reference: [this.krakenService, this.bitstampService, this.bitpandaService],
@@ -135,19 +165,20 @@ export class PricingService {
         }),
       ]),
     );
-
-    // TODO - think about automatic reverse conversion.... somehow
-  }
-
-  //*** PUBLIC API ***//
-
-  async getPrice(request: PriceRequest): Promise<PriceResult> {
-    const path = this.getPath(request);
-
-    return path.execute(request);
   }
 
   //*** HELPER METHODS ***//
+
+  private validatePriceRequest(request: PriceRequest): void {
+    const { from, to } = request;
+
+    const isKnownFrom = !this.isKnownAsset(from);
+    const isKnownTo = !this.isKnownAsset(to);
+
+    if (!isKnownFrom || !isKnownTo) {
+      throw new BadPriceRequestException(!isKnownFrom && from, !isKnownTo && to);
+    }
+  }
 
   private addPath(path: PricePath): void {
     this.pricingPaths.set(path.alias, path);
@@ -178,7 +209,7 @@ export class PricingService {
 
     if (this.isFiat(from) && this.isUSDStablecoin(to)) return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
 
-    throw new Error('No matching pricing path found');
+    throw new Error(`No matching pricing path alias found. From: ${request.from} to: ${request.to}`);
   }
 
   private isFiat(asset: string): boolean {
@@ -191,5 +222,9 @@ export class PricingService {
 
   private isUSDStablecoin(asset: string): boolean {
     return Object.values(USDStableCoin).includes(asset as unknown as USDStableCoin);
+  }
+
+  private isKnownAsset(asset: string): boolean {
+    return this.isFiat(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset);
   }
 }

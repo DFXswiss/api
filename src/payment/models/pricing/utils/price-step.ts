@@ -1,26 +1,36 @@
+import { cloneDeep } from 'lodash';
 import { Price } from '../../exchange/dto/price.dto';
 import { PriceMismatchException } from '../../exchange/exceptions/price-mismatch.exception';
 import { PriceStepResult, PriceProvider, PriceProviderName } from '../interfaces';
+import { PriceStepInitSpecification } from '../specifications/price-step-init.specification';
+
+export interface PriceStepOptions {
+  from?: string | 'input';
+  to?: string | 'output';
+  referenceTo?: string;
+  providers?: PriceStepProviders;
+  fixedPrice?: number;
+}
+
+export interface PriceStepProviders {
+  primary: PriceProvider[];
+  reference: PriceProvider[];
+}
 
 export class PriceStep {
-  constructor(
-    private options: {
-      from?: string | 'input';
-      to?: string | 'output';
-      referenceTo?: string;
-      providers?: { primary: PriceProvider[]; reference: PriceProvider[] };
-      fixedPrice?: number;
-    },
-  ) {
+  private readonly options: PriceStepOptions;
+
+  constructor(options: PriceStepOptions) {
     this.options.from = options.from || 'input';
     this.options.to = options.to || 'output';
     this.options.referenceTo = options.referenceTo;
     this.options.providers = {
-      primary: this.options?.providers?.primary || [],
-      reference: this.options?.providers?.reference || [],
+      primary: options.providers?.primary || [],
+      reference: options.providers?.reference || [],
     };
     this.options.fixedPrice = options.fixedPrice;
-    // step validation
+
+    PriceStepInitSpecification.isSatisfiedBy(this);
   }
 
   async execute(options?: { from?: string; to?: string }): Promise<PriceStepResult> {
@@ -28,13 +38,17 @@ export class PriceStep {
     let _to = this.options.to;
 
     if (_from === 'input') {
-      if (!options || !options.from) throw new Error('Should replace placeholders');
+      if (!options || !options.from) {
+        throw new Error(`No 'from' option provided to replace 'input' placeholder in PriceStep`);
+      }
 
       _from = options.from;
     }
 
     if (_to === 'output') {
-      if (!options || !options.to) throw new Error('Should replace placeholders');
+      if (!options || !options.to) {
+        throw new Error(`No 'to' option provided to replace 'output' placeholder in PriceStep`);
+      }
 
       _to = options.to;
     }
@@ -44,6 +58,8 @@ export class PriceStep {
 
     return { price, provider: vendor, timestamp: new Date() };
   }
+
+  //*** HELPER METHODS ***//
 
   private getFixedPrice(fromCurrency: string, toCurrency: string): [Price, PriceProviderName] {
     const price = new Price();
@@ -58,7 +74,7 @@ export class PriceStep {
   private async getMatchingPrice(
     fromCurrency: string,
     toCurrency: string,
-    matchThreshold = 0.02,
+    matchThreshold = 0.005,
   ): Promise<[Price, PriceProviderName]> {
     const [primaryPrice, primaryProvider] = await this.getPrimaryPrice(fromCurrency, toCurrency);
 
@@ -131,5 +147,19 @@ export class PriceStep {
         return null;
       }
     }
+  }
+
+  //*** GETTERS ***//
+
+  get _options(): PriceStepOptions {
+    return cloneDeep(this.options);
+  }
+
+  get _from(): string {
+    return this.options.from;
+  }
+
+  get _to(): string {
+    return this.options.to;
   }
 }

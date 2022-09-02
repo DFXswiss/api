@@ -95,7 +95,10 @@ export class StakingRefRewardService {
       });
 
       if (openRewards.length > 0) {
-        const { price } = await this.pricingService.getPrice({ from: 'EUR', to: 'BTC' });
+        const { price } = await this.pricingService.getPrice({ from: 'EUR', to: 'BTC' }).catch((e) => {
+          console.error('Failed to get price:', e);
+          throw e;
+        });
 
         for (const reward of openRewards) {
           try {
