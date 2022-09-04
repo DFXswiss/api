@@ -19,7 +19,7 @@ export class PrepareDeFiChainStrategy implements PrepareStrategy {
 
       if (!(await this.defichainService.isHealthy(context))) return;
 
-      const destinationAddress = this.defichainService.getWallet(context);
+      const destinationAddress = this.defichainService.getWalletAddress(context);
       const request = { asset, amount, destinationAddress };
 
       const transferTxId = await this.dexService.transferLiquidity(request);

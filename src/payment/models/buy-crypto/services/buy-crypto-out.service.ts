@@ -86,7 +86,7 @@ export class BuyCryptoOutService {
             }
 
             console.error(`Failed to initiate buy-crypto payout. Transaction ID: ${transaction.id}`);
-            // continue with next group in case payout failed
+            // continue with next transaction in case payout initiation failed
             continue;
           }
         }

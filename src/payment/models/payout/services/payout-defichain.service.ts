@@ -30,7 +30,7 @@ export class PayoutDeFiChainService {
   }
 
   async sendTokenToMany(context: PayoutOrderContext, asset: string, payout: PayoutGroup): Promise<string> {
-    return this.getClient(context).sendTokenToMany(this.getWallet(context), asset, payout);
+    return this.getClient(context).sendTokenToMany(this.getWalletAddress(context), asset, payout);
   }
 
   async checkPayoutCompletion(context: PayoutOrderContext, payoutTxId: string): Promise<boolean> {
@@ -39,11 +39,11 @@ export class PayoutDeFiChainService {
     return transaction && transaction.blockhash && transaction.confirmations > 0;
   }
 
-  async getUtxoForAddress(address: string): Promise<string> {
-    return this.whaleService.getClient().getBalance(address);
+  async getUtxoForAddress(address: string): Promise<number> {
+    return parseFloat(await this.whaleService.getClient().getBalance(address));
   }
 
-  getWallet(context: PayoutOrderContext): string {
+  getWalletAddress(context: PayoutOrderContext): string {
     if (context === PayoutOrderContext.BUY_CRYPTO) return Config.blockchain.default.outWalletAddress;
     if (context === PayoutOrderContext.STAKING_REWARD) return Config.blockchain.default.intWalletAddress;
   }

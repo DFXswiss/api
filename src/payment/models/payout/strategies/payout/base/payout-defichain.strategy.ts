@@ -64,7 +64,6 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
     orders.forEach((o) => {
       // find nearest non-full group without repeating address
       const suitableExistingGroups = [...result.entries()].filter(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ([_, _orders]) =>
           _orders.length < maxGroupSize && !_orders.find((_o) => _o.destinationAddress === o.destinationAddress),
       );

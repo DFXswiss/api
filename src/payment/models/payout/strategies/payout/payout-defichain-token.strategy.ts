@@ -98,7 +98,7 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
   private async checkUtxo(address: string): Promise<void> {
     const utxo = await this.defichainService.getUtxoForAddress(address);
 
-    if (!parseFloat(utxo)) {
+    if (!utxo) {
       await this.dexService.transferMinimalUtxo(address);
     }
   }
