@@ -4,7 +4,7 @@ import { EthereumClient } from './ethereum-client';
 import { EVMService } from '../shared/evm/evm.service';
 
 @Injectable()
-export class EthereumService extends EVMService<EthereumClient> {
+export class EthereumService extends EVMService {
   constructor() {
     const { ethGatewayUrl, ethApiKey, ethWalletAddress, ethWalletPrivateKey } = Config.blockchain.ethereum;
 
