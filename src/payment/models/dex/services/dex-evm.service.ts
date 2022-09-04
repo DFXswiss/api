@@ -6,10 +6,13 @@ import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
-export class DexEVMService<T extends EVMClient> {
+export abstract class DexEVMService<T extends EVMClient> {
   #client: T;
 
-  constructor(private readonly liquidityOrderRepo: LiquidityOrderRepository, service: EVMService<T>) {
+  constructor(
+    protected readonly liquidityOrderRepo: LiquidityOrderRepository,
+    protected readonly service: EVMService<T>,
+  ) {
     this.#client = service.getClient();
   }
 

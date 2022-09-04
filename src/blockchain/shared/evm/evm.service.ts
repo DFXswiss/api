@@ -1,25 +1,19 @@
 import { EVMClient } from './evm-client';
 
-export class EVMService<T extends EVMClient> {
-  readonly #client: T;
+export abstract class EVMService<T extends EVMClient> {
+  protected readonly client: T;
 
-  constructor(gatewayUrl: string, apiKey: string, walletAddress: string, walletPrivateKey: string, client: Function extends T) {
-    this.#client = new client()
-    this.initClient();
+  constructor(
+    gatewayUrl: string,
+    apiKey: string,
+    walletAddress: string,
+    walletPrivateKey: string,
+    client: { new (gatewayUrl: string, privateKey: string, address: string): T },
+  ) {
+    this.client = new client(`${gatewayUrl}/${apiKey}`, walletAddress, walletPrivateKey);
   }
 
   getClient(): T {
-    return this.#client;
-  }
-
-  // *** INIT METHODS *** //
-
-  private initClient(): void {
-    const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethWalletAddress } = Config.blockchain.ethereum;
-
-    this.#clients.set(
-      'default',
-      new EthereumClient(`${ethGatewayUrl}/${ethApiKey}`, ethWalletPrivateKey, ethWalletAddress),
-    );
+    return this.client;
   }
 }

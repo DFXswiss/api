@@ -1,29 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { HttpService } from 'src/shared/services/http.service';
 import { Config } from 'src/config/config';
 import { EthereumClient } from './ethereum-client';
+import { EVMService } from '../shared/evm/evm.service';
 
 @Injectable()
-export class EthereumService {
-  readonly #clients: Map<'default', EthereumClient> = new Map();
+export class EthereumService extends EVMService<EthereumClient> {
+  constructor() {
+    const { ethGatewayUrl, ethApiKey, ethWalletAddress, ethWalletPrivateKey } = Config.blockchain.ethereum;
 
-  // TODO - fix dependency injection, without SharedModule injection - initialized before Config
-  constructor(private readonly http: HttpService) {
-    this.initClient();
-  }
-
-  getClient(): EthereumClient {
-    return this.#clients.get('default');
-  }
-
-  // *** INIT METHODS *** //
-
-  private initClient(): void {
-    const { ethGatewayUrl, ethApiKey, ethWalletPrivateKey, ethWalletAddress } = Config.blockchain.ethereum;
-
-    this.#clients.set(
-      'default',
-      new EthereumClient(`${ethGatewayUrl}/${ethApiKey}`, ethWalletPrivateKey, ethWalletAddress),
-    );
+    super(ethGatewayUrl, ethApiKey, ethWalletAddress, ethWalletPrivateKey, EthereumClient);
   }
 }

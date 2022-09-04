@@ -1,26 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { HttpService } from 'src/shared/services/http.service';
 import { Config } from 'src/config/config';
 import { BSCClient } from './bsc-client';
+import { EVMService } from '../shared/evm/evm.service';
 
 @Injectable()
-export class BSCService {
-  readonly #clients: Map<'default', BSCClient> = new Map();
+export class BSCService extends EVMService<BSCClient> {
+  constructor() {
+    const { bscGatewayUrl, bscApiKey, bscWalletAddress, bscWalletPrivateKey } = Config.blockchain.bsc;
 
-  // TODO - fix dependency injection, without SharedModule injection - initialized before Config
-  constructor(private readonly http: HttpService) {
-    this.initClient();
-  }
-
-  getClient(): BSCClient {
-    return this.#clients.get('default');
-  }
-
-  // *** INIT METHODS *** //
-
-  private initClient(): void {
-    const { bscGatewayUrl, bscApiKey, bscWalletPrivateKey, bscWalletAddress } = Config.blockchain.bsc;
-
-    this.#clients.set('default', new BSCClient(`${bscGatewayUrl}/${bscApiKey}`, bscWalletPrivateKey, bscWalletAddress));
+    super(bscGatewayUrl, bscApiKey, bscWalletAddress, bscWalletPrivateKey, BSCClient);
   }
 }

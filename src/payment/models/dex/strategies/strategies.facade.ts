@@ -1,9 +1,9 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
-import { CheckBSCLiquidityStrategy } from './check-liquidity/check-liquidity-bsc.strategy';
+import { CheckLiquidityBSCStrategy } from './check-liquidity/check-liquidity-bsc.strategy';
 import { CheckLiquidityDefaultStrategy } from './check-liquidity/check-liquidity-default.strategy';
-import { CheckETHLiquidityStrategy } from './check-liquidity/check-liquidity-eth.strategy';
+import { CheckLiquidityETHStrategy } from './check-liquidity/check-liquidity-eth.strategy';
 import { CheckLiquidityStrategy } from './check-liquidity/base/check-liquidity.strategy';
 import { CheckPoolPairLiquidityStrategy } from './check-liquidity/check-poolpair-liquidity.strategy';
 import { PurchaseBSCLiquidityStrategy } from './purchase-liquidity/purchase-bsc-liquiduity.strategy';
@@ -36,8 +36,8 @@ export class DexStrategiesFacade {
   constructor(
     checkPoolPairLiquidityStrategy: CheckPoolPairLiquidityStrategy,
     checkLiquidityDefaultStrategy: CheckLiquidityDefaultStrategy,
-    checkEthLiquidityStrategy: CheckETHLiquidityStrategy,
-    checkBscLiquidityStrategy: CheckBSCLiquidityStrategy,
+    checkEthLiquidityStrategy: CheckLiquidityETHStrategy,
+    checkBscLiquidityStrategy: CheckLiquidityBSCStrategy,
     @Inject(forwardRef(() => PurchasePoolPairLiquidityStrategy))
     purchasePoolPairLiquidityStrategy: PurchasePoolPairLiquidityStrategy,
     purchaseStockLiquidityStrategy: PurchaseStockLiquidityStrategy,
