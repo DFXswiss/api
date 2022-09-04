@@ -1,10 +1,5 @@
 import { ethers } from 'ethers';
 
-export enum EthereumDenomination {
-  ETH = 'ETH',
-  WEI = 'WEI',
-}
-
 export abstract class EVMClient {
   #address: string;
   #provider: ethers.providers.JsonRpcProvider;
@@ -16,24 +11,17 @@ export abstract class EVMClient {
     this.#address = address;
   }
 
-  async getBalance(denomination = EthereumDenomination.ETH): Promise<number> {
-    const wei = await this.#provider.getBalance(this.#address);
+  async getBalance(): Promise<number> {
+    const balance = await this.#provider.getBalance(this.#address);
 
-    if (denomination === EthereumDenomination.WEI) return +wei;
-
-    return parseFloat(ethers.utils.formatEther(wei));
+    return parseFloat(ethers.utils.formatEther(balance));
   }
 
-  async send(address: string, amount: number, denomination = EthereumDenomination.ETH): Promise<string> {
-    const sendAmount =
-      denomination === EthereumDenomination.ETH
-        ? ethers.utils.parseEther(`${amount}`)
-        : ethers.utils.formatEther(amount);
-
+  async send(address: string, amount: number): Promise<string> {
     const tx = await this.#wallet.sendTransaction({
       from: this.#address,
       to: address,
-      value: sendAmount,
+      value: amount,
     });
 
     return tx.hash;
