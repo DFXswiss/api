@@ -5,7 +5,7 @@ import { DexDeFiChainService } from '../../services/dex-defichain.service';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
-export class CheckLiquidityDefaultStrategy implements CheckLiquidityStrategy {
+export class CheckLiquidityDeFiChainDefaultStrategy implements CheckLiquidityStrategy {
   constructor(private readonly dexDeFiChainService: DexDeFiChainService) {}
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {

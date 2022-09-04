@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { MailService } from 'src/shared/services/mail.service';
-import { PurchaseETHBaseLiquidityStrategy } from './purchase-eth-base-liquiduity.strategy';
+import { PurchaseLiquidityEVMStrategy } from './base/purchase-liquidity-evm.strategy';
 
 @Injectable()
-export class PurchaseETHLiquidityStrategy extends PurchaseETHBaseLiquidityStrategy {
+export class PurchaseLiquidityEthereumStrategy extends PurchaseLiquidityEVMStrategy {
   constructor(mailService: MailService) {
     super(mailService);
   }

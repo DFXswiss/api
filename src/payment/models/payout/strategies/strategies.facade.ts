@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutBSCStrategy } from './payout/payout-bsc.strategy';
-import { PayoutDFIStrategy } from './payout/payout-dfi.strategy';
-import { PayoutETHStrategy } from './payout/payout-eth.strategy';
-import { PayoutTokenStrategy } from './payout/payout-token.strategy';
+import { PayoutDeFiChainDFIStrategy } from './payout/payout-defichain-dfi.strategy';
+import { PayoutEthereumStrategy } from './payout/payout-ethereum.strategy';
+import { PayoutDeFiChainTokenStrategy } from './payout/payout-defichain-token.strategy';
 import { PayoutStrategy } from './payout/base/payout.strategy';
-import { PrepareOnBSCStrategy } from './prepare/prepare-on-bsc.strategy';
-import { PrepareOnDefichainStrategy } from './prepare/prepare-on-defichain.strategy';
-import { PrepareOnEthereumStrategy } from './prepare/prepare-on-ethereum.strategy';
+import { PrepareBSCStrategy } from './prepare/prepare-bsc.strategy';
+import { PrepareDeFiChainStrategy } from './prepare/prepare-defichain.strategy';
+import { PrepareEthereumStrategy } from './prepare/prepare-ethereum.strategy';
 import { PrepareStrategy } from './prepare/base/prepare.strategy';
 
 export enum PayoutStrategyAlias {
@@ -30,13 +30,13 @@ export class PayoutStrategiesFacade {
   private readonly prepareStrategies: Map<PrepareStrategyAlias, PrepareStrategy> = new Map();
 
   constructor(
-    payoutDFIStrategy: PayoutDFIStrategy,
-    payoutTokenStrategy: PayoutTokenStrategy,
-    payoutETHStrategy: PayoutETHStrategy,
+    payoutDFIStrategy: PayoutDeFiChainDFIStrategy,
+    payoutTokenStrategy: PayoutDeFiChainTokenStrategy,
+    payoutETHStrategy: PayoutEthereumStrategy,
     payoutBSCStrategy: PayoutBSCStrategy,
-    prepareOnDefichainStrategy: PrepareOnDefichainStrategy,
-    prepareOnEthereumStrategy: PrepareOnEthereumStrategy,
-    prepareOnBscStrategy: PrepareOnBSCStrategy,
+    prepareOnDefichainStrategy: PrepareDeFiChainStrategy,
+    prepareOnEthereumStrategy: PrepareEthereumStrategy,
+    prepareOnBscStrategy: PrepareBSCStrategy,
   ) {
     this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_DFI, payoutDFIStrategy);
     this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_TOKEN, payoutTokenStrategy);

@@ -7,7 +7,7 @@ import { PayoutDeFiChainService } from '../../services/payout-defichain.service'
 import { PayoutDeFiChainStrategy } from './base/payout-defichain.strategy';
 
 @Injectable()
-export class PayoutDFIStrategy extends PayoutDeFiChainStrategy {
+export class PayoutDeFiChainDFIStrategy extends PayoutDeFiChainStrategy {
   constructor(
     mailService: MailService,
     readonly nodeService: NodeService,

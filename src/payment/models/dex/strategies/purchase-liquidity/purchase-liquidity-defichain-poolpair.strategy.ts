@@ -10,7 +10,7 @@ import { LiquidityOrder, LiquidityOrderContext } from '../../entities/liquidity-
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { DexService, LiquidityRequest } from '../../services/dex.service';
-import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
+import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
 import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
@@ -20,7 +20,7 @@ import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
-export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {
+export class PurchaseLiquidityDeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   private readonly verifyDerivedOrdersLock = new Lock(1800);
 
   private chainClient: DeFiClient;

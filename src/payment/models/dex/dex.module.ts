@@ -8,17 +8,17 @@ import { LiquidityOrderRepository } from './repositories/liquidity-order.reposit
 import { DexEthereumService } from './services/dex-ethereum.service';
 import { DexService } from './services/dex.service';
 import { DexDeFiChainService } from './services/dex-defichain.service';
-import { CheckLiquidityDefaultStrategy } from './strategies/check-liquidity/check-liquidity-default.strategy';
-import { CheckPoolPairLiquidityStrategy } from './strategies/check-liquidity/check-poolpair-liquidity.strategy';
-import { PurchaseCryptoLiquidityStrategy } from './strategies/purchase-liquidity/purchase-crypto-liquidity.strategy';
-import { PurchasePoolPairLiquidityStrategy } from './strategies/purchase-liquidity/purchase-poolpair-liquidity.strategy';
-import { PurchaseStockLiquidityStrategy } from './strategies/purchase-liquidity/purchase-stock-liquidity.strategy';
-import { CheckLiquidityETHStrategy } from './strategies/check-liquidity/check-liquidity-eth.strategy';
+import { CheckLiquidityDeFiChainDefaultStrategy } from './strategies/check-liquidity/check-liquidity-defichain-default.strategy';
+import { CheckLiquidityDeFiChainPoolPairStrategy } from './strategies/check-liquidity/check-liquidity-defichain-poolpair.strategy';
+import { PurchaseLiquidityDeFiChainCryptoStrategy } from './strategies/purchase-liquidity/purchase-liquidity-defichain-crypto.strategy';
+import { PurchaseLiquidityDeFiChainPoolPairStrategy } from './strategies/purchase-liquidity/purchase-liquidity-defichain-poolpair.strategy';
+import { PurchaseLiquidityDeFiChainStockStrategy } from './strategies/purchase-liquidity/purchase-liquidity-defichain-stock.strategy';
+import { CheckLiquidityEthereumStrategy } from './strategies/check-liquidity/check-liquidity-ethereum.strategy';
 import { DexStrategiesFacade } from './strategies/strategies.facade';
-import { PurchaseETHLiquidityStrategy } from './strategies/purchase-liquidity/purchase-eth-liquiduity.strategy';
+import { PurchaseLiquidityEthereumStrategy } from './strategies/purchase-liquidity/purchase-liquidity-ethereum.strategy';
 import { BSCModule } from 'src/blockchain/bsc/bsc.module';
 import { DexBSCService } from './services/dex-bsc.service';
-import { PurchaseBSCLiquidityStrategy } from './strategies/purchase-liquidity/purchase-bsc-liquiduity.strategy';
+import { PurchaseLiquidityBSCStrategy } from './strategies/purchase-liquidity/purchase-liquidity-bsc.strategy';
 import { CheckLiquidityBSCStrategy } from './strategies/check-liquidity/check-liquidity-bsc.strategy';
 
 @Module({
@@ -31,15 +31,15 @@ import { CheckLiquidityBSCStrategy } from './strategies/check-liquidity/check-li
     DexBSCService,
     DexStrategiesFacade,
     DexService,
-    CheckPoolPairLiquidityStrategy,
-    CheckLiquidityDefaultStrategy,
-    CheckLiquidityETHStrategy,
+    CheckLiquidityDeFiChainPoolPairStrategy,
+    CheckLiquidityDeFiChainDefaultStrategy,
+    CheckLiquidityEthereumStrategy,
     CheckLiquidityBSCStrategy,
-    PurchaseCryptoLiquidityStrategy,
-    PurchasePoolPairLiquidityStrategy,
-    PurchaseStockLiquidityStrategy,
-    PurchaseETHLiquidityStrategy,
-    PurchaseBSCLiquidityStrategy,
+    PurchaseLiquidityDeFiChainCryptoStrategy,
+    PurchaseLiquidityDeFiChainPoolPairStrategy,
+    PurchaseLiquidityDeFiChainStockStrategy,
+    PurchaseLiquidityEthereumStrategy,
+    PurchaseLiquidityBSCStrategy,
   ],
   exports: [DexService],
 })

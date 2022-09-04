@@ -1,7 +1,7 @@
 import { MailService } from 'src/shared/services/mail.service';
-import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
-import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
-import { LiquidityRequest } from '../../services/dex.service';
+import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
+import { PriceSlippageException } from '../../../exceptions/price-slippage.exception';
+import { LiquidityRequest } from '../../../services/dex.service';
 
 export abstract class PurchaseLiquidityStrategy {
   constructor(protected readonly mailService: MailService) {}

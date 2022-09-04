@@ -2,16 +2,16 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { CheckLiquidityBSCStrategy } from './check-liquidity/check-liquidity-bsc.strategy';
-import { CheckLiquidityDefaultStrategy } from './check-liquidity/check-liquidity-default.strategy';
-import { CheckLiquidityETHStrategy } from './check-liquidity/check-liquidity-eth.strategy';
+import { CheckLiquidityDeFiChainDefaultStrategy } from './check-liquidity/check-liquidity-defichain-default.strategy';
+import { CheckLiquidityEthereumStrategy } from './check-liquidity/check-liquidity-ethereum.strategy';
 import { CheckLiquidityStrategy } from './check-liquidity/base/check-liquidity.strategy';
-import { CheckPoolPairLiquidityStrategy } from './check-liquidity/check-poolpair-liquidity.strategy';
-import { PurchaseBSCLiquidityStrategy } from './purchase-liquidity/purchase-bsc-liquiduity.strategy';
-import { PurchaseCryptoLiquidityStrategy } from './purchase-liquidity/purchase-crypto-liquidity.strategy';
-import { PurchaseETHLiquidityStrategy } from './purchase-liquidity/purchase-eth-liquiduity.strategy';
-import { PurchaseLiquidityStrategy } from './purchase-liquidity/purchase-liquidity.strategy';
-import { PurchasePoolPairLiquidityStrategy } from './purchase-liquidity/purchase-poolpair-liquidity.strategy';
-import { PurchaseStockLiquidityStrategy } from './purchase-liquidity/purchase-stock-liquidity.strategy';
+import { CheckLiquidityDeFiChainPoolPairStrategy } from './check-liquidity/check-liquidity-defichain-poolpair.strategy';
+import { PurchaseLiquidityBSCStrategy } from './purchase-liquidity/purchase-liquidity-bsc.strategy';
+import { PurchaseLiquidityDeFiChainCryptoStrategy } from './purchase-liquidity/purchase-liquidity-defichain-crypto.strategy';
+import { PurchaseLiquidityEthereumStrategy } from './purchase-liquidity/purchase-liquidity-ethereum.strategy';
+import { PurchaseLiquidityStrategy } from './purchase-liquidity/base/purchase-liquidity.strategy';
+import { PurchaseLiquidityDeFiChainPoolPairStrategy } from './purchase-liquidity/purchase-liquidity-defichain-poolpair.strategy';
+import { PurchaseLiquidityDeFiChainStockStrategy } from './purchase-liquidity/purchase-liquidity-defichain-stock.strategy';
 
 export enum CheckLiquidityStrategyAlias {
   DEFICHAIN_POOL_PAIR = 'DeFiChainPoolPair',
@@ -34,39 +34,52 @@ export class DexStrategiesFacade {
   private readonly purchaseLiquidityStrategies = new Map<PurchaseLiquidityStrategyAlias, PurchaseLiquidityStrategy>();
 
   constructor(
-    checkPoolPairLiquidityStrategy: CheckPoolPairLiquidityStrategy,
-    checkLiquidityDefaultStrategy: CheckLiquidityDefaultStrategy,
-    checkEthLiquidityStrategy: CheckLiquidityETHStrategy,
-    checkBscLiquidityStrategy: CheckLiquidityBSCStrategy,
-    @Inject(forwardRef(() => PurchasePoolPairLiquidityStrategy))
-    purchasePoolPairLiquidityStrategy: PurchasePoolPairLiquidityStrategy,
-    purchaseStockLiquidityStrategy: PurchaseStockLiquidityStrategy,
-    purchaseCryptoLiquidityStrategy: PurchaseCryptoLiquidityStrategy,
-    purchaseEthLiquidityStrategy: PurchaseETHLiquidityStrategy,
-    purchaseBscLiquidityStrategy: PurchaseBSCLiquidityStrategy,
+    checkLiquidityDeFiChainPoolPairStrategy: CheckLiquidityDeFiChainPoolPairStrategy,
+    checkLiquidityDeFiChainDefaultStrategy: CheckLiquidityDeFiChainDefaultStrategy,
+    checkLiquidityEthereumStrategy: CheckLiquidityEthereumStrategy,
+    checkLiquidityBSCStrategy: CheckLiquidityBSCStrategy,
+    @Inject(forwardRef(() => PurchaseLiquidityDeFiChainPoolPairStrategy))
+    purchaseLiquidityDeFiChainPoolPairStrategy: PurchaseLiquidityDeFiChainPoolPairStrategy,
+    purchaseLiquidityDeFiChainStockStrategy: PurchaseLiquidityDeFiChainStockStrategy,
+    purchaseLiquidityDeFiChainCryptoStrategy: PurchaseLiquidityDeFiChainCryptoStrategy,
+    purchaseLiquidityEthereumStrategy: PurchaseLiquidityEthereumStrategy,
+    purchaseLiquidityBSCStrategy: PurchaseLiquidityBSCStrategy,
   ) {
-    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR, checkPoolPairLiquidityStrategy);
-    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.DEFICHAIN_DEFAULT, checkLiquidityDefaultStrategy);
-    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT, checkEthLiquidityStrategy);
-    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.BSC_DEFAULT, checkBscLiquidityStrategy);
+    this.checkLiquidityStrategies.set(
+      CheckLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR,
+      checkLiquidityDeFiChainPoolPairStrategy,
+    );
+
+    this.checkLiquidityStrategies.set(
+      CheckLiquidityStrategyAlias.DEFICHAIN_DEFAULT,
+      checkLiquidityDeFiChainDefaultStrategy,
+    );
+
+    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT, checkLiquidityEthereumStrategy);
+
+    this.checkLiquidityStrategies.set(CheckLiquidityStrategyAlias.BSC_DEFAULT, checkLiquidityBSCStrategy);
 
     this.purchaseLiquidityStrategies.set(
       PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR,
-      purchasePoolPairLiquidityStrategy,
+      purchaseLiquidityDeFiChainPoolPairStrategy,
     );
 
     this.purchaseLiquidityStrategies.set(
       PurchaseLiquidityStrategyAlias.DEFICHAIN_STOCK,
-      purchaseStockLiquidityStrategy,
+      purchaseLiquidityDeFiChainStockStrategy,
     );
 
     this.purchaseLiquidityStrategies.set(
       PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO,
-      purchaseCryptoLiquidityStrategy,
+      purchaseLiquidityDeFiChainCryptoStrategy,
     );
 
-    this.purchaseLiquidityStrategies.set(PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT, purchaseEthLiquidityStrategy);
-    this.purchaseLiquidityStrategies.set(PurchaseLiquidityStrategyAlias.BSC_DEFAULT, purchaseBscLiquidityStrategy);
+    this.purchaseLiquidityStrategies.set(
+      PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT,
+      purchaseLiquidityEthereumStrategy,
+    );
+
+    this.purchaseLiquidityStrategies.set(PurchaseLiquidityStrategyAlias.BSC_DEFAULT, purchaseLiquidityBSCStrategy);
   }
 
   getCheckLiquidityStrategy(criteria: Asset | CheckLiquidityStrategyAlias): CheckLiquidityStrategy {

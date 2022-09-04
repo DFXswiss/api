@@ -1,7 +1,6 @@
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 
-export abstract class PrepareStrategy {
-  abstract preparePayout(order: PayoutOrder): Promise<void>;
-
-  abstract checkPreparationCompletion(order: PayoutOrder): Promise<void>;
+export interface PrepareStrategy {
+  preparePayout(order: PayoutOrder): Promise<void>;
+  checkPreparationCompletion(order: PayoutOrder): Promise<void>;
 }

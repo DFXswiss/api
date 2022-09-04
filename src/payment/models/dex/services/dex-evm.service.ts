@@ -9,7 +9,12 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 export abstract class DexEVMService {
   #client: EVMClient;
 
-  constructor(protected readonly liquidityOrderRepo: LiquidityOrderRepository, protected readonly service: EVMService) {
+  constructor(
+    protected readonly liquidityOrderRepo: LiquidityOrderRepository,
+    protected readonly service: EVMService,
+    protected readonly nativeCoin: string,
+    protected readonly blockchain: Blockchain,
+  ) {
     this.#client = service.getDefaultClient();
   }
 
@@ -19,7 +24,7 @@ export abstract class DexEVMService {
 
   async checkCoinAvailability(amount: number): Promise<number> {
     const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === 'BNB' && o.targetAsset.blockchain === Blockchain.BINANCE_SMART_CHAIN,
+      (o) => o.targetAsset.dexName === this.nativeCoin && o.targetAsset.blockchain === this.blockchain,
     );
     const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
 
@@ -28,7 +33,7 @@ export abstract class DexEVMService {
     // 5% cap for unexpected meantime swaps
     if (amount * 1.05 > availableAmount - pendingAmount) {
       throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset BNB. Trying to use ${amount} BNB worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
+        `Not enough liquidity of asset ${this.nativeCoin}. Trying to use ${amount} ${this.nativeCoin} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
       );
     }
 

@@ -10,7 +10,7 @@ import { PayoutDeFiChainStrategy } from './base/payout-defichain.strategy';
 type TokenName = string;
 
 @Injectable()
-export class PayoutTokenStrategy extends PayoutDeFiChainStrategy {
+export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
   constructor(
     mailService: MailService,
     readonly nodeService: NodeService,

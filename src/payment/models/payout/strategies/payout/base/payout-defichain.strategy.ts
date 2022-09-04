@@ -5,14 +5,12 @@ import { PayoutOrderRepository } from '../../../repositories/payout-order.reposi
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class PayoutDeFiChainStrategy extends PayoutStrategy {
+export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
   constructor(
     protected readonly mailService: MailService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly defichainService: PayoutDeFiChainService,
-  ) {
-    super();
-  }
+  ) {}
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {

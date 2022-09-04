@@ -6,14 +6,12 @@ import { PayoutDeFiChainService } from '../../services/payout-defichain.service'
 import { PrepareStrategy } from './base/prepare.strategy';
 
 @Injectable()
-export class PrepareOnDefichainStrategy extends PrepareStrategy {
+export class PrepareDeFiChainStrategy implements PrepareStrategy {
   constructor(
     private readonly dexService: DexService,
     private readonly defichainService: PayoutDeFiChainService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
-  ) {
-    super();
-  }
+  ) {}
 
   async preparePayout(order: PayoutOrder): Promise<void> {
     try {

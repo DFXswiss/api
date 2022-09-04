@@ -3,10 +3,10 @@ import { LiquidityOrderRepository } from '../../repositories/liquidity-order.rep
 import { DexDeFiChainService } from '../../services/dex-defichain.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
-import { PurchaseNonPoolPairLiquidityStrategy } from './purchase-non-poolpair-liquidity.strategy';
+import { PurchaseLiquidityDeFiChainNonPoolPairStrategy } from './base/purchase-liquidity-defichain-non-poolpair.strategy';
 
 @Injectable()
-export class PurchaseStockLiquidityStrategy extends PurchaseNonPoolPairLiquidityStrategy {
+export class PurchaseLiquidityDeFiChainStockStrategy extends PurchaseLiquidityDeFiChainNonPoolPairStrategy {
   constructor(
     readonly mailService: MailService,
     readonly dexDeFiChainService: DexDeFiChainService,

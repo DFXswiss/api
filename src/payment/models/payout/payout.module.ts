@@ -13,12 +13,12 @@ import { PayoutEthereumService } from './services/payout-ethereum.service';
 import { PayoutLogService } from './services/payout-log.service';
 import { PayoutService } from './services/payout.service';
 import { PayoutBSCStrategy } from './strategies/payout/payout-bsc.strategy';
-import { PayoutDFIStrategy } from './strategies/payout/payout-dfi.strategy';
-import { PayoutETHStrategy } from './strategies/payout/payout-eth.strategy';
-import { PayoutTokenStrategy } from './strategies/payout/payout-token.strategy';
-import { PrepareOnBSCStrategy } from './strategies/prepare/prepare-on-bsc.strategy';
-import { PrepareOnDefichainStrategy } from './strategies/prepare/prepare-on-defichain.strategy';
-import { PrepareOnEthereumStrategy } from './strategies/prepare/prepare-on-ethereum.strategy';
+import { PayoutDeFiChainDFIStrategy } from './strategies/payout/payout-defichain-dfi.strategy';
+import { PayoutEthereumStrategy } from './strategies/payout/payout-ethereum.strategy';
+import { PayoutDeFiChainTokenStrategy } from './strategies/payout/payout-defichain-token.strategy';
+import { PrepareBSCStrategy } from './strategies/prepare/prepare-bsc.strategy';
+import { PrepareDeFiChainStrategy } from './strategies/prepare/prepare-defichain.strategy';
+import { PrepareEthereumStrategy } from './strategies/prepare/prepare-ethereum.strategy';
 import { PayoutStrategiesFacade } from './strategies/strategies.facade';
 
 @Module({
@@ -38,13 +38,13 @@ import { PayoutStrategiesFacade } from './strategies/strategies.facade';
     PayoutDeFiChainService,
     PayoutEthereumService,
     PayoutBSCService,
-    PayoutDFIStrategy,
-    PayoutTokenStrategy,
-    PayoutETHStrategy,
+    PayoutDeFiChainDFIStrategy,
+    PayoutDeFiChainTokenStrategy,
+    PayoutEthereumStrategy,
     PayoutBSCStrategy,
-    PrepareOnDefichainStrategy,
-    PrepareOnEthereumStrategy,
-    PrepareOnBSCStrategy,
+    PrepareDeFiChainStrategy,
+    PrepareEthereumStrategy,
+    PrepareBSCStrategy,
     PayoutStrategiesFacade,
   ],
   exports: [PayoutService],
