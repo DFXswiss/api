@@ -60,6 +60,11 @@ export class Configuration {
     },
   };
 
+  mydefichain = {
+    username: process.env.MYDEFICHAIN_USER,
+    password: process.env.MYDEFICHAIN_PASSWORD,
+  };
+
   auth = {
     jwt: {
       secret: process.env.JWT_SECRET,
