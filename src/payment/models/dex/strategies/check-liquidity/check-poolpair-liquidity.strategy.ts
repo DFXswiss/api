@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CheckLiquidityStrategy } from './check-liquidity.strategy';
+import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
 export class CheckPoolPairLiquidityStrategy implements CheckLiquidityStrategy {

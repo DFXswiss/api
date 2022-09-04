@@ -5,11 +5,11 @@ import { PayoutBSCStrategy } from './payout/payout-bsc.strategy';
 import { PayoutDFIStrategy } from './payout/payout-dfi.strategy';
 import { PayoutETHStrategy } from './payout/payout-eth.strategy';
 import { PayoutTokenStrategy } from './payout/payout-token.strategy';
-import { PayoutStrategy } from './payout/payout.strategy';
+import { PayoutStrategy } from './payout/base/payout.strategy';
 import { PrepareOnBSCStrategy } from './prepare/prepare-on-bsc.strategy';
 import { PrepareOnDefichainStrategy } from './prepare/prepare-on-defichain.strategy';
 import { PrepareOnEthereumStrategy } from './prepare/prepare-on-ethereum.strategy';
-import { PrepareStrategy } from './prepare/prepare.strategy';
+import { PrepareStrategy } from './prepare/base/prepare.strategy';
 
 export enum PayoutStrategyAlias {
   DEFICHAIN_DFI = 'DeFiChainDFI',

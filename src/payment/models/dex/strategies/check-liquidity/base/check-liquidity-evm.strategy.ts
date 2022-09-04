@@ -1,4 +1,4 @@
-import { LiquidityRequest } from '../../services/dex.service';
+import { LiquidityRequest } from '../../../services/dex.service';
 import { CheckLiquidityStrategy } from './check-liquidity.strategy';
 
 export class CheckETHBaseLiquidityStrategy implements CheckLiquidityStrategy {

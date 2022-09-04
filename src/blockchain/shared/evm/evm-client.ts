@@ -5,7 +5,7 @@ export enum EthereumDenomination {
   WEI = 'WEI',
 }
 
-export abstract class EthereumBaseClient {
+export abstract class EVMClient {
   #address: string;
   #provider: ethers.providers.JsonRpcProvider;
   #wallet: ethers.Wallet;

@@ -3,7 +3,7 @@ import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { PayoutOrder } from '../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
-import { PrepareStrategy } from './prepare.strategy';
+import { PrepareStrategy } from './base/prepare.strategy';
 
 @Injectable()
 export class PrepareOnDefichainStrategy extends PrepareStrategy {

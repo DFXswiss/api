@@ -4,7 +4,7 @@ import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { CheckBSCLiquidityStrategy } from './check-liquidity/check-liquidity-bsc.strategy';
 import { CheckLiquidityDefaultStrategy } from './check-liquidity/check-liquidity-default.strategy';
 import { CheckETHLiquidityStrategy } from './check-liquidity/check-liquidity-eth.strategy';
-import { CheckLiquidityStrategy } from './check-liquidity/check-liquidity.strategy';
+import { CheckLiquidityStrategy } from './check-liquidity/base/check-liquidity.strategy';
 import { CheckPoolPairLiquidityStrategy } from './check-liquidity/check-poolpair-liquidity.strategy';
 import { PurchaseBSCLiquidityStrategy } from './purchase-liquidity/purchase-bsc-liquiduity.strategy';
 import { PurchaseCryptoLiquidityStrategy } from './purchase-liquidity/purchase-crypto-liquidity.strategy';

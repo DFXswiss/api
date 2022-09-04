@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PayoutOrder } from '../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
-import { PrepareStrategy } from './prepare.strategy';
+import { PrepareStrategy } from './base/prepare.strategy';
 
 @Injectable()
 export class PrepareOnEthereumStrategy extends PrepareStrategy {

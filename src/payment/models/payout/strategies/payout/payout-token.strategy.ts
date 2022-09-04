@@ -5,7 +5,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderContext, PayoutOrder } from '../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
-import { PayoutDeFiChainStrategy } from './payout-defichain.strategy';
+import { PayoutDeFiChainStrategy } from './base/payout-defichain.strategy';
 
 type TokenName = string;
 

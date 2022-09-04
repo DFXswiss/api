@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PayoutOrder } from '../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
 import { PayoutBSCService } from '../../services/payout-bsc.service';
-import { PayoutStrategy } from './payout.strategy';
+import { PayoutStrategy } from './base/payout.strategy';
 
 @Injectable()
 export class PayoutBSCStrategy extends PayoutStrategy {
