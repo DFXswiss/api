@@ -17,7 +17,6 @@ export class LinkedUserInDto {
 }
 
 export class LinkedUserOutDto extends LinkedUserInDto {
-  @ApiPropertyOptional()
-  @IsBoolean()
+  @ApiProperty()
   isSwitchable: boolean;
 }
