@@ -51,7 +51,9 @@ export class BankAccountService {
   @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
   async checkFailedBankAccounts(): Promise<void> {
     const failedBankAccounts = await this.bankAccountRepo.find({ where: { returnCode: 256 } });
-    failedBankAccounts.forEach((bankAccount) => this.reloadBankAccount(bankAccount.id, bankAccount.iban));
+    for (const bankAccount of failedBankAccounts) {
+      await this.reloadBankAccount(bankAccount);
+    }
   }
 
   async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
@@ -94,9 +96,9 @@ export class BankAccountService {
     return this.bankAccountRepo.create({ ...this.parseBankDetails(bankDetails), iban });
   }
 
-  private async reloadBankAccount(bankAccountId: number, iban: string): Promise<void> {
-    const bankDetails = await this.ibanService.getIbanInfos(iban);
-    this.bankAccountRepo.save({ id: bankAccountId, ...this.parseBankDetails(bankDetails), iban });
+  private async reloadBankAccount(bankAccount: BankAccount): Promise<void> {
+    const bankDetails = await this.ibanService.getIbanInfos(bankAccount.iban);
+    this.bankAccountRepo.save({ ...bankAccount, ...this.parseBankDetails(bankDetails) });
   }
 
   private parseBankDetails(bankDetails: IbanDetailsDto): BankAccountInfos {
