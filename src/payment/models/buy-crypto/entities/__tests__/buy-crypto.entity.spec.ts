@@ -1,8 +1,8 @@
-import { createCustomBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
+import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
 import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
-import { createCustomBuyCrypto, createDefaultBuyCrypto } from './mock/buy-crypto.entity.mock';
+import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price });

@@ -26,24 +26,26 @@ describe('AssetService', () => {
   it('should switch to DFI-Token if isToken = true and DFI', () => {
     service.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN, isToken: true });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI-Token' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({
+      where: { dexName: 'DFI-Token', blockchain: Blockchain.DEFICHAIN },
+    });
   });
 
   it('should not switch to DFI-Token if isToken = false and DFI', () => {
     service.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN, isToken: false });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI', blockchain: Blockchain.DEFICHAIN } });
   });
 
   it('should not switch to DFI-Token if isToken = undefined and DFI', () => {
     service.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI', blockchain: Blockchain.DEFICHAIN } });
   });
 
   it('should not switch to DFI-Token if isToken = true and not DFI', () => {
     service.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN, isToken: true });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'BTC' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'BTC', blockchain: Blockchain.BITCOIN } });
   });
 });

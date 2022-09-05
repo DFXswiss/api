@@ -1,13 +1,13 @@
 import { mock } from 'jest-mock-extended';
-import { createCustomBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
+import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
 import { PricingService } from 'src/payment/models/pricing/services/pricing.service';
 import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
 import {
   createCustomBuyCryptoBatch,
   createDefaultBuyCryptoBatch,
-} from '../../entities/__tests__/mock/buy-crypto-batch.entity.mock';
-import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__tests__/mock/buy-crypto.entity.mock';
+} from '../../entities/__mocks__/buy-crypto-batch.entity.mock';
+import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoBatchRepository } from '../../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';

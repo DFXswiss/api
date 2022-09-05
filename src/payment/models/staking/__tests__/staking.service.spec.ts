@@ -7,7 +7,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { BuyRepository } from '../../buy/buy.repository';
 import { CryptoStakingRepository } from '../../crypto-staking/crypto-staking.repository';
 import { DepositService } from '../../deposit/deposit.service';
-import { createDefaultDeposit } from '../../deposit/__tests__/mock/deposit.entity.mock';
+import { createDefaultDeposit } from '../../deposit/__mocks__/deposit.entity.mock';
 import { SellRepository } from '../../sell/sell.repository';
 import { StakingRefRewardService } from '../../staking-ref-reward/staking-ref-reward.service';
 import { StakingRepository } from '../staking.repository';

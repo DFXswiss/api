@@ -7,7 +7,7 @@ import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../../staking/staking.repository';
 import { StakingService } from '../../staking/staking.service';
 import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
-import { createDefaultBuy } from './mock/buy.entity.mock';
+import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TestUtil } from 'src/shared/test.util';
 

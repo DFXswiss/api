@@ -1,8 +1,8 @@
-import { createDefaultBankAccount } from 'src/payment/models/bank-account/__tests__/mock/bank-account.entity.mock';
-import { createDefaultDeposit } from 'src/payment/models/deposit/__tests__/mock/deposit.entity.mock';
+import { createDefaultBankAccount } from 'src/payment/models/bank-account/__mocks__/bank-account.entity.mock';
+import { createDefaultDeposit } from 'src/payment/models/deposit/__mocks__/deposit.entity.mock';
 import { createDefaultFiat } from 'src/shared/models/fiat/__tests__/mock/fiat.entity.mock';
-import { createDefaultUser } from 'src/user/models/user/__tests__/mock/user.entity.mock';
-import { Sell } from '../../sell.entity';
+import { createDefaultUser } from 'src/user/models/user/__mocks__/user.entity.mock';
+import { Sell } from '../sell.entity';
 
 const defaultSell: Partial<Sell> = {
   iban: 'DE89370400440532013000',

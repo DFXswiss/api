@@ -9,7 +9,7 @@ import { CryptoRouteService } from '../crypto-route.service';
 import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
 import { TestUtil } from 'src/shared/test.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { createDefaultCryptoRoute } from './mock/crypto-route.entity.mock';
+import { createDefaultCryptoRoute } from '../__mocks__/crypto-route.entity.mock';
 
 describe('CryptoRouteController', () => {
   let controller: CryptoRouteController;

@@ -1,7 +1,7 @@
 import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
-import { createDefaultSell } from 'src/payment/models/sell/__tests__/mock/sell.entity.mock';
+import { createDefaultSell } from 'src/payment/models/sell/__mocks__/sell.entity.mock';
 import { createDefaultAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
-import { CryptoInput, CryptoInputType } from '../../crypto-input.entity';
+import { CryptoInput, CryptoInputType } from '../crypto-input.entity';
 
 const defaultCryptoInput: Partial<CryptoInput> = {
   inTxId: 'IN_TX_ID_0',

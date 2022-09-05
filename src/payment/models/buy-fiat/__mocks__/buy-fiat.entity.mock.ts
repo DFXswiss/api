@@ -1,8 +1,8 @@
-import { createDefaultBankTx } from 'src/payment/models/bank-tx/__tests__/mock/bank-tx.entity.mock';
+import { createDefaultBankTx } from 'src/payment/models/bank-tx/__mocks__/bank-tx.entity.mock';
 import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
-import { createDefaultCryptoInput } from 'src/payment/models/crypto-input/__tests__/mock/crypto-input.entity.mock';
-import { createDefaultSell } from 'src/payment/models/sell/__tests__/mock/sell.entity.mock';
-import { BuyFiat } from '../../buy-fiat.entity';
+import { createDefaultCryptoInput } from 'src/payment/models/crypto-input/__mocks__/crypto-input.entity.mock';
+import { createDefaultSell } from 'src/payment/models/sell/__mocks__/sell.entity.mock';
+import { BuyFiat } from '../buy-fiat.entity';
 
 const defaultBuyFiat: Partial<BuyFiat> = {
   cryptoInput: createDefaultCryptoInput(),

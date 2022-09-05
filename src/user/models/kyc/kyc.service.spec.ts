@@ -2,7 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { createDefaultCountry } from 'src/shared/models/country/__tests__/mock/country.entity.mock';
+import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { TestUtil } from 'src/shared/test.util';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';

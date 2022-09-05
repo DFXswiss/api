@@ -6,7 +6,7 @@ import { BuyFiatService } from '../../buy-fiat/buy-fiat.service';
 import { SellController } from '../sell.controller';
 import { SellService } from '../sell.service';
 import { TestUtil } from 'src/shared/test.util';
-import { createDefaultSell } from './mock/sell.entity.mock';
+import { createDefaultSell } from '../__mocks__/sell.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 
 describe('SellController', () => {

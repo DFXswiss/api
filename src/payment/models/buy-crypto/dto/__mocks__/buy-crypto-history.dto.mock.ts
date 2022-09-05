@@ -1,5 +1,5 @@
 import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
-import { BuyCryptoHistoryDto } from '../../buy-crypto-history.dto';
+import { BuyCryptoHistoryDto } from '../buy-crypto-history.dto';
 
 const defaultBuyCryptoHistory: BuyCryptoHistoryDto = {
   inputAmount: 10,

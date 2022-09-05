@@ -1,5 +1,5 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { Deposit } from '../../deposit.entity';
+import { Deposit } from '../deposit.entity';
 
 const defaultDeposit: Partial<Deposit> = {
   address: 'someAddress',

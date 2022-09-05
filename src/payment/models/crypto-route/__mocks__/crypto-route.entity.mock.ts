@@ -1,10 +1,7 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import {
-  createCustomDeposit,
-  createDefaultDeposit,
-} from 'src/payment/models/deposit/__tests__/mock/deposit.entity.mock';
-import { createDefaultUser } from 'src/user/models/user/__tests__/mock/user.entity.mock';
-import { CryptoRoute } from '../../crypto-route.entity';
+import { createCustomDeposit, createDefaultDeposit } from 'src/payment/models/deposit/__mocks__/deposit.entity.mock';
+import { createDefaultUser } from 'src/user/models/user/__mocks__/user.entity.mock';
+import { CryptoRoute } from '../crypto-route.entity';
 
 const defaultCryptoRoute: Partial<CryptoRoute> = {
   user: createDefaultUser(),

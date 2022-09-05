@@ -1,9 +1,9 @@
-import { createCustomBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
+import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Util } from 'src/shared/util';
-import { createCustomUser } from 'src/user/models/user/__tests__/mock/user.entity.mock';
+import { createCustomUser } from 'src/user/models/user/__mocks__/user.entity.mock';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
-import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from './mock/buy-crypto-batch.entity.mock';
-import { createCustomBuyCrypto, createDefaultBuyCrypto } from './mock/buy-crypto.entity.mock';
+import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
+import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 
 describe('BuyCryptoBatch', () => {
   describe('#addTransaction(...)', () => {

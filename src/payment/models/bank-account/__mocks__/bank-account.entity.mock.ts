@@ -1,5 +1,5 @@
-import { createDefaultUser } from 'src/user/models/user/__tests__/mock/user.entity.mock';
-import { BankAccount } from '../../bank-account.entity';
+import { createDefaultUser } from 'src/user/models/user/__mocks__/user.entity.mock';
+import { BankAccount } from '../bank-account.entity';
 
 const defaultBankAccount: Partial<BankAccount> = {
   iban: 'DE89370400440532013000',

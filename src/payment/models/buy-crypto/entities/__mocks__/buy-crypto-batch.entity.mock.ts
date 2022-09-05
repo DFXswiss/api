@@ -1,4 +1,4 @@
-import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../../buy-crypto-batch.entity';
+import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
 import { createDefaultBuyCrypto } from './buy-crypto.entity.mock';
 
 export function createDefaultBuyCryptoBatch(): BuyCryptoBatch {

@@ -1,4 +1,4 @@
-import { Country } from '../../country.entity';
+import { Country } from '../country.entity';
 
 export function createDefaultCountry(): Country {
   return {
