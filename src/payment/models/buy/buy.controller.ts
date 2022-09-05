@@ -151,7 +151,7 @@ export class BuyController {
     // select the matching bank account
     if (dto.amount > frickAmountLimit) {
       // amount > 9k => Frick
-      account = this.getBankInfoAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
+      account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
     } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
@@ -160,22 +160,23 @@ export class BuyController {
       account = Config.bank.frick.accounts.find((a) => a.currency === 'USD');
     } else if (ibanCodeCountry.maerkiBaumannEnable && buy.user.userData.country.maerkiBaumannEnable) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
-      account = this.getBankInfoAccount(Config.bank.maerkiBaumann.accounts, dto.currency.name, fallBackCurrency);
+      account = this.getMatchingAccount(Config.bank.maerkiBaumann.accounts, dto.currency.name, fallBackCurrency);
     } else {
       // Default => Frick
-      account = this.getBankInfoAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
+      account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
     }
 
     return { ...Config.bank.dfxBankInfo, iban: account.iban, bic: account.bic };
   }
 
-  private getBankInfoAccount(
+  private getMatchingAccount(
     bankAccounts: { currency: string; iban: string; bic: string }[],
     currencyName: string,
     fallBackCurrencyName: string,
   ): { currency: string; iban: string; bic: string } {
-    let account = bankAccounts.find((b) => b.currency === currencyName);
-    if (!account) account = bankAccounts.find((b) => b.currency === fallBackCurrencyName);
-    return account;
+    return (
+      bankAccounts.find((b) => b.currency === currencyName) ??
+      bankAccounts.find((b) => b.currency === fallBackCurrencyName)
+    );
   }
 }
