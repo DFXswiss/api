@@ -48,7 +48,7 @@ export class BankAccountService {
 
   // --- INTERNAL METHODS --- //
 
-  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  @Cron(CronExpression.EVERY_WEEK)
   async checkFailedBankAccounts(): Promise<void> {
     const failedBankAccounts = await this.bankAccountRepo.find({ where: { returnCode: 256 } });
     for (const bankAccount of failedBankAccounts) {
