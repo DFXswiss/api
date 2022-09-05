@@ -63,7 +63,7 @@ export class PayoutDeFiChainDFIStrategy extends PayoutDeFiChainStrategy {
         const errorMessage = `Error on saving payout payoutTxId to the database. Order ID: ${order.id}. Payout ID: ${payoutTxId}`;
 
         console.error(errorMessage, e);
-        this.sendNonRecoverableErrorMail(errorMessage, e);
+        await this.sendNonRecoverableErrorMail(errorMessage, e);
       }
     }
   }
