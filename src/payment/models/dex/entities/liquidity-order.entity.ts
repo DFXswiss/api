@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
@@ -28,7 +29,7 @@ export class LiquidityOrder extends IEntity {
   correlationId: string;
 
   @Column({ length: 256, nullable: false })
-  chain: string;
+  chain: Blockchain;
 
   @Column({ length: 256, nullable: false })
   referenceAsset: string;
@@ -97,7 +98,7 @@ export class LiquidityOrder extends IEntity {
   }
 
   static getIsReferenceAsset(asset: string): boolean {
-    return asset === 'BTC' || asset === 'USDC' || asset === 'USDT';
+    return ['BTC', 'USDC', 'USDT', 'ETH', 'BNB'].includes(asset);
   }
 
   static getMaxPriceSlippage(asset: string): number {
