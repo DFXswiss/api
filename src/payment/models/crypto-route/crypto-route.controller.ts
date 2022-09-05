@@ -22,7 +22,7 @@ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
 import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
