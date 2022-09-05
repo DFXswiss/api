@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-export abstract class EVMClient {
+export class EVMClient {
   #address: string;
   #provider: ethers.providers.JsonRpcProvider;
   #wallet: ethers.Wallet;
@@ -18,10 +18,17 @@ export abstract class EVMClient {
   }
 
   async send(address: string, amount: number): Promise<string> {
+    // TODO - requires additional study due to upcoming merge
+    const nonce = await this.#wallet.getTransactionCount();
+    const gasPrice = await this.#provider.getGasPrice();
+
     const tx = await this.#wallet.sendTransaction({
       from: this.#address,
       to: address,
-      value: amount,
+      value: ethers.utils.parseUnits(`${amount}`, 'ether'),
+      nonce,
+      gasPrice,
+      gasLimit: '21000',
     });
 
     return tx.hash;

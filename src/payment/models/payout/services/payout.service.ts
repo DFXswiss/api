@@ -157,6 +157,7 @@ export class PayoutService {
     );
 
     const ethOrders = orders.filter((o) => o.asset.blockchain === Blockchain.ETHEREUM && o.asset.dexName === 'ETH');
+
     const bnbOrders = orders.filter(
       (o) => o.asset.blockchain === Blockchain.BINANCE_SMART_CHAIN && o.asset.dexName === 'BNB',
     );

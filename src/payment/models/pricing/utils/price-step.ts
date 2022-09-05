@@ -18,7 +18,7 @@ export interface PriceStepProviders {
 }
 
 export class PriceStep {
-  private readonly options: PriceStepOptions;
+  private readonly options: PriceStepOptions = {};
 
   constructor(options: PriceStepOptions) {
     this.options.from = options.from || 'input';

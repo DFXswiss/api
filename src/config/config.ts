@@ -203,7 +203,6 @@ export class Configuration {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
-      bscApiKey: process.env.BSC_API_KEY,
       bscExplorerUrl: process.env.BSC_EXPLORER_URL,
     },
   };

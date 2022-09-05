@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BSCClient } from './bsc-client';
 import { EVMService } from '../shared/evm/evm.service';
+import { HttpService } from 'src/shared/services/http.service';
 
 @Injectable()
 export class BSCService extends EVMService {
-  constructor() {
-    const { bscGatewayUrl, bscApiKey, bscWalletAddress, bscWalletPrivateKey } = Config.blockchain.bsc;
+  // TODO - fix DI issue
+  constructor(httpService: HttpService) {
+    const { bscGatewayUrl, bscWalletAddress, bscWalletPrivateKey } = Config.blockchain.bsc;
 
-    super(bscGatewayUrl, bscApiKey, bscWalletAddress, bscWalletPrivateKey, BSCClient);
+    super(bscGatewayUrl, '', bscWalletAddress, bscWalletPrivateKey, BSCClient);
   }
 }
