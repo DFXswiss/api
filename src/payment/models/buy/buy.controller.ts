@@ -26,6 +26,7 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { BankAccountService } from '../bank-account/bank-account.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -38,6 +39,7 @@ export class BuyController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   @Get()
@@ -139,36 +141,41 @@ export class BuyController {
     let account: { currency: string; iban: string; bic: string };
 
     const frickAmountLimit = 9000;
-    const frickCurrencies = ['EUR', 'CHF', 'USD'];
+    const fallBackCurrency = 'EUR';
 
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
 
+    //buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(buy.iban, buy.user.id);
     const ibanCodeCountry = await this.countryService.getCountryWithSymbol(buy.bankAccount.iban.substring(0, 2));
 
     // select the matching bank account
-    if (frickCurrencies.includes(dto.currency.name) && dto.amount > frickAmountLimit) {
-      // amount > 9k, EUR/CHF/USD => Frick
-      account = Config.bank.frick.accounts.find((b) => b.currency === dto.currency.name);
+    if (dto.amount > frickAmountLimit) {
+      // amount > 9k => Frick
+      account = this.getBankInfoAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
     } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
     } else if (dto.currency.name === 'USD') {
       // USD => Frick
       account = Config.bank.frick.accounts.find((a) => a.currency === 'USD');
-    } else if (
-      (!ibanCodeCountry.maerkiBaumannEnable || !buy.user.userData.country.maerkiBaumannEnable) &&
-      frickCurrencies.includes(dto.currency.name)
-    ) {
-      // Invalid Maerki Baumann country => Frick EUR/CHF/USD
-      account = Config.bank.frick.accounts.find((b) => b.currency === dto.currency.name);
-    } else if (dto.currency.name === 'CHF') {
-      // CHF => Maerki Baumann
-      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'CHF');
+    } else if (ibanCodeCountry.maerkiBaumannEnable && buy.user.userData.country.maerkiBaumannEnable) {
+      // Valid Maerki Baumann country => MB CHF/USD/EUR
+      account = this.getBankInfoAccount(Config.bank.maerkiBaumann.accounts, dto.currency.name, fallBackCurrency);
     } else {
-      // default => Maerki Baumann / EUR
-      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'EUR');
+      // Default => Frick
+      account = this.getBankInfoAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
     }
 
     return { ...Config.bank.dfxBankInfo, iban: account.iban, bic: account.bic };
+  }
+
+  private getBankInfoAccount(
+    bankAccounts: { currency: string; iban: string; bic: string }[],
+    currencyName: string,
+    fallBackCurrencyName: string,
+  ): { currency: string; iban: string; bic: string } {
+    let account = bankAccounts.find((b) => b.currency === currencyName);
+    if (!account) account = bankAccounts.find((b) => b.currency === fallBackCurrencyName);
+    return account;
   }
 }
