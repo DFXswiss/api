@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
@@ -26,7 +27,7 @@ export class PayoutOrder extends IEntity {
   correlationId: string;
 
   @Column({ length: 256, nullable: false })
-  chain: string;
+  chain: Blockchain;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   asset: Asset;
