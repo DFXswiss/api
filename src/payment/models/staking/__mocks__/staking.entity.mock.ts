@@ -1,5 +1,5 @@
 import { createDefaultUser } from 'src/user/models/user/__mocks__/user.entity.mock';
-import { Staking } from '../../staking.entity';
+import { Staking } from '../staking.entity';
 
 const defaultStaking: Partial<Staking> = {
   user: createDefaultUser(),

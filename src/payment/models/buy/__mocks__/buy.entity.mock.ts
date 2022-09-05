@@ -1,5 +1,5 @@
 import { Deposit } from 'src/payment/models/deposit/deposit.entity';
-import { createDefaultAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
+import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createDefaultUser } from 'src/user/models/user/__mocks__/user.entity.mock';
 import { Buy } from '../buy.entity';
 

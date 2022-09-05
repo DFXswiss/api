@@ -1,6 +1,6 @@
 import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
-import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 

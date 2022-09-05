@@ -1,5 +1,5 @@
 import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
-import { CryptoRouteHistoryDto } from '../../crypto-route-history.dto';
+import { CryptoRouteHistoryDto } from '../crypto-route-history.dto';
 
 const defaultCryptoRouteHistory: CryptoRouteHistoryDto = {
   inputAmount: 0.0006,

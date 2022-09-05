@@ -1,5 +1,5 @@
-import { createDefaultUserData } from 'src/user/models/user-data/__tests__/mock/user-data.entity.mock';
-import { createDefaultWallet } from 'src/user/models/wallet/__tests__/mock/wallet.entity.mock';
+import { createDefaultUserData } from 'src/user/models/user-data/__mocks__/user-data.entity.mock';
+import { createDefaultWallet } from 'src/user/models/wallet/__mocks__/wallet.entity.mock';
 import { User } from '../user.entity';
 
 export function createDefaultUser(): User {

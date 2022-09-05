@@ -2,7 +2,7 @@ import { mock } from 'jest-mock-extended';
 import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
 import { PricingService } from 'src/payment/models/pricing/services/pricing.service';
-import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import {
   createCustomBuyCryptoBatch,
   createDefaultBuyCryptoBatch,

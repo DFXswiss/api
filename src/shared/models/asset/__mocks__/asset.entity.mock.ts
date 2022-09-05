@@ -1,4 +1,4 @@
-import { Asset } from '../../asset.entity';
+import { Asset } from '../asset.entity';
 
 export function createDefaultAsset(): Asset {
   return createCustomAsset({});

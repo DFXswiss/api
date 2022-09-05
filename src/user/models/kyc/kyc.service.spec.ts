@@ -15,7 +15,7 @@ import {
   kycHashFor,
   MockUserData,
   userDataIdFor,
-} from '../user-data/__tests__/mock/user-data.entity.mock';
+} from '../user-data/__mocks__/user-data.entity.mock';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
 import { KycInfo, KycService } from './kyc.service';

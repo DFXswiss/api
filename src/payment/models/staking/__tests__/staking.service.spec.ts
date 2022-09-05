@@ -12,7 +12,7 @@ import { SellRepository } from '../../sell/sell.repository';
 import { StakingRefRewardService } from '../../staking-ref-reward/staking-ref-reward.service';
 import { StakingRepository } from '../staking.repository';
 import { StakingService } from '../staking.service';
-import { createCustomStaking } from './mock/staking.entity.mock';
+import { createCustomStaking } from '../__mocks__/staking.entity.mock';
 import { TestUtil } from 'src/shared/test.util';
 
 describe('StakingService', () => {

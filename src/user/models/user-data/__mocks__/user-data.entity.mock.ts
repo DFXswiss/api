@@ -1,6 +1,6 @@
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
-import { AccountType } from '../../account-type.enum';
-import { KycState, KycStatus, UserData } from '../../user-data.entity';
+import { AccountType } from '../account-type.enum';
+import { KycState, KycStatus, UserData } from '../user-data.entity';
 
 export enum MockUserData {
   CLEAN_DB,

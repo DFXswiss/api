@@ -9,7 +9,7 @@ import { SellService } from '../../sell/sell.service';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from '../buy-fiat.service';
-import { createCustomBuyFiatHistory } from '../dto/__tests__/mock/buy-fiat-history.dto.mock';
+import { createCustomBuyFiatHistory } from '../dto/__mocks__/buy-fiat-history.dto.mock';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 
 enum MockBuyData {

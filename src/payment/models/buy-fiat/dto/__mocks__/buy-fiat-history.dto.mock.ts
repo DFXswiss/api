@@ -1,5 +1,5 @@
 import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
-import { BuyFiatHistoryDto } from '../../buy-fiat-history.dto';
+import { BuyFiatHistoryDto } from '../buy-fiat-history.dto';
 
 const defaultBuyFiatHistory: BuyFiatHistoryDto = {
   inputAmount: 0.0005,

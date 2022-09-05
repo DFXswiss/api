@@ -1,4 +1,4 @@
-import { Fiat } from '../../fiat.entity';
+import { Fiat } from '../fiat.entity';
 
 const defaultFiat: Partial<Fiat> = {
   name: 'EUR',

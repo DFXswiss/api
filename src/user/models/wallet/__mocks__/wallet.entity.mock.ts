@@ -1,4 +1,4 @@
-import { Wallet } from '../../wallet.entity';
+import { Wallet } from '../wallet.entity';
 
 export function createDefaultWallet(): Wallet {
   return createCustomWallet({});
