@@ -26,6 +26,7 @@ export class MasternodeService {
     const masternodeOperators = await this.masternodeRepo.find({
       select: ['operator'],
     });
+
     const masternodeServerList = await this.settingService.get('masternodeServerList');
 
     for (const server of masternodeServerList.split(',')) {
