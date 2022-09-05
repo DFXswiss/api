@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderContext, PayoutOrder } from '../../entities/payout-order.entity';
@@ -13,7 +12,6 @@ type TokenName = string;
 export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
   constructor(
     mailService: MailService,
-    readonly nodeService: NodeService,
     private readonly dexService: DexService,
     protected readonly defichainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,

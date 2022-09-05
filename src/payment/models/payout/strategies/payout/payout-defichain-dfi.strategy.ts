@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrder, PayoutOrderContext } from '../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
@@ -10,7 +9,6 @@ import { PayoutDeFiChainStrategy } from './base/payout-defichain.strategy';
 export class PayoutDeFiChainDFIStrategy extends PayoutDeFiChainStrategy {
   constructor(
     mailService: MailService,
-    readonly nodeService: NodeService,
     protected readonly defichainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {

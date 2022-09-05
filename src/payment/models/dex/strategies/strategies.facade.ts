@@ -30,8 +30,8 @@ export enum PurchaseLiquidityStrategyAlias {
 
 @Injectable()
 export class DexStrategiesFacade {
-  private readonly checkLiquidityStrategies = new Map<CheckLiquidityStrategyAlias, CheckLiquidityStrategy>();
-  private readonly purchaseLiquidityStrategies = new Map<PurchaseLiquidityStrategyAlias, PurchaseLiquidityStrategy>();
+  protected readonly checkLiquidityStrategies = new Map<CheckLiquidityStrategyAlias, CheckLiquidityStrategy>();
+  protected readonly purchaseLiquidityStrategies = new Map<PurchaseLiquidityStrategyAlias, PurchaseLiquidityStrategy>();
 
   constructor(
     checkLiquidityDeFiChainPoolPairStrategy: CheckLiquidityDeFiChainPoolPairStrategy,
@@ -99,7 +99,7 @@ export class DexStrategiesFacade {
   private getCheckLiquidityStrategyByAlias(alias: CheckLiquidityStrategyAlias): CheckLiquidityStrategy {
     const strategy = this.checkLiquidityStrategies.get(alias);
 
-    if (!strategy) throw new Error(`No CheckLiquidityStrategy found. Alias: ${JSON.stringify(alias)}`);
+    if (!strategy) throw new Error(`No CheckLiquidityStrategy found. Alias: ${alias}`);
 
     return strategy;
   }
@@ -113,7 +113,7 @@ export class DexStrategiesFacade {
   private getPurchaseLiquidityStrategyByAlias(alias: PurchaseLiquidityStrategyAlias): PurchaseLiquidityStrategy {
     const strategy = this.purchaseLiquidityStrategies.get(alias);
 
-    if (!strategy) throw new Error(`No PurchaseLiquidityStrategy found. Alias: ${JSON.stringify(alias)}`);
+    if (!strategy) throw new Error(`No PurchaseLiquidityStrategy found. Alias: ${alias}`);
 
     return strategy;
   }
@@ -133,7 +133,7 @@ export class DexStrategiesFacade {
     }
 
     if (blockchain === Blockchain.ETHEREUM) return CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT;
-    if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return CheckLiquidityStrategyAlias.ETHEREUM_DEFAULT;
+    if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return CheckLiquidityStrategyAlias.BSC_DEFAULT;
   }
 
   private getPurchaseLiquidityStrategyAlias(asset: Asset): PurchaseLiquidityStrategyAlias {
@@ -142,7 +142,7 @@ export class DexStrategiesFacade {
     if (blockchain === Blockchain.DEFICHAIN || blockchain === Blockchain.BITCOIN) {
       if (assetCategory === AssetCategory.POOL_PAIR) return PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR;
       if (assetCategory === AssetCategory.STOCK) return PurchaseLiquidityStrategyAlias.DEFICHAIN_STOCK;
-      if (assetCategory === AssetCategory.CRYPTO) return PurchaseLiquidityStrategyAlias.BSC_DEFAULT;
+      if (assetCategory === AssetCategory.CRYPTO) return PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO;
     }
 
     if (blockchain === Blockchain.ETHEREUM) return PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT;

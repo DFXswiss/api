@@ -26,8 +26,8 @@ export enum PrepareStrategyAlias {
 
 @Injectable()
 export class PayoutStrategiesFacade {
-  private readonly payoutStrategies: Map<PayoutStrategyAlias, PayoutStrategy> = new Map();
-  private readonly prepareStrategies: Map<PrepareStrategyAlias, PrepareStrategy> = new Map();
+  protected readonly payoutStrategies: Map<PayoutStrategyAlias, PayoutStrategy> = new Map();
+  protected readonly prepareStrategies: Map<PrepareStrategyAlias, PrepareStrategy> = new Map();
 
   constructor(
     payoutDFIStrategy: PayoutDeFiChainDFIStrategy,
@@ -65,7 +65,7 @@ export class PayoutStrategiesFacade {
   private getPayoutStrategyByAlias(alias: PayoutStrategyAlias): PayoutStrategy {
     const strategy = this.payoutStrategies.get(alias);
 
-    if (!strategy) throw new Error(`No PayoutStrategy found. Alias: ${JSON.stringify(alias)}`);
+    if (!strategy) throw new Error(`No PayoutStrategy found. Alias: ${alias}`);
 
     return strategy;
   }
@@ -79,7 +79,7 @@ export class PayoutStrategiesFacade {
   private getPrepareStrategyByAlias(alias: PrepareStrategyAlias): PrepareStrategy {
     const strategy = this.prepareStrategies.get(alias);
 
-    if (!strategy) throw new Error(`No PrepareStrategy found. Alias: ${JSON.stringify(alias)}`);
+    if (!strategy) throw new Error(`No PrepareStrategy found. Alias: ${alias}`);
 
     return strategy;
   }
@@ -95,8 +95,10 @@ export class PayoutStrategiesFacade {
 
     if (blockchain === Blockchain.ETHEREUM) return PayoutStrategyAlias.ETHEREUM_DEFAULT;
     if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return PayoutStrategyAlias.BSC_DEFAULT;
-    if (assetName === 'DFI') return PayoutStrategyAlias.DEFICHAIN_DFI;
-    return PayoutStrategyAlias.DEFICHAIN_TOKEN;
+    if (blockchain === Blockchain.DEFICHAIN && assetName === 'DFI') return PayoutStrategyAlias.DEFICHAIN_DFI;
+    if ((blockchain === Blockchain.DEFICHAIN || blockchain === Blockchain.BITCOIN) && assetName !== 'DFI') {
+      return PayoutStrategyAlias.DEFICHAIN_TOKEN;
+    }
   }
 
   private getPrepareStrategyAlias(asset: Asset): PrepareStrategyAlias {
@@ -104,6 +106,6 @@ export class PayoutStrategiesFacade {
 
     if (blockchain === Blockchain.ETHEREUM) return PrepareStrategyAlias.ETHEREUM;
     if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return PrepareStrategyAlias.BSC;
-    return PrepareStrategyAlias.DEFICHAIN;
+    if (blockchain === Blockchain.DEFICHAIN || blockchain === Blockchain.BITCOIN) return PrepareStrategyAlias.DEFICHAIN;
   }
 }
