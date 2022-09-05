@@ -84,16 +84,12 @@ export class MasternodeService {
   }
 
   private async request<T>(url: string, method: Method, data?: any): Promise<T> {
-    try {
-      return await this.http.request<T>({
-        url,
-        method: method,
-        data: method !== 'GET' ? data : undefined,
-        auth: { username: Config.mydefichain.username, password: Config.mydefichain.password },
-        params: method === 'GET' ? data : undefined,
-      });
-    } catch (e) {
-      console.log(e);
-    }
+    return await this.http.request<T>({
+      url,
+      method: method,
+      data: method !== 'GET' ? data : undefined,
+      auth: { username: Config.mydefichain.username, password: Config.mydefichain.password },
+      params: method === 'GET' ? data : undefined,
+    });
   }
 }
