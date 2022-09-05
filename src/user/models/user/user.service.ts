@@ -30,7 +30,7 @@ import { VolumeQuery } from './dto/volume-query.dto';
 import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
 import { UserData } from '../user-data/user-data.entity';
 import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
-import { LinkedUserDto } from './dto/linked-user.dto';
+import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 
@@ -68,18 +68,7 @@ export class UserService {
     return this.userRepo.findOne({ where: { address }, relations: needsRelation ? ['userData', 'wallet'] : [] });
   }
 
-  async getLinkedUser(id: number, address: string, blockchain: string): Promise<User> {
-    return this.userRepo
-      .createQueryBuilder('user')
-      .select('linkedUser.*')
-      .leftJoin('user.userData', 'userData')
-      .leftJoin('userData.users', 'linkedUser')
-      .where('user.id = :id', { id })
-      .andWhere('linkedUser.address = :address AND linkedUser.blockchain = :blockchain', { address, blockchain })
-      .getRawOne<User>();
-  }
-
-  async getAllLinkedUsers(id: number): Promise<LinkedUserDto[]> {
+  async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
     return this.userRepo
       .createQueryBuilder('user')
       .select(
@@ -88,7 +77,7 @@ export class UserService {
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .where('user.id = :id', { id })
-      .getRawMany<LinkedUserDto>();
+      .getRawMany<LinkedUserOutDto>();
   }
 
   async getRefUser(ref: string): Promise<User> {
@@ -136,13 +125,6 @@ export class UserService {
     if (!user) throw new NotFoundException('User not found');
 
     return await this.userRepo.save({ ...user, ...update });
-  }
-
-  async changeUser(id: number, changeUser: LinkedUserDto): Promise<{ address: string; signature: string }> {
-    const user = await this.getLinkedUser(id, changeUser.address, changeUser.blockchain);
-    if (!user) throw new NotFoundException('User not found');
-    if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
-    return { address: user.address, signature: user.signature };
   }
 
   private async checkIpCountry(userIp: string): Promise<string> {

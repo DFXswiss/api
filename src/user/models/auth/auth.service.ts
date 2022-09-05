@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -15,6 +16,7 @@ import { UserService } from '../user/user.service';
 import { UserRepository } from '../user/user.repository';
 import { User } from '../user/user.entity';
 import { RefService } from '../referral/ref.service';
+import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -65,6 +67,24 @@ export class AuthService {
     if (blockchain === Blockchain.ETHEREUM || blockchain === Blockchain.BITCOIN)
       return { message: Config.auth.signMessageGeneral + address, blockchain };
     return { message: Config.auth.signMessage + address, blockchain };
+  }
+
+  async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
+    const user = await this.getLinkedUser(id, changeUser.address, changeUser.blockchain);
+    if (!user) throw new NotFoundException('User not found');
+    if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
+    return { accessToken: this.generateToken(user) };
+  }
+
+  private async getLinkedUser(id: number, address: string, blockchain: string): Promise<User> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select('linkedUser.*')
+      .leftJoin('user.userData', 'userData')
+      .leftJoin('userData.users', 'linkedUser')
+      .where('user.id = :id', { id })
+      .andWhere('linkedUser.address = :address AND linkedUser.blockchain = :blockchain', { address, blockchain })
+      .getRawOne<User>();
   }
 
   private verifySignature(address: string, signature: string): boolean {
