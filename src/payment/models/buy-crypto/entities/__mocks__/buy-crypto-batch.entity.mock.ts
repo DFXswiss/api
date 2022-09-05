@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
 import { createDefaultBuyCrypto } from './buy-crypto.entity.mock';
 
@@ -6,8 +7,16 @@ export function createDefaultBuyCryptoBatch(): BuyCryptoBatch {
 }
 
 export function createCustomBuyCryptoBatch(customValues: Partial<BuyCryptoBatch>): BuyCryptoBatch {
-  const { id, transactions, outputReferenceAsset, outputReferenceAmount, outputAsset, outputAmount, status } =
-    customValues;
+  const {
+    id,
+    transactions,
+    outputReferenceAsset,
+    outputReferenceAmount,
+    outputAsset,
+    outputAmount,
+    status,
+    blockchain,
+  } = customValues;
   const keys = Object.keys(customValues);
 
   const entity = new BuyCryptoBatch();
@@ -19,6 +28,7 @@ export function createCustomBuyCryptoBatch(customValues: Partial<BuyCryptoBatch>
   entity.outputAsset = keys.includes('outputAsset') ? outputAsset : 'dTSLA';
   entity.outputAmount = keys.includes('outputAmount') ? outputAmount : 1;
   entity.status = keys.includes('status') ? status : BuyCryptoBatchStatus.CREATED;
+  entity.blockchain = keys.includes('blockchain') ? blockchain : Blockchain.DEFICHAIN;
 
   return entity;
 }

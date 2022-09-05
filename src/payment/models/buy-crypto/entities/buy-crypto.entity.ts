@@ -123,7 +123,6 @@ export class BuyCrypto extends IEntity {
       return this;
     }
 
-    // TODO - consider getting defaults native coin for blockchain from utility, but not sure (think BTC instead of DFI)
     switch (this.target.asset.blockchain) {
       case Blockchain.ETHEREUM:
         this.outputReferenceAsset = 'ETH';
@@ -138,18 +137,6 @@ export class BuyCrypto extends IEntity {
     }
 
     return this;
-
-    /*
-    this.outputAsset = this.target?.asset?.dexName;
-
-    if (this.outputAsset === 'BTC' || this.outputAsset === 'USDC' || this.outputAsset === 'USDT') {
-      this.outputReferenceAsset = this.outputAsset;
-    } else {
-      this.outputReferenceAsset = 'BTC';
-    }
-
-    return this;
-    */
   }
 
   calculateOutputReferenceAmount(prices: Price[]): this {
