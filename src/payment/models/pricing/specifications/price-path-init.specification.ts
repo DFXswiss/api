@@ -38,7 +38,7 @@ export class PricePathInitSpecification {
     if (steps.length === 1) return true;
 
     return steps.every((step, index) => {
-      return step[index + 1] ? step._to === step[index + 1]._from : true;
+      return steps[index + 1] ? step._to === steps[index + 1]._from : true;
     });
   }
 }
