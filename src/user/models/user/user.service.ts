@@ -94,11 +94,11 @@ export class UserService {
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
     user.userData = userData ?? (await this.userDataService.createUserData());
-    user.blockchain = this.cryptoService.getBlockchainBasedOn(dto.address);
 
     user = await this.userRepo.save(user);
 
-    if (user.blockchain === Blockchain.DEFICHAIN) this.dfiTaxService.activateAddress(user.address);
+    const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
+    if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
 
     return user;
   }
@@ -454,7 +454,6 @@ export class UserService {
     return {
       accountType: user.userData?.accountType,
       address: user.address,
-      blockchain: user.blockchain,
       status: user.status,
       usedRef: user.usedRef === '000-000' ? undefined : user.usedRef,
       mail: user.userData?.mail,

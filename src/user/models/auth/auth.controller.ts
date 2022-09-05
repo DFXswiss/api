@@ -22,7 +22,7 @@ export class AuthController {
   }
 
   @Get('signMessage')
-  getSignMessage(@Query('address') address: string): { message: string; blockchain: Blockchain } {
+  getSignMessage(@Query('address') address: string): { message: string; blockchains: Blockchain[] } {
     return this.authService.getSignMessage(address);
   }
 }

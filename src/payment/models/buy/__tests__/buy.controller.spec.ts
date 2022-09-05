@@ -51,7 +51,7 @@ describe('BuyController', () => {
   it('should return a min deposit of 1 for a default buy route', async () => {
     jest.spyOn(buyService, 'getUserBuys').mockResolvedValue([createDefaultBuy()]);
 
-    await expect(controller.getAllBuy({ id: 0, address: '', role: UserRole.USER, blockchain: Blockchain.DEFICHAIN })).resolves.toMatchObject([
+    await expect(controller.getAllBuy({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] })).resolves.toMatchObject([
       { minDeposits: [{ amount: 1, asset: 'USD' }] },
     ]);
   });

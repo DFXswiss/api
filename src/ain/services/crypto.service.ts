@@ -8,35 +8,36 @@ export enum Blockchain {
   DEFICHAIN = 'DeFiChain',
   BITCOIN = 'Bitcoin',
   ETHEREUM = 'Ethereum',
+  BINANCE_SMART_CHAIN = 'BinanceSmartChain',
 }
 
 @Injectable()
 export class CryptoService {
   public verifySignature(message: string, address: string, signature: string): boolean {
-    const blockchain = this.getBlockchainBasedOn(address);
+    const blockchains = this.getBlockchainsBasedOn(address);
 
     let isValid = false;
     try {
-      isValid = this.verify(message, address, signature, blockchain);
+      isValid = this.verify(message, address, signature, blockchains);
     } catch (e) {}
 
-    if (!isValid && blockchain !== Blockchain.ETHEREUM) {
-      isValid = this.fallbackVerify(message, address, signature, blockchain);
+    if (!isValid && !blockchains.includes(Blockchain.ETHEREUM)) {
+      isValid = this.fallbackVerify(message, address, signature, blockchains);
     }
     return isValid;
   }
 
-  public getBlockchainBasedOn(address: string): Blockchain {
-    if (isEthereumAddress(address)) return Blockchain.ETHEREUM;
-    if (this.isBitcoinAddress(address)) return Blockchain.BITCOIN;
-    return Blockchain.DEFICHAIN;
+  public getBlockchainsBasedOn(address: string): Blockchain[] {
+    if (isEthereumAddress(address)) return [Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN];
+    if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
+    return [Blockchain.DEFICHAIN];
   }
 
   private isBitcoinAddress(address: string): boolean {
     return address.match(/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/)?.length > 1 ?? false;
   }
 
-  private fallbackVerify(message: string, address: string, signature: string, blockchain: Blockchain) {
+  private fallbackVerify(message: string, address: string, signature: string, blockchains: Blockchain[]) {
     let isValid = false;
     const flags = [...Array(12).keys()].map((i) => i + 31);
     for (const flag of flags) {
@@ -46,22 +47,17 @@ export class CryptoService {
       sigBuffer = Buffer.concat([flagByte, sigBuffer]);
       const candidateSig = sigBuffer.toString('base64');
       try {
-        isValid = this.verify(message, address, candidateSig, blockchain);
+        isValid = this.verify(message, address, candidateSig, blockchains);
         if (isValid) break;
       } catch (e) {}
     }
     return isValid;
   }
 
-  private verify(message: string, address: string, signature: string, blockchain: Blockchain): boolean {
-    switch (blockchain) {
-      case Blockchain.ETHEREUM:
-        return this.verifyEthereum(message, address, signature);
-      case Blockchain.BITCOIN:
-        return this.verifyBitcoin(message, address, signature);
-      default:
-        return this.verifyDefichain(message, address, signature);
-    }
+  private verify(message: string, address: string, signature: string, blockchains: Blockchain[]): boolean {
+    if (blockchains.includes(Blockchain.ETHEREUM)) return this.verifyEthereum(message, address, signature);
+    if (blockchains.includes(Blockchain.BITCOIN)) return this.verifyBitcoin(message, address, signature);
+    return this.verifyDefichain(message, address, signature);
   }
 
   private verifyEthereum(message: string, address: string, signature: string): boolean {
