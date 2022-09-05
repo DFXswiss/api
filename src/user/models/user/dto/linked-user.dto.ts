@@ -3,7 +3,7 @@ import { IsBoolean, IsEnum, IsNotEmpty, IsString, Matches } from 'class-validato
 import { Blockchain } from 'src/ain/services/crypto.service';
 import { GetConfig } from 'src/config/config';
 
-export class LinkedUserDto {
+export class LinkedUserInDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
@@ -14,7 +14,9 @@ export class LinkedUserDto {
   @IsNotEmpty()
   @IsEnum(Blockchain)
   blockchain: Blockchain;
+}
 
+export class LinkedUserOutDto extends LinkedUserInDto {
   @ApiPropertyOptional()
   @IsBoolean()
   isSwitchable: boolean;
