@@ -1,5 +1,5 @@
+import { LiquidityRequest } from '../../../interfaces';
 import { DexEVMService } from '../../../services/dex-evm.service';
-import { LiquidityRequest } from '../../../services/dex.service';
 import { CheckLiquidityStrategy } from './check-liquidity.strategy';
 
 export class CheckLiquidityEVMStrategy implements CheckLiquidityStrategy {

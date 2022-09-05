@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PayoutOrder, PayoutOrderStatus } from '../entities/payout-order.entity';
+import { PayoutRequest } from '../interfaces';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
-import { PayoutRequest } from '../services/payout.service';
 
 @Injectable()
 export class PayoutOrderFactory {

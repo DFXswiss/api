@@ -7,10 +7,11 @@ import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-bat
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { DexService } from '../../dex/services/dex.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
-import { PayoutRequest, PayoutService } from '../../payout/services/payout.service';
+import { PayoutService } from '../../payout/services/payout.service';
 import { PayoutOrderContext } from '../../payout/entities/payout-order.entity';
 import { DuplicatedEntryException } from '../../payout/exceptions/duplicated-entry.exception';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PayoutRequest } from '../../payout/interfaces';
 
 @Injectable()
 export class BuyCryptoOutService {

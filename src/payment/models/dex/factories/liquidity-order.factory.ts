@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrder, LiquidityOrderType } from '../entities/liquidity-order.entity';
+import { LiquidityRequest } from '../interfaces';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
-import { LiquidityRequest } from '../services/dex.service';
 
 @Injectable()
 export class LiquidityOrderFactory {

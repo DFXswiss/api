@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
-import { LiquidityRequest } from '../../services/dex.service';
+import { LiquidityRequest } from '../../interfaces';
 import { DexDeFiChainService } from '../../services/dex-defichain.service';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 

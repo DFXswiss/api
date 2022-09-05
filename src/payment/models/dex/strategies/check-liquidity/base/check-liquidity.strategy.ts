@@ -1,4 +1,4 @@
-import { LiquidityRequest } from '../../../services/dex.service';
+import { LiquidityRequest } from '../../../interfaces';
 
 export interface CheckLiquidityStrategy {
   checkLiquidity(request: LiquidityRequest): Promise<number>;

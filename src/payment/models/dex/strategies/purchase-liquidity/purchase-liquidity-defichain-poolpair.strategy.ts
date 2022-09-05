@@ -9,7 +9,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrder, LiquidityOrderContext } from '../../entities/liquidity-order.entity';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
-import { DexService, LiquidityRequest } from '../../services/dex.service';
+import { DexService } from '../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
@@ -18,6 +18,7 @@ import { PriceSlippageException } from '../../exceptions/price-slippage.exceptio
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { LiquidityRequest } from '../../interfaces';
 
 @Injectable()
 export class PurchaseLiquidityDeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {

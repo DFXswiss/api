@@ -6,18 +6,10 @@ import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { MailService } from 'src/shared/services/mail.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/strategies.facade';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { PayoutLogService } from './payout-log.service';
-
-export interface PayoutRequest {
-  context: PayoutOrderContext;
-  correlationId: string;
-  asset: Asset;
-  amount: number;
-  destinationAddress: string;
-}
+import { PayoutRequest } from '../interfaces';
 
 @Injectable()
 export class PayoutService {

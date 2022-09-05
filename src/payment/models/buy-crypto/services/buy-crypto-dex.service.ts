@@ -5,10 +5,11 @@ import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-bat
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
-import { DexService, LiquidityRequest } from '../../dex/services/dex.service';
+import { DexService } from '../../dex/services/dex.service';
 import { LiquidityOrderNotReadyException } from '../../dex/exceptions/liquidity-order-not-ready.exception';
 import { PriceSlippageException } from '../../dex/exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
+import { LiquidityRequest } from '../../dex/interfaces';
 
 @Injectable()
 export class BuyCryptoDexService {

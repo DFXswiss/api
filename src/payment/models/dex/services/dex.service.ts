@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrder, LiquidityOrderContext } from '../entities/liquidity-order.entity';
 import { DexDeFiChainService } from './dex-defichain.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
@@ -14,20 +13,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { DexStrategiesFacade } from '../strategies/strategies.facade';
-
-export interface LiquidityRequest {
-  context: LiquidityOrderContext;
-  correlationId: string;
-  referenceAsset: string;
-  referenceAmount: number;
-  targetAsset: Asset;
-}
-
-export interface TransferRequest {
-  asset: Asset;
-  amount: number;
-  destinationAddress: string;
-}
+import { LiquidityRequest, TransferRequest } from '../interfaces';
 
 @Injectable()
 export class DexService {
