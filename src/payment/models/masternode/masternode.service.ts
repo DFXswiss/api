@@ -26,7 +26,8 @@ export class MasternodeService {
     const masternodeOperators = await this.masternodeRepo.find({
       select: ['operator'],
     });
-    const masternodeServerList = await this.settingService.get('masternodeServerList ');
+
+    const masternodeServerList = await this.settingService.get('masternodeServerList');
 
     for (const server of masternodeServerList.split(',')) {
       const operators = await this.callApi<string[]>(`http://${server}.mydefichain.com/api/operatoraddresses`, 'GET');
