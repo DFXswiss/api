@@ -180,7 +180,7 @@ export class SpiderSyncService {
           userData,
           translationKey: 'mail.kyc.chatbot',
           params: {
-            url: userData.spiderData?.url,
+            url: `${Config.paymentUrl}/kyc?code=${userData.kycHash}`,
           },
         })
         .catch(() => null);
@@ -196,9 +196,6 @@ export class SpiderSyncService {
   }
 
   private async handleExpiring(userData: UserData): Promise<UserData> {
-    const spiderData = await this.spiderDataRepo.findOne({
-      where: { userData: userData.id },
-    });
     // send reminder
     await this.mailService
       .sendTranslatedMail({
@@ -206,7 +203,7 @@ export class SpiderSyncService {
         translationKey: 'mail.kyc.reminder',
         params: {
           status: this.kycStatusTranslation[userData.kycStatus],
-          url: spiderData.url,
+          url: `${Config.paymentUrl}/kyc?code=${userData.kycHash}`,
         },
       })
       .catch(() => null);

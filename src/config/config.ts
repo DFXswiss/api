@@ -14,6 +14,7 @@ export class Configuration {
   environment = process.env.ENVIRONMENT;
   network = process.env.NETWORK;
   githubToken = process.env.GH_TOKEN;
+  paymentUrl = process.env.PAYMENT_URL;
   defaultLanguage = 'en';
   defaultCountry = 'DE';
   defaultCurrency = 'EUR';
@@ -57,6 +58,11 @@ export class Configuration {
       path: path.join(__dirname, '../shared/i18n/'),
       watch: true,
     },
+  };
+
+  mydefichain = {
+    username: process.env.MYDEFICHAIN_USER,
+    password: process.env.MYDEFICHAIN_PASSWORD,
   };
 
   auth = {

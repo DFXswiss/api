@@ -21,7 +21,7 @@ import { ChainalysisService } from './chainalysis.service';
 @Injectable()
 export class BtcInputService extends CryptoInputService {
   private readonly lock = new Lock(7200);
-  private readonly btcFeeUrl = 'https://bitcoinfees.earn.com/api/v1/fees/recommended';
+  private readonly btcFeeUrl = 'https://mempool.space/api/v1/fees/recommended';
 
   private btcClient: BtcClient;
 
@@ -176,12 +176,15 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async getFeeRate(amount: number): Promise<number> {
-    const { fastestFee } = await this.http.get<{ fastestFee: number; halfHourFee: number; hourFee: number }>(
-      this.btcFeeUrl,
-      {
-        tryCount: 3,
-      },
-    );
+    const { fastestFee } = await this.http.get<{
+      fastestFee: number;
+      halfHourFee: number;
+      hourFee: number;
+      economyFee: number;
+      minimumFee: number;
+    }>(this.btcFeeUrl, {
+      tryCount: 3,
+    });
     return Math.floor(Math.max(Math.min(fastestFee, 500 * amount), 1));
   }
 
