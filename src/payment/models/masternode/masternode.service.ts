@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
 import { MasternodeRepository } from 'src/payment/models/masternode/masternode.repository';
@@ -19,23 +19,23 @@ export class MasternodeService {
   ) {}
 
   // --- MASTERNODE SYNC --- //
-  @Interval(1440000)
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async syncMasternodes(): Promise<void> {
     if (!Config.mydefichain.username) return;
 
-    const dbOperatorList = await this.masternodeRepo.find({
+    const masternodeOperators = await this.masternodeRepo.find({
       select: ['operator'],
     });
-    const serverList = await this.settingService.get('serverList');
-    
-    for (const server of serverList.split(',')) {
+    const masternodeServerList = await this.settingService.get('masternodeServerList ');
+
+    for (const server of masternodeServerList.split(',')) {
       const operators = await this.callApi<string[]>(`http://${server}.mydefichain.com/api/operatoraddresses`, 'GET');
       const missingOperators = operators.filter(
-        (item) => dbOperatorList.map((masternode) => masternode.operator).indexOf(item) < 0,
+        (item) => masternodeOperators.map((masternode) => masternode.operator).indexOf(item) < 0,
       );
 
       for (const operator of missingOperators) {
-        const newOperator = await this.masternodeRepo.create({ operator, server });
+        const newOperator = this.masternodeRepo.create({ operator, server });
         await this.masternodeRepo.save(newOperator);
       }
     }
@@ -83,7 +83,7 @@ export class MasternodeService {
     });
   }
 
-  private async request<T>(url: string, method: Method, data?: any, nthTry = 3): Promise<T> {
+  private async request<T>(url: string, method: Method, data?: any): Promise<T> {
     try {
       return await this.http.request<T>({
         url,
@@ -93,10 +93,7 @@ export class MasternodeService {
         params: method === 'GET' ? data : undefined,
       });
     } catch (e) {
-      if (nthTry > 1 && e.response?.status == 401) {
-        return this.request(url, method, data, nthTry - 1);
-      }
-      throw e;
+      console.log(e);
     }
   }
 }
