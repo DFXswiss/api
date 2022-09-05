@@ -14,7 +14,7 @@ import { UpdateUserAdminDto } from './dto/update-user-admin.dto';
 import { ApiKey } from './dto/api-key.dto';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { LinkedUserDto } from './dto/linked-user.dto';
+import { LinkedUserInDto } from './dto/linked-user.dto';
 import { AuthService } from '../auth/auth.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 
@@ -48,9 +48,8 @@ export class UserController {
   @Post('change')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async changeUser(@GetJwt() jwt: JwtPayload, @Body() changeUser: LinkedUserDto): Promise<{ accessToken: string }> {
-    const checkedUser = await this.userService.changeUser(jwt.id, changeUser);
-    return this.authService.signIn(checkedUser);
+  async changeUser(@GetJwt() jwt: JwtPayload, @Body() changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
+    return this.authService.changeUser(jwt.id, changeUser);
   }
 
   // --- API KEYS --- //

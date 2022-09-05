@@ -5,7 +5,7 @@ import { Language } from 'src/shared/models/language/language.entity';
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycState, KycStatus } from '../../user-data/user-data.entity';
 import { UserStatus } from '../user.entity';
-import { LinkedUserDto } from './linked-user.dto';
+import { LinkedUserOutDto } from './linked-user.dto';
 
 export interface UserDto {
   accountType: AccountType;
@@ -39,7 +39,7 @@ export interface UserDetails {
   sellVolume: number;
   stakingBalance: number;
 
-  linkedAddresses?: LinkedUserDto[];
+  linkedAddresses?: LinkedUserOutDto[];
 }
 
 export type UserDetailDto = UserDto & UserDetails;
