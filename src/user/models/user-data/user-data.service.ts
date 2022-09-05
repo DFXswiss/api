@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, UserData } from './user-data.entity';
@@ -15,11 +10,11 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Config } from 'src/config/config';
 import { ReferenceType, SpiderService } from 'src/user/services/spider/spider.service';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { Util } from 'src/shared/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { KycProcessService } from '../kyc/kyc-process.service';
 
 @Injectable()
 export class UserDataService {
@@ -32,6 +27,7 @@ export class UserDataService {
     private readonly fiatService: FiatService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
+    private readonly kycProcessService: KycProcessService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -66,7 +62,7 @@ export class UserDataService {
     let userData = await this.userDataRepo.findOne(userDataId);
     if (!userData) throw new NotFoundException('User data not found');
 
-    userData = await this.updateUserSettings(userData, dto);
+    userData = await this.updateSpiderIfNeeded(userData, dto);
 
     if (dto.countryId) {
       userData.country = await this.countryService.getCountry(dto.countryId);
@@ -76,10 +72,6 @@ export class UserDataService {
     if (dto.organizationCountryId) {
       userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
       if (!userData.organizationCountry) throw new BadRequestException('Country not found');
-    }
-
-    if (dto.kycStatus && !dto.kycState) {
-      dto.kycState = KycState.NA;
     }
 
     if (dto.mainBankDataId) {
@@ -104,9 +96,8 @@ export class UserDataService {
         );
     }
 
-    if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
-      userData.kycStatusChangeDate = new Date();
-    }
+    if (dto.kycStatus && userData.kycStatus != dto.kycStatus)
+      userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
 
     return await this.userDataRepo.save({ ...userData, ...dto });
   }
@@ -125,12 +116,12 @@ export class UserDataService {
     }
 
     // update spider
-    await this.updateSpiderIfNeeded(user, dto)
+    user = await this.updateSpiderIfNeeded(user, dto);
 
     return this.userDataRepo.save({ ...user, ...dto });
   }
 
-  async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto) {
+  async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
       await this.spiderService.updateCustomer(userData.id, {
         telephones: dto.phone ? [dto.phone.replace('+', '').split(' ').join('')] : undefined,
@@ -141,6 +132,8 @@ export class UserDataService {
         userData.kycState = KycState.FAILED;
       }
     }
+
+    return userData;
   }
 
   // --- VOLUMES --- //
@@ -201,10 +194,6 @@ export class UserDataService {
     // update volumes
     await this.updateVolumes(masterId);
     await this.updateVolumes(slaveId);
-  }
-
-  async hasRole(userDataId: number, role: UserRole): Promise<boolean> {
-    return await this.userRepo.findOne({ where: { userData: { id: userDataId }, role } }).then((u) => u != null);
   }
 
   async getAllUserDataWithEmptyFileId(): Promise<number[]> {

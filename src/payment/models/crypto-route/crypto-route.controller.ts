@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -24,6 +24,8 @@ import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
+import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
 
 @ApiTags('cryptoRoute')
 @Controller('cryptoRoute')
@@ -48,6 +50,19 @@ export class CryptoRouteController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   createCrypto(@GetJwt() jwt: JwtPayload, @Body() createCryptoDto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
     return this.cryptoRouteService.createCrypto(jwt.id, createCryptoDto).then((b) => this.toDto(jwt.id, b));
+  }
+
+  @Put('/paymentInfos')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: CryptoPaymentInfoDto })
+  async createCryptoWithPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: GetCryptoPaymentInfoDto,
+  ): Promise<CryptoPaymentInfoDto> {
+    return this.cryptoRouteService
+      .createCrypto(jwt.id, { ...dto, type: BuyType.WALLET }, true)
+      .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
   }
 
   @Put(':id')
@@ -84,23 +99,25 @@ export class CryptoRouteController {
   ): Promise<CryptoRouteDto> {
     fees ??= await this.getFees(userId);
 
-    let minDeposits: MinDeposit[] = [];
-    switch (crypto.deposit.blockchain) {
-      case Blockchain.BITCOIN:
-        minDeposits = Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
-        break;
-    }
-
     return {
       ...crypto,
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),
       ...fees,
-      minDeposits: minDeposits,
+      minDeposits: this.getMinDeposits(crypto.deposit.blockchain),
     };
   }
 
+  private async toPaymentInfoDto(userId: number, cryptoRoute: CryptoRoute): Promise<CryptoPaymentInfoDto> {
+    return {
+      depositAddress: cryptoRoute.deposit.address,
+      ...(await this.getFees(userId)),
+      minDeposits: this.getMinDeposits(cryptoRoute.deposit.blockchain),
+    };
+  }
+
+  // --- HELPER-METHODS --- //
   private async getStaking(
     userId: number,
     deposit?: Deposit,
@@ -114,6 +131,15 @@ export class CryptoRouteController {
         ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
         : await this.stakingRepo.findOne({ where: { deposit: deposit.id } }),
     );
+  }
+
+  private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
+    switch (blockchain) {
+      case Blockchain.BITCOIN:
+        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
+      case Blockchain.DEFICHAIN:
+        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain);
+    }
   }
 
   async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {

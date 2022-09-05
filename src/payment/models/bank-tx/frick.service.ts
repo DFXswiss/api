@@ -120,7 +120,7 @@ enum TransactionType {
 }
 
 enum ServiceType {
-  SWIFT = 'SWIFT ',
+  SWIFT = 'SWIFT',
   SIC = 'SIC',
   EUROSIC = 'EUROSIC',
 }
@@ -144,10 +144,19 @@ export class FrickService {
   constructor(private readonly http: HttpService) {}
 
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
-    if (!Config.bank.frick.credentials.key) return;
-    const { transactions } = await this.getTransactions(new Date(lastModificationTime));
+    if (!Config.bank.frick.credentials.key) return [];
 
+    const { transactions } = await this.getTransactions(new Date(lastModificationTime));
     if (!transactions) return [];
+
+    // get additional information (required for ABA transactions)
+    for (const transaction of transactions) {
+      if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
+        const txDetail = await this.getTransaction(transaction.orderId);
+        transaction.creditor = { ...transaction.creditor, ...txDetail?.creditor };
+        transaction.debitor = { ...transaction.debitor, ...txDetail?.debitor };
+      }
+    }
 
     return transactions.map((t) => this.parseTransaction(t));
   }
@@ -167,6 +176,11 @@ export class FrickService {
     return await this.callApi<Transactions>(`transactions`, 'GET', params);
   }
 
+  private async getTransaction(orderId: number): Promise<undefined | Transaction> {
+    const { transactions } = await this.callApi<Transactions>(`transactions/${orderId}`, 'GET');
+    return transactions?.[0];
+  }
+
   async getAccounts(): Promise<Accounts> {
     const url = `accounts`;
     return await this.callApi<Accounts>(url);
@@ -184,11 +198,11 @@ export class FrickService {
       amount: Math.abs(tx.totalAmount),
       instructedAmount: tx.fxTransactionAmount ? Math.abs(tx.fxTransactionAmount) : Math.abs(tx.amount),
       txAmount: Math.abs(tx.amount),
-      chargeAmount: Math.abs(tx.fees),
+      chargeAmount: tx.fees ? Math.abs(tx.fees) : 0,
       currency: tx.currency,
       instructedCurrency: tx.fxTransactionCurrency ?? tx.currency,
       txCurrency: tx.currency,
-      chargeCurrency: tx.fees ? tx.currency : undefined,
+      chargeCurrency: tx.currency,
       ...this.getCustomerInformation(tx),
       remittanceInfo: tx.reference,
       type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
@@ -215,6 +229,7 @@ export class FrickService {
     addressLine1?: string;
     creditDebitIndicator: BankTxIndicator;
     iban: string;
+    aba: string;
     country: string;
     city: string;
     memberId: string;
@@ -222,16 +237,18 @@ export class FrickService {
     bic: string;
   } {
     const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
+
     return {
-      name: account.name,
+      aba: account.aba,
       addressLine1: account.address,
+      bankName: account.creditInstitution,
+      bic: account.bic,
+      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
+      country: account.country,
       city: account.city,
       iban: account.iban,
       memberId: account.accountNumber,
-      country: account.country,
-      bankName: account.creditInstitution,
-      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
-      bic: account.bic,
+      name: account.name,
     };
   }
 
@@ -279,7 +296,9 @@ export class FrickService {
     return {
       Accept: 'application/json',
       algorithm: 'rsa-sha512',
-      Signature: data ? Util.createSign(JSON.stringify(data), Config.bank.frick.credentials.privateKey, 'sha512') : null,
+      Signature: data
+        ? Util.createSign(JSON.stringify(data), Config.bank.frick.credentials.privateKey, 'sha512')
+        : null,
       Authorization: `Bearer ${this.accessToken}`,
     };
   }

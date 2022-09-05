@@ -79,7 +79,7 @@ export class CryptoRouteService {
   }
 
   // --- CRYPTOS --- //
-  async createCrypto(userId: number, dto: CreateCryptoRouteDto): Promise<CryptoRoute> {
+  async createCrypto(userId: number, dto: CreateCryptoRouteDto, ignoreExisting = false): Promise<CryptoRoute> {
     // KYC check
     const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
     if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
@@ -108,11 +108,15 @@ export class CryptoRouteService {
     });
 
     if (existing) {
-      if (existing.active) throw new ConflictException('Crypto route already exists');
+      if (existing.active && !ignoreExisting) throw new ConflictException('Crypto route already exists');
 
-      // reactivate deleted route
-      existing.active = true;
-      return this.cryptoRepo.save(existing);
+      if (!existing.active) {
+        // reactivate deleted route
+        existing.active = true;
+        this.cryptoRepo.save(existing);
+      }
+
+      return existing;
     }
 
     // create the entity

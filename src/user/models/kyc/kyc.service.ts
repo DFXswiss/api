@@ -23,6 +23,7 @@ export interface KycInfo {
   kycState: KycState;
   kycHash: string;
   kycDataComplete: boolean;
+  accountType: AccountType;
   depositLimit: number;
   sessionUrl?: string;
   setupUrl?: string;
@@ -83,7 +84,7 @@ export class KycService {
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
-    const user = await this.getUser(code, userId);
+    let user = await this.getUser(code, userId);
     const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
 
     // check countries
@@ -102,7 +103,7 @@ export class KycService {
       data.organizationCountry = null;
     }
 
-    await this.userDataService.updateSpiderIfNeeded(user, data);
+    user = await this.userDataService.updateSpiderIfNeeded(user, data);
 
     const updatedUser = await this.userDataRepo.save({ ...user, ...data });
 
@@ -213,6 +214,7 @@ export class KycService {
       kycState: userData.kycState,
       kycHash: userData.kycHash,
       kycDataComplete: this.isDataComplete(userData),
+      accountType: userData.accountType,
       depositLimit: userData.depositLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),
