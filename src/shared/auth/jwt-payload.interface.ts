@@ -5,5 +5,5 @@ export interface JwtPayload {
   id: number;
   address: string;
   role: UserRole;
-  blockchain: Blockchain;
+  blockchains: Blockchain[];
 }

@@ -17,6 +17,6 @@ export class AssetController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllAsset(@GetJwt() jwt: JwtPayload): Promise<Asset[]> {
-    return this.assetService.getAllAsset(jwt.blockchain);
+    return this.assetService.getAllAsset(jwt.blockchains);
   }
 }

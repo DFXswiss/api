@@ -43,7 +43,7 @@ describe('SellController', () => {
   it('should return a min deposit of 0.01 DFI and 1 USD for a default sell route', async () => {
     jest.spyOn(sellService, 'getUserSells').mockResolvedValue([createDefaultSell()]);
 
-    await expect(controller.getAllSell({ id: 0, address: '', role: UserRole.USER, blockchain: Blockchain.DEFICHAIN })).resolves.toMatchObject([
+    await expect(controller.getAllSell({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] })).resolves.toMatchObject([
       {
         minDeposits: [
           { amount: 0.01, asset: 'DFI' },
