@@ -62,30 +62,30 @@ export class AuthService {
     return { accessToken: this.generateToken(user) };
   }
 
-  getSignMessage(address: string): { message: string; blockchain: Blockchain } {
-    const blockchain = this.cryptoService.getBlockchainBasedOn(address);
+  getSignMessage(address: string): { message: string; blockchains: Blockchain[] } {
+    const blockchains = this.cryptoService.getBlockchainBasedOn(address);
     return {
       message:
-        (blockchain === Blockchain.DEFICHAIN ? Config.auth.signMessage : Config.auth.signMessageGeneral) + address,
-      blockchain,
+        (blockchains.includes(Blockchain.DEFICHAIN) ? Config.auth.signMessage : Config.auth.signMessageGeneral) + address,
+      blockchains,
     };
   }
 
   async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
-    const user = await this.getLinkedUser(id, changeUser.address, changeUser.blockchain);
+    const user = await this.getLinkedUser(id, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
     return { accessToken: this.generateToken(user) };
   }
 
-  private async getLinkedUser(id: number, address: string, blockchain: string): Promise<User> {
+  private async getLinkedUser(id: number, address: string): Promise<User> {
     return this.userRepo
       .createQueryBuilder('user')
       .select('linkedUser.*')
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .where('user.id = :id', { id })
-      .andWhere('linkedUser.address = :address AND linkedUser.blockchain = :blockchain', { address, blockchain })
+      .andWhere('linkedUser.address = :address', { address })
       .getRawOne<User>();
   }
 
@@ -95,7 +95,12 @@ export class AuthService {
   }
 
   private generateToken(user: User): string {
-    const payload: JwtPayload = { id: user.id, address: user.address, role: user.role, blockchain: user.blockchain };
+    const payload: JwtPayload = {
+      id: user.id,
+      address: user.address,
+      role: user.role,
+      blockchains: this.cryptoService.getBlockchainsBasedOn(user.address),
+    };
     return this.jwtService.sign(payload);
   }
 }
