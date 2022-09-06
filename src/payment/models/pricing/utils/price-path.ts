@@ -16,6 +16,11 @@ export class PricePath {
     for (let i = 0; i < this.steps.length; i++) {
       const step = this.steps[i];
 
+      if (this.steps.length === 1) {
+        results.push(await step.execute({ from: request.from, to: request.to }));
+        break;
+      }
+
       if (i === 0) {
         results.push(await step.execute({ from: request.from }));
         continue;

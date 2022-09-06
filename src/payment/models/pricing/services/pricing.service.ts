@@ -176,8 +176,8 @@ export class PricingService {
   private validatePriceRequest(request: PriceRequest): void {
     const { from, to } = request;
 
-    const isKnownFrom = !this.isKnownAsset(from);
-    const isKnownTo = !this.isKnownAsset(to);
+    const isKnownFrom = this.isKnownAsset(from);
+    const isKnownTo = this.isKnownAsset(to);
 
     if (!isKnownFrom || !isKnownTo) {
       throw new BadPriceRequestException(!isKnownFrom && from, !isKnownTo && to);
@@ -201,11 +201,11 @@ export class PricingService {
 
     if (this.isFiat(from) && to === 'BTC') return PricingPathAlias.FIAT_TO_BTC;
 
-    if (!this.isFiat(from) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
+    if (this.isAltcoin(from) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
 
     if (this.isFiat(from) && this.isAltcoin(to)) return PricingPathAlias.FIAT_TO_ALTCOIN;
 
-    if (!this.isFiat(from) && this.isAltcoin(to)) return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
+    if (this.isAltcoin(from) && this.isAltcoin(to)) return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
 
     if (from === 'BTC' && this.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
@@ -220,6 +220,10 @@ export class PricingService {
     return Object.values(Fiat).includes(asset as unknown as Fiat);
   }
 
+  private isBTC(asset: string): boolean {
+    return asset === 'BTC';
+  }
+
   private isAltcoin(asset: string): boolean {
     return Object.values(Altcoin).includes(asset as unknown as Altcoin);
   }
@@ -229,7 +233,7 @@ export class PricingService {
   }
 
   private isKnownAsset(asset: string): boolean {
-    return this.isFiat(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset);
+    return this.isFiat(asset) || this.isBTC(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset);
   }
 
   private logPriceResult(request: PriceRequest, result: PriceResult): void {
