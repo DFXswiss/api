@@ -20,7 +20,7 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    const tokenGroups = this.groupsOrdersByTokens(orders);
+    const tokenGroups = this.groupOrdersByTokens(orders);
 
     for (const [tokenName, tokenGroup] of [...tokenGroups.entries()]) {
       const payoutGroups = this.createPayoutGroups(tokenGroup, 10);
@@ -45,7 +45,7 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
     }
   }
 
-  private groupsOrdersByTokens(orders: PayoutOrder[]): Map<TokenName, PayoutOrder[]> {
+  protected groupOrdersByTokens(orders: PayoutOrder[]): Map<TokenName, PayoutOrder[]> {
     const groups = new Map<TokenName, PayoutOrder[]>();
 
     orders.forEach((order) => {
