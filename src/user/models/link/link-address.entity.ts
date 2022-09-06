@@ -1,4 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/util';
 import { Column, Entity, Generated, Index } from 'typeorm';
 
 @Entity()
@@ -25,8 +26,7 @@ export class LinkAddress extends IEntity {
     linkAddress.existingAddress = existingAddress;
     linkAddress.newAddress = newAddress;
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = Util.daysAfter(1);
     linkAddress.expiration = tomorrow;
 
     return linkAddress;

@@ -64,9 +64,11 @@ export class AuthService {
 
   getSignMessage(address: string): { message: string; blockchain: Blockchain } {
     const blockchain = this.cryptoService.getBlockchainBasedOn(address);
-    if (blockchain === Blockchain.ETHEREUM || blockchain === Blockchain.BITCOIN)
-      return { message: Config.auth.signMessageGeneral + address, blockchain };
-    return { message: Config.auth.signMessage + address, blockchain };
+    return {
+      message:
+        (blockchain === Blockchain.DEFICHAIN ? Config.auth.signMessage : Config.auth.signMessageGeneral) + address,
+      blockchain,
+    };
   }
 
   async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {

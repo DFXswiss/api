@@ -183,14 +183,13 @@ export class KycService {
     const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
-    const [users, numberOfUsersWithSameInformation] = await this.userDataService.getUsersByInformation(user);
+    const users = await this.userDataService.getUsersByInformation(user);
     if (users) {
       const completedUser = users.find((data) => KycCompleted(data.kycStatus));
-      const shouldSendLinkEmail = numberOfUsersWithSameInformation > 1;
+      const shouldSendLinkEmail = users.length > 1;
       if (shouldSendLinkEmail && completedUser) {
-        // this is not correct, where do we know. Which address is the correct one, if there are already linked addresses?
-        const existingAddress = completedUser.users[0].address;
-        // this should be fine, as a new user_data should have only one address
+        const oldestToNewestUser = completedUser.users.sort((a, b) => (a.created > b.created ? 1 : -1));
+        const existingAddress = oldestToNewestUser[0].address;
         const newAddress = user.users[0].address;
 
         const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
@@ -207,7 +206,7 @@ export class KycService {
             url: this.buildLinkUrl(linkAddress.authentication),
           },
         });
-        throw new ConflictException();
+        throw new ConflictException('User already has completed Kyc');
       }
     }
 
