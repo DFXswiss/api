@@ -49,8 +49,8 @@ export class UserDataService {
     return this.userDataRepo.findOne({ kycHash });
   }
 
-  async getUsersByInformation(data: UserData): Promise<[UserData[], number]> {
-    return this.userDataRepo.findAndCount({
+  async getUsersByInformation(data: UserData): Promise<UserData[]> {
+    return this.userDataRepo.find({
       where: { mail: data.mail, firstname: data.firstname, surname: data.surname },
       relations: ['users'],
     });

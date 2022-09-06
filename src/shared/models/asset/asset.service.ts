@@ -8,7 +8,7 @@ export class AssetService {
   constructor(private assetRepo: AssetRepository) {}
 
   async getAllAsset(blockchain: Blockchain): Promise<Asset[]> {
-    if (!blockchain) blockchain = Blockchain.DEFICHAIN;
+    blockchain ??= Blockchain.DEFICHAIN;
     return this.assetRepo.find({ where: { blockchain } });
   }
 

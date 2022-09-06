@@ -1,10 +1,10 @@
+import { Util } from 'src/shared/util';
 import { LinkAddress } from '../link-address.entity';
 import { createCustomLinkAddress } from './mock/link-address.entity.mock';
 
 describe('LinkAddress', () => {
   it('should set existing, new address and expiration date to tomorrow on create', () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = Util.daysAfter(1);
 
     const linkAddress = LinkAddress.create('existing-address', 'new-address');
     expect(linkAddress.existingAddress).toStrictEqual('existing-address');
