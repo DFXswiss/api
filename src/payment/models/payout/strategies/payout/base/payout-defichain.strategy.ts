@@ -59,6 +59,11 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
   protected abstract doPayoutForContext(context: PayoutOrderContext, group: PayoutOrder[]): Promise<void>;
 
   protected createPayoutGroups(orders: PayoutOrder[], maxGroupSize: number): PayoutOrder[][] {
+    const isSameAsset = this.validateIfOrdersOfSameAsset(orders);
+
+    if (!isSameAsset) throw new Error('Cannot group orders of different assets to same payout group');
+    if (maxGroupSize === 0) throw new Error('Max group size for payout cannot be 0');
+
     const result: Map<number, PayoutOrder[]> = new Map();
 
     orders.forEach((o) => {
@@ -77,16 +82,9 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
 
   protected aggregatePayout(orders: PayoutOrder[]): { addressTo: string; amount: number }[] {
     // sum up duplicated addresses, fallback in case orders to same address and asset end up in one payment round
-    const uniqueAddresses = new Map<string, number>();
+    const payouts = Util.aggregate<PayoutOrder>(orders, 'destinationAddress', 'amount');
 
-    orders.forEach((o) => {
-      const existingAmount = uniqueAddresses.get(o.destinationAddress);
-      const increment = existingAmount ? Util.round(existingAmount + o.amount, 8) : o.amount;
-
-      uniqueAddresses.set(o.destinationAddress, increment);
-    });
-
-    return [...uniqueAddresses.entries()].map(([addressTo, amount]) => ({ addressTo, amount }));
+    return Object.entries(payouts).map(([addressTo, amount]) => ({ addressTo, amount: Util.round(amount, 8) }));
   }
 
   protected async designatePayout(orders: PayoutOrder[]): Promise<void> {
@@ -107,5 +105,11 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
     const body = e ? [message, e.message] : [message];
 
     await this.mailService.sendErrorMail('Payout Error', body);
+  }
+
+  //*** HELPER METHODS ***//
+
+  private validateIfOrdersOfSameAsset(orders: PayoutOrder[]): boolean {
+    return orders.every((order, i) => (orders[i + 1] ? order.asset.dexName === orders[i + 1].asset.dexName : true));
   }
 }
