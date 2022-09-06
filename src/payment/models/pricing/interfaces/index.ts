@@ -6,12 +6,8 @@ export interface PriceRequest {
 }
 
 export interface PriceResult {
-  path: PricePathResult;
+  path: PriceStepResult[];
   price: Price;
-}
-
-export interface PricePathResult {
-  [key: number]: PriceStepResult;
 }
 
 export interface PriceStepResult {

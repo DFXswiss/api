@@ -54,7 +54,11 @@ export class PricingService {
     }
 
     try {
-      return await path.execute(request);
+      const result = await path.execute(request);
+
+      this.logPriceResult(request, result);
+
+      return result;
     } catch (e) {
       if (e instanceof PriceMismatchException) {
         await this.mailService.sendErrorMail('Exchange Price Mismatch', [e.message]);
@@ -226,5 +230,19 @@ export class PricingService {
 
   private isKnownAsset(asset: string): boolean {
     return this.isFiat(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset);
+  }
+
+  private logPriceResult(request: PriceRequest, result: PriceResult): void {
+    const { from, to } = request;
+    const {
+      price: { source: resFrom, target: resTo, price },
+      path,
+    } = result;
+
+    const mailMessage = `Calculated Price for request from: ${from} to: ${to}. Final price: ${resTo}/${resFrom} ${price}. `;
+    const pathMessage =
+      'Path: ' + path.map((p) => `${p.provider} -> ${p.price.target}/${p.price.source} ${p.price.price}. `);
+
+    console.info(mailMessage + pathMessage);
   }
 }
