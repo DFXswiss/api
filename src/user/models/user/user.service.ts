@@ -79,11 +79,10 @@ export class UserService {
       .where('user.id = :id', { id })
       .getRawMany<LinkedUserOutDto>()
       .then((linkedUsers) => {
-        linkedUsers.forEach((user) => {
-          user.blockchains = this.cryptoService.getBlockchainsBasedOn(user.address)
-        })
-        return linkedUsers
-      });
+        return linkedUsers.map((u) => {
+          return {...u, blockchains: this.cryptoService.getBlockchainsBasedOn(u.address)}
+        });
+      })
   }
 
   async getRefUser(ref: string): Promise<User> {
