@@ -2,7 +2,7 @@ import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
+import { PayoutDeFiChainService, PayoutGroup } from '../../../services/payout-defichain.service';
 import { PayoutStrategy } from './payout.strategy';
 
 export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
@@ -80,7 +80,41 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
     return [...result.values()];
   }
 
-  protected aggregatePayout(orders: PayoutOrder[]): { addressTo: string; amount: number }[] {
+  protected async send(
+    context: PayoutOrderContext,
+    orders: PayoutOrder[],
+    outputAsset: string,
+    dispatcher: (context: PayoutOrderContext, payout: PayoutGroup, outputAsset: string) => Promise<string>,
+  ): Promise<void> {
+    let payoutTxId: string;
+
+    try {
+      const payout = this.aggregatePayout(orders);
+
+      await this.designatePayout(orders);
+      payoutTxId = await dispatcher(context, payout, outputAsset);
+    } catch (e) {
+      console.error(`Error on sending ${outputAsset} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
+
+      if (e.message.includes('timeout')) throw e;
+
+      await this.rollbackPayoutDesignation(orders);
+    }
+
+    for (const order of orders) {
+      try {
+        const paidOrder = order.pendingPayout(payoutTxId);
+        await this.payoutOrderRepo.save(paidOrder);
+      } catch (e) {
+        const errorMessage = `Error on saving payout payoutTxId to the database. Order ID: ${order.id}. Payout ID: ${payoutTxId}`;
+
+        console.error(errorMessage, e);
+        await this.sendNonRecoverableErrorMail(errorMessage, e);
+      }
+    }
+  }
+
+  protected aggregatePayout(orders: PayoutOrder[]): PayoutGroup {
     // sum up duplicated addresses, fallback in case orders to same address and asset end up in one payment round
     const payouts = Util.aggregate<PayoutOrder>(orders, 'destinationAddress', 'amount');
 

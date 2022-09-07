@@ -38,31 +38,6 @@ export class PayoutDeFiChainDFIStrategy extends PayoutDeFiChainStrategy {
   }
 
   private async sendDFI(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    let payoutTxId: string;
-
-    try {
-      const payout = this.aggregatePayout(orders);
-
-      await this.designatePayout(orders);
-      payoutTxId = await this.defichainService.sendUtxoToMany(context, payout);
-    } catch (e) {
-      console.error(`Error on sending DFI for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
-
-      if (e.message.includes('timeout')) throw e;
-
-      await this.rollbackPayoutDesignation(orders);
-    }
-
-    for (const order of orders) {
-      try {
-        const paidOrder = order.pendingPayout(payoutTxId);
-        await this.payoutOrderRepo.save(paidOrder);
-      } catch (e) {
-        const errorMessage = `Error on saving payout payoutTxId to the database. Order ID: ${order.id}. Payout ID: ${payoutTxId}`;
-
-        console.error(errorMessage, e);
-        await this.sendNonRecoverableErrorMail(errorMessage, e);
-      }
-    }
+    await this.send(context, orders, 'DFI', this.defichainService.sendUtxoToMany);
   }
 }

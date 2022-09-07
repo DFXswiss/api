@@ -29,7 +29,7 @@ export class PayoutDeFiChainService {
     return this.getClient(context).sendUtxoToMany(payout);
   }
 
-  async sendTokenToMany(context: PayoutOrderContext, asset: string, payout: PayoutGroup): Promise<string> {
+  async sendTokenToMany(context: PayoutOrderContext, payout: PayoutGroup, asset: string): Promise<string> {
     return this.getClient(context).sendTokenToMany(this.getWalletAddress(context), asset, payout);
   }
 

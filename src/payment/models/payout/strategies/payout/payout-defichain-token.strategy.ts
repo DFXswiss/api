@@ -33,6 +33,7 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
 
           console.info(`Paying out ${group.length} token orders(s). Order ID(s): ${group.map((o) => o.id)}`);
 
+          await this.checkUtxoForGroup(group);
           await this.sendToken(context, group, tokenName);
         } catch (e) {
           console.error(
@@ -61,35 +62,9 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
     return groups;
   }
 
-  private async sendToken(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {
-    let payoutTxId: string;
-
-    try {
-      for (const order of orders) {
-        await this.checkUtxo(order.destinationAddress);
-      }
-      const payout = this.aggregatePayout(orders);
-
-      await this.designatePayout(orders);
-      payoutTxId = await this.defichainService.sendTokenToMany(context, outputAsset, payout);
-    } catch (e) {
-      console.error(`Error on sending ${outputAsset} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
-
-      if (e.message.includes('timeout')) throw e;
-
-      await this.rollbackPayoutDesignation(orders);
-    }
-
+  private async checkUtxoForGroup(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
-      try {
-        const paidOrder = order.pendingPayout(payoutTxId);
-        await this.payoutOrderRepo.save(paidOrder);
-      } catch (e) {
-        const errorMessage = `Error on saving payout payoutTxId to the database. Order ID: ${order.id}. Payout ID: ${payoutTxId}`;
-
-        console.error(errorMessage, e);
-        await this.sendNonRecoverableErrorMail(errorMessage, e);
-      }
+      await this.checkUtxo(order.destinationAddress);
     }
   }
 
@@ -99,5 +74,9 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
     if (!utxo) {
       await this.dexService.transferMinimalUtxo(address);
     }
+  }
+
+  private async sendToken(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {
+    await this.send(context, orders, outputAsset, this.defichainService.sendTokenToMany);
   }
 }
