@@ -72,12 +72,18 @@ export class UserService {
     return this.userRepo
       .createQueryBuilder('user')
       .select(
-        'linkedUser.address, linkedUser.blockchain, isSwitchable = CASE WHEN linkedUser.stakingBalance = 0 then CAST(1 AS BIT) else CAST(0 AS BIT) end',
+        'linkedUser.address, isSwitchable = CASE WHEN linkedUser.stakingBalance = 0 then CAST(1 AS BIT) else CAST(0 AS BIT) end',
       )
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
       .where('user.id = :id', { id })
-      .getRawMany<LinkedUserOutDto>();
+      .getRawMany<LinkedUserOutDto>()
+      .then((linkedUsers) => {
+        linkedUsers.forEach((user) => {
+          user.blockchains = this.cryptoService.getBlockchainsBasedOn(user.address)
+        })
+        return linkedUsers
+      });
   }
 
   async getRefUser(ref: string): Promise<User> {
