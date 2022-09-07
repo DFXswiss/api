@@ -5,6 +5,7 @@ import { createCustomPrice } from '../../exchange/dto/__mocks__/price.dto.mock';
 import { BinanceService } from '../../exchange/services/binance.service';
 import { BitpandaService } from '../../exchange/services/bitpanda.service';
 import { BitstampService } from '../../exchange/services/bitstamp.service';
+import { CurrencyService } from '../../exchange/services/currency.service';
 import { FixerService } from '../../exchange/services/fixer.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
 import { PricingService } from '../services/pricing.service';
@@ -15,12 +16,14 @@ describe('Pricing Module Integration Tests', () => {
   let binanceService: BinanceService;
   let bitstampService: BitstampService;
   let bitpandaService: BitpandaService;
+  let currencyService: CurrencyService;
   let fixerService: FixerService;
 
   let krakenServiceGetPriceSpy: jest.SpyInstance;
   let binanceServiceGetPriceSpy: jest.SpyInstance;
   let bitstampServiceGetPriceSpy: jest.SpyInstance;
   let bitpandaServiceGetPriceSpy: jest.SpyInstance;
+  let currencyServiceGetPriceSpy: jest.SpyInstance;
   let fixerServiceGetPriceSpy: jest.SpyInstance;
 
   let service: PricingService;
@@ -31,6 +34,7 @@ describe('Pricing Module Integration Tests', () => {
     binanceService = mock<BinanceService>({ name: 'Binance' });
     bitstampService = mock<BitstampService>({ name: 'Bitstamp' });
     bitpandaService = mock<BitpandaService>({ name: 'Bitpanda' });
+    currencyService = mock<CurrencyService>({ name: 'CurrencyService' });
     fixerService = mock<FixerService>({ name: 'Fixer' });
 
     service = new PricingService(
@@ -39,6 +43,7 @@ describe('Pricing Module Integration Tests', () => {
       binanceService,
       bitstampService,
       bitpandaService,
+      currencyService,
       fixerService,
     );
 
@@ -46,6 +51,7 @@ describe('Pricing Module Integration Tests', () => {
     binanceServiceGetPriceSpy = jest.spyOn(binanceService, 'getPrice');
     bitstampServiceGetPriceSpy = jest.spyOn(bitstampService, 'getPrice');
     bitpandaServiceGetPriceSpy = jest.spyOn(bitpandaService, 'getPrice');
+    currencyServiceGetPriceSpy = jest.spyOn(currencyService, 'getPrice');
     fixerServiceGetPriceSpy = jest.spyOn(fixerService, 'getPrice');
   });
 
@@ -54,6 +60,7 @@ describe('Pricing Module Integration Tests', () => {
     binanceServiceGetPriceSpy.mockClear();
     bitstampServiceGetPriceSpy.mockClear();
     bitpandaServiceGetPriceSpy.mockClear();
+    currencyServiceGetPriceSpy.mockClear();
     fixerServiceGetPriceSpy.mockClear();
   });
 
@@ -294,14 +301,14 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(krakenService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
-    fixerServiceGetPriceSpy = jest
-      .spyOn(fixerService, 'getPrice')
+    currencyServiceGetPriceSpy = jest
+      .spyOn(currencyService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
     const request = { from: 'EUR', to: 'USDC' };
     const result = await service.getPrice(request);
 
-    expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
+    expect(currencyServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
 
     expect(result.price).toBeInstanceOf(Price);
     expect(result.price.source).toBe('EUR');

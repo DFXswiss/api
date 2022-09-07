@@ -4,6 +4,7 @@ import { PriceMismatchException } from '../../exchange/exceptions/price-mismatch
 import { BinanceService } from '../../exchange/services/binance.service';
 import { BitpandaService } from '../../exchange/services/bitpanda.service';
 import { BitstampService } from '../../exchange/services/bitstamp.service';
+import { CurrencyService } from '../../exchange/services/currency.service';
 import { FixerService } from '../../exchange/services/fixer.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
 import { Altcoin, USDStableCoin, Fiat } from '../enums';
@@ -34,6 +35,7 @@ export class PricingService {
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
+    private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
   ) {
     this.configurePaths();
@@ -164,7 +166,7 @@ export class PricingService {
           referenceTo: 'USD',
           providers: {
             primary: [this.krakenService],
-            reference: [this.fixerService],
+            reference: [this.currencyService, this.fixerService],
           },
         }),
       ]),
