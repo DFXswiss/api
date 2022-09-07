@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from 'src/shared/models/asset/asset.repository';
 import { In } from 'typeorm';
 import { Asset } from './asset.entity';

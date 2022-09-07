@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Blockchain, CryptoService } from '../crypto.service';
+import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 describe('CryptoService', () => {
   let service: CryptoService;
@@ -29,7 +30,10 @@ describe('CryptoService', () => {
   });
 
   it('should return Blockchain.ETHEREUM and Blockchain.BINANCE_SMART_CHAIN for address 0x2d84553B3A4753009A314106d58F0CC21f441234', () => {
-    expect(service.getBlockchainsBasedOn('0x2d84553B3A4753009A314106d58F0CC21f441234')).toEqual([Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN]);
+    expect(service.getBlockchainsBasedOn('0x2d84553B3A4753009A314106d58F0CC21f441234')).toEqual([
+      Blockchain.ETHEREUM,
+      Blockchain.BINANCE_SMART_CHAIN,
+    ]);
   });
 
   it('should return Blockchain.DEFICHAIN for address tf1qpfe7qandmtsspgwyxlzcer66ajrzgy5n7e1234', () => {

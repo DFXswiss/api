@@ -10,7 +10,7 @@ import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
 import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TestUtil } from 'src/shared/test.util';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 describe('BuyController', () => {
   let controller: BuyController;
@@ -51,8 +51,8 @@ describe('BuyController', () => {
   it('should return a min deposit of 1 for a default buy route', async () => {
     jest.spyOn(buyService, 'getUserBuys').mockResolvedValue([createDefaultBuy()]);
 
-    await expect(controller.getAllBuy({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] })).resolves.toMatchObject([
-      { minDeposits: [{ amount: 1, asset: 'USD' }] },
-    ]);
+    await expect(
+      controller.getAllBuy({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] }),
+    ).resolves.toMatchObject([{ minDeposits: [{ amount: 1, asset: 'USD' }] }]);
   });
 });

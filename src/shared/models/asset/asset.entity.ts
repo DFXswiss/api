@@ -1,5 +1,5 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
 import { IEntity } from '../entity';
 
 export enum AssetType {

@@ -3,13 +3,7 @@ import { verify } from 'bitcoinjs-message';
 import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
-
-export enum Blockchain {
-  DEFICHAIN = 'DeFiChain',
-  BITCOIN = 'Bitcoin',
-  ETHEREUM = 'Ethereum',
-  BINANCE_SMART_CHAIN = 'BinanceSmartChain',
-}
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 // TODO - this is shared
 @Injectable()
