@@ -10,6 +10,7 @@ export abstract class PayoutEVMStrategy implements PayoutStrategy {
   ) {}
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
+    // TODO - improve error handling
     for (const order of orders) {
       const txId = await this.payoutEVMService.send(order.destinationAddress, order.amount);
       order.pendingPayout(txId);

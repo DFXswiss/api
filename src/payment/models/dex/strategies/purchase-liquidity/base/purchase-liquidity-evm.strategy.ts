@@ -7,6 +7,7 @@ export class PurchaseLiquidityEVMStrategy extends PurchaseLiquidityStrategy {
   }
 
   purchaseLiquidity(): Promise<void> {
+    // TODO - send email instead of just returning or reference back to checkLiquidity
     return;
   }
 }
