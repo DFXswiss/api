@@ -109,11 +109,10 @@ export class PayoutService {
 
       try {
         await strategy.checkPayoutCompletion(order);
+        order.status === PayoutOrderStatus.COMPLETE && confirmedOrders.push(order);
       } catch {
         continue;
       }
-
-      confirmedOrders.push(order);
     }
 
     this.logs.logPayoutCompletion(confirmedOrders);
@@ -128,11 +127,10 @@ export class PayoutService {
 
       try {
         await strategy.preparePayout(order);
+        order.status !== PayoutOrderStatus.CREATED && confirmedOrders.push(order);
       } catch {
         continue;
       }
-
-      confirmedOrders.push(order);
     }
 
     this.logs.logNewPayoutOrders(confirmedOrders);

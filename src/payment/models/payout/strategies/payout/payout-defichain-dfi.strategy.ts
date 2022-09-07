@@ -13,6 +13,7 @@ export class PayoutDeFiChainDFIStrategy extends PayoutDeFiChainStrategy {
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(mailService, payoutOrderRepo, defichainService);
+    this.defichainService.sendUtxoToMany = this.defichainService.sendUtxoToMany.bind(this.defichainService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

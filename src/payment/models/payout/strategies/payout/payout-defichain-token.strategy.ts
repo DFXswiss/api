@@ -17,6 +17,7 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(mailService, payoutOrderRepo, defichainService);
+    this.defichainService.sendTokenToMany = this.defichainService.sendTokenToMany.bind(this.defichainService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
