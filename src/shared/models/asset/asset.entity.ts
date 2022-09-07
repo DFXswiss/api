@@ -19,7 +19,7 @@ export class Asset extends IEntity {
   @Column({ type: 'int', nullable: true })
   chainId: number;
 
-  @Column({ unique: true, length: 256 })
+  @Column({ length: 256 })
   name: string;
 
   @Column({ length: 256 })
