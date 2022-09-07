@@ -1,5 +1,5 @@
 import { Blockchain } from 'src/ain/services/crypto.service';
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
 import { IEntity } from '../entity';
 
 export enum AssetType {
@@ -15,6 +15,9 @@ export enum AssetCategory {
 }
 
 @Entity()
+@Index('nameBlockchain', (asset: Asset) => [asset.name, asset.blockchain], {
+  unique: true,
+})
 export class Asset extends IEntity {
   @Column({ type: 'int', nullable: true })
   chainId: number;
