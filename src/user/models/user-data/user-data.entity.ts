@@ -35,6 +35,7 @@ export enum RiskState {
 export enum BlankType {
   PHONE,
   MAIL,
+  WALLET_ADDRESS,
 }
 
 @Entity()
@@ -206,6 +207,8 @@ export function Blank(value: string, type: BlankType): string {
     case BlankType.MAIL:
       const [name, domain] = value.split('@');
       return `${name[0]}${createStringOf('*', name.length - 1)}@${domain}`;
+    case BlankType.WALLET_ADDRESS:
+      return `${value.substring(0, 4)}${createStringOf('*', 8)}${value.substring(value.length - 4)}`;
   }
 }
 

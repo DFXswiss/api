@@ -201,8 +201,8 @@ export class KycService {
             firstname: completedUser.firstname,
             surname: completedUser.surname,
             organizationName: completedUser.organizationName ?? '',
-            existingAddress,
-            newAddress,
+            existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
+            newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
             url: this.buildLinkUrl(linkAddress.authentication),
           },
         });
