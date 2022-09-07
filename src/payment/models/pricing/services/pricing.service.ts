@@ -56,7 +56,7 @@ export class PricingService {
     try {
       const result = await path.execute(request);
 
-      this.logPriceResult(request, result);
+      this.logPriceResult(request, result, path.alias);
 
       return result;
     } catch (e) {
@@ -236,14 +236,14 @@ export class PricingService {
     return this.isFiat(asset) || this.isBTC(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset);
   }
 
-  private logPriceResult(request: PriceRequest, result: PriceResult): void {
+  private logPriceResult(request: PriceRequest, result: PriceResult, pathAlias: PricingPathAlias): void {
     const { from, to } = request;
     const {
       price: { source: resFrom, target: resTo, price },
       path,
     } = result;
 
-    const mailMessage = `Calculated Price for request from: ${from} to: ${to}. Final price: ${resTo}/${resFrom} ${price}. `;
+    const mailMessage = `Calculated Price for request from: ${from} to: ${to}. Final price: ${resTo}/${resFrom} ${price}. Alias: ${pathAlias}`;
     const pathMessage =
       'Path: ' + path.map((p) => ` ${p.provider} -> ${p.price.target}/${p.price.source} ${p.price.price}`);
 
