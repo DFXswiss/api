@@ -144,20 +144,15 @@ export class BuyController {
     const fallBackCurrency = 'EUR';
 
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
-
-    //buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(buy.iban, buy.user.id);
     const ibanCodeCountry = await this.countryService.getCountryWithSymbol(buy.bankAccount.iban.substring(0, 2));
 
     // select the matching bank account
-    if (dto.amount > frickAmountLimit) {
-      // amount > 9k => Frick
+    if (dto.amount > frickAmountLimit || dto.currency.name === 'USD') {
+      // amount > 9k => Frick || USD => Frick
       account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
     } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
-    } else if (dto.currency.name === 'USD') {
-      // USD => Frick
-      account = Config.bank.frick.accounts.find((a) => a.currency === 'USD');
     } else if (ibanCodeCountry.maerkiBaumannEnable && buy.user.userData.country.maerkiBaumannEnable) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
       account = this.getMatchingAccount(Config.bank.maerkiBaumann.accounts, dto.currency.name, fallBackCurrency);

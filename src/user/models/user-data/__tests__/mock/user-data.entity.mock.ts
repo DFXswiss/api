@@ -20,6 +20,7 @@ export function createCustomUserData(customValues: Partial<UserData>): UserData 
   const entity = new UserData();
 
   entity.mail = keys.includes('mail') ? mail : 'test@test.com';
+  entity.country = createDefaultCountry();
 
   return entity;
 }

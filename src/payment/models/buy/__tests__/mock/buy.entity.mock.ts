@@ -1,3 +1,5 @@
+import e from 'express';
+import { createDefaultBankAccount } from 'src/payment/models/bank-account/__tests__/mock/bank-account.entity.mock';
 import { Deposit } from 'src/payment/models/deposit/deposit.entity';
 import { createDefaultAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
 import { createDefaultUser } from 'src/user/models/user/__tests__/mock/user.entity.mock';
@@ -23,6 +25,7 @@ export function createCustomBuy(customValues: Partial<Buy>): Buy {
   entity.deposit = keys.includes('deposit') ? deposit : (null as Deposit); // not used in the tests atm
   entity.cryptoBuys = keys.includes('cryptoBuys') ? cryptoBuys : [];
   entity.buyCryptos = keys.includes('buyCryptos') ? buyCryptos : [];
+  entity.bankAccount = createDefaultBankAccount();
 
   return entity;
 }
