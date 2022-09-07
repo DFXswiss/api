@@ -30,6 +30,9 @@ import { SpiderService } from './services/spider/spider.service';
 import { KycProcessService } from './models/kyc/kyc-process.service';
 import { KycController } from './models/kyc/kyc.controller';
 import { GeoLocationService } from './services/geo-location.service';
+import { LinkController } from './models/link/link.controller';
+import { LinkService } from './models/link/link.service';
+import { LinkAddressRepository } from './models/link/link-address.repository';
 
 @Module({
   imports: [
@@ -41,6 +44,7 @@ import { GeoLocationService } from './services/geo-location.service';
       BankDataRepository,
       RefRepository,
       LimitRequestRepository,
+      LinkAddressRepository,
     ]),
     SharedModule,
     AinModule,
@@ -53,6 +57,7 @@ import { GeoLocationService } from './services/geo-location.service';
     AuthController,
     IdentController,
     KycController,
+    LinkController,
   ],
   providers: [
     UserService,
@@ -69,7 +74,8 @@ import { GeoLocationService } from './services/geo-location.service';
     LimitRequestService,
     IdentService,
     GeoLocationService,
+    LinkService,
   ],
-  exports: [UserService, UserDataService, RefService, KycService, SpiderService, SpiderApiService],
+  exports: [UserService, UserDataService, RefService, KycService, SpiderService, SpiderApiService, LinkService],
 })
 export class UserModule {}

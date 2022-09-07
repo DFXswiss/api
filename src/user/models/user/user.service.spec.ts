@@ -13,6 +13,7 @@ import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { TestUtil } from 'src/shared/test.util';
 import { GeoLocationService } from 'src/user/services/geo-location.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { CryptoService } from 'src/ain/services/crypto.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 
 describe('UserService', () => {
@@ -27,6 +28,7 @@ describe('UserService', () => {
   let dfiTaxService: DfiTaxService;
   let geoLocationService: GeoLocationService;
   let countryService: CountryService;
+  let cryptoService: CryptoService;
   let apiKeyService: ApiKeyService;
 
   function setup(
@@ -51,6 +53,7 @@ describe('UserService', () => {
     dfiTaxService = createMock<DfiTaxService>();
     geoLocationService = createMock<GeoLocationService>();
     countryService = createMock<CountryService>();
+    cryptoService = createMock<CryptoService>();
     apiKeyService = createMock<ApiKeyService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -65,6 +68,7 @@ describe('UserService', () => {
         { provide: DfiTaxService, useValue: dfiTaxService },
         { provide: GeoLocationService, useValue: geoLocationService },
         { provide: CountryService, useValue: countryService },
+        { provide: CryptoService, useValue: cryptoService },
         { provide: ApiKeyService, useValue: apiKeyService },
         TestUtil.provideConfig(),
       ],

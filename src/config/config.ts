@@ -60,6 +60,11 @@ export class Configuration {
     },
   };
 
+  mydefichain = {
+    username: process.env.MYDEFICHAIN_USER,
+    password: process.env.MYDEFICHAIN_PASSWORD,
+  };
+
   auth = {
     jwt: {
       secret: process.env.JWT_SECRET,
@@ -71,6 +76,8 @@ export class Configuration {
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageWallet:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
+    signMessageGeneral:
+      'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
 
   kyc = {
@@ -106,6 +113,10 @@ export class Configuration {
   letter = {
     auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
+  };
+
+  payment = {
+    url: process.env.PAYMENT_URL,
   };
 
   mail: MailOptions = {
@@ -318,7 +329,13 @@ export class Configuration {
   }
 
   get addressFormat(): RegExp {
-    return this.environment === 'prd' ? /^(8\w{33}|d\w{33}|d\w{41})$/ : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41})$/;
+    return this.environment === 'prd'
+      ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
+      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/;
+  }
+
+  get signatureFormat(): RegExp {
+    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132})$/;
   }
 }
 

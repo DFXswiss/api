@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Blank,
   BlankType,
+  KycCompleted,
   KycInProgress,
   KycState,
   KycStatus,
@@ -16,6 +17,11 @@ import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
+import { MailService } from 'src/shared/services/mail.service';
+import { Config } from 'src/config/config';
+import { LinkService } from '../link/link.service';
+import { LinkAddressRepository } from '../link/link-address.repository';
+import { LinkAddress } from '../link/link-address.entity';
 import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 
 export interface KycInfo {
@@ -40,6 +46,8 @@ export class KycService {
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
+    private readonly mailService: MailService,
+    private readonly linkAddressRepo: LinkAddressRepository,
   ) {}
 
   // --- ADMIN/SUPPORT --- //
@@ -175,11 +183,39 @@ export class KycService {
     const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
+    const users = await this.userDataService.getUsersByMail(user.mail);
+    const completedUser = users.find((data) => KycCompleted(data.kycStatus));
+    if (completedUser) {
+      const oldestToNewestUser = completedUser.users.sort((a, b) => (a.created > b.created ? 1 : -1));
+      const existingAddress = oldestToNewestUser[0].address;
+      const newAddress = user.users[0].address;
+
+      const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
+
+      await this.mailService.sendTranslatedMail({
+        userData: user,
+        translationKey: 'mail.link.address',
+        params: {
+          firstname: completedUser.firstname,
+          surname: completedUser.surname,
+          organizationName: completedUser.organizationName ?? '',
+          existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
+          newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
+          url: this.buildLinkUrl(linkAddress.authentication),
+        },
+      });
+      throw new ConflictException('User already has completed Kyc');
+    }
+
     // update
     user = await this.startKyc(user);
     await this.userDataRepo.save(user);
 
     return this.createKycInfoBasedOn(user);
+  }
+
+  private buildLinkUrl(authentication: string): string {
+    return `${Config.payment.url}/link?authentication=${authentication}`;
   }
 
   private async startKyc(userData: UserData): Promise<UserData> {
@@ -236,7 +272,7 @@ export class KycService {
   }
 
   private async getUserByKycCode(code: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] });
+    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['users', 'spiderData'] });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
   }

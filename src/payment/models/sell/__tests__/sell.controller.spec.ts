@@ -8,6 +8,7 @@ import { SellService } from '../sell.service';
 import { TestUtil } from 'src/shared/test.util';
 import { createDefaultSell } from '../__mocks__/sell.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 describe('SellController', () => {
   let controller: SellController;
@@ -42,7 +43,7 @@ describe('SellController', () => {
   it('should return a min deposit of 0.01 DFI and 1 USD for a default sell route', async () => {
     jest.spyOn(sellService, 'getUserSells').mockResolvedValue([createDefaultSell()]);
 
-    await expect(controller.getAllSell({ id: 0, address: '', role: UserRole.USER })).resolves.toMatchObject([
+    await expect(controller.getAllSell({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] })).resolves.toMatchObject([
       {
         minDeposits: [
           { amount: 0.01, asset: 'DFI' },

@@ -148,6 +148,15 @@
     },
     "chainalysisApiKey": {
       "value": "xxx"
+    },
+    "myDeFiChainUser": {
+      "value": "xxx"
+    },
+    "myDeFiChainPassword": {
+      "value": "xxx"
+    },
+    "paymentUrl": {
+      "value": "http://localhost:19006"
     }
   }
 }
