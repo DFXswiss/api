@@ -1,4 +1,4 @@
-describe('DEX Module Integration Tests', () => {
+describe.skip('DEX Module Integration Tests', () => {
   describe('Check Liquidity', () => {
     it('checks BNB coin availability', () => {
       // TODO

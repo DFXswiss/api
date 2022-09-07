@@ -1,4 +1,4 @@
-describe('Buy Crypto Integration Tests', () => {
+describe.skip('Buy Crypto Integration Tests', () => {
   describe('Buy on Defichain', () => {
     it('buys DFI coin', () => {
       // TODO

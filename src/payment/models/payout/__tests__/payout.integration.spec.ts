@@ -1,4 +1,4 @@
-describe('Payout Module Integration Tests', () => {
+describe.skip('Payout Module Integration Tests', () => {
   describe('Do Payout Liquidity', () => {
     it('pays out DeFiChain DFI', () => {
       // TODO
