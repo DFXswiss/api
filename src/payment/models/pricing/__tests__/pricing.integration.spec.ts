@@ -82,11 +82,11 @@ describe('Pricing Module Integration Tests', () => {
   it('calculates price path for FIAT_TO_BTC', async () => {
     krakenServiceGetPriceSpy = jest
       .spyOn(krakenService, 'getPrice')
-      .mockImplementationOnce(async () => createCustomPrice({ source: 'USD', target: 'BTC', price: 0.00005 }));
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.00005 }));
 
     binanceServiceGetPriceSpy = jest
       .spyOn(binanceService, 'getPrice')
-      .mockImplementationOnce(async () => createCustomPrice({ source: 'USD', target: 'BTC', price: 0.00005 }));
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.00005 }));
 
     const request = { from: 'USD', to: 'BTC' };
     const result = await service.getPrice(request);
@@ -112,11 +112,11 @@ describe('Pricing Module Integration Tests', () => {
   it('calculates price path for ALTCOIN_TO_BTC', async () => {
     binanceServiceGetPriceSpy = jest
       .spyOn(binanceService, 'getPrice')
-      .mockImplementationOnce(async () => createCustomPrice({ source: 'BNB', target: 'BTC', price: 0.014 }));
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.014 }));
 
     krakenServiceGetPriceSpy = jest
       .spyOn(krakenService, 'getPrice')
-      .mockImplementationOnce(async () => createCustomPrice({ source: 'BNB', target: 'BTC', price: 0.014 }));
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.014 }));
 
     const request = { from: 'BNB', to: 'BTC' };
     const result = await service.getPrice(request);
@@ -139,32 +139,120 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
   });
 
-  it.skip('calculates price path for FIAT_TO_ALTCOIN', async () => {
+  it('calculates price path for FIAT_TO_ALTCOIN', async () => {
     binanceServiceGetPriceSpy = jest
       .spyOn(binanceService, 'getPrice')
       .mockImplementationOnce(async (source: string, target: string) =>
         createCustomPrice({ source, target, price: 0.000058 }),
       )
       .mockImplementationOnce(async (source: string, target: string) =>
-        createCustomPrice({ source, target, price: 0.014 }),
+        createCustomPrice({ source, target, price: 71.3 }),
       );
 
     krakenServiceGetPriceSpy = jest
-      .spyOn(binanceService, 'getPrice')
+      .spyOn(krakenService, 'getPrice')
       .mockImplementationOnce(async (source: string, target: string) =>
         createCustomPrice({ source, target, price: 0.000058 }),
       )
       .mockImplementationOnce(async (source: string, target: string) =>
-        createCustomPrice({ source, target, price: 0.014 }),
+        createCustomPrice({ source, target, price: 71.3 }),
       );
 
     const request = { from: 'GBP', to: 'BNB' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
-    expect(result.price.source).toBe('BNB');
-    expect(result.price.target).toBe('BTC');
-    expect(result.price.price).toBe(0.014);
+    expect(result.price.source).toBe('GBP');
+    expect(result.price.target).toBe('BNB');
+    expect(result.price.price).toBe(0.0041354);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(2);
+
+    expect(result.path[0].provider).toBe('Kraken');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('GBP');
+    expect(result.path[0].price.target).toBe('BTC');
+    expect(result.path[0].price.price).toBe(0.000058);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
+
+    expect(result.path[1].provider).toBe('Binance');
+
+    expect(result.path[1].price).toBeInstanceOf(Price);
+    expect(result.path[1].price.source).toBe('BTC');
+    expect(result.path[1].price.target).toBe('BNB');
+    expect(result.path[1].price.price).toBe(71.3);
+
+    expect(result.path[1].timestamp).toBeInstanceOf(Date);
+  });
+
+  it('calculates price path for ALTCOIN_TO_ALTCOIN', async () => {
+    binanceServiceGetPriceSpy = jest
+      .spyOn(binanceService, 'getPrice')
+      .mockImplementationOnce(async (source: string, target: string) =>
+        createCustomPrice({ source, target, price: 0.081 }),
+      )
+      .mockImplementationOnce(async (source: string, target: string) =>
+        createCustomPrice({ source, target, price: 71.3 }),
+      );
+
+    krakenServiceGetPriceSpy = jest
+      .spyOn(krakenService, 'getPrice')
+      .mockImplementationOnce(async (source: string, target: string) =>
+        createCustomPrice({ source, target, price: 0.081 }),
+      )
+      .mockImplementationOnce(async (source: string, target: string) =>
+        createCustomPrice({ source, target, price: 71.3 }),
+      );
+
+    const request = { from: 'ETH', to: 'BNB' };
+    const result = await service.getPrice(request);
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('ETH');
+    expect(result.price.target).toBe('BNB');
+    expect(result.price.price).toBe(5.7753);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(2);
+
+    expect(result.path[0].provider).toBe('Binance');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('ETH');
+    expect(result.path[0].price.target).toBe('BTC');
+    expect(result.path[0].price.price).toBe(0.081);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
+
+    expect(result.path[1].provider).toBe('Binance');
+
+    expect(result.path[1].price).toBeInstanceOf(Price);
+    expect(result.path[1].price.source).toBe('BTC');
+    expect(result.path[1].price.target).toBe('BNB');
+    expect(result.path[1].price.price).toBe(71.3);
+
+    expect(result.path[1].timestamp).toBeInstanceOf(Date);
+  });
+
+  it('calculates price path for BTC_TO_ALTCOIN', async () => {
+    binanceServiceGetPriceSpy = jest
+      .spyOn(binanceService, 'getPrice')
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 12.38 }));
+
+    krakenServiceGetPriceSpy = jest
+      .spyOn(krakenService, 'getPrice')
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 12.38 }));
+
+    const request = { from: 'BTC', to: 'ETH' };
+    const result = await service.getPrice(request);
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('BTC');
+    expect(result.price.target).toBe('ETH');
+    expect(result.price.price).toBe(12.38);
 
     expect(Array.isArray(result.path)).toBe(true);
     expect(result.path.length).toBe(1);
@@ -172,32 +260,64 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[0].provider).toBe('Binance');
 
     expect(result.path[0].price).toBeInstanceOf(Price);
-    expect(result.path[0].price.source).toBe('BNB');
-    expect(result.path[0].price.target).toBe('BTC');
-    expect(result.path[0].price.price).toBe(0.014);
+    expect(result.path[0].price.source).toBe('BTC');
+    expect(result.path[0].price.target).toBe('ETH');
+    expect(result.path[0].price.price).toBe(12.38);
 
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
   });
 
-  it('calculates price path for ALTCOIN_TO_ALTCOIN', () => {
-    // TODO
+  it('calculates price path for MATCHING_FIAT_TO_USD_STABLE_COIN', async () => {
+    const request = { from: 'USD', to: 'USDC' };
+    const result = await service.getPrice(request);
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('USD');
+    expect(result.price.target).toBe('USDC');
+    expect(result.price.price).toBe(1);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(1);
+
+    expect(result.path[0].provider).toBe('FixedPrice');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('USD');
+    expect(result.path[0].price.target).toBe('USDC');
+    expect(result.path[0].price.price).toBe(1);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
   });
 
-  it('calculates price path for BTC_TO_ALTCOIN', () => {
-    // TODO
-  });
+  it('calculates price path for NON_MATCHING_FIAT_TO_USD_STABLE_COIN', async () => {
+    krakenServiceGetPriceSpy = jest
+      .spyOn(krakenService, 'getPrice')
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
-  it('calculates price path for MATCHING_FIAT_TO_USD_STABLE_COIN', () => {
-    // TODO
-  });
+    fixerServiceGetPriceSpy = jest
+      .spyOn(fixerService, 'getPrice')
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
-  it('calculates price path for NON_MATCHING_FIAT_TO_USD_STABLE_COIN', () => {
-    // TODO
-  });
+    const request = { from: 'EUR', to: 'USDC' };
+    const result = await service.getPrice(request);
 
-  describe('General Failure Scenarios', () => {
-    it('', () => {
-      // TODO
-    });
+    expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('EUR');
+    expect(result.price.target).toBe('USDC');
+    expect(result.price.price).toBe(1.1);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(1);
+
+    expect(result.path[0].provider).toBe('Kraken');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('EUR');
+    expect(result.path[0].price.target).toBe('USDC');
+    expect(result.path[0].price.price).toBe(1.1);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
   });
 });

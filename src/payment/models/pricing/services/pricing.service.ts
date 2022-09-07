@@ -245,7 +245,7 @@ export class PricingService {
 
     const mailMessage = `Calculated Price for request from: ${from} to: ${to}. Final price: ${resTo}/${resFrom} ${price}. `;
     const pathMessage =
-      'Path: ' + path.map((p) => `${p.provider} -> ${p.price.target}/${p.price.source} ${p.price.price}. `);
+      'Path: ' + path.map((p) => ` ${p.provider} -> ${p.price.target}/${p.price.source} ${p.price.price}`);
 
     console.info(mailMessage + pathMessage);
   }

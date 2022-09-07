@@ -127,7 +127,7 @@ export class PriceStep {
     if (!price) {
       throw new Error(
         `Could not find reference price at: ${referenceProviders.map(
-          (p) => p.name + '; ',
+          (p) => p.name + ';',
         )}. From ${fromCurrency} to ${toCurrency}`,
       );
     }
