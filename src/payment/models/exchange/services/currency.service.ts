@@ -14,8 +14,9 @@ export class CurrencyService implements PriceProvider {
   async getPrice(from: string, to: string): Promise<Price> {
     const targetPrice = await this.conversionService.convertFiat(1, from, to);
 
-    if (targetPrice === undefined)
+    if (targetPrice === undefined) {
       throw new Error(`Could not find target price on CurrencyService. From: ${from}, to: ${to}`);
+    }
 
     const price = new Price();
 
