@@ -184,29 +184,27 @@ export class KycService {
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
     const users = await this.userDataService.getUsersByMail(user.mail);
-    if (users) {
-      const completedUser = users.find((data) => KycCompleted(data.kycStatus));
-      if (completedUser) {
-        const oldestToNewestUser = completedUser.users.sort((a, b) => (a.created > b.created ? 1 : -1));
-        const existingAddress = oldestToNewestUser[0].address;
-        const newAddress = user.users[0].address;
+    const completedUser = users.find((data) => KycCompleted(data.kycStatus));
+    if (completedUser) {
+      const oldestToNewestUser = completedUser.users.sort((a, b) => (a.created > b.created ? 1 : -1));
+      const existingAddress = oldestToNewestUser[0].address;
+      const newAddress = user.users[0].address;
 
-        const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
+      const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
-        await this.mailService.sendTranslatedMail({
-          userData: user,
-          translationKey: 'mail.link.address',
-          params: {
-            firstname: completedUser.firstname,
-            surname: completedUser.surname,
-            organizationName: completedUser.organizationName ?? '',
-            existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
-            newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
-            url: this.buildLinkUrl(linkAddress.authentication),
-          },
-        });
-        throw new ConflictException('User already has completed Kyc');
-      }
+      await this.mailService.sendTranslatedMail({
+        userData: user,
+        translationKey: 'mail.link.address',
+        params: {
+          firstname: completedUser.firstname,
+          surname: completedUser.surname,
+          organizationName: completedUser.organizationName ?? '',
+          existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
+          newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
+          url: this.buildLinkUrl(linkAddress.authentication),
+        },
+      });
+      throw new ConflictException('User already has completed Kyc');
     }
 
     // update
