@@ -17,11 +17,7 @@ import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
-import { MailService } from 'src/shared/services/mail.service';
-import { Config } from 'src/config/config';
 import { LinkService } from '../link/link.service';
-import { LinkAddressRepository } from '../link/link-address.repository';
-import { LinkAddress } from '../link/link-address.entity';
 import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 
 export interface KycInfo {
@@ -46,8 +42,7 @@ export class KycService {
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
-    private readonly mailService: MailService,
-    private readonly linkAddressRepo: LinkAddressRepository,
+    private readonly linkService: LinkService,
   ) {}
 
   // --- ADMIN/SUPPORT --- //
@@ -186,24 +181,7 @@ export class KycService {
     const users = await this.userDataService.getUsersByMail(user.mail);
     const completedUser = users.find((data) => KycCompleted(data.kycStatus));
     if (completedUser) {
-      const oldestToNewestUser = completedUser.users.sort((a, b) => (a.created > b.created ? 1 : -1));
-      const existingAddress = oldestToNewestUser[0].address;
-      const newAddress = user.users[0].address;
-
-      const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
-
-      await this.mailService.sendTranslatedMail({
-        userData: user,
-        translationKey: 'mail.link.address',
-        params: {
-          firstname: completedUser.firstname,
-          surname: completedUser.surname,
-          organizationName: completedUser.organizationName ?? '',
-          existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
-          newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
-          url: this.buildLinkUrl(linkAddress.authentication),
-        },
-      });
+      await this.linkService.createNewLinkAddress(user, completedUser);
       throw new ConflictException('User already has completed Kyc');
     }
 
@@ -212,10 +190,6 @@ export class KycService {
     await this.userDataRepo.save(user);
 
     return this.createKycInfoBasedOn(user);
-  }
-
-  private buildLinkUrl(authentication: string): string {
-    return `${Config.payment.url}/link?authentication=${authentication}`;
   }
 
   private async startKyc(userData: UserData): Promise<UserData> {

@@ -1,6 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Config } from 'src/config/config';
+import { MailService } from 'src/shared/services/mail.service';
+import { Blank, BlankType, UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
-import { UserService } from '../user/user.service';
+import { User } from '../user/user.entity';
+import { UserRepository } from '../user/user.repository';
 import { LinkAddress } from './link-address.entity';
 import { LinkAddressRepository } from './link-address.repository';
 
@@ -8,13 +12,35 @@ import { LinkAddressRepository } from './link-address.repository';
 export class LinkService {
   constructor(
     private readonly linkAddressRepo: LinkAddressRepository,
-    private readonly userService: UserService,
+    private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
+    private readonly mailService: MailService,
   ) {}
 
   async getLinkAddress(authentication: string): Promise<LinkAddress> {
     return this.linkAddressRepo.findOne({
       where: { authentication },
+    });
+  }
+
+  async createNewLinkAddress(user: UserData, completedUser: UserData): Promise<void> {
+    const oldestToNewestUser = this.sortOldToNew(completedUser.users);
+    const existingAddress = oldestToNewestUser[0].address;
+    const newAddress = user.users[0].address;
+
+    const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
+
+    await this.mailService.sendTranslatedMail({
+      userData: user,
+      translationKey: 'mail.link.address',
+      params: {
+        firstname: completedUser.firstname,
+        surname: completedUser.surname,
+        organizationName: completedUser.organizationName ?? '',
+        existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
+        newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
+        url: this.buildLinkUrl(linkAddress.authentication),
+      },
     });
   }
 
@@ -25,15 +51,23 @@ export class LinkService {
     if (linkAddress.isExpired()) throw new BadRequestException('Link address request is expired');
     if (linkAddress.isCompleted) throw new ConflictException('Link address request is already completed');
 
-    const existingUser = await this.userService.getUserByAddress(linkAddress.existingAddress, true);
+    const existingUser = await this.userRepo.getByAddress(linkAddress.existingAddress, true);
     if (!existingUser) throw new NotFoundException('User not found');
 
-    const userToBeLinked = await this.userService.getUserByAddress(linkAddress.newAddress, true);
+    const userToBeLinked = await this.userRepo.getByAddress(linkAddress.newAddress, true);
     if (!userToBeLinked) throw new NotFoundException('User not found');
 
     await this.userDataService.mergeUserData(existingUser.userData.id, userToBeLinked.userData.id);
     await this.linkAddressRepo.save(linkAddress.complete());
 
     return linkAddress;
+  }
+
+  private sortOldToNew(users: User[]): User[] {
+    return users.sort((a, b) => (a.created > b.created ? 1 : -1));
+  }
+
+  private buildLinkUrl(authentication: string): string {
+    return `${Config.payment.url}/link?authentication=${authentication}`;
   }
 }

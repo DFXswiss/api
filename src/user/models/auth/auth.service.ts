@@ -29,7 +29,7 @@ export class AuthService {
   ) {}
 
   async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
-    const existingUser = await this.userService.getUserByAddress(dto.address);
+    const existingUser = await this.userRepo.getByAddress(dto.address);
     if (existingUser) {
       throw new ConflictException('User already exists');
     }
@@ -48,7 +48,7 @@ export class AuthService {
   }
 
   async signIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    const user = await this.userService.getUserByAddress(address);
+    const user = await this.userRepo.getByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
     const credentialsValid = this.verifySignature(address, signature);
@@ -66,7 +66,8 @@ export class AuthService {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
     return {
       message:
-        (blockchains.includes(Blockchain.DEFICHAIN) ? Config.auth.signMessage : Config.auth.signMessageGeneral) + address,
+        (blockchains.includes(Blockchain.DEFICHAIN) ? Config.auth.signMessage : Config.auth.signMessageGeneral) +
+        address,
       blockchains,
     };
   }
