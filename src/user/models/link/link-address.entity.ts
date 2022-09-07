@@ -39,6 +39,6 @@ export class LinkAddress extends IEntity {
   }
 
   isExpired(): boolean {
-    return this.expiration.getTime() < new Date().getTime();
+    return this.expiration < new Date();
   }
 }

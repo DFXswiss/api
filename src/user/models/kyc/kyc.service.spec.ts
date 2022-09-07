@@ -68,6 +68,9 @@ describe('KycService', () => {
     jest.spyOn(userDataService, 'getUserDataByUser').mockImplementation(() => {
       return Promise.resolve(wantedUserData);
     });
+    jest.spyOn(userDataService, 'getUsersByMail').mockImplementation(() => {
+      return Promise.resolve([]);
+    });
     jest.spyOn(countryService, 'getCountry').mockImplementation(() => {
       return Promise.resolve(defaultCountry);
     });

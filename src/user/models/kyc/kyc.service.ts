@@ -183,11 +183,10 @@ export class KycService {
     const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
-    const users = await this.userDataService.getUsersByInformation(user);
+    const users = await this.userDataService.getUsersByMail(user.mail);
     if (users) {
       const completedUser = users.find((data) => KycCompleted(data.kycStatus));
-      const shouldSendLinkEmail = users.length > 1;
-      if (shouldSendLinkEmail && completedUser) {
+      if (completedUser) {
         const oldestToNewestUser = completedUser.users.sort((a, b) => (a.created > b.created ? 1 : -1));
         const existingAddress = oldestToNewestUser[0].address;
         const newAddress = user.users[0].address;
