@@ -15,6 +15,6 @@ export class LinkedUserOutDto extends LinkedUserInDto {
   @ApiProperty()
   isSwitchable: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ enum: Blockchain, isArray: true })
   blockchains: Blockchain[];
 }
