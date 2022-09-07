@@ -64,10 +64,6 @@ export class UserService {
     return await this.toDto(user, detailed);
   }
 
-  async getUserByAddress(address: string, needsRelation = false): Promise<User> {
-    return this.userRepo.findOne({ where: { address }, relations: needsRelation ? ['userData', 'wallet'] : [] });
-  }
-
   async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
     return this.userRepo
       .createQueryBuilder('user')
@@ -80,9 +76,9 @@ export class UserService {
       .getRawMany<LinkedUserOutDto>()
       .then((linkedUsers) => {
         return linkedUsers.map((u) => {
-          return {...u, blockchains: this.cryptoService.getBlockchainsBasedOn(u.address)}
+          return { ...u, blockchains: this.cryptoService.getBlockchainsBasedOn(u.address) };
         });
-      })
+      });
   }
 
   async getRefUser(ref: string): Promise<User> {
