@@ -51,8 +51,6 @@ export class PrepareDeFiChainStrategy implements PrepareStrategy {
       }
     } catch (e) {
       console.error(`Error in checking completion of funds transfer for payout order. Order ID: ${order.id}`, e);
-      // TODO - double check the error handling inside a loop
-      // continue;
     }
   }
 }

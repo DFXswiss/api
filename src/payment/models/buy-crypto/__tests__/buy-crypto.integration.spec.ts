@@ -1,41 +1,153 @@
 describe.skip('Buy Crypto Integration Tests', () => {
   describe('Buy on Defichain', () => {
-    it('buys DFI coin', () => {
-      // TODO
+    describe('DFI coin', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
 
-    it('buys USD stablecoin', () => {
-      // TODO
+    describe('USD stablecoin', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
 
-    it('buys non-DFI Crypto coin', () => {
-      // TODO
+    describe('non-DFI Crypto coin', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
 
-    it('buys Tokens', () => {
-      // TODO
+    describe('Tokens', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
 
-    it('buys Pool Pair', () => {
-      // TODO
+    describe('Pool Pair', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
   });
 
   describe('Buy on Bitcoin', () => {
-    it('buys BTC coin', () => {
-      // TODO
+    describe('buys BTC coin', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
   });
 
   describe('Buy on Ethereum', () => {
-    it('buys ETH coin', () => {
-      // TODO
+    describe('buys ETH coin', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
   });
 
   describe('Buy on Binance Smart Chain', () => {
-    it('buys BNB coin', () => {
-      // TODO
+    describe('buys BNB coin', () => {
+      it('buys for FIAT', () => {
+        // TODO
+      });
+
+      it('buys for BTC', () => {
+        // TODO
+      });
+
+      it('buys for Altcoin', () => {
+        // TODO
+      });
+
+      it('buys for USDStablecoin', () => {
+        // TODO
+      });
     });
   });
 
@@ -45,12 +157,6 @@ describe.skip('Buy Crypto Integration Tests', () => {
     });
 
     it('disallow to created new batches, when a batch for currency pair is in progress', () => {
-      // TODO
-    });
-  });
-
-  describe('General Failure Scenarios', () => {
-    it('', () => {
       // TODO
     });
   });

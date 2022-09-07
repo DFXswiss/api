@@ -91,7 +91,8 @@ export class PayoutService {
       try {
         await strategy.checkPreparationCompletion(order);
         order.status === PayoutOrderStatus.PREPARATION_CONFIRMED && confirmedOrders.push(order);
-      } catch {
+      } catch (e) {
+        console.error('Error while checking payout preparation status', e);
         continue;
       }
     }
