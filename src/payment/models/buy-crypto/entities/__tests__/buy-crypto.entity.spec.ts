@@ -39,7 +39,7 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('XYZ');
     });
 
-    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is not EUR | CHF | GBP', () => {
+    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is not EUR | CHF | GBP | USD', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'ETH',
@@ -50,7 +50,7 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDC');
+      expect(entity.outputReferenceAsset).toBe('BTC');
     });
 
     it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset USD', () => {
@@ -67,7 +67,7 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is EUR', () => {
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is EUR', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'EUR',
@@ -78,10 +78,10 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is CHF', () => {
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is CHF', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'CHF',
@@ -92,10 +92,10 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is GBP', () => {
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is GBP', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'GBP',
@@ -106,10 +106,10 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is not EUR | CHF | GBP', () => {
+    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is not EUR | CHF | GBP | USD', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'ETH',
@@ -120,7 +120,7 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDT');
+      expect(entity.outputReferenceAsset).toBe('BTC');
     });
 
     it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset USD', () => {
@@ -137,7 +137,7 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDT');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is EUR', () => {
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is EUR', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'EUR',
@@ -148,10 +148,10 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBe('USDT');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is CHF', () => {
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is CHF', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'CHF',
@@ -162,10 +162,10 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBe('USDT');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is GBP', () => {
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is GBP', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'GBP',
@@ -176,7 +176,7 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBe('USDT');
     });
 
     it('assigns outputReferenceAsset to ETH, on Ethereum blockchain', () => {
