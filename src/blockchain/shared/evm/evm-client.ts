@@ -30,6 +30,8 @@ export class EVMClient {
       gasLimit: '21000',
     });
 
+    await tx.wait();
+
     return tx.hash;
   }
 

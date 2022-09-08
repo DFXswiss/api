@@ -9,9 +9,6 @@ import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { DexStrategiesFacade } from '../strategies/strategies.facade';
 import { LiquidityRequest, TransferRequest } from '../interfaces';
 
@@ -20,9 +17,6 @@ export class DexService {
   private readonly verifyPurchaseOrdersLock = new Lock(1800);
 
   constructor(
-    readonly mailService: MailService,
-    readonly settingService: SettingService,
-    readonly assetService: AssetService,
     private readonly strategies: DexStrategiesFacade,
     private readonly dexDeFiChainService: DexDeFiChainService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
@@ -100,6 +94,7 @@ export class DexService {
     } catch (e) {
       // publicly exposed exception
       if (e instanceof PriceSlippageException) throw e;
+      if (e instanceof NotEnoughLiquidityException) throw e;
 
       console.error(e.message);
 

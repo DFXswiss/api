@@ -39,4 +39,8 @@ export abstract class DexEVMService {
 
     return amount;
   }
+
+  get _nativeCoin(): string {
+    return this.nativeCoin;
+  }
 }

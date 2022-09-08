@@ -10,12 +10,15 @@ export abstract class PayoutEVMStrategy implements PayoutStrategy {
   ) {}
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
-    // TODO - improve error handling
     for (const order of orders) {
-      const txId = await this.payoutEVMService.send(order.destinationAddress, order.amount);
-      order.pendingPayout(txId);
+      try {
+        const txId = await this.payoutEVMService.send(order.destinationAddress, order.amount);
+        order.pendingPayout(txId);
 
-      await this.payoutOrderRepo.save(order);
+        await this.payoutOrderRepo.save(order);
+      } catch (e) {
+        console.error(`Error while executing EVM payout order. Order ID: ${order.id}`, e);
+      }
     }
   }
 
@@ -29,7 +32,7 @@ export abstract class PayoutEVMStrategy implements PayoutStrategy {
         await this.payoutOrderRepo.save(order);
       }
     } catch (e) {
-      console.error(`Error in checking payout order completion. Order ID: ${order.id}`, e);
+      console.error(`Error in checking EVM payout order completion. Order ID: ${order.id}`, e);
     }
   }
 }

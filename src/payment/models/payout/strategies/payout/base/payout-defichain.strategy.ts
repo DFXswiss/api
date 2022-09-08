@@ -22,7 +22,7 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
         await this.doPayoutForContext(context, group);
       }
     } catch (e) {
-      console.error('Error while executing payout orders', e);
+      console.error('Error while executing DeFiChain payout orders', e);
     }
   }
 
@@ -36,7 +36,7 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
         await this.payoutOrderRepo.save(order);
       }
     } catch (e) {
-      console.error(`Error in checking payout order completion. Order ID: ${order.id}`, e);
+      console.error(`Error in checking DeFiChain payout order completion. Order ID: ${order.id}`, e);
     }
   }
 
