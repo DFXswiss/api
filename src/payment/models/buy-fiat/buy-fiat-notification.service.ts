@@ -47,6 +47,8 @@ export class BuyFiatNotificationService {
               inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
             },
           });
+        } else {
+          console.error(`Failed to send buy fiat mails ${entity.id}: user has no email`);
         }
 
         await this.buyFiatRepo.update(
