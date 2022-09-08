@@ -123,10 +123,6 @@ export class BuyFiat extends IEntity {
   isComplete: boolean;
 
   offRampInitiated(recipientMail: string): this {
-    if (!recipientMail) {
-      throw new Error(`Cannot record off-ramp first email, no recipientMail provided. BuyFiat ID: ${this.id}`);
-    }
-
     this.recipientMail = recipientMail;
     this.mail1SendDate = new Date();
 
