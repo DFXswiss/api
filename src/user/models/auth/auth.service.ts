@@ -66,9 +66,7 @@ export class AuthService {
   getSignMessage(address: string): { message: string; blockchains: Blockchain[] } {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
     return {
-      message:
-        (blockchains.includes(Blockchain.DEFICHAIN) ? Config.auth.signMessage : Config.auth.signMessageGeneral) +
-        address,
+      message: Config.auth.signMessageGeneral + address,
       blockchains,
     };
   }

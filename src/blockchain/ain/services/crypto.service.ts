@@ -4,19 +4,29 @@ import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class CryptoService {
   public verifySignature(message: string, address: string, signature: string): boolean {
     const blockchains = this.getBlockchainsBasedOn(address);
+    const defichainFallbackMessage = Config.auth.signMessage + address;
 
     let isValid = false;
     try {
       isValid = this.verify(message, address, signature, blockchains);
+
+      if (!isValid && blockchains.includes(Blockchain.DEFICHAIN)) {
+        isValid = this.verify(defichainFallbackMessage, address, signature, blockchains);
+      }
     } catch (e) {}
 
     if (!isValid && !blockchains.includes(Blockchain.ETHEREUM)) {
       isValid = this.fallbackVerify(message, address, signature, blockchains);
+
+      if (!isValid && blockchains.includes(Blockchain.DEFICHAIN)) {
+        isValid = this.fallbackVerify(defichainFallbackMessage, address, signature, blockchains);
+      }
     }
     return isValid;
   }
