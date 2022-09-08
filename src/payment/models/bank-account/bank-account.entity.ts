@@ -24,7 +24,7 @@ export interface BankAccountInfos {
   scc: boolean;
   sctInst: boolean;
   sctInstReadinessDate: Date;
-  acountNumber: string;
+  accountNumber: string;
   dataAge: string;
   ibanListed: string;
   ibanWwwOccurrences: number;
@@ -108,7 +108,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   sctInstReadinessDate: Date;
 
   @Column({ length: 256, nullable: true })
-  acountNumber: string;
+  accountNumber: string;
 
   @Column({ length: 256, nullable: true })
   dataAge: string;

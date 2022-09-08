@@ -4,6 +4,7 @@ import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { RealIP } from 'nestjs-real-ip';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -21,7 +22,7 @@ export class AuthController {
   }
 
   @Get('signMessage')
-  getSignMessage(@Query('address') address: string): { message: string } {
-    return { message: this.authService.getSignMessage(address) };
+  getSignMessage(@Query('address') address: string): { message: string; blockchains: Blockchain[] } {
+    return this.authService.getSignMessage(address);
   }
 }

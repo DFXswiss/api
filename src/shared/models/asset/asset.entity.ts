@@ -1,4 +1,5 @@
-import { Entity, Column } from 'typeorm';
+import { Blockchain } from 'src/ain/services/crypto.service';
+import { Entity, Column, Index } from 'typeorm';
 import { IEntity } from '../entity';
 
 export enum AssetType {
@@ -14,11 +15,14 @@ export enum AssetCategory {
 }
 
 @Entity()
+@Index('nameBlockchain', (asset: Asset) => [asset.name, asset.blockchain], {
+  unique: true,
+})
 export class Asset extends IEntity {
   @Column({ type: 'int', nullable: true })
   chainId: number;
 
-  @Column({ unique: true, length: 256 })
+  @Column({ length: 256 })
   name: string;
 
   @Column({ length: 256 })
@@ -38,4 +42,7 @@ export class Asset extends IEntity {
 
   @Column({ default: true })
   sellable: boolean;
+
+  @Column({ length: 256, default: Blockchain.DEFICHAIN })
+  blockchain: Blockchain;
 }

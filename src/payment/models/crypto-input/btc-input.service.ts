@@ -1,7 +1,7 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { Blockchain, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
@@ -17,11 +17,12 @@ import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { ChainalysisService } from './chainalysis.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
   private readonly lock = new Lock(7200);
-  private readonly btcFeeUrl = 'https://bitcoinfees.earn.com/api/v1/fees/recommended';
+  private readonly btcFeeUrl = 'https://mempool.space/api/v1/fees/recommended';
 
   private btcClient: BtcClient;
 
@@ -176,12 +177,15 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async getFeeRate(amount: number): Promise<number> {
-    const { fastestFee } = await this.http.get<{ fastestFee: number; halfHourFee: number; hourFee: number }>(
-      this.btcFeeUrl,
-      {
-        tryCount: 3,
-      },
-    );
+    const { fastestFee } = await this.http.get<{
+      fastestFee: number;
+      halfHourFee: number;
+      hourFee: number;
+      economyFee: number;
+      minimumFee: number;
+    }>(this.btcFeeUrl, {
+      tryCount: 3,
+    });
     return Math.floor(Math.max(Math.min(fastestFee, 500 * amount), 1));
   }
 

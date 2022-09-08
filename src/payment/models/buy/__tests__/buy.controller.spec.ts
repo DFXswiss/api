@@ -22,8 +22,9 @@ import {
   createCustomCountry,
   createDefaultCountry,
 } from 'src/shared/models/country/__tests__/mock/country.entity.mock';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
-function createBuyPaymentInfoDto(amount: number = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
+function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
   return {
     iban: 'DE123456786',
     asset: { id: 1 } as Asset,
@@ -37,6 +38,7 @@ function createJwt(): JwtPayload {
     id: 0,
     address: '',
     role: UserRole.USER,
+    blockchains: [Blockchain.DEFICHAIN]
   };
 }
 

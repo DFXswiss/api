@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Blank,
   BlankType,
+  KycCompleted,
   KycInProgress,
   KycState,
   KycStatus,
@@ -16,6 +17,7 @@ import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
+import { LinkService } from '../link/link.service';
 import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 
 export interface KycInfo {
@@ -23,6 +25,7 @@ export interface KycInfo {
   kycState: KycState;
   kycHash: string;
   kycDataComplete: boolean;
+  accountType: AccountType;
   depositLimit: number;
   sessionUrl?: string;
   setupUrl?: string;
@@ -39,6 +42,7 @@ export class KycService {
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
+    private readonly linkService: LinkService,
   ) {}
 
   // --- ADMIN/SUPPORT --- //
@@ -83,7 +87,7 @@ export class KycService {
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
-    const user = await this.getUser(code, userId);
+    let user = await this.getUser(code, userId);
     const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
 
     // check countries
@@ -102,7 +106,7 @@ export class KycService {
       data.organizationCountry = null;
     }
 
-    await this.userDataService.updateSpiderIfNeeded(user, data);
+    user = await this.userDataService.updateSpiderIfNeeded(user, data);
 
     const updatedUser = await this.userDataRepo.save({ ...user, ...data });
 
@@ -174,6 +178,13 @@ export class KycService {
     const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
+    const users = await this.userDataService.getUsersByMail(user.mail);
+    const completedUser = users.find((data) => KycCompleted(data.kycStatus));
+    if (completedUser) {
+      await this.linkService.createNewLinkAddress(user, completedUser);
+      throw new ConflictException('User already has completed Kyc');
+    }
+
     // update
     user = await this.startKyc(user);
     await this.userDataRepo.save(user);
@@ -213,6 +224,7 @@ export class KycService {
       kycState: userData.kycState,
       kycHash: userData.kycHash,
       kycDataComplete: this.isDataComplete(userData),
+      accountType: userData.accountType,
       depositLimit: userData.depositLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),
@@ -234,7 +246,7 @@ export class KycService {
   }
 
   private async getUserByKycCode(code: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['spiderData'] });
+    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['users', 'spiderData'] });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
   }

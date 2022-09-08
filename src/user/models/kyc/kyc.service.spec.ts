@@ -3,9 +3,9 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { createDefaultCountry } from 'src/shared/models/country/__tests__/mock/country.entity.mock';
-import { TestUtil } from 'src/shared/test.util';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
+import { LinkService } from '../link/link.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { KycState, KycStatus, UserData } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -29,6 +29,7 @@ describe('KycService', () => {
   let spiderSyncService: SpiderSyncService;
   let countryService: CountryService;
   let kycProcess: KycProcessService;
+  let linkService: LinkService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -64,6 +65,9 @@ describe('KycService', () => {
     jest.spyOn(userDataService, 'getUserDataByUser').mockImplementation(() => {
       return Promise.resolve(wantedUserData);
     });
+    jest.spyOn(userDataService, 'getUsersByMail').mockImplementation(() => {
+      return Promise.resolve([]);
+    });
     jest.spyOn(countryService, 'getCountry').mockImplementation(() => {
       return Promise.resolve(defaultCountry);
     });
@@ -74,7 +78,7 @@ describe('KycService', () => {
       ) {
         userData.kycState = KycState.FAILED;
       }
-      return Promise.resolve();
+      return Promise.resolve(userData);
     });
     jest.spyOn(kycProcess, 'checkKycProcess').mockImplementation((userData) => {
       return Promise.resolve(userData);
@@ -90,6 +94,7 @@ describe('KycService', () => {
     kycHash: string,
     kycDataComplete: boolean,
     depositLimit?: number,
+    accountType?: AccountType,
     blankedMail?: string,
     blankedPhone?: string,
     sessionUrl?: string,
@@ -100,6 +105,7 @@ describe('KycService', () => {
       kycStatus,
       kycHash,
       kycDataComplete,
+      accountType,
       blankedMail,
       blankedPhone,
       depositLimit,
@@ -115,6 +121,7 @@ describe('KycService', () => {
     spiderSyncService = createMock<SpiderSyncService>();
     countryService = createMock<CountryService>();
     kycProcess = createMock<KycProcessService>();
+    linkService = createMock<LinkService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -125,7 +132,7 @@ describe('KycService', () => {
         { provide: SpiderSyncService, useValue: spiderSyncService },
         { provide: CountryService, useValue: countryService },
         { provide: KycProcessService, useValue: kycProcess },
-        TestUtil.provideConfig(),
+        { provide: LinkService, useValue: linkService },
       ],
     }).compile();
 
@@ -150,7 +157,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.COMPLETE);
     await expect(service.getKycStatus(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.NA,
+        kycHash,
+        true,
+        90000,
+        AccountType.PERSONAL,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -159,7 +175,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.STARTED);
     await expect(service.getKycStatus(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.CHATBOT, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.CHATBOT,
+        kycHash,
+        true,
+        90000,
+        AccountType.PERSONAL,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -179,7 +204,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.COMPLETE);
     await expect(service.requestKyc(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.CHATBOT, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.CHATBOT,
+        kycHash,
+        true,
+        90000,
+        AccountType.PERSONAL,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -190,7 +224,16 @@ describe('KycService', () => {
     // in our test setup: user id and user data id are equal
     const userDataId = userDataIdFor(MockUserData.COMPLETE);
     await expect(service.requestKyc('', userDataId)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.CHATBOT, kycHash, true, 90000, 't***@test.com', '***********89'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.CHATBOT,
+        kycHash,
+        true,
+        90000,
+        AccountType.PERSONAL,
+        't***@test.com',
+        '***********89',
+      ),
     );
   });
 
@@ -221,7 +264,16 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
     await expect(service.updateKycData(kycHash, updatePersonalData)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, true, 90000, 't***@update.com', '***********12'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.NA,
+        kycHash,
+        true,
+        90000,
+        AccountType.PERSONAL,
+        't***@update.com',
+        '***********12',
+      ),
     );
   });
 
@@ -231,7 +283,16 @@ describe('KycService', () => {
     const kycHash = kycHashFor(MockUserData.EMPTY);
     const userDataId = userDataIdFor(MockUserData.EMPTY);
     await expect(service.updateKycData('', updatePersonalData, userDataId)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, true, 90000, 't***@update.com', '***********12'),
+      createKycInfo(
+        KycState.NA,
+        KycStatus.NA,
+        kycHash,
+        true,
+        90000,
+        AccountType.PERSONAL,
+        't***@update.com',
+        '***********12',
+      ),
     );
   });
 
