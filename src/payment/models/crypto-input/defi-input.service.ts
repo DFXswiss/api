@@ -61,7 +61,6 @@ export class DeFiInputService extends CryptoInputService {
       for (const token of tokens) {
         try {
           const { amount, asset } = this.client.parseAmount(token.amount);
-          // TODO - double check if if only Blockchain.DEFICHAIN affected
           const assetEntity = await this.assetService.getAssetByQuery({
             dexName: asset,
             blockchain: Blockchain.DEFICHAIN,
@@ -204,7 +203,6 @@ export class DeFiInputService extends CryptoInputService {
 
   private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
     // get asset
-    // TODO - double check if if only Blockchain.DEFICHAIN affected
     const assetEntity = await this.assetService.getAssetByQuery({
       dexName: asset,
       blockchain: Blockchain.DEFICHAIN,

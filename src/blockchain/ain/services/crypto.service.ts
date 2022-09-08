@@ -5,7 +5,6 @@ import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
-// TODO - this is shared
 @Injectable()
 export class CryptoService {
   public verifySignature(message: string, address: string, signature: string): boolean {
