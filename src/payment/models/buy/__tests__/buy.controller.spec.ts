@@ -160,13 +160,13 @@ describe('BuyController', () => {
 
   it('should return BF as default', async () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
+    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'GBP' }));
     jest
       .spyOn(countryService, 'getCountryWithSymbol')
       .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: false }));
 
     await expect(controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto())).resolves.toMatchObject({
-      iban: 'LI52088110104693K000C',
+      iban: 'LI95088110104693K000E',
       bic: 'BFRILI22',
     });
   });

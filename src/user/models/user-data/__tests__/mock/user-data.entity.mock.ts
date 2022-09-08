@@ -9,20 +9,17 @@ export enum MockUserData {
   STARTED,
 }
 
+const defaultUserData: Partial<UserData> = {
+  mail: 'test@test.com',
+  country: createDefaultCountry(),
+};
+
 export function createDefaultUserData(): UserData {
   return createCustomUserData({});
 }
 
 export function createCustomUserData(customValues: Partial<UserData>): UserData {
-  const { mail } = customValues;
-  const keys = Object.keys(customValues);
-
-  const entity = new UserData();
-
-  entity.mail = keys.includes('mail') ? mail : 'test@test.com';
-  entity.country = createDefaultCountry();
-
-  return entity;
+  return Object.assign(new UserData(), { ...defaultUserData, ...customValues });
 }
 
 export function createUserDataFor(mock: MockUserData): UserData | undefined {
