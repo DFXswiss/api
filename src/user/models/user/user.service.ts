@@ -65,10 +65,6 @@ export class UserService {
     return await this.toDto(user, detailed);
   }
 
-  async getUserByAddress(address: string, needsRelation = false): Promise<User> {
-    return this.userRepo.findOne({ where: { address }, relations: needsRelation ? ['userData', 'wallet'] : [] });
-  }
-
   async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
     return this.userRepo
       .createQueryBuilder('user')

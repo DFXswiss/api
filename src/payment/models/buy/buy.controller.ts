@@ -24,6 +24,9 @@ import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { CountryService } from 'src/shared/models/country/country.service';
+import { BankAccountService } from '../bank-account/bank-account.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -34,6 +37,9 @@ export class BuyController {
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly fiatService: FiatService,
+    private readonly countryService: CountryService,
+    private readonly bankAccountService: BankAccountService,
   ) {}
 
   @Get()
@@ -92,7 +98,6 @@ export class BuyController {
     stakingRoutes?: Staking[],
   ): Promise<BuyDto> {
     fees ??= await this.getFees(userId);
-
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
@@ -103,12 +108,10 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
-    const fees = await this.getFees(userId);
-
     return {
-      ...this.getBankInfo(buy, dto),
+      ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
-      ...fees,
+      ...(await this.getFees(userId)),
       minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
     };
   }
@@ -134,18 +137,41 @@ export class BuyController {
     return this.userService.getUserBuyFee(userId, annualVolume);
   }
 
-  private getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): BankInfoDto {
+  private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
     let account: { currency: string; iban: string; bic: string };
 
+    const frickAmountLimit = 9000;
+    const fallBackCurrency = 'EUR';
+
+    dto.currency = await this.fiatService.getFiat(dto.currency.id);
+    const ibanCodeCountry = await this.countryService.getCountryWithSymbol(buy.bankAccount.iban.substring(0, 2));
+
     // select the matching bank account
-    if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
+    if (dto.amount > frickAmountLimit || dto.currency.name === 'USD') {
+      // amount > 9k => Frick || USD => Frick
+      account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
+    } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
+    } else if (ibanCodeCountry.maerkiBaumannEnable && buy.user.userData.country.maerkiBaumannEnable) {
+      // Valid Maerki Baumann country => MB CHF/USD/EUR
+      account = this.getMatchingAccount(Config.bank.maerkiBaumann.accounts, dto.currency.name, fallBackCurrency);
     } else {
-      // default => Maerki Baumann / EUR
-      account = Config.bank.maerkiBaumann.accounts.find((a) => a.currency === 'EUR');
+      // Default => Frick
+      account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
     }
 
     return { ...Config.bank.dfxBankInfo, iban: account.iban, bic: account.bic };
+  }
+
+  private getMatchingAccount(
+    bankAccounts: { currency: string; iban: string; bic: string }[],
+    currencyName: string,
+    fallBackCurrencyName: string,
+  ): { currency: string; iban: string; bic: string } {
+    return (
+      bankAccounts.find((b) => b.currency === currencyName) ??
+      bankAccounts.find((b) => b.currency === fallBackCurrencyName)
+    );
   }
 }

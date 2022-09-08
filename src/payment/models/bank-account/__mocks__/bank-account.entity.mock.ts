@@ -6,6 +6,7 @@ const defaultBankAccount: Partial<BankAccount> = {
   user: createDefaultUser(),
   buys: [],
   sells: [],
+  sctInst: true,
 };
 
 export function createDefaultBankAccount(): BankAccount {
