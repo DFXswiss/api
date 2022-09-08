@@ -33,19 +33,21 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        const recipientMail = entity.sell.user?.userData?.mail;
+        const recipientMail = entity.sell.user.userData.mail;
 
         entity.offRampInitiated(recipientMail);
 
-        await this.mailService.sendTranslatedMail({
-          userData: entity.sell.user.userData,
-          translationKey: 'mail.payment.withdrawal.offRampInitiated',
-          params: {
-            inputAmount: entity.cryptoInput.amount,
-            inputAsset: entity.cryptoInput.asset.dexName,
-            inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
-          },
-        });
+        if (recipientMail) {
+          await this.mailService.sendTranslatedMail({
+            userData: entity.sell.user.userData,
+            translationKey: 'mail.payment.withdrawal.offRampInitiated',
+            params: {
+              inputAmount: entity.cryptoInput.amount,
+              inputAsset: entity.cryptoInput.asset.dexName,
+              inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
+            },
+          });
+        }
 
         await this.buyFiatRepo.update(
           { id: entity.id },
@@ -69,18 +71,20 @@ export class BuyFiatNotificationService {
       try {
         entity.cryptoExchangedToFiat();
 
-        await this.mailService.sendTranslatedMail({
-          userData: entity.sell.user.userData,
-          translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
-          params: {
-            inputAmount: entity.inputAmount,
-            inputAsset: entity.inputAsset,
-            percentFee: entity.percentFeeString,
-            exchangeRate: entity.exchangeRateString,
-            outputAmount: entity.outputAmount,
-            outputAsset: entity.outputAsset,
-          },
-        });
+        if (entity.sell.user.userData.mail) {
+          await this.mailService.sendTranslatedMail({
+            userData: entity.sell.user.userData,
+            translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
+            params: {
+              inputAmount: entity.inputAmount,
+              inputAsset: entity.inputAsset,
+              percentFee: entity.percentFeeString,
+              exchangeRate: entity.exchangeRateString,
+              outputAmount: entity.outputAmount,
+              outputAsset: entity.outputAsset,
+            },
+          });
+        }
 
         await this.buyFiatRepo.update({ id: entity.id }, { mail2SendDate: entity.mail2SendDate });
       } catch (e) {
@@ -101,16 +105,18 @@ export class BuyFiatNotificationService {
       try {
         entity.fiatToBankTransferInitiated();
 
-        await this.mailService.sendTranslatedMail({
-          userData: entity.sell.user.userData,
-          translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
-          params: {
-            outputAmount: entity.outputAmount,
-            outputAsset: entity.outputAsset,
-            bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
-            remittanceInfo: entity.remittanceInfo,
-          },
-        });
+        if (entity.sell.user.userData.mail) {
+          await this.mailService.sendTranslatedMail({
+            userData: entity.sell.user.userData,
+            translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
+            params: {
+              outputAmount: entity.outputAmount,
+              outputAsset: entity.outputAsset,
+              bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
+              remittanceInfo: entity.remittanceInfo,
+            },
+          });
+        }
 
         await this.buyFiatRepo.update({ id: entity.id }, { mail3SendDate: entity.mail3SendDate });
       } catch (e) {
