@@ -105,11 +105,6 @@ export class Configuration {
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
-  fixer = {
-    baseUrl: process.env.FIXER_BASE_URL,
-    apiKey: process.env.FIXER_API_KEY,
-  };
-
   letter = {
     auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
