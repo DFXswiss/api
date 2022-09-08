@@ -21,14 +21,16 @@ export class PriceStep {
   private readonly options: PriceStepOptions = {};
 
   constructor(options: PriceStepOptions) {
-    this.options.from = options.from || 'input';
-    this.options.to = options.to || 'output';
-    this.options.referenceTo = options.referenceTo;
-    this.options.providers = {
-      primary: options.providers?.primary || [],
-      reference: options.providers?.reference || [],
+    this.options = {
+      from: options.from || 'input',
+      to: options.to || 'output',
+      referenceTo: options.referenceTo,
+      providers: {
+        primary: options.providers?.primary || [],
+        reference: options.providers?.reference || [],
+      },
+      fixedPrice: options.fixedPrice,
     };
-    this.options.fixedPrice = options.fixedPrice;
 
     PriceStepInitSpecification.isSatisfiedBy(this);
   }
@@ -62,11 +64,7 @@ export class PriceStep {
   //*** HELPER METHODS ***//
 
   private getFixedPrice(fromCurrency: string, toCurrency: string): [Price, PriceProviderName] {
-    const price = new Price();
-
-    price.source = fromCurrency;
-    price.target = toCurrency;
-    price.price = this.options.fixedPrice;
+    const price = Price.create(fromCurrency, toCurrency, this.options.fixedPrice);
 
     return [price, 'FixedPrice'];
   }
@@ -144,9 +142,11 @@ export class PriceStep {
       try {
         return [await provider.getPrice(fromCurrency, toCurrency), provider.name];
       } catch {
-        return null;
+        continue;
       }
     }
+
+    return [null, null];
   }
 
   //*** GETTERS ***//

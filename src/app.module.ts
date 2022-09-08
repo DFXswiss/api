@@ -13,7 +13,7 @@ import { GetConfig } from './config/config';
 import { SeedService } from './shared/seed/seed.service';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { EthereumModule } from './blockchain/ethereum/ethereum.module';
-import { BSCModule } from './blockchain/bsc/bsc.module';
+import { BscModule } from './blockchain/bsc/bsc.module';
 
 @Module({
   imports: [
@@ -21,7 +21,7 @@ import { BSCModule } from './blockchain/bsc/bsc.module';
     SharedModule,
     AinModule,
     EthereumModule,
-    BSCModule,
+    BscModule,
     PaymentModule,
     UserModule,
     MonitoringModule,

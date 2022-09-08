@@ -106,9 +106,7 @@ export class DexService {
   async transferLiquidity(request: TransferRequest): Promise<string> {
     const { destinationAddress, asset, amount } = request;
 
-    try {
-      return await this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
-    } catch (e) {}
+    return this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {

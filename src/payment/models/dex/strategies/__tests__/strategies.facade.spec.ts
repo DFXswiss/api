@@ -9,15 +9,15 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
-import { DexBSCService } from '../../services/dex-bsc.service';
+import { DexBscService } from '../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../services/dex-defichain.service';
 import { DexEthereumService } from '../../services/dex-ethereum.service';
 import { DexService } from '../../services/dex.service';
-import { CheckLiquidityBSCStrategy } from '../check-liquidity/check-liquidity-bsc.strategy';
+import { CheckLiquidityBscStrategy } from '../check-liquidity/check-liquidity-bsc.strategy';
 import { CheckLiquidityDeFiChainDefaultStrategy } from '../check-liquidity/check-liquidity-defichain-default.strategy';
 import { CheckLiquidityDeFiChainPoolPairStrategy } from '../check-liquidity/check-liquidity-defichain-poolpair.strategy';
 import { CheckLiquidityEthereumStrategy } from '../check-liquidity/check-liquidity-ethereum.strategy';
-import { PurchaseLiquidityBSCStrategy } from '../purchase-liquidity/purchase-liquidity-bsc.strategy';
+import { PurchaseLiquidityBscStrategy } from '../purchase-liquidity/purchase-liquidity-bsc.strategy';
 import { PurchaseLiquidityDeFiChainCryptoStrategy } from '../purchase-liquidity/purchase-liquidity-defichain-crypto.strategy';
 import { PurchaseLiquidityDeFiChainPoolPairStrategy } from '../purchase-liquidity/purchase-liquidity-defichain-poolpair.strategy';
 import { PurchaseLiquidityDeFiChainStockStrategy } from '../purchase-liquidity/purchase-liquidity-defichain-stock.strategy';
@@ -30,12 +30,12 @@ describe('DexStrategiesFacade', () => {
   let checkLiquidityDeFiChainPoolPairStrategy: CheckLiquidityDeFiChainPoolPairStrategy;
   let checkLiquidityDeFiChainDefaultStrategy: CheckLiquidityDeFiChainDefaultStrategy;
   let checkLiquidityEthereumStrategy: CheckLiquidityEthereumStrategy;
-  let checkLiquidityBSCStrategy: CheckLiquidityBSCStrategy;
+  let checkLiquidityBSCStrategy: CheckLiquidityBscStrategy;
   let purchaseLiquidityDeFiChainPoolPairStrategy: PurchaseLiquidityDeFiChainPoolPairStrategy;
   let purchaseLiquidityDeFiChainStockStrategy: PurchaseLiquidityDeFiChainStockStrategy;
   let purchaseLiquidityDeFiChainCryptoStrategy: PurchaseLiquidityDeFiChainCryptoStrategy;
   let purchaseLiquidityEthereumStrategy: PurchaseLiquidityEthereumStrategy;
-  let purchaseLiquidityBSCStrategy: PurchaseLiquidityBSCStrategy;
+  let purchaseLiquidityBscStrategy: PurchaseLiquidityBscStrategy;
 
   let facade: DexStrategiesFacadeWrapper;
 
@@ -46,7 +46,7 @@ describe('DexStrategiesFacade', () => {
     checkLiquidityDeFiChainPoolPairStrategy = new CheckLiquidityDeFiChainPoolPairStrategy();
     checkLiquidityDeFiChainDefaultStrategy = new CheckLiquidityDeFiChainDefaultStrategy(mock<DexDeFiChainService>());
     checkLiquidityEthereumStrategy = new CheckLiquidityEthereumStrategy(mock<DexEthereumService>());
-    checkLiquidityBSCStrategy = new CheckLiquidityBSCStrategy(mock<DexBSCService>());
+    checkLiquidityBSCStrategy = new CheckLiquidityBscStrategy(mock<DexBscService>());
     purchaseLiquidityDeFiChainPoolPairStrategy = new PurchaseLiquidityDeFiChainPoolPairStrategy(
       nodeService,
       mock<MailService>(),
@@ -68,8 +68,11 @@ describe('DexStrategiesFacade', () => {
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
     );
-    purchaseLiquidityEthereumStrategy = new PurchaseLiquidityEthereumStrategy(mock<MailService>());
-    purchaseLiquidityBSCStrategy = new PurchaseLiquidityBSCStrategy(mock<MailService>());
+    purchaseLiquidityEthereumStrategy = new PurchaseLiquidityEthereumStrategy(
+      mock<MailService>(),
+      mock<DexBscService>(),
+    );
+    purchaseLiquidityBscStrategy = new PurchaseLiquidityBscStrategy(mock<MailService>(), mock<DexBscService>());
 
     facade = new DexStrategiesFacadeWrapper(
       checkLiquidityDeFiChainPoolPairStrategy,
@@ -80,7 +83,7 @@ describe('DexStrategiesFacade', () => {
       purchaseLiquidityDeFiChainStockStrategy,
       purchaseLiquidityDeFiChainCryptoStrategy,
       purchaseLiquidityEthereumStrategy,
-      purchaseLiquidityBSCStrategy,
+      purchaseLiquidityBscStrategy,
     );
   });
 
@@ -112,7 +115,7 @@ describe('DexStrategiesFacade', () => {
       );
 
       expect(facade.getCheckLiquidityStrategies().get(CheckLiquidityStrategyAlias.BSC_DEFAULT)).toBeInstanceOf(
-        CheckLiquidityBSCStrategy,
+        CheckLiquidityBscStrategy,
       );
     });
 
@@ -148,7 +151,7 @@ describe('DexStrategiesFacade', () => {
       ).toBeInstanceOf(PurchaseLiquidityEthereumStrategy);
 
       expect(facade.getPurchaseLiquidityStrategies().get(PurchaseLiquidityStrategyAlias.BSC_DEFAULT)).toBeInstanceOf(
-        PurchaseLiquidityBSCStrategy,
+        PurchaseLiquidityBscStrategy,
       );
     });
   });
@@ -202,7 +205,7 @@ describe('DexStrategiesFacade', () => {
           createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }),
         );
 
-        expect(strategy).toBeInstanceOf(CheckLiquidityBSCStrategy);
+        expect(strategy).toBeInstanceOf(CheckLiquidityBscStrategy);
       });
 
       it('fails to get strategy for non-supported Blockchain', () => {
@@ -236,7 +239,7 @@ describe('DexStrategiesFacade', () => {
       it('gets BSC_DEFAULT strategy', () => {
         const strategy = facade.getCheckLiquidityStrategy(CheckLiquidityStrategyAlias.BSC_DEFAULT);
 
-        expect(strategy).toBeInstanceOf(CheckLiquidityBSCStrategy);
+        expect(strategy).toBeInstanceOf(CheckLiquidityBscStrategy);
       });
 
       it('fails to get strategy for non-supported Alias', () => {
@@ -293,7 +296,7 @@ describe('DexStrategiesFacade', () => {
           createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }),
         );
 
-        expect(strategy).toBeInstanceOf(PurchaseLiquidityBSCStrategy);
+        expect(strategy).toBeInstanceOf(PurchaseLiquidityBscStrategy);
       });
 
       it('fails to get strategy for non-supported Blockchain', () => {
@@ -343,7 +346,7 @@ describe('DexStrategiesFacade', () => {
       it('gets BSC_DEFAULT strategy', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.BSC_DEFAULT);
 
-        expect(strategy).toBeInstanceOf(PurchaseLiquidityBSCStrategy);
+        expect(strategy).toBeInstanceOf(PurchaseLiquidityBscStrategy);
       });
 
       it('fails to get strategy for non-supported Alias', () => {
@@ -362,12 +365,12 @@ class DexStrategiesFacadeWrapper extends DexStrategiesFacade {
     checkLiquidityDeFiChainPoolPairStrategy: CheckLiquidityDeFiChainPoolPairStrategy,
     checkLiquidityDeFiChainDefaultStrategy: CheckLiquidityDeFiChainDefaultStrategy,
     checkLiquidityEthereumStrategy: CheckLiquidityEthereumStrategy,
-    checkLiquidityBSCStrategy: CheckLiquidityBSCStrategy,
+    checkLiquidityBSCStrategy: CheckLiquidityBscStrategy,
     purchaseLiquidityDeFiChainPoolPairStrategy: PurchaseLiquidityDeFiChainPoolPairStrategy,
     purchaseLiquidityDeFiChainStockStrategy: PurchaseLiquidityDeFiChainStockStrategy,
     purchaseLiquidityDeFiChainCryptoStrategy: PurchaseLiquidityDeFiChainCryptoStrategy,
     purchaseLiquidityEthereumStrategy: PurchaseLiquidityEthereumStrategy,
-    purchaseLiquidityBSCStrategy: PurchaseLiquidityBSCStrategy,
+    purchaseLiquidityBSCStrategy: PurchaseLiquidityBscStrategy,
   ) {
     super(
       checkLiquidityDeFiChainPoolPairStrategy,

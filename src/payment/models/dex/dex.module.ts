@@ -16,30 +16,30 @@ import { PurchaseLiquidityDeFiChainStockStrategy } from './strategies/purchase-l
 import { CheckLiquidityEthereumStrategy } from './strategies/check-liquidity/check-liquidity-ethereum.strategy';
 import { DexStrategiesFacade } from './strategies/strategies.facade';
 import { PurchaseLiquidityEthereumStrategy } from './strategies/purchase-liquidity/purchase-liquidity-ethereum.strategy';
-import { BSCModule } from 'src/blockchain/bsc/bsc.module';
-import { DexBSCService } from './services/dex-bsc.service';
-import { PurchaseLiquidityBSCStrategy } from './strategies/purchase-liquidity/purchase-liquidity-bsc.strategy';
-import { CheckLiquidityBSCStrategy } from './strategies/check-liquidity/check-liquidity-bsc.strategy';
+import { BscModule } from 'src/blockchain/bsc/bsc.module';
+import { DexBscService } from './services/dex-bsc.service';
+import { PurchaseLiquidityBscStrategy } from './strategies/purchase-liquidity/purchase-liquidity-bsc.strategy';
+import { CheckLiquidityBscStrategy } from './strategies/check-liquidity/check-liquidity-bsc.strategy';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, BSCModule, SharedModule],
+  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, BscModule, SharedModule],
   controllers: [],
   providers: [
     LiquidityOrderFactory,
     DexDeFiChainService,
     DexEthereumService,
-    DexBSCService,
+    DexBscService,
     DexStrategiesFacade,
     DexService,
     CheckLiquidityDeFiChainPoolPairStrategy,
     CheckLiquidityDeFiChainDefaultStrategy,
     CheckLiquidityEthereumStrategy,
-    CheckLiquidityBSCStrategy,
+    CheckLiquidityBscStrategy,
     PurchaseLiquidityDeFiChainCryptoStrategy,
     PurchaseLiquidityDeFiChainPoolPairStrategy,
     PurchaseLiquidityDeFiChainStockStrategy,
     PurchaseLiquidityEthereumStrategy,
-    PurchaseLiquidityBSCStrategy,
+    PurchaseLiquidityBscStrategy,
   ],
   exports: [DexService],
 })

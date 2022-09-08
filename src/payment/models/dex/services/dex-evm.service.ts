@@ -1,17 +1,17 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { EVMClient } from 'src/blockchain/shared/evm/evm-client';
-import { EVMService } from 'src/blockchain/shared/evm/evm.service';
+import { EvmClient } from 'src/blockchain/shared/evm/evm-client';
+import { EvmService } from 'src/blockchain/shared/evm/evm.service';
 import { Util } from 'src/shared/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
-export abstract class DexEVMService {
-  #client: EVMClient;
+export abstract class DexEvmService {
+  #client: EvmClient;
 
   constructor(
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
-    protected readonly service: EVMService,
+    protected readonly service: EvmService,
     protected readonly nativeCoin: string,
     protected readonly blockchain: Blockchain,
   ) {

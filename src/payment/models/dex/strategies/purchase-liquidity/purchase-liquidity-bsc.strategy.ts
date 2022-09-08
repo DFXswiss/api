@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { MailService } from 'src/shared/services/mail.service';
-import { DexBSCService } from '../../services/dex-bsc.service';
-import { PurchaseLiquidityEVMStrategy } from './base/purchase-liquidity-evm.strategy';
+import { DexBscService } from '../../services/dex-bsc.service';
+import { PurchaseLiquidityEvmStrategy } from './base/purchase-liquidity-evm.strategy';
 
 @Injectable()
-export class PurchaseLiquidityBSCStrategy extends PurchaseLiquidityEVMStrategy {
-  constructor(mailService: MailService, dexBscService: DexBSCService) {
+export class PurchaseLiquidityBscStrategy extends PurchaseLiquidityEvmStrategy {
+  constructor(mailService: MailService, dexBscService: DexBscService) {
     super(mailService, dexBscService);
   }
 }

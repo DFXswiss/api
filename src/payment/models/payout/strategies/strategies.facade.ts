@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PayoutBSCStrategy } from './payout/payout-bsc.strategy';
+import { PayoutBscStrategy } from './payout/payout-bsc.strategy';
 import { PayoutDeFiChainDFIStrategy } from './payout/payout-defichain-dfi.strategy';
 import { PayoutEthereumStrategy } from './payout/payout-ethereum.strategy';
 import { PayoutDeFiChainTokenStrategy } from './payout/payout-defichain-token.strategy';
 import { PayoutStrategy } from './payout/base/payout.strategy';
-import { PrepareBSCStrategy } from './prepare/prepare-bsc.strategy';
+import { PrepareBscStrategy } from './prepare/prepare-bsc.strategy';
 import { PrepareDeFiChainStrategy } from './prepare/prepare-defichain.strategy';
 import { PrepareEthereumStrategy } from './prepare/prepare-ethereum.strategy';
 import { PrepareStrategy } from './prepare/base/prepare.strategy';
@@ -32,16 +32,16 @@ export class PayoutStrategiesFacade {
   constructor(
     payoutDFIStrategy: PayoutDeFiChainDFIStrategy,
     payoutTokenStrategy: PayoutDeFiChainTokenStrategy,
-    payoutETHStrategy: PayoutEthereumStrategy,
-    payoutBSCStrategy: PayoutBSCStrategy,
+    payoutEthStrategy: PayoutEthereumStrategy,
+    payoutBscStrategy: PayoutBscStrategy,
     prepareOnDefichainStrategy: PrepareDeFiChainStrategy,
     prepareOnEthereumStrategy: PrepareEthereumStrategy,
-    prepareOnBscStrategy: PrepareBSCStrategy,
+    prepareOnBscStrategy: PrepareBscStrategy,
   ) {
     this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_DFI, payoutDFIStrategy);
     this.payoutStrategies.set(PayoutStrategyAlias.DEFICHAIN_TOKEN, payoutTokenStrategy);
-    this.payoutStrategies.set(PayoutStrategyAlias.ETHEREUM_DEFAULT, payoutETHStrategy);
-    this.payoutStrategies.set(PayoutStrategyAlias.BSC_DEFAULT, payoutBSCStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.ETHEREUM_DEFAULT, payoutEthStrategy);
+    this.payoutStrategies.set(PayoutStrategyAlias.BSC_DEFAULT, payoutBscStrategy);
 
     this.prepareStrategies.set(PrepareStrategyAlias.DEFICHAIN, prepareOnDefichainStrategy);
     this.prepareStrategies.set(PrepareStrategyAlias.ETHEREUM, prepareOnEthereumStrategy);

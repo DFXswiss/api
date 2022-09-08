@@ -1,10 +1,10 @@
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityRequest } from '../../../interfaces';
-import { DexEVMService } from '../../../services/dex-evm.service';
+import { DexEvmService } from '../../../services/dex-evm.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
-export class PurchaseLiquidityEVMStrategy extends PurchaseLiquidityStrategy {
-  constructor(mailService: MailService, protected readonly dexEVMService: DexEVMService) {
+export class PurchaseLiquidityEvmStrategy extends PurchaseLiquidityStrategy {
+  constructor(mailService: MailService, protected readonly dexEvmService: DexEvmService) {
     super(mailService);
   }
 
@@ -12,8 +12,8 @@ export class PurchaseLiquidityEVMStrategy extends PurchaseLiquidityStrategy {
     const { referenceAsset, referenceAmount, context, correlationId } = request;
 
     // should always throw, even if there is amount, additional check is done for API consistency and sending mail
-    if (referenceAsset === this.dexEVMService._nativeCoin) {
-      const amount = await this.dexEVMService.checkCoinAvailability(referenceAmount);
+    if (referenceAsset === this.dexEvmService._nativeCoin) {
+      const amount = await this.dexEvmService.checkCoinAvailability(referenceAmount);
 
       if (amount) {
         throw new Error(

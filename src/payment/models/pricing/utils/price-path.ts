@@ -53,19 +53,9 @@ export class PricePath {
     const firstStep = path[0];
     const lastStep = path[path.length - 1];
 
-    const price = this.createPrice(firstStep.price.source, lastStep.price.target, targetPrice);
+    const price = Price.create(firstStep.price.source, lastStep.price.target, targetPrice);
 
     return { price, path };
-  }
-
-  private createPrice(source: string, target: string, targetPrice: number): Price {
-    const price = new Price();
-
-    price.source = source;
-    price.target = target;
-    price.price = targetPrice;
-
-    return price;
   }
 
   //*** GETTERS ***//

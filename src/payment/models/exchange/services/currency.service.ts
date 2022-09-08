@@ -13,18 +13,12 @@ export class CurrencyService implements PriceProvider {
 
   async getPrice(from: string, to: string): Promise<Price> {
     // currency pair have to be inverted for conversion service.
-    const targetPrice = await this.conversionService.convertFiat(1, to, from);
+    const targetPrice = await this.conversionService.getFiatRate(to, from);
 
     if (targetPrice === undefined) {
       throw new Error(`Could not find target price on CurrencyService. From: ${from}, to: ${to}`);
     }
 
-    const price = new Price();
-
-    price.source = from;
-    price.target = to;
-    price.price = targetPrice;
-
-    return price;
+    return Price.create(from, to, targetPrice);
   }
 }

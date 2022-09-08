@@ -1,10 +1,10 @@
-import { EVMClient } from 'src/blockchain/shared/evm/evm-client';
-import { EVMService } from 'src/blockchain/shared/evm/evm.service';
+import { EvmClient } from 'src/blockchain/shared/evm/evm-client';
+import { EvmService } from 'src/blockchain/shared/evm/evm.service';
 
-export abstract class PayoutEVMService {
-  #client: EVMClient;
+export abstract class PayoutEvmService {
+  #client: EvmClient;
 
-  constructor(protected readonly service: EVMService) {
+  constructor(protected readonly service: EvmService) {
     this.#client = service.getDefaultClient();
   }
 

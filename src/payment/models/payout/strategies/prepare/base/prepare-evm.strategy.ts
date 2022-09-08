@@ -2,7 +2,7 @@ import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PrepareStrategy } from './prepare.strategy';
 
-export abstract class PrepareEVMStrategy implements PrepareStrategy {
+export abstract class PrepareEvmStrategy implements PrepareStrategy {
   constructor(protected readonly payoutOrderRepo: PayoutOrderRepository) {}
 
   async preparePayout(order: PayoutOrder): Promise<void> {

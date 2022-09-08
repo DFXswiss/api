@@ -118,6 +118,9 @@ export class BuyCrypto extends IEntity {
       return this;
     }
 
+    // only for fiat
+    // in order cases use BTC as reference Asset
+
     if (['USDC', 'USDT'].includes(this.outputAsset)) {
       this.outputReferenceAsset = this.outputAsset;
       return this;

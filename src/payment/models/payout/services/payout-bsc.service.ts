@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { BSCService } from 'src/blockchain/bsc/bsc.service';
-import { PayoutEVMService } from './payout-evm.service';
+import { BscService } from 'src/blockchain/bsc/bsc.service';
+import { PayoutEvmService } from './payout-evm.service';
 
 @Injectable()
-export class PayoutBSCService extends PayoutEVMService {
-  constructor(bscService: BSCService) {
+export class PayoutBscService extends PayoutEvmService {
+  constructor(bscService: BscService) {
     super(bscService);
   }
 }

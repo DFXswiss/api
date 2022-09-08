@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
-import { PrepareEVMStrategy } from './base/prepare-evm.strategy';
+import { PrepareEvmStrategy } from './base/prepare-evm.strategy';
 
 @Injectable()
-export class PrepareEthereumStrategy extends PrepareEVMStrategy {
+export class PrepareEthereumStrategy extends PrepareEvmStrategy {
   constructor(payoutOrderRepo: PayoutOrderRepository) {
     super(payoutOrderRepo);
   }

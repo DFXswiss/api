@@ -6,7 +6,6 @@ import { BinanceService } from '../../exchange/services/binance.service';
 import { BitpandaService } from '../../exchange/services/bitpanda.service';
 import { BitstampService } from '../../exchange/services/bitstamp.service';
 import { CurrencyService } from '../../exchange/services/currency.service';
-import { FixerService } from '../../exchange/services/fixer.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
 import { PricingService } from '../services/pricing.service';
 
@@ -17,14 +16,12 @@ describe('Pricing Module Integration Tests', () => {
   let bitstampService: BitstampService;
   let bitpandaService: BitpandaService;
   let currencyService: CurrencyService;
-  let fixerService: FixerService;
 
   let krakenServiceGetPriceSpy: jest.SpyInstance;
   let binanceServiceGetPriceSpy: jest.SpyInstance;
   let bitstampServiceGetPriceSpy: jest.SpyInstance;
   let bitpandaServiceGetPriceSpy: jest.SpyInstance;
   let currencyServiceGetPriceSpy: jest.SpyInstance;
-  let fixerServiceGetPriceSpy: jest.SpyInstance;
 
   let service: PricingService;
 
@@ -35,7 +32,6 @@ describe('Pricing Module Integration Tests', () => {
     bitstampService = mock<BitstampService>({ name: 'Bitstamp' });
     bitpandaService = mock<BitpandaService>({ name: 'Bitpanda' });
     currencyService = mock<CurrencyService>({ name: 'CurrencyService' });
-    fixerService = mock<FixerService>({ name: 'Fixer' });
 
     service = new PricingService(
       mailService,
@@ -44,7 +40,6 @@ describe('Pricing Module Integration Tests', () => {
       bitstampService,
       bitpandaService,
       currencyService,
-      fixerService,
     );
 
     krakenServiceGetPriceSpy = jest.spyOn(krakenService, 'getPrice');
@@ -52,7 +47,6 @@ describe('Pricing Module Integration Tests', () => {
     bitstampServiceGetPriceSpy = jest.spyOn(bitstampService, 'getPrice');
     bitpandaServiceGetPriceSpy = jest.spyOn(bitpandaService, 'getPrice');
     currencyServiceGetPriceSpy = jest.spyOn(currencyService, 'getPrice');
-    fixerServiceGetPriceSpy = jest.spyOn(fixerService, 'getPrice');
   });
 
   afterEach(() => {
@@ -61,7 +55,6 @@ describe('Pricing Module Integration Tests', () => {
     bitstampServiceGetPriceSpy.mockClear();
     bitpandaServiceGetPriceSpy.mockClear();
     currencyServiceGetPriceSpy.mockClear();
-    fixerServiceGetPriceSpy.mockClear();
   });
 
   it('calculates price path for MATCHING_ASSETS', async () => {

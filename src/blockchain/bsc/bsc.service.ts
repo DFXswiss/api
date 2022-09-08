@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
-import { BSCClient } from './bsc-client';
-import { EVMService } from '../shared/evm/evm.service';
+import { BscClient } from './bsc-client';
+import { EvmService } from '../shared/evm/evm.service';
 
 @Injectable()
-export class BSCService extends EVMService {
+export class BscService extends EvmService {
   constructor() {
     const { bscGatewayUrl, bscWalletAddress, bscWalletPrivateKey } = GetConfig().blockchain.bsc;
 
-    super(bscGatewayUrl, '', bscWalletAddress, bscWalletPrivateKey, BSCClient);
+    super(bscGatewayUrl, '', bscWalletAddress, bscWalletPrivateKey, BscClient);
   }
 }
