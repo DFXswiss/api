@@ -27,7 +27,8 @@ export class EVMClient {
       value: ethers.utils.parseUnits(`${amount}`, 'ether'),
       nonce,
       gasPrice,
-      gasLimit: '21000',
+      // has to be provided as a number for BSC
+      gasLimit: 21000,
     });
 
     await tx.wait();
