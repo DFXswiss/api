@@ -320,4 +320,26 @@ describe('Pricing Module Integration Tests', () => {
 
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
   });
+
+  it('calculates price path for NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN', async () => {
+    const request = { from: 'USDT', to: 'USDC' };
+    const result = await service.getPrice(request);
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('USDT');
+    expect(result.price.target).toBe('USDC');
+    expect(result.price.price).toBe(1);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(1);
+
+    expect(result.path[0].provider).toBe('FixedPrice');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('USDT');
+    expect(result.path[0].price.target).toBe('USDC');
+    expect(result.path[0].price.price).toBe(1);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
+  });
 });

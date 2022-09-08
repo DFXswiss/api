@@ -39,7 +39,7 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('XYZ');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is not EUR | CHF | GBP | USD', () => {
+    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is not EUR | CHF | USD | USDT', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'ETH',
@@ -95,10 +95,10 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is GBP', () => {
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is USDT', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
-        inputReferenceAsset: 'GBP',
+        inputReferenceAsset: 'USDT',
         buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDC' }) }),
       });
 
@@ -109,7 +109,7 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is not EUR | CHF | GBP | USD', () => {
+    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is not EUR | CHF | USD | USDC', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'ETH',
@@ -165,10 +165,10 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDT');
     });
 
-    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is GBP', () => {
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is USDC', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
-        inputReferenceAsset: 'GBP',
+        inputReferenceAsset: 'USDC',
         buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
       });
 

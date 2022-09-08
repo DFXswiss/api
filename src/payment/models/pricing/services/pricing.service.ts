@@ -22,6 +22,7 @@ export enum PricingPathAlias {
   BTC_TO_ALTCOIN = 'BTCToAltcoin',
   MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
+  NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN = 'NonMatchingUSDStableCoinToUSDStableCoin',
 }
 
 @Injectable()
@@ -169,6 +170,14 @@ export class PricingService {
         }),
       ]),
     );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN, [
+        new PriceStep({
+          fixedPrice: 1,
+        }),
+      ]),
+    );
   }
 
   //*** HELPER METHODS ***//
@@ -212,6 +221,10 @@ export class PricingService {
     if (from === 'USD' && this.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
 
     if (this.isFiat(from) && this.isUSDStablecoin(to)) return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
+
+    if (this.isUSDStablecoin(from) && this.isUSDStablecoin(to) && from !== to) {
+      return PricingPathAlias.NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN;
+    }
 
     throw new Error(`No matching pricing path alias found. From: ${request.from} to: ${request.to}`);
   }

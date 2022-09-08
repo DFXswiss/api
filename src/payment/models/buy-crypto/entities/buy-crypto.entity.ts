@@ -119,7 +119,7 @@ export class BuyCrypto extends IEntity {
     }
 
     if (['USDC', 'USDT'].includes(this.outputAsset)) {
-      if (['EUR', 'CHF', 'USD', 'GBP'].includes(this.inputReferenceAsset)) {
+      if (['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)) {
         this.outputReferenceAsset = this.outputAsset;
       } else {
         this.outputReferenceAsset = 'BTC';
