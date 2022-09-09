@@ -1,9 +1,10 @@
-import { Fee } from "ccxt";
+import { Fee } from 'ccxt';
 
 export interface PartialTradeResponse {
   id: string;
   price: number;
-  amount: number;
+  fromAmount: number;
+  toAmount: number;
   timestamp: Date;
   fee: Fee;
 }
