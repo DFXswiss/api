@@ -180,7 +180,7 @@ export class SpiderSyncService {
           userData,
           translationKey: 'mail.kyc.chatbot',
           params: {
-            url: `${Config.paymentUrl}/kyc?code=${userData.kycHash}`,
+            url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
           },
         })
         .catch(() => null);
@@ -203,7 +203,7 @@ export class SpiderSyncService {
         translationKey: 'mail.kyc.reminder',
         params: {
           status: this.kycStatusTranslation[userData.kycStatus],
-          url: `${Config.paymentUrl}/kyc?code=${userData.kycHash}`,
+          url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
         },
       })
       .catch(() => null);
