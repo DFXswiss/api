@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
-import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
+import { CryptoService } from 'src/ain/services/crypto.service';
 import { HttpService } from '../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
 import * as CakeMasterNodes from './assets/cake-mn.json';
