@@ -167,19 +167,23 @@ export class BuyCryptoService {
     });
   }
 
-  async getHistory(userId: number, buyId: number): Promise<BuyCryptoHistoryDto[]> {
+  async getHistory(userId: number, buyId?: number): Promise<BuyCryptoHistoryDto[]> {
+    const where = { user: { id: userId }, id: buyId };
+    Util.removeNullFields(where);
     return this.buyCryptoRepo
       .find({
-        where: { buy: { id: buyId, user: { id: userId } } },
+        where: { buy: where },
         relations: ['buy', 'buy.user'],
       })
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
 
-  async getCryptoRouteHistory(userId: number, routeId: number): Promise<CryptoRouteHistoryDto[]> {
+  async getCryptoRouteHistory(userId: number, routeId?: number): Promise<CryptoRouteHistoryDto[]> {
+    const where = { user: { id: userId }, id: routeId };
+    Util.removeNullFields(where);
     return this.buyCryptoRepo
       .find({
-        where: { cryptoRoute: { id: routeId, user: { id: userId } } },
+        where: { cryptoRoute: where },
         relations: ['cryptoRoute', 'cryptoRoute.user'],
       })
       .then((history) => history.map(this.toHistoryDto));

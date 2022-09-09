@@ -1,3 +1,11 @@
+import { RouteHistoryDto } from '../../route/dto/route-history.dto';
+
+export enum HistoryTransactionType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+  CRYPTO = 'Crypto',
+}
+
 abstract class HistoryDtoBase {
   type: string;
   buyAmount: number;
@@ -20,4 +28,8 @@ export class HistoryDto extends HistoryDtoBase {
 
 export class CoinTrackingHistoryDto extends HistoryDtoBase {
   date: number;
+}
+
+export class SimplifiedHistoryDto extends RouteHistoryDto {
+  type: HistoryTransactionType;
 }

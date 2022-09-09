@@ -39,7 +39,6 @@ export class BuyController {
     private readonly buyCryptoService: BuyCryptoService,
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
-    private readonly bankAccountService: BankAccountService,
   ) {}
 
   @Get()

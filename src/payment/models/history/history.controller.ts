@@ -41,6 +41,9 @@ export class HistoryController {
     @Query() query: HistoryQuery,
   ): Promise<HistoryDto[] | CoinTrackingHistoryDto[]> {
     return await this.historyService.getHistory(jwt.id, jwt.address, query);
+    //this.historyService.getOceanTransaction('df1qh2as5nzrehxgu4mke4ysrvngydsevtmhedns0x');
+    //this.historyService.getOceanTransaction('8L3z6CyyLshqnUf8kDHjLQ6GCupLKbiXJx');
+    //return await this.historyService.getHistory(jwt.id, jwt.address, query);
   }
 
   @Get('CT')

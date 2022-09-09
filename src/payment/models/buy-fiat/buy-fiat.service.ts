@@ -88,10 +88,12 @@ export class BuyFiatService {
     });
   }
 
-  async getHistory(userId: number, sellId: number): Promise<BuyFiatHistoryDto[]> {
+  async getHistory(userId: number, sellId?: number): Promise<BuyFiatHistoryDto[]> {
+    const where = { user: { id: userId }, id: sellId };
+    Util.removeNullFields(where);
     return this.buyFiatRepo
       .find({
-        where: { sell: { id: sellId, user: { id: userId } } },
+        where: { sell: where },
         relations: ['sell', 'sell.user', 'cryptoInput'],
       })
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
