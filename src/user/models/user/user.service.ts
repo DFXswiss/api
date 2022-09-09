@@ -28,6 +28,9 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
+import { UserData } from '../user-data/user-data.entity';
+import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
+import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 
@@ -43,6 +46,7 @@ export class UserService {
     private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async getAllUser(): Promise<User[]> {
@@ -60,15 +64,28 @@ export class UserService {
     return await this.toDto(user, detailed);
   }
 
-  async getUserByAddress(address: string): Promise<User> {
-    return this.userRepo.findOne({ address });
+  async getAllLinkedUsers(id: number): Promise<LinkedUserOutDto[]> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select(
+        'linkedUser.address, isSwitchable = CASE WHEN linkedUser.stakingBalance = 0 then CAST(1 AS BIT) else CAST(0 AS BIT) end',
+      )
+      .leftJoin('user.userData', 'userData')
+      .leftJoin('userData.users', 'linkedUser')
+      .where('user.id = :id', { id })
+      .getRawMany<LinkedUserOutDto>()
+      .then((linkedUsers) => {
+        return linkedUsers.map((u) => {
+          return { ...u, blockchains: this.cryptoService.getBlockchainsBasedOn(u.address) };
+        });
+      });
   }
 
   async getRefUser(ref: string): Promise<User> {
     return await this.userRepo.findOne({ where: { ref }, relations: ['userData'] });
   }
 
-  async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string): Promise<User> {
+  async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
     let user = this.userRepo.create(dto);
 
     user.ip = userIp;
@@ -77,11 +94,12 @@ export class UserService {
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
-    user.userData = await this.userDataService.createUserData();
+    user.userData = userData ?? (await this.userDataService.createUserData());
 
     user = await this.userRepo.save(user);
 
-    this.dfiTaxService.activateAddress(user.address);
+    const blockchains = this.cryptoService.getBlockchainsBasedOn(user.address);
+    if (blockchains.includes(Blockchain.DEFICHAIN)) this.dfiTaxService.activateAddress(user.address);
 
     return user;
   }
@@ -453,6 +471,7 @@ export class UserService {
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
 
       ...(detailed ? await this.getUserDetails(user) : undefined),
+      linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
     };
   }
 

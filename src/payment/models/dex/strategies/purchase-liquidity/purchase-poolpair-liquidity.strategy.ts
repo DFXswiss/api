@@ -16,7 +16,8 @@ import { Lock } from 'src/shared/lock';
 import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { Blockchain, NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 
 @Injectable()
 export class PurchasePoolPairLiquidityStrategy extends PurchaseLiquidityStrategy {

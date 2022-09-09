@@ -3,9 +3,9 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { createDefaultCountry } from 'src/shared/models/country/__tests__/mock/country.entity.mock';
-import { TestUtil } from 'src/shared/test.util';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
+import { LinkService } from '../link/link.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { KycState, KycStatus, UserData } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
@@ -29,6 +29,7 @@ describe('KycService', () => {
   let spiderSyncService: SpiderSyncService;
   let countryService: CountryService;
   let kycProcess: KycProcessService;
+  let linkService: LinkService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -63,6 +64,9 @@ describe('KycService', () => {
     });
     jest.spyOn(userDataService, 'getUserDataByUser').mockImplementation(() => {
       return Promise.resolve(wantedUserData);
+    });
+    jest.spyOn(userDataService, 'getUsersByMail').mockImplementation(() => {
+      return Promise.resolve([]);
     });
     jest.spyOn(countryService, 'getCountry').mockImplementation(() => {
       return Promise.resolve(defaultCountry);
@@ -117,6 +121,7 @@ describe('KycService', () => {
     spiderSyncService = createMock<SpiderSyncService>();
     countryService = createMock<CountryService>();
     kycProcess = createMock<KycProcessService>();
+    linkService = createMock<LinkService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -127,7 +132,7 @@ describe('KycService', () => {
         { provide: SpiderSyncService, useValue: spiderSyncService },
         { provide: CountryService, useValue: countryService },
         { provide: KycProcessService, useValue: kycProcess },
-        TestUtil.provideConfig(),
+        { provide: LinkService, useValue: linkService },
       ],
     }).compile();
 

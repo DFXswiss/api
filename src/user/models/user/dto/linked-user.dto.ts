@@ -1,17 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { Blockchain } from 'src/ain/services/crypto.service';
 import { GetConfig } from 'src/config/config';
 
-export class AuthCredentialsDto {
+export class LinkedUserInDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Matches(GetConfig().addressFormat)
   address: string;
+}
 
+export class LinkedUserOutDto extends LinkedUserInDto {
   @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  @Matches(GetConfig().signatureFormat)
-  signature: string;
+  isSwitchable: boolean;
+
+  @ApiProperty({ enum: Blockchain, isArray: true })
+  blockchains: Blockchain[];
 }

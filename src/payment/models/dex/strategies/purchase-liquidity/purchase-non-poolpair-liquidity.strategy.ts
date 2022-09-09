@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/ain/node/node.service';
+import { Blockchain } from 'src/ain/services/crypto.service';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrder } from '../../entities/liquidity-order.entity';
