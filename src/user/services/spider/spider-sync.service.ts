@@ -64,8 +64,8 @@ export class SpiderSyncService {
       try {
         await this.syncKycUser(user.id);
       } catch (e) {
-        console.error('Exception during KYC check:', e);
-        await this.mailService.sendErrorMail('KYC Error', [e]);
+        console.error(`Exception during KYC check for user ${user.id}:`, e);
+        await this.mailService.sendErrorMail('KYC Error', [`Exception during KYC check for user ${user.id}: ${e}`]);
       }
     }
   }
@@ -102,8 +102,8 @@ export class SpiderSyncService {
       try {
         await this.syncKycUser(userDataId);
       } catch (e) {
-        console.error('Exception during KYC sync:', e);
-        await this.mailService.sendErrorMail('KYC Error', [e]);
+        console.error(`Exception during KYC sync for user ${userDataId}:`, e);
+        await this.mailService.sendErrorMail('KYC Error',[`Exception during KYC sync for user ${userDataId}: ${e}`]);
       }
     }
   }
