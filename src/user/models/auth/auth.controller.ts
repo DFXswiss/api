@@ -4,7 +4,7 @@ import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { RealIP } from 'nestjs-real-ip';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @ApiTags('auth')
 @Controller('auth')

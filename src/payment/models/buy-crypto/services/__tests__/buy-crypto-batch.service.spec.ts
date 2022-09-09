@@ -1,17 +1,16 @@
 import { mock } from 'jest-mock-extended';
-import { createCustomBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
+import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
-import { ExchangeUtilityService } from 'src/payment/models/exchange/exchange-utility.service';
-import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
+import { PricingService } from 'src/payment/models/pricing/services/pricing.service';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import {
   createCustomBuyCryptoBatch,
   createDefaultBuyCryptoBatch,
-} from '../../entities/__tests__/mock/buy-crypto-batch.entity.mock';
-import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__tests__/mock/buy-crypto.entity.mock';
+} from '../../entities/__mocks__/buy-crypto-batch.entity.mock';
+import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoBatchRepository } from '../../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
-import { BuyCryptoOutService } from '../buy-crypto-out.service';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -20,8 +19,7 @@ describe('BuyCryptoBatchService', () => {
 
   let buyCryptoRepo: BuyCryptoRepository;
   let buyCryptoBatchRepo: BuyCryptoBatchRepository;
-  let buyCryptoOutService: BuyCryptoOutService;
-  let exchangeUtilityService: ExchangeUtilityService;
+  let pricingService: PricingService;
 
   /*** Spies ***/
 
@@ -29,7 +27,6 @@ describe('BuyCryptoBatchService', () => {
   let buyCryptoBatchRepoFindOne: jest.SpyInstance;
   let buyCryptoBatchRepoSave: jest.SpyInstance;
   let buyCryptoBatchRepoCreate: jest.SpyInstance;
-  let buyCryptoOutServiceGetAssetsOnOutNode: jest.SpyInstance;
   let exchangeUtilityServiceGetMatchingPrice: jest.SpyInstance;
 
   beforeEach(() => {
@@ -86,21 +83,6 @@ describe('BuyCryptoBatchService', () => {
       await service.batchTransactionsByAssets();
 
       expect(buyCryptoBatchRepoSave).toBeCalledTimes(1);
-      expect(buyCryptoOutServiceGetAssetsOnOutNode).toBeCalledTimes(1);
-    });
-
-    it('blocks creating a batch if there is a matching existingAsset', async () => {
-      buyCryptoBatchRepoFindOne = jest
-        .spyOn(buyCryptoBatchRepo, 'findOne')
-        .mockImplementation(async () => createCustomBuyCryptoBatch({ outputAsset: 'dDOGE' }));
-
-      buyCryptoOutServiceGetAssetsOnOutNode = jest
-        .spyOn(buyCryptoOutService, 'getAssetsOnOutNode')
-        .mockImplementation(async () => [{ asset: 'dDOGE', amount: 10 }]);
-
-      await service.batchTransactionsByAssets();
-
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(0);
     });
 
     it('blocks creating a batch if there already existing batch for an asset', async () => {
@@ -180,10 +162,9 @@ describe('BuyCryptoBatchService', () => {
   function setupMocks() {
     buyCryptoRepo = mock<BuyCryptoRepository>();
     buyCryptoBatchRepo = mock<BuyCryptoBatchRepository>();
-    buyCryptoOutService = mock<BuyCryptoOutService>();
-    exchangeUtilityService = mock<ExchangeUtilityService>();
+    pricingService = mock<PricingService>();
 
-    service = new BuyCryptoBatchService(buyCryptoRepo, buyCryptoBatchRepo, buyCryptoOutService, exchangeUtilityService);
+    service = new BuyCryptoBatchService(buyCryptoRepo, buyCryptoBatchRepo, pricingService);
   }
 
   function setupSpies() {
@@ -199,17 +180,11 @@ describe('BuyCryptoBatchService', () => {
       .spyOn(buyCryptoBatchRepo, 'create')
       .mockImplementation(() => createDefaultBuyCryptoBatch());
 
-    buyCryptoOutServiceGetAssetsOnOutNode = jest
-      .spyOn(buyCryptoOutService, 'getAssetsOnOutNode')
-      .mockImplementation(async () => []);
-
-    exchangeUtilityServiceGetMatchingPrice = jest
-      .spyOn(exchangeUtilityService, 'getMatchingPrice')
-      .mockImplementation(async () => {
-        const price = new Price();
-        (price.price = 10), (price.source = 'EUR'), (price.target = 'BTC');
-        return price;
-      });
+    exchangeUtilityServiceGetMatchingPrice = jest.spyOn(pricingService, 'getPrice').mockImplementation(async () => {
+      const price = new Price();
+      (price.price = 10), (price.source = 'EUR'), (price.target = 'BTC');
+      return { price, path: [] };
+    });
   }
 
   function clearSpies() {
@@ -217,7 +192,6 @@ describe('BuyCryptoBatchService', () => {
     buyCryptoBatchRepoFindOne.mockClear();
     buyCryptoBatchRepoSave.mockClear();
     buyCryptoBatchRepoCreate.mockClear();
-    buyCryptoOutServiceGetAssetsOnOutNode.mockClear();
     exchangeUtilityServiceGetMatchingPrice.mockClear();
   }
 });

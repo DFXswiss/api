@@ -2,7 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { createDefaultCountry } from 'src/shared/models/country/__tests__/mock/country.entity.mock';
+import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { LinkService } from '../link/link.service';
@@ -15,7 +15,7 @@ import {
   kycHashFor,
   MockUserData,
   userDataIdFor,
-} from '../user-data/__tests__/mock/user-data.entity.mock';
+} from '../user-data/__mocks__/user-data.entity.mock';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
 import { KycInfo, KycService } from './kyc.service';

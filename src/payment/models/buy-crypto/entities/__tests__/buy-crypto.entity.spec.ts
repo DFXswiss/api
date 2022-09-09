@@ -1,8 +1,9 @@
-import { createCustomBuy } from 'src/payment/models/buy/__tests__/mock/buy.entity.mock';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
-import { createCustomAsset } from 'src/shared/models/asset/__tests__/mock/asset.entity.mock';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
-import { createCustomBuyCrypto, createDefaultBuyCrypto } from './mock/buy-crypto.entity.mock';
+import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 
 function createPrice(source: string, target: string, price?: number): Price {
   return Object.assign(new Price(), { source, target, price });
@@ -10,10 +11,39 @@ function createPrice(source: string, target: string, price?: number): Price {
 
 describe('BuyCrypto', () => {
   describe('#defineAssetExchangePair(...)', () => {
-    it('assigns outputReferenceAsset to BTC, when outputAsset is BTC', () => {
+    it('assigns outputAsset to target asset', () => {
+      const entity = createCustomBuyCrypto({
+        outputAsset: undefined,
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'GOOGL' }) }),
+      });
+
+      expect(entity.outputAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputAsset).toBe('GOOGL');
+    });
+
+    it('assigns outputReferenceAsset to inputReferenceAsset, when outputAsset is the same', () => {
+      const entity = createCustomBuyCrypto({
+        inputReferenceAsset: 'XYZ',
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'XYZ' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputAsset).toBe('XYZ');
+      expect(entity.outputReferenceAsset).toBe('XYZ');
+    });
+
+    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is not EUR | CHF | USD | USDT', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
-        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'BTC' }) }),
+        inputReferenceAsset: 'ETH',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDC' }) }),
       });
 
       expect(entity.outputReferenceAsset).toBeUndefined();
@@ -23,9 +53,10 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('BTC');
     });
 
-    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC', () => {
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset USD', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
+        inputReferenceAsset: 'USD',
         buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDC' }) }),
       });
 
@@ -36,9 +67,66 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT', () => {
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is EUR', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
+        inputReferenceAsset: 'EUR',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDC' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('USDC');
+    });
+
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is CHF', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        inputReferenceAsset: 'CHF',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDC' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('USDC');
+    });
+
+    it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is USDT', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        inputReferenceAsset: 'USDT',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDC' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('USDC');
+    });
+
+    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is not EUR | CHF | USD | USDC', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        inputReferenceAsset: 'ETH',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('BTC');
+    });
+
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset USD', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        inputReferenceAsset: 'USD',
         buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
       });
 
@@ -49,10 +137,91 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDT');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is not BTC, USDC or USDT', () => {
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is EUR', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
-        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'GOOGL' }) }),
+        inputReferenceAsset: 'EUR',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('USDT');
+    });
+
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is CHF', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        inputReferenceAsset: 'CHF',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('USDT');
+    });
+
+    it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is USDC', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        inputReferenceAsset: 'USDC',
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'USDT' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('USDT');
+    });
+
+    it('assigns outputReferenceAsset to ETH, on Ethereum blockchain', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('ETH');
+    });
+
+    it('assigns outputReferenceAsset to BNB, on BSC blockchain', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('BNB');
+    });
+
+    it('defaults outputReferenceAsset to BTC on Bitcoin blockchain', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'XYZ', blockchain: Blockchain.BITCOIN }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('BTC');
+    });
+
+    it('defaults outputReferenceAsset to BTC on DeFiChain blockchain', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({ asset: createCustomAsset({ dexName: 'XYZ', blockchain: Blockchain.DEFICHAIN }) }),
       });
 
       expect(entity.outputReferenceAsset).toBeUndefined();
@@ -187,13 +356,23 @@ describe('BuyCrypto', () => {
     });
   });
 
-  describe('#recordTransactionPayout(...)', () => {
+  describe('#complete(...)', () => {
+    it('sets isComplete to true', () => {
+      const entity = createCustomBuyCrypto({ isComplete: undefined });
+
+      expect(entity.isComplete).toBe(undefined);
+
+      entity.complete('TX_ID_01');
+
+      expect(entity.isComplete).toBe(true);
+    });
+
     it('adds txId to the entity', () => {
       const entity = createCustomBuyCrypto({ txId: undefined });
 
       expect(entity.txId).toBe(undefined);
 
-      entity.recordTransactionPayout('TX_ID_01');
+      entity.complete('TX_ID_01');
 
       expect(entity.txId).toBe('TX_ID_01');
     });
@@ -203,36 +382,15 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputDate).toBe(undefined);
 
-      entity.recordTransactionPayout('TX_ID_01');
+      entity.complete('TX_ID_01');
 
-      expect(entity.outputDate).toBeTruthy();
       expect(entity.outputDate).toBeInstanceOf(Date);
     });
 
     it('returns instance of BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
 
-      const updatedEntity = entity.recordTransactionPayout('TX_ID_01');
-
-      expect(updatedEntity).toBeInstanceOf(BuyCrypto);
-    });
-  });
-
-  describe('#complete(...)', () => {
-    it('sets isComplete to true', () => {
-      const entity = createCustomBuyCrypto({ isComplete: undefined });
-
-      expect(entity.isComplete).toBe(undefined);
-
-      entity.complete();
-
-      expect(entity.isComplete).toBe(true);
-    });
-
-    it('returns instance of BuyCrypto', () => {
-      const entity = createDefaultBuyCrypto();
-
-      const updatedEntity = entity.complete();
+      const updatedEntity = entity.complete('TX_ID_01');
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
     });

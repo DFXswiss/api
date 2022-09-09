@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { NodeMode } from 'src/ain/node/node-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeMode } from 'src/blockchain/ain/node/node-client';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { MailService } from 'src/shared/services/mail.service';

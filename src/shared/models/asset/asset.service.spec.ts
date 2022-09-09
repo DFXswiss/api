@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AssetRepository } from './asset.repository';
 import { AssetService } from './asset.service';
 
@@ -23,26 +24,28 @@ describe('AssetService', () => {
   });
 
   it('should switch to DFI-Token if isToken = true and DFI', () => {
-    service.getAssetByDexName('DFI', true);
+    service.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN, isToken: true });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI-Token' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({
+      where: { dexName: 'DFI-Token', blockchain: Blockchain.DEFICHAIN },
+    });
   });
 
   it('should not switch to DFI-Token if isToken = false and DFI', () => {
-    service.getAssetByDexName('DFI', false);
+    service.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN, isToken: false });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI', blockchain: Blockchain.DEFICHAIN } });
   });
 
   it('should not switch to DFI-Token if isToken = undefined and DFI', () => {
-    service.getAssetByDexName('DFI');
+    service.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'DFI', blockchain: Blockchain.DEFICHAIN } });
   });
 
   it('should not switch to DFI-Token if isToken = true and not DFI', () => {
-    service.getAssetByDexName('BTC', true);
+    service.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN, isToken: true });
 
-    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'BTC' } });
+    expect(assetRepo.findOne).toHaveBeenCalledWith({ where: { dexName: 'BTC', blockchain: Blockchain.BITCOIN } });
   });
 });

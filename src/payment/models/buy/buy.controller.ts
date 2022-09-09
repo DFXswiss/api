@@ -103,7 +103,7 @@ export class BuyController {
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fees,
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
+      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
     };
   }
 
@@ -112,7 +112,7 @@ export class BuyController {
       ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
       ...(await this.getFees(userId)),
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.Fiat),
+      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
     };
   }
 

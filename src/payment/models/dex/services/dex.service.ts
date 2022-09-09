@@ -1,11 +1,6 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
-import { PurchasePoolPairLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-poolpair-liquidity.strategy';
-import { PurchaseStockLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-stock-liquidity.strategy';
-import { PurchaseCryptoLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-crypto-liquidity.strategy';
-import { PurchaseLiquidityStrategy } from '../strategies/purchase-liquidity/purchase-liquidity.strategy';
+import { Injectable } from '@nestjs/common';
 import { LiquidityOrder, LiquidityOrderContext } from '../entities/liquidity-order.entity';
-import { LiquidityService } from './liquidity.service';
+import { DexDeFiChainService } from './dex-defichain.service';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -14,49 +9,19 @@ import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { MailService } from 'src/shared/services/mail.service';
-import { CheckLiquidityStrategy } from '../strategies/check-liquidity/check-liquidity.strategy';
-import { CheckPoolPairLiquidityStrategy } from '../strategies/check-liquidity/check-poolpair-liquidity.strategy';
-import { CheckLiquidityDefaultStrategy } from '../strategies/check-liquidity/check-liquidity-default.strategy';
-import { Blockchain } from 'src/ain/services/crypto.service';
-
-export interface LiquidityRequest {
-  context: LiquidityOrderContext;
-  correlationId: string;
-  referenceAsset: string;
-  referenceAmount: number;
-  targetAsset: Asset;
-}
+import { DexStrategiesFacade } from '../strategies/strategies.facade';
+import { LiquidityRequest, TransferRequest } from '../interfaces';
 
 @Injectable()
 export class DexService {
   private readonly verifyPurchaseOrdersLock = new Lock(1800);
 
-  private readonly checkLiquidityStrategies = new Map<AssetCategory | 'default', CheckLiquidityStrategy>();
-  private readonly purchaseLiquidityStrategies = new Map<AssetCategory, PurchaseLiquidityStrategy>();
-
   constructor(
-    readonly mailService: MailService,
-    readonly settingService: SettingService,
-    readonly assetService: AssetService,
-    readonly checkPoolPairLiquidityStrategy: CheckPoolPairLiquidityStrategy,
-    readonly checkLiquidityDefaultStrategy: CheckLiquidityDefaultStrategy,
-    @Inject(forwardRef(() => PurchasePoolPairLiquidityStrategy))
-    readonly purchasePoolPairLiquidityStrategy: PurchasePoolPairLiquidityStrategy,
-    readonly purchaseStockLiquidityStrategy: PurchaseStockLiquidityStrategy,
-    readonly purchaseCryptoLiquidityStrategy: PurchaseCryptoLiquidityStrategy,
-    private readonly liquidityService: LiquidityService,
+    private readonly strategies: DexStrategiesFacade,
+    private readonly dexDeFiChainService: DexDeFiChainService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
-  ) {
-    this.checkLiquidityStrategies.set(AssetCategory.POOL_PAIR, checkPoolPairLiquidityStrategy);
-    this.checkLiquidityStrategies.set('default', checkLiquidityDefaultStrategy);
-    this.purchaseLiquidityStrategies.set(AssetCategory.POOL_PAIR, purchasePoolPairLiquidityStrategy);
-    this.purchaseLiquidityStrategies.set(AssetCategory.STOCK, purchaseStockLiquidityStrategy);
-    this.purchaseLiquidityStrategies.set(AssetCategory.CRYPTO, purchaseCryptoLiquidityStrategy);
-  }
+  ) {}
 
   // *** PUBLIC API *** //
 
@@ -64,8 +29,7 @@ export class DexService {
     const { context, correlationId, targetAsset } = request;
 
     try {
-      const strategy =
-        this.checkLiquidityStrategies.get(targetAsset?.category) || this.checkLiquidityStrategies.get('default');
+      const strategy = this.strategies.getCheckLiquidityStrategy(targetAsset);
 
       return strategy.checkLiquidity(request);
     } catch (e) {
@@ -86,13 +50,12 @@ export class DexService {
     try {
       console.info(`Reserving ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
 
-      const strategy =
-        this.checkLiquidityStrategies.get(targetAsset?.category) || this.checkLiquidityStrategies.get('default');
+      const strategy = this.strategies.getCheckLiquidityStrategy(targetAsset);
 
       const liquidity = await strategy.checkLiquidity(request);
 
       if (liquidity !== 0) {
-        const order = this.liquidityOrderFactory.createReservationOrder(request, Blockchain.DEFICHAIN);
+        const order = this.liquidityOrderFactory.createReservationOrder(request, targetAsset.blockchain);
         order.reserved(liquidity);
 
         await this.liquidityOrderRepo.save(order);
@@ -117,7 +80,7 @@ export class DexService {
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
     const { context, correlationId, targetAsset } = request;
-    const strategy = this.purchaseLiquidityStrategies.get(targetAsset?.category);
+    const strategy = this.strategies.getPurchaseLiquidityStrategy(targetAsset);
 
     if (!strategy) {
       throw new Error(`No purchase liquidity strategy for asset category ${targetAsset?.category}`);
@@ -131,12 +94,23 @@ export class DexService {
     } catch (e) {
       // publicly exposed exception
       if (e instanceof PriceSlippageException) throw e;
+      if (e instanceof NotEnoughLiquidityException) throw e;
 
       console.error(e.message);
 
       // default public exception
       throw new Error(`Error while purchasing liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
     }
+  }
+
+  async transferLiquidity(request: TransferRequest): Promise<string> {
+    const { destinationAddress, asset, amount } = request;
+
+    return this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
+  }
+
+  async transferMinimalUtxo(address: string): Promise<string> {
+    return this.dexDeFiChainService.transferMinimalUtxo(address);
   }
 
   async fetchTargetLiquidityAfterPurchase(context: LiquidityOrderContext, correlationId: string): Promise<number> {
@@ -151,6 +125,10 @@ export class DexService {
     }
 
     return order.targetAmount;
+  }
+
+  async checkTransferCompletion(transferTxId: string): Promise<boolean> {
+    return this.dexDeFiChainService.checkTransferCompletion(transferTxId);
   }
 
   async completeOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
@@ -183,7 +161,7 @@ export class DexService {
   private async addPurchasedAmountsToOrders(orders: LiquidityOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const amount = await this.liquidityService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
+        const amount = await this.dexDeFiChainService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
 
         order.purchased(amount);
         await this.liquidityOrderRepo.save(order);

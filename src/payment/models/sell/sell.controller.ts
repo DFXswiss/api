@@ -84,7 +84,7 @@ export class SellController {
       ...sell,
       fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
+      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain),
     };
   }
 
@@ -92,7 +92,7 @@ export class SellController {
     return {
       fee: await this.getFee(userId),
       depositAddress: sell.deposit.address,
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
+      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain),
     };
   }
 

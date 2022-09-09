@@ -1,31 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
-import { Config } from 'src/config/config';
-import { IsNull } from 'typeorm';
+import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
-import { DexService, LiquidityRequest } from '../../dex/services/dex.service';
+import { DexService } from '../../dex/services/dex.service';
 import { LiquidityOrderNotReadyException } from '../../dex/exceptions/liquidity-order-not-ready.exception';
 import { PriceSlippageException } from '../../dex/exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
+import { LiquidityRequest } from '../../dex/interfaces';
 
 @Injectable()
 export class BuyCryptoDexService {
-  private dexClient: DeFiClient;
-
   constructor(
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
     readonly nodeService: NodeService,
-  ) {
-    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
-  }
+  ) {}
 
   async secureLiquidity(): Promise<void> {
     try {
@@ -41,21 +35,6 @@ export class BuyCryptoDexService {
 
       await this.checkPendingBatches(pendingBatches);
       await this.processNewBatches(newBatches);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async transferLiquidityForOutput(): Promise<void> {
-    try {
-      const batches = await this.buyCryptoBatchRepo.find({ status: BuyCryptoBatchStatus.SECURED, outTxId: IsNull() });
-
-      batches?.length &&
-        console.info(`Transferring ${batches.length} batch(es) to OUT Node. Batch ID(s): ${batches.map((b) => b.id)}`);
-
-      for (const batch of batches) {
-        await this.transferForOutput(batch);
-      }
     } catch (e) {
       console.error(e);
     }
@@ -159,7 +138,8 @@ export class BuyCryptoDexService {
   }
 
   private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
-    const targetAsset = await this.assetService.getAssetByDexName(batch.outputAsset);
+    const { outputAsset, blockchain } = batch;
+    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
 
     return {
       context: LiquidityOrderContext.BUY_CRYPTO,
@@ -172,32 +152,5 @@ export class BuyCryptoDexService {
 
   private async handleSlippageException(message: string, e: Error): Promise<void> {
     await this.buyCryptoNotificationService.sendNonRecoverableErrorMail(message, e);
-  }
-
-  private async transferForOutput(batch: BuyCryptoBatch): Promise<void> {
-    let txId: string;
-
-    try {
-      txId = await this.dexClient.sendToken(
-        Config.node.dexWalletAddress,
-        Config.node.outWalletAddress,
-        batch.outputAsset,
-        batch.outputAmount,
-      );
-
-      batch.recordDexToOutTransfer(txId);
-    } catch (e) {
-      console.error(`Error in transferring to OUT. Asset '${batch.outputAsset}'. Batch ID: ${batch.id}`, e);
-      return;
-    }
-
-    try {
-      await this.buyCryptoBatchRepo.save(batch);
-    } catch (e) {
-      console.error(
-        `Error in saving DEX to OUT transaction. Asset '${batch.outputAsset}'. Batch ID: ${batch.id}. Transfer ID: ${txId} `,
-        e,
-      );
-    }
   }
 }

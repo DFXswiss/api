@@ -13,7 +13,7 @@ import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { TestUtil } from 'src/shared/test.util';
 import { GeoLocationService } from 'src/user/services/geo-location.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { CryptoService } from 'src/ain/services/crypto.service';
+import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 
 describe('UserService', () => {

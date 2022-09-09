@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Entity, Column, Index } from 'typeorm';
 import { IEntity } from '../entity';
 

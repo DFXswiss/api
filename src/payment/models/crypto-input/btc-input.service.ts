@@ -1,7 +1,7 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
@@ -12,12 +12,12 @@ import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity'
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoInputService } from './crypto-input.service';
-import { BtcClient } from 'src/ain/node/btc-client';
+import { BtcClient } from 'src/blockchain/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { ChainalysisService } from './chainalysis.service';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -90,14 +90,14 @@ export class BtcInputService extends CryptoInputService {
 
   private async createEntity(utxo: UTXO): Promise<CryptoInput> {
     // get asset
-    const assetEntity = await this.assetService.getAssetByDexName('BTC');
+    const assetEntity = await this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
     if (!assetEntity) {
       console.error(`Failed to process Bitcoin input. No asset BTC found. UTXO:`, utxo);
       return null;
     }
 
     // min. deposit
-    if (utxo.amount.toNumber() < Config.node.minDeposit.Bitcoin.BTC) {
+    if (utxo.amount.toNumber() < Config.blockchain.default.minDeposit.Bitcoin.BTC) {
       console.log(`Ignoring too small Bitcoin input (${utxo.amount.toNumber()} 'BTC'. UTXO:`, utxo);
       return null;
     }
@@ -158,7 +158,7 @@ export class BtcInputService extends CryptoInputService {
 
     for (const input of inputs) {
       try {
-        await this.forwardUtxo(input, Config.node.btcCollectorAddress);
+        await this.forwardUtxo(input, Config.blockchain.default.btcCollectorAddress);
       } catch (e) {
         console.error(`Failed to forward Bitcoin input ${input.id}:`, e);
       }

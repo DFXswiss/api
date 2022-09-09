@@ -3,7 +3,7 @@ import { CryptoInput } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { In } from 'typeorm';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
-import { NodeClient } from 'src/ain/node/node-client';
+import { NodeClient } from 'src/blockchain/ain/node/node-client';
 
 @Injectable()
 export class CryptoInputService {

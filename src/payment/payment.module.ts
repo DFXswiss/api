@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AinModule } from 'src/ain/ain.module';
+import { AinModule } from 'src/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
 import { BankController } from './models/bank/bank.controller';
@@ -11,15 +11,11 @@ import { BankTxBatchRepository } from './models/bank-tx/bank-tx-batch.repository
 import { BankTxController } from './models/bank-tx/bank-tx.controller';
 import { BankTxRepository } from './models/bank-tx/bank-tx.repository';
 import { BankTxService } from './models/bank-tx/bank-tx.service';
-import { KrakenService } from './models/exchange/kraken.service';
-import { ExchangeController } from './models/exchange/exchange.controller';
-import { BinanceService } from './models/exchange/binance.service';
 import { CryptoBuyRepository } from './models/crypto-buy/crypto-buy.repository';
 import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
 import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 import { HistoryController } from './models/history/history.controller';
 import { HistoryService } from './models/history/history.service';
-import { BitstampService } from './models/exchange/bitstamp.service';
 import { BuyController } from './models/buy/buy.controller';
 import { BuyRepository } from './models/buy/buy.repository';
 import { BuyService } from './models/buy/buy.service';
@@ -53,7 +49,6 @@ import { BuyCryptoController } from './models/buy-crypto/buy-crypto.controller';
 import { BuyCryptoService } from './models/buy-crypto/services/buy-crypto.service';
 import { StakingRefRewardService } from './models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRefRewardRepository } from './models/staking-ref-reward/staking-ref-reward.repository';
-import { ExchangeUtilityService } from './models/exchange/exchange-utility.service';
 import { BuyCryptoBatchService } from './models/buy-crypto/services/buy-crypto-batch.service';
 import { BuyCryptoOutService } from './models/buy-crypto/services/buy-crypto-out.service';
 import { BuyCryptoDexService } from './models/buy-crypto/services/buy-crypto-dex.service';
@@ -72,10 +67,12 @@ import { BuyFiatService } from './models/buy-fiat/buy-fiat.service';
 import { DexModule } from './models/dex/dex.module';
 import { OlkypayService } from './models/bank-tx/olkypay.service';
 import { ChainalysisService } from './models/crypto-input/chainalysis.service';
+import { PayoutModule } from './models/payout/payout.module';
 import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
 import { FrickService } from './models/bank-tx/frick.service';
 import { BankAccountController } from './models/bank-account/bank-account.controller';
-import { BitpandaService } from './models/exchange/bitpanda.service';
+import { ExchangeModule } from './models/exchange/exchange.module';
+import { PricingModule } from './models/pricing/pricing.module';
 
 @Module({
   imports: [
@@ -105,11 +102,13 @@ import { BitpandaService } from './models/exchange/bitpanda.service';
     AinModule,
     UserModule,
     DexModule,
+    PayoutModule,
+    ExchangeModule,
+    PricingModule,
   ],
   controllers: [
     BankTxController,
     BankController,
-    ExchangeController,
     CryptoBuyController,
     BuyCryptoController,
     CryptoSellController,
@@ -144,11 +143,7 @@ import { BitpandaService } from './models/exchange/bitpanda.service';
     OlkypayService,
     FrickService,
     BankService,
-    KrakenService,
-    BinanceService,
-    BitstampService,
-    BitpandaService,
-    ExchangeUtilityService,
+
     HistoryService,
     BuyService,
     SellService,
