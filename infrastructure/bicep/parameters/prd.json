@@ -93,7 +93,7 @@
       "value": "xxx"
     },
     "bscGatewayUrl": {
-      "value": "https://docs.bnbchain.org/docs/rpc"
+      "value": "https://bsc-dataseed.binance.org"
     },
     "btcCollectorAddress": {
       "value": "xxx"
