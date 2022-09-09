@@ -18,8 +18,11 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
+import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
+import { RouteHistoryDto } from '../route/dto/route-history.dto';
 import { HistoryQuery } from './dto/history-query.dto';
-import { CoinTrackingHistoryDto, HistoryDto } from './dto/history.dto';
+import { CoinTrackingHistoryDto, HistoryDto, HistoryTransactionType, SimplifiedHistoryDto } from './dto/history.dto';
 import { HistoryService } from './history.service';
 
 @ApiTags('history')
@@ -31,19 +34,22 @@ export class HistoryController {
     private readonly historyService: HistoryService,
     private readonly userService: UserService,
     private readonly apiKeyService: ApiKeyService,
+    private readonly buyFiatService: BuyFiatService,
+    private readonly buyCryptoService: BuyCryptoService,
   ) {}
 
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getHistory(
-    @GetJwt() jwt: JwtPayload,
-    @Query() query: HistoryQuery,
-  ): Promise<HistoryDto[] | CoinTrackingHistoryDto[]> {
-    return await this.historyService.getHistory(jwt.id, jwt.address, query);
-    //this.historyService.getOceanTransaction('df1qh2as5nzrehxgu4mke4ysrvngydsevtmhedns0x');
-    //this.historyService.getOceanTransaction('8L3z6CyyLshqnUf8kDHjLQ6GCupLKbiXJx');
-    //return await this.historyService.getHistory(jwt.id, jwt.address, query);
+  async getHistory(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQuery): Promise<SimplifiedHistoryDto[]> {
+    return [
+      this.toSimplifiedHistoryDto(await this.buyCryptoService.getHistory(jwt.id), HistoryTransactionType.BUY),
+      this.toSimplifiedHistoryDto(
+        await this.buyCryptoService.getCryptoRouteHistory(jwt.id),
+        HistoryTransactionType.CRYPTO,
+      ),
+      this.toSimplifiedHistoryDto(await this.buyFiatService.getHistory(jwt.id), HistoryTransactionType.SELL),
+    ].reduce((prev, curr) => prev.concat(curr), []);
   }
 
   @Get('CT')
@@ -83,6 +89,18 @@ export class HistoryController {
       'Content-Disposition': `attachment; filename="DFX_history_${this.formatDate()}.csv"`,
     });
     return csvFile;
+  }
+
+  // --- HELPER METHODS --- //
+  private toSimplifiedHistoryDto(history: RouteHistoryDto[], type: HistoryTransactionType): SimplifiedHistoryDto[] {
+    return history
+      .map((c) => [
+        {
+          type: type,
+          ...c,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
   }
 
   private formatDate(date: Date = new Date()): string {
