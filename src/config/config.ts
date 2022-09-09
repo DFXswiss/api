@@ -203,13 +203,11 @@ export class Configuration {
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
-      ethExplorerUrl: process.env.ETH_EXPLORER_URL,
     },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
-      bscExplorerUrl: process.env.BSC_EXPLORER_URL,
     },
   };
 
