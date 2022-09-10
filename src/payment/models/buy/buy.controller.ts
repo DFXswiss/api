@@ -9,7 +9,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
 import { In } from 'typeorm';
-import { BuyCryptoHistoryDto } from '../buy-crypto/dto/buy-crypto-history.dto';
+import { BuyHistoryDto } from './dto/buy-history.dto';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { Deposit } from '../deposit/deposit.entity';
 import { StakingDto } from '../staking/dto/staking.dto';
@@ -26,7 +26,6 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { BankAccountService } from '../bank-account/bank-account.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -78,8 +77,8 @@ export class BuyController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyCryptoHistoryDto[]> {
-    return this.buyCryptoService.getHistory(jwt.id, +id);
+  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyHistoryDto[]> {
+    return this.buyCryptoService.getBuyHistory(jwt.id, +id);
   }
 
   // --- DTO --- //

@@ -12,7 +12,7 @@ import { SellDto } from './dto/sell.dto';
 import { Sell } from './sell.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
-import { BuyFiatHistoryDto } from '../buy-fiat/dto/buy-fiat-history.dto';
+import { SellHistoryDto } from './dto/sell-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
@@ -64,8 +64,8 @@ export class SellController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyFiatHistoryDto[]> {
-    return this.buyFiatService.getHistory(jwt.id, +id);
+  async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellHistoryDto[]> {
+    return this.buyFiatService.getSellHistory(jwt.id, +id);
   }
 
   // --- DTO --- //

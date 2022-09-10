@@ -11,7 +11,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { SellRepository } from '../sell/sell.repository';
 import { SellService } from '../sell/sell.service';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
-import { BuyFiatHistoryDto } from './dto/buy-fiat-history.dto';
+import { SellHistoryDto } from '../sell/dto/sell-history.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -88,7 +88,7 @@ export class BuyFiatService {
     });
   }
 
-  async getHistory(userId: number, sellId?: number): Promise<BuyFiatHistoryDto[]> {
+  async getSellHistory(userId: number, sellId?: number): Promise<SellHistoryDto[]> {
     const where = { user: { id: userId }, id: sellId };
     Util.removeNullFields(where);
     return this.buyFiatRepo
@@ -100,7 +100,7 @@ export class BuyFiatService {
   }
 
   // --- HELPER METHODS --- //
-  private toHistoryDto(buyFiat: BuyFiat): BuyFiatHistoryDto {
+  private toHistoryDto(buyFiat: BuyFiat): SellHistoryDto {
     return {
       inputAmount: buyFiat.inputAmount,
       inputAsset: buyFiat.inputAsset,

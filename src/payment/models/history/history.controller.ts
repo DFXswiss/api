@@ -10,7 +10,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -20,9 +20,9 @@ import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
-import { HistoryTransactionType, RouteHistoryDto, TypedRouteHistoryDto } from '../route/dto/route-history.dto';
+import { HistoryTransactionType, HistoryDto, TypedHistoryDto } from './dto/history.dto';
 import { HistoryQuery } from './dto/history-query.dto';
-import { CoinTrackingHistoryDto } from './dto/history.dto';
+import { CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
 import { HistoryService } from './history.service';
 
 @ApiTags('history')
@@ -41,20 +41,19 @@ export class HistoryController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getHistory(@GetJwt() jwt: JwtPayload): Promise<TypedRouteHistoryDto[]> {
+  @ApiResponse({ status: 200, type: TypedHistoryDto, isArray: true })
+  async getHistory(@GetJwt() jwt: JwtPayload): Promise<TypedHistoryDto[]> {
     return [
-      this.toSimplifiedHistoryDto(await this.buyCryptoService.getHistory(jwt.id), HistoryTransactionType.BUY),
-      this.toSimplifiedHistoryDto(
-        await this.buyCryptoService.getCryptoRouteHistory(jwt.id),
-        HistoryTransactionType.CRYPTO,
-      ),
-      this.toSimplifiedHistoryDto(await this.buyFiatService.getHistory(jwt.id), HistoryTransactionType.SELL),
+      await this.buyCryptoService.getBuyHistory(jwt.id).then(this.addType(HistoryTransactionType.BUY)),
+      await this.buyCryptoService.getCryptoHistory(jwt.id).then(this.addType(HistoryTransactionType.CRYPTO)),
+      await this.buyFiatService.getSellHistory(jwt.id).then(this.addType(HistoryTransactionType.SELL)),
     ]
       .reduce((prev, curr) => prev.concat(curr), [])
-      .sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
+      .sort((tx1, tx2) => (tx1.date > tx2.date ? -1 : 1));
   }
 
   @Get('CT')
+  @ApiResponse({ status: 200, type: CoinTrackingHistoryDto, isArray: true })
   async getCoinTrackingApiHistory(
     @Query() query: HistoryQuery,
     @Headers('DFX-ACCESS-KEY') key: string,
@@ -64,8 +63,7 @@ export class HistoryController {
     const user = await this.userService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, this.apiKeyService.getFilter(user.apiFilterCT));
 
-    const tx = await this.historyService.getHistory(user.id, user.address, query, 300000);
-    return tx.map((t) => ({ ...t, ...{ date: t.date?.getTime() / 1000 } }));
+    return await this.historyService.getHistory(user.id, user.address, query, 300000);
   }
 
   @Post('csv')
@@ -94,8 +92,8 @@ export class HistoryController {
   }
 
   // --- HELPER METHODS --- //
-  private toSimplifiedHistoryDto(history: RouteHistoryDto[], type: HistoryTransactionType): TypedRouteHistoryDto[] {
-    return history.map((c) => ({ type, ...c }));
+  private addType(type: HistoryTransactionType): (history: HistoryDto[]) => TypedHistoryDto[] {
+    return (history) => history.map((c) => ({ type, ...c }));
   }
 
   private formatDate(date: Date = new Date()): string {

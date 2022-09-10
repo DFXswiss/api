@@ -9,7 +9,7 @@ import { SellService } from '../../sell/sell.service';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from '../buy-fiat.service';
-import { createCustomBuyFiatHistory } from '../dto/__mocks__/buy-fiat-history.dto.mock';
+import { createCustomSellHistory } from '../../sell/dto/__mocks__/sell-history.dto.mock';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 
 enum MockBuyData {
@@ -110,20 +110,20 @@ describe('BuyFiatService', () => {
   it('should return an empty array, if sell route has no history', async () => {
     setup(MockBuyData.BUY_HISTORY_EMPTY);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([]);
+    await expect(service.getSellHistory(1, 1)).resolves.toStrictEqual([]);
   });
 
   it('should return a history, if sell route has transactions', async () => {
     const date = new Date();
     setup(MockBuyData.BUY_HISTORY, date);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
-      createCustomBuyFiatHistory({
+    await expect(service.getSellHistory(1, 1)).resolves.toStrictEqual([
+      createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
         ...txOne,
       }),
-      createCustomBuyFiatHistory({
+      createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_1',
         ...txTwo,
@@ -135,8 +135,8 @@ describe('BuyFiatService', () => {
     const date = new Date();
     setup(MockBuyData.BUY_HISTORY_SMALL, date);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
-      createCustomBuyFiatHistory({
+    await expect(service.getSellHistory(1, 1)).resolves.toStrictEqual([
+      createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
         ...txSmallAmount,
