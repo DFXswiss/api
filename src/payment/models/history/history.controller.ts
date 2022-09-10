@@ -20,9 +20,9 @@ import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
-import { RouteHistoryDto } from '../route/dto/route-history.dto';
+import { HistoryTransactionType, RouteHistoryDto, TypedRouteHistoryDto } from '../route/dto/route-history.dto';
 import { HistoryQuery } from './dto/history-query.dto';
-import { CoinTrackingHistoryDto, HistoryDto, HistoryTransactionType, SimplifiedHistoryDto } from './dto/history.dto';
+import { CoinTrackingHistoryDto } from './dto/history.dto';
 import { HistoryService } from './history.service';
 
 @ApiTags('history')
@@ -41,7 +41,7 @@ export class HistoryController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getHistory(@GetJwt() jwt: JwtPayload, @Query() query: HistoryQuery): Promise<SimplifiedHistoryDto[]> {
+  async getHistory(@GetJwt() jwt: JwtPayload): Promise<TypedRouteHistoryDto[]> {
     return [
       this.toSimplifiedHistoryDto(await this.buyCryptoService.getHistory(jwt.id), HistoryTransactionType.BUY),
       this.toSimplifiedHistoryDto(
@@ -49,7 +49,9 @@ export class HistoryController {
         HistoryTransactionType.CRYPTO,
       ),
       this.toSimplifiedHistoryDto(await this.buyFiatService.getHistory(jwt.id), HistoryTransactionType.SELL),
-    ].reduce((prev, curr) => prev.concat(curr), []);
+    ]
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
   }
 
   @Get('CT')
@@ -92,15 +94,8 @@ export class HistoryController {
   }
 
   // --- HELPER METHODS --- //
-  private toSimplifiedHistoryDto(history: RouteHistoryDto[], type: HistoryTransactionType): SimplifiedHistoryDto[] {
-    return history
-      .map((c) => [
-        {
-          type: type,
-          ...c,
-        },
-      ])
-      .reduce((prev, curr) => prev.concat(curr), []);
+  private toSimplifiedHistoryDto(history: RouteHistoryDto[], type: HistoryTransactionType): TypedRouteHistoryDto[] {
+    return history.map((c) => ({ type, ...c }));
   }
 
   private formatDate(date: Date = new Date()): string {
