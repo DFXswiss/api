@@ -158,6 +158,12 @@
     "letterAuth": {
       "value": "xxx"
     },
+    "fixerUrl": {
+      "value": "https://api.apilayer.com/fixer"
+    },
+    "fixerApiKey": {
+      "value": "xxx"
+    },
     "sepaToolsUser": {
       "value": "xxx"
     },
