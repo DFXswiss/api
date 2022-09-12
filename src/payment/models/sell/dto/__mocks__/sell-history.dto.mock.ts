@@ -1,0 +1,21 @@
+import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
+import { SellHistoryDto } from '../sell-history.dto';
+
+const defaultSellHistory: SellHistoryDto = {
+  inputAmount: 0.0005,
+  inputAsset: 'BTC',
+  outputAmount: 10,
+  outputAsset: 'EUR',
+  date: new Date(),
+  isComplete: false,
+  txId: 'TX_ID_01',
+  amlCheck: AmlCheck.PASS,
+};
+
+export function createDefaultSellHistory(): SellHistoryDto {
+  return defaultSellHistory;
+}
+
+export function createCustomSellHistory(customValues: Partial<SellHistoryDto>): SellHistoryDto {
+  return { ...defaultSellHistory, ...customValues };
+}
