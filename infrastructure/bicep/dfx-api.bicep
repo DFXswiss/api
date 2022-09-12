@@ -89,6 +89,10 @@ param letterUser string
 @secure()
 param letterAuth string
 
+param fixerUrl string
+@secure()
+param fixerApiKey string
+
 param sepaToolsUser string
 @secure()
 param sepaToolsPassword string
@@ -628,6 +632,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LETTER_AUTH'
           value: letterAuth
+        }
+        {
+          name: 'FIXER_BASE_URL'
+          value: fixerUrl
+        }
+        {
+          name: 'FIXER_API_KEY'
+          value: fixerApiKey
         }
         {
           name: 'SEPA_TOOLS_USER'
