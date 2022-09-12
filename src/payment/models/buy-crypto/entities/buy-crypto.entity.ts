@@ -10,6 +10,7 @@ import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Entity()
 export class BuyCrypto extends IEntity {
@@ -112,10 +113,32 @@ export class BuyCrypto extends IEntity {
   defineAssetExchangePair(): this {
     this.outputAsset = this.target?.asset?.dexName;
 
-    if (this.outputAsset === 'BTC' || this.outputAsset === 'USDC' || this.outputAsset === 'USDT') {
+    if (this.outputAsset === this.inputReferenceAsset) {
       this.outputReferenceAsset = this.outputAsset;
-    } else {
-      this.outputReferenceAsset = 'BTC';
+      return this;
+    }
+
+    if (['USDC', 'USDT'].includes(this.outputAsset)) {
+      if (['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)) {
+        this.outputReferenceAsset = this.outputAsset;
+      } else {
+        this.outputReferenceAsset = 'BTC';
+      }
+
+      return this;
+    }
+
+    switch (this.target.asset.blockchain) {
+      case Blockchain.ETHEREUM:
+        this.outputReferenceAsset = 'ETH';
+        break;
+
+      case Blockchain.BINANCE_SMART_CHAIN:
+        this.outputReferenceAsset = 'BNB';
+        break;
+
+      default:
+        this.outputReferenceAsset = 'BTC';
     }
 
     return this;
@@ -153,14 +176,9 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  recordTransactionPayout(txId: string): this {
-    this.txId = txId;
+  complete(payoutTxId: string): this {
+    this.txId = payoutTxId;
     this.outputDate = new Date();
-
-    return this;
-  }
-
-  complete(): this {
     this.isComplete = true;
 
     return this;

@@ -21,7 +21,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { CryptoStakingRepository } from '../crypto-staking/crypto-staking.repository';
 import { UserStatus } from 'src/user/models/user/user.entity';
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class StakingService {
@@ -163,8 +163,10 @@ export class StakingService {
   }
 
   private async getAsset(assetId?: number): Promise<Asset | null> {
-    const asset: Asset = await this.assetService.getAsset(assetId);
-    return asset && asset.buyable ? asset : await this.assetService.getAssetByDexName('DFI');
+    const asset: Asset = await this.assetService.getAssetById(assetId);
+    return asset && asset.buyable
+      ? asset
+      : await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
   }
 
   // --- BALANCE --- //
@@ -282,7 +284,7 @@ export class StakingService {
       fee: fee,
       period: Config.staking.period,
       minInvestment: Config.staking.minInvestment,
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain, 'DFI'),
+      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'DFI'),
     };
   }
 

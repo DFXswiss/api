@@ -34,9 +34,22 @@ param nodePassword string
 param nodeWalletPassword string
 param dexWalletAddress string
 param outWalletAddress string
+param intWalletAddress string
 param stakingWalletAddress string
 param utxoSpenderAddress string
 param btcCollectorAddress string
+
+param ethWalletAddress string
+@secure()
+param ethWalletPrivateKey string
+param ethGatewayUrl string
+@secure()
+param ethApiKey string
+
+param bscWalletAddress string
+@secure()
+param bscWalletPrivateKey string
+param bscGatewayUrl string
 
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
@@ -529,12 +542,44 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: outWalletAddress
         }
         {
+          name: 'INT_WALLET_ADDRESS'
+          value: intWalletAddress
+        }
+        {
           name: 'STAKING_WALLET_ADDRESS'
           value: stakingWalletAddress
         }
         {
           name: 'UTXO_SPENDER_ADDRESS'
           value: utxoSpenderAddress
+        }
+        {
+          name: 'ETH_WALLET_ADDRESS'
+          value: ethWalletAddress
+        }
+        {
+          name: 'ETH_WALLET_PRIVATE_KEY'
+          value: ethWalletPrivateKey
+        }
+        {
+          name: 'ETH_GATEWAY_URL'
+          value: ethGatewayUrl
+        }
+        {
+          name: 'ETH_API_KEY'
+          value: ethApiKey
+        }
+        {
+          name: 'BSC_WALLET_ADDRESS'
+          value: bscWalletAddress
+        }
+        {
+          name: 'BSC_WALLET_PRIVATE_KEY'
+          value: bscWalletPrivateKey
+        }
+        {
+          name: 'BSC_GATEWAY_URL'
+          value: bscGatewayUrl
         }
         {
           name: 'BTC_COLLECTOR_ADDRESS'

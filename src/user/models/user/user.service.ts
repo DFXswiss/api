@@ -29,10 +29,11 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
 import { UserData } from '../user-data/user-data.entity';
-import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
+import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class UserService {

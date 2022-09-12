@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column, OneToOne } from 'typeorm';
 import { DepositRoute } from '../route/deposit-route.entity';

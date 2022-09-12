@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { plainToClass, Type } from 'class-transformer';
 import { IsNotEmpty, IsOptional, IsString, ValidateIf, ValidateNested, validateSync } from 'class-validator';
-import { NodeService } from 'src/ain/node/node.service';
+import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 

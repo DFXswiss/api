@@ -122,7 +122,6 @@ export class BuyCryptoService {
 
     await this.buyCryptoBatchService.batchTransactionsByAssets();
     await this.buyCryptoDexService.secureLiquidity();
-    await this.buyCryptoDexService.transferLiquidityForOutput();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
 

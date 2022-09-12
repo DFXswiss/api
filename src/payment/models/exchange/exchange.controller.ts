@@ -14,16 +14,17 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Balances, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { BinanceService } from './binance.service';
 import { TradeOrder } from './dto/trade-order.dto';
 import { Price } from './dto/price.dto';
 import { TradeResult, TradeStatus } from './dto/trade-result.dto';
 import { WithdrawalOrder } from './dto/withdrawal-order.dto';
-import { ExchangeService } from './exchange.service';
-import { KrakenService } from './kraken.service';
+
 import { Util } from 'src/shared/util';
-import { BitstampService } from './bitstamp.service';
-import { BitpandaService } from './bitpanda.service';
+import { BinanceService } from './services/binance.service';
+import { BitpandaService } from './services/bitpanda.service';
+import { BitstampService } from './services/bitstamp.service';
+import { ExchangeService } from './services/exchange.service';
+import { KrakenService } from './services/kraken.service';
 
 @ApiTags('exchange')
 @Controller('exchange')

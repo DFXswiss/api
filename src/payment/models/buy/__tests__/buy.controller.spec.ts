@@ -7,7 +7,7 @@ import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../../staking/staking.repository';
 import { StakingService } from '../../staking/staking.service';
 import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
-import { createDefaultBuy } from './mock/buy.entity.mock';
+import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TestUtil } from 'src/shared/test.util';
 import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
@@ -17,12 +17,9 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { BankAccountService } from '../../bank-account/bank-account.service';
-import { createCustomFiat, createDefaultFiat } from 'src/shared/models/fiat/__tests__/mock/fiat.entity.mock';
-import {
-  createCustomCountry,
-  createDefaultCountry,
-} from 'src/shared/models/country/__tests__/mock/country.entity.mock';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { createCustomFiat, createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
+import { createCustomCountry, createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
   return {
@@ -38,7 +35,7 @@ function createJwt(): JwtPayload {
     id: 0,
     address: '',
     role: UserRole.USER,
-    blockchains: [Blockchain.DEFICHAIN]
+    blockchains: [Blockchain.DEFICHAIN],
   };
 }
 

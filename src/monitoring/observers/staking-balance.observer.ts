@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { WhaleService } from 'src/ain/whale/whale.service';
+import { WhaleService } from 'src/blockchain/ain/whale/whale.service';
 import { Config } from 'src/config/config';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
@@ -72,7 +72,7 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
         resignHash: IsNull(),
       },
     });
-    const addresses = [...activeMasternodes.map((m) => m.owner), Config.node.stakingWalletAddress];
+    const addresses = [...activeMasternodes.map((m) => m.owner), Config.blockchain.default.stakingWalletAddress];
     const balance = await Promise.all(addresses.map((a) => whaleClient.getBalance(a).then((b) => +b)));
     const actual = Util.sum(balance);
 

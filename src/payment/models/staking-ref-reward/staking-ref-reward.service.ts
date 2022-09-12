@@ -9,9 +9,9 @@ import { User } from 'src/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
 import { ConversionService } from 'src/shared/services/conversion.service';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
-import { ExchangeUtilityService } from '../exchange/exchange-utility.service';
-import { DeFiClient } from 'src/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
+import { PricingService } from '../pricing/services/pricing.service';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 
 @Injectable()
 export class StakingRefRewardService {
@@ -22,7 +22,7 @@ export class StakingRefRewardService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly userService: UserService,
     private readonly conversionService: ConversionService,
-    private readonly exchangeUtilityService: ExchangeUtilityService,
+    private readonly pricingService: PricingService,
     private readonly mailService: MailService,
   ) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
@@ -95,11 +95,14 @@ export class StakingRefRewardService {
       });
 
       if (openRewards.length > 0) {
-        const { price } = await this.exchangeUtilityService.getMatchingPrice('EUR', 'BTC');
+        const { price } = await this.pricingService.getPrice({ from: 'EUR', to: 'BTC' }).catch((e) => {
+          console.error('Failed to get price:', e);
+          throw e;
+        });
 
         for (const reward of openRewards) {
           try {
-            await this.sendReward(reward, price);
+            await this.sendReward(reward, price.price);
           } catch (e) {
             console.error(`Failed to send staking ref reward ${reward.id}:`, e);
           }

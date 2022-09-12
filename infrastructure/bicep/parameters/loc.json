@@ -65,11 +65,35 @@
     "outWalletAddress": {
       "value": "xxx"
     },
+    "intWalletAddress": {
+      "value": "xxx"
+    },
     "stakingWalletAddress": {
       "value": "xxx"
     },
     "utxoSpenderAddress": {
       "value": "xxx"
+    },
+    "ethWalletAddress": {
+      "value": "xxx"
+    },
+    "ethWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "ethGatewayUrl": {
+      "value": "https://goerli.infura.io/v3"
+    },
+    "ethApiKey": {
+      "value": "xxx"
+    },
+    "bscWalletAddress": {
+      "value": "xxx"
+    },
+    "bscWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "bscGatewayUrl": {
+      "value": "https://data-seed-prebsc-1-s1.binance.org:8545"
     },
     "btcCollectorAddress": {
       "value": "xxx"
