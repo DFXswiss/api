@@ -10,23 +10,14 @@ import { Config } from 'src/config/config';
 export class CryptoService {
   public verifySignature(message: string, address: string, signature: string): boolean {
     const blockchains = this.getBlockchainsBasedOn(address);
-    const defichainFallbackMessage = Config.auth.signMessage + address;
 
     let isValid = false;
     try {
       isValid = this.verify(message, address, signature, blockchains);
-
-      if (!isValid && blockchains.includes(Blockchain.DEFICHAIN)) {
-        isValid = this.verify(defichainFallbackMessage, address, signature, blockchains);
-      }
     } catch (e) {}
 
     if (!isValid && !blockchains.includes(Blockchain.ETHEREUM)) {
       isValid = this.fallbackVerify(message, address, signature, blockchains);
-
-      if (!isValid && blockchains.includes(Blockchain.DEFICHAIN)) {
-        isValid = this.fallbackVerify(defichainFallbackMessage, address, signature, blockchains);
-      }
     }
     return isValid;
   }
@@ -85,6 +76,11 @@ export class CryptoService {
   }
 
   private verifyDefichain(message: string, address: string, signature: string): boolean {
-    return verify(message, address, signature, MainNet.messagePrefix);
+    let isValid = verify(message, address, signature, MainNet.messagePrefix);
+    if (!isValid) {
+      const fallbackMessage = Config.auth.signMessage + address;
+      isValid = verify(fallbackMessage, address, signature, MainNet.messagePrefix);
+    }
+    return isValid;
   }
 }
