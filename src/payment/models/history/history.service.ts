@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Readable } from 'stream';
-import { HistoryDto } from './dto/history.dto';
 import { Util } from 'src/shared/util';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
@@ -16,6 +15,7 @@ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
+import { CoinTrackingHistory, CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
 
 @Injectable()
 export class HistoryService {
@@ -29,20 +29,28 @@ export class HistoryService {
     private readonly stakingRefReward: StakingRefRewardService,
   ) {}
 
-  async getHistory(userId: number, userAddress: string, query: HistoryQuery, timeout?: number): Promise<HistoryDto[]> {
+  async getHistory(
+    userId: number,
+    userAddress: string,
+    query: HistoryQuery,
+    timeout?: number,
+  ): Promise<CoinTrackingHistoryDto[]> {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
-    const tx = await Promise.all([
+    const transactions: CoinTrackingHistory[][] = await Promise.all([
       all || query.buy != null ? await this.getBuyTransactions(userId, query.from, query.to) : Promise.resolve([]),
       all || query.sell != null ? await this.getSellTransactions(userId, query.from, query.to) : Promise.resolve([]),
       all || query.staking != null ? await this.getStakingRewards(userId, query.from, query.to) : Promise.resolve([]),
       all || query.staking != null ? await this.getStakingInvests(userId, query.from, query.to) : Promise.resolve([]),
       all || query.ref != null ? await this.getAllRefRewards(userId, query.from, query.to) : Promise.resolve([]),
       //all || query.lm != null ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout): Promise.resolve([]),
-    ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
+    ]);
 
-    return tx.sort((tx1, tx2) => (Util.secondsDiff(tx1.date, tx2.date) < 0 ? -1 : 1));
+    return transactions
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .map((tx) => ({ ...tx, date: tx.date?.getTime() / 1000 }))
+      .sort((tx1, tx2) => (tx1.date > tx2.date ? -1 : 1));
   }
 
   async getHistoryCsv(userId: number, userAddress: string, query: HistoryQuery): Promise<Readable> {
@@ -52,12 +60,12 @@ export class HistoryService {
   }
 
   // --- HELPER METHODS --- //
-  private async getBuyTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
+  private async getBuyTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
     const buyTransaction = await this.buyCryptoService.getUserTransactions(userId, dateFrom, dateTo);
     return [...this.getCryptoBuyTransactions(buyTransaction), ...this.getBuyCryptoTransactions(buyTransaction)];
   }
 
-  private getCryptoBuyTransactions(buyCryptos: BuyCrypto[]): HistoryDto[] {
+  private getCryptoBuyTransactions(buyCryptos: BuyCrypto[]): CoinTrackingHistory[] {
     return buyCryptos
       .filter(
         (c) =>
@@ -127,7 +135,7 @@ export class HistoryService {
       .filter((e) => e != null);
   }
 
-  private getBuyCryptoTransactions(buyCryptos: BuyCrypto[]): HistoryDto[] {
+  private getBuyCryptoTransactions(buyCryptos: BuyCrypto[]): CoinTrackingHistory[] {
     return buyCryptos
       .filter(
         (c) =>
@@ -177,7 +185,7 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private async getSellTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
+  private async getSellTransactions(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
     const buyFiats = await this.buyFiatService.getUserTransactions(userId, dateFrom, dateTo);
     return buyFiats
       .filter(
@@ -228,7 +236,7 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
+  private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
     const stakingRewards = await this.stakingRewardService
       .getUserRewards([userId], dateFrom, dateTo)
       .then(this.fixDuplicateTxRewards);
@@ -254,14 +262,14 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
+  private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
     const { deposits, withdrawals } = await this.cryptoStakingService
       .getUserInvests(userId, dateFrom, dateTo)
       .then(this.fixDuplicateTxInvest);
     return [...this.getStakingDeposits(deposits), ...this.getStakingWithdrawals(withdrawals)];
   }
 
-  private getStakingDeposits(deposits: CryptoStaking[]): HistoryDto[] {
+  private getStakingDeposits(deposits: CryptoStaking[]): CoinTrackingHistory[] {
     return deposits
       .map((c) => [
         {
@@ -300,7 +308,7 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private getStakingWithdrawals(withdrawals: CryptoStaking[]): HistoryDto[] {
+  private getStakingWithdrawals(withdrawals: CryptoStaking[]): CoinTrackingHistory[] {
     return withdrawals
       .map((c) => [
         {
@@ -358,14 +366,14 @@ export class HistoryService {
       .filter((invests) => invests != null);
   }
 
-  private async getAllRefRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<HistoryDto[]> {
+  private async getAllRefRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
     const refRewards = await this.refRewardService.getUserRewards([userId], dateFrom, dateTo);
     const refStakingReward = await this.stakingRefReward.getUserRewards([userId], dateFrom, dateTo);
 
     return [...this.getRefRewards(refRewards), ...this.getStakingRefRewards(refStakingReward)];
   }
 
-  private getRefRewards(refRewards: RefReward[]): HistoryDto[] {
+  private getRefRewards(refRewards: RefReward[]): CoinTrackingHistory[] {
     return refRewards
       .map((c) => [
         {
@@ -388,7 +396,7 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
-  private getStakingRefRewards(stakingRefRewards: StakingRefReward[]): HistoryDto[] {
+  private getStakingRefRewards(stakingRefRewards: StakingRefReward[]): CoinTrackingHistory[] {
     return stakingRefRewards
       .map((c) => [
         {
@@ -417,7 +425,7 @@ export class HistoryService {
     dateFrom?: Date,
     dateTo?: Date,
     timeout?: number,
-  ): Promise<HistoryDto[]> {
+  ): Promise<CoinTrackingHistory[]> {
     try {
       const rewards = await this.dfiTaxService.getRewards(userAddress, interval, dateFrom, dateTo, timeout);
       return rewards.map((reward) => ({

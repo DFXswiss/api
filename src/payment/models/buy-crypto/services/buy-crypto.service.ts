@@ -21,9 +21,9 @@ import { CryptoRouteRepository } from '../../crypto-route/crypto-route.repositor
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
-import { BuyCryptoHistoryDto } from '../dto/buy-crypto-history.dto';
-import { CryptoRouteHistoryDto } from '../../crypto-route/dto/crypto-route-history.dto';
-import { RouteHistoryDto } from '../../route/dto/route-history.dto';
+import { BuyHistoryDto as BuyHistoryDto } from '../../buy/dto/buy-history.dto';
+import { CryptoHistoryDto as CryptoHistoryDto } from '../../crypto-route/dto/crypto-history.dto';
+import { HistoryDto } from '../../history/dto/history.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -167,19 +167,23 @@ export class BuyCryptoService {
     });
   }
 
-  async getHistory(userId: number, buyId: number): Promise<BuyCryptoHistoryDto[]> {
+  async getBuyHistory(userId: number, buyId?: number): Promise<BuyHistoryDto[]> {
+    const where = { user: { id: userId }, id: buyId };
+    Util.removeNullFields(where);
     return this.buyCryptoRepo
       .find({
-        where: { buy: { id: buyId, user: { id: userId } } },
+        where: { buy: where },
         relations: ['buy', 'buy.user'],
       })
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
 
-  async getCryptoRouteHistory(userId: number, routeId: number): Promise<CryptoRouteHistoryDto[]> {
+  async getCryptoHistory(userId: number, routeId?: number): Promise<CryptoHistoryDto[]> {
+    const where = { user: { id: userId }, id: routeId };
+    Util.removeNullFields(where);
     return this.buyCryptoRepo
       .find({
-        where: { cryptoRoute: { id: routeId, user: { id: userId } } },
+        where: { cryptoRoute: where },
         relations: ['cryptoRoute', 'cryptoRoute.user'],
       })
       .then((history) => history.map(this.toHistoryDto));
@@ -187,7 +191,7 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  private toHistoryDto(buyCrypto: BuyCrypto): RouteHistoryDto {
+  private toHistoryDto(buyCrypto: BuyCrypto): HistoryDto {
     return {
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,

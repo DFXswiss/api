@@ -113,6 +113,11 @@ export class Configuration {
     url: process.env.PAYMENT_URL,
   };
 
+  fixer = {
+    baseUrl: process.env.FIXER_BASE_URL,
+    apiKey: process.env.FIXER_API_KEY,
+  };
+
   mail: MailOptions = {
     options: {
       transport: {

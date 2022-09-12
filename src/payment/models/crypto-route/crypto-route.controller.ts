@@ -19,7 +19,7 @@ import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
-import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
+import { CryptoHistoryDto } from './dto/crypto-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
@@ -79,8 +79,8 @@ export class CryptoRouteController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoRouteHistoryDto[]> {
-    return this.buyCryptoService.getCryptoRouteHistory(jwt.id, +id);
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoHistoryDto[]> {
+    return this.buyCryptoService.getCryptoHistory(jwt.id, +id);
   }
 
   // --- DTO --- //
