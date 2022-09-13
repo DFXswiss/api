@@ -33,11 +33,17 @@ export interface UserDetails {
   paidRefCredit: number;
   refCount: number;
   refCountActive: number;
-  buyVolume: number;
-  sellVolume: number;
+  buyVolume: VolumeInformation;
+  sellVolume: VolumeInformation;
+  cryptoVolume: VolumeInformation;
   stakingBalance: number;
 
   linkedAddresses?: LinkedUserOutDto[];
+}
+
+export interface VolumeInformation {
+  total: number;
+  annual: number;
 }
 
 export type UserDetailDto = UserDto & UserDetails;
