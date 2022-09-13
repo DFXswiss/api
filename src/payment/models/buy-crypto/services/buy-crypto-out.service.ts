@@ -38,6 +38,7 @@ export class BuyCryptoOutService {
           'transactions.buy.asset',
           'transactions.cryptoRoute',
           'transactions.cryptoRoute.user',
+          'transactions.cryptoRoute.asset',
         ],
       });
 
@@ -64,11 +65,11 @@ export class BuyCryptoOutService {
 
         for (const transaction of batch.transactions) {
           try {
-            const { outputAsset, buy } = transaction;
+            const { outputAsset, target } = transaction;
 
             const asset = await this.assetService.getAssetByQuery({
               dexName: outputAsset,
-              blockchain: buy.asset.blockchain,
+              blockchain: target.asset.blockchain,
             });
 
             const request: PayoutRequest = {
