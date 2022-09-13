@@ -45,15 +45,9 @@ export class NodeService {
   // --- HEALTH CHECK API --- //
 
   async checkNodes(): Promise<NodeError[]> {
-    return await Promise.all([
-      this.checkNodePair(NodeType.INPUT),
-      this.checkNodePair(NodeType.DEX),
-      this.checkNodePair(NodeType.OUTPUT),
-      this.checkNodePair(NodeType.INT),
-      this.checkNodePair(NodeType.REF),
-      this.checkNodePair(NodeType.BTC_INPUT),
-      this.checkNodePair(NodeType.BTC_OUTPUT),
-    ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
+    return await Promise.all(Object.values(NodeType).map((type) => this.checkNodePair(type))).then((errors) =>
+      errors.reduce((prev, curr) => prev.concat(curr), []),
+    );
   }
 
   // --- PUBLIC API --- //
@@ -100,64 +94,21 @@ export class NodeService {
   // --- INIT METHODS --- //
 
   private initAllNodes(): void {
-    this.allNodes.set(NodeType.INPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.inp.active, NodeType.INPUT, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(
-        Config.blockchain.default.inp.passive,
-        NodeType.INPUT,
-        NodeMode.PASSIVE,
-      ),
-    });
+    this.addNodeClientPair(NodeType.INPUT, Config.blockchain.default.inp);
+    this.addNodeClientPair(NodeType.DEX, Config.blockchain.default.dex);
+    this.addNodeClientPair(NodeType.OUTPUT, Config.blockchain.default.out);
+    this.addNodeClientPair(NodeType.INT, Config.blockchain.default.int);
+    this.addNodeClientPair(NodeType.REF, Config.blockchain.default.ref);
+    this.addNodeClientPair(NodeType.BTC_INPUT, Config.blockchain.default.btcInput);
+    this.addNodeClientPair(NodeType.BTC_OUTPUT, Config.blockchain.default.btcOutput);
+  }
 
-    this.allNodes.set(NodeType.DEX, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.dex.active, NodeType.DEX, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.blockchain.default.dex.passive, NodeType.DEX, NodeMode.PASSIVE),
-    });
-
-    this.allNodes.set(NodeType.OUTPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.out.active, NodeType.OUTPUT, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(
-        Config.blockchain.default.out.passive,
-        NodeType.OUTPUT,
-        NodeMode.PASSIVE,
-      ),
-    });
-
-    this.allNodes.set(NodeType.INT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.int.active, NodeType.INT, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.blockchain.default.int.passive, NodeType.INT, NodeMode.PASSIVE),
-    });
-
-    this.allNodes.set(NodeType.REF, {
-      [NodeMode.ACTIVE]: this.createNodeClient(Config.blockchain.default.ref.active, NodeType.REF, NodeMode.ACTIVE),
-      [NodeMode.PASSIVE]: this.createNodeClient(Config.blockchain.default.ref.passive, NodeType.REF, NodeMode.PASSIVE),
-    });
-
-    this.allNodes.set(NodeType.BTC_INPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(
-        Config.blockchain.default.btcInput.active,
-        NodeType.BTC_INPUT,
-        NodeMode.ACTIVE,
-      ),
-      [NodeMode.PASSIVE]: this.createNodeClient(
-        Config.blockchain.default.btcInput.passive,
-        NodeType.BTC_INPUT,
-        NodeMode.PASSIVE,
-      ),
-    });
-
-    this.allNodes.set(NodeType.BTC_OUTPUT, {
-      [NodeMode.ACTIVE]: this.createNodeClient(
-        Config.blockchain.default.btcInput.active,
-        NodeType.BTC_OUTPUT,
-        NodeMode.ACTIVE,
-      ),
-      [NodeMode.PASSIVE]: this.createNodeClient(
-        Config.blockchain.default.btcInput.passive,
-        NodeType.BTC_OUTPUT,
-        NodeMode.PASSIVE,
-      ),
-    });
+  private addNodeClientPair(type: NodeType, config: { active: string; passive: string }): void {
+    const clientPair = {
+      [NodeMode.ACTIVE]: this.createNodeClient(config.active, type, NodeMode.ACTIVE),
+      [NodeMode.PASSIVE]: this.createNodeClient(config.passive, type, NodeMode.PASSIVE),
+    };
+    this.allNodes.set(type, clientPair);
   }
 
   private createNodeClient(url: string | undefined, type: NodeType, mode: NodeMode): NodeClient | null {
@@ -169,13 +120,7 @@ export class NodeService {
   }
 
   private initConnectedNodes(): void {
-    this.connectedNodes.set(NodeType.INPUT, this.setConnectedNode(NodeType.INPUT));
-    this.connectedNodes.set(NodeType.DEX, this.setConnectedNode(NodeType.DEX));
-    this.connectedNodes.set(NodeType.OUTPUT, this.setConnectedNode(NodeType.OUTPUT));
-    this.connectedNodes.set(NodeType.INT, this.setConnectedNode(NodeType.INT));
-    this.connectedNodes.set(NodeType.REF, this.setConnectedNode(NodeType.REF));
-    this.connectedNodes.set(NodeType.BTC_INPUT, this.setConnectedNode(NodeType.BTC_INPUT));
-    this.connectedNodes.set(NodeType.BTC_OUTPUT, this.setConnectedNode(NodeType.BTC_OUTPUT));
+    Object.values(NodeType).forEach((type) => this.connectedNodes.set(type, this.setConnectedNode(type)));
   }
 
   private setConnectedNode(type: NodeType): BehaviorSubject<NodeClient | null> {
