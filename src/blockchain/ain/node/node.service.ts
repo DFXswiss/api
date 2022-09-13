@@ -16,6 +16,7 @@ export enum NodeType {
   INT = 'int',
   REF = 'ref',
   BTC_INPUT = 'btc-inp',
+  BTC_OUTPUT = 'btc-out',
 }
 
 export interface NodeError {
@@ -29,7 +30,7 @@ interface NodeCheckResult {
   info: BlockchainInfo | undefined;
 }
 
-type TypedNodeClient<T> = T extends NodeType.BTC_INPUT ? BtcClient : DeFiClient;
+type TypedNodeClient<T> = T extends NodeType.BTC_INPUT | NodeType.BTC_OUTPUT ? BtcClient : DeFiClient;
 
 @Injectable()
 export class NodeService {
@@ -51,6 +52,7 @@ export class NodeService {
       this.checkNodePair(NodeType.INT),
       this.checkNodePair(NodeType.REF),
       this.checkNodePair(NodeType.BTC_INPUT),
+      this.checkNodePair(NodeType.BTC_OUTPUT),
     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
   }
 
@@ -143,11 +145,24 @@ export class NodeService {
         NodeMode.PASSIVE,
       ),
     });
+
+    this.allNodes.set(NodeType.BTC_OUTPUT, {
+      [NodeMode.ACTIVE]: this.createNodeClient(
+        Config.blockchain.default.btcInput.active,
+        NodeType.BTC_OUTPUT,
+        NodeMode.ACTIVE,
+      ),
+      [NodeMode.PASSIVE]: this.createNodeClient(
+        Config.blockchain.default.btcInput.passive,
+        NodeType.BTC_OUTPUT,
+        NodeMode.PASSIVE,
+      ),
+    });
   }
 
   private createNodeClient(url: string | undefined, type: NodeType, mode: NodeMode): NodeClient | null {
     return url
-      ? type === NodeType.BTC_INPUT
+      ? [NodeType.BTC_INPUT, NodeType.BTC_OUTPUT].includes(type)
         ? new BtcClient(this.http, url, this.scheduler, mode)
         : new DeFiClient(this.http, url, this.scheduler, mode)
       : null;
@@ -160,6 +175,7 @@ export class NodeService {
     this.connectedNodes.set(NodeType.INT, this.setConnectedNode(NodeType.INT));
     this.connectedNodes.set(NodeType.REF, this.setConnectedNode(NodeType.REF));
     this.connectedNodes.set(NodeType.BTC_INPUT, this.setConnectedNode(NodeType.BTC_INPUT));
+    this.connectedNodes.set(NodeType.BTC_OUTPUT, this.setConnectedNode(NodeType.BTC_OUTPUT));
   }
 
   private setConnectedNode(type: NodeType): BehaviorSubject<NodeClient | null> {
