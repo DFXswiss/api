@@ -4,7 +4,7 @@ import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { MoreThan, Not } from 'typeorm';
+import { getRepository, MoreThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -15,6 +15,7 @@ import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { Util } from 'src/shared/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
+import { BankTx } from 'src/payment/models/bank-tx/bank-tx.entity';
 
 @Injectable()
 export class UserDataService {
@@ -185,13 +186,18 @@ export class UserDataService {
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
     const [master, slave] = await Promise.all([
       this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'bankDatas'] }),
-      this.userDataRepo.findOne({ where: { id: slaveId }, relations: ['users', 'bankDatas'] }),
+      this.userDataRepo.findOne({
+        where: { id: slaveId },
+        relations: ['users', 'bankDatas'],
+      }),
     ]);
     console.log(
       `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas
         .map((b) => b.id)
         .join(', ')} and users ${slave.users.map((u) => u.id).join(', ')}`,
     );
+
+    await this.setNewUpdateTimeWithUser(slave.id);
 
     // reassign bank datas and users
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
@@ -212,5 +218,30 @@ export class UserDataService {
     }
 
     return idList;
+  }
+
+  private async setNewUpdateTimeWithUser(userDataId: number): Promise<void> {
+    const txList = await getRepository(BankTx).find({
+      select: ['id'],
+      where: [
+        { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
+        { buyFiat: { sell: { user: { userData: { id: userDataId } } } } },
+      ],
+      relations: [
+        'buyCrypto',
+        'buyCrypto.buy',
+        'buyCrypto.buy.user',
+        'buyCrypto.buy.user.userData',
+        'buyFiat',
+        'buyFiat.sell',
+        'buyFiat.sell.user',
+        'buyFiat.sell.user.userData',
+      ],
+    });
+
+    getRepository(BankTx).update(
+      txList.map((tx) => tx.id),
+      { updated: new Date() },
+    );
   }
 }

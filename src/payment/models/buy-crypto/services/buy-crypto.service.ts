@@ -91,12 +91,14 @@ export class BuyCryptoService {
     if (dto.buyId) {
       if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
       update.buy = await this.getBuy(dto.buyId);
+      if (entity.bankTx) await this.bankTxRepo.setNewUpdateTime(entity.bankTx.id);
     }
 
     // crypto route
     if (dto.cryptoRouteId) {
       if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
       update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+      if (entity.bankTx) await this.bankTxRepo.setNewUpdateTime(entity.bankTx.id);
     }
 
     Util.removeNullFields(entity);
