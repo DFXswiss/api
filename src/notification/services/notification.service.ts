@@ -23,7 +23,7 @@ export class NotificationService {
 
       await this.mailService.send(mail);
     } catch (e) {
-      this.handleNotificationError(e);
+      this.handleNotificationError(e, request);
     }
   }
 
@@ -34,7 +34,7 @@ export class NotificationService {
 
     const existingNotification = await this.notificationRepo.findOne({ correlationId, context });
 
-    if (existingNotification) newNotification.shouldContinueGiven(existingNotification);
+    if (existingNotification) newNotification.shouldAbortGiven(existingNotification);
   }
 
   private async persist(notification: Notification): Promise<void> {
@@ -45,8 +45,10 @@ export class NotificationService {
 
   //*** ERROR HANDLING ***//
 
-  private handleNotificationError(e: Error): void {
-    if (e instanceof NotificationSuppressedException) return;
+  private handleNotificationError(e: Error, request: MailRequest): void {
+    if (e instanceof NotificationSuppressedException) {
+      console.info(`Suppressed mail request. Context: ${request.context} Correlation ID: ${request.correlationId} `);
+    }
 
     throw e;
   }

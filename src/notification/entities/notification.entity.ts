@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column } from 'typeorm';
 import { MailContext, NotificationType } from '../enums';
+import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
 
 export interface NotificationOptions {
   suppressRecurring?: boolean;
@@ -39,15 +40,16 @@ export class Notification extends IEntity {
     this.sendDate = new Date();
   }
 
-  shouldContinueGiven(existingNotification: Notification): boolean {
+  shouldAbortGiven(existingNotification: Notification): void {
     if (this.isSameNotification(existingNotification)) {
-      if (this.suppressRecurring) return false;
-      if (this.debounce) {
-        return Date.now() > existingNotification.sendDate.getTime() + existingNotification.debounce;
+      if (this.suppressRecurring) {
+        throw new NotificationSuppressedException();
+      }
+
+      if (this.isDebounced(existingNotification)) {
+        throw new NotificationSuppressedException();
       }
     }
-
-    return true;
   }
 
   toBePersisted(): boolean {
@@ -58,5 +60,9 @@ export class Notification extends IEntity {
 
   private isSameNotification(existingNotification: Notification): boolean {
     return existingNotification.correlationId === this.correlationId && existingNotification.context === this.context;
+  }
+
+  private isDebounced(existingNotification: Notification): boolean {
+    return this.debounce && Date.now() > existingNotification.sendDate.getTime() + existingNotification.debounce;
   }
 }
