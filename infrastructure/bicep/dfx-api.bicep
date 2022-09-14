@@ -119,6 +119,7 @@ var nodeName = 'node'
 var virtualNetName = 'vnet-${compName}-${apiName}-${env}'
 var subNetName = 'snet-${compName}-${apiName}-${env}'
 var vmSubNetName = 'snet-${compName}-vm-${env}'
+var vmNsgName = 'nsg-${compName}-vm-${env}'
 
 var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
 var dbBackupContainerName = 'db-bak'
@@ -175,7 +176,6 @@ var btcNodeProps = [
     pipName: 'ip-${compName}-btc-inp-${env}'
     vmName: 'vm-${compName}-btc-inp-${env}'
     vmDiskName: 'osdisk-${compName}-btc-inp-${env}'
-    nsgName: 'nsg-${compName}-btc-inp-${env}'
     nicName: 'nic-${compName}-btc-inp-${env}'
   }
   {
@@ -183,7 +183,6 @@ var btcNodeProps = [
     pipName: 'ip-${compName}-btc-out-${env}'
     vmName: 'vm-${compName}-btc-out-${env}'
     vmDiskName: 'osdisk-${compName}-btc-out-${env}'
-    nsgName: 'nsg-${compName}-btc-out-${env}'
     nicName: 'nic-${compName}-btc-out-${env}'
   }
 ]
@@ -235,6 +234,9 @@ resource virtualNet 'Microsoft.Network/virtualNetworks@2020-11-01' = {
         name: vmSubNetName
         properties: {
           addressPrefix: '10.0.1.0/24'
+          networkSecurityGroup: {
+            id: vmNsg.id
+          }
         }
       }
     ]
@@ -692,6 +694,43 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
 
 
 // BTC Node
+resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
+  name: vmNsgName
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'SSH'
+        properties: {
+          protocol: 'TCP'
+          sourcePortRange: '*'
+          destinationPortRange: '22'
+          sourceAddressPrefix: allowedIpRange
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 300
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
+}
+
+resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
+  parent: vmNsg
+  name: 'RPC'
+  properties: {
+    protocol: 'TCP'
+    sourcePortRange: '*'
+    destinationPortRange: '8332'
+    sourceAddressPrefix: allowedIpRange
+    destinationAddressPrefix: '*'
+    access: 'Allow'
+    priority: 350
+    direction: 'Inbound'
+  }
+}
+
 module btcNodes 'btc-node.bicep' = [for node in btcNodeProps: {
   name: node.name
   params: {
@@ -699,12 +738,9 @@ module btcNodes 'btc-node.bicep' = [for node in btcNodeProps: {
     pipName: node.pipName
     vmName: node.vmName
     vmDiskName: node.vmDiskName
-    nsgName: node.nsgName
     nicName: node.nicName
     vmUser: btcVmUser
     vmPassword: btcVmPassword
     subnetId: virtualNet.properties.subnets[1].id
-    allowRpc: nodeAllowAllIps
-    allowedIpRange: allowedIpRange
   }
 }]

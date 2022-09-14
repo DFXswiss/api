@@ -4,7 +4,6 @@ param location string
 param pipName string
 param vmName string
 param vmDiskName string
-param nsgName string
 param nicName string
 
 param vmUser string
@@ -12,9 +11,6 @@ param vmUser string
 param vmPassword string
 
 param subnetId string
-
-param allowRpc bool
-param allowedIpRange string
 
 
 // --- RESOURCES --- //
@@ -29,43 +25,6 @@ resource pip 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
     dnsSettings: {
       domainNameLabel: vmName
     }
-  }
-}
-
-resource nsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
-  name: nsgName
-  location: location
-  properties: {
-    securityRules: [
-      {
-        name: 'SSH'
-        properties: {
-          protocol: 'TCP'
-          sourcePortRange: '*'
-          destinationPortRange: '22'
-          sourceAddressPrefix: allowedIpRange
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 300
-          direction: 'Inbound'
-        }
-      }
-    ]
-  }
-}
-
-resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (allowRpc) {
-  parent: nsg
-  name: 'RPC'
-  properties: {
-    protocol: 'TCP'
-    sourcePortRange: '*'
-    destinationPortRange: '8332'
-    sourceAddressPrefix: allowedIpRange
-    destinationAddressPrefix: '*'
-    access: 'Allow'
-    priority: 350
-    direction: 'Inbound'
   }
 }
 
@@ -87,9 +46,6 @@ resource nic 'Microsoft.Network/networkInterfaces@2020-11-01' = {
         }
       }
     ]
-    networkSecurityGroup: {
-      id: nsg.id
-    }
   }
 }
 
