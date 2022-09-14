@@ -14,6 +14,7 @@ import { SeedService } from './shared/seed/seed.service';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { EthereumModule } from './blockchain/ethereum/ethereum.module';
 import { BscModule } from './blockchain/bsc/bsc.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { BscModule } from './blockchain/bsc/bsc.module';
     PaymentModule,
     UserModule,
     MonitoringModule,
+    NotificationModule,
   ],
   controllers: [AppController, StatisticController, AdminController],
   providers: [StatisticService, CfpService, SeedService],
