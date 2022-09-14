@@ -10,4 +10,6 @@ export enum MailType {
 
 export enum MailContext {
   BUY_CRYPTO = 'BuyCrypto',
+  DEX = 'Dex',
+  PAYOUT = 'Payout',
 }

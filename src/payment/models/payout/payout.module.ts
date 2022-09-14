@@ -20,6 +20,7 @@ import { PrepareBscStrategy } from './strategies/prepare/prepare-bsc.strategy';
 import { PrepareDeFiChainStrategy } from './strategies/prepare/prepare-defichain.strategy';
 import { PrepareEthereumStrategy } from './strategies/prepare/prepare-ethereum.strategy';
 import { PayoutStrategiesFacade } from './strategies/strategies.facade';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { PayoutStrategiesFacade } from './strategies/strategies.facade';
     BscModule,
     SharedModule,
     DexModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [

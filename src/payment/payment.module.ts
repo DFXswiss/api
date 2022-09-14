@@ -73,6 +73,7 @@ import { FrickService } from './models/bank-tx/frick.service';
 import { BankAccountController } from './models/bank-account/bank-account.controller';
 import { ExchangeModule } from './models/exchange/exchange.module';
 import { PricingModule } from './models/pricing/pricing.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -105,6 +106,7 @@ import { PricingModule } from './models/pricing/pricing.module';
     PayoutModule,
     ExchangeModule,
     PricingModule,
+    NotificationModule,
   ],
   controllers: [
     BankTxController,

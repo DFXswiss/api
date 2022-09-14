@@ -3,6 +3,12 @@ import { Entity, Column } from 'typeorm';
 import { MailContext, NotificationType } from '../enums';
 import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
 
+export interface NotificationParams {
+  type: NotificationType;
+  context: MailContext;
+  correlationId: string;
+}
+
 export interface NotificationOptions {
   suppressRecurring?: boolean;
   debounce?: number; // debounce time in milliseconds
@@ -31,17 +37,21 @@ export class Notification extends IEntity {
   @Column({ type: 'int', nullable: true })
   recurringAttempts: number;
 
-  constructor(options: NotificationOptions) {
-    super();
-
-    this.suppressRecurring = options?.suppressRecurring ?? this.suppressRecurring;
-    this.debounce = options?.debounce ?? this.debounce;
-
+  protected create(params: NotificationParams, optional?: NotificationOptions) {
+    this.type = params.type;
+    this.context = params.context;
+    this.correlationId = params.correlationId;
     this.sendDate = new Date();
+
+    this.suppressRecurring = optional?.suppressRecurring ?? this.suppressRecurring;
+    this.debounce = optional?.debounce ?? this.debounce;
+    this.recurringAttempts = 1;
   }
 
   shouldAbortGiven(existingNotification: Notification): void {
     if (this.isSameNotification(existingNotification)) {
+      this.recurringAttempts = this.recurringAttempts + 1;
+
       if (this.suppressRecurring) {
         throw new NotificationSuppressedException();
       }

@@ -5,7 +5,6 @@ import { Not } from 'typeorm';
 import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrder, LiquidityOrderContext } from '../../entities/liquidity-order.entity';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
@@ -19,6 +18,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { LiquidityRequest } from '../../interfaces';
+import { NotificationService } from 'src/notification/services/notification.service';
 
 @Injectable()
 export class PurchaseLiquidityDeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
@@ -28,7 +28,7 @@ export class PurchaseLiquidityDeFiChainPoolPairStrategy extends PurchaseLiquidit
 
   constructor(
     readonly nodeService: NodeService,
-    readonly mailService: MailService,
+    readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly assetService: AssetService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
@@ -36,7 +36,7 @@ export class PurchaseLiquidityDeFiChainPoolPairStrategy extends PurchaseLiquidit
     @Inject(forwardRef(() => DexService))
     private readonly dexService: DexService,
   ) {
-    super(mailService);
+    super(notificationService);
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.chainClient = client));
   }
 

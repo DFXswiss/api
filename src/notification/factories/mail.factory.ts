@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
-import { ErrorMail } from '../entities/mail/error-mail';
-import { KycSupportMail } from '../entities/mail/kyc-mail';
+import { ErrorMail, ErrorMailInput } from '../entities/mail/error-mail';
+import { KycMailInput, KycSupportMail } from '../entities/mail/kyc-mail';
 import { Mail } from '../entities/mail/mail';
-import { UserMail } from '../entities/mail/user-mail';
-import { MailType } from '../enums';
+import { UserMail, UserMailInput } from '../entities/mail/user-mail';
+import { MailType, NotificationType } from '../enums';
 import { MailRequest } from '../interfaces';
 
 @Injectable()
@@ -34,31 +34,33 @@ export class MailFactory {
   //*** HELPER METHODS ***//
 
   private createErrorMail(request: MailRequest): ErrorMail {
-    const {
-      data: { subject, errors },
-      options,
-    } = request;
+    const { context, correlationId, options } = request;
+    const { subject, errors } = request.data as ErrorMailInput;
 
-    return new ErrorMail({ subject, errors }, { notificationOptions: options });
+    return new ErrorMail(
+      { subject, errors, notificationParams: { context, correlationId, type: NotificationType.MAIL } },
+      { notificationOptions: options },
+    );
   }
 
   private createKycMail(request: MailRequest): KycSupportMail {
-    const {
-      data: { userData, kycCustomerId },
-      options,
-    } = request;
+    const { context, correlationId, options } = request;
+    const { userData, kycCustomerId } = request.data as KycMailInput;
 
     return new KycSupportMail(
-      { userDataId: userData.id, kycStatus: userData.kycStatus, kycCustomerId },
+      {
+        userDataId: userData.id,
+        kycStatus: userData.kycStatus,
+        kycCustomerId,
+        notificationParams: { context, correlationId, type: NotificationType.MAIL },
+      },
       { notificationOptions: options },
     );
   }
 
   private async createUserMail(request: MailRequest): Promise<UserMail> {
-    const {
-      data: { userData, translationKey, translationParams },
-      options,
-    } = request;
+    const { context, correlationId, options } = request;
+    const { userData, translationKey, translationParams } = request.data as UserMailInput;
 
     const { subject, salutation, body } = await this.t(
       translationKey,
@@ -66,7 +68,16 @@ export class MailFactory {
       translationParams,
     );
 
-    return new UserMail({ to: userData.mail, subject, salutation, body }, { notificationOptions: options });
+    return new UserMail(
+      {
+        to: userData.mail,
+        subject,
+        salutation,
+        body,
+        notificationParams: { context, correlationId, type: NotificationType.MAIL },
+      },
+      { notificationOptions: options },
+    );
   }
 
   //*** TRANSLATION METHODS ***//

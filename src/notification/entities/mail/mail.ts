@@ -1,11 +1,12 @@
 import { GetConfig } from 'src/config/config';
-import { Notification, NotificationOptions } from '../notification.entity';
+import { Notification, NotificationOptions, NotificationParams } from '../notification.entity';
 
 export interface MandatoryMailParams {
   to: string;
   subject: string;
   salutation: string;
   body: string;
+  notificationParams: NotificationParams;
 }
 
 export interface OptionalMailParams {
@@ -40,7 +41,8 @@ export class Mail extends Notification {
   readonly #instagramUrl: string = GetConfig().defaultInstagramUrl;
 
   constructor(params: MandatoryMailParams, optional?: OptionalMailParams) {
-    super(optional?.notificationOptions);
+    super();
+    this.create(params.notificationParams, optional?.notificationOptions);
 
     this.#to = params.to;
     this.#subject = params.subject;

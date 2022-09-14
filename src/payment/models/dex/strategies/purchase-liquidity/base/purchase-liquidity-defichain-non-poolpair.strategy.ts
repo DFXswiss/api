@@ -1,6 +1,6 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
-import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
@@ -13,13 +13,13 @@ export abstract class PurchaseLiquidityDeFiChainNonPoolPairStrategy extends Purc
   private prioritySwapAssets: string[] = [];
 
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     protected readonly dexDeFiChainService: DexDeFiChainService,
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
     prioritySwapAssets: string[],
   ) {
-    super(mailService);
+    super(notificationService);
     this.prioritySwapAssets = prioritySwapAssets;
   }
 

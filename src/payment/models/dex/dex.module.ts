@@ -20,9 +20,17 @@ import { BscModule } from 'src/blockchain/bsc/bsc.module';
 import { DexBscService } from './services/dex-bsc.service';
 import { PurchaseLiquidityBscStrategy } from './strategies/purchase-liquidity/purchase-liquidity-bsc.strategy';
 import { CheckLiquidityBscStrategy } from './strategies/check-liquidity/check-liquidity-bsc.strategy';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, BscModule, SharedModule],
+  imports: [
+    TypeOrmModule.forFeature([LiquidityOrderRepository]),
+    AinModule,
+    EthereumModule,
+    BscModule,
+    NotificationModule,
+    SharedModule,
+  ],
   controllers: [],
   providers: [
     LiquidityOrderFactory,

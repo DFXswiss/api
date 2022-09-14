@@ -5,11 +5,12 @@ import { PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
-import { MailService } from 'src/shared/services/mail.service';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/strategies.facade';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { PayoutLogService } from './payout-log.service';
 import { PayoutRequest } from '../interfaces';
+import { MailContext, MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 
 @Injectable()
 export class PayoutService {
@@ -18,7 +19,7 @@ export class PayoutService {
   constructor(
     private readonly strategies: PayoutStrategiesFacade,
     private readonly logs: PayoutLogService,
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
   ) {}
@@ -163,7 +164,17 @@ export class PayoutService {
     if (orders.length === 0) return;
 
     const logMessage = this.logs.logFailedOrders(orders);
-    await this.mailService.sendErrorMail('Payout Error', [logMessage]);
+
+    const correlationId = JSON.stringify(orders.map((o) => `${o.id}&${o.context}`));
+
+    console.log('TRY notificationService.sendMail PAYOUT');
+    await this.notificationService.sendMail({
+      context: MailContext.PAYOUT,
+      correlationId,
+      type: MailType.ERROR,
+      data: { subject: 'Payout Error', errors: [logMessage] },
+      options: { suppressRecurring: true },
+    });
 
     for (const order of orders) {
       order.pendingInvestigation();

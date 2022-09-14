@@ -8,7 +8,7 @@ export interface MailRequest {
   context: MailContext;
   correlationId: string;
   type: MailType;
-  data: MailRequestGenericInput & UserMailInput & KycMailInput & ErrorMailInput;
+  data: MailRequestGenericInput | UserMailInput | KycMailInput | ErrorMailInput;
   options?: NotificationOptions;
 }
 
