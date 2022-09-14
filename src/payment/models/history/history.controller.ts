@@ -63,7 +63,10 @@ export class HistoryController {
     const user = await this.userService.checkApiKey(key, sign, timestamp);
     query = Object.assign(query, this.apiKeyService.getFilter(user.apiFilterCT));
 
-    return await this.historyService.getHistory(user.id, user.address, query, 300000);
+    return (await this.historyService.getHistory(user.id, user.address, query, 300000)).map((tx) => ({
+      ...tx,
+      date: tx.date?.getTime() / 1000,
+    }));
   }
 
   @Post('csv')
