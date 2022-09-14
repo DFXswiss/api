@@ -18,6 +18,9 @@ export class Notification extends IEntity {
   @Column({ length: 256, nullable: false })
   correlationId: string;
 
+  @Column({ type: 'datetime2', nullable: false })
+  sendDate: Date;
+
   @Column({ nullable: false, default: false })
   suppressRecurring: boolean;
 
@@ -32,13 +35,28 @@ export class Notification extends IEntity {
 
     this.suppressRecurring = options?.suppressRecurring ?? this.suppressRecurring;
     this.debounce = options?.debounce ?? this.debounce;
+
+    this.sendDate = new Date();
   }
 
   shouldContinueGiven(existingNotification: Notification): boolean {
+    if (this.isSameNotification(existingNotification)) {
+      if (this.suppressRecurring) return false;
+      if (this.debounce) {
+        return Date.now() > existingNotification.sendDate.getTime() + existingNotification.debounce;
+      }
+    }
+
     return true;
   }
 
   toBePersisted(): boolean {
-    return true;
+    return !!(this.suppressRecurring || this.debounce);
+  }
+
+  //*** HELPER METHODS ***//
+
+  private isSameNotification(existingNotification: Notification): boolean {
+    return existingNotification.correlationId === this.correlationId && existingNotification.context === this.context;
   }
 }
