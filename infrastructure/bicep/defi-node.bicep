@@ -19,6 +19,14 @@ param hasBackup bool
 
 
 // --- RESOURCES --- //
+resource fileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccountName}/default/${fileShareNameA}'
+}
+
+resource fileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+  name: '${storageAccountName}/default/${fileShareNameB}'
+}
+
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
   name: servicePlanName
   location: location
