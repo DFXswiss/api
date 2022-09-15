@@ -28,9 +28,6 @@ import { StakingController } from './models/staking/staking.controller';
 import { StakingRepository } from './models/staking/staking.repository';
 import { StakingService } from './models/staking/staking.service';
 import { RouteController } from './models/route/route.controller';
-import { CryptoSellRepository } from './models/crypto-sell/crypto-sell.repository';
-import { CryptoSellController } from './models/crypto-sell/crypto-sell.controller';
-import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
 import { MasternodeController } from './models/masternode/masternode.controller';
 import { MasternodeService } from './models/masternode/masternode.service';
 import { MasternodeRepository } from './models/masternode/masternode.repository';
@@ -81,7 +78,6 @@ import { PricingModule } from './models/pricing/pricing.module';
       CryptoBuyRepository,
       BuyCryptoRepository,
       BuyCryptoBatchRepository,
-      CryptoSellRepository,
       BuyFiatRepository,
       BankTxRepository,
       BankTxBatchRepository,
@@ -111,7 +107,6 @@ import { PricingModule } from './models/pricing/pricing.module';
     BankController,
     CryptoBuyController,
     BuyCryptoController,
-    CryptoSellController,
     BuyFiatController,
     HistoryController,
     RouteController,
@@ -131,7 +126,6 @@ import { PricingModule } from './models/pricing/pricing.module';
     BtcInputService,
     DeFiInputService,
     CryptoBuyService,
-    CryptoSellService,
     BuyFiatNotificationService,
     BuyFiatService,
     BuyCryptoService,
@@ -172,7 +166,6 @@ import { PricingModule } from './models/pricing/pricing.module';
     StakingService,
     CryptoBuyService,
     BuyCryptoService,
-    CryptoSellService,
     BuyFiatService,
     BankTxService,
     CryptoInputService,

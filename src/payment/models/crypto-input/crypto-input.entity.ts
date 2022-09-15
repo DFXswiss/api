@@ -4,7 +4,6 @@ import { Sell } from 'src/payment/models/sell/sell.entity';
 import { Staking } from 'src/payment/models/staking/staking.entity';
 import { Entity, Column, ManyToOne, Index, OneToOne } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
-import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoRoute } from '../crypto-route/crypto-route.entity';
@@ -63,9 +62,6 @@ export class CryptoInput extends IEntity {
 
   @Column({ length: 256, default: AmlCheck.FAIL })
   amlCheck: AmlCheck;
-
-  @OneToOne(() => CryptoSell, (sell) => sell.cryptoInput, { nullable: true })
-  cryptoSell?: CryptoSell;
 
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { nullable: true })
   buyFiat?: BuyFiat;
