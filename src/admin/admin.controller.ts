@@ -33,7 +33,6 @@ import { StakingRewardService } from 'src/payment/models/staking-reward/staking-
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/shared/services/letter.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
@@ -47,7 +46,6 @@ import { UploadFileDto } from './dto/upload-file.dto';
 @Controller('admin')
 export class AdminController {
   constructor(
-    private readonly mailService: MailService,
     private readonly notificationService: NotificationService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,

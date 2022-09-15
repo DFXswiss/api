@@ -2,11 +2,11 @@ import { mock } from 'jest-mock-extended';
 import { BehaviorSubject } from 'rxjs';
 import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { DexBscService } from '../../services/dex-bsc.service';
@@ -49,7 +49,7 @@ describe('DexStrategiesFacade', () => {
     checkLiquidityBSCStrategy = new CheckLiquidityBscStrategy(mock<DexBscService>());
     purchaseLiquidityDeFiChainPoolPairStrategy = new PurchaseLiquidityDeFiChainPoolPairStrategy(
       nodeService,
-      mock<MailService>(),
+      mock<NotificationService>(),
       mock<SettingService>(),
       mock<AssetService>(),
       mock<LiquidityOrderRepository>(),
@@ -57,22 +57,22 @@ describe('DexStrategiesFacade', () => {
       mock<DexService>(),
     );
     purchaseLiquidityDeFiChainStockStrategy = new PurchaseLiquidityDeFiChainStockStrategy(
-      mock<MailService>(),
+      mock<NotificationService>(),
       mock<DexDeFiChainService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
     );
     purchaseLiquidityDeFiChainCryptoStrategy = new PurchaseLiquidityDeFiChainCryptoStrategy(
-      mock<MailService>(),
+      mock<NotificationService>(),
       mock<DexDeFiChainService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
     );
     purchaseLiquidityEthereumStrategy = new PurchaseLiquidityEthereumStrategy(
-      mock<MailService>(),
+      mock<NotificationService>(),
       mock<DexBscService>(),
     );
-    purchaseLiquidityBscStrategy = new PurchaseLiquidityBscStrategy(mock<MailService>(), mock<DexBscService>());
+    purchaseLiquidityBscStrategy = new PurchaseLiquidityBscStrategy(mock<NotificationService>(), mock<DexBscService>());
 
     facade = new DexStrategiesFacadeWrapper(
       checkLiquidityDeFiChainPoolPairStrategy,

@@ -6,7 +6,6 @@ import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
-import { MailService } from 'src/shared/services/mail.service';
 
 type MailMessage = string;
 
@@ -28,7 +27,6 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
   constructor(
     monitoringService: MonitoringService,
     readonly nodeService: NodeService,
-    readonly mailService: MailService,
     readonly notificationService: NotificationService,
   ) {
     super(monitoringService, 'node', 'health');

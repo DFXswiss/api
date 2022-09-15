@@ -1,5 +1,5 @@
 import { mock } from 'jest-mock-extended';
-import { MailService } from 'src/shared/services/mail.service';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { Price } from '../../exchange/dto/price.dto';
 import { createCustomPrice } from '../../exchange/dto/__mocks__/price.dto.mock';
 import { BinanceService } from '../../exchange/services/binance.service';
@@ -11,7 +11,7 @@ import { KrakenService } from '../../exchange/services/kraken.service';
 import { PricingService } from '../services/pricing.service';
 
 describe('Pricing Module Integration Tests', () => {
-  let mailService: MailService;
+  let notificationService: NotificationService;
   let krakenService: KrakenService;
   let binanceService: BinanceService;
   let bitstampService: BitstampService;
@@ -29,7 +29,7 @@ describe('Pricing Module Integration Tests', () => {
   let service: PricingService;
 
   beforeEach(() => {
-    mailService = mock<MailService>();
+    notificationService = mock<NotificationService>();
     krakenService = mock<KrakenService>({ name: 'Kraken' });
     binanceService = mock<BinanceService>({ name: 'Binance' });
     bitstampService = mock<BitstampService>({ name: 'Bitstamp' });
@@ -38,7 +38,7 @@ describe('Pricing Module Integration Tests', () => {
     fixerService = mock<FixerService>({ name: 'FixerService' });
 
     service = new PricingService(
-      mailService,
+      notificationService,
       krakenService,
       binanceService,
       bitstampService,

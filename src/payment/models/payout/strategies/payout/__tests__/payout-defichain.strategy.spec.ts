@@ -1,6 +1,6 @@
 import { mock } from 'jest-mock-extended';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import {
   createCustomPayoutOrder,
@@ -13,7 +13,7 @@ import { PayoutDeFiChainStrategy } from '../base/payout-defichain.strategy';
 describe('PayoutDeFiChainStrategy', () => {
   let strategy: PayoutDeFiChainStrategyWrapper;
 
-  let mailService: MailService;
+  let notificationService: NotificationService;
   let payoutOrderRepo: PayoutOrderRepository;
   let defichainService: PayoutDeFiChainService;
 
@@ -21,14 +21,14 @@ describe('PayoutDeFiChainStrategy', () => {
   let sendErrorMailSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    mailService = mock<MailService>();
+    notificationService = mock<NotificationService>();
     payoutOrderRepo = mock<PayoutOrderRepository>();
     defichainService = mock<PayoutDeFiChainService>();
 
     repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save');
-    sendErrorMailSpy = jest.spyOn(mailService, 'sendErrorMail');
+    sendErrorMailSpy = jest.spyOn(notificationService, 'sendMail');
 
-    strategy = new PayoutDeFiChainStrategyWrapper(mailService, payoutOrderRepo, defichainService);
+    strategy = new PayoutDeFiChainStrategyWrapper(notificationService, payoutOrderRepo, defichainService);
   });
 
   afterEach(() => {
@@ -238,25 +238,28 @@ describe('PayoutDeFiChainStrategy', () => {
       await strategy.sendNonRecoverableErrorMailWrapper('Test message', new Error('Another message'));
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
-      expect(sendErrorMailSpy).toBeCalledWith('Payout Error', ['Test message', 'Another message']);
+      expect(sendErrorMailSpy).toBeCalledWith({
+        input: { errors: ['Test message', 'Another message'], subject: 'Payout Error' },
+        type: 'Error',
+      });
     });
 
-    it('calls mailService with Payout Error subject', async () => {
+    it('calls notificationService with Payout Error subject', async () => {
       await strategy.sendNonRecoverableErrorMailWrapper('');
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
-      expect(sendErrorMailSpy).toBeCalledWith('Payout Error', ['']);
+      expect(sendErrorMailSpy).toBeCalledWith({ input: { errors: [''], subject: 'Payout Error' }, type: 'Error' });
     });
   });
 });
 
 class PayoutDeFiChainStrategyWrapper extends PayoutDeFiChainStrategy {
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     payoutOrderRepo: PayoutOrderRepository,
     defichainService: PayoutDeFiChainService,
   ) {
-    super(mailService, payoutOrderRepo, defichainService);
+    super(notificationService, payoutOrderRepo, defichainService);
   }
 
   protected doPayoutForContext(): Promise<void> {

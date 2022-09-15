@@ -16,10 +16,8 @@ import { LanguageController } from './models/language/language.controller';
 import { CountryService } from './models/country/country.service';
 import { LanguageService } from './models/language/language.service';
 import { PassportModule } from '@nestjs/passport';
-import { MailService } from './services/mail.service';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './auth/jwt.strategy';
-import { MailerModule } from '@nestjs-modules/mailer';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SettingRepository } from './models/setting/setting.repository';
 import { SettingService } from './models/setting/setting.service';
@@ -45,14 +43,12 @@ import { ApiKeyService } from './services/api-key.service';
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
-    MailerModule.forRoot(GetConfig().mail.options),
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [
     ConversionService,
-    MailService,
     HttpService,
     AssetService,
     FiatService,
@@ -70,7 +66,6 @@ import { ApiKeyService } from './services/api-key.service';
     JwtModule,
     ScheduleModule,
     ConversionService,
-    MailService,
     HttpService,
     AssetService,
     FiatService,
