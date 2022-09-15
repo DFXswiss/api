@@ -197,7 +197,7 @@ export class UserDataService {
         .join(', ')} and users ${slave.users.map((u) => u.id).join(', ')}`,
     );
 
-    await this.setNewUpdateTimeWithUser(slave.id);
+    await this.updateBankTxTime(slave.id);
 
     // reassign bank datas and users
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
@@ -220,7 +220,7 @@ export class UserDataService {
     return idList;
   }
 
-  private async setNewUpdateTimeWithUser(userDataId: number): Promise<void> {
+  private async updateBankTxTime(userDataId: number): Promise<void> {
     const txList = await getRepository(BankTx).find({
       select: ['id'],
       where: [
