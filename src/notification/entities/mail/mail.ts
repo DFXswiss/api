@@ -2,14 +2,11 @@ import { GetConfig } from 'src/config/config';
 import { NotificationType } from 'src/notification/enums';
 import { Notification, NotificationOptions, NotificationMetadata } from '../notification.entity';
 
-export interface MandatoryMailParams {
+export interface MailParams {
   to: string;
   subject: string;
   salutation: string;
   body: string;
-}
-
-export interface OptionalMailParams {
   from?: { name: string; address: string };
   cc?: string;
   bcc?: string;
@@ -41,24 +38,24 @@ export class Mail extends Notification {
   readonly #linkedinUrl: string = GetConfig().defaultLinkedinUrl;
   readonly #instagramUrl: string = GetConfig().defaultInstagramUrl;
 
-  constructor(params: MandatoryMailParams, optional?: OptionalMailParams) {
+  constructor(params: MailParams) {
     super();
-    this.create(NotificationType.MAIL, optional?.metadata, optional?.options);
+    this.create(NotificationType.MAIL, params.metadata, params.options);
 
     this.#to = params.to;
     this.#subject = params.subject;
     this.#salutation = params.salutation;
     this.#body = params.body;
 
-    this.#from = optional?.from ?? this.#from;
-    this.#cc = optional?.cc ?? this.#cc;
-    this.#bcc = optional?.bcc ?? this.#bcc;
-    this.#template = optional?.template ?? this.#template;
-    this.#date = optional?.date ?? this.#date;
-    this.#telegramUrl = optional?.telegramUrl ?? this.#telegramUrl;
-    this.#twitterUrl = optional?.twitterUrl ?? this.#twitterUrl;
-    this.#linkedinUrl = optional?.linkedinUrl ?? this.#linkedinUrl;
-    this.#instagramUrl = optional?.instagramUrl ?? this.#instagramUrl;
+    this.#from = params.from ?? this.#from;
+    this.#cc = params.cc ?? this.#cc;
+    this.#bcc = params.bcc ?? this.#bcc;
+    this.#template = params.template ?? this.#template;
+    this.#date = params.date ?? this.#date;
+    this.#telegramUrl = params.telegramUrl ?? this.#telegramUrl;
+    this.#twitterUrl = params.twitterUrl ?? this.#twitterUrl;
+    this.#linkedinUrl = params.linkedinUrl ?? this.#linkedinUrl;
+    this.#instagramUrl = params.instagramUrl ?? this.#instagramUrl;
   }
 
   get from(): { name: string; address: string } {

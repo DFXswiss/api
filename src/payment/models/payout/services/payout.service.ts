@@ -165,7 +165,7 @@ export class PayoutService {
     if (orders.length === 0) return;
 
     const logMessage = this.logs.logFailedOrders(orders);
-    const mailRequest = this.createErrorMailRequest(orders, logMessage);
+    const mailRequest = this.createMailRequest(orders, logMessage);
 
     await this.notificationService.sendMail(mailRequest);
 
@@ -175,7 +175,7 @@ export class PayoutService {
     }
   }
 
-  private createErrorMailRequest(orders: PayoutOrder[], errorMessage: string): MailRequest {
+  private createMailRequest(orders: PayoutOrder[], errorMessage: string): MailRequest {
     const correlationId = JSON.stringify(orders.map((o) => `${o.id}&${o.context}`));
 
     return {

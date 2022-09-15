@@ -37,21 +37,20 @@ export class MailFactory {
     const { subject, errors } = request.input as ErrorMailInput;
     const { metadata, options } = request;
 
-    return new ErrorMail({ subject, errors }, { metadata, options });
+    return new ErrorMail({ subject, errors, metadata, options });
   }
 
   private createKycMail(request: MailRequest): KycSupportMail {
     const { userData, kycCustomerId } = request.input as KycMailInput;
     const { metadata, options } = request;
 
-    return new KycSupportMail(
-      {
-        userDataId: userData.id,
-        kycStatus: userData.kycStatus,
-        kycCustomerId,
-      },
-      { metadata, options },
-    );
+    return new KycSupportMail({
+      userDataId: userData.id,
+      kycStatus: userData.kycStatus,
+      kycCustomerId,
+      metadata,
+      options,
+    });
   }
 
   private async createUserMail(request: MailRequest): Promise<UserMail> {
@@ -64,15 +63,14 @@ export class MailFactory {
       translationParams,
     );
 
-    return new UserMail(
-      {
-        to: userData.mail,
-        subject,
-        salutation,
-        body,
-      },
-      { metadata, options },
-    );
+    return new UserMail({
+      to: userData.mail,
+      subject,
+      salutation,
+      body,
+      metadata,
+      options,
+    });
   }
 
   //*** TRANSLATION METHODS ***//

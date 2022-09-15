@@ -1,5 +1,6 @@
 import { UserData } from 'src/user/models/user-data/user-data.entity';
-import { Mail, OptionalMailParams } from './mail';
+import { NotificationMetadata, NotificationOptions } from '../notification.entity';
+import { Mail } from './mail';
 
 export interface UserMailInput {
   userData: UserData;
@@ -12,10 +13,12 @@ export interface UserMailParams {
   subject: string;
   salutation: string;
   body: string;
+  metadata?: NotificationMetadata;
+  options?: NotificationOptions;
 }
 
 export class UserMail extends Mail {
-  constructor(params: UserMailParams, optional: OptionalMailParams = {}) {
-    super(params, { ...optional, template: 'default' });
+  constructor(params: UserMailParams) {
+    super({ ...params, template: 'default' });
   }
 }

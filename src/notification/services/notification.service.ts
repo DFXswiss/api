@@ -50,7 +50,7 @@ export class NotificationService {
 
   private handleNotificationError(e: Error, metadata: NotificationMetadata): void {
     if (e instanceof NotificationSuppressedException) {
-      console.info(`Suppressed mail request. Metadata: ${metadata}`);
+      console.info(`Suppressed mail request. Context: ${metadata?.context}. CorrelationId: ${metadata?.correlationId}`);
     }
 
     throw e;

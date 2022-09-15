@@ -69,7 +69,7 @@ export class Notification extends IEntity {
   }
 
   private isDebounced(existingNotification: Notification): boolean {
-    return this.debounce && Date.now() > existingNotification.sendDate.getTime() + existingNotification.debounce;
+    return this.debounce && Date.now() < existingNotification.sendDate.getTime() + existingNotification.debounce;
   }
 
   private hasMandatoryParams(): boolean {

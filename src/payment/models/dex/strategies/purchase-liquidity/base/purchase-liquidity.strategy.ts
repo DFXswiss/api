@@ -29,7 +29,6 @@ export abstract class PurchaseLiquidityStrategy {
   //*** HELPER METHODS ***//
 
   private createMailRequest(liquidityRequest: LiquidityRequest, errorMessage: string): MailRequest {
-    console.log('New mail request');
     const correlationId = `${liquidityRequest.context}&${liquidityRequest.correlationId}`;
 
     return {
