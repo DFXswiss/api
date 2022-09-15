@@ -12,14 +12,15 @@ export interface MailRequest {
 }
 
 export interface MailRequestGenericInput {
-  from?: { name: string; address: string };
-  to?: string;
+  to: string;
+  subject: string;
+  salutation: string;
+  body: string;
+  from?: string;
+  displayName?: string;
   cc?: string;
   bcc?: string;
-  subject?: string;
   template?: string;
-  salutation?: string;
-  body?: string;
   date?: number;
   telegramUrl?: string;
   twitterUrl?: string;

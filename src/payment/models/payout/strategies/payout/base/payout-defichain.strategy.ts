@@ -1,4 +1,5 @@
-import { MailService } from 'src/shared/services/mail.service';
+import { MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -7,7 +8,7 @@ import { PayoutStrategy } from './payout.strategy';
 
 export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
   constructor(
-    protected readonly mailService: MailService,
+    protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly defichainService: PayoutDeFiChainService,
   ) {}
@@ -136,9 +137,9 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
   }
 
   protected async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
-    const body = e ? [message, e.message] : [message];
+    const errors = e ? [message, e.message] : [message];
 
-    await this.mailService.sendErrorMail('Payout Error', body);
+    await this.notificationService.sendMail({ type: MailType.ERROR, input: { subject: 'Payout Error', errors } });
   }
 
   //*** HELPER METHODS ***//

@@ -5,7 +5,7 @@ import { KycMailInput, KycSupportMail } from '../entities/mail/kyc-mail';
 import { Mail } from '../entities/mail/mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
-import { MailRequest } from '../interfaces';
+import { MailRequest, MailRequestGenericInput } from '../interfaces';
 
 @Injectable()
 export class MailFactory {
@@ -13,6 +13,10 @@ export class MailFactory {
 
   async createMail(request: MailRequest): Promise<Mail> {
     switch (request.type) {
+      case MailType.GENERIC: {
+        return this.createGenericMail(request);
+      }
+
       case MailType.ERROR: {
         return this.createErrorMail(request);
       }
@@ -33,6 +37,13 @@ export class MailFactory {
 
   //*** HELPER METHODS ***//
 
+  private createGenericMail(request: MailRequest): ErrorMail {
+    const input = request.input as MailRequestGenericInput;
+    const { metadata, options } = request;
+
+    return new Mail({ ...input, metadata, options });
+  }
+
   private createErrorMail(request: MailRequest): ErrorMail {
     const { subject, errors } = request.input as ErrorMailInput;
     const { metadata, options } = request;
@@ -41,13 +52,13 @@ export class MailFactory {
   }
 
   private createKycMail(request: MailRequest): KycSupportMail {
-    const { userData, kycCustomerId } = request.input as KycMailInput;
+    const { userData } = request.input as KycMailInput;
     const { metadata, options } = request;
 
     return new KycSupportMail({
       userDataId: userData.id,
       kycStatus: userData.kycStatus,
-      kycCustomerId,
+      kycCustomerId: userData.kycCustomerId,
       metadata,
       options,
     });

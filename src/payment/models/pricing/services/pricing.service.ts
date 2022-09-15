@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { MailService } from 'src/shared/services/mail.service';
+import { MailContext, MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { PriceMismatchException } from '../../exchange/exceptions/price-mismatch.exception';
 import { BinanceService } from '../../exchange/services/binance.service';
 import { BitpandaService } from '../../exchange/services/bitpanda.service';
@@ -31,7 +32,7 @@ export class PricingService {
   private readonly pricingPaths: Map<PricingPathAlias, PricePath> = new Map();
 
   constructor(
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly krakenService: KrakenService,
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
@@ -64,7 +65,17 @@ export class PricingService {
       return result;
     } catch (e) {
       if (e instanceof PriceMismatchException) {
-        await this.mailService.sendErrorMail('Exchange Price Mismatch', [e.message]);
+        await this.notificationService.sendMail({
+          type: MailType.ERROR,
+          input: { subject: 'Exchange Price Mismatch', errors: [e.message] },
+          metadata: {
+            context: MailContext.PRICING,
+            correlationId: `${request.to}/${request.from}`,
+          },
+          options: {
+            debounce: 1800000,
+          },
+        });
       }
 
       throw e;

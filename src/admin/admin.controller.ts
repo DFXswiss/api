@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { BankTxType } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
@@ -46,6 +48,7 @@ import { UploadFileDto } from './dto/upload-file.dto';
 export class AdminController {
   constructor(
     private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly letterService: LetterService,
@@ -66,7 +69,7 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
-      await this.mailService.sendMail(dto);
+      await this.notificationService.sendMail({ type: MailType.GENERIC, input: dto });
     }
   }
 

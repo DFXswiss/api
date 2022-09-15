@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MailService } from 'src/shared/services/mail.service';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { PayoutOrder, PayoutOrderContext } from '../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
@@ -8,11 +8,11 @@ import { PayoutDeFiChainStrategy } from './base/payout-defichain.strategy';
 @Injectable()
 export class PayoutDeFiChainDFIStrategy extends PayoutDeFiChainStrategy {
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     protected readonly defichainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo, defichainService);
+    super(notificationService, payoutOrderRepo, defichainService);
     this.defichainService.sendUtxoToMany = this.defichainService.sendUtxoToMany.bind(this.defichainService);
   }
 

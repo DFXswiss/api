@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { Lock } from 'src/shared/lock';
-import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
 import { IsNull, Not } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
@@ -10,7 +11,10 @@ import { BuyFiatRepository } from './buy-fiat.repository';
 export class BuyFiatNotificationService {
   private readonly lock = new Lock(1800);
 
-  constructor(private readonly buyFiatRepo: BuyFiatRepository, private readonly mailService: MailService) {}
+  constructor(
+    private readonly buyFiatRepo: BuyFiatRepository,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   @Interval(60000)
   async sendNotificationMails(): Promise<void> {
@@ -38,13 +42,16 @@ export class BuyFiatNotificationService {
         entity.offRampInitiated(recipientMail);
 
         if (recipientMail) {
-          await this.mailService.sendTranslatedMail({
-            userData: entity.sell.user.userData,
-            translationKey: 'mail.payment.withdrawal.offRampInitiated',
-            params: {
-              inputAmount: entity.cryptoInput.amount,
-              inputAsset: entity.cryptoInput.asset.dexName,
-              inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: entity.sell.user.userData,
+              translationKey: 'mail.payment.withdrawal.offRampInitiated',
+              translationParams: {
+                inputAmount: entity.cryptoInput.amount,
+                inputAsset: entity.cryptoInput.asset.dexName,
+                inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
+              },
             },
           });
         } else {
@@ -74,16 +81,19 @@ export class BuyFiatNotificationService {
         entity.cryptoExchangedToFiat();
 
         if (entity.sell.user.userData.mail) {
-          await this.mailService.sendTranslatedMail({
-            userData: entity.sell.user.userData,
-            translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
-            params: {
-              inputAmount: entity.inputAmount,
-              inputAsset: entity.inputAsset,
-              percentFee: entity.percentFeeString,
-              exchangeRate: entity.exchangeRateString,
-              outputAmount: entity.outputAmount,
-              outputAsset: entity.outputAsset,
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: entity.sell.user.userData,
+              translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
+              translationParams: {
+                inputAmount: entity.inputAmount,
+                inputAsset: entity.inputAsset,
+                percentFee: entity.percentFeeString,
+                exchangeRate: entity.exchangeRateString,
+                outputAmount: entity.outputAmount,
+                outputAsset: entity.outputAsset,
+              },
             },
           });
         }
@@ -108,14 +118,17 @@ export class BuyFiatNotificationService {
         entity.fiatToBankTransferInitiated();
 
         if (entity.sell.user.userData.mail) {
-          await this.mailService.sendTranslatedMail({
-            userData: entity.sell.user.userData,
-            translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
-            params: {
-              outputAmount: entity.outputAmount,
-              outputAsset: entity.outputAsset,
-              bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
-              remittanceInfo: entity.remittanceInfo,
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: entity.sell.user.userData,
+              translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
+              translationParams: {
+                outputAmount: entity.outputAmount,
+                outputAsset: entity.outputAsset,
+                bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
+                remittanceInfo: entity.remittanceInfo,
+              },
             },
           });
         }

@@ -7,7 +7,8 @@ export interface MailParams {
   subject: string;
   salutation: string;
   body: string;
-  from?: { name: string; address: string };
+  from?: string;
+  displayName?: string;
   cc?: string;
   bcc?: string;
   template?: string;
@@ -46,8 +47,10 @@ export class Mail extends Notification {
     this.#subject = params.subject;
     this.#salutation = params.salutation;
     this.#body = params.body;
-
-    this.#from = params.from ?? this.#from;
+    this.#from = {
+      name: params.displayName ?? 'DFX.swiss',
+      address: params.from ?? GetConfig().mail.contact.noReplyMail,
+    };
     this.#cc = params.cc ?? this.#cc;
     this.#bcc = params.bcc ?? this.#bcc;
     this.#template = params.template ?? this.#template;

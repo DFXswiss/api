@@ -4,7 +4,8 @@ import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
-import { MailService } from 'src/shared/services/mail.service';
+import { NotificationService } from 'src/notification/services/notification.service';
+import { MailType } from 'src/notification/enums';
 
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
@@ -13,7 +14,10 @@ export class MonitoringService {
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
   #observers: Map<SubsystemName, SubsystemObservers> = new Map();
 
-  constructor(private systemStateSnapshotRepo: SystemStateSnapshotRepository, readonly mailService: MailService) {
+  constructor(
+    private systemStateSnapshotRepo: SystemStateSnapshotRepository,
+    readonly notificationService: NotificationService,
+  ) {
     this.initState();
   }
 
@@ -45,7 +49,11 @@ export class MonitoringService {
       return JSON.parse(latestPersistedState.data);
     } catch (e) {
       console.error('Failed to parse loaded system state. Defaulting to empty state', e);
-      this.mailService.sendErrorMail('Monitoring Error. Failed to parse loaded system state.', [e]);
+
+      await this.notificationService.sendMail({
+        type: MailType.ERROR,
+        input: { subject: 'Monitoring Error. Failed to parse loaded system state.', errors: [e] },
+      });
 
       return null;
     }
@@ -93,7 +101,11 @@ export class MonitoringService {
       }
     } catch (e) {
       console.error('Error persisting the state', e);
-      this.mailService.sendErrorMail('Monitoring Error. Error persisting the state.', [e]);
+
+      await this.notificationService.sendMail({
+        type: MailType.ERROR,
+        input: { subject: 'Monitoring Error. Error persisting the state.', errors: [e] },
+      });
     }
   }
 
@@ -157,7 +169,7 @@ export class MonitoringService {
     );
   }
 
-  private updateSystemState(subsystem: string, metric: string, data: unknown) {
+  private async updateSystemState(subsystem: string, metric: string, data: unknown) {
     try {
       const currentState = cloneDeep(this.#$state.value);
 
@@ -171,7 +183,11 @@ export class MonitoringService {
       this.#$state.next(newSystemState);
     } catch (e) {
       console.error('Error updating monitoring state', e);
-      this.mailService.sendErrorMail('Monitoring Error. Updating monitoring state.', [e]);
+
+      await this.notificationService.sendMail({
+        type: MailType.ERROR,
+        input: { subject: 'Monitoring Error. Updating monitoring state.', errors: [e] },
+      });
     }
   }
 }

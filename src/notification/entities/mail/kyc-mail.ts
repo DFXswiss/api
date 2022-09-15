@@ -5,12 +5,11 @@ import { Mail } from './mail';
 
 export interface KycMailInput {
   userData: UserData;
-  kycCustomerId: string;
 }
 
 export interface KycMailParams {
   userDataId: number;
-  kycCustomerId: string;
+  kycCustomerId: number;
   kycStatus: string;
   metadata?: NotificationMetadata;
   options?: NotificationOptions;

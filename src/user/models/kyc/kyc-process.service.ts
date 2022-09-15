@@ -3,19 +3,20 @@ import { SpiderDataRepository } from 'src/user/models/spider-data/spider-data.re
 import { KycInProgress, KycState, KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { KycDocument, KycDocuments, InitiateResponse } from '../../services/spider/dto/spider.dto';
 import { AccountType } from 'src/user/models/user-data/account-type.enum';
-import { MailService } from 'src/shared/services/mail.service';
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 import { DocumentState, SpiderService } from 'src/user/services/spider/spider.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserRepository } from '../user/user.repository';
 import { Config } from 'src/config/config';
+import { NotificationService } from 'src/notification/services/notification.service';
+import { MailType } from 'src/notification/enums';
 
 @Injectable()
 export class KycProcessService {
   constructor(
     private readonly spiderDataRepo: SpiderDataRepository,
     private readonly spiderService: SpiderService,
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly userRepo: UserRepository,
   ) {}
 
@@ -52,12 +53,12 @@ export class KycProcessService {
       const initiateData = await this.spiderService.initiateIdentification(userData.id, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
-    if (status === KycStatus.MANUAL)
-      await this.mailService.sendTranslatedMail({
-        userData: userData,
-        translationKey: 'mail.kyc.success',
-        params: {},
+    if (status === KycStatus.MANUAL) {
+      await this.notificationService.sendMail({
+        type: MailType.USER,
+        input: { translationKey: 'mail.kyc.success', translationParams: {}, userData },
       });
+    }
 
     return this.updateKycStatus(userData, status);
   }
@@ -83,20 +84,24 @@ export class KycProcessService {
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
 
-      await this.mailService
-        .sendTranslatedMail({
-          userData,
-          translationKey: 'mail.kyc.failed',
-          params: {
-            url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+      await this.notificationService
+        .sendMail({
+          type: MailType.USER,
+          input: {
+            userData,
+            translationKey: 'mail.kyc.failed',
+            translationParams: {
+              url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+            },
           },
         })
         .catch(() => null);
+
       return userData;
     }
 
     // notify support
-    await this.mailService.sendKycFailedMail(userData, userData.kycCustomerId);
+    await this.notificationService.sendMail({ type: MailType.KYC, input: { userData } });
     return this.updateKycState(userData, KycState.FAILED);
   }
 
@@ -151,12 +156,13 @@ export class KycProcessService {
   async identCompleted(userData: UserData, result: IdentResultDto): Promise<UserData> {
     userData = await this.storeIdentResult(userData, result);
 
-    await this.mailService
-      .sendTranslatedMail({
-        userData,
-        translationKey: 'mail.kyc.ident',
+    await this.notificationService
+      .sendMail({
+        type: MailType.USER,
+        input: { userData, translationKey: 'mail.kyc.ident', translationParams: {} },
       })
       .catch(() => null);
+
     return await this.goToStatus(userData, KycStatus.CHECK);
   }
 

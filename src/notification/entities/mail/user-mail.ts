@@ -5,7 +5,7 @@ import { Mail } from './mail';
 export interface UserMailInput {
   userData: UserData;
   translationKey: string;
-  translationParams: string;
+  translationParams: object;
 }
 
 export interface UserMailParams {

@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { MailService } from 'src/shared/services/mail.service';
 import { IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
+import { NotificationService } from 'src/notification/services/notification.service';
+import { MailType } from 'src/notification/enums';
 
 @Injectable()
 export class BuyCryptoNotificationService {
-  constructor(private readonly buyCryptoRepo: BuyCryptoRepository, private readonly mailService: MailService) {}
+  constructor(
+    private readonly buyCryptoRepo: BuyCryptoRepository,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async sendNotificationMails(): Promise<void> {
     try {
@@ -41,18 +45,21 @@ export class BuyCryptoNotificationService {
       for (const tx of txOutput) {
         try {
           tx.user.userData.mail &&
-            (await this.mailService.sendTranslatedMail({
-              userData: tx.user.userData,
-              translationKey: tx.translationKey,
-              params: {
-                buyInputAmount: tx.inputAmount,
-                buyInputAsset: tx.inputAsset,
-                buyOutputAmount: tx.outputAmount,
-                buyOutputAsset: tx.outputAsset,
-                buyFeePercentage: Util.round(tx.percentFee * 100, 2),
-                exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
-                buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
-                buyTxId: tx.txId,
+            (await this.notificationService.sendMail({
+              type: MailType.USER,
+              input: {
+                userData: tx.user.userData,
+                translationKey: tx.translationKey,
+                translationParams: {
+                  buyInputAmount: tx.inputAmount,
+                  buyInputAsset: tx.inputAsset,
+                  buyOutputAmount: tx.outputAmount,
+                  buyOutputAsset: tx.outputAsset,
+                  buyFeePercentage: Util.round(tx.percentFee * 100, 2),
+                  exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
+                  buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
+                  buyTxId: tx.txId,
+                },
               },
             }));
 
@@ -69,8 +76,8 @@ export class BuyCryptoNotificationService {
   }
 
   async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
-    const body = e ? [message, e.message] : [message];
+    const errors = e ? [message, e.message] : [message];
 
-    await this.mailService.sendErrorMail('Buy Crypto Error', body);
+    await this.notificationService.sendMail({ type: MailType.ERROR, input: { subject: 'Buy Crypto Error', errors } });
   }
 }

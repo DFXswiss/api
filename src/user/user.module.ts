@@ -33,6 +33,7 @@ import { GeoLocationService } from './services/geo-location.service';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { LinkAddressRepository } from './models/link/link-address.repository';
       LinkAddressRepository,
     ]),
     SharedModule,
+    NotificationModule,
     AinModule,
   ],
   controllers: [
