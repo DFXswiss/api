@@ -65,8 +65,14 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
 
   private async checkUtxoForGroup(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
-      await this.checkUtxo(order.destinationAddress);
+      if (this.isEligibleForMinimalUtxo(order.destinationAddress)) {
+        await this.checkUtxo(order.destinationAddress);
+      }
     }
+  }
+
+  private isEligibleForMinimalUtxo(address: string): boolean {
+    return this.defichainService.isUserAddress(address);
   }
 
   private async checkUtxo(address: string): Promise<void> {
