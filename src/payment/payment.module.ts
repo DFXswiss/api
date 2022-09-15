@@ -11,9 +11,6 @@ import { BankTxBatchRepository } from './models/bank-tx/bank-tx-batch.repository
 import { BankTxController } from './models/bank-tx/bank-tx.controller';
 import { BankTxRepository } from './models/bank-tx/bank-tx.repository';
 import { BankTxService } from './models/bank-tx/bank-tx.service';
-import { CryptoBuyRepository } from './models/crypto-buy/crypto-buy.repository';
-import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
-import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 import { HistoryController } from './models/history/history.controller';
 import { HistoryService } from './models/history/history.service';
 import { BuyController } from './models/buy/buy.controller';
@@ -75,7 +72,6 @@ import { PricingModule } from './models/pricing/pricing.module';
   imports: [
     TypeOrmModule.forFeature([
       CryptoInputRepository,
-      CryptoBuyRepository,
       BuyCryptoRepository,
       BuyCryptoBatchRepository,
       BuyFiatRepository,
@@ -105,7 +101,6 @@ import { PricingModule } from './models/pricing/pricing.module';
   controllers: [
     BankTxController,
     BankController,
-    CryptoBuyController,
     BuyCryptoController,
     BuyFiatController,
     HistoryController,
@@ -125,7 +120,6 @@ import { PricingModule } from './models/pricing/pricing.module';
     CryptoInputService,
     BtcInputService,
     DeFiInputService,
-    CryptoBuyService,
     BuyFiatNotificationService,
     BuyFiatService,
     BuyCryptoService,
@@ -164,7 +158,6 @@ import { PricingModule } from './models/pricing/pricing.module';
     RefRewardService,
     MasternodeService,
     StakingService,
-    CryptoBuyService,
     BuyCryptoService,
     BuyFiatService,
     BankTxService,

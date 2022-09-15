@@ -5,10 +5,10 @@ import { Staking } from 'src/payment/models/staking/staking.entity';
 import { Entity, Column, ManyToOne, Index, OneToOne } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
-import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoRoute } from '../crypto-route/crypto-route.entity';
 import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
+import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 
 export enum CryptoInputType {
   RETURN = 'Return',
