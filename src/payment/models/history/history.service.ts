@@ -15,7 +15,7 @@ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
-import { CoinTrackingHistory, CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
+import { CoinTrackingHistory } from './dto/coin-tracking-history.dto';
 
 @Injectable()
 export class HistoryService {
