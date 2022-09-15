@@ -15,6 +15,7 @@ export class ApiKeyService {
     staking: 2,
     ref: 3,
     lm: 4,
+    lwTransaction: 5,
   };
 
   // --- SECRET HANDLING --- //

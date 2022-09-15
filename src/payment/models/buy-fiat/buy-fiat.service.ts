@@ -81,6 +81,30 @@ export class BuyFiatService {
     });
   }
 
+  async getUserWithdrawalTxIds(
+    userId: number,
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<string[]> {
+    return await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('cryptoInput.inTxId', 'inTxid')
+      .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
+      .leftJoin('buyFiat.sell', 'sell')
+      .leftJoin('sell.user', 'user')
+      .where('user.id >= :id', { userId })
+      .where('buyFiat.outputDate BETWEEN :from AND :to', { from: dateFrom, to: dateTo })
+      .getRawMany()
+      .catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      })
+      .then((buyFiat) => {
+        return buyFiat.map((u) => {
+          return u.inTxid;
+        });
+      });
+  }
+
   async getAllUserTransactions(userIds: number[]): Promise<BuyFiat[]> {
     return await this.buyFiatRepo.find({
       where: { sell: { user: { id: In(userIds) } } },

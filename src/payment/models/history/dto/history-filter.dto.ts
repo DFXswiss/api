@@ -26,6 +26,11 @@ export class HistoryFilter {
   @IsOptional()
   @IsString()
   lm?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  lwTransaction?: string;
 }
 
 export type HistoryFilterKey = keyof HistoryFilter;

@@ -15,10 +15,14 @@ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
-import { CoinTrackingHistory, CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
+import { CoinTrackingHistory } from './dto/coin-tracking-history.dto';
+import { AccountHistory, TransactionHistory, WhaleClient } from 'src/blockchain/ain/whale/whale-client';
+import { WhaleService } from 'src/blockchain/ain/whale/whale.service';
 
 @Injectable()
 export class HistoryService {
+  private readonly whaleClient: WhaleClient;
+
   constructor(
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
@@ -27,7 +31,10 @@ export class HistoryService {
     private readonly refRewardService: RefRewardService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly stakingRefReward: StakingRefRewardService,
-  ) {}
+    whaleService: WhaleService,
+  ) {
+    this.whaleClient = whaleService.getClient();
+  }
 
   async getHistory(
     userId: number,
@@ -44,6 +51,9 @@ export class HistoryService {
       all || query.staking != null ? await this.getStakingRewards(userId, query.from, query.to) : Promise.resolve([]),
       all || query.staking != null ? await this.getStakingInvests(userId, query.from, query.to) : Promise.resolve([]),
       all || query.ref != null ? await this.getAllRefRewards(userId, query.from, query.to) : Promise.resolve([]),
+      all || query.lwTransaction != null
+        ? await this.getOceanTransaction(userId, userAddress, query.from, query.to)
+        : Promise.resolve([]),
       //all || query.lm != null ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout): Promise.resolve([]),
     ]);
 
@@ -287,22 +297,22 @@ export class HistoryService {
           buyValueInEur: null,
           sellValueInEur: null,
         },
-        {
-          type: 'Withdrawal',
-          buyAmount: null,
-          buyAsset: null,
-          sellAmount: c.inputAmount,
-          sellAsset: this.getAssetSymbol(c.inputAsset),
-          fee: null,
-          feeAsset: null,
-          exchange: 'DFX',
-          tradeGroup: null,
-          comment: 'DFX Staking Invest',
-          date: this.createRandomDate(c.inputDate, -10, c.inputAmount),
-          txid: c.inTxId + '-2',
-          buyValueInEur: null,
-          sellValueInEur: null,
-        },
+        // {
+        //   type: 'Withdrawal',
+        //   buyAmount: null,
+        //   buyAsset: null,
+        //   sellAmount: c.inputAmount,
+        //   sellAsset: this.getAssetSymbol(c.inputAsset),
+        //   fee: null,
+        //   feeAsset: null,
+        //   exchange: 'DFX',
+        //   tradeGroup: null,
+        //   comment: 'DFX Staking Invest',
+        //   date: this.createRandomDate(c.inputDate, -10, c.inputAmount),
+        //   txid: c.inTxId + '-2',
+        //   buyValueInEur: null,
+        //   sellValueInEur: null,
+        // },
       ])
       .reduce((prev, curr) => prev.concat(curr), []);
   }
@@ -326,22 +336,22 @@ export class HistoryService {
           buyValueInEur: null,
           sellValueInEur: null,
         },
-        {
-          type: 'Deposit',
-          buyAmount: c.outputAmount,
-          buyAsset: this.getAssetSymbol(c.outputAsset),
-          sellAmount: null,
-          sellAsset: null,
-          fee: null,
-          feeAsset: null,
-          exchange: 'DFX',
-          tradeGroup: null,
-          comment: 'DFX Staking Invest',
-          date: this.createRandomDate(c.outputDate, 10, c.outputAmount),
-          txid: c.outTxId + '-2',
-          buyValueInEur: null,
-          sellValueInEur: null,
-        },
+        // {
+        //   type: 'Deposit',
+        //   buyAmount: c.outputAmount,
+        //   buyAsset: this.getAssetSymbol(c.outputAsset),
+        //   sellAmount: null,
+        //   sellAsset: null,
+        //   fee: null,
+        //   feeAsset: null,
+        //   exchange: 'DFX',
+        //   tradeGroup: null,
+        //   comment: 'DFX Staking Invest',
+        //   date: this.createRandomDate(c.outputDate, 10, c.outputAmount),
+        //   txid: c.outTxId + '-2',
+        //   buyValueInEur: null,
+        //   sellValueInEur: null,
+        // },
         c.outputAsset != 'DFI'
           ? {
               type: 'Trade',
@@ -418,6 +428,178 @@ export class HistoryService {
       .reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  private getLightWalletTransaction(
+    transaction: TransactionHistory[],
+    account: AccountHistory[],
+  ): CoinTrackingHistory[] {
+    return [
+      ...this.getDepositTransaction(transaction),
+      ...this.getWithdrawalTransaction(transaction),
+      ...this.getDepositAccount(account),
+      ...this.getWithdrawalAccount(account),
+    ];
+  }
+
+  private getDepositTransaction(transaction: TransactionHistory[]): CoinTrackingHistory[] {
+    return transaction
+      .filter((c) => c.type === 'vout')
+      .map((c) => [
+        {
+          type: 'Deposit',
+          buyAmount: Number.parseFloat(c.value),
+          buyAsset: 'DFI',
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX LightWallet Transaction',
+          date: new Date(c.block.medianTime * 1000),
+          txid: c.txid,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private getDepositAccount(account: AccountHistory[]): CoinTrackingHistory[] {
+    return account
+      .filter(
+        (c) =>
+          (c.type === 'AccountToAccount' || c.type === 'AnyAccountsToAccounts') &&
+          Number.parseFloat(c.amounts[0].split('@')[0]) > 0,
+      )
+      .map((c) => [
+        {
+          type: 'Deposit',
+          buyAmount: Number.parseFloat(c.amounts[0].split('@')[0]),
+          buyAsset: this.getAssetSymbol(c.amounts[0].split('@')[1]),
+          sellAmount: null,
+          sellAsset: null,
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX LightWallet Transaction',
+          date: new Date(c.block.time * 1000),
+          txid: c.txid,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private getWithdrawalTransaction(transaction: TransactionHistory[]): CoinTrackingHistory[] {
+    return transaction
+      .filter((c) => c.type === 'vin')
+      .map((c) => [
+        {
+          type: 'Withdrawal',
+          buyAmount: null,
+          buyAsset: null,
+          sellAmount: Number.parseFloat(c.value),
+          sellAsset: 'DFI',
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX LightWallet Transaction',
+          date: new Date(c.block.medianTime * 1000),
+          txid: c.txid,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private getWithdrawalAccount(account: AccountHistory[]): CoinTrackingHistory[] {
+    return account
+      .filter(
+        (c) =>
+          (c.type === 'AccountToAccount' || c.type === 'AnyAccountsToAccounts') &&
+          Number.parseFloat(c.amounts[0].split('@')[0]) < 0,
+      )
+      .map((c) => [
+        {
+          type: 'Withdrawal',
+          buyAmount: null,
+          buyAsset: null,
+          sellAmount: Number.parseFloat(c.amounts[0].split('@')[0].split('-')[1]),
+          sellAsset: this.getAssetSymbol(c.amounts[0].split('@')[1]),
+          fee: null,
+          feeAsset: null,
+          exchange: 'DFX',
+          tradeGroup: null,
+          comment: 'DFX LightWallet Transaction',
+          date: new Date(c.block.time * 1000),
+          txid: c.txid,
+          buyValueInEur: null,
+          sellValueInEur: null,
+        },
+      ])
+      .reduce((prev, curr) => prev.concat(curr), []);
+  }
+
+  private getPoolSwapsAccount(account: AccountHistory[]): CoinTrackingHistory[] {
+    return account
+      .filter((c) => c.type === 'PoolSwap')
+      .map((c) => [
+        c.amounts.length == 1
+          ? {
+              type: 'Deposit',
+              buyAmount: Number.parseFloat(c.amounts[0].split('@')[0]),
+              buyAsset: this.getAssetSymbol(c.amounts[0].split('@')[1]),
+              sellAmount: null,
+              sellAsset: null,
+              fee: null,
+              feeAsset: null,
+              exchange: 'DFX',
+              tradeGroup: null,
+              comment: 'DFX LightWallet Transaction',
+              date: new Date(c.block.time * 1000),
+              txid: c.txid,
+              buyValueInEur: null,
+              sellValueInEur: null,
+            }
+          : c.amounts.length == 2
+          ? {
+              type: 'Trade',
+              buyAmount:
+                Number.parseFloat(c.amounts[0].split('@')[0]) > 0
+                  ? Number.parseFloat(c.amounts[0].split('@')[0])
+                  : Number.parseFloat(c.amounts[1].split('@')[0]),
+              buyAsset:
+                Number.parseFloat(c.amounts[0].split('@')[0]) > 0
+                  ? this.getAssetSymbol(c.amounts[0].split('@')[1])
+                  : this.getAssetSymbol(c.amounts[1].split('@')[1]),
+              sellAmount:
+                Number.parseFloat(c.amounts[1].split('@')[0]) < 0
+                  ? Number.parseFloat(c.amounts[1].split('@')[0])
+                  : Number.parseFloat(c.amounts[0].split('@')[0]),
+              sellAsset:
+                Number.parseFloat(c.amounts[1].split('@')[0]) < 0
+                  ? this.getAssetSymbol(c.amounts[1].split('@')[1])
+                  : this.getAssetSymbol(c.amounts[0].split('@')[1]),
+              fee: null,
+              feeAsset: null,
+              exchange: 'DFX',
+              tradeGroup: null,
+              comment: 'DFX LightWallet Transaction',
+              date: new Date(c.block.time * 1000),
+              txid: c.txid,
+              buyValueInEur: null,
+              sellValueInEur: null,
+            }
+          : null,
+      ])
+      .reduce((prev, curr) => prev.concat(curr), [])
+      .filter((swaps) => swaps != null);
+  }
+
   private async getDfiTaxRewards(
     userAddress: string,
     interval: string,
@@ -447,6 +629,32 @@ export class HistoryService {
       console.error(`Failed to get DFI.tax rewards for ${userAddress}:`, error);
       return [];
     }
+  }
+
+  async getOceanTransaction(
+    userId: number,
+    userAddress: string,
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<CoinTrackingHistory[]> {
+    const transactions = (await this.whaleClient.getTransactionHistory(userAddress)).filter(
+      (c) => c.block.medianTime <= dateTo.getTime() / 1000 || c.block.medianTime >= dateFrom.getTime() / 1000,
+    );
+    const account = (await this.whaleClient.getAccountHistory(userAddress)).filter(
+      (c) => c.block.time <= dateTo.getTime() / 1000 || c.block.time >= dateFrom.getTime() / 1000,
+    );
+
+    const dfxTransactionTxids = [
+      await this.buyFiatService.getUserWithdrawalTxIds(userId, dateFrom, dateTo),
+      await this.buyCryptoService.getUserDepositTxIds(userId, dateFrom, dateTo),
+    ].reduce((prev, curr) => prev.concat(curr), []);
+
+    return await Promise.all([
+      this.getLightWalletTransaction(
+        transactions.filter((c) => !dfxTransactionTxids.includes(c.txid)),
+        account.filter((c) => !dfxTransactionTxids.includes(c.txid)),
+      ),
+    ]).then((tx) => tx.reduce((prev, curr) => prev.concat(curr), []));
   }
 
   private toCsv(list: any[], separator = ','): string {

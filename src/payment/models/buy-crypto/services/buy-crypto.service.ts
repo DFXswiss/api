@@ -156,6 +156,27 @@ export class BuyCryptoService {
     });
   }
 
+  async getUserDepositTxIds(
+    userId: number,
+    dateFrom: Date = new Date(0),
+    dateTo: Date = new Date(),
+  ): Promise<string[]> {
+    return await this.buyCryptoRepo
+      .find({
+        select: ['txId'],
+        where: [
+          { buy: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+          { cryptoRoute: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
+        ],
+        relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user'],
+      })
+      .then((buyFiat) => {
+        return buyFiat.map((u) => {
+          return u.txId;
+        });
+      });
+  }
+
   async getRefTransactions(
     refCodes: string[],
     dateFrom: Date = new Date(0),
