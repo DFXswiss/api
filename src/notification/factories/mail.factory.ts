@@ -4,7 +4,7 @@ import { ErrorMail, ErrorMailInput } from '../entities/mail/error-mail';
 import { KycMailInput, KycSupportMail } from '../entities/mail/kyc-mail';
 import { Mail } from '../entities/mail/mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
-import { MailType, NotificationType } from '../enums';
+import { MailType } from '../enums';
 import { MailRequest } from '../interfaces';
 
 @Injectable()
@@ -34,33 +34,29 @@ export class MailFactory {
   //*** HELPER METHODS ***//
 
   private createErrorMail(request: MailRequest): ErrorMail {
-    const { context, correlationId, options } = request;
-    const { subject, errors } = request.data as ErrorMailInput;
+    const { subject, errors } = request.input as ErrorMailInput;
+    const { metadata, options } = request;
 
-    return new ErrorMail(
-      { subject, errors, notificationParams: { context, correlationId, type: NotificationType.MAIL } },
-      { notificationOptions: options },
-    );
+    return new ErrorMail({ subject, errors }, { metadata, options });
   }
 
   private createKycMail(request: MailRequest): KycSupportMail {
-    const { context, correlationId, options } = request;
-    const { userData, kycCustomerId } = request.data as KycMailInput;
+    const { userData, kycCustomerId } = request.input as KycMailInput;
+    const { metadata, options } = request;
 
     return new KycSupportMail(
       {
         userDataId: userData.id,
         kycStatus: userData.kycStatus,
         kycCustomerId,
-        notificationParams: { context, correlationId, type: NotificationType.MAIL },
       },
-      { notificationOptions: options },
+      { metadata, options },
     );
   }
 
   private async createUserMail(request: MailRequest): Promise<UserMail> {
-    const { context, correlationId, options } = request;
-    const { userData, translationKey, translationParams } = request.data as UserMailInput;
+    const { userData, translationKey, translationParams } = request.input as UserMailInput;
+    const { metadata, options } = request;
 
     const { subject, salutation, body } = await this.t(
       translationKey,
@@ -74,9 +70,8 @@ export class MailFactory {
         subject,
         salutation,
         body,
-        notificationParams: { context, correlationId, type: NotificationType.MAIL },
       },
-      { notificationOptions: options },
+      { metadata, options },
     );
   }
 

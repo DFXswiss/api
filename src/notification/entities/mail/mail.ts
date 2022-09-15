@@ -1,12 +1,12 @@
 import { GetConfig } from 'src/config/config';
-import { Notification, NotificationOptions, NotificationParams } from '../notification.entity';
+import { NotificationType } from 'src/notification/enums';
+import { Notification, NotificationOptions, NotificationMetadata } from '../notification.entity';
 
 export interface MandatoryMailParams {
   to: string;
   subject: string;
   salutation: string;
   body: string;
-  notificationParams: NotificationParams;
 }
 
 export interface OptionalMailParams {
@@ -19,7 +19,8 @@ export interface OptionalMailParams {
   twitterUrl?: string;
   linkedinUrl?: string;
   instagramUrl?: string;
-  notificationOptions?: NotificationOptions;
+  options?: NotificationOptions;
+  metadata?: NotificationMetadata;
 }
 
 export class Mail extends Notification {
@@ -42,7 +43,7 @@ export class Mail extends Notification {
 
   constructor(params: MandatoryMailParams, optional?: OptionalMailParams) {
     super();
-    this.create(params.notificationParams, optional?.notificationOptions);
+    this.create(NotificationType.MAIL, optional?.metadata, optional?.options);
 
     this.#to = params.to;
     this.#subject = params.subject;

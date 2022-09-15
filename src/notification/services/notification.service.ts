@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Notification } from '../entities/notification.entity';
+import { Notification, NotificationMetadata } from '../entities/notification.entity';
 import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
 import { MailFactory } from '../factories/mail.factory';
 import { MailRequest } from '../interfaces';
@@ -23,7 +23,7 @@ export class NotificationService {
 
       await this.mailService.send(mail);
     } catch (e) {
-      this.handleNotificationError(e, request);
+      this.handleNotificationError(e, request.metadata);
     }
   }
 
@@ -32,22 +32,25 @@ export class NotificationService {
   private async verify(newNotification: Notification): Promise<void> {
     const { correlationId, context } = newNotification;
 
-    const existingNotification = await this.notificationRepo.findOne({ correlationId, context });
+    const existingNotification = await this.notificationRepo.findOne({
+      order: { id: 'DESC' },
+      where: { correlationId, context },
+    });
 
     if (existingNotification) newNotification.shouldAbortGiven(existingNotification);
   }
 
   private async persist(notification: Notification): Promise<void> {
-    if (notification.toBePersisted()) {
+    if (notification.shouldBePersisted()) {
       await this.notificationRepo.save(notification);
     }
   }
 
   //*** ERROR HANDLING ***//
 
-  private handleNotificationError(e: Error, request: MailRequest): void {
+  private handleNotificationError(e: Error, metadata: NotificationMetadata): void {
     if (e instanceof NotificationSuppressedException) {
-      console.info(`Suppressed mail request. Context: ${request.context} Correlation ID: ${request.correlationId} `);
+      console.info(`Suppressed mail request. Metadata: ${metadata}`);
     }
 
     throw e;

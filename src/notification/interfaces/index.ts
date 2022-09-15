@@ -1,14 +1,13 @@
 import { ErrorMailInput } from '../entities/mail/error-mail';
 import { KycMailInput } from '../entities/mail/kyc-mail';
 import { UserMailInput } from '../entities/mail/user-mail';
-import { NotificationOptions } from '../entities/notification.entity';
-import { MailContext, MailType } from '../enums';
+import { NotificationMetadata, NotificationOptions } from '../entities/notification.entity';
+import { MailType } from '../enums';
 
 export interface MailRequest {
-  context: MailContext;
-  correlationId: string;
   type: MailType;
-  data: MailRequestGenericInput | UserMailInput | KycMailInput | ErrorMailInput;
+  input: MailRequestGenericInput | UserMailInput | KycMailInput | ErrorMailInput;
+  metadata?: NotificationMetadata;
   options?: NotificationOptions;
 }
 

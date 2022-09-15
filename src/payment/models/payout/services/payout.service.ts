@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
-import { PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
@@ -11,6 +11,7 @@ import { PayoutLogService } from './payout-log.service';
 import { PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { MailRequest } from 'src/notification/interfaces';
 
 @Injectable()
 export class PayoutService {
@@ -164,21 +165,27 @@ export class PayoutService {
     if (orders.length === 0) return;
 
     const logMessage = this.logs.logFailedOrders(orders);
+    const mailRequest = this.createErrorMailRequest(orders, logMessage);
 
-    const correlationId = JSON.stringify(orders.map((o) => `${o.id}&${o.context}`));
-
-    console.log('TRY notificationService.sendMail PAYOUT');
-    await this.notificationService.sendMail({
-      context: MailContext.PAYOUT,
-      correlationId,
-      type: MailType.ERROR,
-      data: { subject: 'Payout Error', errors: [logMessage] },
-      options: { suppressRecurring: true },
-    });
+    await this.notificationService.sendMail(mailRequest);
 
     for (const order of orders) {
       order.pendingInvestigation();
       await this.payoutOrderRepo.save(order);
     }
+  }
+
+  private createErrorMailRequest(orders: PayoutOrder[], errorMessage: string): MailRequest {
+    const correlationId = JSON.stringify(orders.map((o) => `${o.id}&${o.context}`));
+
+    return {
+      type: MailType.ERROR,
+      input: { subject: 'Payout Error', errors: [errorMessage] },
+      metadata: {
+        context: MailContext.PAYOUT,
+        correlationId,
+      },
+      options: { suppressRecurring: true },
+    };
   }
 }

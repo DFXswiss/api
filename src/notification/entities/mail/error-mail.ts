@@ -1,16 +1,11 @@
 import { GetConfig } from 'src/config/config';
-import { NotificationParams } from '../notification.entity';
 import { Mail, OptionalMailParams } from './mail';
 
-export interface ErrorMailInput {
-  subject: string;
-  errors: string[];
-}
+export type ErrorMailInput = ErrorMailParams;
 
 export interface ErrorMailParams {
   subject: string;
   errors: string[];
-  notificationParams: NotificationParams;
 }
 
 // technical support mail - monitoring
@@ -21,7 +16,6 @@ export class ErrorMail extends Mail {
       subject: `${params.subject} (${GetConfig().environment.toUpperCase()})`,
       salutation: 'Hi DFX Tech Support',
       body: ErrorMail.createBody(params.errors),
-      notificationParams: params.notificationParams,
     };
 
     super(mailParams, optional);

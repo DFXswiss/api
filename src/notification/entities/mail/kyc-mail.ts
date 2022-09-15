@@ -1,6 +1,5 @@
 import { GetConfig } from 'src/config/config';
 import { UserData } from 'src/user/models/user-data/user-data.entity';
-import { NotificationParams } from '../notification.entity';
 import { Mail, OptionalMailParams } from './mail';
 
 export interface KycMailInput {
@@ -12,7 +11,6 @@ export interface KycMailParams {
   userDataId: number;
   kycCustomerId: string;
   kycStatus: string;
-  notificationParams: NotificationParams;
 }
 
 // support -
@@ -23,7 +21,6 @@ export class KycSupportMail extends Mail {
       subject: 'KYC failed or expired',
       salutation: 'Hi DFX Support',
       body: KycSupportMail.createBody(params),
-      notificationParams: params.notificationParams,
     };
 
     super(mailParams, optional);

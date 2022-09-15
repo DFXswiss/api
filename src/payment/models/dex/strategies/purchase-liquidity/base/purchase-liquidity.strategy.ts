@@ -1,4 +1,5 @@
 import { MailContext, MailType } from 'src/notification/enums';
+import { MailRequest } from 'src/notification/interfaces';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../../exceptions/price-slippage.exception';
@@ -13,15 +14,9 @@ export abstract class PurchaseLiquidityStrategy {
     const errorMessage = `Correlation ID: ${request.correlationId}. Context: ${request.context}. ${e.message}`;
 
     if (e instanceof NotEnoughLiquidityException) {
-      const correlationId = `${request.context}&${request.correlationId}`;
-      console.log('TRY notificationService.sendMail DEX');
-      await this.notificationService.sendMail({
-        context: MailContext.DEX,
-        correlationId,
-        type: MailType.ERROR,
-        data: { subject: 'Purchase Liquidity Error', errors: [errorMessage] },
-        options: { suppressRecurring: true },
-      });
+      const mailRequest = this.createMailRequest(request, errorMessage);
+
+      await this.notificationService.sendMail(mailRequest);
     }
 
     if (e instanceof PriceSlippageException) {
@@ -29,5 +24,22 @@ export abstract class PurchaseLiquidityStrategy {
     }
 
     throw new Error(errorMessage);
+  }
+
+  //*** HELPER METHODS ***//
+
+  private createMailRequest(liquidityRequest: LiquidityRequest, errorMessage: string): MailRequest {
+    console.log('New mail request');
+    const correlationId = `${liquidityRequest.context}&${liquidityRequest.correlationId}`;
+
+    return {
+      type: MailType.ERROR,
+      input: { subject: 'Purchase Liquidity Error', errors: [errorMessage] },
+      metadata: {
+        context: MailContext.DEX,
+        correlationId,
+      },
+      options: { suppressRecurring: true },
+    };
   }
 }

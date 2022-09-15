@@ -3,8 +3,7 @@ import { Entity, Column } from 'typeorm';
 import { MailContext, NotificationType } from '../enums';
 import { NotificationSuppressedException } from '../exceptions/notification-suppressed.exception';
 
-export interface NotificationParams {
-  type: NotificationType;
+export interface NotificationMetadata {
   context: MailContext;
   correlationId: string;
 }
@@ -34,24 +33,19 @@ export class Notification extends IEntity {
   @Column({ type: 'float', nullable: true })
   debounce: number;
 
-  @Column({ type: 'int', nullable: true })
-  recurringAttempts: number;
-
-  protected create(params: NotificationParams, optional?: NotificationOptions) {
-    this.type = params.type;
-    this.context = params.context;
-    this.correlationId = params.correlationId;
+  protected create(type: NotificationType, metadata?: NotificationMetadata, options?: NotificationOptions) {
     this.sendDate = new Date();
+    this.type = type;
 
-    this.suppressRecurring = optional?.suppressRecurring ?? this.suppressRecurring;
-    this.debounce = optional?.debounce ?? this.debounce;
-    this.recurringAttempts = 1;
+    this.context = metadata?.context;
+    this.correlationId = metadata?.correlationId;
+
+    this.suppressRecurring = options?.suppressRecurring;
+    this.debounce = options?.debounce;
   }
 
   shouldAbortGiven(existingNotification: Notification): void {
     if (this.isSameNotification(existingNotification)) {
-      this.recurringAttempts = this.recurringAttempts + 1;
-
       if (this.suppressRecurring) {
         throw new NotificationSuppressedException();
       }
@@ -62,7 +56,9 @@ export class Notification extends IEntity {
     }
   }
 
-  toBePersisted(): boolean {
+  shouldBePersisted(): boolean {
+    if (!this.hasMandatoryParams()) return false;
+
     return !!(this.suppressRecurring || this.debounce);
   }
 
@@ -74,5 +70,9 @@ export class Notification extends IEntity {
 
   private isDebounced(existingNotification: Notification): boolean {
     return this.debounce && Date.now() > existingNotification.sendDate.getTime() + existingNotification.debounce;
+  }
+
+  private hasMandatoryParams(): boolean {
+    return !!(this.type && this.context && this.correlationId);
   }
 }
