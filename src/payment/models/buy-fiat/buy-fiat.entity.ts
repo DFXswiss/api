@@ -3,6 +3,7 @@ import { Util } from 'src/shared/util';
 import { Entity, OneToOne, JoinColumn, ManyToOne, Column } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
+import { AmlReason } from '../buy-crypto/enums/aml-reason.enum';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { Sell } from '../sell/sell.entity';
 
@@ -56,7 +57,7 @@ export class BuyFiat extends IEntity {
   amlCheck: AmlCheck;
 
   @Column({ length: 256, nullable: true })
-  amlReason: string;
+  amlReason: AmlReason;
 
   @Column({ type: 'float', nullable: true })
   percentFee: number;
