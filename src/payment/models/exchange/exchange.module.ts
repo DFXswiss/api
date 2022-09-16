@@ -7,11 +7,20 @@ import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
 import { CurrencyService } from './services/currency.service';
 import { FixerService } from './services/fixer.service';
+import { FtxService } from './services/ftx.service';
 
 @Module({
   imports: [SharedModule],
   controllers: [ExchangeController],
-  providers: [KrakenService, BinanceService, BitstampService, BitpandaService, FixerService, CurrencyService],
-  exports: [KrakenService, BinanceService, BitstampService, BitpandaService, FixerService, CurrencyService],
+  providers: [
+    KrakenService,
+    BinanceService,
+    BitstampService,
+    BitpandaService,
+    FtxService,
+    FixerService,
+    CurrencyService,
+  ],
+  exports: [KrakenService, BinanceService, BitstampService, BitpandaService, FtxService, FixerService, CurrencyService],
 })
 export class ExchangeModule {}

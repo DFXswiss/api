@@ -6,6 +6,7 @@ import { BitpandaService } from '../../exchange/services/bitpanda.service';
 import { BitstampService } from '../../exchange/services/bitstamp.service';
 import { CurrencyService } from '../../exchange/services/currency.service';
 import { FixerService } from '../../exchange/services/fixer.service';
+import { FtxService } from '../../exchange/services/ftx.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
 import { Altcoin, USDStableCoin, Fiat } from '../enums';
 import { BadPriceRequestException } from '../exceptions/bad-price-request.exception';
@@ -36,6 +37,7 @@ export class PricingService {
     private readonly binanceService: BinanceService,
     private readonly bitstampService: BitstampService,
     private readonly bitpandaService: BitpandaService,
+    private readonly ftxService: FtxService,
     private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
   ) {
@@ -98,7 +100,7 @@ export class PricingService {
         new PriceStep({
           providers: {
             primary: [this.binanceService],
-            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -117,7 +119,7 @@ export class PricingService {
           from: 'BTC',
           providers: {
             primary: [this.binanceService],
-            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -129,14 +131,14 @@ export class PricingService {
           to: 'BTC',
           providers: {
             primary: [this.binanceService],
-            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
         new PriceStep({
           from: 'BTC',
           providers: {
             primary: [this.binanceService],
-            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -147,7 +149,7 @@ export class PricingService {
         new PriceStep({
           providers: {
             primary: [this.binanceService],
-            reference: [this.krakenService, this.bitstampService, this.bitpandaService],
+            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
