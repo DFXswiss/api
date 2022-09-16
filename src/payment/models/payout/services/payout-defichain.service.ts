@@ -48,7 +48,7 @@ export class PayoutDeFiChainService {
     if (context === PayoutOrderContext.STAKING_REWARD) return Config.blockchain.default.intWalletAddress;
   }
 
-  isUserAddress(address: string): boolean {
+  isLightWalletAddress(address: string): boolean {
     return ['df1', 'tf1'].includes(address.slice(0, 3));
   }
 

@@ -72,7 +72,7 @@ export class PayoutDeFiChainTokenStrategy extends PayoutDeFiChainStrategy {
   }
 
   private isEligibleForMinimalUtxo(address: string): boolean {
-    return this.defichainService.isUserAddress(address);
+    return this.defichainService.isLightWalletAddress(address);
   }
 
   private async checkUtxo(address: string): Promise<void> {
