@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
+import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
 import { NotificationService } from 'src/notification/services/notification.service';
-import { MailType } from 'src/notification/enums';
+import { MailContext, MailType } from 'src/notification/enums';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -75,9 +75,15 @@ export class BuyCryptoNotificationService {
     }
   }
 
-  async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
+  async sendNonRecoverableErrorMail(batch: BuyCryptoBatch, message: string, e?: Error): Promise<void> {
+    const correlationId = `BuyCryptoBatch&${batch.id}`;
     const errors = e ? [message, e.message] : [message];
 
-    await this.notificationService.sendMail({ type: MailType.ERROR, input: { subject: 'Buy Crypto Error', errors } });
+    await this.notificationService.sendMail({
+      type: MailType.ERROR,
+      input: { subject: 'Buy Crypto Error', errors },
+      options: { suppressRecurring: true },
+      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+    });
   }
 }

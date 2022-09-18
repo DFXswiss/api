@@ -7,12 +7,13 @@ export function createDefaultPayoutOrder(): PayoutOrder {
 }
 
 export function createCustomPayoutOrder(customValues: Partial<PayoutOrder>): PayoutOrder {
-  const { context, correlationId, chain, asset, amount, destinationAddress, status, transferTxId, payoutTxId } =
+  const { id, context, correlationId, chain, asset, amount, destinationAddress, status, transferTxId, payoutTxId } =
     customValues;
 
   const keys = Object.keys(customValues);
   const entity = new PayoutOrder();
 
+  entity.id = keys.includes('id') ? id : 1;
   entity.context = keys.includes('context') ? context : PayoutOrderContext.BUY_CRYPTO;
   entity.correlationId = keys.includes('correlationId') ? correlationId : 'CID_01';
   entity.chain = keys.includes('chain') ? chain : Blockchain.DEFICHAIN;

@@ -96,6 +96,7 @@ export class BuyCryptoDexService {
 
       if (e instanceof PriceSlippageException) {
         await this.handleSlippageException(
+          batch,
           `Slippage error while checking liquidity for asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
           e,
         );
@@ -116,6 +117,7 @@ export class BuyCryptoDexService {
     } catch (e) {
       if (e instanceof PriceSlippageException) {
         await this.handleSlippageException(
+          batch,
           `Composite swap slippage error while purchasing asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
           e,
         );
@@ -150,7 +152,7 @@ export class BuyCryptoDexService {
     };
   }
 
-  private async handleSlippageException(message: string, e: Error): Promise<void> {
-    await this.buyCryptoNotificationService.sendNonRecoverableErrorMail(message, e);
+  private async handleSlippageException(batch: BuyCryptoBatch, message: string, e: Error): Promise<void> {
+    await this.buyCryptoNotificationService.sendNonRecoverableErrorMail(batch, message, e);
   }
 }

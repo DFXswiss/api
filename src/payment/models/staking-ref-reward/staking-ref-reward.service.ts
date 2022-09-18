@@ -13,6 +13,7 @@ import { PricingService } from '../pricing/services/pricing.service';
 import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { MailType } from 'src/notification/enums';
+import { PriceRequestContext } from '../pricing/enums';
 
 @Injectable()
 export class StakingRefRewardService {
@@ -96,7 +97,8 @@ export class StakingRefRewardService {
       });
 
       if (openRewards.length > 0) {
-        const { price } = await this.pricingService.getPrice({ from: 'EUR', to: 'BTC' }).catch((e) => {
+        const priceRequest = this.createPriceRequest(openRewards);
+        const { price } = await this.pricingService.getPrice(priceRequest).catch((e) => {
           console.error('Failed to get price:', e);
           throw e;
         });
@@ -219,5 +221,10 @@ export class StakingRefRewardService {
     }
 
     return confirmedRewards;
+  }
+
+  private createPriceRequest(openRewards: StakingRefReward[]) {
+    const correlationId = 'StakingRefRewards&' + openRewards.reduce((acc, r) => acc + `|${r.id}|`, '');
+    return { context: PriceRequestContext.STAKING_REWARD, correlationId, from: 'EUR', to: 'BTC' };
   }
 }

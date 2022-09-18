@@ -29,7 +29,7 @@ export abstract class PurchaseLiquidityStrategy {
   //*** HELPER METHODS ***//
 
   private createMailRequest(liquidityRequest: LiquidityRequest, errorMessage: string): MailRequest {
-    const correlationId = `${liquidityRequest.context}&${liquidityRequest.correlationId}`;
+    const correlationId = `PurchaseLiquidity&${liquidityRequest.context}&${liquidityRequest.correlationId}`;
 
     return {
       type: MailType.ERROR,

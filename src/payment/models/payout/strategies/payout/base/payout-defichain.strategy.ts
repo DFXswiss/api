@@ -1,4 +1,4 @@
-import { MailType } from 'src/notification/enums';
+import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
@@ -110,7 +110,7 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
         const errorMessage = `Error on saving payout payoutTxId to the database. Order ID: ${order.id}. Payout ID: ${payoutTxId}`;
 
         console.error(errorMessage, e);
-        await this.sendNonRecoverableErrorMail(errorMessage, e);
+        await this.sendNonRecoverableErrorMail(order, errorMessage, e);
       }
     }
   }
@@ -136,10 +136,16 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
     }
   }
 
-  protected async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
+  protected async sendNonRecoverableErrorMail(order: PayoutOrder, message: string, e?: Error): Promise<void> {
+    const correlationId = `PayoutOrder&${order.context}&${order.id}`;
     const errors = e ? [message, e.message] : [message];
 
-    await this.notificationService.sendMail({ type: MailType.ERROR, input: { subject: 'Payout Error', errors } });
+    await this.notificationService.sendMail({
+      type: MailType.ERROR,
+      input: { subject: 'Payout Error', errors },
+      options: { suppressRecurring: true },
+      metadata: { context: MailContext.PAYOUT, correlationId },
+    });
   }
 
   //*** HELPER METHODS ***//

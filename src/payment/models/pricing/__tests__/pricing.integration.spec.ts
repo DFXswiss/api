@@ -8,6 +8,7 @@ import { BitstampService } from '../../exchange/services/bitstamp.service';
 import { CurrencyService } from '../../exchange/services/currency.service';
 import { FixerService } from '../../exchange/services/fixer.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
+import { PriceRequestContext } from '../enums';
 import { PricingService } from '../services/pricing.service';
 
 describe('Pricing Module Integration Tests', () => {
@@ -65,7 +66,7 @@ describe('Pricing Module Integration Tests', () => {
   });
 
   it('calculates price path for MATCHING_ASSETS', async () => {
-    const request = { from: 'BTC', to: 'BTC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BTC', to: 'BTC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -95,7 +96,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(binanceService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.00005 }));
 
-    const request = { from: 'USD', to: 'BTC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'USD', to: 'BTC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -125,7 +126,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(krakenService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.014 }));
 
-    const request = { from: 'BNB', to: 'BTC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BNB', to: 'BTC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -165,7 +166,7 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 71.3 }),
       );
 
-    const request = { from: 'GBP', to: 'BNB' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'GBP', to: 'BNB' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -214,7 +215,7 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 71.3 }),
       );
 
-    const request = { from: 'ETH', to: 'BNB' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'ETH', to: 'BNB' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -253,7 +254,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(krakenService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 12.38 }));
 
-    const request = { from: 'BTC', to: 'ETH' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BTC', to: 'ETH' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -275,7 +276,7 @@ describe('Pricing Module Integration Tests', () => {
   });
 
   it('calculates price path for MATCHING_FIAT_TO_USD_STABLE_COIN', async () => {
-    const request = { from: 'USD', to: 'USDC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'USD', to: 'USDC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -305,7 +306,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(fixerService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
-    const request = { from: 'EUR', to: 'USDC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'EUR', to: 'USDC' };
     const result = await service.getPrice(request);
 
     expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
@@ -329,7 +330,7 @@ describe('Pricing Module Integration Tests', () => {
   });
 
   it('calculates price path for NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN', async () => {
-    const request = { from: 'USDT', to: 'USDC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'USDT', to: 'USDC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);

@@ -235,20 +235,41 @@ describe('PayoutDeFiChainStrategy', () => {
 
   describe('#sendNonRecoverableErrorMailWrapper(...)', () => {
     it('combines custom message with error message', async () => {
-      await strategy.sendNonRecoverableErrorMailWrapper('Test message', new Error('Another message'));
+      await strategy.sendNonRecoverableErrorMailWrapper(
+        createDefaultPayoutOrder(),
+        'Test message',
+        new Error('Another message'),
+      );
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
       expect(sendErrorMailSpy).toBeCalledWith({
         input: { errors: ['Test message', 'Another message'], subject: 'Payout Error' },
         type: 'Error',
+        metadata: {
+          context: 'Payout',
+          correlationId: 'PayoutOrder&BuyCrypto&1',
+        },
+        options: {
+          suppressRecurring: true,
+        },
       });
     });
 
     it('calls notificationService with Payout Error subject', async () => {
-      await strategy.sendNonRecoverableErrorMailWrapper('');
+      await strategy.sendNonRecoverableErrorMailWrapper(createDefaultPayoutOrder(), '');
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
-      expect(sendErrorMailSpy).toBeCalledWith({ input: { errors: [''], subject: 'Payout Error' }, type: 'Error' });
+      expect(sendErrorMailSpy).toBeCalledWith({
+        input: { errors: [''], subject: 'Payout Error' },
+        type: 'Error',
+        metadata: {
+          context: 'Payout',
+          correlationId: 'PayoutOrder&BuyCrypto&1',
+        },
+        options: {
+          suppressRecurring: true,
+        },
+      });
     });
   });
 });
@@ -286,7 +307,7 @@ class PayoutDeFiChainStrategyWrapper extends PayoutDeFiChainStrategy {
     return this.rollbackPayoutDesignation(orders);
   }
 
-  sendNonRecoverableErrorMailWrapper(message: string, e?: Error) {
-    return this.sendNonRecoverableErrorMail(message, e);
+  sendNonRecoverableErrorMailWrapper(order: PayoutOrder, message: string, e?: Error) {
+    return this.sendNonRecoverableErrorMail(order, message, e);
   }
 }

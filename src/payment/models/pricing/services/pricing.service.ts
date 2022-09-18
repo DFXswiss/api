@@ -70,7 +70,7 @@ export class PricingService {
           input: { subject: 'Exchange Price Mismatch', errors: [e.message] },
           metadata: {
             context: MailContext.PRICING,
-            correlationId: `${request.to}/${request.from}`,
+            correlationId: `PriceMismatch&${request.context}&${request.correlationId}&${request.to}&${request.from}`,
           },
           options: {
             debounce: 1800000,
