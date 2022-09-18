@@ -101,7 +101,7 @@ export class KycProcessService {
     }
 
     // notify support
-    await this.notificationService.sendMail({ type: MailType.KYC, input: { userData } });
+    await this.notificationService.sendMail({ type: MailType.KYC_SUPPORT, input: { userData } });
     return this.updateKycState(userData, KycState.FAILED);
   }
 

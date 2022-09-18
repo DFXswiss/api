@@ -80,7 +80,7 @@ export class BuyCryptoNotificationService {
     const errors = e ? [message, e.message] : [message];
 
     await this.notificationService.sendMail({
-      type: MailType.ERROR,
+      type: MailType.ERROR_MONITORING,
       input: { subject: 'Buy Crypto Error', errors },
       options: { suppressRecurring: true },
       metadata: { context: MailContext.BUY_CRYPTO, correlationId },

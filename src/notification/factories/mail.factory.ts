@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
-import { ErrorMail, ErrorMailInput } from '../entities/mail/error-mail';
-import { KycMailInput, KycSupportMail } from '../entities/mail/kyc-mail';
+import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
+import { KycSupportMailInput, KycSupportMail } from '../entities/mail/kyc-support-mail';
 import { Mail } from '../entities/mail/mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
@@ -17,12 +17,12 @@ export class MailFactory {
         return this.createGenericMail(request);
       }
 
-      case MailType.ERROR: {
-        return this.createErrorMail(request);
+      case MailType.ERROR_MONITORING: {
+        return this.createErrorMonitoringMail(request);
       }
 
-      case MailType.KYC: {
-        return this.createKycMail(request);
+      case MailType.KYC_SUPPORT: {
+        return this.createKycSupportMail(request);
       }
 
       case MailType.USER: {
@@ -37,22 +37,22 @@ export class MailFactory {
 
   //*** HELPER METHODS ***//
 
-  private createGenericMail(request: MailRequest): ErrorMail {
+  private createGenericMail(request: MailRequest): ErrorMonitoringMail {
     const input = request.input as MailRequestGenericInput;
     const { metadata, options } = request;
 
     return new Mail({ ...input, metadata, options });
   }
 
-  private createErrorMail(request: MailRequest): ErrorMail {
-    const { subject, errors } = request.input as ErrorMailInput;
+  private createErrorMonitoringMail(request: MailRequest): ErrorMonitoringMail {
+    const { subject, errors } = request.input as ErrorMonitoringMailInput;
     const { metadata, options } = request;
 
-    return new ErrorMail({ subject, errors, metadata, options });
+    return new ErrorMonitoringMail({ subject, errors, metadata, options });
   }
 
-  private createKycMail(request: MailRequest): KycSupportMail {
-    const { userData } = request.input as KycMailInput;
+  private createKycSupportMail(request: MailRequest): KycSupportMail {
+    const { userData } = request.input as KycSupportMailInput;
     const { metadata, options } = request;
 
     return new KycSupportMail({

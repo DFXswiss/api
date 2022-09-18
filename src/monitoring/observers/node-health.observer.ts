@@ -100,7 +100,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
       console.log(messages);
 
       await this.notificationService.sendMail({
-        type: MailType.ERROR,
+        type: MailType.ERROR_MONITORING,
         input: { subject: 'Node Error', errors: messages },
       });
     }

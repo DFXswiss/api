@@ -32,7 +32,7 @@ export abstract class PurchaseLiquidityStrategy {
     const correlationId = `PurchaseLiquidity&${liquidityRequest.context}&${liquidityRequest.correlationId}`;
 
     return {
-      type: MailType.ERROR,
+      type: MailType.ERROR_MONITORING,
       input: { subject: 'Purchase Liquidity Error', errors: [errorMessage] },
       metadata: {
         context: MailContext.DEX,

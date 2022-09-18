@@ -2,23 +2,22 @@ import { GetConfig } from 'src/config/config';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
 import { Mail } from './mail';
 
-export type ErrorMailInput = ErrorMailParams;
+export type ErrorMonitoringMailInput = ErrorMonitoringMailParams;
 
-export interface ErrorMailParams {
+export interface ErrorMonitoringMailParams {
   subject: string;
   errors: string[];
   metadata?: NotificationMetadata;
   options?: NotificationOptions;
 }
 
-// technical support mail - monitoring
-export class ErrorMail extends Mail {
-  constructor(params: ErrorMailParams) {
+export class ErrorMonitoringMail extends Mail {
+  constructor(params: ErrorMonitoringMailParams) {
     const _params = {
       to: GetConfig().mail.contact.monitoringMail,
       subject: `${params.subject} (${GetConfig().environment.toUpperCase()})`,
       salutation: 'Hi DFX Tech Support',
-      body: ErrorMail.createBody(params.errors),
+      body: ErrorMonitoringMail.createBody(params.errors),
       metadata: params.metadata,
       options: params.options,
     };

@@ -141,7 +141,7 @@ export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
     const errors = e ? [message, e.message] : [message];
 
     await this.notificationService.sendMail({
-      type: MailType.ERROR,
+      type: MailType.ERROR_MONITORING,
       input: { subject: 'Payout Error', errors },
       options: { suppressRecurring: true },
       metadata: { context: MailContext.PAYOUT, correlationId },

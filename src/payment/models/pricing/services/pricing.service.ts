@@ -66,7 +66,7 @@ export class PricingService {
     } catch (e) {
       if (e instanceof PriceMismatchException) {
         await this.notificationService.sendMail({
-          type: MailType.ERROR,
+          type: MailType.ERROR_MONITORING,
           input: { subject: 'Exchange Price Mismatch', errors: [e.message] },
           metadata: {
             context: MailContext.PRICING,

@@ -1,12 +1,12 @@
-import { ErrorMailInput } from '../entities/mail/error-mail';
-import { KycMailInput } from '../entities/mail/kyc-mail';
+import { ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
+import { KycSupportMailInput } from '../entities/mail/kyc-support-mail';
 import { UserMailInput } from '../entities/mail/user-mail';
 import { NotificationMetadata, NotificationOptions } from '../entities/notification.entity';
 import { MailType } from '../enums';
 
 export interface MailRequest {
   type: MailType;
-  input: MailRequestGenericInput | UserMailInput | KycMailInput | ErrorMailInput;
+  input: MailRequestGenericInput | UserMailInput | KycSupportMailInput | ErrorMonitoringMailInput;
   metadata?: NotificationMetadata;
   options?: NotificationOptions;
 }

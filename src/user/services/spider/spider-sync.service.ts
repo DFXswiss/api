@@ -68,7 +68,7 @@ export class SpiderSyncService {
         console.error(`Exception during KYC check for user ${user.id}:`, e);
 
         await this.notificationService.sendMail({
-          type: MailType.ERROR,
+          type: MailType.ERROR_MONITORING,
           input: { subject: 'KYC Error', errors: [`Exception during KYC check for user ${user.id}: ${e}`] },
         });
       }
@@ -110,7 +110,7 @@ export class SpiderSyncService {
         console.error(`Exception during KYC sync for user ${userDataId}:`, e);
 
         await this.notificationService.sendMail({
-          type: MailType.ERROR,
+          type: MailType.ERROR_MONITORING,
           input: { subject: 'KYC Error', errors: [`Exception during KYC sync for user ${userDataId}: ${e}`] },
         });
       }

@@ -244,7 +244,7 @@ describe('PayoutDeFiChainStrategy', () => {
       expect(sendErrorMailSpy).toBeCalledTimes(1);
       expect(sendErrorMailSpy).toBeCalledWith({
         input: { errors: ['Test message', 'Another message'], subject: 'Payout Error' },
-        type: 'Error',
+        type: 'ErrorMonitoring',
         metadata: {
           context: 'Payout',
           correlationId: 'PayoutOrder&BuyCrypto&1',
@@ -261,7 +261,7 @@ describe('PayoutDeFiChainStrategy', () => {
       expect(sendErrorMailSpy).toBeCalledTimes(1);
       expect(sendErrorMailSpy).toBeCalledWith({
         input: { errors: [''], subject: 'Payout Error' },
-        type: 'Error',
+        type: 'ErrorMonitoring',
         metadata: {
           context: 'Payout',
           correlationId: 'PayoutOrder&BuyCrypto&1',

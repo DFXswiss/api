@@ -100,7 +100,7 @@ export class BankTxService {
       console.log(message, duplicates);
 
       await this.notificationService.sendMail({
-        type: MailType.ERROR,
+        type: MailType.ERROR_MONITORING,
         input: { subject: 'SEPA Error', errors: [message + ` ${duplicates.join(', ')}`] },
       });
     }

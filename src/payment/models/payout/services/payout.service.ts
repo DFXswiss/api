@@ -179,7 +179,7 @@ export class PayoutService {
     const correlationId = orders.reduce((acc, o) => acc + `|${o.id}&${o.context}|`, '');
 
     return {
-      type: MailType.ERROR,
+      type: MailType.ERROR_MONITORING,
       input: { subject: 'Payout Error', errors: [errorMessage] },
       metadata: {
         context: MailContext.PAYOUT,

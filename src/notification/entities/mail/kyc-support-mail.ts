@@ -3,11 +3,11 @@ import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
 import { Mail } from './mail';
 
-export interface KycMailInput {
+export interface KycSupportMailInput {
   userData: UserData;
 }
 
-export interface KycMailParams {
+export interface KycSupportMailParams {
   userDataId: number;
   kycCustomerId: number;
   kycStatus: string;
@@ -15,9 +15,8 @@ export interface KycMailParams {
   options?: NotificationOptions;
 }
 
-// support -
 export class KycSupportMail extends Mail {
-  constructor(params: KycMailParams) {
+  constructor(params: KycSupportMailParams) {
     const _params = {
       to: GetConfig().mail.contact.supportMail,
       subject: 'KYC failed or expired',
@@ -30,7 +29,7 @@ export class KycSupportMail extends Mail {
     super(_params);
   }
 
-  static createBody(params: KycMailParams): string {
+  static createBody(params: KycSupportMailParams): string {
     const { userDataId, kycCustomerId, kycStatus } = params;
 
     return `

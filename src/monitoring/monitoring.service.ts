@@ -51,7 +51,7 @@ export class MonitoringService {
       console.error('Failed to parse loaded system state. Defaulting to empty state', e);
 
       await this.notificationService.sendMail({
-        type: MailType.ERROR,
+        type: MailType.ERROR_MONITORING,
         input: { subject: 'Monitoring Error. Failed to parse loaded system state.', errors: [e] },
       });
 
@@ -103,7 +103,7 @@ export class MonitoringService {
       console.error('Error persisting the state', e);
 
       await this.notificationService.sendMail({
-        type: MailType.ERROR,
+        type: MailType.ERROR_MONITORING,
         input: { subject: 'Monitoring Error. Error persisting the state.', errors: [e] },
       });
     }
@@ -185,7 +185,7 @@ export class MonitoringService {
       console.error('Error updating monitoring state', e);
 
       await this.notificationService.sendMail({
-        type: MailType.ERROR,
+        type: MailType.ERROR_MONITORING,
         input: { subject: 'Monitoring Error. Updating monitoring state.', errors: [e] },
       });
     }
