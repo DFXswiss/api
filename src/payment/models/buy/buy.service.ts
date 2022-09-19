@@ -104,7 +104,7 @@ export class BuyService {
 
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = { id: userId } as User;
+    buy.user = await this.userService.getUser(userId, true);
     buy.asset = asset;
     buy.deposit = staking?.deposit ?? null;
     buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
