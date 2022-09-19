@@ -1,14 +1,11 @@
-import { BankTx } from '../../fiat-output.entity';
-import { createDefaultBankTxBatch } from './bank-tx-batch.entity.mock';
+import { FiatOutput } from '../../fiat-output.entity';
 
-const defaultBankTx: Partial<BankTx> = {
-  batch: createDefaultBankTxBatch(),
-};
+const defaultFiatOutput: Partial<FiatOutput> = {};
 
-export function createDefaultBankTx(): BankTx {
+export function createDefaultBankTx(): FiatOutput {
   return createCustomBankTx({});
 }
 
-export function createCustomBankTx(customValues: Partial<BankTx>): BankTx {
-  return Object.assign(new BankTx(), { ...defaultBankTx, ...customValues });
+export function createCustomBankTx(customValues: Partial<FiatOutput>): FiatOutput {
+  return Object.assign(new FiatOutput(), { ...defaultFiatOutput, ...customValues });
 }
