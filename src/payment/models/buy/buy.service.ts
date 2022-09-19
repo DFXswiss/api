@@ -6,7 +6,6 @@ import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not } from 'typeorm';
-import { User } from '../../../user/models/user/user.entity';
 import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
 import { BuyType } from './dto/buy-type.enum';
