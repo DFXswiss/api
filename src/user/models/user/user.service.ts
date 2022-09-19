@@ -54,7 +54,7 @@ export class UserService {
     return await this.userRepo.find();
   }
 
-  async getUser(userId: number, loadUserData: boolean = false): Promise<User> {
+  async getUser(userId: number, loadUserData = false): Promise<User> {
     return await this.userRepo.findOne(userId, { relations: loadUserData ? ['userData', 'userData.country'] : [] });
   }
 
