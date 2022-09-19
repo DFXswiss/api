@@ -21,6 +21,7 @@ import { PrepareDeFiChainStrategy } from './strategies/prepare/prepare-defichain
 import { PrepareEthereumStrategy } from './strategies/prepare/prepare-ethereum.strategy';
 import { PayoutStrategiesFacade } from './strategies/strategies.facade';
 import { NotificationModule } from 'src/notification/notification.module';
+import { PayoutController } from './payout.controller';
 
 @Module({
   imports: [
@@ -32,7 +33,7 @@ import { NotificationModule } from 'src/notification/notification.module';
     DexModule,
     NotificationModule,
   ],
-  controllers: [],
+  controllers: [PayoutController],
   providers: [
     PayoutOrderFactory,
     PayoutLogService,

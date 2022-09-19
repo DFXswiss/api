@@ -3,11 +3,12 @@ import { NotificationModule } from 'src/notification/notification.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { DexModule } from '../dex/dex.module';
 import { ExchangeModule } from '../exchange/exchange.module';
+import { PricingController } from './pricing.controller';
 import { PricingService } from './services/pricing.service';
 
 @Module({
   imports: [SharedModule, ExchangeModule, DexModule, NotificationModule],
-  controllers: [],
+  controllers: [PricingController],
   providers: [PricingService],
   exports: [PricingService],
 })

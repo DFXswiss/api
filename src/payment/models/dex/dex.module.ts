@@ -21,6 +21,7 @@ import { DexBscService } from './services/dex-bsc.service';
 import { PurchaseLiquidityBscStrategy } from './strategies/purchase-liquidity/purchase-liquidity-bsc.strategy';
 import { CheckLiquidityBscStrategy } from './strategies/check-liquidity/check-liquidity-bsc.strategy';
 import { NotificationModule } from 'src/notification/notification.module';
+import { DexController } from './dex.controller';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { NotificationModule } from 'src/notification/notification.module';
     NotificationModule,
     SharedModule,
   ],
-  controllers: [],
+  controllers: [DexController],
   providers: [
     LiquidityOrderFactory,
     DexDeFiChainService,
