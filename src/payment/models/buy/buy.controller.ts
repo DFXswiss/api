@@ -151,7 +151,7 @@ export class BuyController {
     } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
-    } else if (ibanCodeCountry.maerkiBaumannEnable && buy.user.userData.country.maerkiBaumannEnable) {
+    } else if (ibanCodeCountry.maerkiBaumannEnable && buy.user.userData.country?.maerkiBaumannEnable) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
       account = this.getMatchingAccount(Config.bank.maerkiBaumann.accounts, dto.currency.name, fallBackCurrency);
     } else {
