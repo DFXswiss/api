@@ -4,6 +4,7 @@ import { IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
+import { Blockchain, BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -52,7 +53,7 @@ export class BuyCryptoNotificationService {
                 buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                 exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                 buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
-                buyTxId: tx.txId,
+                buyTxId: `${BlockchainExplorerUrls[Blockchain.DEFICHAIN]}/${tx.txId}`,
               },
             }));
 

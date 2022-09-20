@@ -142,6 +142,12 @@ export class BuyFiat extends IEntity {
     return this;
   }
 
+  paybackToAddressInitiated(): this {
+    this.mailReturnSendDate = new Date();
+
+    return this;
+  }
+
   get exchangeRateString(): string {
     return `${Util.round(this.outputAmount / this.inputAmount, 2)} ${this.outputAsset}/${this.inputAsset}`;
   }
