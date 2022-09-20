@@ -81,6 +81,11 @@ export class DeFiInputService extends CryptoInputService {
               await this.sendFeeUtxo(token.owner);
             }
           } else {
+            // ignoring dust DFI transactions
+            if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
+              continue;
+            }
+
             // check for min. deposit
             // TODO: remove temporary DUSD pool fix
             const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
