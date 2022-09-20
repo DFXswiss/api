@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { JwtCompanyPayload, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
 import { Config } from 'src/config/config';
@@ -18,12 +18,15 @@ import { User } from '../user/user.entity';
 import { RefService } from '../referral/ref.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { WalletRepository } from '../wallet/wallet.repository';
+import { Wallet } from '../wallet/wallet.entity';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly userRepo: UserRepository,
+    private readonly walletRepo: WalletRepository,
     private readonly jwtService: JwtService,
     private readonly cryptoService: CryptoService,
     private readonly refService: RefService,
@@ -45,11 +48,13 @@ export class AuthService {
     }
 
     const user = await this.userService.createUser(dto, userIp, ref?.origin);
-    return { accessToken: this.generateToken(user) };
+    return { accessToken: this.generateUserToken(user) };
   }
 
-  async signIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    const user = await this.userRepo.getByAddress(address);
+  async signIn({ address, signature }: AuthCredentialsDto, companyLogin = false): Promise<{ accessToken: string }> {
+    let user;
+
+    user = companyLogin ? await this.walletRepo.getByAddress(address) : await this.userRepo.getByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
     const credentialsValid = this.verifySignature(address, signature);
@@ -60,13 +65,13 @@ export class AuthService {
       await this.userRepo.update({ id: user.id }, { signature: signature });
     }
 
-    return { accessToken: this.generateToken(user) };
+    return { accessToken: companyLogin ? this.generateCompanyToken(user) : this.generateUserToken(user) };
   }
 
-  getSignMessage(address: string): { message: string; blockchains: Blockchain[] } {
+  getSignMessage(address: string, companyLogin = false): { message: string; blockchains: Blockchain[] } {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
     return {
-      message: Config.auth.signMessageGeneral + address,
+      message: (companyLogin ? Config.auth.signMessageWallet : Config.auth.signMessageGeneral) + address,
       blockchains,
     };
   }
@@ -75,7 +80,7 @@ export class AuthService {
     const user = await this.getLinkedUser(id, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
-    return { accessToken: this.generateToken(user) };
+    return { accessToken: this.generateUserToken(user) };
   }
 
   private async getLinkedUser(id: number, address: string): Promise<User> {
@@ -89,17 +94,26 @@ export class AuthService {
       .getRawOne<User>();
   }
 
-  private verifySignature(address: string, signature: string): boolean {
-    const signatureMessage = this.getSignMessage(address);
+  private verifySignature(address: string, signature: string, companyLogin = false): boolean {
+    const signatureMessage = this.getSignMessage(address, companyLogin);
     return this.cryptoService.verifySignature(signatureMessage.message, address, signature);
   }
 
-  private generateToken(user: User): string {
+  private generateUserToken(user: User): string {
     const payload: JwtPayload = {
       id: user.id,
       address: user.address,
       role: user.role,
       blockchains: this.cryptoService.getBlockchainsBasedOn(user.address),
+    };
+    return this.jwtService.sign(payload);
+  }
+
+  private generateCompanyToken(user: Wallet): string {
+    const payload: JwtCompanyPayload = {
+      id: user.id,
+      address: user.address,
+      isKycClient: user.isKycClient,
     };
     return this.jwtService.sign(payload);
   }

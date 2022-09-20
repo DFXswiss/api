@@ -25,4 +25,9 @@ export class AuthController {
   getSignMessage(@Query('address') address: string): { message: string; blockchains: Blockchain[] } {
     return this.authService.getSignMessage(address);
   }
+
+  @Post('company/signIn')
+  signInCompany(@Body() credentials: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    return this.authService.signIn(credentials, true);
+  }
 }
