@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
 import { AmlCheck } from '../enums/aml-check.enum';
+import { AmlReason } from '../enums/aml-reason.enum';
 
 export class UpdateBuyCryptoDto {
   @IsOptional()
@@ -38,6 +39,10 @@ export class UpdateBuyCryptoDto {
   @IsOptional()
   @IsEnum(AmlCheck)
   amlCheck: AmlCheck;
+
+  @IsOptional()
+  @IsEnum(AmlReason)
+  amlReason: AmlReason;
 
   @IsOptional()
   @IsNumber()
