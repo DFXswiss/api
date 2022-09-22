@@ -13,7 +13,6 @@ import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { User } from 'src/user/models/user/user.entity';
 
 @Injectable()
 export class BuyService {
@@ -87,7 +86,7 @@ export class BuyService {
         ...(dto.type === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
         user: { id: userId },
       },
-      relations: ['deposit', 'bankAccount'],
+      relations: ['deposit', 'bankAccount', 'user', 'user.userData'],
     });
 
     if (existing) {
@@ -104,7 +103,7 @@ export class BuyService {
 
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = { id: userId } as User;
+    buy.user = await this.userService.getUser(userId, true);
     buy.asset = asset;
     buy.deposit = staking?.deposit ?? null;
     buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);

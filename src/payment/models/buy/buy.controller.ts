@@ -26,6 +26,7 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -148,7 +149,11 @@ export class BuyController {
     if (dto.amount > frickAmountLimit || dto.currency.name === 'USD') {
       // amount > 9k => Frick || USD => Frick
       account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
-    } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst) {
+    } else if (
+      dto.currency.name === 'EUR' &&
+      buy.bankAccount.sctInst &&
+      (buy.user.userData.kycStatus === KycStatus.COMPLETED || buy.user.userData.kycStatus === KycStatus.MANUAL)
+    ) {
       // instant => Olkypay / EUR
       account = Config.bank.olkypay.account;
     } else if (ibanCodeCountry.maerkiBaumannEnable) {
