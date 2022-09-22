@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-08-30T09:00:18.054Z",
+    "modified": "2022-09-22T12:39:05.263Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1914,6 +1914,25 @@
     "modified": "2022-09-05T14:01:58.289Z",
     "headers": [],
     "params": [],
+    "tests": []
+  },
+  {
+    "_id": "b134c2b2-8537-4d0c-9e68-7ffaa37435dc",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
+    "name": "KYC Data Transfer",
+    "url": "{{url}}/v1/kyc/transfer",
+    "method": "PUT",
+    "sortNum": 700000,
+    "created": "2022-09-20T23:34:03.919Z",
+    "modified": "2022-09-20T23:35:28.369Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"wallet\": {\n    \"id\": 1560\n  }\n}",
+      "form": []
+    },
     "tests": []
   }
 ]

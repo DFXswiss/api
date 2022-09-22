@@ -9,4 +9,7 @@ export enum UserRole {
   MASTERNODE_OPERATOR = 'MasternodeOperator',
   DEFICHAIN_INCOME = 'DeFiChainIncome',
   BANKING_BOT = 'BankingBot',
+
+  // external company roles
+  EXTERNAL_COMPANY_OWNER = 'ExternalCompanyOwner',
 }

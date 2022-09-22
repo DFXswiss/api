@@ -20,6 +20,7 @@ import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { Wallet } from '../wallet/wallet.entity';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 
 @Injectable()
 export class AuthService {
@@ -114,6 +115,7 @@ export class AuthService {
       id: user.id,
       address: user.address,
       isKycClient: user.isKycClient,
+      role: UserRole.EXTERNAL_COMPANY_OWNER,
     };
     return this.jwtService.sign(payload);
   }

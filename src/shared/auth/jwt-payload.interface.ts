@@ -4,10 +4,10 @@ import { UserRole } from './user-role.enum';
 export interface JwtBasicPayload {
   id: number;
   address: string;
+  role: UserRole;
 }
 
 export interface JwtPayload extends JwtBasicPayload {
-  role: UserRole;
   blockchains: Blockchain[];
 }
 

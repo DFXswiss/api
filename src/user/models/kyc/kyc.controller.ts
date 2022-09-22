@@ -22,6 +22,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 
 @ApiTags('kyc')
 @Controller('kyc')
@@ -72,6 +73,13 @@ export class KycController {
   }
 
   // --- NEW CALLS --- //
+  @Put('transfer')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async transferKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
+    await this.kycService.transferKycData(jwt.id, data);
+  }
+
   @Get(':code')
   async getKycProgressByCode(@Param('code') code: string): Promise<KycInfo> {
     return await this.kycService.getKycStatus(code);
