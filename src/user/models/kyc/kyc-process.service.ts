@@ -52,7 +52,7 @@ export class KycProcessService {
       const initiateData = await this.spiderService.initiateIdentification(userData.id, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
-    if (status === KycStatus.MANUAL)
+    if (status === KycStatus.MANUAL && userData.mail)
       await this.mailService.sendTranslatedMail({
         userData: userData,
         translationKey: 'mail.kyc.success',
