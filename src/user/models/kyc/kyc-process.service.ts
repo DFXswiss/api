@@ -52,12 +52,15 @@ export class KycProcessService {
       const initiateData = await this.spiderService.initiateIdentification(userData.id, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
-    if (status === KycStatus.MANUAL && userData.mail)
+    if (status === KycStatus.MANUAL && userData.mail) {
       await this.mailService.sendTranslatedMail({
         userData: userData,
         translationKey: 'mail.kyc.success',
         params: {},
       });
+    } else {
+      console.error(`Mail address is missing - no KYC Mail; userDataId ${userData.id}`);
+    }
 
     return this.updateKycStatus(userData, status);
   }
