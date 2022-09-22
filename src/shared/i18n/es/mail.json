@@ -66,9 +66,9 @@
         "title": "Transferencia bancaria confirmada"
       },
       "paybackToAddressInitiated": {
-        "salutation": "Your funds have been reimbursed to your wallet address",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Reimbursed</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Wallet address</td><td style=\"width:2%;\"></td><td align=\"left\">{userAddressTrimmed}</td></tr><tr><td colspan=\"3\" align=\"center\">Here you can find the transaction ID with your withdrawal:  <a style=\"color:white\" href=\"{returnTransactionLink}\">Link</a> </td></tr><tr><td colspan=\"3\" align=\"center\">Reason why we reimbursed your funds:<br>{returnReason}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Thank you very much for your trust</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Your DFX Team</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
-        "title": "Funds have been reimbursed"
+        "salutation": "Tus fondos han sido reembolsados a la dirección de tu billetera",
+        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td align=\"right\">Reembolsados</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Dirección de la billetera</td><td style=\"width:2%;\"></td><td align=\"left\">{userAddressTrimmed}</td></tr><tr><td colspan=\"3\" align=\"center\">Aquí puedes encontrar el identificador de tu retiro: <a style=\"color:white\" href=\"{returnTransactionLink}\">Link</a> </td></tr><tr><td colspan=\"3\" align=\"center\">Motivo por el cual tus fondos se reembolsaron:<br>{returnReason}</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Thank you very much for your trust</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Your DFX Team</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
+        "title": "Los fondos han sido reembolsados"
       }
     }
   },
@@ -80,8 +80,8 @@
     }
   },
   "amlReasonMailText": {
-    "1'000.- CHF Limit": "You exceeded the limit without KYC",
-    "IBAN USER_Data <> Account USER_DATA": "Your name you provided to DFX does not match the name of the owner of the IBAN",
-    "IBAN not ok": "The IBAN cannot be used with DFX"
+    "1'000.- CHF Limit": "Excediste el límite sin verificación KYC",
+    "IBAN USER_Data <> Account USER_DATA": "El nombre que compartiste a DFX no encaja con el nombre del propietario del IBAN",
+    "IBAN not ok": "El IBAN no puede ser usado por DFX"
   }
 }
