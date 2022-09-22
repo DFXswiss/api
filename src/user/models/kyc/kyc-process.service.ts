@@ -58,8 +58,8 @@ export class KycProcessService {
         translationKey: 'mail.kyc.success',
         params: {},
       });
-    } else {
-      console.error(`Mail address is missing - no KYC Mail; userDataId ${userData.id}`);
+    } else if (status === KycStatus.MANUAL && !userData.mail) {
+      console.error(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
     }
 
     return this.updateKycStatus(userData, status);
