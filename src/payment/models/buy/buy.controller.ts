@@ -26,7 +26,7 @@ import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { KycCompleted, KycStatus } from 'src/user/models/user-data/user-data.entity';
+import { KycCompleted } from 'src/user/models/user-data/user-data.entity';
 
 @ApiTags('buy')
 @Controller('buy')
