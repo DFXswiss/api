@@ -52,10 +52,8 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async signIn({ address, signature }: AuthCredentialsDto, companyLogin = false): Promise<{ accessToken: string }> {
-    let user;
-
-    user = companyLogin ? await this.walletRepo.getByAddress(address) : await this.userRepo.getByAddress(address);
+  async signIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    const user = await this.userRepo.getByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
     const credentialsValid = this.verifySignature(address, signature);
@@ -66,13 +64,31 @@ export class AuthService {
       await this.userRepo.update({ id: user.id }, { signature: signature });
     }
 
-    return { accessToken: companyLogin ? this.generateCompanyToken(user) : this.generateUserToken(user) };
+    return { accessToken: this.generateUserToken(user) };
   }
 
-  getSignMessage(address: string, companyLogin = false): { message: string; blockchains: Blockchain[] } {
+  async companySignIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    const wallet = await this.walletRepo.getByAddress(address);
+    if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
+
+    const credentialsValid = this.verifyCompanySignature(address, signature);
+    if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
+
+    return { accessToken: this.generateCompanyToken(wallet) };
+  }
+
+  getSignMessage(address: string): { message: string; blockchains: Blockchain[] } {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
     return {
-      message: (companyLogin ? Config.auth.signMessageWallet : Config.auth.signMessageGeneral) + address,
+      message: Config.auth.signMessageGeneral + address,
+      blockchains,
+    };
+  }
+
+  getCompanySignMessage(address: string): { message: string; blockchains: Blockchain[] } {
+    const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
+    return {
+      message: Config.auth.signMessageWallet + address,
       blockchains,
     };
   }
@@ -95,8 +111,13 @@ export class AuthService {
       .getRawOne<User>();
   }
 
-  private verifySignature(address: string, signature: string, companyLogin = false): boolean {
-    const signatureMessage = this.getSignMessage(address, companyLogin);
+  private verifySignature(address: string, signature: string): boolean {
+    const signatureMessage = this.getSignMessage(address);
+    return this.cryptoService.verifySignature(signatureMessage.message, address, signature);
+  }
+
+  private verifyCompanySignature(address: string, signature: string): boolean {
+    const signatureMessage = this.getCompanySignMessage(address);
     return this.cryptoService.verifySignature(signatureMessage.message, address, signature);
   }
 
@@ -110,11 +131,10 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  private generateCompanyToken(user: Wallet): string {
+  private generateCompanyToken(wallet: Wallet): string {
     const payload: JwtCompanyPayload = {
-      id: user.id,
-      address: user.address,
-      isKycClient: user.isKycClient,
+      id: wallet.id,
+      address: wallet.address,
       role: UserRole.EXTERNAL_COMPANY_OWNER,
     };
     return this.jwtService.sign(payload);

@@ -11,6 +11,4 @@ export interface JwtPayload extends JwtBasicPayload {
   blockchains: Blockchain[];
 }
 
-export interface JwtCompanyPayload extends JwtBasicPayload {
-  isKycClient: boolean;
-}
+export interface JwtCompanyPayload extends JwtBasicPayload {}

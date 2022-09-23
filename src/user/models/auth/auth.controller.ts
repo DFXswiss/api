@@ -28,6 +28,6 @@ export class AuthController {
 
   @Post('company/signIn')
   signInCompany(@Body() credentials: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    return this.authService.signIn(credentials, true);
+    return this.authService.companySignIn(credentials);
   }
 }

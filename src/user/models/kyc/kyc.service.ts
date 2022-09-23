@@ -30,7 +30,6 @@ import { WalletRepository } from '../wallet/wallet.repository';
 import { HttpService } from 'src/shared/services/http.service';
 import { Config } from 'src/config/config';
 import { UserRepository } from '../user/user.repository';
-import { Wallet } from '../wallet/wallet.entity';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -129,71 +128,30 @@ export class KycService {
   }
 
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
-    let walletUser: Wallet;
-    let data: { id?: string; result?: 'StatusChanged' | 'Failed'; data?: {}; reason?: string } = {};
+    let result: { kycId: string };
+
+    const wallet = await this.walletRepo.findOne({ where: dto.wallet });
+    if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
+
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    if (!user) throw new NotFoundException('DFX user not found');
 
     try {
-      walletUser = await this.walletRepo.findOne({ where: dto.wallet });
-      if (!walletUser || !walletUser.isKycClient || !walletUser.apiUrl)
-        throw new NotFoundException('Wallet user not found');
-
-      const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
-      if (!user) throw new NotFoundException('DFX user not found');
-
-      const { kycId } = await this.http.get<{ kycId: string }>(`${walletUser.apiUrl}/kyc/kycId`, {
-        headers: { 'x-api-key': Config.lock.apiKey, 'content-Type': 'text/plain' },
+      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/kycId`, {
+        headers: { 'x-api-key': Config.lock.apiKey },
 
         params: { address: user.address },
       });
-
-      const slaveUser = await this.userRepo.findOne({ where: { address: kycId }, relations: ['userData'] });
-      if (!slaveUser) throw new NotFoundException('External service user not found');
-
-      data.id = kycId;
-
-      if (user.userData.kycStatus === KycStatus.COMPLETED || user.userData.kycStatus === KycStatus.MANUAL) {
-        if (user.userData.id != slaveUser.userData.id)
-          await this.userDataService.mergeUserData(user.userData.id, slaveUser.userData.id);
-
-        data.result = 'StatusChanged';
-
-        data.data = {
-          mail: user.userData.mail,
-          firstName: user.userData.firstname,
-          surname: user.userData.surname,
-          street: user.userData.street,
-          houseNumber: user.userData.houseNumber,
-          location: user.userData.location,
-          zip: user.userData.zip,
-          phone: user.userData.phone,
-          kycStatus: 'Full',
-          kycHash: user.userData.kycHash,
-        };
-      } else {
-        data.result = 'Failed';
-        data.reason = 'KYC not completed';
-      }
-
-      await this.http.post(`${walletUser.apiUrl}/kyc/handoverKyc`, data, {
-        headers: { 'x-api-key': Config.lock.apiKey },
-      });
     } catch (error) {
-      console.error(`TransferKyc error ${error}`);
-
-      data.result = 'Failed';
-      data.reason = error;
-
-      try {
-        await this.http.post(`${walletUser.apiUrl}/kyc/handoverKyc`, data, {
-          headers: { 'x-api-key': Config.lock.apiKey },
-        });
-      } catch (error) {
-        console.error(`External service handoverKyc error ${error}`);
-        throw new ServiceUnavailableException(error);
-      }
-
-      throw error;
+      throw new ServiceUnavailableException(error);
     }
+
+    const slaveUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
+    if (!slaveUser) throw new NotFoundException('KYC user not found');
+    if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
+    if (user.userData.id == slaveUser.userData.id) throw new ConflictException('User already merged');
+
+    await this.userDataService.mergeUserData(user.userData.id, slaveUser.userData.id);
   }
 
   async userDataComplete(userId: number): Promise<boolean> {

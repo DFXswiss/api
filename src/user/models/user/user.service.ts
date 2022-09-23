@@ -132,8 +132,6 @@ export class UserService {
   private async checkIpCountry(userIp: string): Promise<string> {
     const ipCountry = await this.geoLocationService.getCountry(userIp);
 
-    console.log(`SignUp User-Ip ${userIp}; Ip-country ${ipCountry}`);
-
     const country = await this.countryService.getCountryWithSymbol(ipCountry);
     if (!country?.ipEnable && Config.environment !== 'loc')
       throw new ForbiddenException('The country of IP address is not allowed');
