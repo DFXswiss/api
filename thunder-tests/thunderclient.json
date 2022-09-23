@@ -121,7 +121,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-08-30T09:00:18.054Z",
+    "modified": "2022-09-23T08:35:48.899Z",
     "headers": [],
     "params": [],
     "body": {
@@ -201,12 +201,12 @@
     "method": "PUT",
     "sortNum": 120000,
     "created": "2022-01-15T13:47:31.522Z",
-    "modified": "2022-08-29T15:55:59.800Z",
+    "modified": "2022-09-23T08:24:58.331Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"Manual\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null\n}",
+      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"Manual\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null,\n  \"nationality\":{\n    \"id\": 2\n  },\n  \"birthday\":\"2000-08-18T10:00:20.100\"\n}",
       "form": []
     },
     "tests": []

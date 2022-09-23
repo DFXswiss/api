@@ -71,6 +71,12 @@ export class UserData extends IEntity {
   @ManyToOne(() => Country, { eager: true })
   country: Country;
 
+  @ManyToOne(() => Country, { eager: true, nullable: true })
+  nationality: Country;
+
+  @Column({ type: 'datetime2', nullable: true })
+  birthday: Date;
+
   @Column({ length: 256, nullable: true })
   organizationName: string;
 
