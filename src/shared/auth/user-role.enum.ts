@@ -10,6 +10,6 @@ export enum UserRole {
   DEFICHAIN_INCOME = 'DeFiChainIncome',
   BANKING_BOT = 'BankingBot',
 
-  // external company roles
-  EXTERNAL_COMPANY_OWNER = 'ExternalCompanyOwner',
+  // external kyc client company roles
+  KYC_CLIENT_COMPANY = 'KycClientCompany',
 }
