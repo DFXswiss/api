@@ -71,6 +71,7 @@ export class AuthService {
     const wallet = await this.walletRepo.getByAddress(address);
     if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
 
+    // TODO add challenge response
     const credentialsValid = this.verifyCompanySignature(address, signature);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 

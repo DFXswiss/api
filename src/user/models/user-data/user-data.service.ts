@@ -213,6 +213,7 @@ export class UserDataService {
     await this.userDataRepo.save(master);
 
     // KYC change Webhook
+    //TODO change for KYC Update v2
     await this.kycWebhookService.kycChanged(masterId);
 
     // update volumes

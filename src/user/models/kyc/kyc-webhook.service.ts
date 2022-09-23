@@ -35,6 +35,7 @@ export class KycWebhookService {
         city: userData.location,
         zip: userData.zip,
         phone: userData.phone,
+        //TODO change for KYC Update v2
         kycStatus: KycCompleted(userData.kycStatus) ? 'Full' : 'NA',
         kycHash: userData.kycHash,
       };
