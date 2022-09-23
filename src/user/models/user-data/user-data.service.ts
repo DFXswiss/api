@@ -79,6 +79,11 @@ export class UserDataService {
       if (!userData.country) throw new BadRequestException('Country not found');
     }
 
+    if (dto.nationality) {
+      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
+      if (!userData.nationality) throw new BadRequestException('Nationality not found');
+    }
+
     if (dto.organizationCountryId) {
       userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
       if (!userData.organizationCountry) throw new BadRequestException('Country not found');
@@ -251,9 +256,10 @@ export class UserDataService {
       ],
     });
 
-    getRepository(BankTx).update(
-      txList.map((tx) => tx.id),
-      { updated: new Date() },
-    );
+    if (txList.length != 0)
+      getRepository(BankTx).update(
+        txList.map((tx) => tx.id),
+        { updated: new Date() },
+      );
   }
 }

@@ -52,12 +52,17 @@ export class KycProcessService {
       const initiateData = await this.spiderService.initiateIdentification(userData.id, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
-    if (status === KycStatus.MANUAL)
-      await this.mailService.sendTranslatedMail({
-        userData: userData,
-        translationKey: 'mail.kyc.success',
-        params: {},
-      });
+    if (status === KycStatus.MANUAL) {
+      if (userData.mail) {
+        await this.mailService.sendTranslatedMail({
+          userData: userData,
+          translationKey: 'mail.kyc.success',
+          params: {},
+        });
+      } else {
+        console.error(`Failed to send KYC completion mail for user data ${userData.id}: user has no email`);
+      }
+    }
 
     return this.updateKycStatus(userData, status);
   }

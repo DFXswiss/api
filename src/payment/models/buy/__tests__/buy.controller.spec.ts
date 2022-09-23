@@ -7,7 +7,7 @@ import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../../staking/staking.repository';
 import { StakingService } from '../../staking/staking.service';
 import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
-import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
+import { createCustomBuy, createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TestUtil } from 'src/shared/test.util';
 import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
@@ -20,6 +20,9 @@ import { BankAccountService } from '../../bank-account/bank-account.service';
 import { createCustomFiat, createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { createCustomCountry, createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { createCustomUser } from 'src/user/models/user/__mocks__/user.entity.mock';
+import { createCustomUserData } from 'src/user/models/user-data/__mocks__/user-data.entity.mock';
+import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 
 function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
   return {
@@ -133,8 +136,12 @@ describe('BuyController', () => {
     });
   });
 
-  it('should return Olkypay if currency = EUR & sctInst', async () => {
-    jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
+  it('should return Olkypay if currency = EUR & sctInst & KYC completed', async () => {
+    jest.spyOn(buyService, 'createBuy').mockResolvedValue(
+      createCustomBuy({
+        user: createCustomUser({ userData: createCustomUserData({ kycStatus: KycStatus.MANUAL }) }),
+      }),
+    );
     jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'EUR' }));
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
 

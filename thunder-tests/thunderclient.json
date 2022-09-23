@@ -8,12 +8,9 @@
     "method": "GET",
     "sortNum": 10000,
     "created": "2022-01-15T13:17:03.626Z",
-    "modified": "2022-01-15T13:40:00.275Z",
+    "modified": "2022-09-23T22:58:23.069Z",
     "headers": [],
     "params": [],
-    "auth": {
-      "type": "inherit"
-    },
     "tests": []
   },
   {
@@ -121,7 +118,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-09-22T12:39:05.263Z",
+    "modified": "2022-09-23T08:35:48.899Z",
     "headers": [],
     "params": [],
     "body": {
@@ -201,12 +198,12 @@
     "method": "PUT",
     "sortNum": 120000,
     "created": "2022-01-15T13:47:31.522Z",
-    "modified": "2022-08-29T15:55:59.800Z",
+    "modified": "2022-09-23T08:24:58.331Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"Manual\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null\n}",
+      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"Manual\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null,\n  \"nationality\":{\n    \"id\": 2\n  },\n  \"birthday\":\"2000-08-18T10:00:20.100\"\n}",
       "form": []
     },
     "tests": []
@@ -1931,6 +1928,25 @@
     "body": {
       "type": "json",
       "raw": "{\n  \"wallet\": {\n    \"id\": 1560\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "0b2d6ff0-b99d-435b-a649-d82b497fa884",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "96a4f40c-c189-4f63-8144-d564ce4a6a07",
+    "name": "Update LimitRequest",
+    "url": "{{url}}/v1/limitRequest/3",
+    "method": "PUT",
+    "sortNum": 120000,
+    "created": "2022-09-23T14:03:55.910Z",
+    "modified": "2022-09-23T14:10:06.943Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"decision\": \"Rejected\",\n  \"clerk\": \"CT\",\n  \"edited\":\"2000-08-18T10:00:20.100\"\n}",
       "form": []
     },
     "tests": []
