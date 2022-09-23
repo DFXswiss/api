@@ -33,6 +33,7 @@ import { GeoLocationService } from './services/geo-location.service';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
+import { LimitRequestController } from './models/limit-request/limit-request.controller';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { LinkAddressRepository } from './models/link/link-address.repository';
     IdentController,
     KycController,
     LinkController,
+    LimitRequestController,
   ],
   providers: [
     UserService,
