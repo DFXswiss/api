@@ -1,6 +1,19 @@
-import { IsOptional, IsInt, IsEnum, IsEmail, IsString, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  IsEnum,
+  IsEmail,
+  IsString,
+  IsBoolean,
+  ValidateNested,
+  IsObject,
+  IsDate,
+} from 'class-validator';
+import { Country } from 'src/shared/models/country/country.entity';
 import { AccountType } from '../account-type.enum';
 import { KycState, KycStatus } from '../user-data.entity';
+import { Type } from 'class-transformer';
+import { EntityDto } from 'src/shared/dto/entity.dto';
 
 export class UpdateUserDataDto {
   @IsOptional()
@@ -42,6 +55,17 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsInt()
   countryId: number;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  birthday: Date;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  nationality: Country;
 
   @IsOptional()
   @IsString()
