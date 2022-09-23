@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycInProgress, KycState, UserData } from './user-data.entity';
+import { KycCompleted, KycInProgress, KycState, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { getRepository, MoreThan, Not } from 'typeorm';
@@ -106,10 +106,16 @@ export class UserDataService {
         );
     }
 
-    if (dto.kycStatus && userData.kycStatus != dto.kycStatus)
+    if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
+    }
 
-    return await this.userDataRepo.save({ ...userData, ...dto });
+    userData = await this.userDataRepo.save({ ...userData, ...dto });
+
+    // KYC change Webhook
+    if (dto.kycStatus && KycCompleted(dto.kycStatus)) await this.kycWebhookService.kycChanged(userData.id);
+
+    return userData;
   }
 
   async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<UserData> {
@@ -201,12 +207,13 @@ export class UserDataService {
 
     await this.updateBankTxTime(slave.id);
 
-    await this.kycWebhookService.kycChanged(masterId);
-
     // reassign bank datas and users
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
+
+    // KYC change Webhook
+    await this.kycWebhookService.kycChanged(masterId);
 
     // update volumes
     await this.updateVolumes(masterId);
