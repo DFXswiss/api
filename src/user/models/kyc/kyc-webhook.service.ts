@@ -20,7 +20,7 @@ export class KycWebhookService {
 
     for (const user of userData.users) {
       const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
-      if (!walletUser) throw new NotFoundException('Wallet user not found');
+      if (!walletUser) throw new NotFoundException('Wallet not found');
       if (!walletUser.isKycClient || !walletUser.apiUrl) continue;
 
       data.id = user.address;
@@ -56,7 +56,7 @@ export class KycWebhookService {
 
     for (const user of userData.users) {
       const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
-      if (!walletUser) throw new NotFoundException('Wallet user not found');
+      if (!walletUser) throw new NotFoundException('Wallet not found');
       if (!walletUser.isKycClient || !walletUser.apiUrl) continue;
 
       data.id = user.address;
