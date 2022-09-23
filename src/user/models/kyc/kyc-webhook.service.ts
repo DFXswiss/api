@@ -41,7 +41,7 @@ export class KycWebhookService {
       };
 
       try {
-        await this.http.post(`${walletUser.apiUrl}/kyc/handoverKyc`, data, {
+        await this.http.post(`${walletUser.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': Config.lock.apiKey },
         });
       } catch (error) {
@@ -65,7 +65,7 @@ export class KycWebhookService {
       //data.reason = '';
 
       try {
-        await this.http.post(`${walletUser.apiUrl}/kyc/handoverKyc`, data, {
+        await this.http.post(`${walletUser.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': Config.lock.apiKey },
         });
       } catch (error) {

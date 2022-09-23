@@ -137,7 +137,7 @@ export class KycService {
     if (!user) throw new NotFoundException('DFX user not found');
 
     try {
-      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/kycId`, {
+      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
         headers: { 'x-api-key': Config.lock.apiKey },
 
         params: { address: user.address },
