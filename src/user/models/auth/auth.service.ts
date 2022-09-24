@@ -136,7 +136,7 @@ export class AuthService {
     const payload: JwtCompanyPayload = {
       id: wallet.id,
       address: wallet.address,
-      role: UserRole.EXTERNAL_COMPANY_OWNER,
+      role: UserRole.KYC_CLIENT_COMPANY,
     };
     return this.jwtService.sign(payload);
   }
