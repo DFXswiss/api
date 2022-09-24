@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmptyObject, ValidateNested } from 'class-validator';
-import { Wallet } from 'ethers';
 import { Type } from 'class-transformer';
 import { EntityDto } from 'src/shared/dto/entity.dto';
+import { Wallet } from '../../wallet/wallet.entity';
 
 export class KycDataTransferDto {
   @ApiProperty()
