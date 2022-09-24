@@ -55,6 +55,8 @@ export class KycWebhookService {
 
     for (const user of userData.users) {
       try {
+        if (!user.wallet?.id)
+          console.error(`Tried to trigger webhook for user ${userData.id}, but wallet were not loaded`);
         const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
         if (!walletUser || !walletUser.isKycClient || !walletUser.apiUrl) continue;
 
