@@ -117,9 +117,6 @@ export class UserDataService {
 
     userData = await this.userDataRepo.save({ ...userData, ...dto });
 
-    // KYC change Webhook
-    if (dto.kycStatus && KycCompleted(dto.kycStatus)) await this.kycWebhookService.kycChanged(userData.id);
-
     return userData;
   }
 
@@ -219,7 +216,7 @@ export class UserDataService {
 
     // KYC change Webhook
     //TODO change for KYC Update v2
-    await this.kycWebhookService.kycChanged(masterId);
+    await this.kycWebhookService.kycChanged(master);
 
     // update volumes
     await this.updateVolumes(masterId);

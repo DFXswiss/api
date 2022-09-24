@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { HttpService } from 'src/shared/services/http.service';
 import { WalletRepository } from '../wallet/wallet.repository';
-import { KycCompleted } from '../user-data/user-data.entity';
+import { KycCompleted, UserData } from '../user-data/user-data.entity';
 import { Config } from 'src/config/config';
 
 export enum KycWebhookStatus {
@@ -44,9 +44,7 @@ export class KycWebhookService {
     private readonly walletRepo: WalletRepository,
   ) {}
 
-  async kycChanged(userDataId: number): Promise<void> {
-    const userData = await this.userDataRepo.findOne({ where: { userDataId }, relations: ['users', 'users.wallet'] });
-
+  async kycChanged(userData: UserData): Promise<void> {
     for (const user of userData.users) {
       const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
       if (!walletUser) throw new NotFoundException('Wallet not found');
@@ -80,9 +78,7 @@ export class KycWebhookService {
     }
   }
 
-  async kycFailed(userDataId: number, reason: string): Promise<void> {
-    const userData = await this.userDataRepo.findOne({ where: { userDataId }, relations: ['users', 'users.wallet'] });
-
+  async kycFailed(userData: UserData, reason: string): Promise<void> {
     for (const user of userData.users) {
       const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
       if (!walletUser) throw new NotFoundException('Wallet not found');
