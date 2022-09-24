@@ -9,6 +9,7 @@ import { DocumentState, SpiderService } from 'src/user/services/spider/spider.se
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserRepository } from '../user/user.repository';
 import { Config } from 'src/config/config';
+import { KycWebhookService } from './kyc-webhook.service';
 
 @Injectable()
 export class KycProcessService {
@@ -17,6 +18,7 @@ export class KycProcessService {
     private readonly spiderService: SpiderService,
     private readonly mailService: MailService,
     private readonly userRepo: UserRepository,
+    private readonly kycWebhookService: KycWebhookService,
   ) {}
 
   // --- GENERAL METHODS --- //
@@ -52,6 +54,7 @@ export class KycProcessService {
       const initiateData = await this.spiderService.initiateIdentification(userData.id, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
+
     if (status === KycStatus.MANUAL) {
       if (userData.mail) {
         await this.mailService.sendTranslatedMail({
@@ -64,7 +67,11 @@ export class KycProcessService {
       }
     }
 
-    return this.updateKycStatus(userData, status);
+    userData = this.updateKycStatus(userData, status);
+
+    await this.kycWebhookService.kycChanged(userData);
+
+    return userData;
   }
 
   private updateKycStatus(userData: UserData, status: KycStatus): UserData {

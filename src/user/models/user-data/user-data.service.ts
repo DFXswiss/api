@@ -16,6 +16,7 @@ import { Util } from 'src/shared/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { BankTx } from 'src/payment/models/bank-tx/bank-tx.entity';
+import { KycWebhookService } from '../kyc/kyc-webhook.service';
 
 @Injectable()
 export class UserDataService {
@@ -29,6 +30,7 @@ export class UserDataService {
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
+    private readonly kycWebhookService: KycWebhookService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -109,8 +111,9 @@ export class UserDataService {
         );
     }
 
-    if (dto.kycStatus && userData.kycStatus != dto.kycStatus)
+    if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
+    }
 
     return await this.userDataRepo.save({ ...userData, ...dto });
   }
@@ -208,6 +211,10 @@ export class UserDataService {
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
+
+    // KYC change Webhook
+    //TODO change for KYC Update v2
+    await this.kycWebhookService.kycChanged(master);
 
     // update volumes
     await this.updateVolumes(masterId);

@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import {
   Blank,
   BlankType,
@@ -19,6 +25,11 @@ import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service'
 import { KycProcessService } from './kyc-process.service';
 import { LinkService } from '../link/link.service';
 import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
+import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
+import { WalletRepository } from '../wallet/wallet.repository';
+import { HttpService } from 'src/shared/services/http.service';
+import { Config } from 'src/config/config';
+import { UserRepository } from '../user/user.repository';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -38,11 +49,14 @@ export class KycService {
   constructor(
     private readonly userDataService: UserDataService,
     private readonly userDataRepo: UserDataRepository,
+    private readonly userRepo: UserRepository,
+    private readonly walletRepo: WalletRepository,
     private readonly spiderService: SpiderService,
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
     private readonly linkService: LinkService,
+    private readonly http: HttpService,
   ) {}
 
   // --- ADMIN/SUPPORT --- //
@@ -111,6 +125,33 @@ export class KycService {
     const updatedUser = await this.userDataRepo.save({ ...user, ...data });
 
     return this.createKycInfoBasedOn(updatedUser);
+  }
+
+  async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
+    let result: { kycId: string };
+
+    const wallet = await this.walletRepo.findOne({ where: dto.wallet });
+    if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
+
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    if (!user) throw new NotFoundException('DFX user not found');
+
+    try {
+      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
+        headers: { 'x-api-key': Config.lock.apiKey },
+
+        params: { address: user.address },
+      });
+    } catch (error) {
+      throw new ServiceUnavailableException(error);
+    }
+
+    const slaveUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
+    if (!slaveUser) throw new NotFoundException('KYC user not found');
+    if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
+    if (user.userData.id == slaveUser.userData.id) throw new ConflictException('User already merged');
+
+    await this.userDataService.mergeUserData(user.userData.id, slaveUser.userData.id);
   }
 
   async userDataComplete(userId: number): Promise<boolean> {

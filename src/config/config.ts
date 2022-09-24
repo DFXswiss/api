@@ -118,6 +118,10 @@ export class Configuration {
     apiKey: process.env.FIXER_API_KEY,
   };
 
+  lock = {
+    apiKey: process.env.LOCK_API_KEY,
+  };
+
   mail: MailOptions = {
     options: {
       transport: {

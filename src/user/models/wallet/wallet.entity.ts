@@ -16,6 +16,12 @@ export class Wallet extends IEntity {
   @Column({ length: 256, nullable: true })
   description: string;
 
+  @Column({ default: false })
+  isKycClient: boolean;
+
+  @Column({ length: 256, nullable: true })
+  apiUrl: string;
+
   @OneToMany(() => User, (user) => user.wallet)
   logs: User[];
 }
