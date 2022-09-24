@@ -34,6 +34,7 @@ import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
 import { LimitRequestController } from './models/limit-request/limit-request.controller';
+import { KycWebhookService } from './models/kyc/kyc-webhook.service';
 
 @Module({
   imports: [
@@ -77,7 +78,17 @@ import { LimitRequestController } from './models/limit-request/limit-request.con
     IdentService,
     GeoLocationService,
     LinkService,
+    KycWebhookService,
   ],
-  exports: [UserService, UserDataService, RefService, KycService, SpiderService, SpiderApiService, LinkService],
+  exports: [
+    UserService,
+    UserDataService,
+    RefService,
+    KycService,
+    SpiderService,
+    SpiderApiService,
+    LinkService,
+    KycWebhookService,
+  ],
 })
 export class UserModule {}
