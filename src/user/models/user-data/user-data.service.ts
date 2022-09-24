@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycCompleted, KycInProgress, KycState, UserData } from './user-data.entity';
+import { KycInProgress, KycState, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { getRepository, MoreThan, Not } from 'typeorm';
@@ -115,9 +115,7 @@ export class UserDataService {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
     }
 
-    userData = await this.userDataRepo.save({ ...userData, ...dto });
-
-    return userData;
+    return await this.userDataRepo.save({ ...userData, ...dto });
   }
 
   async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<UserData> {

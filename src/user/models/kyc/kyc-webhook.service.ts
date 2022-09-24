@@ -1,5 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { UserDataRepository } from '../user-data/user-data.repository';
+import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { KycCompleted, UserData } from '../user-data/user-data.entity';
@@ -38,64 +37,51 @@ export class KycWebhookDto {
 
 @Injectable()
 export class KycWebhookService {
-  constructor(
-    private readonly userDataRepo: UserDataRepository,
-    private readonly http: HttpService,
-    private readonly walletRepo: WalletRepository,
-  ) {}
+  constructor(private readonly http: HttpService, private readonly walletRepo: WalletRepository) {}
 
   async kycChanged(userData: UserData): Promise<void> {
-    for (const user of userData.users) {
-      const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
-      if (!walletUser) throw new NotFoundException('Wallet not found');
-      if (!walletUser.isKycClient || !walletUser.apiUrl) continue;
-
-      const data: KycWebhookDto = {
-        id: user.address,
-        result: KycWebhookResult.STATUS_CHANGED,
-        data: {
-          mail: userData.mail,
-          firstName: userData.firstname,
-          lastName: userData.surname,
-          street: userData.street,
-          houseNumber: userData.houseNumber,
-          city: userData.location,
-          zip: userData.zip,
-          phone: userData.phone,
-          //TODO change for KYC Update v2
-          kycStatus: KycCompleted(userData.kycStatus) ? KycWebhookStatus.FULL : KycWebhookStatus.NA,
-          kycHash: userData.kycHash,
-        },
-      };
-
-      try {
-        await this.http.post(`${walletUser.apiUrl}/kyc/update`, data, {
-          headers: { 'x-api-key': Config.lock.apiKey },
-        });
-      } catch (error) {
-        console.error(`Wallet kyc change webhook error: ${error}`);
-      }
-    }
+    await this.triggerWebhook(userData, KycWebhookResult.STATUS_CHANGED);
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
+    await this.triggerWebhook(userData, KycWebhookResult.FAILED, reason);
+  }
+
+  private async triggerWebhook(userData: UserData, result: KycWebhookResult, reason?: string): Promise<void> {
+    if (!userData.users) {
+      console.error(`Tried to trigger webhook for user ${userData.id}, but users were not loaded`);
+      return;
+    }
+
     for (const user of userData.users) {
-      const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
-      if (!walletUser) throw new NotFoundException('Wallet not found');
-      if (!walletUser.isKycClient || !walletUser.apiUrl) continue;
-
-      const data: KycWebhookDto = {
-        id: user.address,
-        result: KycWebhookResult.FAILED,
-        reason: reason,
-      };
-
       try {
+        const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
+        if (!walletUser || !walletUser.isKycClient || !walletUser.apiUrl) continue;
+
+        const data: KycWebhookDto = {
+          id: user.address,
+          result: result,
+          data: {
+            mail: userData.mail,
+            firstName: userData.firstname,
+            lastName: userData.surname,
+            street: userData.street,
+            houseNumber: userData.houseNumber,
+            city: userData.location,
+            zip: userData.zip,
+            phone: userData.phone,
+            //TODO change for KYC Update v2
+            kycStatus: KycCompleted(userData.kycStatus) ? KycWebhookStatus.FULL : KycWebhookStatus.NA,
+            kycHash: userData.kycHash,
+          },
+          reason: reason,
+        };
+
         await this.http.post(`${walletUser.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': Config.lock.apiKey },
         });
       } catch (error) {
-        console.error(`Wallet kyc failed webhook error: ${error}`);
+        console.error(`Exception during KYC webhook (${result}) for user ${userData.id}: ${error}`);
       }
     }
   }

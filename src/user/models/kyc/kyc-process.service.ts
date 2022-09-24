@@ -53,11 +53,8 @@ export class KycProcessService {
       const identType = KycDocuments[status].ident;
       const initiateData = await this.spiderService.initiateIdentification(userData.id, identType);
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
-
-      // KYC change Webhook
-      //TODO change for KYC Update v2
-      await this.kycWebhookService.kycChanged(userData);
     }
+
     if (status === KycStatus.MANUAL) {
       if (userData.mail) {
         await this.mailService.sendTranslatedMail({
@@ -70,7 +67,11 @@ export class KycProcessService {
       }
     }
 
-    return this.updateKycStatus(userData, status);
+    userData = this.updateKycStatus(userData, status);
+
+    await this.kycWebhookService.kycChanged(userData);
+
+    return userData;
   }
 
   private updateKycStatus(userData: UserData, status: KycStatus): UserData {
