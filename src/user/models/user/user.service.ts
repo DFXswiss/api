@@ -130,6 +130,11 @@ export class UserService {
   }
 
   private async checkIpCountry(userIp: string): Promise<string> {
+    // ignore Azure private addresses
+    if (userIp?.includes('169.254')) {
+      return;
+    }
+
     const ipCountry = await this.geoLocationService.getCountry(userIp);
 
     const country = await this.countryService.getCountryWithSymbol(ipCountry);
