@@ -206,7 +206,6 @@ export class Configuration {
           BTC: 0.0005,
         },
         DeFiChain: {
-          DFI: 0.01,
           USD: 1,
         },
       },
