@@ -136,20 +136,21 @@ describe('BuyController', () => {
     });
   });
 
-  it('should return Olkypay if currency = EUR & sctInst & KYC completed', async () => {
-    jest.spyOn(buyService, 'createBuy').mockResolvedValue(
-      createCustomBuy({
-        user: createCustomUser({ userData: createCustomUserData({ kycStatus: KycStatus.MANUAL }) }),
-      }),
-    );
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'EUR' }));
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
+  // Olky temporary deactivated
+  // it('should return Olkypay if currency = EUR & sctInst & KYC completed', async () => {
+  //   jest.spyOn(buyService, 'createBuy').mockResolvedValue(
+  //     createCustomBuy({
+  //       user: createCustomUser({ userData: createCustomUserData({ kycStatus: KycStatus.MANUAL }) }),
+  //     }),
+  //   );
+  //   jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'EUR' }));
+  //   jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
 
-    await expect(controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto())).resolves.toMatchObject({
-      iban: 'LU116060002000005040',
-      bic: 'OLKILUL1',
-    });
-  });
+  //   await expect(controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto())).resolves.toMatchObject({
+  //     iban: 'LU116060002000005040',
+  //     bic: 'OLKILUL1',
+  //   });
+  // });
 
   it('should return MB if ibanCountry = MBCountry & userDataCountry = MBCountry', async () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
