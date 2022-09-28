@@ -8,4 +8,10 @@ export class Fiat extends IEntity {
 
   @Column({ default: true })
   enable: boolean;
+
+  @Column({ default: true })
+  buyable: boolean;
+
+  @Column({ default: false })
+  sellable: boolean;
 }
