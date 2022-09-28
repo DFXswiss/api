@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PayoutBscStrategy } from './payout/payout-bsc.strategy';
+import { PayoutBscCryptoStrategy } from './payout/payout-bsc-crypto.strategy';
 import { PayoutDeFiChainDFIStrategy } from './payout/payout-defichain-dfi.strategy';
-import { PayoutEthereumStrategy } from './payout/payout-ethereum.strategy';
+import { PayoutEthereumCryptoStrategy } from './payout/payout-ethereum-crypto.strategy';
 import { PayoutDeFiChainTokenStrategy } from './payout/payout-defichain-token.strategy';
 import { PayoutStrategy } from './payout/base/payout.strategy';
 import { PrepareBscStrategy } from './prepare/prepare-bsc.strategy';
@@ -32,8 +32,8 @@ export class PayoutStrategiesFacade {
   constructor(
     payoutDFIStrategy: PayoutDeFiChainDFIStrategy,
     payoutTokenStrategy: PayoutDeFiChainTokenStrategy,
-    payoutEthStrategy: PayoutEthereumStrategy,
-    payoutBscStrategy: PayoutBscStrategy,
+    payoutEthStrategy: PayoutEthereumCryptoStrategy,
+    payoutBscStrategy: PayoutBscCryptoStrategy,
     prepareOnDefichainStrategy: PrepareDeFiChainStrategy,
     prepareOnEthereumStrategy: PrepareEthereumStrategy,
     prepareOnBscStrategy: PrepareBscStrategy,

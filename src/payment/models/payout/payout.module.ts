@@ -12,14 +12,18 @@ import { PayoutDeFiChainService } from './services/payout-defichain.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
 import { PayoutLogService } from './services/payout-log.service';
 import { PayoutService } from './services/payout.service';
-import { PayoutBscStrategy } from './strategies/payout/payout-bsc.strategy';
+import { PayoutBscCryptoStrategy } from './strategies/payout/payout-bsc-crypto.strategy';
 import { PayoutDeFiChainDFIStrategy } from './strategies/payout/payout-defichain-dfi.strategy';
-import { PayoutEthereumStrategy } from './strategies/payout/payout-ethereum.strategy';
+import { PayoutEthereumCryptoStrategy } from './strategies/payout/payout-ethereum-crypto.strategy';
 import { PayoutDeFiChainTokenStrategy } from './strategies/payout/payout-defichain-token.strategy';
 import { PrepareBscStrategy } from './strategies/prepare/prepare-bsc.strategy';
 import { PrepareDeFiChainStrategy } from './strategies/prepare/prepare-defichain.strategy';
 import { PrepareEthereumStrategy } from './strategies/prepare/prepare-ethereum.strategy';
 import { PayoutStrategiesFacade } from './strategies/strategies.facade';
+import { PayoutBitcoinService } from './services/payout-bitcoin.service';
+import { PayoutBitcoinStrategy } from './strategies/payout/payout-bitcoin.strategy';
+import { PayoutBscTokenStrategy } from './strategies/payout/payout-bsc-token.strategy';
+import { PayoutEthereumTokenStrategy } from './strategies/payout/payout-ethereum-token.strategy';
 
 @Module({
   imports: [
@@ -35,13 +39,17 @@ import { PayoutStrategiesFacade } from './strategies/strategies.facade';
     PayoutOrderFactory,
     PayoutLogService,
     PayoutService,
+    PayoutBitcoinService,
     PayoutDeFiChainService,
     PayoutEthereumService,
     PayoutBscService,
+    PayoutBitcoinStrategy,
+    PayoutBscCryptoStrategy,
+    PayoutBscTokenStrategy,
     PayoutDeFiChainDFIStrategy,
     PayoutDeFiChainTokenStrategy,
-    PayoutEthereumStrategy,
-    PayoutBscStrategy,
+    PayoutEthereumCryptoStrategy,
+    PayoutEthereumTokenStrategy,
     PrepareDeFiChainStrategy,
     PrepareEthereumStrategy,
     PrepareBscStrategy,

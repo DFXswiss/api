@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { DexEthereumService } from '../../services/dex-ethereum.service';
-import { CheckLiquidityEvmStrategy } from './base/check-liquidity-evm.strategy';
+import { CheckLiquidityEvmTokenStrategy } from './base/check-liquidity-evm-token.strategy';
 
 @Injectable()
-export class CheckLiquidityEthereumStrategy extends CheckLiquidityEvmStrategy {
+export class CheckLiquidityEthereumTokenStrategy extends CheckLiquidityEvmTokenStrategy {
   constructor(dexEthereumService: DexEthereumService) {
     super(dexEthereumService);
   }

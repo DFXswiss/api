@@ -3,7 +3,7 @@ import { LiquidityRequest } from '../../../interfaces';
 import { DexEvmService } from '../../../services/dex-evm.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
-export class PurchaseLiquidityEvmStrategy extends PurchaseLiquidityStrategy {
+export class PurchaseLiquidityEvmCryptoStrategy extends PurchaseLiquidityStrategy {
   constructor(mailService: MailService, protected readonly dexEvmService: DexEvmService) {
     super(mailService);
   }

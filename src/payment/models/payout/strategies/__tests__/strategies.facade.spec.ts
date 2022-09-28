@@ -7,10 +7,10 @@ import { PayoutOrderRepository } from '../../repositories/payout-order.repositor
 import { PayoutBscService } from '../../services/payout-bsc.service';
 import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
 import { PayoutEthereumService } from '../../services/payout-ethereum.service';
-import { PayoutBscStrategy } from '../payout/payout-bsc.strategy';
+import { PayoutBscCryptoStrategy } from '../payout/payout-bsc-crypto.strategy';
 import { PayoutDeFiChainDFIStrategy } from '../payout/payout-defichain-dfi.strategy';
 import { PayoutDeFiChainTokenStrategy } from '../payout/payout-defichain-token.strategy';
-import { PayoutEthereumStrategy } from '../payout/payout-ethereum.strategy';
+import { PayoutEthereumCryptoStrategy } from '../payout/payout-ethereum-crypto.strategy';
 import { PrepareBscStrategy } from '../prepare/prepare-bsc.strategy';
 import { PrepareDeFiChainStrategy } from '../prepare/prepare-defichain.strategy';
 import { PrepareEthereumStrategy } from '../prepare/prepare-ethereum.strategy';
@@ -19,8 +19,8 @@ import { PayoutStrategiesFacade, PayoutStrategyAlias, PrepareStrategyAlias } fro
 describe('PayoutStrategiesFacade', () => {
   let payoutDFIStrategy: PayoutDeFiChainDFIStrategy;
   let payoutTokenStrategy: PayoutDeFiChainTokenStrategy;
-  let payoutETHStrategy: PayoutEthereumStrategy;
-  let payoutBSCStrategy: PayoutBscStrategy;
+  let payoutETHStrategy: PayoutEthereumCryptoStrategy;
+  let payoutBSCStrategy: PayoutBscCryptoStrategy;
   let prepareOnDefichainStrategy: PrepareDeFiChainStrategy;
   let prepareOnEthereumStrategy: PrepareEthereumStrategy;
   let prepareOnBscStrategy: PrepareBscStrategy;
@@ -39,8 +39,8 @@ describe('PayoutStrategiesFacade', () => {
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
     );
-    payoutETHStrategy = new PayoutEthereumStrategy(mock<PayoutEthereumService>(), mock<PayoutOrderRepository>());
-    payoutBSCStrategy = new PayoutBscStrategy(mock<PayoutBscService>(), mock<PayoutOrderRepository>());
+    payoutETHStrategy = new PayoutEthereumCryptoStrategy(mock<PayoutEthereumService>(), mock<PayoutOrderRepository>());
+    payoutBSCStrategy = new PayoutBscCryptoStrategy(mock<PayoutBscService>(), mock<PayoutOrderRepository>());
     prepareOnDefichainStrategy = new PrepareDeFiChainStrategy(
       mock<DexService>(),
       mock<PayoutDeFiChainService>(),
@@ -84,10 +84,10 @@ describe('PayoutStrategiesFacade', () => {
       );
 
       expect(facade.getPayoutStrategies().get(PayoutStrategyAlias.ETHEREUM_DEFAULT)).toBeInstanceOf(
-        PayoutEthereumStrategy,
+        PayoutEthereumCryptoStrategy,
       );
 
-      expect(facade.getPayoutStrategies().get(PayoutStrategyAlias.BSC_DEFAULT)).toBeInstanceOf(PayoutBscStrategy);
+      expect(facade.getPayoutStrategies().get(PayoutStrategyAlias.BSC_DEFAULT)).toBeInstanceOf(PayoutBscCryptoStrategy);
     });
 
     it('adds all prepareStrategies to a map', () => {
@@ -118,13 +118,13 @@ describe('PayoutStrategiesFacade', () => {
       it('gets ETHEREUM_DEFAULT strategy', () => {
         const strategy = facade.getPayoutStrategy(createCustomAsset({ blockchain: Blockchain.ETHEREUM }));
 
-        expect(strategy).toBeInstanceOf(PayoutEthereumStrategy);
+        expect(strategy).toBeInstanceOf(PayoutEthereumCryptoStrategy);
       });
 
       it('gets BSC_DEFAULT strategy', () => {
         const strategy = facade.getPayoutStrategy(createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }));
 
-        expect(strategy).toBeInstanceOf(PayoutBscStrategy);
+        expect(strategy).toBeInstanceOf(PayoutBscCryptoStrategy);
       });
 
       it('gets DEFICHAIN_DFI strategy', () => {
@@ -172,13 +172,13 @@ describe('PayoutStrategiesFacade', () => {
       it('gets ETHEREUM_DEFAULT strategy', () => {
         const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_DEFAULT);
 
-        expect(strategy).toBeInstanceOf(PayoutEthereumStrategy);
+        expect(strategy).toBeInstanceOf(PayoutEthereumCryptoStrategy);
       });
 
       it('gets BSC_DEFAULT strategy', () => {
         const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.BSC_DEFAULT);
 
-        expect(strategyCrypto).toBeInstanceOf(PayoutBscStrategy);
+        expect(strategyCrypto).toBeInstanceOf(PayoutBscCryptoStrategy);
       });
 
       it('gets DEFICHAIN_DFI strategy', () => {
@@ -270,8 +270,8 @@ class PayoutStrategiesFacadeWrapper extends PayoutStrategiesFacade {
   constructor(
     payoutDFIStrategy: PayoutDeFiChainDFIStrategy,
     payoutTokenStrategy: PayoutDeFiChainTokenStrategy,
-    payoutETHStrategy: PayoutEthereumStrategy,
-    payoutBSCStrategy: PayoutBscStrategy,
+    payoutETHStrategy: PayoutEthereumCryptoStrategy,
+    payoutBSCStrategy: PayoutBscCryptoStrategy,
     prepareOnDefichainStrategy: PrepareDeFiChainStrategy,
     prepareOnEthereumStrategy: PrepareEthereumStrategy,
     prepareOnBscStrategy: PrepareBscStrategy,
