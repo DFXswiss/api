@@ -6,22 +6,22 @@ import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { MailService } from 'src/shared/services/mail.service';
-import { LiquidityOrder, LiquidityOrderContext } from '../../entities/liquidity-order.entity';
-import { LiquidityOrderFactory } from '../../factories/liquidity-order.factory';
-import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
-import { DexService } from '../../services/dex.service';
-import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
-import { NotEnoughLiquidityException } from '../../exceptions/not-enough-liquidity.exception';
-import { PriceSlippageException } from '../../exceptions/price-slippage.exception';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { LiquidityRequest } from '../../interfaces';
+import { LiquidityOrderContext, LiquidityOrder } from '../../../entities/liquidity-order.entity';
+import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
+import { PriceSlippageException } from '../../../exceptions/price-slippage.exception';
+import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
+import { LiquidityRequest } from '../../../interfaces';
+import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
+import { DexService } from '../../../services/dex.service';
+import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 
 @Injectable()
-export class PurchaseLiquidityDeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
+export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   private readonly verifyDerivedOrdersLock = new Lock(1800);
 
   private chainClient: DeFiClient;

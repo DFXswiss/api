@@ -1,15 +1,15 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { MailService } from 'src/shared/services/mail.service';
-import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
-import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
-import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
-import { LiquidityRequest } from '../../../interfaces';
-import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
-import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { LiquidityOrder } from '../../../../entities/liquidity-order.entity';
+import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
+import { LiquidityOrderFactory } from '../../../../factories/liquidity-order.factory';
+import { LiquidityRequest } from '../../../../interfaces';
+import { LiquidityOrderRepository } from '../../../../repositories/liquidity-order.repository';
+import { DexDeFiChainService } from '../../../../services/dex-defichain.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
-export abstract class PurchaseLiquidityDeFiChainNonPoolPairStrategy extends PurchaseLiquidityStrategy {
+export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStrategy {
   private prioritySwapAssets: string[] = [];
 
   constructor(

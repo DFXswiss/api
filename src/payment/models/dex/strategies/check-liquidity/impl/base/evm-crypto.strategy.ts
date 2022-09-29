@@ -1,8 +1,8 @@
-import { LiquidityRequest } from '../../../interfaces';
-import { DexEvmService } from '../../../services/dex-evm.service';
+import { LiquidityRequest } from '../../../../interfaces';
+import { DexEvmService } from '../../../../services/dex-evm.service';
 import { CheckLiquidityStrategy } from './check-liquidity.strategy';
 
-export class CheckLiquidityEvmCryptoStrategy implements CheckLiquidityStrategy {
+export class EvmCryptoStrategy implements CheckLiquidityStrategy {
   constructor(protected readonly dexEvmService: DexEvmService) {}
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {

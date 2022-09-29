@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { LiquidityOrder } from '../../entities/liquidity-order.entity';
-import { LiquidityRequest } from '../../interfaces';
-import { DexDeFiChainService } from '../../services/dex-defichain.service';
+import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
+import { LiquidityRequest } from '../../../interfaces';
+import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
-export class CheckLiquidityDeFiChainDefaultStrategy implements CheckLiquidityStrategy {
+export class DeFiChainDefaultStrategy implements CheckLiquidityStrategy {
   constructor(private readonly dexDeFiChainService: DexDeFiChainService) {}
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {

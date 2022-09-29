@@ -1,9 +1,9 @@
 import { MailService } from 'src/shared/services/mail.service';
-import { LiquidityRequest } from '../../../interfaces';
-import { DexEvmService } from '../../../services/dex-evm.service';
+import { LiquidityRequest } from '../../../../interfaces';
+import { DexEvmService } from '../../../../services/dex-evm.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
-export class PurchaseLiquidityEvmCryptoStrategy extends PurchaseLiquidityStrategy {
+export class EvmCryptoStrategy extends PurchaseLiquidityStrategy {
   constructor(mailService: MailService, protected readonly dexEvmService: DexEvmService) {
     super(mailService);
   }

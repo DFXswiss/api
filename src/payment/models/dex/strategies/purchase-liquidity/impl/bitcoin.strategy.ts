@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
-import { LiquidityRequest } from '../../interfaces';
+import { LiquidityRequest } from '../../../interfaces';
 
 @Injectable()
-export class PurchaseLiquidityBitcoinStrategy extends PurchaseLiquidityStrategy {
+export class BitcoinStrategy extends PurchaseLiquidityStrategy {
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
     return;
   }
