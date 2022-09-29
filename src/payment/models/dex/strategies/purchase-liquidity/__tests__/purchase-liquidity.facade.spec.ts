@@ -12,27 +12,37 @@ import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.
 import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexService } from '../../../services/dex.service';
+import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCryptoStrategy } from '../impl/bsc-crypto.strategy';
+import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { DeFiChainCryptoStrategy } from '../impl/defichain-crypto.strategy';
 import { DeFiChainPoolPairStrategy } from '../impl/defichain-poolpair.strategy';
 import { DeFiChainStockStrategy } from '../impl/defichain-stock.strategy';
 import { EthereumCryptoStrategy } from '../impl/ethereum-crypto.strategy';
+import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { PurchaseLiquidityStrategyAlias, PurchaseLiquidityStrategies } from '../purchase-liquidity.facade';
 
 describe('PurchaseLiquidityStrategies', () => {
   let nodeService: NodeService;
 
+  let bitcoin: BitcoinStrategy;
+  let bscCrypto: BscCryptoStrategy;
+  let bscToken: BscTokenStrategy;
   let deFiChainPoolPair: DeFiChainPoolPairStrategy;
   let deFiChainStock: DeFiChainStockStrategy;
   let deFiChainCrypto: DeFiChainCryptoStrategy;
-  let ethereum: EthereumCryptoStrategy;
-  let bsc: BscCryptoStrategy;
+  let ethereumCrypto: EthereumCryptoStrategy;
+  let ethereumToken: EthereumTokenStrategy;
 
   let facade: PurchaseLiquidityStrategiesWrapper;
 
   beforeEach(() => {
     nodeService = mock<NodeService>();
     jest.spyOn(nodeService, 'getConnectedNode').mockImplementation(() => new BehaviorSubject(null));
+
+    bitcoin = new BitcoinStrategy(mock<MailService>());
+    bscCrypto = new BscCryptoStrategy(mock<MailService>(), mock<DexBscService>());
+    bscToken = new BscTokenStrategy(mock<MailService>(), mock<DexBscService>());
 
     deFiChainPoolPair = new DeFiChainPoolPairStrategy(
       nodeService,
@@ -55,52 +65,97 @@ describe('PurchaseLiquidityStrategies', () => {
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
     );
-    ethereum = new EthereumCryptoStrategy(mock<MailService>(), mock<DexBscService>());
-    bsc = new BscCryptoStrategy(mock<MailService>(), mock<DexBscService>());
+    ethereumCrypto = new EthereumCryptoStrategy(mock<MailService>(), mock<DexBscService>());
+    ethereumToken = new EthereumTokenStrategy(mock<MailService>(), mock<DexBscService>());
 
-    facade = new PurchaseLiquidityStrategiesWrapper(deFiChainPoolPair, deFiChainStock, deFiChainCrypto, ethereum, bsc);
+    facade = new PurchaseLiquidityStrategiesWrapper(
+      bitcoin,
+      bscCrypto,
+      bscToken,
+      deFiChainCrypto,
+      deFiChainPoolPair,
+      deFiChainStock,
+      ethereumCrypto,
+      ethereumToken,
+    );
   });
 
   describe('#constructor(...)', () => {
     it('adds all purchaseLiquidityStrategies to a map', () => {
-      expect([...facade.getPurchaseLiquidityStrategies().entries()].length).toBe(5);
+      expect([...facade.getStrategies().entries()].length).toBe(8);
+    });
+
+    it('assigns strategies to all aliases', () => {
+      expect([...facade.getStrategies().entries()].length).toBe(Object.values(PurchaseLiquidityStrategyAlias).length);
     });
 
     it('sets all required purchaseLiquidityStrategies aliases', () => {
-      const aliases = [...facade.getPurchaseLiquidityStrategies().keys()];
+      const aliases = [...facade.getStrategies().keys()];
 
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.BITCOIN)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.BSC_CRYPTO)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.BSC_TOKEN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.DEFICHAIN_STOCK)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO)).toBe(true);
-      expect(aliases.includes(PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT)).toBe(true);
-      expect(aliases.includes(PurchaseLiquidityStrategyAlias.BSC_DEFAULT)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.ETHEREUM_CRYPTO)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN)).toBe(true);
     });
 
     it('assigns proper purchaseLiquidityStrategies to aliases', () => {
-      expect(
-        facade.getPurchaseLiquidityStrategies().get(PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR),
-      ).toBeInstanceOf(DeFiChainPoolPairStrategy);
-
-      expect(
-        facade.getPurchaseLiquidityStrategies().get(PurchaseLiquidityStrategyAlias.DEFICHAIN_STOCK),
-      ).toBeInstanceOf(DeFiChainStockStrategy);
-
-      expect(
-        facade.getPurchaseLiquidityStrategies().get(PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO),
-      ).toBeInstanceOf(DeFiChainCryptoStrategy);
-
-      expect(
-        facade.getPurchaseLiquidityStrategies().get(PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT),
-      ).toBeInstanceOf(EthereumCryptoStrategy);
-
-      expect(facade.getPurchaseLiquidityStrategies().get(PurchaseLiquidityStrategyAlias.BSC_DEFAULT)).toBeInstanceOf(
-        BscCryptoStrategy,
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BITCOIN)).toBeInstanceOf(BitcoinStrategy);
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BSC_CRYPTO)).toBeInstanceOf(BscCryptoStrategy);
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BSC_TOKEN)).toBeInstanceOf(BscTokenStrategy);
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO)).toBeInstanceOf(
+        DeFiChainCryptoStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR)).toBeInstanceOf(
+        DeFiChainPoolPairStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.DEFICHAIN_STOCK)).toBeInstanceOf(
+        DeFiChainStockStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ETHEREUM_CRYPTO)).toBeInstanceOf(
+        EthereumCryptoStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN)).toBeInstanceOf(
+        EthereumTokenStrategy,
       );
     });
   });
 
   describe('#getPurchaseLiquidityStrategy(...)', () => {
     describe('getting strategy by Asset', () => {
+      it('gets BITCOIN strategy for BITCOIN Crypto', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.BITCOIN }));
+
+        expect(strategy).toBeInstanceOf(BitcoinStrategy);
+      });
+
+      it('gets BSC_CRYPTO strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, category: AssetCategory.CRYPTO }),
+        );
+
+        expect(strategy).toBeInstanceOf(BscCryptoStrategy);
+      });
+
+      it('gets BSC_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, category: AssetCategory.STOCK }),
+        );
+
+        expect(strategy).toBeInstanceOf(BscTokenStrategy);
+      });
+
+      it('gets DEFICHAIN_CRYPTO strategy for DEFICHAIN Crypto', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: AssetCategory.CRYPTO }),
+        );
+
+        expect(strategy).toBeInstanceOf(DeFiChainCryptoStrategy);
+      });
+
       it('gets DEFICHAIN_POOL_PAIR strategy for DEFICHAIN Pool Pair', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(
           createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: AssetCategory.POOL_PAIR }),
@@ -117,34 +172,20 @@ describe('PurchaseLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(DeFiChainStockStrategy);
       });
 
-      it('gets DEFICHAIN_CRYPTO strategy for DEFICHAIN Crypto', () => {
+      it('gets ETHEREUM_CRYPTO strategy', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, category: AssetCategory.CRYPTO }),
+          createCustomAsset({ blockchain: Blockchain.ETHEREUM, category: AssetCategory.CRYPTO }),
         );
-
-        expect(strategy).toBeInstanceOf(DeFiChainCryptoStrategy);
-      });
-
-      it('gets DEFICHAIN_CRYPTO strategy for BITCOIN Crypto', () => {
-        const strategy = facade.getPurchaseLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.BITCOIN, category: AssetCategory.CRYPTO }),
-        );
-
-        expect(strategy).toBeInstanceOf(DeFiChainCryptoStrategy);
-      });
-
-      it('gets ETHEREUM_DEFAULT strategy', () => {
-        const strategy = facade.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.ETHEREUM }));
 
         expect(strategy).toBeInstanceOf(EthereumCryptoStrategy);
       });
 
-      it('gets BSC_DEFAULT strategy', () => {
+      it('gets ETHEREUM_TOKEN strategy', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(
-          createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }),
+          createCustomAsset({ blockchain: Blockchain.ETHEREUM, category: AssetCategory.STOCK }),
         );
 
-        expect(strategy).toBeInstanceOf(BscCryptoStrategy);
+        expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
       it('fails to get strategy for non-supported Blockchain', () => {
@@ -167,6 +208,30 @@ describe('PurchaseLiquidityStrategies', () => {
     });
 
     describe('getting strategy by Alias', () => {
+      it('gets BSC_CRYPTO strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.BITCOIN);
+
+        expect(strategy).toBeInstanceOf(BitcoinStrategy);
+      });
+
+      it('gets BSC_CRYPTO strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.BSC_CRYPTO);
+
+        expect(strategy).toBeInstanceOf(BscCryptoStrategy);
+      });
+
+      it('gets BSC_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.BSC_TOKEN);
+
+        expect(strategy).toBeInstanceOf(BscTokenStrategy);
+      });
+
+      it('gets DEFICHAIN_CRYPTO strategy', () => {
+        const strategyCrypto = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO);
+
+        expect(strategyCrypto).toBeInstanceOf(DeFiChainCryptoStrategy);
+      });
+
       it('gets DEFICHAIN_POOL_PAIR strategy', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR);
 
@@ -179,22 +244,16 @@ describe('PurchaseLiquidityStrategies', () => {
         expect(strategyCrypto).toBeInstanceOf(DeFiChainStockStrategy);
       });
 
-      it('gets DEFICHAIN_CRYPTO strategy', () => {
-        const strategyCrypto = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO);
-
-        expect(strategyCrypto).toBeInstanceOf(DeFiChainCryptoStrategy);
-      });
-
-      it('gets ETHEREUM_DEFAULT strategy', () => {
-        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ETHEREUM_DEFAULT);
+      it('gets ETHEREUM_CRYPTO strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ETHEREUM_CRYPTO);
 
         expect(strategy).toBeInstanceOf(EthereumCryptoStrategy);
       });
 
-      it('gets BSC_DEFAULT strategy', () => {
-        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.BSC_DEFAULT);
+      it('gets ETHEREUM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN);
 
-        expect(strategy).toBeInstanceOf(BscCryptoStrategy);
+        expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
       it('fails to get strategy for non-supported Alias', () => {
@@ -210,22 +269,28 @@ describe('PurchaseLiquidityStrategies', () => {
 
 class PurchaseLiquidityStrategiesWrapper extends PurchaseLiquidityStrategies {
   constructor(
-    purchaseLiquidityDeFiChainPoolPairStrategy: DeFiChainPoolPairStrategy,
-    purchaseLiquidityDeFiChainStockStrategy: DeFiChainStockStrategy,
-    purchaseLiquidityDeFiChainCryptoStrategy: DeFiChainCryptoStrategy,
-    purchaseLiquidityEthereumStrategy: EthereumCryptoStrategy,
-    purchaseLiquidityBSCStrategy: BscCryptoStrategy,
+    bitcoin: BitcoinStrategy,
+    bscCrypto: BscCryptoStrategy,
+    bscToken: BscTokenStrategy,
+    deFiChainCrypto: DeFiChainCryptoStrategy,
+    deFiChainPoolPair: DeFiChainPoolPairStrategy,
+    deFiChainStock: DeFiChainStockStrategy,
+    ethereumCrypto: EthereumCryptoStrategy,
+    ethereumToken: EthereumTokenStrategy,
   ) {
     super(
-      purchaseLiquidityDeFiChainPoolPairStrategy,
-      purchaseLiquidityDeFiChainStockStrategy,
-      purchaseLiquidityDeFiChainCryptoStrategy,
-      purchaseLiquidityEthereumStrategy,
-      purchaseLiquidityBSCStrategy,
+      bitcoin,
+      bscCrypto,
+      bscToken,
+      deFiChainCrypto,
+      deFiChainPoolPair,
+      deFiChainStock,
+      ethereumCrypto,
+      ethereumToken,
     );
   }
 
-  getPurchaseLiquidityStrategies() {
-    return this.purchaseLiquidityStrategies;
+  getStrategies() {
+    return this.strategies;
   }
 }
