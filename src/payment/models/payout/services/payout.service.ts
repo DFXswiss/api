@@ -1,13 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
-import { PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { MailService } from 'src/shared/services/mail.service';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
-import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { PayoutLogService } from './payout-log.service';
 import { PayoutRequest } from '../interfaces';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
@@ -140,23 +139,16 @@ export class PayoutService {
 
   private async payoutOrders(): Promise<void> {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PREPARATION_CONFIRMED });
+    const groups = this.groupOrdersByPayoutStrategies(orders);
 
-    const dfiOrders = orders.filter((o) => o.asset.blockchain === Blockchain.DEFICHAIN && o.asset.dexName === 'DFI');
-    const tokenOrders = orders.filter((o) => o.asset.blockchain === Blockchain.DEFICHAIN && o.asset.dexName !== 'DFI');
-    const ethOrders = orders.filter((o) => o.asset.blockchain === Blockchain.ETHEREUM && o.asset.dexName === 'ETH');
-    const bnbOrders = orders.filter(
-      (o) => o.asset.blockchain === Blockchain.BINANCE_SMART_CHAIN && o.asset.dexName === 'BNB',
-    );
-
-    const dfiStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
-    const tokenStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN);
-    const ethStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_CRYPTO);
-    const bnbStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.BSC_CRYPTO);
-
-    await dfiStrategy.doPayout(dfiOrders);
-    await tokenStrategy.doPayout(tokenOrders);
-    await ethStrategy.doPayout(ethOrders);
-    await bnbStrategy.doPayout(bnbOrders);
+    for (const group of groups.entries()) {
+      try {
+        const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
+        await strategy.doPayout(group[1]);
+      } catch {
+        continue;
+      }
+    }
   }
 
   private async processFailedOrders(): Promise<void> {
@@ -171,5 +163,25 @@ export class PayoutService {
       order.pendingInvestigation();
       await this.payoutOrderRepo.save(order);
     }
+  }
+
+  private groupOrdersByPayoutStrategies(orders: PayoutOrder[]): Map<PayoutStrategyAlias, PayoutOrder[]> {
+    const groups = new Map<PayoutStrategyAlias, PayoutOrder[]>();
+
+    for (const order of orders) {
+      const alias = this.payoutStrategies.getPayoutStrategyAlias(order.asset);
+
+      if (!alias) {
+        console.warn(`No payout alias found for payout order ID ${order.id}. Ignoring the order`);
+        continue;
+      }
+
+      const group = groups.get(alias) ?? [];
+      group.push(order);
+
+      groups.set(alias, group);
+    }
+
+    return groups;
   }
 }

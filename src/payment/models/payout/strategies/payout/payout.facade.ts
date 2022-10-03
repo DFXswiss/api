@@ -48,23 +48,7 @@ export class PayoutStrategiesFacade {
     return criteria instanceof Asset ? this.getByAsset(criteria) : this.getByAlias(criteria);
   }
 
-  //*** HELPER METHODS ***//
-
-  private getByAlias(alias: Alias): PayoutStrategy {
-    const strategy = this.strategies.get(alias);
-
-    if (!strategy) throw new Error(`No PayoutStrategy found. Alias: ${alias}`);
-
-    return strategy;
-  }
-
-  private getByAsset(asset: Asset): PayoutStrategy {
-    const alias = this.getAlias(asset);
-
-    return this.getByAlias(alias);
-  }
-
-  private getAlias(asset: Asset): Alias {
+  getPayoutStrategyAlias(asset: Asset): Alias {
     const { blockchain, dexName: assetName, category: assetCategory } = asset;
 
     if (blockchain === Blockchain.BITCOIN) return Alias.BITCOIN;
@@ -86,5 +70,21 @@ export class PayoutStrategiesFacade {
       if (assetCategory === AssetCategory.CRYPTO) return Alias.ETHEREUM_CRYPTO;
       if (assetCategory === AssetCategory.STOCK) return Alias.ETHEREUM_TOKEN;
     }
+  }
+
+  //*** HELPER METHODS ***//
+
+  private getByAlias(alias: Alias): PayoutStrategy {
+    const strategy = this.strategies.get(alias);
+
+    if (!strategy) throw new Error(`No PayoutStrategy found. Alias: ${alias}`);
+
+    return strategy;
+  }
+
+  private getByAsset(asset: Asset): PayoutStrategy {
+    const alias = this.getPayoutStrategyAlias(asset);
+
+    return this.getByAlias(alias);
   }
 }
