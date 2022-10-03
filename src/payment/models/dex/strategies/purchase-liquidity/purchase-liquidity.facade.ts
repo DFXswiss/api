@@ -50,14 +50,12 @@ export class PurchaseLiquidityStrategies {
   }
 
   getPurchaseLiquidityStrategy(criteria: Asset | Alias): PurchaseLiquidityStrategy {
-    return criteria instanceof Asset
-      ? this.getPurchaseLiquidityStrategyByAsset(criteria)
-      : this.getPurchaseLiquidityStrategyByAlias(criteria);
+    return criteria instanceof Asset ? this.getByAsset(criteria) : this.getByAlias(criteria);
   }
 
   //*** HELPER METHODS ***//
 
-  private getPurchaseLiquidityStrategyByAlias(alias: Alias): PurchaseLiquidityStrategy {
+  private getByAlias(alias: Alias): PurchaseLiquidityStrategy {
     const strategy = this.strategies.get(alias);
 
     if (!strategy) throw new Error(`No PurchaseLiquidityStrategy found. Alias: ${alias}`);
@@ -65,10 +63,10 @@ export class PurchaseLiquidityStrategies {
     return strategy;
   }
 
-  private getPurchaseLiquidityStrategyByAsset(asset: Asset): PurchaseLiquidityStrategy {
+  private getByAsset(asset: Asset): PurchaseLiquidityStrategy {
     const alias = this.getAlias(asset);
 
-    return this.getPurchaseLiquidityStrategyByAlias(alias);
+    return this.getByAlias(alias);
   }
 
   private getAlias(asset: Asset): Alias {

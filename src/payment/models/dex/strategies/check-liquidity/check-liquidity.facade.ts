@@ -45,14 +45,12 @@ export class CheckLiquidityStrategies {
   }
 
   getCheckLiquidityStrategy(criteria: Asset | Alias): CheckLiquidityStrategy {
-    return criteria instanceof Asset
-      ? this.getCheckLiquidityStrategyByAsset(criteria)
-      : this.getCheckLiquidityStrategyByAlias(criteria);
+    return criteria instanceof Asset ? this.getByAsset(criteria) : this.getByAlias(criteria);
   }
 
   //*** HELPER METHODS ***//
 
-  private getCheckLiquidityStrategyByAlias(alias: Alias): CheckLiquidityStrategy {
+  private getByAlias(alias: Alias): CheckLiquidityStrategy {
     const strategy = this.strategies.get(alias);
 
     if (!strategy) throw new Error(`No CheckLiquidityStrategy found. Alias: ${alias}`);
@@ -60,10 +58,10 @@ export class CheckLiquidityStrategies {
     return strategy;
   }
 
-  private getCheckLiquidityStrategyByAsset(asset: Asset): CheckLiquidityStrategy {
+  private getByAsset(asset: Asset): CheckLiquidityStrategy {
     const alias = this.getAlias(asset);
 
-    return this.getCheckLiquidityStrategyByAlias(alias);
+    return this.getByAlias(alias);
   }
 
   private getAlias(asset: Asset): Alias {
