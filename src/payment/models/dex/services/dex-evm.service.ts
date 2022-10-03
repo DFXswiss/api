@@ -18,29 +18,49 @@ export abstract class DexEvmService {
     this.#client = service.getDefaultClient();
   }
 
-  async getBalance(): Promise<number> {
-    return this.#client.getBalance();
+  async checkCoinAvailability(amount: number): Promise<number> {
+    const pendingAmount = await this.getPendingAmount(this.nativeCoin);
+    const availableAmount = await this.#client.getNativeCryptoBalance();
+
+    this.checkLiquidity(amount, pendingAmount, availableAmount, this.nativeCoin);
+
+    return amount;
   }
 
-  async checkCoinAvailability(amount: number): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === this.nativeCoin && o.targetAsset.blockchain === this.blockchain,
-    );
-    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+  async checkTokenAvailability(token: string, amount: number): Promise<number> {
+    const pendingAmount = await this.getPendingAmount(token);
+    const availableAmount = await this.#client.getTokenBalance(token);
 
-    const availableAmount = await this.getBalance();
-
-    // 5% cap for unexpected meantime swaps
-    if (amount * 1.05 > availableAmount - pendingAmount) {
-      throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${this.nativeCoin}. Trying to use ${amount} ${this.nativeCoin} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
-      );
-    }
+    this.checkLiquidity(amount, pendingAmount, availableAmount, token);
 
     return amount;
   }
 
   get _nativeCoin(): string {
     return this.nativeCoin;
+  }
+
+  //*** HELPER METHODS ***//
+
+  private async getPendingAmount(assetName: string): Promise<number> {
+    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
+      (o) => o.targetAsset.dexName === assetName && o.targetAsset.blockchain === this.blockchain,
+    );
+
+    return Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+  }
+
+  private checkLiquidity(
+    requiredAmount: number,
+    pendingAmount: number,
+    availableAmount: number,
+    assetName: string,
+  ): void {
+    // 5% cap for unexpected meantime swaps
+    if (requiredAmount * 1.05 > availableAmount - pendingAmount) {
+      throw new NotEnoughLiquidityException(
+        `Not enough liquidity of asset ${this.nativeCoin}. Trying to use ${requiredAmount} ${assetName} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
+      );
+    }
   }
 }

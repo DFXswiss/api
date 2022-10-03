@@ -9,7 +9,7 @@ export abstract class PayoutEvmService {
   }
 
   async send(address: string, amount: number): Promise<string> {
-    return this.#client.send(address, amount);
+    return this.#client.sendNativeCrypto(address, amount);
   }
 
   async checkPayoutCompletion(txHash: string): Promise<boolean> {

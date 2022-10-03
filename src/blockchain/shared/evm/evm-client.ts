@@ -11,13 +11,17 @@ export class EvmClient {
     this.#address = address;
   }
 
-  async getBalance(): Promise<number> {
+  async getNativeCryptoBalance(): Promise<number> {
     const balance = await this.#provider.getBalance(this.#address);
 
     return parseFloat(ethers.utils.formatEther(balance));
   }
 
-  async send(address: string, amount: number): Promise<string> {
+  async getTokenBalance(tokenName: string): Promise<number> {
+    return 0;
+  }
+
+  async sendNativeCrypto(address: string, amount: number): Promise<string> {
     const gasPrice = await this.#provider.getGasPrice();
 
     const tx = await this.#wallet.sendTransaction({
@@ -30,6 +34,10 @@ export class EvmClient {
     });
 
     return tx.hash;
+  }
+
+  async sendToken(address: string, tokenName: string, amount: number): Promise<string> {
+    return 'tx hash';
   }
 
   async isTxComplete(txHash: string): Promise<boolean> {
