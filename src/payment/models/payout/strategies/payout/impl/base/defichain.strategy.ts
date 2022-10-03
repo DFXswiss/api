@@ -1,11 +1,11 @@
 import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
-import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
-import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutDeFiChainService, PayoutGroup } from '../../../services/payout-defichain.service';
+import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
+import { PayoutDeFiChainService, PayoutGroup } from '../../../../services/payout-defichain.service';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class PayoutDeFiChainStrategy implements PayoutStrategy {
+export abstract class DeFiChainStrategy implements PayoutStrategy {
   constructor(
     protected readonly mailService: MailService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,

@@ -8,7 +8,7 @@ import {
 } from '../../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { PayoutDeFiChainStrategy } from '../base/payout-defichain.strategy';
+import { DeFiChainStrategy } from '../impl/base/defichain.strategy';
 
 describe('PayoutDeFiChainStrategy', () => {
   let strategy: PayoutDeFiChainStrategyWrapper;
@@ -250,7 +250,7 @@ describe('PayoutDeFiChainStrategy', () => {
   });
 });
 
-class PayoutDeFiChainStrategyWrapper extends PayoutDeFiChainStrategy {
+class PayoutDeFiChainStrategyWrapper extends DeFiChainStrategy {
   constructor(
     mailService: MailService,
     payoutOrderRepo: PayoutOrderRepository,

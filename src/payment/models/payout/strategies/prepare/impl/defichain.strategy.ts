@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
-import { PayoutOrder } from '../../entities/payout-order.entity';
-import { PayoutOrderRepository } from '../../repositories/payout-order.repository';
-import { PayoutDeFiChainService } from '../../services/payout-defichain.service';
+import { PayoutOrder } from '../../../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
+import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PrepareStrategy } from './base/prepare.strategy';
 
 @Injectable()
-export class PrepareDeFiChainStrategy implements PrepareStrategy {
+export class DeFiChainStrategy implements PrepareStrategy {
   constructor(
     private readonly dexService: DexService,
     private readonly defichainService: PayoutDeFiChainService,

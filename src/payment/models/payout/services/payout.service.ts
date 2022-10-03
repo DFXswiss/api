@@ -6,17 +6,19 @@ import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { MailService } from 'src/shared/services/mail.service';
-import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/strategies.facade';
+import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { PayoutLogService } from './payout-log.service';
 import { PayoutRequest } from '../interfaces';
+import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
 
 @Injectable()
 export class PayoutService {
   private readonly processOrdersLock = new Lock(1800);
 
   constructor(
-    private readonly strategies: PayoutStrategiesFacade,
+    private readonly payoutStrategies: PayoutStrategiesFacade,
+    private readonly prepareStrategies: PrepareStrategiesFacade,
     private readonly logs: PayoutLogService,
     private readonly mailService: MailService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
@@ -86,7 +88,7 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const strategy = this.strategies.getPrepareStrategy(order.asset);
+      const strategy = this.prepareStrategies.getPrepareStrategy(order.asset);
 
       try {
         await strategy.checkPreparationCompletion(order);
@@ -105,7 +107,7 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const strategy = this.strategies.getPayoutStrategy(order.asset);
+      const strategy = this.payoutStrategies.getPayoutStrategy(order.asset);
 
       try {
         await strategy.checkPayoutCompletion(order);
@@ -123,7 +125,7 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const strategy = this.strategies.getPrepareStrategy(order.asset);
+      const strategy = this.prepareStrategies.getPrepareStrategy(order.asset);
 
       try {
         await strategy.preparePayout(order);
@@ -146,10 +148,10 @@ export class PayoutService {
       (o) => o.asset.blockchain === Blockchain.BINANCE_SMART_CHAIN && o.asset.dexName === 'BNB',
     );
 
-    const dfiStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
-    const tokenStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN);
-    const ethStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_DEFAULT);
-    const bnbStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.BSC_DEFAULT);
+    const dfiStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
+    const tokenStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN);
+    const ethStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_DEFAULT);
+    const bnbStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.BSC_DEFAULT);
 
     await dfiStrategy.doPayout(dfiOrders);
     await tokenStrategy.doPayout(tokenOrders);

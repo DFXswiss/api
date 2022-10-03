@@ -1,9 +1,9 @@
-import { PayoutOrder } from '../../../entities/payout-order.entity';
-import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutEvmService } from '../../../services/payout-evm.service';
+import { PayoutOrder } from '../../../../entities/payout-order.entity';
+import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
+import { PayoutEvmService } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class PayoutEvmStrategy implements PayoutStrategy {
+export abstract class EvmStrategy implements PayoutStrategy {
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,

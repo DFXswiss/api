@@ -1,4 +1,4 @@
-import { PayoutOrder } from '../../../entities/payout-order.entity';
+import { PayoutOrder } from '../../../../entities/payout-order.entity';
 
 export interface PayoutStrategy {
   doPayout(orders: PayoutOrder[]): Promise<void>;
