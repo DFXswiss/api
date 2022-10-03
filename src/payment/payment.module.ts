@@ -3,8 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
-import { BankController } from './models/bank/bank.controller';
-import { BankService } from './models/bank/bank.service';
 import { CryptoInputRepository } from './models/crypto-input/crypto-input.repository';
 import { CryptoInputService } from './models/crypto-input/crypto-input.service';
 import { BankTxBatchRepository } from './models/bank-tx/bank-tx-batch.repository';
@@ -108,7 +106,6 @@ import { PricingModule } from './models/pricing/pricing.module';
   ],
   controllers: [
     BankTxController,
-    BankController,
     CryptoBuyController,
     BuyCryptoController,
     CryptoSellController,
@@ -142,8 +139,6 @@ import { PricingModule } from './models/pricing/pricing.module';
     BankTxService,
     OlkypayService,
     FrickService,
-    BankService,
-
     HistoryService,
     BuyService,
     SellService,

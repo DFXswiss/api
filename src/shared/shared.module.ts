@@ -31,6 +31,8 @@ import { DfiTaxService } from './services/dfi-tax.service';
 import { LetterService } from './services/letter.service';
 import { IbanService } from './services/iban.service';
 import { ApiKeyService } from './services/api-key.service';
+import { BankRepository } from './models/bank/bank.repository';
+import { BankService } from './models/bank/bank.service';
 
 @Module({
   imports: [
@@ -42,6 +44,7 @@ import { ApiKeyService } from './services/api-key.service';
       CountryRepository,
       LanguageRepository,
       SettingRepository,
+      BankRepository,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
@@ -64,6 +67,7 @@ import { ApiKeyService } from './services/api-key.service';
     LetterService,
     IbanService,
     ApiKeyService,
+    BankService,
   ],
   exports: [
     PassportModule,
@@ -81,6 +85,7 @@ import { ApiKeyService } from './services/api-key.service';
     LetterService,
     IbanService,
     ApiKeyService,
+    BankService,
   ],
 })
 export class SharedModule {}
