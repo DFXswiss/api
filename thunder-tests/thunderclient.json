@@ -209,34 +209,6 @@
     "tests": []
   },
   {
-    "_id": "d0f8196e-3949-4b9f-b5d2-264e215ce31a",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Update Ref Volumes",
-    "url": "{{url}}/v1/cryptoBuy/refVolumes",
-    "method": "PUT",
-    "sortNum": 130000,
-    "created": "2022-01-15T13:53:12.691Z",
-    "modified": "2022-01-15T14:00:12.127Z",
-    "headers": [],
-    "params": [],
-    "tests": []
-  },
-  {
-    "_id": "f72e06bf-c00d-4353-8ec4-cde1cf460fd3",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Update Volumes",
-    "url": "{{url}}/v1/cryptoBuy/volumes",
-    "method": "PUT",
-    "sortNum": 65000,
-    "created": "2022-01-15T13:59:41.347Z",
-    "modified": "2022-01-15T14:00:31.637Z",
-    "headers": [],
-    "params": [],
-    "tests": []
-  },
-  {
     "_id": "17248925-a46a-4a6e-a162-43c10f93935f",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
@@ -541,63 +513,6 @@
     "modified": "2022-02-03T00:14:20.674Z",
     "headers": [],
     "params": [],
-    "tests": []
-  },
-  {
-    "_id": "cbf54e66-34ec-45ef-a970-fc050601ec08",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Create",
-    "url": "{{url}}/v1/cryptoBuy",
-    "method": "POST",
-    "sortNum": 32500,
-    "created": "2022-02-07T01:02:59.725Z",
-    "modified": "2022-02-07T01:19:00.830Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"bankTxId\": 36,\n    \"buyId\": 42,\n    \"amlCheck\": \"Pass\"\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
-    "_id": "601b39c4-6586-4566-b9cd-c85bede66892",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Update",
-    "url": "{{url}}/v1/cryptoBuy/31",
-    "method": "PUT",
-    "sortNum": 48750,
-    "created": "2022-02-07T01:19:48.434Z",
-    "modified": "2022-02-07T01:21:18.419Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"bankTxId\": 36,\n    \"buyId\": 42,\n    \"amlCheck\": \"Pass\"\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
-    "_id": "c8e1cdfc-ecc8-4009-ae9e-0e605ec124f8",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "39c67052-c784-4068-b744-5971d536436f",
-    "name": "Create",
-    "url": "{{url}}/v1/cryptoSell",
-    "method": "POST",
-    "sortNum": 210000,
-    "created": "2022-02-07T01:30:53.307Z",
-    "modified": "2022-02-07T01:33:52.436Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"cryptoInputId\": 22,\n    \"amlCheck\": \"Pass\"\n}",
-      "form": []
-    },
     "tests": []
   },
   {
