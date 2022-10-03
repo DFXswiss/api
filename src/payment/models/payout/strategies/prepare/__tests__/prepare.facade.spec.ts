@@ -30,11 +30,11 @@ describe('PrepareStrategiesFacade', () => {
 
   describe('#constructor(...)', () => {
     it('adds all prepareStrategies to a map', () => {
-      expect([...facade.getPrepareStrategies().entries()].length).toBe(3);
+      expect([...facade.getStrategies().entries()].length).toBe(3);
     });
 
     it('sets all required prepareStrategies aliases', () => {
-      const aliases = [...facade.getPrepareStrategies().keys()];
+      const aliases = [...facade.getStrategies().keys()];
 
       expect(aliases.includes(PrepareStrategyAlias.DEFICHAIN)).toBe(true);
       expect(aliases.includes(PrepareStrategyAlias.ETHEREUM)).toBe(true);
@@ -42,11 +42,11 @@ describe('PrepareStrategiesFacade', () => {
     });
 
     it('assigns proper prepareStrategies to aliases', () => {
-      expect(facade.getPrepareStrategies().get(PrepareStrategyAlias.DEFICHAIN)).toBeInstanceOf(DeFiChainStrategy);
+      expect(facade.getStrategies().get(PrepareStrategyAlias.DEFICHAIN)).toBeInstanceOf(DeFiChainStrategy);
 
-      expect(facade.getPrepareStrategies().get(PrepareStrategyAlias.ETHEREUM)).toBeInstanceOf(EthereumStrategy);
+      expect(facade.getStrategies().get(PrepareStrategyAlias.ETHEREUM)).toBeInstanceOf(EthereumStrategy);
 
-      expect(facade.getPrepareStrategies().get(PrepareStrategyAlias.BSC)).toBeInstanceOf(BscStrategy);
+      expect(facade.getStrategies().get(PrepareStrategyAlias.BSC)).toBeInstanceOf(BscStrategy);
     });
   });
 
@@ -119,7 +119,7 @@ class PrepareStrategiesFacadeWrapper extends PrepareStrategiesFacade {
     super(defichain, ethereum, bsc);
   }
 
-  getPrepareStrategies() {
+  getStrategies() {
     return this.strategies;
   }
 }

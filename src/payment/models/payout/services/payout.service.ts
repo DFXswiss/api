@@ -150,8 +150,8 @@ export class PayoutService {
 
     const dfiStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
     const tokenStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN);
-    const ethStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_DEFAULT);
-    const bnbStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.BSC_DEFAULT);
+    const ethStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_CRYPTO);
+    const bnbStrategy = this.payoutStrategies.getPayoutStrategy(PayoutStrategyAlias.BSC_CRYPTO);
 
     await dfiStrategy.doPayout(dfiOrders);
     await tokenStrategy.doPayout(tokenOrders);
