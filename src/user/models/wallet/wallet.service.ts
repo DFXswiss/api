@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
+import { IsNull, Not } from 'typeorm';
 import { Wallet } from './wallet.entity';
 
 @Injectable()
@@ -8,6 +9,10 @@ export class WalletService {
 
   async getWalletOrDefault(id: number): Promise<Wallet> {
     return (await this.walletRepo.findOne(id)) ?? (await this.walletRepo.findOne(1));
+  }
+
+  async getAllExternalServices(): Promise<Wallet[]> {
+    return await this.walletRepo.find({ where: { apiUrl: Not(IsNull()), isKycClient: true } });
   }
 
   // TODO: remove?
