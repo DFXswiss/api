@@ -69,7 +69,11 @@ export class KycProcessService {
 
     userData = this.updateKycStatus(userData, status);
 
-    await this.kycWebhookService.kycChanged(userData);
+    if (status === KycStatus.REJECTED) {
+      await this.kycWebhookService.kycFailed(userData, 'KYC Rejected');
+    } else {
+      await this.kycWebhookService.kycChanged(userData);
+    }
 
     return userData;
   }
