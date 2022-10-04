@@ -9,6 +9,22 @@ export class EvmTokenStrategy extends PurchaseLiquidityStrategy {
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
-    return;
+    const { referenceAsset, referenceAmount, targetAsset, context, correlationId } = request;
+    try {
+      // should always throw, even if there is amount, additional check is done for API consistency and sending mail
+      const amount = await this.dexEvmService.getAndCheckTokenAvailability(
+        referenceAsset,
+        referenceAmount,
+        targetAsset.dexName,
+      );
+
+      if (amount) {
+        throw new Error(
+          `Requested ${referenceAsset} liquidity is already available on the wallet. No purchase required, retry checkLiquidity. Context: ${context}. CorrelationID: ${correlationId}`,
+        );
+      }
+    } catch (e) {
+      await this.handlePurchaseLiquidityError(e, request);
+    }
   }
 }

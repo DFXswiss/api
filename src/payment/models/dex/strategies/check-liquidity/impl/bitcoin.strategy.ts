@@ -8,6 +8,8 @@ export class BitcoinStrategy implements CheckLiquidityStrategy {
   constructor(private readonly dexBtcService: DexBitcoinService) {}
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {
-    return 0;
+    const { referenceAmount: bitcoinAmount } = request;
+
+    return this.dexBtcService.checkAvailableTargetLiquidity(bitcoinAmount);
   }
 }

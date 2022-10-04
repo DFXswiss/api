@@ -27,13 +27,17 @@ export abstract class DexEvmService {
     return amount;
   }
 
-  async checkTokenAvailability(token: string, amount: number): Promise<number> {
-    const pendingAmount = await this.getPendingAmount(token);
-    const availableAmount = await this.#client.getTokenBalance(token);
+  async getAndCheckTokenAvailability(
+    referenceAsset: string,
+    referenceAmount: number,
+    targetAsset: string,
+  ): Promise<number> {
+    // TODO - implement poolswap check or price request
+    const targetAmount = 1;
 
-    this.checkLiquidity(amount, pendingAmount, availableAmount, token);
+    await this.checkAssetAvailability(targetAsset, targetAmount);
 
-    return amount;
+    return targetAmount;
   }
 
   get _nativeCoin(): string {
@@ -41,6 +45,13 @@ export abstract class DexEvmService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async checkAssetAvailability(asset: string, amount: number): Promise<void> {
+    const pendingAmount = await this.getPendingAmount(asset);
+    const availableAmount = await this.#client.getTokenBalance(asset);
+
+    this.checkLiquidity(amount, pendingAmount, availableAmount, asset);
+  }
 
   private async getPendingAmount(assetName: string): Promise<number> {
     const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
