@@ -25,7 +25,7 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { BankService } from 'src/shared/models/bank/bank.service';
+import { BankService, BankSelectorInput } from 'src/shared/models/bank/bank.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -138,9 +138,15 @@ export class BuyController {
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
 
-    const bank = await this.bankService.getBank(dto.amount, dto.currency, buy.bankAccount);
+    const bank = await this.bankService.getBank({
+      amount: dto.amount,
+      currency: dto.currency,
+      iban: buy.bankAccount.iban,
+      sctInst: buy.bankAccount.sctInst,
+      kycStatus: buy.user.userData.kycStatus,
+    });
 
-    if (!bank) new ConflictException('No Bank for the given amount/currency');
+    if (!bank) throw new ConflictException('No Bank for the given amount/currency');
 
     return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic };
   }
