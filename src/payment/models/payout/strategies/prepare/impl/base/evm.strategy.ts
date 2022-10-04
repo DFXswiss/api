@@ -1,20 +1,8 @@
-import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
-import { PrepareStrategy } from './prepare.strategy';
+import { AutoConfirmStrategy } from './auto-confirm.strategy';
 
-export abstract class EvmStrategy implements PrepareStrategy {
-  constructor(protected readonly payoutOrderRepo: PayoutOrderRepository) {}
-
-  async preparePayout(order: PayoutOrder): Promise<void> {
-    order.preparationConfirmed();
-
-    await this.payoutOrderRepo.save(order);
-  }
-
-  /**
-   * no payout preparation needed for ethereum
-   */
-  async checkPreparationCompletion(): Promise<void> {
-    return;
+export abstract class EvmStrategy extends AutoConfirmStrategy {
+  constructor(payoutOrderRepo: PayoutOrderRepository) {
+    super(payoutOrderRepo);
   }
 }

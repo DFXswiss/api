@@ -9,6 +9,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
+import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexService } from '../../../services/dex.service';
@@ -40,7 +41,7 @@ describe('PurchaseLiquidityStrategies', () => {
     nodeService = mock<NodeService>();
     jest.spyOn(nodeService, 'getConnectedNode').mockImplementation(() => new BehaviorSubject(null));
 
-    bitcoin = new BitcoinStrategy(mock<MailService>());
+    bitcoin = new BitcoinStrategy(mock<MailService>(), mock<DexBitcoinService>());
     bscCrypto = new BscCryptoStrategy(mock<MailService>(), mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<MailService>(), mock<DexBscService>());
 
