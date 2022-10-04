@@ -3,6 +3,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { KycCompleted, UserData } from '../user-data/user-data.entity';
 import { Config } from 'src/config/config';
+import { UserRepository } from '../user/user.repository';
 
 export enum KycWebhookStatus {
   NA = 'NA',
@@ -37,7 +38,7 @@ export class KycWebhookDto {
 
 @Injectable()
 export class KycWebhookService {
-  constructor(private readonly http: HttpService, private readonly walletRepo: WalletRepository) {}
+  constructor(private readonly http: HttpService, private readonly walletRepo: WalletRepository, private readonly userRepo: UserRepository) {}
 
   async kycChanged(userData: UserData): Promise<void> {
     await this.triggerWebhook(userData, KycWebhookResult.STATUS_CHANGED);
@@ -48,10 +49,7 @@ export class KycWebhookService {
   }
 
   private async triggerWebhook(userData: UserData, result: KycWebhookResult, reason?: string): Promise<void> {
-    if (!userData.users) {
-      console.error(`Tried to trigger webhook for user ${userData.id}, but users were not loaded`);
-      return;
-    }
+    userData.users ??= (await this.userRepo.find({where: {userData: {id: userData.id}}, relations: ['wallet']}));
 
     for (const user of userData.users) {
       try {
