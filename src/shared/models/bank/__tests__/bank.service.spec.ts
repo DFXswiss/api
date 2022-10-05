@@ -15,7 +15,16 @@ import { TestSharedModule } from 'src/shared/test.shared.module';
 import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
 import { createDefaultBankAccount } from 'src/payment/models/bank-account/__mocks__/bank-account.entity.mock';
 import { BankRepository } from '../bank.repository';
-import { createDefaultBanks } from '../__mocks__/bank.entity.mock';
+import {
+  createDefaultBanks,
+  createDefaultDisabledBanks,
+  frickCHF,
+  frickEUR,
+  frickUSD,
+  maerkiCHF,
+  maerkiEUR,
+  olkyEUR,
+} from '../__mocks__/bank.entity.mock';
 
 function createBankSelectorInput(
   currency: string = 'EUR',
@@ -72,61 +81,62 @@ describe('BankService', () => {
     service = module.get<BankService>(BankService);
   });
 
+  function defaultSetup(maerkiBaumannEnable = true, disabledBank = false) {
+    jest
+      .spyOn(countryService, 'getCountryWithSymbol')
+      .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: maerkiBaumannEnable }));
+    jest.spyOn(bankRepo, 'find').mockResolvedValue(disabledBank ? createDefaultDisabledBanks() : createDefaultBanks());
+  }
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
   it('should return BF if amount > 9000', async () => {
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
-    jest.spyOn(bankRepo, 'find').mockResolvedValue(createDefaultBanks());
-
+    defaultSetup();
     await expect(service.getBank(createBankSelectorInput('CHF', 10000))).resolves.toMatchObject({
-      iban: 'LI52088110104693K000C',
-      bic: 'BFRILI22',
+      iban: frickCHF.iban,
+      bic: frickCHF.bic,
     });
   });
 
   it('should return BF if currency = USD', async () => {
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
-    jest.spyOn(bankRepo, 'find').mockResolvedValue(createDefaultBanks());
-
+    defaultSetup();
     await expect(service.getBank(createBankSelectorInput('USD'))).resolves.toMatchObject({
-      iban: 'LI51088110104693K000U',
-      bic: 'BFRILI22',
+      iban: frickUSD.iban,
+      bic: frickUSD.bic,
     });
   });
 
   it('should return Olkypay if currency = EUR & sctInst & KYC completed', async () => {
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
-    jest.spyOn(bankRepo, 'find').mockResolvedValue(createDefaultBanks());
-
+    defaultSetup();
     await expect(service.getBank(createBankSelectorInput('EUR'))).resolves.toMatchObject({
-      iban: 'LU116060002000005040',
-      bic: 'OLKILUL1',
+      iban: olkyEUR.iban,
+      bic: olkyEUR.bic,
     });
   });
 
   it('should return MB if ibanCountry = MBCountry & userDataCountry = MBCountry', async () => {
-    jest.spyOn(bankRepo, 'find').mockResolvedValue(createDefaultBanks());
-    jest
-      .spyOn(countryService, 'getCountryWithSymbol')
-      .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: true }));
-
+    defaultSetup(true);
     await expect(service.getBank(createBankSelectorInput('CHF'))).resolves.toMatchObject({
-      iban: 'CH3408573177975200001',
-      bic: 'MAEBCHZZ',
+      iban: maerkiCHF.iban,
+      bic: maerkiCHF.bic,
     });
   });
 
   it('should return BF as default', async () => {
-    jest.spyOn(bankRepo, 'find').mockResolvedValue(createDefaultBanks());
-    jest
-      .spyOn(countryService, 'getCountryWithSymbol')
-      .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: false }));
-
+    defaultSetup(false);
     await expect(service.getBank(createBankSelectorInput('GBP'))).resolves.toMatchObject({
-      iban: 'LI95088110104693K000E',
-      bic: 'BFRILI22',
+      iban: frickEUR.iban,
+      bic: frickEUR.bic,
+    });
+  });
+
+  it('should return maerki if currency = EUR & sctInst & KYC completed & olky disabled', async () => {
+    defaultSetup(true, true);
+    await expect(service.getBank(createBankSelectorInput('EUR'))).resolves.toMatchObject({
+      iban: maerkiEUR.iban,
+      bic: maerkiEUR.bic,
     });
   });
 });
