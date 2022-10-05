@@ -20,6 +20,10 @@ export class BankService {
     return await this.bankRepo.find();
   }
 
+  async getBankInternal(name: BankName, currency: string): Promise<Bank> {
+    return await this.bankRepo.findOne({ where: { name, currency } });
+  }
+
   // --- BankSelector --- //
   async getBank(bankSelectorInput: BankSelectorInput): Promise<Bank> {
     let account: Bank;

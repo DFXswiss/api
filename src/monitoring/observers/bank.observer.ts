@@ -6,6 +6,8 @@ import { MonitoringService } from 'src/monitoring/monitoring.service';
 import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
 import { FrickService } from 'src/payment/models/bank-tx/frick.service';
 import { OlkypayService } from 'src/payment/models/bank-tx/olkypay.service';
+import { BankName } from 'src/shared/models/bank/bank.entity';
+import { BankService } from 'src/shared/models/bank/bank.service';
 import { Util } from 'src/shared/util';
 import { getCustomRepository } from 'typeorm';
 
@@ -24,6 +26,7 @@ export class BankObserver extends MetricObserver<BankData[]> {
     monitoringService: MonitoringService,
     private readonly olkypayService: OlkypayService,
     private readonly frickService: FrickService,
+    private readonly bankService: BankService,
   ) {
     super(monitoringService, 'bank', 'balance');
   }
@@ -44,7 +47,8 @@ export class BankObserver extends MetricObserver<BankData[]> {
 
   private async getOlkypay(): Promise<BankData> {
     const { balance, balanceOperationYesterday } = await this.olkypayService.getBalance();
-    const dbBalance = await this.getDbBalance(Config.bank.olkypay.account.iban);
+    const olkyBank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
+    const dbBalance = await this.getDbBalance(olkyBank.iban);
 
     return {
       name: 'Olkypay',
