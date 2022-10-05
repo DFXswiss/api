@@ -84,7 +84,10 @@ export class SellController {
       ...sell,
       fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain),
+      minDeposits:
+        sell.fiat.name === 'USD'
+          ? Util.transformToMinDeposit(Config.blockchain.default.minTransactionVolume, 'USD')
+          : Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'USD'),
     };
   }
 
@@ -92,7 +95,10 @@ export class SellController {
     return {
       fee: await this.getFee(userId),
       depositAddress: sell.deposit.address,
-      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain),
+      minDeposits:
+        sell.fiat.name === 'USD'
+          ? Util.transformToMinDeposit(Config.blockchain.default.minTransactionVolume, 'USD')
+          : Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'USD'),
     };
   }
 
