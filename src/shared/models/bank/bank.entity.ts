@@ -1,11 +1,17 @@
 import { Entity, Column, Index } from 'typeorm';
 import { IEntity } from '../entity';
 
+export enum BankName {
+  FRICK = 'Bank Frick',
+  OLKY = 'Olkypay',
+  MAERKI = 'Maerki Baumann',
+}
+
 @Entity()
 @Index('ibanBic', (bank: Bank) => [bank.iban, bank.bic], { unique: true })
 export class Bank extends IEntity {
   @Column({ length: 256 })
-  name: string;
+  name: BankName;
 
   @Column({ length: 256 })
   iban: string;

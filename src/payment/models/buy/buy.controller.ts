@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Param, ConflictException } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Param, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -25,7 +25,7 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { BankService, BankSelectorInput } from 'src/shared/models/bank/bank.service';
+import { BankService } from 'src/shared/models/bank/bank.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -140,13 +140,12 @@ export class BuyController {
 
     const bank = await this.bankService.getBank({
       amount: dto.amount,
-      currency: dto.currency,
-      iban: buy.bankAccount.iban,
-      sctInst: buy.bankAccount.sctInst,
+      currency: dto.currency.name,
+      bankAccount: buy.bankAccount,
       kycStatus: buy.user.userData.kycStatus,
     });
 
-    if (!bank) throw new ConflictException('No Bank for the given amount/currency');
+    if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic };
   }

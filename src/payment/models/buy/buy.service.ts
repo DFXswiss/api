@@ -86,7 +86,7 @@ export class BuyService {
         ...(dto.type === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
         user: { id: userId },
       },
-      relations: ['deposit', 'bankAccount', 'user', 'user.userData', 'bankAccount.user', 'bankAccount.user.userData'],
+      relations: ['deposit', 'bankAccount', 'user', 'user.userData'],
     });
 
     if (existing) {

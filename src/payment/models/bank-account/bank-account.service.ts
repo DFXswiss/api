@@ -59,7 +59,7 @@ export class BankAccountService {
   async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
       where: { iban },
-      relations: ['user', 'user.userData'],
+      relations: ['user'],
     });
 
     return (

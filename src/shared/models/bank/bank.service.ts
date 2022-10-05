@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
 import { KycCompleted, KycStatus } from 'src/user/models/user-data/user-data.entity';
 import { CountryService } from '../country/country.service';
-import { Fiat } from '../fiat/fiat.entity';
-import { Bank } from './bank.entity';
+import { Bank, BankName } from './bank.entity';
 import { BankRepository } from './bank.repository';
 
 export interface BankSelectorInput {
   amount: number;
-  currency: Fiat;
-  iban: string;
-  sctInst: boolean;
+  currency: string;
+  bankAccount: BankAccount;
   kycStatus: KycStatus;
 }
 
@@ -28,31 +27,33 @@ export class BankService {
     const frickAmountLimit = 9000;
     const fallBackCurrency = 'EUR';
 
-    const ibanCodeCountry = await this.countryService.getCountryWithSymbol(bankSelectorInput.iban.substring(0, 2));
+    const ibanCodeCountry = await this.countryService.getCountryWithSymbol(
+      bankSelectorInput.bankAccount.iban.substring(0, 2),
+    );
 
     const banks = await this.bankRepo.find();
 
     // select the matching bank account
-    if (bankSelectorInput.amount > frickAmountLimit || bankSelectorInput.currency.name === 'USD') {
+    if (bankSelectorInput.amount > frickAmountLimit || bankSelectorInput.currency === 'USD') {
       // amount > 9k => Frick || USD => Frick
-      account = this.getMatchingBank(banks, 'Bank Frick', bankSelectorInput.currency.name, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.FRICK, bankSelectorInput.currency, fallBackCurrency);
     }
     if (
       !account &&
-      bankSelectorInput.currency.name === 'EUR' &&
-      bankSelectorInput.sctInst &&
+      bankSelectorInput.currency === 'EUR' &&
+      bankSelectorInput.bankAccount.sctInst &&
       KycCompleted(bankSelectorInput.kycStatus)
     ) {
       // instant => Olkypay / EUR
-      account = this.getMatchingBank(banks, 'Olkypay', bankSelectorInput.currency.name, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.OLKY, bankSelectorInput.currency, fallBackCurrency);
     }
     if (!account && ibanCodeCountry.maerkiBaumannEnable) {
       // Valid Maerki Baumann country => MB CHF/USD/EUR
-      account = this.getMatchingBank(banks, 'Maerki Baumann', bankSelectorInput.currency.name, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.MAERKI, bankSelectorInput.currency, fallBackCurrency);
     }
     if (!account) {
       // Default => Frick
-      account = this.getMatchingBank(banks, 'Bank Frick', bankSelectorInput.currency.name, fallBackCurrency);
+      account = this.getMatchingBank(banks, BankName.FRICK, bankSelectorInput.currency, fallBackCurrency);
     }
 
     return account;
