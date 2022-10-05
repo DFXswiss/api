@@ -87,12 +87,12 @@
     }
   },
   "amlReasonMailText": {
-    "DailyLimit": "Vous avez dépassé la limite hors KYC",
-    "UserDataMismatch": "Le nom que vous avez indiqué à DFX ne correspond pas au nom du propriétaire de l'IBAN",
-    "IbanCheck": "L'IBAN n'est pas utilisable avec DFX",
-    "KycRejected": "",
-    "NameCheck": "",
-    "AnnualLimit": "",
-    "OlkyNoKyc": ""
+    "DailyLimit": "You exceeded the limit without KYC",
+    "UserDataMismatch": "Your name you provided to DFX does not match the name of the owner of the IBAN",
+    "IbanCheck": "The IBAN cannot be used with DFX",
+    "KycRejected": "Your KYC Request was rejected",
+    "NameCheck": "For legal reasons we can not serve you as a customer",
+    "AnnualLimit": "You exceeded your annual limit",
+    "OlkyNoKyc": "You have to complete KYC for DFX in order to use Olkypay Bank"
   }
 }
