@@ -17,6 +17,11 @@ export class BuyCryptoNotificationService {
   ) {}
 
   async sendNotificationMails(): Promise<void> {
+    await this.buyCryptoConfirmed();
+    await this.paybackToAddressInitiated();
+  }
+
+  async buyCryptoConfirmed(): Promise<void> {
     try {
       const txOutput = await this.buyCryptoRepo.find({
         where: {
@@ -65,7 +70,10 @@ export class BuyCryptoNotificationService {
 
           tx.confirmSentMail();
 
-          await this.buyCryptoRepo.save(tx);
+          await this.buyCryptoRepo.update(
+            { id: tx.id },
+            { mailSendDate: tx.mailSendDate, recipientMail: tx.recipientMail },
+          );
         } catch (e) {
           console.error(e);
         }
@@ -107,24 +115,20 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        entity.paybackInitiated();
+        entity.confirmSentMail();
 
-        if (entity.buy?.user.userData.mail || entity.cryptoRoute?.user.userData.mail) {
+        if (entity.user.userData.mail) {
           await this.mailService.sendTranslatedMail({
-            userData: entity.buy ? entity.buy.user.userData : entity.cryptoRoute.user.userData,
+            userData: entity.user.userData,
             translationKey: 'mail.payment.deposit.paybackInitiated',
             params: {
               inputAmount: entity.inputAmount,
               inputAsset: entity.inputAsset,
               returnTransactionLink: entity.chargebackRemittanceInfo,
               returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
-                lang: entity.buy
-                  ? entity.buy.user.userData.language?.symbol.toLowerCase()
-                  : entity.cryptoRoute.user.userData.language?.symbol.toLowerCase(),
+                lang: entity.user.userData.language?.symbol.toLowerCase(),
               }),
-              userAddressTrimmed: Util.trimBlockchainAddress(
-                entity.buy ? entity.buy.user.address : entity.cryptoRoute.user.address,
-              ),
+              userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
             },
           });
         }

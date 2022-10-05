@@ -103,10 +103,11 @@ export class BuyCryptoService {
 
     Util.removeNullFields(entity);
 
-    entity =
+    const amlUpdate =
       entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
-        ? await this.buyCryptoRepo.save({ ...update, ...entity, amlCheck: update.amlCheck, mailSendDate: null })
-        : await this.buyCryptoRepo.save({ ...update, ...entity });
+        ? { amlCheck: update.amlCheck, mailSendDate: null }
+        : undefined;
+    entity = await this.buyCryptoRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {
@@ -129,7 +130,6 @@ export class BuyCryptoService {
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
-    await this.buyCryptoNotificationService.paybackToAddressInitiated();
 
     this.lock.release();
   }

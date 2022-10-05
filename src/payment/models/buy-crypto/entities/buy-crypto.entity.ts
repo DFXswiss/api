@@ -216,11 +216,4 @@ export class BuyCrypto extends IEntity {
           asset: this.cryptoRoute.asset,
         };
   }
-
-  paybackInitiated(): this {
-    this.recipientMail = this.user.userData.mail;
-    this.mailSendDate = new Date().getTime();
-
-    return this;
-  }
 }
