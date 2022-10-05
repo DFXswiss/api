@@ -8,9 +8,7 @@ export class BankTxReturnService {
   constructor(private readonly bankTxReturnRepo: BankTxReturnRepository) {}
 
   async create(bankTx: BankTx): Promise<BankTxReturn> {
-    const entity = this.bankTxReturnRepo.create();
-
-    entity.bankTx = bankTx;
+    const entity = this.bankTxReturnRepo.create({ bankTx });
 
     return await this.bankTxReturnRepo.save(entity);
   }
