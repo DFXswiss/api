@@ -8,8 +8,12 @@ export abstract class PayoutEvmService {
     this.#client = service.getDefaultClient();
   }
 
-  async send(address: string, amount: number): Promise<string> {
+  async sendNativeCrypto(address: string, amount: number): Promise<string> {
     return this.#client.sendNativeCrypto(address, amount);
+  }
+
+  async sendToken(address: string, tokenName: string, amount: number): Promise<string> {
+    return this.#client.sendToken(address, tokenName, amount);
   }
 
   async checkPayoutCompletion(txHash: string): Promise<boolean> {

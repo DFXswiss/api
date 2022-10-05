@@ -12,7 +12,7 @@ export abstract class EvmStrategy implements PayoutStrategy {
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const txId = await this.payoutEvmService.send(order.destinationAddress, order.amount);
+        const txId = await this.payoutEvmService.sendNativeCrypto(order.destinationAddress, order.amount);
         order.pendingPayout(txId);
 
         await this.payoutOrderRepo.save(order);
