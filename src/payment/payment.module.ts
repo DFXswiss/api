@@ -69,6 +69,8 @@ import { ExchangeModule } from './models/exchange/exchange.module';
 import { PricingModule } from './models/pricing/pricing.module';
 import { BankTxReturnRepository } from './models/bank-tx-return/bank-tx-return.repository';
 import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.service';
+import { BankTxRepeatRepository } from './models/bank-tx-repeat/bank-tx-repeat.repository';
+import { BankTxRepeatService } from './models/bank-tx-repeat/bank-tx-repeat.service';
 
 @Module({
   imports: [
@@ -92,6 +94,7 @@ import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.serv
       BankAccountRepository,
       CryptoRouteRepository,
       BankTxReturnRepository,
+      BankTxRepeatRepository,
     ]),
     SharedModule,
     AinModule,
@@ -153,6 +156,7 @@ import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.serv
     CryptoRouteService,
     ChainalysisService,
     BankTxReturnService,
+    BankTxRepeatService,
   ],
   exports: [
     BuyService,
