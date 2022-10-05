@@ -67,6 +67,8 @@ import { FrickService } from './models/bank-tx/frick.service';
 import { BankAccountController } from './models/bank-account/bank-account.controller';
 import { ExchangeModule } from './models/exchange/exchange.module';
 import { PricingModule } from './models/pricing/pricing.module';
+import { BankTxReturnRepository } from './models/bank-tx-return/bank-tx-return.repository';
+import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.service';
 
 @Module({
   imports: [
@@ -89,6 +91,7 @@ import { PricingModule } from './models/pricing/pricing.module';
       StakingRefRewardRepository,
       BankAccountRepository,
       CryptoRouteRepository,
+      BankTxReturnRepository,
     ]),
     SharedModule,
     AinModule,
@@ -131,7 +134,6 @@ import { PricingModule } from './models/pricing/pricing.module';
     OlkypayService,
     FrickService,
     BankService,
-
     HistoryService,
     BuyService,
     SellService,
@@ -150,6 +152,7 @@ import { PricingModule } from './models/pricing/pricing.module';
     CryptoRouteController,
     CryptoRouteService,
     ChainalysisService,
+    BankTxReturnService,
   ],
   exports: [
     BuyService,
