@@ -8,10 +8,10 @@ import {
 } from '../../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { DeFiChainStrategy } from '../impl/base/defichain.strategy';
+import { JellyfishStrategy } from '../impl/base/jellyfish.strategy';
 
-describe('PayoutDeFiChainStrategy', () => {
-  let strategy: PayoutDeFiChainStrategyWrapper;
+describe('PayoutJellyfishStrategy', () => {
+  let strategy: PayoutJellyfishStrategyWrapper;
 
   let mailService: MailService;
   let payoutOrderRepo: PayoutOrderRepository;
@@ -28,7 +28,7 @@ describe('PayoutDeFiChainStrategy', () => {
     repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save');
     sendErrorMailSpy = jest.spyOn(mailService, 'sendErrorMail');
 
-    strategy = new PayoutDeFiChainStrategyWrapper(mailService, payoutOrderRepo, defichainService);
+    strategy = new PayoutJellyfishStrategyWrapper(mailService, payoutOrderRepo, defichainService);
   });
 
   afterEach(() => {
@@ -250,7 +250,7 @@ describe('PayoutDeFiChainStrategy', () => {
   });
 });
 
-class PayoutDeFiChainStrategyWrapper extends DeFiChainStrategy {
+class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
   constructor(
     mailService: MailService,
     payoutOrderRepo: PayoutOrderRepository,
@@ -261,6 +261,10 @@ class PayoutDeFiChainStrategyWrapper extends DeFiChainStrategy {
 
   protected doPayoutForContext(): Promise<void> {
     throw new Error('Method not implemented.');
+  }
+
+  protected async dispatchPayout(): Promise<string> {
+    return 'TX_ID_01';
   }
 
   groupOrdersByContextWrapper(orders: PayoutOrder[]) {

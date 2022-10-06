@@ -2,18 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderContext, PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
+import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { DeFiChainStrategy } from './base/defichain.strategy';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
-export class DeFiChainDfiStrategy extends DeFiChainStrategy {
+export class DeFiChainDfiStrategy extends JellyfishStrategy {
   constructor(
     mailService: MailService,
-    protected readonly defichainService: PayoutDeFiChainService,
+    protected readonly jellyfishService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo, defichainService);
-    this.defichainService.sendUtxoToMany = this.defichainService.sendUtxoToMany.bind(this.defichainService);
+    super(mailService, payoutOrderRepo, jellyfishService);
+    this.jellyfishService.sendUtxoToMany = this.jellyfishService.sendUtxoToMany.bind(this.jellyfishService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -38,7 +39,11 @@ export class DeFiChainDfiStrategy extends DeFiChainStrategy {
     }
   }
 
+  protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
+    return this.jellyfishService.sendUtxoToMany(context, payout);
+  }
+
   private async sendDFI(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    await this.send(context, orders, 'DFI', this.defichainService.sendUtxoToMany);
+    await this.send(context, orders, 'DFI');
   }
 }

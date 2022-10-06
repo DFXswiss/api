@@ -3,21 +3,22 @@ import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderContext, PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
+import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
-import { DeFiChainStrategy } from './base/defichain.strategy';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 type TokenName = string;
 
 @Injectable()
-export class DeFiChainTokenStrategy extends DeFiChainStrategy {
+export class DeFiChainTokenStrategy extends JellyfishStrategy {
   constructor(
     mailService: MailService,
     private readonly dexService: DexService,
-    protected readonly defichainService: PayoutDeFiChainService,
+    protected readonly jellyfishService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo, defichainService);
-    this.defichainService.sendTokenToMany = this.defichainService.sendTokenToMany.bind(this.defichainService);
+    super(mailService, payoutOrderRepo, jellyfishService);
+    this.jellyfishService.sendTokenToMany = this.jellyfishService.sendTokenToMany.bind(this.jellyfishService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -72,18 +73,22 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
   }
 
   private isEligibleForMinimalUtxo(address: string): boolean {
-    return this.defichainService.isLightWalletAddress(address);
+    return this.jellyfishService.isLightWalletAddress(address);
   }
 
   private async checkUtxo(address: string): Promise<void> {
-    const utxo = await this.defichainService.getUtxoForAddress(address);
+    const utxo = await this.jellyfishService.getUtxoForAddress(address);
 
     if (!utxo) {
       await this.dexService.transferMinimalUtxo(address);
     }
   }
 
+  protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, outputAsset: string): Promise<string> {
+    return this.jellyfishService.sendTokenToMany(context, payout, outputAsset);
+  }
+
   private async sendToken(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {
-    await this.send(context, orders, outputAsset, this.defichainService.sendTokenToMany);
+    await this.send(context, orders, outputAsset);
   }
 }

@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
-
-export type PayoutGroup = { addressTo: string; amount: number }[];
+import { PayoutOrderContext } from '../entities/payout-order.entity';
+import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
 
 @Injectable()
-export class PayoutBitcoinService {
+export class PayoutBitcoinService extends PayoutJellyfishService {
   #client: BtcClient;
 
   constructor(readonly nodeService: NodeService) {
+    super();
     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.#client = client));
   }
 
@@ -20,7 +21,7 @@ export class PayoutBitcoinService {
     }
   }
 
-  async sendUtxoToMany(payout: PayoutGroup): Promise<string> {
+  async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     return this.#client.sendUtxoToMany(payout);
   }
 

@@ -1,15 +1,15 @@
+import { PayoutGroup, PayoutJellyfishService } from 'src/payment/models/payout/services/base/payout-jellyfish.service';
 import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
-import { PayoutDeFiChainService, PayoutGroup } from '../../../../services/payout-defichain.service';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class DeFiChainStrategy implements PayoutStrategy {
+export abstract class JellyfishStrategy implements PayoutStrategy {
   constructor(
     protected readonly mailService: MailService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
-    protected readonly defichainService: PayoutDeFiChainService,
+    protected readonly jellyfishService: PayoutJellyfishService,
   ) {}
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
@@ -17,7 +17,7 @@ export abstract class DeFiChainStrategy implements PayoutStrategy {
       const groups = this.groupOrdersByContext(orders);
 
       for (const [context, group] of [...groups.entries()]) {
-        if (!(await this.defichainService.isHealthy(context))) return;
+        if (!(await this.jellyfishService.isHealthy(context))) return;
 
         await this.doPayoutForContext(context, group);
       }
@@ -28,7 +28,7 @@ export abstract class DeFiChainStrategy implements PayoutStrategy {
 
   async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
     try {
-      const isComplete = await this.defichainService.checkPayoutCompletion(order.context, order.payoutTxId);
+      const isComplete = await this.jellyfishService.checkPayoutCompletion(order.context, order.payoutTxId);
 
       if (isComplete) {
         order.complete();
@@ -80,19 +80,20 @@ export abstract class DeFiChainStrategy implements PayoutStrategy {
     return [...result.values()];
   }
 
-  protected async send(
+  protected abstract dispatchPayout(
     context: PayoutOrderContext,
-    orders: PayoutOrder[],
+    payout: PayoutGroup,
     outputAsset: string,
-    dispatcher: (context: PayoutOrderContext, payout: PayoutGroup, outputAsset: string) => Promise<string>,
-  ): Promise<void> {
+  ): Promise<string>;
+
+  protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {
     let payoutTxId: string;
 
     try {
       const payout = this.aggregatePayout(orders);
 
       await this.designatePayout(orders);
-      payoutTxId = await dispatcher(context, payout, outputAsset);
+      payoutTxId = await this.dispatchPayout(context, payout, outputAsset);
     } catch (e) {
       console.error(`Error on sending ${outputAsset} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
 

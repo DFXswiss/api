@@ -1,21 +1,49 @@
 import { Injectable } from '@nestjs/common';
-import { PayoutOrder } from '../../../entities/payout-order.entity';
+import { MailService } from 'src/shared/services/mail.service';
+import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
+import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
-import { PayoutStrategy } from './base/payout.strategy';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
-export class BitcoinStrategy implements PayoutStrategy {
+export class BitcoinStrategy extends JellyfishStrategy {
   constructor(
+    mailService: MailService,
     protected readonly bitcoinService: PayoutBitcoinService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
-  ) {}
-
-  doPayout(orders: PayoutOrder[]): Promise<void> {
-    throw new Error('Method not implemented.');
+  ) {
+    super(mailService, payoutOrderRepo, bitcoinService);
+    this.bitcoinService.sendUtxoToMany = this.bitcoinService.sendUtxoToMany.bind(this.bitcoinService);
   }
 
-  checkPayoutCompletion(order: PayoutOrder): Promise<void> {
-    throw new Error('Method not implemented.');
+  protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    const payoutGroups = this.createPayoutGroups(orders, 100);
+
+    for (const group of payoutGroups) {
+      try {
+        if (group.length === 0) {
+          continue;
+        }
+
+        console.info(`Paying out ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`);
+
+        await this.sendBTC(context, group);
+      } catch (e) {
+        console.error(
+          `Error in paying out a group of ${group.length} BTC orders(s). Order ID(s): ${group.map((o) => o.id)}`,
+        );
+        // continue with next group in case payout failed
+        continue;
+      }
+    }
+  }
+
+  protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
+    return this.bitcoinService.sendUtxoToMany(context, payout);
+  }
+
+  private async sendBTC(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    await this.send(context, orders, 'BTC');
   }
 }

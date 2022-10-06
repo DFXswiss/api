@@ -30,7 +30,7 @@ describe('PayoutStrategiesFacade', () => {
   let facade: PayoutStrategiesFacadeWrapper;
 
   beforeEach(() => {
-    bitcoin = new BitcoinStrategy(mock<PayoutBitcoinService>(), mock<PayoutOrderRepository>());
+    bitcoin = new BitcoinStrategy(mock<MailService>(), mock<PayoutBitcoinService>(), mock<PayoutOrderRepository>());
     deFiChainDfi = new DeFiChainDfiStrategy(
       mock<MailService>(),
       mock<PayoutDeFiChainService>(),
