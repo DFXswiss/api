@@ -216,11 +216,13 @@ export class Configuration {
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
+      uniswapV2Router02Address: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
     },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      pancakeRouterAddress: '0x10ED43C718714eb63d5aA57B78B54704E256024E',
     },
   };
 

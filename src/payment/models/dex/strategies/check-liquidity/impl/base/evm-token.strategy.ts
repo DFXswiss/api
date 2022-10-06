@@ -8,6 +8,6 @@ export class EvmTokenStrategy implements CheckLiquidityStrategy {
   async checkLiquidity(request: LiquidityRequest): Promise<number> {
     const { referenceAmount, referenceAsset, targetAsset } = request;
 
-    return this.dexEvmService.getAndCheckTokenAvailability(referenceAsset, referenceAmount, targetAsset.dexName);
+    return this.dexEvmService.getAndCheckTokenAvailability(referenceAsset, referenceAmount, targetAsset);
   }
 }

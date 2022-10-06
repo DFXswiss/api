@@ -1,6 +1,7 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { EvmClient } from 'src/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/blockchain/shared/evm/evm.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -27,13 +28,8 @@ export abstract class DexEvmService {
     return amount;
   }
 
-  async getAndCheckTokenAvailability(
-    referenceAsset: string,
-    referenceAmount: number,
-    targetAsset: string,
-  ): Promise<number> {
-    // TODO - implement poolswap check or price request
-    const targetAmount = 1;
+  async getAndCheckTokenAvailability(sourceAsset: string, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    const targetAmount = await this.#client.testSwap(sourceAsset, targetAsset, sourceAmount);
 
     await this.checkAssetAvailability(targetAsset, targetAmount);
 
@@ -46,11 +42,11 @@ export abstract class DexEvmService {
 
   //*** HELPER METHODS ***//
 
-  private async checkAssetAvailability(asset: string, amount: number): Promise<void> {
-    const pendingAmount = await this.getPendingAmount(asset);
+  private async checkAssetAvailability(asset: Asset, amount: number): Promise<void> {
+    const pendingAmount = await this.getPendingAmount(asset.dexName);
     const availableAmount = await this.#client.getTokenBalance(asset);
 
-    this.checkLiquidity(amount, pendingAmount, availableAmount, asset);
+    this.checkLiquidity(amount, pendingAmount, availableAmount, asset.dexName);
   }
 
   private async getPendingAmount(assetName: string): Promise<number> {

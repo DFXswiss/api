@@ -15,7 +15,7 @@ export class EvmTokenStrategy extends PurchaseLiquidityStrategy {
       const amount = await this.dexEvmService.getAndCheckTokenAvailability(
         referenceAsset,
         referenceAmount,
-        targetAsset.dexName,
+        targetAsset,
       );
 
       if (amount) {
