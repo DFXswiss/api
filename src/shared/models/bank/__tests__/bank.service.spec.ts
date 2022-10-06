@@ -3,7 +3,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { TestUtil } from 'src/shared/test.util';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { createCustomCountry, createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 import { BankSelectorInput, BankService } from '../bank.service';
 import { UserService } from 'src/user/models/user/user.service';
@@ -27,7 +27,7 @@ import {
 } from '../__mocks__/bank.entity.mock';
 
 function createBankSelectorInput(
-  currency: string = 'EUR',
+  currency = 'EUR',
   amount = 1,
   bankAccount: BankAccount = createDefaultBankAccount(),
   kycStatus: KycStatus = KycStatus.COMPLETED,
