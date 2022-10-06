@@ -1,7 +1,7 @@
 import { Contract, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import ERC20_ABI from './abi/erc20.abi.json';
-import UNISWAP_ROUTER_02_ABI from './abi/erc20.abi.json';
+import * as ERC20_ABI from './abi/erc20.abi.json';
+import * as UNISWAP_ROUTER_02_ABI from './abi/erc20.abi.json';
 
 export class EvmClient {
   #dfxAddress: string;
@@ -62,7 +62,7 @@ export class EvmClient {
     const inputAmount = ethers.utils.parseUnits(`${amount}`, 'ether');
     const outputAmounts = await this.#router.getAmountsOut(inputAmount, [tokenTo.chainId]);
 
-    return outputAmounts[0];
+    return +ethers.utils.parseUnits(outputAmounts[0], 'wei');
   }
 
   //*** HELPER METHODS ***//

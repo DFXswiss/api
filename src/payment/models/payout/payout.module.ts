@@ -22,6 +22,7 @@ import { DeFiChainDfiStrategy as DeFiChainDfiStrategyPO } from './strategies/pay
 import { DeFiChainTokenStrategy as DeFiChainTokenStrategyPO } from './strategies/payout/impl/defichain-token.strategy';
 import { EthereumCryptoStrategy as EthereumCryptoStrategyPO } from './strategies/payout/impl/ethereum-crypto.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPO } from './strategies/payout/impl/ethereum-token.strategy';
+import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
 import { DeFiChainStrategy as DeFiChainStrategyPR } from './strategies/prepare/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
@@ -53,6 +54,7 @@ import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/imp
     DeFiChainTokenStrategyPO,
     EthereumCryptoStrategyPO,
     EthereumTokenStrategyPO,
+    BitcoinStrategyPR,
     BscStrategyPR,
     DeFiChainStrategyPR,
     EthereumStrategyPR,
