@@ -9,7 +9,7 @@ export class DeFiChainDefaultStrategy implements CheckLiquidityStrategy {
   constructor(private readonly dexDeFiChainService: DexDeFiChainService) {}
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {
-    const { referenceAsset, referenceAmount, targetAsset } = request;
+    const { referenceAsset, referenceAmount, targetAsset, options } = request;
 
     // calculating how much targetAmount is needed and if it's available on the node
     return this.dexDeFiChainService.getAndCheckAvailableTargetLiquidity(
@@ -17,6 +17,8 @@ export class DeFiChainDefaultStrategy implements CheckLiquidityStrategy {
       referenceAmount,
       targetAsset.dexName,
       LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
+      options?.bypassAvailabilityCheck,
+      options?.bypassSlippageProtection,
     );
   }
 }
