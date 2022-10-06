@@ -197,8 +197,8 @@ export class BuyCrypto extends IEntity {
 
   get translationKey(): string {
     return this.inputReferenceAsset === this.outputReferenceAsset
-      ? 'mail.payment.buyCryptoCrypto'
-      : 'mail.payment.buyCryptoFiat';
+      ? 'mail.payment.deposit.buyCryptoCrypto'
+      : 'mail.payment.deposit.buyCryptoFiat';
   }
 
   get user(): User {

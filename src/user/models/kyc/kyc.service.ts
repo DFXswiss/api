@@ -130,7 +130,7 @@ export class KycService {
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
     let result: { kycId: string };
 
-    const wallet = await this.walletRepo.findOne({ where: dto.wallet });
+    const wallet = await this.walletRepo.findOne({ where: { name: dto.walletName } });
     if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
 
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
