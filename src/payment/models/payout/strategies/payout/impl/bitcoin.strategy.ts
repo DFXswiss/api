@@ -14,7 +14,6 @@ export class BitcoinStrategy extends JellyfishStrategy {
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(mailService, payoutOrderRepo, bitcoinService);
-    this.bitcoinService.sendUtxoToMany = this.bitcoinService.sendUtxoToMany.bind(this.bitcoinService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

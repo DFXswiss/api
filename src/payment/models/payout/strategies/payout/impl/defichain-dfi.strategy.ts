@@ -14,7 +14,6 @@ export class DeFiChainDfiStrategy extends JellyfishStrategy {
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
     super(mailService, payoutOrderRepo, jellyfishService);
-    this.jellyfishService.sendUtxoToMany = this.jellyfishService.sendUtxoToMany.bind(this.jellyfishService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
