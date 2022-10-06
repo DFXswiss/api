@@ -14,7 +14,7 @@ export class Wallet extends IEntity {
   mail: string;
 
   @Column({ length: 256, nullable: true })
-  description: string;
+  name: string;
 
   @Column({ default: false })
   isKycClient: boolean;

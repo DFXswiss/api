@@ -3,8 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
-import { BankController } from './models/bank/bank.controller';
-import { BankService } from './models/bank/bank.service';
 import { CryptoInputRepository } from './models/crypto-input/crypto-input.repository';
 import { CryptoInputService } from './models/crypto-input/crypto-input.service';
 import { BankTxBatchRepository } from './models/bank-tx/bank-tx-batch.repository';
@@ -69,6 +67,8 @@ import { ExchangeModule } from './models/exchange/exchange.module';
 import { PricingModule } from './models/pricing/pricing.module';
 import { BankTxReturnRepository } from './models/bank-tx-return/bank-tx-return.repository';
 import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.service';
+import { BankTxRepeatRepository } from './models/bank-tx-repeat/bank-tx-repeat.repository';
+import { BankTxRepeatService } from './models/bank-tx-repeat/bank-tx-repeat.service';
 
 @Module({
   imports: [
@@ -92,6 +92,7 @@ import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.serv
       BankAccountRepository,
       CryptoRouteRepository,
       BankTxReturnRepository,
+      BankTxRepeatRepository,
     ]),
     SharedModule,
     AinModule,
@@ -103,7 +104,6 @@ import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.serv
   ],
   controllers: [
     BankTxController,
-    BankController,
     BuyCryptoController,
     BuyFiatController,
     HistoryController,
@@ -133,7 +133,6 @@ import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.serv
     BankTxService,
     OlkypayService,
     FrickService,
-    BankService,
     HistoryService,
     BuyService,
     SellService,
@@ -153,6 +152,7 @@ import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.serv
     CryptoRouteService,
     ChainalysisService,
     BankTxReturnService,
+    BankTxRepeatService,
   ],
   exports: [
     BuyService,

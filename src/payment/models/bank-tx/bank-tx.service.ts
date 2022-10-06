@@ -13,6 +13,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FrickService } from './frick.service';
 import { OlkypayService } from './olkypay.service';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
+import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 
 @Injectable()
 export class BankTxService {
@@ -25,6 +26,7 @@ export class BankTxService {
     private readonly frickService: FrickService,
     private readonly olkyService: OlkypayService,
     private readonly bankTxReturnService: BankTxReturnService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -81,6 +83,9 @@ export class BankTxService {
         break;
       case BankTxType.BANK_TX_RETURN:
         await this.bankTxReturnService.create(bankTx);
+        break;
+      case BankTxType.BANK_TX_REPEAT:
+        await this.bankTxRepeatService.create(bankTx);
         break;
     }
 

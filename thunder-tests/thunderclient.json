@@ -1837,12 +1837,12 @@
     "method": "PUT",
     "sortNum": 700000,
     "created": "2022-09-20T23:34:03.919Z",
-    "modified": "2022-09-20T23:35:28.369Z",
+    "modified": "2022-10-05T20:44:02.945Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"wallet\": {\n    \"id\": 1560\n  }\n}",
+      "raw": "{\n  \"walletName\": \"LOCK.space\"\n}",
       "form": []
     },
     "tests": []
