@@ -58,9 +58,9 @@ export class EvmClient {
     return this.#provider.getTransaction(txHash);
   }
 
-  async testSwap(tokenFrom: string, tokenTo: Asset, amount: number): Promise<number> {
-    const inputAmount = ethers.utils.parseUnits(`${amount}`, 'ether');
-    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [tokenTo.chainId]);
+  async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
+    const inputAmount = ethers.utils.parseUnits(`${nativeCryptoAmount}`, 'ether');
+    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [targetToken.chainId]);
 
     return +ethers.utils.parseUnits(outputAmounts[0], 'wei');
   }

@@ -10,10 +10,11 @@ export class EvmCryptoStrategy extends PurchaseLiquidityStrategy {
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
     const { referenceAsset, referenceAmount, context, correlationId } = request;
+
     try {
       // should always throw, even if there is amount, additional check is done for API consistency and sending mail
       if (referenceAsset === this.dexEvmService._nativeCoin) {
-        const amount = await this.dexEvmService.checkCoinAvailability(referenceAmount);
+        const amount = await this.dexEvmService.checkNativeCryptoAvailability(referenceAmount);
 
         if (amount) {
           throw new Error(

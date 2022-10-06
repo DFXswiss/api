@@ -6,10 +6,15 @@ export class EvmCryptoStrategy implements CheckLiquidityStrategy {
   constructor(protected readonly dexEvmService: DexEvmService) {}
 
   async checkLiquidity(request: LiquidityRequest): Promise<number> {
-    const targetAmount = request.referenceAmount;
+    const { referenceAsset, referenceAmount, context, correlationId } = request;
 
-    await this.dexEvmService.checkCoinAvailability(targetAmount);
+    if (referenceAsset === this.dexEvmService._nativeCoin) {
+      return this.dexEvmService.checkNativeCryptoAvailability(referenceAmount);
+    }
 
-    return targetAmount;
+    // only native coin is enabled as a referenceAsset
+    throw new Error(
+      `Only native coin reference is supported by EVM CheckLiquidity strategy. Provided reference asset: ${referenceAsset} Context: ${context}. CorrelationID: ${correlationId}`,
+    );
   }
 }
