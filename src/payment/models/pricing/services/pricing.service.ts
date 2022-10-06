@@ -25,6 +25,7 @@ export enum PricingPathAlias {
   MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
   NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN = 'NonMatchingUSDStableCoinToUSDStableCoin',
+  // TODO -DFI case separately through testPoolSwap -> DEX
 }
 
 @Injectable()
