@@ -2,12 +2,12 @@
   "kyc": {
     "reminder": {
       "salutation": "Completa la tua verifica",
-      "body": "<p>Abbiamo notato che non hai completato la {status}</p><p>Si prega di continuare cliccando sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (Compra, Vendi e Staking) o <a href=\"{url}\" style=\"color:#FFFFFF\">qui</a>.</p><p>Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso</p><p>Tuo DFX team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>Abbiamo notato che non hai completato la {status}</p><p>Si prega di continuare cliccando sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (accedi tramite il bottone Staking nell'app) o <a href=\"{url}\" style=\"color:#FFFFFF\">qui</a>.</p><p>Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso</p><p>Tuo DFX team<br>Bitcoiners by heart ♥</p>",
       "title": "Completa la tua verifica"
     },
     "chatbot": {
       "salutation": "Chatbot completato -passo successivo per la tua verifica",
-      "body": "<p>Per iniziare il processo di identificazione online, clicca sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (Compra, Vendi & Staking) o <a href=\"{url}\" style=\"color:#FFFFFF\">qui</a>.</p><p>Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso</p><p>Tuo DFX team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>Per iniziare il processo di identificazione online, clicca sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (accedi tramite il bottone Staking nell'app) o <a href=\"{url}\" style=\"color:#FFFFFF\">qui</a>.</p><p>Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso</p><p>Tuo DFX team<br>Bitcoiners by heart ♥</p>",
       "title": "Chatbot completato"
     },
     "ident": {
@@ -17,7 +17,7 @@
     },
     "failed": {
       "salutation": "La tua identificazione online non è riuscita",
-      "body": "<p>Abbiamo notato che la sua identificazione online è fallita. Tuttavia, abbiamo già sbloccato l'identificazione video per te.<br>Si prega di continuare cliccando sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (Compra, Vendi e Staking) o <a href=\"{url}\" style=\"color:#FFFFFF\">qui</a>.</p><p>Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso</p><p>Tuo DFX team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>Abbiamo notato che la sua identificazione online è fallita. Tuttavia, abbiamo già sbloccato l'identificazione video per te.<br>Si prega di continuare cliccando sul pulsante di aggiornamento nella sezione dei limiti della pagina di pagamento (accedi tramite il bottone Staking nell'app) o <a href=\"{url}\" style=\"color:#FFFFFF\">qui</a>.</p><p>Fai il passo finale e inizia a lavorare sulla tua libertà finanziaria oggi stesso</p><p>Tuo DFX team<br>Bitcoiners by heart ♥</p>",
       "title": "La tua identificazione online non è riuscita"
     },
     "success": {

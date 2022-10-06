@@ -2,12 +2,12 @@
   "kyc": {
     "reminder": {
       "salutation": "Complete your verification",
-      "body": "<p>We have noticed that you have not completed the {status}</p><p>Please continue by clicking on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>We have noticed that you have not completed the {status}</p><p>Please continue by clicking on the refresh button in the limit section on the payment page (access via the Staking button in the app) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Complete your verification"
     },
     "chatbot": {
       "salutation": "Chatbot completed - next step for your verification",
-      "body": "<p>To start the online identification process, click on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>To start the online identification process, click on the refresh button in the limit section on the payment page (access via the Staking button in the app) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Chatbot completed"
     },
     "ident": {
@@ -17,7 +17,7 @@
     },
     "failed": {
       "salutation": "Your online identification has failed",
-      "body": "<p>We have noticed that your online identification has failed. However, we have already unlocked video identification for you.<br>Please continue by clicking on the refresh button in the limit section on the payment page (Buy, Sell & Staking) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>We have noticed that your online identification has failed. However, we have already unlocked video identification for you.<br>Please continue by clicking on the refresh button in the limit section on the payment page (access via the Staking button in the app) or <a href=\"{url}\" style=\"color:#FFFFFF\">here</a>.</p><p>Take the final step and start working on your financial freedom today</p><p>Your DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Online identification failed"
     },
     "success": {
