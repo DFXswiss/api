@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Param, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -25,8 +25,7 @@ import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
-import { CountryService } from 'src/shared/models/country/country.service';
-import { KycCompleted } from 'src/user/models/user-data/user-data.entity';
+import { BankService } from 'src/shared/models/bank/bank.service';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -38,7 +37,7 @@ export class BuyController {
     private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly fiatService: FiatService,
-    private readonly countryService: CountryService,
+    private readonly bankService: BankService,
   ) {}
 
   @Get()
@@ -137,40 +136,17 @@ export class BuyController {
   }
 
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
-    let account: { currency: string; iban: string; bic: string };
-
-    const frickAmountLimit = 9000;
-    const fallBackCurrency = 'EUR';
-
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
-    const ibanCodeCountry = await this.countryService.getCountryWithSymbol(buy.bankAccount.iban.substring(0, 2));
 
-    // select the matching bank account
-    if (dto.amount > frickAmountLimit || dto.currency.name === 'USD') {
-      // amount > 9k => Frick || USD => Frick
-      account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
-    } else if (dto.currency.name === 'EUR' && buy.bankAccount.sctInst && KycCompleted(buy.user.userData.kycStatus)) {
-      // instant => Olkypay / EUR
-      account = Config.bank.olkypay.account;
-    } else if (ibanCodeCountry.maerkiBaumannEnable) {
-      // Valid Maerki Baumann country => MB CHF/USD/EUR
-      account = this.getMatchingAccount(Config.bank.maerkiBaumann.accounts, dto.currency.name, fallBackCurrency);
-    } else {
-      // Default => Frick
-      account = this.getMatchingAccount(Config.bank.frick.accounts, dto.currency.name, fallBackCurrency);
-    }
+    const bank = await this.bankService.getBank({
+      amount: dto.amount,
+      currency: dto.currency.name,
+      bankAccount: buy.bankAccount,
+      kycStatus: buy.user.userData.kycStatus,
+    });
 
-    return { ...Config.bank.dfxBankInfo, iban: account.iban, bic: account.bic };
-  }
+    if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-  private getMatchingAccount(
-    bankAccounts: { currency: string; iban: string; bic: string }[],
-    currencyName: string,
-    fallBackCurrencyName: string,
-  ): { currency: string; iban: string; bic: string } {
-    return (
-      bankAccounts.find((b) => b.currency === currencyName) ??
-      bankAccounts.find((b) => b.currency === fallBackCurrencyName)
-    );
+    return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic };
   }
 }
