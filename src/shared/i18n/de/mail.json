@@ -2,12 +2,12 @@
   "kyc": {
     "reminder": {
       "salutation": "Vervollständige deine Verifizierung",
-      "body": "<p>Uns ist aufgefallen, dass {status} noch nicht vollständig abgeschlossen wurde.</p><p>Weiter geht es, indem man auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a> klickt.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>Uns ist aufgefallen, dass {status} noch nicht vollständig abgeschlossen wurde.</p><p>Weiter geht es, indem man auf der Payment Seite (Zugang über den Staking Button in der App) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a> klickt.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Vervollständige die Verifizierung"
     },
     "chatbot": {
       "salutation": "Chatbot abgeschlossen - nächster Schritt zur Verifizierung",
-      "body": "<p>Um den Online-Identifizierungsprozess zu starten, klicke auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a>.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>Um den Online-Identifizierungsprozess zu starten, klicke auf der Payment Seite (Zugang über den Staking Button in der App) auf den Refresh Button (roter Pfeil in Kreisoptik) oder <a href=\"{url}\" style=\"color:#FFFFFF\">hier</a>.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Chatbot abgeschlossen"
     },
     "ident": {
@@ -17,7 +17,7 @@
     },
     "failed": {
       "salutation": "Deine Online-Identifikation ist fehlgeschlagen",
-      "body": "<p>Wir haben festgestellt, dass die Online-Identifizierung fehlgeschlagen ist. Wir haben jedoch bereits die Video-Identifikation freigeschaltet.<br>Weiter geht es, indem man auf der Payment Seite (Kaufen, Verkaufen & Staking) auf den Refresh Button (roter Pfeil in Kreisoptik) klickt oder <a href=\"{url}\"  style=\"color:#FFFFFF\">hier</a>.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
+      "body": "<p>Wir haben festgestellt, dass die Online-Identifizierung fehlgeschlagen ist. Wir haben jedoch bereits die Video-Identifikation freigeschaltet.<br>Weiter geht es, indem man auf der Payment Seite (Zugang über den Staking Button in der App) auf den Refresh Button (roter Pfeil in Kreisoptik) klickt oder <a href=\"{url}\"  style=\"color:#FFFFFF\">hier</a>.</p><p>Mache den letzten Schritt und beginne noch heute deine Reise zur finanziellen Freiheit</p><p>Dein DFX Team<br>Bitcoiners by heart ♥</p>",
       "title": "Online Identifikation fehlgeschlagen"
     },
     "success": {

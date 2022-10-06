@@ -2,12 +2,12 @@
   "kyc": {
     "reminder": {
       "salutation": "Terminez votre vérification",
-      "body": "<p>Nous avons remarqué que vous n'avez pas terminé votre vérification. ({status})</p><p>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (Achat, Vente & Staking) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
+      "body": "<p>Nous avons remarqué que vous n'avez pas terminé votre vérification. ({status})</p><p>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton Staking dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
       "title": "Terminez votre vérification"
     },
     "chatbot": {
       "salutation": "Chatbot terminé - prochaine étape pour votre vérification",
-      "body": "<p>Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (Achat, Vente & Staking) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
+      "body": "<p>Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton Staking dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
       "title": "Chatbot terminé"
     },
     "ident": {
@@ -17,7 +17,7 @@
     },
     "failed": {
       "salutation": "Votre identification en ligne a échoué",
-      "body": "<p>Nous avons remarqué que votre identification en ligne a échoué. Nous avons cependant déjà débloqué l'identification vidéo pour vous.<br>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (Achat, Vente & Staking) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
+      "body": "<p>Nous avons remarqué que votre identification en ligne a échoué. Nous avons cependant déjà débloqué l'identification vidéo pour vous.<br>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton Staking dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
       "title": "Votre identification en ligne a échoué"
     },
     "success": {
