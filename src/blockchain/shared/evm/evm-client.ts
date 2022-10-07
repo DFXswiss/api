@@ -1,7 +1,7 @@
 import { Contract, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import * as ERC20_ABI from './abi/erc20.abi.json';
-import * as UNISWAP_ROUTER_02_ABI from './abi/erc20.abi.json';
+import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
 
 export class EvmClient {
   #dfxAddress: string;
