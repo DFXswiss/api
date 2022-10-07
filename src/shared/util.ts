@@ -1,6 +1,8 @@
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
+import { values } from 'lodash';
+import { Config } from 'src/config/config';
 import { MinDeposit } from 'src/payment/models/deposit/dto/min-deposit.dto';
 
 type KeyType<T, U> = {
@@ -169,6 +171,16 @@ export class Util {
 
   static trimIBAN(iban: string): string {
     return '***' + iban.slice(iban.length - 4);
+  }
+
+  static getMinDeposit(outputAsset: string): MinDeposit[] {
+    const index = Object.entries(Config.blockchain.default.minTransactionVolume)
+      .filter(([key, _]) => key === outputAsset)
+      .map(([_, value]) => value);
+
+    return this.transformToMinDeposit(
+      index.length != 0 ? index[0] : Config.blockchain.default.minTransactionVolume.default,
+    );
   }
 
   static transformToMinDeposit(deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] {

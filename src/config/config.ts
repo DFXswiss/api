@@ -211,9 +211,13 @@ export class Configuration {
         },
       },
       minTransactionVolume: {
-        // min volume in output asset
-        USD: 1000,
-        EUR: 1,
+        // outputAsset: { minTransactionAsset: minTransactionVolume }
+        USD: {
+          USD: 1000,
+        },
+        default: {
+          USD: 1,
+        },
       },
     },
     ethereum: {
