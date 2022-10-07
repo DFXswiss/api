@@ -28,7 +28,7 @@ export class DfiPricingDexService implements PriceProvider {
       context: LiquidityOrderContext.PRICING,
       correlationId: uuid(),
       referenceAsset: from,
-      referenceAmount: 1,
+      referenceAmount: 0.001,
       targetAsset: dfi,
       options: {
         bypassAvailabilityCheck: true,
@@ -38,6 +38,6 @@ export class DfiPricingDexService implements PriceProvider {
 
     const targetAmount = await this.dexService.checkLiquidity(liquidityRequest);
 
-    return Price.create(from, to, Util.round(targetAmount, 8));
+    return Price.create(from, to, Util.round(targetAmount / 0.001, 8));
   }
 }

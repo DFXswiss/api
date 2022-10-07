@@ -10,10 +10,10 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 export class DeFiChainDfiStrategy extends JellyfishStrategy {
   constructor(
     mailService: MailService,
-    protected readonly jellyfishService: PayoutDeFiChainService,
+    protected readonly deFiChainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo, jellyfishService);
+    super(mailService, payoutOrderRepo, deFiChainService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -39,7 +39,7 @@ export class DeFiChainDfiStrategy extends JellyfishStrategy {
   }
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    return this.jellyfishService.sendUtxoToMany(context, payout);
+    return this.deFiChainService.sendUtxoToMany(context, payout);
   }
 
   private async sendDFI(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
