@@ -19,3 +19,5 @@ export class IEntity {
     return copy;
   }
 }
+
+export type UpdateResult<T extends IEntity> = [number, Partial<T>];

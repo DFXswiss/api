@@ -68,12 +68,7 @@ export class BuyCryptoNotificationService {
               },
             }));
 
-          tx.confirmSentMail();
-
-          await this.buyCryptoRepo.update(
-            { id: tx.id },
-            { mailSendDate: tx.mailSendDate, recipientMail: tx.recipientMail },
-          );
+          await this.buyCryptoRepo.update(...tx.confirmSentMail());
         } catch (e) {
           console.error(e);
         }
@@ -115,8 +110,6 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        entity.confirmSentMail();
-
         if (entity.user.userData.mail) {
           await this.mailService.sendTranslatedMail({
             userData: entity.user.userData,
@@ -133,10 +126,7 @@ export class BuyCryptoNotificationService {
           });
         }
 
-        await this.buyCryptoRepo.update(
-          { id: entity.id },
-          { mailSendDate: entity.mailSendDate, recipientMail: entity.recipientMail },
-        );
+        await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
         console.error(e);
       }
