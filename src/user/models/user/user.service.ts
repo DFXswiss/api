@@ -131,7 +131,7 @@ export class UserService {
 
   private async checkIpCountry(userIp: string): Promise<string> {
     // ignore Azure private addresses
-    if (userIp?.includes('169.254')) {
+    if (userIp?.includes(Config.azureIpSubstring)) {
       return;
     }
 

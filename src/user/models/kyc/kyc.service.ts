@@ -135,6 +135,7 @@ export class KycService {
 
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!user) throw new NotFoundException('DFX user not found');
+    if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
 
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
@@ -148,7 +149,6 @@ export class KycService {
 
     const slaveUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
     if (!slaveUser) throw new NotFoundException('KYC user not found');
-    if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
     if (user.userData.id == slaveUser.userData.id) throw new ConflictException('User already merged');
 
     await this.userDataService.mergeUserData(user.userData.id, slaveUser.userData.id);

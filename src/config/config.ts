@@ -24,6 +24,7 @@ export class Configuration {
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
   apiKeyVersionCT = '0'; // single digit hex number
+  azureIpSubstring = '169.254';
 
   colors = {
     white: '#FFFFFF',
