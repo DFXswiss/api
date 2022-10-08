@@ -174,13 +174,11 @@ export class Util {
   }
 
   static getMinDeposit(outputAsset: string): MinDeposit[] {
-    const index = Object.entries(Config.blockchain.default.minTransactionVolume)
+    const minVolume = Object.entries(Config.blockchain.default.minTransactionVolume)
       .filter(([key, _]) => key === outputAsset)
       .map(([_, value]) => value);
 
-    return this.transformToMinDeposit(
-      index.length != 0 ? index[0] : Config.blockchain.default.minTransactionVolume.default,
-    );
+    return this.transformToMinDeposit(minVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
   }
 
   static transformToMinDeposit(deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] {
