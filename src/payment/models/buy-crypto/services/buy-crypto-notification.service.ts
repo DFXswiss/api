@@ -7,6 +7,7 @@ import { Util } from 'src/shared/util';
 import { Blockchain, BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
+import { AmlReason } from '../enums/aml-reason.enum';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -19,6 +20,7 @@ export class BuyCryptoNotificationService {
   async sendNotificationMails(): Promise<void> {
     await this.buyCryptoConfirmed();
     await this.paybackToAddressInitiated();
+    await this.pendingBuyCrypto();
   }
 
   async buyCryptoConfirmed(): Promise<void> {
@@ -120,7 +122,7 @@ export class BuyCryptoNotificationService {
         if (entity.user.userData.mail) {
           await this.mailService.sendTranslatedMail({
             userData: entity.user.userData,
-            translationKey: 'mail.payment.deposit.paybackInitiated',
+            translationKey: entity.translationKey,
             params: {
               inputAmount: entity.inputAmount,
               inputAsset: entity.inputAsset,
@@ -129,6 +131,54 @@ export class BuyCryptoNotificationService {
                 lang: entity.user.userData.language?.symbol.toLowerCase(),
               }),
               userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
+            },
+          });
+        }
+
+        await this.buyCryptoRepo.update(
+          { id: entity.id },
+          { mailSendDate: entity.mailSendDate, recipientMail: entity.recipientMail },
+        );
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  async pendingBuyCrypto(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        mailSendDate: IsNull(),
+        outputAmount: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackBankTx: IsNull(),
+        amlReason: Not(IsNull()),
+        amlCheck: AmlCheck.PENDING,
+      },
+      relations: [
+        'buy',
+        'buy.user',
+        'buy.user.userData',
+        'cryptoInput',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.user.userData',
+      ],
+    });
+
+    entities.length > 0 && console.log(`Sending ${entities.length} 'payback to address' email(s)`);
+
+    for (const entity of entities) {
+      if (entity.amlReason !== AmlReason.ANNUAL_LIMIT && entity.amlReason !== AmlReason.DAILY_LIMIT) continue;
+      try {
+        entity.confirmSentMail();
+
+        if (entity.user.userData.mail) {
+          await this.mailService.sendTranslatedMail({
+            userData: entity.user.userData,
+            translationKey: entity.translationKey,
+            params: {
+              hashLink: `https://payment.dfx.swiss/kyc?code=${entity.user.userData.kycHash}`,
             },
           });
         }
