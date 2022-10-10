@@ -4,6 +4,7 @@ import { WalletRepository } from '../wallet/wallet.repository';
 import { KycCompleted, UserData } from '../user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { UserRepository } from '../user/user.repository';
+import { SpiderDataRepository } from '../spider-data/spider-data.repository';
 
 export enum KycWebhookStatus {
   NA = 'NA',
@@ -38,7 +39,12 @@ export class KycWebhookDto {
 
 @Injectable()
 export class KycWebhookService {
-  constructor(private readonly http: HttpService, private readonly walletRepo: WalletRepository, private readonly userRepo: UserRepository) {}
+  constructor(
+    private readonly http: HttpService,
+    private readonly walletRepo: WalletRepository,
+    private readonly userRepo: UserRepository,
+    private readonly spiderRepo: SpiderDataRepository,
+  ) {}
 
   async kycChanged(userData: UserData): Promise<void> {
     await this.triggerWebhook(userData, KycWebhookResult.STATUS_CHANGED);
@@ -49,7 +55,7 @@ export class KycWebhookService {
   }
 
   private async triggerWebhook(userData: UserData, result: KycWebhookResult, reason?: string): Promise<void> {
-    userData.users ??= (await this.userRepo.find({where: {userData: {id: userData.id}}, relations: ['wallet']}));
+    userData.users ??= await this.userRepo.find({ where: { userData: { id: userData.id } }, relations: ['wallet'] });
 
     for (const user of userData.users) {
       try {
@@ -57,6 +63,8 @@ export class KycWebhookService {
           console.error(`Tried to trigger webhook for user ${userData.id}, but wallet were not loaded`);
         const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
         if (!walletUser || !walletUser.isKycClient || !walletUser.apiUrl) continue;
+
+        const spiderData = await this.spiderRepo.findOne({ where: { userData: { id: userData.id } } });
 
         const data: KycWebhookDto = {
           id: user.address,
@@ -71,7 +79,12 @@ export class KycWebhookService {
             zip: userData.zip,
             phone: userData.phone,
             //TODO change for KYC Update v2
-            kycStatus: KycCompleted(userData.kycStatus) ? KycWebhookStatus.FULL : KycWebhookStatus.NA,
+            kycStatus:
+              KycCompleted(userData.kycStatus) && spiderData?.chatbotResult
+                ? KycWebhookStatus.FULL
+                : KycCompleted(userData.kycStatus)
+                ? KycWebhookStatus.LIGHT
+                : KycWebhookStatus.NA,
             kycHash: userData.kycHash,
           },
           reason: reason,
