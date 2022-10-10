@@ -24,6 +24,7 @@ export enum PricingPathAlias {
   ALTCOIN_TO_ALTCOIN = 'AltcoinToAltcoin',
   BTC_TO_ALTCOIN = 'BTCToAltcoin',
   MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
+  NON_MATCHING_FIAT_TO_BUSD = 'NonMatchingFiatToBUSD',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
   NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN = 'NonMatchingUSDStableCoinToUSDStableCoin',
   FIAT_TO_DFI = 'FiatToDfi',
@@ -167,9 +168,22 @@ export class PricingService {
     );
 
     this.addPath(
+      new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_BUSD, [
+        new PriceStep({
+          overwriteReferenceTo: 'USD',
+          fallbackPrimaryTo: 'USDC',
+          providers: {
+            primary: [this.krakenService],
+            reference: [this.fixerService, this.currencyService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
       new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN, [
         new PriceStep({
-          referenceTo: 'USD',
+          overwriteReferenceTo: 'USD',
           providers: {
             primary: [this.krakenService],
             reference: [this.fixerService, this.currencyService],
@@ -245,6 +259,9 @@ export class PricingService {
     if (from === 'BTC' && this.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
     if (from === 'USD' && this.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
+
+    if (this.isFiat(from) && this.isUSDStablecoin(to) && to === 'BUSD')
+      return PricingPathAlias.NON_MATCHING_FIAT_TO_BUSD;
 
     if (this.isFiat(from) && this.isUSDStablecoin(to)) return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
 

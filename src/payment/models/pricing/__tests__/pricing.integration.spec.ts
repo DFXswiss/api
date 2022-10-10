@@ -313,6 +313,41 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
   });
 
+  it('calculates price path for NON_MATCHING_FIAT_TO_BUSD', async () => {
+    krakenServiceGetPriceSpy = jest
+      .spyOn(krakenService, 'getPrice')
+      .mockImplementationOnce(async () => {
+        throw new Error();
+      })
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
+
+    fixerServiceGetPriceSpy = jest
+      .spyOn(fixerService, 'getPrice')
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
+
+    const request = { from: 'EUR', to: 'BUSD' };
+    const result = await service.getPrice(request);
+
+    expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('EUR');
+    expect(result.price.target).toBe('BUSD');
+    expect(result.price.price).toBe(1.1);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(1);
+
+    expect(result.path[0].provider).toBe('Kraken');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('EUR');
+    expect(result.path[0].price.target).toBe('USDC');
+    expect(result.path[0].price.price).toBe(1.1);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
+  });
+
   it('calculates price path for NON_MATCHING_FIAT_TO_USD_STABLE_COIN', async () => {
     krakenServiceGetPriceSpy = jest
       .spyOn(krakenService, 'getPrice')
