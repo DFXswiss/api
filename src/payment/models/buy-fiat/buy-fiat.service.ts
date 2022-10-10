@@ -52,8 +52,11 @@ export class BuyFiatService {
 
     Util.removeNullFields(entity);
 
-    //TODO update aller Felder wieder deaktivieren
-    entity = await this.buyFiatRepo.save({ ...entity, ...update });
+    const amlUpdate =
+      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+        ? { amlCheck: update.amlCheck, mail2SendDate: null, mailReturnSendDate: null }
+        : undefined;
+    entity = await this.buyFiatRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {

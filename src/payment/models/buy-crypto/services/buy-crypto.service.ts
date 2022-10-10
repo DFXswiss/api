@@ -103,7 +103,11 @@ export class BuyCryptoService {
 
     Util.removeNullFields(entity);
 
-    entity = await this.buyCryptoRepo.save({ ...update, ...entity });
+    const amlUpdate =
+      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+        ? { amlCheck: update.amlCheck, mailSendDate: null }
+        : undefined;
+    entity = await this.buyCryptoRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {

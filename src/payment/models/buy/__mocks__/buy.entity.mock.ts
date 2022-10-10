@@ -13,7 +13,6 @@ const defaultBuy: Partial<Buy> = {
   user: createDefaultUser(),
   asset: createDefaultAsset(),
   deposit: null as Deposit,
-  cryptoBuys: [],
   buyCryptos: [],
   bankAccount: createDefaultBankAccount(),
 };

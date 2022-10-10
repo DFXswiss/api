@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
 import { Entity, OneToOne, JoinColumn, ManyToOne, Column } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx.entity';
@@ -123,23 +123,23 @@ export class BuyFiat extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
-  offRampInitiated(recipientMail: string): this {
+  offRampInitiated(recipientMail: string): UpdateResult<BuyFiat> {
     this.recipientMail = recipientMail;
     this.mail1SendDate = new Date();
 
-    return this;
+    return [this.id, { recipientMail: this.recipientMail, mail1SendDate: this.mail1SendDate }];
   }
 
-  cryptoExchangedToFiat(): this {
+  cryptoExchangedToFiat(): UpdateResult<BuyFiat> {
     this.mail2SendDate = new Date();
 
-    return this;
+    return [this.id, { mail2SendDate: this.mail2SendDate }];
   }
 
-  fiatToBankTransferInitiated(): this {
+  fiatToBankTransferInitiated(): UpdateResult<BuyFiat> {
     this.mail3SendDate = new Date();
 
-    return this;
+    return [this.id, { mail3SendDate: this.mail3SendDate }];
   }
 
   paybackToAddressInitiated(): this {

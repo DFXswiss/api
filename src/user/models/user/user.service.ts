@@ -27,13 +27,13 @@ import { GeoLocationService } from 'src/user/services/geo-location.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
 import { UserData } from '../user-data/user-data.entity';
 import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
 
 @Injectable()
 export class UserService {
@@ -131,7 +131,7 @@ export class UserService {
 
   private async checkIpCountry(userIp: string): Promise<string> {
     // ignore Azure private addresses
-    if (userIp?.includes('169.254')) {
+    if (userIp?.includes(Config.azureIpSubstring)) {
       return;
     }
 
