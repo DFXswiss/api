@@ -8,7 +8,7 @@ export class EvmClient {
   #provider: ethers.providers.JsonRpcProvider;
   #wallet: ethers.Wallet;
   #router: Contract;
-  #erc20Tokens: Map<string, Contract>;
+  #erc20Tokens: Map<string, Contract> = new Map();
 
   constructor(gatewayUrl: string, privateKey: string, dfxAddress: string, swapContractAddress: string) {
     this.#provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
@@ -24,7 +24,11 @@ export class EvmClient {
   }
 
   async getTokenBalance(token: Asset): Promise<number> {
-    return this.getERC20Contract(token.chainId).balanceOf(this.#dfxAddress);
+    const contract = this.getERC20Contract(token.chainId);
+    const balance = await contract.balanceOf(this.#dfxAddress);
+    const decimals = await contract.decimals();
+
+    return parseFloat(ethers.utils.formatUnits(balance, decimals));
   }
 
   async sendNativeCrypto(address: string, amount: number): Promise<string> {
@@ -44,8 +48,12 @@ export class EvmClient {
 
   async sendToken(address: string, token: Asset, amount: number): Promise<string> {
     const contract = this.getERC20Contract(token.chainId);
+    const decimals = await contract.decimals();
+    const targetAmount = ethers.utils.parseUnits(`${amount}`, decimals);
 
-    return await contract.transfer(address, ethers.utils.parseUnits(`${amount}`, 'ether'));
+    const tx = await contract.transfer(address, targetAmount);
+
+    return tx.hash;
   }
 
   async isTxComplete(txHash: string): Promise<boolean> {
@@ -60,9 +68,12 @@ export class EvmClient {
 
   async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
     const inputAmount = ethers.utils.parseUnits(`${nativeCryptoAmount}`, 'ether');
-    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [targetToken.chainId]);
+    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [
+      '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6',
+      targetToken.chainId,
+    ]);
 
-    return +ethers.utils.parseUnits(outputAmounts[0], 'wei');
+    return +ethers.utils.parseUnits(outputAmounts[1], 'wei');
   }
 
   //*** HELPER METHODS ***//

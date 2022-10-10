@@ -78,7 +78,7 @@ export abstract class DexEvmService {
     // 5% cap for unexpected meantime swaps
     if (requiredAmount * 1.05 > availableAmount - pendingAmount) {
       throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${this.nativeCoin}. Trying to use ${requiredAmount} ${assetName} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
+        `Not enough liquidity of asset ${assetName}. Trying to use ${requiredAmount} ${assetName} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
       );
     }
   }
