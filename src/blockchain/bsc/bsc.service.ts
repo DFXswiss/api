@@ -6,8 +6,9 @@ import { EvmService } from '../shared/evm/evm.service';
 @Injectable()
 export class BscService extends EvmService {
   constructor() {
-    const { bscGatewayUrl, bscWalletAddress, bscWalletPrivateKey, pancakeRouterAddress } = GetConfig().blockchain.bsc;
+    const { bscGatewayUrl, bscWalletAddress, bscWalletPrivateKey, pancakeRouterAddress, swapTokenAddress } =
+      GetConfig().blockchain.bsc;
 
-    super(bscGatewayUrl, '', bscWalletAddress, bscWalletPrivateKey, pancakeRouterAddress, BscClient);
+    super(bscGatewayUrl, '', bscWalletAddress, bscWalletPrivateKey, pancakeRouterAddress, swapTokenAddress, BscClient);
   }
 }

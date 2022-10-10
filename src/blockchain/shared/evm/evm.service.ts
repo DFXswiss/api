@@ -9,11 +9,24 @@ export abstract class EvmService {
     walletAddress: string,
     walletPrivateKey: string,
     swapContractAddress: string,
+    swapTokenAddress: string,
     client: {
-      new (gatewayUrl: string, privateKey: string, dfxAddress: string, swapContractAddress: string): EvmClient;
+      new (
+        gatewayUrl: string,
+        privateKey: string,
+        dfxAddress: string,
+        swapContractAddress: string,
+        swapTokenAddress: string,
+      ): EvmClient;
     },
   ) {
-    this.client = new client(`${gatewayUrl}/${apiKey}`, walletPrivateKey, walletAddress, swapContractAddress);
+    this.client = new client(
+      `${gatewayUrl}/${apiKey}`,
+      walletPrivateKey,
+      walletAddress,
+      swapContractAddress,
+      swapTokenAddress,
+    );
   }
 
   getDefaultClient<T extends EvmClient>(): T {

@@ -9,11 +9,19 @@ export class EvmClient {
   #wallet: ethers.Wallet;
   #router: Contract;
   #erc20Tokens: Map<string, Contract> = new Map();
+  #swapTokenAddress: string;
 
-  constructor(gatewayUrl: string, privateKey: string, dfxAddress: string, swapContractAddress: string) {
+  constructor(
+    gatewayUrl: string,
+    privateKey: string,
+    dfxAddress: string,
+    swapContractAddress: string,
+    swapTokenAddress: string,
+  ) {
     this.#provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.#wallet = new ethers.Wallet(privateKey, this.#provider);
     this.#dfxAddress = dfxAddress;
+    this.#swapTokenAddress = swapTokenAddress;
     this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.#wallet);
   }
 
@@ -67,13 +75,12 @@ export class EvmClient {
   }
 
   async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
+    const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
     const inputAmount = ethers.utils.parseUnits(`${nativeCryptoAmount}`, 'ether');
-    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [
-      '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6',
-      targetToken.chainId,
-    ]);
+    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [this.#swapTokenAddress, targetToken.chainId]);
+    const decimals = await contract.decimals();
 
-    return +ethers.utils.parseUnits(outputAmounts[1], 'wei');
+    return parseFloat(ethers.utils.formatUnits(outputAmounts[1], decimals));
   }
 
   //*** HELPER METHODS ***//
