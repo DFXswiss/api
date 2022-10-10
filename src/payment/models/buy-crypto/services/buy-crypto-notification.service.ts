@@ -166,7 +166,7 @@ export class BuyCryptoNotificationService {
       ],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'payback to address' email(s)`);
+    entities.length > 0 && console.log(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
       if (entity.amlReason !== AmlReason.ANNUAL_LIMIT && entity.amlReason !== AmlReason.DAILY_LIMIT) continue;

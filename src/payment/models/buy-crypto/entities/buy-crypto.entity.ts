@@ -196,17 +196,18 @@ export class BuyCrypto extends IEntity {
   }
 
   get translationKey(): string {
-    return this.inputReferenceAsset === this.outputReferenceAsset && this.amlCheck !== AmlCheck.PENDING
-      ? 'mail.payment.deposit.buyCryptoCrypto'
-      : this.amlCheck !== AmlCheck.PENDING && this.amlCheck !== AmlCheck.FAIL
-      ? 'mail.payment.deposit.buyCryptoFiat'
-      : this.amlReason === AmlReason.DAILY_LIMIT
-      ? 'mail.payment.pending.startKyc'
-      : this.amlReason === AmlReason.ANNUAL_LIMIT
-      ? 'mail.payment.pending.increaseLimit'
-      : this.amlCheck === AmlCheck.FAIL
-      ? 'mail.payment.deposit.paybackInitiated'
-      : null;
+    if (this.amlCheck === AmlCheck.PASS) {
+      return this.inputReferenceAsset === this.outputReferenceAsset
+        ? 'mail.payment.deposit.buyCryptoCrypto'
+        : 'mail.payment.deposit.buyCryptoFiat';
+    } else if (this.amlCheck === AmlCheck.PENDING) {
+      if (this.amlReason === AmlReason.DAILY_LIMIT) return 'mail.payment.pending.dailyLimit';
+      if (this.amlReason === AmlReason.ANNUAL_LIMIT) return 'mail.payment.pending.annualLimit';
+    } else if (this.amlCheck === AmlCheck.FAIL) {
+      return 'mail.payment.deposit.paybackInitiated';
+    }
+
+    return null;
   }
 
   get user(): User {
