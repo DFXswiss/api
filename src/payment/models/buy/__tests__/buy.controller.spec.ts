@@ -7,7 +7,7 @@ import { TestSharedModule } from 'src/shared/test.shared.module';
 import { StakingRepository } from '../../staking/staking.repository';
 import { StakingService } from '../../staking/staking.service';
 import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
-import { createCustomBuy, createDefaultBuy } from '../__mocks__/buy.entity.mock';
+import { createDefaultBuy } from '../__mocks__/buy.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TestUtil } from 'src/shared/test.util';
 import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
@@ -17,12 +17,10 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { BankAccountService } from '../../bank-account/bank-account.service';
-import { createCustomFiat, createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
-import { createCustomCountry, createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
+import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { createCustomUser } from 'src/user/models/user/__mocks__/user.entity.mock';
-import { createCustomUserData } from 'src/user/models/user-data/__mocks__/user-data.entity.mock';
-import { KycStatus } from 'src/user/models/user-data/user-data.entity';
+import { BankService } from 'src/shared/models/bank/bank.service';
 
 function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
   return {
@@ -53,6 +51,7 @@ describe('BuyController', () => {
   let fiatService: FiatService;
   let countryService: CountryService;
   let bankAccountService: BankAccountService;
+  let bankService: BankService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -63,6 +62,7 @@ describe('BuyController', () => {
     fiatService = createMock<FiatService>();
     countryService = createMock<CountryService>();
     bankAccountService = createMock<BankAccountService>();
+    bankService = createMock<BankService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -76,6 +76,8 @@ describe('BuyController', () => {
         { provide: FiatService, useValue: fiatService },
         { provide: CountryService, useValue: countryService },
         { provide: BankAccountService, useValue: bankAccountService },
+        { provide: BankService, useValue: bankService },
+
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -109,71 +111,6 @@ describe('BuyController', () => {
       zip: '6300',
       city: 'Zug',
       country: 'Schweiz',
-    });
-  });
-
-  it('should return BF if amount > 9000', async () => {
-    jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
-
-    await expect(
-      controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto(10000)),
-    ).resolves.toMatchObject({
-      iban: 'LI52088110104693K000C',
-      bic: 'BFRILI22',
-    });
-  });
-
-  it('should return BF if currency = USD', async () => {
-    jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'USD' }));
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
-
-    await expect(controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto())).resolves.toMatchObject({
-      iban: 'LI51088110104693K000U',
-      bic: 'BFRILI22',
-    });
-  });
-
-  it('should return Olkypay if currency = EUR & sctInst & KYC completed', async () => {
-    jest.spyOn(buyService, 'createBuy').mockResolvedValue(
-      createCustomBuy({
-        user: createCustomUser({ userData: createCustomUserData({ kycStatus: KycStatus.MANUAL }) }),
-      }),
-    );
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'EUR' }));
-    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
-
-    await expect(controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto())).resolves.toMatchObject({
-      iban: 'LU116060002000005040',
-      bic: 'OLKILUL1',
-    });
-  });
-
-  it('should return MB if ibanCountry = MBCountry & userDataCountry = MBCountry', async () => {
-    jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
-    jest
-      .spyOn(countryService, 'getCountryWithSymbol')
-      .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: true }));
-
-    await expect(controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto())).resolves.toMatchObject({
-      iban: 'CH3408573177975200001',
-      bic: 'MAEBCHZZ',
-    });
-  });
-
-  it('should return BF as default', async () => {
-    jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createCustomFiat({ name: 'GBP' }));
-    jest
-      .spyOn(countryService, 'getCountryWithSymbol')
-      .mockResolvedValue(createCustomCountry({ maerkiBaumannEnable: false }));
-
-    await expect(controller.createBuyWithPaymentInfo(createJwt(), createBuyPaymentInfoDto())).resolves.toMatchObject({
-      iban: 'LI95088110104693K000E',
-      bic: 'BFRILI22',
     });
   });
 });

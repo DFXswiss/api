@@ -1,7 +1,6 @@
 import { Entity, Column, Index, ManyToOne, OneToMany } from 'typeorm';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
-import { CryptoBuy } from 'src/payment/models/crypto-buy/crypto-buy.entity';
 import { Deposit } from '../deposit/deposit.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
@@ -36,9 +35,6 @@ export class Buy extends IEntity {
 
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   deposit: Deposit;
-
-  @OneToMany(() => CryptoBuy, (cryptoBuy) => cryptoBuy.buy)
-  cryptoBuys: CryptoBuy[];
 
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.buy)
   buyCryptos: BuyCrypto[];

@@ -5,12 +5,23 @@ import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
 import { Blockchain, BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AmlCheck } from '../enums/aml-check.enum';
+import { I18nService } from 'nestjs-i18n';
 
 @Injectable()
 export class BuyCryptoNotificationService {
-  constructor(private readonly buyCryptoRepo: BuyCryptoRepository, private readonly mailService: MailService) {}
+  constructor(
+    private readonly buyCryptoRepo: BuyCryptoRepository,
+    private readonly mailService: MailService,
+    private readonly i18nService: I18nService,
+  ) {}
 
   async sendNotificationMails(): Promise<void> {
+    await this.buyCryptoConfirmed();
+    await this.paybackToAddressInitiated();
+  }
+
+  async buyCryptoConfirmed(): Promise<void> {
     try {
       const txOutput = await this.buyCryptoRepo.find({
         where: {
@@ -57,9 +68,7 @@ export class BuyCryptoNotificationService {
               },
             }));
 
-          tx.confirmSentMail();
-
-          await this.buyCryptoRepo.save(tx);
+          await this.buyCryptoRepo.update(...tx.confirmSentMail());
         } catch (e) {
           console.error(e);
         }
@@ -73,5 +82,54 @@ export class BuyCryptoNotificationService {
     const body = e ? [message, e.message] : [message];
 
     await this.mailService.sendErrorMail('Buy Crypto Error', body);
+  }
+
+  async paybackToAddressInitiated(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        mailSendDate: IsNull(),
+        outputAmount: IsNull(),
+        chargebackDate: Not(IsNull()),
+        chargebackBankTx: Not(IsNull()),
+        chargebackRemittanceInfo: Not(IsNull()),
+        amlReason: Not(IsNull()),
+        amlCheck: AmlCheck.FAIL,
+      },
+      relations: [
+        'buy',
+        'buy.user',
+        'buy.user.userData',
+        'cryptoInput',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.user.userData',
+      ],
+    });
+
+    entities.length > 0 && console.log(`Sending ${entities.length} 'payback to address' email(s)`);
+
+    for (const entity of entities) {
+      try {
+        if (entity.user.userData.mail) {
+          await this.mailService.sendTranslatedMail({
+            userData: entity.user.userData,
+            translationKey: 'mail.payment.deposit.paybackInitiated',
+            params: {
+              inputAmount: entity.inputAmount,
+              inputAsset: entity.inputAsset,
+              returnTransactionLink: entity.chargebackRemittanceInfo,
+              returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
+                lang: entity.user.userData.language?.symbol.toLowerCase(),
+              }),
+              userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
+            },
+          });
+        }
+
+        await this.buyCryptoRepo.update(...entity.confirmSentMail());
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
 }

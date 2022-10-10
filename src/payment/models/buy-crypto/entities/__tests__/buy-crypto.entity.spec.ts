@@ -423,7 +423,7 @@ describe('BuyCrypto', () => {
 
       const updatedEntity = entity.confirmSentMail();
 
-      expect(updatedEntity).toBeInstanceOf(BuyCrypto);
+      expect(updatedEntity).toBeInstanceOf(Array);
     });
   });
 });

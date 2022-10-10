@@ -10,7 +10,6 @@ import { PaymentModule } from './payment/payment.module';
 import { UserModule } from './user/user.module';
 import { AdminController } from './admin/admin.controller';
 import { GetConfig } from './config/config';
-import { SeedService } from './shared/seed/seed.service';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { EthereumModule } from './blockchain/ethereum/ethereum.module';
 import { BscModule } from './blockchain/bsc/bsc.module';
@@ -27,7 +26,7 @@ import { BscModule } from './blockchain/bsc/bsc.module';
     MonitoringModule,
   ],
   controllers: [AppController, StatisticController, AdminController],
-  providers: [StatisticService, CfpService, SeedService],
+  providers: [StatisticService, CfpService],
   exports: [],
 })
 export class AppModule {}

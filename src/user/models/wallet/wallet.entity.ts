@@ -14,7 +14,13 @@ export class Wallet extends IEntity {
   mail: string;
 
   @Column({ length: 256, nullable: true })
-  description: string;
+  name: string;
+
+  @Column({ default: false })
+  isKycClient: boolean;
+
+  @Column({ length: 256, nullable: true })
+  apiUrl: string;
 
   @OneToMany(() => User, (user) => user.wallet)
   logs: User[];

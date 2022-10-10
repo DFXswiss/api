@@ -110,6 +110,9 @@ param myDeFiChainPassword string
 
 param paymentUrl string
 
+@secure()
+param lockApiKey string
+
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -654,6 +657,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'PAYMENT_URL'
           value: paymentUrl
+        }
+        {
+          name: 'LOCK_API_KEY'
+          value: lockApiKey
         }
       ]
     }

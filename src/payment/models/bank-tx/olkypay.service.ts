@@ -5,6 +5,8 @@ import { HttpError, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/util';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { stringify } from 'qs';
+import { BankService } from 'src/shared/models/bank/bank.service';
+import { Bank, BankName } from 'src/shared/models/bank/bank.entity';
 
 interface Transaction {
   idCtp: number;
@@ -46,7 +48,7 @@ export class OlkypayService {
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
   private accessToken = 'access-token-will-be-updated';
 
-  constructor(private readonly http: HttpService) {}
+  constructor(private readonly http: HttpService, private readonly bankService: BankService) {}
 
   async getOlkyTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
@@ -54,7 +56,9 @@ export class OlkypayService {
     const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(1));
     if (!transactions) return [];
 
-    return transactions.map((t) => this.parseTransaction(t));
+    const bank = await this.bankService.getBankInternal(BankName.OLKY, 'EUR');
+
+    return transactions.map((t) => this.parseTransaction(t, bank));
   }
 
   private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
@@ -75,7 +79,7 @@ export class OlkypayService {
   }
 
   // --- PARSING --- //
-  private parseTransaction(tx: Transaction): Partial<BankTx> {
+  private parseTransaction(tx: Transaction, bank: Bank): Partial<BankTx> {
     if (tx.debit > 0 && tx.credit > 0)
       throw new Error(`Transaction with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
@@ -101,7 +105,7 @@ export class OlkypayService {
       txInfo: tx.line1,
       txRaw: JSON.stringify(tx),
       remittanceInfo: tx.line2,
-      accountIban: Config.bank.olkypay.account.iban,
+      accountIban: bank.iban,
       type: tx.codeInterbancaireInterne === TransactionType.BILLING ? BankTxType.INTERNAL : null,
     };
   }
