@@ -43,8 +43,6 @@ export class BuyFiatNotificationService {
       try {
         const recipientMail = entity.sell.user.userData.mail;
 
-        entity.offRampInitiated(recipientMail);
-
         if (recipientMail) {
           await this.mailService.sendTranslatedMail({
             userData: entity.sell.user.userData,
@@ -61,10 +59,7 @@ export class BuyFiatNotificationService {
           console.error(`Failed to send buy fiat mails ${entity.id}: user has no email`);
         }
 
-        await this.buyFiatRepo.update(
-          { id: entity.id },
-          { recipientMail: entity.recipientMail, mail1SendDate: entity.mail1SendDate },
-        );
+        await this.buyFiatRepo.update(...entity.offRampInitiated(recipientMail));
       } catch (e) {
         console.error(e);
       }
@@ -86,8 +81,6 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        entity.cryptoExchangedToFiat();
-
         if (entity.sell.user.userData.mail) {
           await this.mailService.sendTranslatedMail({
             userData: entity.sell.user.userData,
@@ -103,7 +96,7 @@ export class BuyFiatNotificationService {
           });
         }
 
-        await this.buyFiatRepo.update({ id: entity.id }, { mail2SendDate: entity.mail2SendDate });
+        await this.buyFiatRepo.update(...entity.cryptoExchangedToFiat());
       } catch (e) {
         console.error(e);
       }
@@ -125,8 +118,6 @@ export class BuyFiatNotificationService {
 
     for (const entity of entities) {
       try {
-        entity.fiatToBankTransferInitiated();
-
         if (entity.sell.user.userData.mail) {
           await this.mailService.sendTranslatedMail({
             userData: entity.sell.user.userData,
@@ -140,7 +131,7 @@ export class BuyFiatNotificationService {
           });
         }
 
-        await this.buyFiatRepo.update({ id: entity.id }, { mail3SendDate: entity.mail3SendDate });
+        await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
       } catch (e) {
         console.error(e);
       }

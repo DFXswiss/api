@@ -211,6 +211,15 @@ export class Configuration {
           USD: 1,
         },
       },
+      minTransactionVolume: {
+        // outputAsset: { minTransactionAsset: minTransactionVolume }
+        USD: {
+          USD: 1000,
+        },
+        default: {
+          USD: 1,
+        },
+      },
     },
     ethereum: {
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
