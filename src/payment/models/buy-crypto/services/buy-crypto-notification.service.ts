@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MailService } from 'src/shared/services/mail.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
@@ -142,7 +142,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
-        amlReason: Not(IsNull()),
+        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT]),
         amlCheck: AmlCheck.PENDING,
       },
       relations: [
@@ -159,7 +159,6 @@ export class BuyCryptoNotificationService {
     entities.length > 0 && console.log(`Sending ${entities.length} 'pending' email(s)`);
 
     for (const entity of entities) {
-      if (entity.amlReason !== AmlReason.ANNUAL_LIMIT && entity.amlReason !== AmlReason.DAILY_LIMIT) continue;
       try {
         entity.confirmSentMail();
 
@@ -173,10 +172,7 @@ export class BuyCryptoNotificationService {
           });
         }
 
-        await this.buyCryptoRepo.update(
-          { id: entity.id },
-          { mailSendDate: entity.mailSendDate, recipientMail: entity.recipientMail },
-        );
+        await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
         console.error(e);
       }
