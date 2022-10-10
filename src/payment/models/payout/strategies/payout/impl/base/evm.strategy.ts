@@ -26,7 +26,7 @@ export abstract class EvmStrategy implements PayoutStrategy {
 
   async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
     try {
-      const isComplete = this.payoutEvmService.checkPayoutCompletion(order.payoutTxId);
+      const isComplete = await this.payoutEvmService.checkPayoutCompletion(order.payoutTxId);
 
       if (isComplete) {
         order.complete();
