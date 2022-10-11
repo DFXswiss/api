@@ -37,10 +37,12 @@ export class BuyCryptoNotificationService {
           'buy',
           'buy.user',
           'buy.user.userData',
+          'buy.asset',
           'batch',
           'cryptoRoute',
           'cryptoRoute.user',
           'cryptoRoute.user.userData',
+          'cryptoRoute.asset',
         ],
       });
 
@@ -68,7 +70,7 @@ export class BuyCryptoNotificationService {
                   exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                   buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
                   buyTxId: tx.txId,
-                  buyTransactionLink: `${BlockchainExplorerUrls[Blockchain.DEFICHAIN]}/${tx.txId}`,
+                  buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
                 },
               },
             }));
