@@ -159,8 +159,6 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
-        entity.confirmSentMail();
-
         if (entity.user.userData.mail) {
           await this.mailService.sendTranslatedMail({
             userData: entity.user.userData,
