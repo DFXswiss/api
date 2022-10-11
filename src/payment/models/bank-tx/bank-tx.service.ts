@@ -82,7 +82,11 @@ export class BankTxService {
         await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
         break;
       case BankTxType.BANK_TX_RETURN:
-        await this.bankTxReturnService.create(bankTx);
+        await this.bankTxReturnService.create({
+          bankTx: bankTx,
+          chargebackBankTxId: dto.chargebackBankTxId,
+          info: dto.info,
+        });
         break;
       case BankTxType.BANK_TX_REPEAT:
         await this.bankTxRepeatService.create(bankTx);

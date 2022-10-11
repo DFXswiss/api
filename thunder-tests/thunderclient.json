@@ -118,7 +118,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-09-23T08:35:48.899Z",
+    "modified": "2022-10-11T10:18:35.072Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1862,6 +1862,25 @@
     "body": {
       "type": "json",
       "raw": "{\n  \"decision\": \"Rejected\",\n  \"clerk\": \"CT\",\n  \"edited\":\"2000-08-18T10:00:20.100\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "fb9bc645-856b-46a8-98c3-445abc95a2c4",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",
+    "name": "Update BankTx",
+    "url": "{{url}}/v1/bankTx/4",
+    "method": "PUT",
+    "sortNum": 710000,
+    "created": "2022-10-11T10:09:31.913Z",
+    "modified": "2022-10-11T10:17:15.699Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"type\":\"BankTxRepeat\"\n}",
       "form": []
     },
     "tests": []
