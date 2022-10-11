@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { MailService } from 'src/shared/services/mail.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
 import { Blockchain, BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
+import { AmlReason } from '../enums/aml-reason.enum';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -19,13 +20,13 @@ export class BuyCryptoNotificationService {
   async sendNotificationMails(): Promise<void> {
     await this.buyCryptoConfirmed();
     await this.paybackToAddressInitiated();
+    await this.pendingBuyCrypto();
   }
 
   async buyCryptoConfirmed(): Promise<void> {
     try {
       const txOutput = await this.buyCryptoRepo.find({
         where: {
-          recipientMail: IsNull(),
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
           isComplete: true,
@@ -113,7 +114,7 @@ export class BuyCryptoNotificationService {
         if (entity.user.userData.mail) {
           await this.mailService.sendTranslatedMail({
             userData: entity.user.userData,
-            translationKey: 'mail.payment.deposit.paybackInitiated',
+            translationKey: entity.translationKey,
             params: {
               inputAmount: entity.inputAmount,
               inputAsset: entity.inputAsset,
@@ -122,6 +123,48 @@ export class BuyCryptoNotificationService {
                 lang: entity.user.userData.language?.symbol.toLowerCase(),
               }),
               userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
+            },
+          });
+        }
+
+        await this.buyCryptoRepo.update(...entity.confirmSentMail());
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  async pendingBuyCrypto(): Promise<void> {
+    const entities = await this.buyCryptoRepo.find({
+      where: {
+        mailSendDate: IsNull(),
+        outputAmount: IsNull(),
+        chargebackDate: IsNull(),
+        chargebackBankTx: IsNull(),
+        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT]),
+        amlCheck: AmlCheck.PENDING,
+      },
+      relations: [
+        'buy',
+        'buy.user',
+        'buy.user.userData',
+        'cryptoInput',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.user.userData',
+      ],
+    });
+
+    entities.length > 0 && console.log(`Sending ${entities.length} 'pending' email(s)`);
+
+    for (const entity of entities) {
+      try {
+        if (entity.user.userData.mail) {
+          await this.mailService.sendTranslatedMail({
+            userData: entity.user.userData,
+            translationKey: entity.translationKey,
+            params: {
+              hashLink: `https://payment.dfx.swiss/kyc?code=${entity.user.userData.kycHash}`,
             },
           });
         }
