@@ -85,7 +85,7 @@ export class KycWebhookService {
           headers: { 'x-api-key': Config.lock.apiKey },
         });
       } catch (error) {
-        console.error(`Exception during KYC webhook (${result}) for user ${userData.id}: ${error}`);
+        console.error(`Exception during KYC webhook (${result}) for user ${userData.id}:`, error);
       }
     }
   }
