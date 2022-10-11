@@ -196,9 +196,18 @@ export class BuyCrypto extends IEntity {
   }
 
   get translationKey(): string {
-    return this.inputReferenceAsset === this.outputReferenceAsset
-      ? 'mail.payment.deposit.buyCryptoCrypto'
-      : 'mail.payment.deposit.buyCryptoFiat';
+    if (this.amlCheck === AmlCheck.PASS) {
+      return this.inputReferenceAsset === this.outputReferenceAsset
+        ? 'mail.payment.deposit.buyCryptoCrypto'
+        : 'mail.payment.deposit.buyCryptoFiat';
+    } else if (this.amlCheck === AmlCheck.PENDING) {
+      if (this.amlReason === AmlReason.DAILY_LIMIT) return 'mail.payment.pending.dailyLimit';
+      if (this.amlReason === AmlReason.ANNUAL_LIMIT) return 'mail.payment.pending.annualLimit';
+    } else if (this.amlCheck === AmlCheck.FAIL) {
+      return 'mail.payment.deposit.paybackInitiated';
+    }
+
+    throw new Error(`Tried to send a mail for BuyCrypto ${this.id} in invalid state`);
   }
 
   get user(): User {
