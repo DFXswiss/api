@@ -49,14 +49,16 @@ export class KycWebhookService {
 
   private async triggerWebhook(userData: UserData, result: KycWebhookResult, reason?: string): Promise<void> {
     if (!userData.users) {
-      console.error(`Tried to trigger webhook for user ${userData.id}, but users were not loaded`);
+      console.info(`Tried to trigger webhook for user ${userData.id}, but users were not loaded`);
       return;
     }
 
     for (const user of userData.users) {
       try {
-        if (!user.wallet?.id)
-          console.error(`Tried to trigger webhook for user ${userData.id}, but wallet were not loaded`);
+        if (!user.wallet?.id) {
+          console.info(`Tried to trigger webhook for user ${userData.id}, but wallet were not loaded`);
+          continue;
+        }
         const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
         if (!walletUser || !walletUser.isKycClient || !walletUser.apiUrl) continue;
 
