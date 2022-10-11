@@ -127,7 +127,7 @@ export class BuyCryptoNotificationService {
             input: {
               userData: entity.user.userData,
               translationKey: 'mail.payment.deposit.paybackInitiated',
-              params: {
+              translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
                 returnTransactionLink: entity.chargebackRemittanceInfo,
