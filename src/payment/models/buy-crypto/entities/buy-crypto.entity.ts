@@ -207,7 +207,7 @@ export class BuyCrypto extends IEntity {
       return 'mail.payment.deposit.paybackInitiated';
     }
 
-    throw new Error('buyCrypto mail error: missing translationKey');
+    throw new Error(`Tried to send a mail for BuyCrypto ${this.id} in invalid state`);
   }
 
   get user(): User {

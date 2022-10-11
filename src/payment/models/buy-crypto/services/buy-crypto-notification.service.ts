@@ -27,7 +27,6 @@ export class BuyCryptoNotificationService {
     try {
       const txOutput = await this.buyCryptoRepo.find({
         where: {
-          recipientMail: IsNull(),
           mailSendDate: IsNull(),
           txId: Not(IsNull()),
           isComplete: true,
