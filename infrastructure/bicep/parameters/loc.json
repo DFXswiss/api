@@ -187,6 +187,9 @@
     },
     "paymentUrl": {
       "value": "http://localhost:19006"
+    },
+    "lockApiKey": {
+      "value": "xxx"
     }
   }
 }

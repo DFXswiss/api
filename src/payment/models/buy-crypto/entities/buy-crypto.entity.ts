@@ -1,7 +1,7 @@
 import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../../bank-tx/bank-tx.entity';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Price } from '../../exchange/dto/price.dto';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
@@ -11,6 +11,7 @@ import { CryptoInput } from '../../crypto-input/crypto-input.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AmlReason } from '../enums/aml-reason.enum';
 
 @Entity()
 export class BuyCrypto extends IEntity {
@@ -51,6 +52,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 256, nullable: true })
   amlCheck: AmlCheck;
+
+  @Column({ length: 256, nullable: true })
+  amlReason: AmlReason;
 
   @Column({ type: 'float', nullable: true })
   percentFee: number;
@@ -184,17 +188,17 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  confirmSentMail(): this {
+  confirmSentMail(): UpdateResult<BuyCrypto> {
     this.recipientMail = this.user.userData.mail;
     this.mailSendDate = Date.now();
 
-    return this;
+    return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
   }
 
   get translationKey(): string {
     return this.inputReferenceAsset === this.outputReferenceAsset
-      ? 'mail.payment.buyCryptoCrypto'
-      : 'mail.payment.buyCryptoFiat';
+      ? 'mail.payment.deposit.buyCryptoCrypto'
+      : 'mail.payment.deposit.buyCryptoFiat';
   }
 
   get user(): User {

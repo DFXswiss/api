@@ -34,13 +34,6 @@
         "sortNum": 40000
       },
       {
-        "_id": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-        "name": "Crypto Buy",
-        "containerId": "",
-        "created": "2022-01-15T13:53:02.946Z",
-        "sortNum": 50000
-      },
-      {
         "_id": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
         "name": "Admin",
         "containerId": "",
@@ -81,13 +74,6 @@
         "containerId": "",
         "created": "2022-02-02T15:05:49.608Z",
         "sortNum": 110000
-      },
-      {
-        "_id": "39c67052-c784-4068-b744-5971d536436f",
-        "name": "Crypto Sell",
-        "containerId": "",
-        "created": "2022-02-07T01:30:45.800Z",
-        "sortNum": 120000
       },
       {
         "_id": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
@@ -200,6 +186,13 @@
         "containerId": "",
         "created": "2022-09-05T14:01:14.041Z",
         "sortNum": 290000
+      },
+      {
+        "_id": "96a4f40c-c189-4f63-8144-d564ce4a6a07",
+        "name": "LimitRequest",
+        "containerId": "",
+        "created": "2022-09-23T14:03:55.908Z",
+        "sortNum": 300000
       }
     ],
     "settings": {

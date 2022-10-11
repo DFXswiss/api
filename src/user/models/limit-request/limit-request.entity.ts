@@ -16,6 +16,13 @@ export enum FundOrigin {
   OTHER = 'Other',
 }
 
+export enum LimitRequestDecision {
+  ACCEPTED = 'Accepted',
+  PARTIALLY_ACCEPTED = 'PartiallyAccepted',
+  REJECTED = 'Rejected',
+  EXPIRED = 'Expired',
+}
+
 @Entity()
 export class LimitRequest extends IEntity {
   @Column({ type: 'integer' })
@@ -32,6 +39,15 @@ export class LimitRequest extends IEntity {
 
   @Column({ length: 256, nullable: true })
   documentProofUrl: string;
+
+  @Column({ length: 256, nullable: true })
+  decision: LimitRequestDecision;
+
+  @Column({ length: 256, nullable: true })
+  clerk: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  edited: Date;
 
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;

@@ -20,8 +20,6 @@ import { BuyFiat } from 'src/payment/models/buy-fiat/buy-fiat.entity';
 import { BuyFiatService } from 'src/payment/models/buy-fiat/buy-fiat.service';
 import { CryptoInput } from 'src/payment/models/crypto-input/crypto-input.entity';
 import { CryptoInputService } from 'src/payment/models/crypto-input/crypto-input.service';
-import { CryptoSell } from 'src/payment/models/crypto-sell/crypto-sell.entity';
-import { CryptoSellService } from 'src/payment/models/crypto-sell/crypto-sell.service';
 import { CryptoStaking } from 'src/payment/models/crypto-staking/crypto-staking.entity';
 import { CryptoStakingService } from 'src/payment/models/crypto-staking/crypto-staking.service';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
@@ -53,7 +51,6 @@ export class AdminController {
     private readonly userDataService: UserDataService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly cryptoSellService: CryptoSellService,
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly refRewardService: RefRewardService,
     private readonly stakingRewardService: StakingRewardService,
@@ -267,7 +264,6 @@ export class AdminController {
   async getSupportData(@Query('id') id: string): Promise<{
     buy: BuyCrypto[];
     buyFiat: BuyFiat[];
-    sell: CryptoSell[];
     ref: BuyCrypto[];
     refReward: RefReward[];
     staking: CryptoStaking[];
@@ -284,8 +280,6 @@ export class AdminController {
     return {
       buy: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
-      //TODO: remove sell
-      sell: await this.cryptoSellService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
       refReward: await this.refRewardService.getAllUserRewards(userIds),
       staking: await this.cryptoStakingService.getUserTransactions(userIds),

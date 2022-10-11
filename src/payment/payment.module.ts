@@ -3,17 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AinModule } from 'src/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
-import { BankController } from './models/bank/bank.controller';
-import { BankService } from './models/bank/bank.service';
 import { CryptoInputRepository } from './models/crypto-input/crypto-input.repository';
 import { CryptoInputService } from './models/crypto-input/crypto-input.service';
 import { BankTxBatchRepository } from './models/bank-tx/bank-tx-batch.repository';
 import { BankTxController } from './models/bank-tx/bank-tx.controller';
 import { BankTxRepository } from './models/bank-tx/bank-tx.repository';
 import { BankTxService } from './models/bank-tx/bank-tx.service';
-import { CryptoBuyRepository } from './models/crypto-buy/crypto-buy.repository';
-import { CryptoBuyService } from './models/crypto-buy/crypto-buy.service';
-import { CryptoBuyController } from './models/crypto-buy/crypto-buy.controller';
 import { HistoryController } from './models/history/history.controller';
 import { HistoryService } from './models/history/history.service';
 import { BuyController } from './models/buy/buy.controller';
@@ -28,9 +23,6 @@ import { StakingController } from './models/staking/staking.controller';
 import { StakingRepository } from './models/staking/staking.repository';
 import { StakingService } from './models/staking/staking.service';
 import { RouteController } from './models/route/route.controller';
-import { CryptoSellRepository } from './models/crypto-sell/crypto-sell.repository';
-import { CryptoSellController } from './models/crypto-sell/crypto-sell.controller';
-import { CryptoSellService } from './models/crypto-sell/crypto-sell.service';
 import { MasternodeController } from './models/masternode/masternode.controller';
 import { MasternodeService } from './models/masternode/masternode.service';
 import { MasternodeRepository } from './models/masternode/masternode.repository';
@@ -74,15 +66,17 @@ import { BankAccountController } from './models/bank-account/bank-account.contro
 import { ExchangeModule } from './models/exchange/exchange.module';
 import { PricingModule } from './models/pricing/pricing.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { BankTxReturnRepository } from './models/bank-tx-return/bank-tx-return.repository';
+import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.service';
+import { BankTxRepeatRepository } from './models/bank-tx-repeat/bank-tx-repeat.repository';
+import { BankTxRepeatService } from './models/bank-tx-repeat/bank-tx-repeat.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       CryptoInputRepository,
-      CryptoBuyRepository,
       BuyCryptoRepository,
       BuyCryptoBatchRepository,
-      CryptoSellRepository,
       BuyFiatRepository,
       BankTxRepository,
       BankTxBatchRepository,
@@ -98,6 +92,8 @@ import { NotificationModule } from 'src/notification/notification.module';
       StakingRefRewardRepository,
       BankAccountRepository,
       CryptoRouteRepository,
+      BankTxReturnRepository,
+      BankTxRepeatRepository,
     ]),
     SharedModule,
     AinModule,
@@ -110,10 +106,7 @@ import { NotificationModule } from 'src/notification/notification.module';
   ],
   controllers: [
     BankTxController,
-    BankController,
-    CryptoBuyController,
     BuyCryptoController,
-    CryptoSellController,
     BuyFiatController,
     HistoryController,
     RouteController,
@@ -132,8 +125,6 @@ import { NotificationModule } from 'src/notification/notification.module';
     CryptoInputService,
     BtcInputService,
     DeFiInputService,
-    CryptoBuyService,
-    CryptoSellService,
     BuyFiatNotificationService,
     BuyFiatService,
     BuyCryptoService,
@@ -144,8 +135,6 @@ import { NotificationModule } from 'src/notification/notification.module';
     BankTxService,
     OlkypayService,
     FrickService,
-    BankService,
-
     HistoryService,
     BuyService,
     SellService,
@@ -164,6 +153,8 @@ import { NotificationModule } from 'src/notification/notification.module';
     CryptoRouteController,
     CryptoRouteService,
     ChainalysisService,
+    BankTxReturnService,
+    BankTxRepeatService,
   ],
   exports: [
     BuyService,
@@ -172,9 +163,7 @@ import { NotificationModule } from 'src/notification/notification.module';
     RefRewardService,
     MasternodeService,
     StakingService,
-    CryptoBuyService,
     BuyCryptoService,
-    CryptoSellService,
     BuyFiatService,
     BankTxService,
     CryptoInputService,

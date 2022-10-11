@@ -71,7 +71,7 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user', 'bankTx'],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -91,17 +91,23 @@ export class BuyCryptoService {
     if (dto.buyId) {
       if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
       update.buy = await this.getBuy(dto.buyId);
+      if (entity.bankTx) await this.bankTxRepo.setNewUpdateTime(entity.bankTx.id);
     }
 
     // crypto route
     if (dto.cryptoRouteId) {
       if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
       update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+      if (entity.bankTx) await this.bankTxRepo.setNewUpdateTime(entity.bankTx.id);
     }
 
     Util.removeNullFields(entity);
 
-    entity = await this.buyCryptoRepo.save({ ...update, ...entity });
+    const amlUpdate =
+      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+        ? { amlCheck: update.amlCheck, mailSendDate: null }
+        : undefined;
+    entity = await this.buyCryptoRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {

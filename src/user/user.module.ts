@@ -34,6 +34,8 @@ import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
 import { NotificationModule } from 'src/notification/notification.module';
+import { LimitRequestController } from './models/limit-request/limit-request.controller';
+import { KycWebhookService } from './models/kyc/kyc-webhook.service';
 
 @Module({
   imports: [
@@ -60,6 +62,7 @@ import { NotificationModule } from 'src/notification/notification.module';
     IdentController,
     KycController,
     LinkController,
+    LimitRequestController,
   ],
   providers: [
     UserService,
@@ -77,7 +80,17 @@ import { NotificationModule } from 'src/notification/notification.module';
     IdentService,
     GeoLocationService,
     LinkService,
+    KycWebhookService,
   ],
-  exports: [UserService, UserDataService, RefService, KycService, SpiderService, SpiderApiService, LinkService],
+  exports: [
+    UserService,
+    UserDataService,
+    RefService,
+    KycService,
+    SpiderService,
+    SpiderApiService,
+    LinkService,
+    KycWebhookService,
+  ],
 })
 export class UserModule {}

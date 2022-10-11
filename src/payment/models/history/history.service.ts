@@ -15,7 +15,7 @@ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
-import { CoinTrackingHistory, CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
+import { CoinTrackingHistory } from './dto/coin-tracking-history.dto';
 
 @Injectable()
 export class HistoryService {
@@ -34,7 +34,7 @@ export class HistoryService {
     userAddress: string,
     query: HistoryQuery,
     timeout?: number,
-  ): Promise<CoinTrackingHistoryDto[]> {
+  ): Promise<CoinTrackingHistory[]> {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
@@ -49,8 +49,7 @@ export class HistoryService {
 
     return transactions
       .reduce((prev, curr) => prev.concat(curr), [])
-      .map((tx) => ({ ...tx, date: tx.date?.getTime() / 1000 }))
-      .sort((tx1, tx2) => (tx1.date > tx2.date ? -1 : 1));
+      .sort((tx1, tx2) => (tx1.date.getTime() > tx2.date.getTime() ? -1 : 1));
   }
 
   async getHistoryCsv(userId: number, userAddress: string, query: HistoryQuery): Promise<Readable> {

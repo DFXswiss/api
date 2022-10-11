@@ -17,12 +17,12 @@ import { IsNull, Not } from 'typeorm';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
-import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoInputService } from './crypto-input.service';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 
 interface HistoryAmount {
   amount: number;
@@ -81,6 +81,11 @@ export class DeFiInputService extends CryptoInputService {
               await this.sendFeeUtxo(token.owner);
             }
           } else {
+            // ignoring dust DFI transactions
+            if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
+              continue;
+            }
+
             // check for min. deposit
             // TODO: remove temporary DUSD pool fix
             const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);

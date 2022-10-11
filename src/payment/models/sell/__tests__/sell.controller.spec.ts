@@ -47,10 +47,7 @@ describe('SellController', () => {
       controller.getAllSell({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] }),
     ).resolves.toMatchObject([
       {
-        minDeposits: [
-          { amount: 0.01, asset: 'DFI' },
-          { amount: 1, asset: 'USD' },
-        ],
+        minDeposits: [{ amount: 1, asset: 'USD' }],
       },
     ]);
   });

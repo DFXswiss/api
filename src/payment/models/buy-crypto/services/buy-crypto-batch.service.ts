@@ -27,7 +27,16 @@ export class BuyCryptoBatchService {
           outputAsset: IsNull(),
           batch: IsNull(),
         },
-        relations: ['bankTx', 'buy', 'buy.user', 'buy.asset', 'batch', 'cryptoRoute', 'cryptoRoute.user'],
+        relations: [
+          'bankTx',
+          'buy',
+          'buy.user',
+          'buy.asset',
+          'batch',
+          'cryptoRoute',
+          'cryptoRoute.user',
+          'cryptoRoute.asset',
+        ],
       });
 
       if (txInput.length === 0) {
@@ -102,7 +111,7 @@ export class BuyCryptoBatchService {
     const batches = new Map<string, BuyCryptoBatch>();
 
     for (const tx of transactions) {
-      const { outputReferenceAsset, outputAsset, buy } = tx;
+      const { outputReferenceAsset, outputAsset, target } = tx;
 
       const existingBatch = await this.buyCryptoBatchRepo.findOne({
         outputAsset: tx.outputAsset,
@@ -117,17 +126,17 @@ export class BuyCryptoBatchService {
         continue;
       }
 
-      let batch = batches.get(outputReferenceAsset + '&' + outputAsset + '&' + tx.buy.asset.blockchain);
+      let batch = batches.get(outputReferenceAsset + '&' + outputAsset + '&' + target.asset.blockchain);
 
       if (!batch) {
         batch = this.buyCryptoBatchRepo.create({
           outputReferenceAsset,
           outputAsset,
-          blockchain: buy.asset.blockchain,
+          blockchain: target.asset.blockchain,
           status: BuyCryptoBatchStatus.CREATED,
           transactions: [],
         });
-        batches.set(outputReferenceAsset + '&' + outputAsset + '&' + tx.buy.asset.blockchain, batch);
+        batches.set(outputReferenceAsset + '&' + outputAsset + '&' + target.asset.blockchain, batch);
       }
 
       batch.addTransaction(tx);

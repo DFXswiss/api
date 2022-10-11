@@ -1,10 +1,13 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { KycDocument } from 'src/user/services/spider/dto/spider.dto';
 import { KycCompleted } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { LimitRequestDto } from './dto/limit-request.dto';
 import { LimitRequestRepository } from './limit-request.repository';
 import { SpiderService } from 'src/user/services/spider/spider.service';
+import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
+import { LimitRequest } from './limit-request.entity';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class LimitRequestService {
@@ -46,6 +49,17 @@ export class LimitRequestService {
 
     // save
     await this.limitRequestRepo.save(entity);
+  }
+
+  async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
+    const entity = await this.limitRequestRepo.findOne(id);
+    if (!entity) throw new NotFoundException('LimitRequest not found');
+
+    const update = this.limitRequestRepo.create(dto);
+
+    Util.removeNullFields(entity);
+
+    return await this.limitRequestRepo.save({ ...update, ...entity });
   }
 
   private fromBase64(file: string): { contentType: string; buffer: Buffer } {
