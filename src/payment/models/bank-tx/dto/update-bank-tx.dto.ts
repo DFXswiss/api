@@ -1,7 +1,5 @@
-import { IsEnum, IsInt, IsNotEmpty, IsNotEmptyObject, IsString, ValidateIf, ValidateNested } from 'class-validator';
-import { BankTx, BankTxType } from '../bank-tx.entity';
-import { Type } from 'class-transformer';
-import { EntityDto } from 'src/shared/dto/entity.dto';
+import { IsEnum, IsInt, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
+import { BankTxType } from '../bank-tx.entity';
 
 export class UpdateBankTxDto {
   @IsNotEmpty()
@@ -13,11 +11,10 @@ export class UpdateBankTxDto {
   @ValidateIf((p) => p.type === BankTxType.BUY_CRYPTO)
   buyId: number;
 
-  @IsNotEmptyObject()
+  @IsNotEmpty()
+  @IsInt()
   @ValidateIf((p) => p.type === BankTxType.BANK_TX_RETURN)
-  @ValidateNested()
-  @Type(() => EntityDto)
-  chargebackBankTx: BankTx;
+  chargebackBankTxId: number;
 
   @IsNotEmpty()
   @IsString()

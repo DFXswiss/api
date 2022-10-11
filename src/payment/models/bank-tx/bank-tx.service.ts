@@ -84,7 +84,7 @@ export class BankTxService {
       case BankTxType.BANK_TX_RETURN:
         await this.bankTxReturnService.create({
           bankTx: bankTx,
-          chargebackBankTx: dto.chargebackBankTx,
+          chargebackBankTxId: dto.chargebackBankTxId,
           info: dto.info,
         });
         break;
