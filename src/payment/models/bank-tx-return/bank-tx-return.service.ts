@@ -23,20 +23,20 @@ export class BankTxReturnService {
   }
 
   async update(id: number, dto: UpdateBankTxReturnDto): Promise<BankTxReturn> {
-    const entity = await this.bankTxReturnRepo.findOne({ where: { id } });
+    const entity = await this.bankTxReturnRepo.findOne({ where: { id }, relations: ['chargebackBankTx'] });
     if (!entity) throw new NotFoundException('BankTxReturn not found');
 
     const update = this.bankTxReturnRepo.create(dto);
 
     // chargeback bank tx
-    if (dto.chargebackBankTxId) {
+    if (dto.chargebackBankTxId && !entity.chargebackBankTx) {
       update.chargebackBankTx = await this.bankTxRepo.findOne({ where: { id: dto.chargebackBankTxId } });
       if (!update.chargebackBankTx) throw new BadRequestException('ChargebackBankTx not found');
 
-      const entity = await this.bankTxReturnRepo.findOne({
+      const chargebackBankTxEntity = await this.bankTxReturnRepo.findOne({
         where: { chargebackBankTx: { id: dto.chargebackBankTxId } },
       });
-      if (entity) throw new BadRequestException('ChargebackBankTx already used');
+      if (chargebackBankTxEntity) throw new BadRequestException('ChargebackBankTx already used');
 
       await this.bankTxRepo.update(dto.chargebackBankTxId, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
     }
