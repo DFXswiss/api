@@ -5,7 +5,7 @@ import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-bat
 import { Util } from 'src/shared/util';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { MailContext, MailType } from 'src/notification/enums';
-import { Blockchain, BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
+import { BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { AmlReason } from '../enums/aml-reason.enum';
@@ -125,17 +125,20 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (entity.user.userData.mail) {
-          await this.mailService.sendTranslatedMail({
-            userData: entity.user.userData,
-            translationKey: entity.translationKey,
-            params: {
-              inputAmount: entity.inputAmount,
-              inputAsset: entity.inputAsset,
-              returnTransactionLink: entity.chargebackRemittanceInfo,
-              returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
-                lang: entity.user.userData.language?.symbol.toLowerCase(),
-              }),
-              userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: entity.user.userData,
+              translationKey: entity.translationKey,
+              translationParams: {
+                inputAmount: entity.inputAmount,
+                inputAsset: entity.inputAsset,
+                returnTransactionLink: entity.chargebackRemittanceInfo,
+                returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
+                  lang: entity.user.userData.language?.symbol.toLowerCase(),
+                }),
+                userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
+              },
             },
           });
         }
@@ -173,11 +176,14 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         if (entity.user.userData.mail) {
-          await this.mailService.sendTranslatedMail({
-            userData: entity.user.userData,
-            translationKey: entity.translationKey,
-            params: {
-              hashLink: `https://payment.dfx.swiss/kyc?code=${entity.user.userData.kycHash}`,
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: entity.user.userData,
+              translationKey: entity.translationKey,
+              translationParams: {
+                hashLink: `https://payment.dfx.swiss/kyc?code=${entity.user.userData.kycHash}`,
+              },
             },
           });
         }
