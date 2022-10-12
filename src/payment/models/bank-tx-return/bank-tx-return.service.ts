@@ -33,10 +33,10 @@ export class BankTxReturnService {
       update.chargebackBankTx = await this.bankTxRepo.findOne({ where: { id: dto.chargebackBankTxId } });
       if (!update.chargebackBankTx) throw new BadRequestException('ChargebackBankTx not found');
 
-      const chargebackBankTxEntity = await this.bankTxReturnRepo.findOne({
+      const existingReturnForChargeback = await this.bankTxReturnRepo.findOne({
         where: { chargebackBankTx: { id: dto.chargebackBankTxId } },
       });
-      if (chargebackBankTxEntity) throw new BadRequestException('ChargebackBankTx already used');
+      if (existingReturnForChargeback) throw new BadRequestException('ChargebackBankTx already used');
 
       await this.bankTxRepo.update(dto.chargebackBankTxId, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
     }
