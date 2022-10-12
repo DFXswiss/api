@@ -4,8 +4,7 @@ import { IEntity } from '../entity';
 
 export enum AssetType {
   COIN = 'Coin',
-  DCT = 'DCT',
-  DAT = 'DAT',
+  TOKEN = 'Token',
 }
 
 export enum AssetCategory {

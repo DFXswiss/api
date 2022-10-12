@@ -1,7 +1,7 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
-import { AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -10,28 +10,28 @@ import { PayoutBscService } from '../../../services/payout-bsc.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PayoutEthereumService } from '../../../services/payout-ethereum.service';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
-import { BscCryptoStrategy } from '../impl/bsc-crypto.strategy';
+import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
-import { DeFiChainDfiStrategy } from '../impl/defichain-dfi.strategy';
+import { DeFiChainCoinStrategy } from '../impl/defichain-coin.strategy';
 import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
-import { EthereumCryptoStrategy } from '../impl/ethereum-crypto.strategy';
+import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../payout.facade';
 
 describe('PayoutStrategiesFacade', () => {
   let bitcoin: BitcoinStrategy;
-  let deFiChainDfi: DeFiChainDfiStrategy;
+  let deFiChainCoin: DeFiChainCoinStrategy;
   let deFiChainToken: DeFiChainTokenStrategy;
-  let ethereumCrypto: EthereumCryptoStrategy;
+  let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
-  let bscCrypto: BscCryptoStrategy;
+  let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
 
   let facade: PayoutStrategiesFacadeWrapper;
 
   beforeEach(() => {
     bitcoin = new BitcoinStrategy(mock<MailService>(), mock<PayoutBitcoinService>(), mock<PayoutOrderRepository>());
-    deFiChainDfi = new DeFiChainDfiStrategy(
+    deFiChainCoin = new DeFiChainCoinStrategy(
       mock<MailService>(),
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
@@ -42,18 +42,18 @@ describe('PayoutStrategiesFacade', () => {
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
     );
-    ethereumCrypto = new EthereumCryptoStrategy(mock<PayoutEthereumService>(), mock<PayoutOrderRepository>());
+    ethereumCoin = new EthereumCoinStrategy(mock<PayoutEthereumService>(), mock<PayoutOrderRepository>());
     ethereumToken = new EthereumTokenStrategy(mock<PayoutEthereumService>(), mock<PayoutOrderRepository>());
-    bscCrypto = new BscCryptoStrategy(mock<PayoutBscService>(), mock<PayoutOrderRepository>());
+    bscCoin = new BscCoinStrategy(mock<PayoutBscService>(), mock<PayoutOrderRepository>());
     bscToken = new BscTokenStrategy(mock<PayoutBscService>(), mock<PayoutOrderRepository>());
 
     facade = new PayoutStrategiesFacadeWrapper(
       bitcoin,
-      bscCrypto,
+      bscCoin,
       bscToken,
-      deFiChainDfi,
+      deFiChainCoin,
       deFiChainToken,
-      ethereumCrypto,
+      ethereumCoin,
       ethereumToken,
     );
   });
@@ -72,20 +72,20 @@ describe('PayoutStrategiesFacade', () => {
 
       expect(aliases.includes(PayoutStrategyAlias.BITCOIN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.BSC_TOKEN)).toBe(true);
-      expect(aliases.includes(PayoutStrategyAlias.BSC_CRYPTO)).toBe(true);
-      expect(aliases.includes(PayoutStrategyAlias.DEFICHAIN_DFI)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.BSC_COIN)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.DEFICHAIN_COIN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.DEFICHAIN_TOKEN)).toBe(true);
-      expect(aliases.includes(PayoutStrategyAlias.ETHEREUM_CRYPTO)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.ETHEREUM_COIN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.ETHEREUM_TOKEN)).toBe(true);
     });
 
     it('assigns proper payoutStrategies to aliases', () => {
       expect(facade.getStrategies().get(PayoutStrategyAlias.BITCOIN)).toBeInstanceOf(BitcoinStrategy);
-      expect(facade.getStrategies().get(PayoutStrategyAlias.BSC_CRYPTO)).toBeInstanceOf(BscCryptoStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.BSC_COIN)).toBeInstanceOf(BscCoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.BSC_TOKEN)).toBeInstanceOf(BscTokenStrategy);
-      expect(facade.getStrategies().get(PayoutStrategyAlias.DEFICHAIN_DFI)).toBeInstanceOf(DeFiChainDfiStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.DEFICHAIN_COIN)).toBeInstanceOf(DeFiChainCoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.DEFICHAIN_TOKEN)).toBeInstanceOf(DeFiChainTokenStrategy);
-      expect(facade.getStrategies().get(PayoutStrategyAlias.ETHEREUM_CRYPTO)).toBeInstanceOf(EthereumCryptoStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.ETHEREUM_COIN)).toBeInstanceOf(EthereumCoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.ETHEREUM_TOKEN)).toBeInstanceOf(EthereumTokenStrategy);
     });
   });
@@ -98,49 +98,49 @@ describe('PayoutStrategiesFacade', () => {
         expect(strategy).toBeInstanceOf(BitcoinStrategy);
       });
 
-      it('gets BSC_CRYPTO strategy', () => {
+      it('gets BSC_COIN strategy', () => {
         const strategy = facade.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, category: AssetCategory.CRYPTO }),
+          createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, type: AssetType.COIN }),
         );
 
-        expect(strategy).toBeInstanceOf(BscCryptoStrategy);
+        expect(strategy).toBeInstanceOf(BscCoinStrategy);
       });
 
       it('gets BSC_TOKEN strategy', () => {
         const strategy = facade.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, category: AssetCategory.STOCK }),
+          createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, type: AssetType.TOKEN }),
         );
 
         expect(strategy).toBeInstanceOf(BscTokenStrategy);
       });
 
-      it('gets DEFICHAIN_DFI strategy', () => {
+      it('gets DEFICHAIN_COIN strategy', () => {
         const strategy = facade.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, dexName: 'DFI' }),
+          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, type: AssetType.COIN }),
         );
 
-        expect(strategy).toBeInstanceOf(DeFiChainDfiStrategy);
+        expect(strategy).toBeInstanceOf(DeFiChainCoinStrategy);
       });
 
       it('gets DEFICHAIN_TOKEN strategy for DEFICHAIN', () => {
         const strategy = facade.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, dexName: 'non-DFI' }),
+          createCustomAsset({ blockchain: Blockchain.DEFICHAIN, type: AssetType.TOKEN }),
         );
 
         expect(strategy).toBeInstanceOf(DeFiChainTokenStrategy);
       });
 
-      it('gets ETHEREUM_CRYPTO strategy', () => {
+      it('gets ETHEREUM_COIN strategy', () => {
         const strategy = facade.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.ETHEREUM, category: AssetCategory.CRYPTO }),
+          createCustomAsset({ blockchain: Blockchain.ETHEREUM, type: AssetType.COIN }),
         );
 
-        expect(strategy).toBeInstanceOf(EthereumCryptoStrategy);
+        expect(strategy).toBeInstanceOf(EthereumCoinStrategy);
       });
 
       it('gets ETHEREUM_TOKEN strategy', () => {
         const strategy = facade.getPayoutStrategy(
-          createCustomAsset({ blockchain: Blockchain.ETHEREUM, category: AssetCategory.STOCK }),
+          createCustomAsset({ blockchain: Blockchain.ETHEREUM, type: AssetType.TOKEN }),
         );
 
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
@@ -162,10 +162,10 @@ describe('PayoutStrategiesFacade', () => {
         expect(strategyCrypto).toBeInstanceOf(BitcoinStrategy);
       });
 
-      it('gets BSC_CRYPTO strategy', () => {
-        const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.BSC_CRYPTO);
+      it('gets BSC_COIN strategy', () => {
+        const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.BSC_COIN);
 
-        expect(strategyCrypto).toBeInstanceOf(BscCryptoStrategy);
+        expect(strategyCrypto).toBeInstanceOf(BscCoinStrategy);
       });
 
       it('gets BSC_TOKEN strategy', () => {
@@ -174,10 +174,10 @@ describe('PayoutStrategiesFacade', () => {
         expect(strategyCrypto).toBeInstanceOf(BscTokenStrategy);
       });
 
-      it('gets DEFICHAIN_DFI strategy', () => {
-        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
+      it('gets DEFICHAIN_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_COIN);
 
-        expect(strategy).toBeInstanceOf(DeFiChainDfiStrategy);
+        expect(strategy).toBeInstanceOf(DeFiChainCoinStrategy);
       });
 
       it('gets DEFICHAIN_TOKEN strategy', () => {
@@ -186,10 +186,10 @@ describe('PayoutStrategiesFacade', () => {
         expect(strategy).toBeInstanceOf(DeFiChainTokenStrategy);
       });
 
-      it('gets ETHEREUM_CRYPTO strategy', () => {
-        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_CRYPTO);
+      it('gets ETHEREUM_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_COIN);
 
-        expect(strategy).toBeInstanceOf(EthereumCryptoStrategy);
+        expect(strategy).toBeInstanceOf(EthereumCoinStrategy);
       });
 
       it('gets ETHEREUM_TOKEN strategy', () => {
@@ -211,14 +211,14 @@ describe('PayoutStrategiesFacade', () => {
 class PayoutStrategiesFacadeWrapper extends PayoutStrategiesFacade {
   constructor(
     bitcoin: BitcoinStrategy,
-    bscCrypto: BscCryptoStrategy,
+    bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
-    deFiChainDfi: DeFiChainDfiStrategy,
+    deFiChainCoin: DeFiChainCoinStrategy,
     deFiChainToken: DeFiChainTokenStrategy,
-    ethereumCrypto: EthereumCryptoStrategy,
+    ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
   ) {
-    super(bitcoin, bscCrypto, bscToken, deFiChainDfi, deFiChainToken, ethereumCrypto, ethereumToken);
+    super(bitcoin, bscCoin, bscToken, deFiChainCoin, deFiChainToken, ethereumCoin, ethereumToken);
   }
 
   getStrategies() {

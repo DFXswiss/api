@@ -1,4 +1,4 @@
-import { Contract, ethers } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import * as ERC20_ABI from './abi/erc20.abi.json';
 import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
@@ -25,10 +25,10 @@ export class EvmClient {
     this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.#wallet);
   }
 
-  async getNativeCryptoBalance(): Promise<number> {
+  async getNativeCoinBalance(): Promise<number> {
     const balance = await this.#provider.getBalance(this.#dfxAddress);
 
-    return parseFloat(ethers.utils.formatEther(balance));
+    return this.convertToEthLikeDenomination(balance);
   }
 
   async getTokenBalance(token: Asset): Promise<number> {
@@ -36,16 +36,16 @@ export class EvmClient {
     const balance = await contract.balanceOf(this.#dfxAddress);
     const decimals = await contract.decimals();
 
-    return parseFloat(ethers.utils.formatUnits(balance, decimals));
+    return this.convertToEthLikeDenomination(balance, decimals);
   }
 
-  async sendNativeCrypto(address: string, amount: number): Promise<string> {
+  async sendNativeCoin(address: string, amount: number): Promise<string> {
     const gasPrice = await this.#provider.getGasPrice();
 
     const tx = await this.#wallet.sendTransaction({
       from: this.#dfxAddress,
       to: address,
-      value: ethers.utils.parseUnits(`${amount}`, 'ether'),
+      value: this.convertToWeiLikeDenomination(amount, 'ether'),
       gasPrice,
       // has to be provided as a number for BSC
       gasLimit: 21000,
@@ -57,7 +57,7 @@ export class EvmClient {
   async sendToken(address: string, token: Asset, amount: number): Promise<string> {
     const contract = this.getERC20Contract(token.chainId);
     const decimals = await contract.decimals();
-    const targetAmount = ethers.utils.parseUnits(`${amount}`, decimals);
+    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
 
     const tx = await contract.transfer(address, targetAmount);
 
@@ -76,11 +76,11 @@ export class EvmClient {
 
   async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
     const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
-    const inputAmount = ethers.utils.parseUnits(`${nativeCryptoAmount}`, 'ether');
+    const inputAmount = this.convertToWeiLikeDenomination(nativeCryptoAmount, 'ether');
     const outputAmounts = await this.#router.getAmountsOut(inputAmount, [this.#swapTokenAddress, targetToken.chainId]);
     const decimals = await contract.decimals();
 
-    return parseFloat(ethers.utils.formatUnits(outputAmounts[1], decimals));
+    return this.convertToEthLikeDenomination(outputAmounts[1], decimals);
   }
 
   //*** HELPER METHODS ***//
@@ -94,5 +94,15 @@ export class EvmClient {
     }
 
     return tokenContract;
+  }
+
+  private convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
+    return ethers.utils.parseUnits(`${amountEthLike}`, decimals);
+  }
+
+  private convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
+    return decimals
+      ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
+      : parseFloat(ethers.utils.formatEther(amountWeiLike));
   }
 }

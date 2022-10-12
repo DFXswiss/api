@@ -19,9 +19,9 @@ export abstract class DexEvmService {
     this.#client = service.getDefaultClient();
   }
 
-  async checkNativeCryptoAvailability(amount: number): Promise<number> {
+  async checkNativeCoinAvailability(amount: number): Promise<number> {
     const pendingAmount = await this.getPendingAmount(this.nativeCoin);
-    const availableAmount = await this.#client.getNativeCryptoBalance();
+    const availableAmount = await this.#client.getNativeCoinBalance();
 
     this.checkLiquidity(amount, pendingAmount, availableAmount, this.nativeCoin);
 

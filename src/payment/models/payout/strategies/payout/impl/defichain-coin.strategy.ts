@@ -7,7 +7,7 @@ import { PayoutDeFiChainService } from '../../../services/payout-defichain.servi
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
-export class DeFiChainDfiStrategy extends JellyfishStrategy {
+export class DeFiChainCoinStrategy extends JellyfishStrategy {
   constructor(
     mailService: MailService,
     protected readonly deFiChainService: PayoutDeFiChainService,

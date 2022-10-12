@@ -9,8 +9,8 @@ export abstract class PayoutEvmService {
     this.#client = service.getDefaultClient();
   }
 
-  async sendNativeCrypto(address: string, amount: number): Promise<string> {
-    return this.#client.sendNativeCrypto(address, amount);
+  async sendNativeCoin(address: string, amount: number): Promise<string> {
+    return this.#client.sendNativeCoin(address, amount);
   }
 
   async sendToken(address: string, tokenName: Asset, amount: number): Promise<string> {

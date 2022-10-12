@@ -1,22 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { CheckLiquidityStrategy } from './impl/base/check-liquidity.strategy';
 import { BitcoinStrategy } from './impl/bitcoin.strategy';
-import { BscCryptoStrategy } from './impl/bsc-crypto.strategy';
+import { BscCoinStrategy } from './impl/bsc-coin.strategy';
 import { BscTokenStrategy } from './impl/bsc-token.strategy';
 import { DeFiChainDefaultStrategy } from './impl/defichain-default.strategy';
 import { DeFiChainPoolPairStrategy } from './impl/defichain-poolpair.strategy';
-import { EthereumCryptoStrategy } from './impl/ethereum-crypto.strategy';
+import { EthereumCoinStrategy } from './impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from './impl/ethereum-token.strategy';
 
 enum Alias {
   BITCOIN = 'Bitcoin',
-  BSC_CRYPTO = 'BscCrypto',
+  BSC_COIN = 'BscCoin',
   BSC_TOKEN = 'BscToken',
   DEFICHAIN_POOL_PAIR = 'DeFiChainPoolPair',
   DEFICHAIN_DEFAULT = 'DeFiChainDefault',
-  ETHEREUM_CRYPTO = 'EthereumCrypto',
+  ETHEREUM_COIN = 'EthereumCoin',
   ETHEREUM_TOKEN = 'EthereumToken',
 }
 
@@ -28,19 +28,19 @@ export class CheckLiquidityStrategies {
 
   constructor(
     bitcoin: BitcoinStrategy,
-    bscCrypto: BscCryptoStrategy,
+    bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
     deFiChainDefault: DeFiChainDefaultStrategy,
     deFiChainPoolPair: DeFiChainPoolPairStrategy,
-    ethereumCrypto: EthereumCryptoStrategy,
+    ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
   ) {
     this.strategies.set(Alias.BITCOIN, bitcoin);
-    this.strategies.set(Alias.BSC_CRYPTO, bscCrypto);
+    this.strategies.set(Alias.BSC_COIN, bscCoin);
     this.strategies.set(Alias.BSC_TOKEN, bscToken);
     this.strategies.set(Alias.DEFICHAIN_POOL_PAIR, deFiChainPoolPair);
     this.strategies.set(Alias.DEFICHAIN_DEFAULT, deFiChainDefault);
-    this.strategies.set(Alias.ETHEREUM_CRYPTO, ethereumCrypto);
+    this.strategies.set(Alias.ETHEREUM_COIN, ethereumCoin);
     this.strategies.set(Alias.ETHEREUM_TOKEN, ethereumToken);
   }
 
@@ -65,13 +65,12 @@ export class CheckLiquidityStrategies {
   }
 
   private getAlias(asset: Asset): Alias {
-    const { blockchain, category: assetCategory } = asset;
+    const { blockchain, category: assetCategory, type: assetType } = asset;
 
     if (blockchain === Blockchain.BITCOIN) return Alias.BITCOIN;
 
     if (blockchain === Blockchain.BINANCE_SMART_CHAIN) {
-      if (assetCategory === AssetCategory.CRYPTO) return Alias.BSC_CRYPTO;
-      if (assetCategory === AssetCategory.STOCK) return Alias.BSC_TOKEN;
+      return assetType === AssetType.COIN ? Alias.BSC_COIN : Alias.BSC_TOKEN;
     }
 
     if (blockchain === Blockchain.DEFICHAIN) {
@@ -80,8 +79,7 @@ export class CheckLiquidityStrategies {
     }
 
     if (blockchain === Blockchain.ETHEREUM) {
-      if (assetCategory === AssetCategory.CRYPTO) return Alias.ETHEREUM_CRYPTO;
-      if (assetCategory === AssetCategory.STOCK) return Alias.ETHEREUM_TOKEN;
+      return assetType === AssetType.COIN ? Alias.ETHEREUM_COIN : Alias.ETHEREUM_TOKEN;
     }
   }
 }
