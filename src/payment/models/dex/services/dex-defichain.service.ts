@@ -70,7 +70,7 @@ export class DexDeFiChainService {
     } catch (e) {
       if (this.isCompositeSwapSlippageError(e)) {
         throw new PriceSlippageException(
-          `Price is higher than indicated. Composite swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
+          `Price is higher than indicated. Composite swap ${swapAmount} ${swapAsset} to ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
         );
       }
 
@@ -185,7 +185,7 @@ export class DexDeFiChainService {
 
     if (targetAmount > 0.000001 && targetAmount < minimalAllowedTargetAmount) {
       throw new PriceSlippageException(
-        `Price is higher than indicated. Test swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
+        `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
           sourceAmount / targetAmount,
           8,
         )} ${sourceAsset}`,
