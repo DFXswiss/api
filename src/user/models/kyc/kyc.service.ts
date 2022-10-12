@@ -30,6 +30,7 @@ import { WalletRepository } from '../wallet/wallet.repository';
 import { HttpService } from 'src/shared/services/http.service';
 import { Config } from 'src/config/config';
 import { UserRepository } from '../user/user.repository';
+import { WalletService } from '../wallet/wallet.service';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -51,6 +52,7 @@ export class KycService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
     private readonly walletRepo: WalletRepository,
+    private readonly walletService: WalletService,
     private readonly spiderService: SpiderService,
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
@@ -136,9 +138,12 @@ export class KycService {
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!user) throw new NotFoundException('DFX user not found');
 
+    const apiKey = this.walletService.getApiKeyInternal(wallet.description);
+    if (!apiKey) throw new ConflictException(`ApiKey for wallet ${wallet.description} not available`);
+
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
-        headers: { 'x-api-key': Config.lock.apiKey },
+        headers: { 'x-api-key': apiKey },
 
         params: { address: user.address },
       });

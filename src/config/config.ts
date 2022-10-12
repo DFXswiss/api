@@ -118,8 +118,10 @@ export class Configuration {
     apiKey: process.env.FIXER_API_KEY,
   };
 
-  lock = {
-    apiKey: process.env.LOCK_API_KEY,
+  externalKycServices = {
+    'LOCK.space': {
+      apiKey: process.env.LOCK_API_KEY,
+    },
   };
 
   mail: MailOptions = {

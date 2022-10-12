@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
 import { IsNull, Not } from 'typeorm';
 import { Wallet } from './wallet.entity';
@@ -20,4 +21,12 @@ export class WalletService {
   //   const signatureMessage = Config.auth.signMessageWallet + address;
   //   return this.cryptoService.verifySignature(signatureMessage, address, signature);
   // }
+
+  public getApiKeyInternal(name: string): string {
+    return (
+      Object.entries(Config.externalKycServices)
+        .filter(([key, _]) => key === name)
+        .map(([_, value]) => value)[0]?.apiKey ?? undefined
+    );
+  }
 }

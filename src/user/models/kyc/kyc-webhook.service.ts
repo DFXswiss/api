@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { KycCompleted, UserData } from '../user-data/user-data.entity';
 import { Config } from 'src/config/config';
 import { UserRepository } from '../user/user.repository';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
+import { WalletService } from '../wallet/wallet.service';
 
 export enum KycWebhookStatus {
   NA = 'NA',
@@ -42,6 +43,7 @@ export class KycWebhookService {
   constructor(
     private readonly http: HttpService,
     private readonly walletRepo: WalletRepository,
+    private readonly walletService: WalletService,
     private readonly userRepo: UserRepository,
     private readonly spiderRepo: SpiderDataRepository,
   ) {}
@@ -61,8 +63,8 @@ export class KycWebhookService {
       try {
         if (!user.wallet?.id)
           console.error(`Tried to trigger webhook for user ${userData.id}, but wallet were not loaded`);
-        const walletUser = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
-        if (!walletUser || !walletUser.isKycClient || !walletUser.apiUrl) continue;
+        const wallet = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
+        if (!wallet || !wallet.isKycClient || !wallet.apiUrl) continue;
 
         const spiderData = await this.spiderRepo.findOne({ where: { userData: { id: userData.id } } });
 
@@ -78,7 +80,6 @@ export class KycWebhookService {
             city: userData.location,
             zip: userData.zip,
             phone: userData.phone,
-            //TODO change for KYC Update v2
             kycStatus:
               KycCompleted(userData.kycStatus) && spiderData?.chatbotResult
                 ? KycWebhookStatus.FULL
@@ -90,8 +91,11 @@ export class KycWebhookService {
           reason: reason,
         };
 
-        await this.http.post(`${walletUser.apiUrl}/kyc/update`, data, {
-          headers: { 'x-api-key': Config.lock.apiKey },
+        const apiKey = this.walletService.getApiKeyInternal(wallet.description);
+        if (!apiKey) throw new ConflictException(`ApiKey for wallet ${wallet.description} not available`);
+
+        await this.http.post(`${wallet.apiUrl}/kyc/update`, data, {
+          headers: { 'x-api-key': apiKey },
         });
       } catch (error) {
         console.error(`Exception during KYC webhook (${result}) for user ${userData.id}: ${error}`);
