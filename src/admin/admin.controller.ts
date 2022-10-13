@@ -146,13 +146,13 @@ export class AdminController {
         updatedSince: updated,
         maxLine: maxResult,
         sorting: query.sorting,
-        customCols: query.customCols,
+        filterCols: query.filterCols,
         extended: true,
       });
     } else {
       data = await getConnection()
         .createQueryBuilder()
-        .select(query.customCols)
+        .select(query.filterCols)
         .from(query.table, query.table)
         .where('id >= :id', { id })
         .andWhere('updated >= :updated', { updated })
@@ -194,8 +194,8 @@ export class AdminController {
   }
 
   private async getExtendedBankTxData(dbQuery: dbQueryDto): Promise<any[]> {
-    const select = dbQuery.customCols
-      ? dbQuery.customCols
+    const select = dbQuery.filterCols
+      ? dbQuery.filterCols
           .split(',')
           .map((e) => 'bank_tx.' + e)
           .join(',')
