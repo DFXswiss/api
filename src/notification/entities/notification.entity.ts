@@ -38,7 +38,7 @@ export class Notification extends IEntity {
     this.type = type;
 
     this.context = metadata?.context;
-    this.correlationId = metadata?.correlationId.substring(0, 255);
+    this.correlationId = metadata?.correlationId;
 
     this.suppressRecurring = options?.suppressRecurring;
     this.debounce = options?.debounce;

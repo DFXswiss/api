@@ -1,4 +1,4 @@
-import { Controller, UseGuards, Body, Get } from '@nestjs/common';
+import { Controller, UseGuards, Get, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -15,7 +15,7 @@ export class PricingController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async getPrice(@Body() dto: PriceRequest): Promise<PriceResult> {
+  async getPrice(@Query() dto: PriceRequest): Promise<PriceResult> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.pricingService.getPrice(dto);
     }

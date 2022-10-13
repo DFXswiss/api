@@ -15,7 +15,7 @@ export class NotificationController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async reserveLiquidity(@Body() dto: MailRequest): Promise<void> {
+  async sendMail(@Body() dto: MailRequest): Promise<void> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.notificationService.sendMail(dto);
     }

@@ -1,4 +1,4 @@
-import { Controller, UseGuards, Body, Post, Get, Param } from '@nestjs/common';
+import { Controller, UseGuards, Body, Post, Get, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -27,8 +27,8 @@ export class PayoutController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async checkOrderCompletion(
-    @Param('context') context: PayoutOrderContext,
-    @Param('correlationId') correlationId: string,
+    @Query('context') context: PayoutOrderContext,
+    @Query('correlationId') correlationId: string,
   ): Promise<{ isComplete: boolean; payoutTxId: string }> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.payoutService.checkOrderCompletion(context, correlationId);

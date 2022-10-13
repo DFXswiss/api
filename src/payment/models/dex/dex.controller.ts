@@ -1,4 +1,4 @@
-import { Controller, UseGuards, Body, Post, Get, Param, Put } from '@nestjs/common';
+import { Controller, UseGuards, Body, Post, Get, Put, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -16,7 +16,7 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async checkLiquidity(@Body() dto: LiquidityRequest): Promise<number> {
+  async checkLiquidity(@Query() dto: LiquidityRequest): Promise<number> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.checkLiquidity(dto);
     }
@@ -56,7 +56,7 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async transferMinimalUtxo(@Param('address') address: string): Promise<string> {
+  async transferMinimalUtxo(@Query('address') address: string): Promise<string> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.transferMinimalUtxo(address);
     }
@@ -67,8 +67,8 @@ export class DexController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async fetchTargetLiquidityAfterPurchase(
-    @Param('context') context: LiquidityOrderContext,
-    @Param('correlationId') correlationId: string,
+    @Query('context') context: LiquidityOrderContext,
+    @Query('correlationId') correlationId: string,
   ): Promise<number> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.fetchTargetLiquidityAfterPurchase(context, correlationId);
@@ -79,7 +79,7 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async checkTransferCompletion(@Param('transferTxId') transferTxId: string): Promise<boolean> {
+  async checkTransferCompletion(@Query('transferTxId') transferTxId: string): Promise<boolean> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.checkTransferCompletion(transferTxId);
     }
@@ -90,8 +90,8 @@ export class DexController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async completeOrders(
-    @Param('context') context: LiquidityOrderContext,
-    @Param('correlationId') correlationId: string,
+    @Query('context') context: LiquidityOrderContext,
+    @Query('correlationId') correlationId: string,
   ): Promise<void> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.completeOrders(context, correlationId);
