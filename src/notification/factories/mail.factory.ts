@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMailInput, KycSupportMail } from '../entities/mail/kyc-support-mail';
-import { Mail } from '../entities/mail/mail';
+import { Mail } from '../entities/mail/base/mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import { MailRequest, MailRequestGenericInput } from '../interfaces';

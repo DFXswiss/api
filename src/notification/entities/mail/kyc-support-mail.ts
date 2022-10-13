@@ -1,7 +1,7 @@
 import { GetConfig } from 'src/config/config';
 import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
-import { Mail } from './mail';
+import { Mail } from './base/mail';
 
 export interface KycSupportMailInput {
   userData: UserData;

@@ -1,6 +1,6 @@
 import { GetConfig } from 'src/config/config';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
-import { Mail } from './mail';
+import { Mail } from './base/mail';
 
 export type ErrorMonitoringMailInput = ErrorMonitoringMailParams;
 

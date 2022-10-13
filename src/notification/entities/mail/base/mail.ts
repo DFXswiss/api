@@ -1,6 +1,6 @@
 import { GetConfig } from 'src/config/config';
 import { NotificationType } from 'src/notification/enums';
-import { Notification, NotificationOptions, NotificationMetadata } from '../notification.entity';
+import { Notification, NotificationOptions, NotificationMetadata } from '../../notification.entity';
 
 export interface MailParams {
   to: string;
