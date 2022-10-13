@@ -199,6 +199,9 @@
     },
     "paymentUrl": {
       "value": "https://dev.payment.dfx.swiss"
+    },
+    "lockApiKey": {
+      "value": "xxx"
     }
   }
 }

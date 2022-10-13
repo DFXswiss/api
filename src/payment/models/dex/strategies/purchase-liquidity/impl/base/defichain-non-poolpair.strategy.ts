@@ -87,7 +87,7 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     }
 
     throw new NotEnoughLiquidityException(
-      'Failed to find suitable source asset for liquidity order. '.concat(...errors),
+      `Failed to find suitable source asset for liquidity order (target asset ${targetAsset}). `.concat(...errors),
     );
   }
 }

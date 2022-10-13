@@ -103,7 +103,7 @@ export class SpiderSyncService {
         await this.syncKycUser(userDataId);
       } catch (e) {
         console.error(`Exception during KYC sync for user ${userDataId}:`, e);
-        await this.mailService.sendErrorMail('KYC Error',[`Exception during KYC sync for user ${userDataId}: ${e}`]);
+        await this.mailService.sendErrorMail('KYC Error', [`Exception during KYC sync for user ${userDataId}: ${e}`]);
       }
     }
   }
@@ -136,6 +136,9 @@ export class SpiderSyncService {
           });
         }
       }
+
+      if (!userData.spiderData.identPdf) console.error(`Failed to fetch ident PDF for user ${userDataId}`);
+
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
@@ -215,7 +218,7 @@ export class SpiderSyncService {
 
   private async getIdentPdfUrl(userData: UserData): Promise<string> {
     const result = await this.getIdentResult(userData, KycContentType.PDF);
-    return result
+    return result?.part
       ? this.spiderService.getDocumentUrl(userData.kycCustomerId, result.document, result.version, result.part.name)
       : null;
   }
