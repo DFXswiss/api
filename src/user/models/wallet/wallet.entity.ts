@@ -23,5 +23,5 @@ export class Wallet extends IEntity {
   apiUrl: string;
 
   @OneToMany(() => User, (user) => user.wallet)
-  logs: User[];
+  users: User[];
 }
