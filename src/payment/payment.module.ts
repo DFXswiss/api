@@ -70,6 +70,7 @@ import { BankTxReturnRepository } from './models/bank-tx-return/bank-tx-return.r
 import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.service';
 import { BankTxRepeatRepository } from './models/bank-tx-repeat/bank-tx-repeat.repository';
 import { BankTxRepeatService } from './models/bank-tx-repeat/bank-tx-repeat.service';
+import { BankTxReturnController } from './models/bank-tx-return/bank-tx-return.controller';
 
 @Module({
   imports: [
@@ -120,6 +121,7 @@ import { BankTxRepeatService } from './models/bank-tx-repeat/bank-tx-repeat.serv
     CryptoInputController,
     CryptoRouteController,
     BankAccountController,
+    BankTxReturnController,
   ],
   providers: [
     CryptoInputService,
