@@ -31,15 +31,17 @@ export class DexDeFiChainService {
     sourceAmount: number,
     targetAsset: string,
     maxSlippage: number,
+    bypassAvailabilityCheck?: boolean,
+    bypassSlippageProtection?: boolean,
   ): Promise<TargetAmount> {
     const targetAmount =
       targetAsset === sourceAsset
         ? sourceAmount
         : await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, sourceAmount);
 
-    await this.checkAssetAvailability(targetAsset, targetAmount);
+    !bypassAvailabilityCheck && (await this.checkAssetAvailability(targetAsset, targetAmount));
 
-    if ((await this.settingService.get('slippage-protection')) === 'on') {
+    if ((await this.settingService.get('slippage-protection')) === 'on' && !bypassSlippageProtection) {
       await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage);
     }
 

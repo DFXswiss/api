@@ -1,33 +1,65 @@
-import { ethers } from 'ethers';
+import { BigNumber, Contract, ethers } from 'ethers';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import * as ERC20_ABI from './abi/erc20.abi.json';
+import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
 
 export class EvmClient {
-  #address: string;
+  #dfxAddress: string;
   #provider: ethers.providers.JsonRpcProvider;
   #wallet: ethers.Wallet;
+  #router: Contract;
+  #erc20Tokens: Map<string, Contract> = new Map();
+  #swapTokenAddress: string;
 
-  constructor(gatewayUrl: string, privateKey: string, address: string) {
+  constructor(
+    gatewayUrl: string,
+    privateKey: string,
+    dfxAddress: string,
+    swapContractAddress: string,
+    swapTokenAddress: string,
+  ) {
     this.#provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.#wallet = new ethers.Wallet(privateKey, this.#provider);
-    this.#address = address;
+    this.#dfxAddress = dfxAddress;
+    this.#swapTokenAddress = swapTokenAddress;
+    this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.#wallet);
   }
 
-  async getBalance(): Promise<number> {
-    const balance = await this.#provider.getBalance(this.#address);
+  async getNativeCoinBalance(): Promise<number> {
+    const balance = await this.#provider.getBalance(this.#dfxAddress);
 
-    return parseFloat(ethers.utils.formatEther(balance));
+    return this.convertToEthLikeDenomination(balance);
   }
 
-  async send(address: string, amount: number): Promise<string> {
+  async getTokenBalance(token: Asset): Promise<number> {
+    const contract = this.getERC20Contract(token.chainId);
+    const balance = await contract.balanceOf(this.#dfxAddress);
+    const decimals = await contract.decimals();
+
+    return this.convertToEthLikeDenomination(balance, decimals);
+  }
+
+  async sendNativeCoin(address: string, amount: number): Promise<string> {
     const gasPrice = await this.#provider.getGasPrice();
 
     const tx = await this.#wallet.sendTransaction({
-      from: this.#address,
+      from: this.#dfxAddress,
       to: address,
-      value: ethers.utils.parseUnits(`${amount}`, 'ether'),
+      value: this.convertToWeiLikeDenomination(amount, 'ether'),
       gasPrice,
       // has to be provided as a number for BSC
       gasLimit: 21000,
     });
+
+    return tx.hash;
+  }
+
+  async sendToken(address: string, token: Asset, amount: number): Promise<string> {
+    const contract = this.getERC20Contract(token.chainId);
+    const decimals = await contract.decimals();
+    const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
+
+    const tx = await contract.transfer(address, targetAmount);
 
     return tx.hash;
   }
@@ -40,5 +72,37 @@ export class EvmClient {
 
   async getTx(txHash: string): Promise<ethers.providers.TransactionResponse> {
     return this.#provider.getTransaction(txHash);
+  }
+
+  async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
+    const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
+    const inputAmount = this.convertToWeiLikeDenomination(nativeCryptoAmount, 'ether');
+    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [this.#swapTokenAddress, targetToken.chainId]);
+    const decimals = await contract.decimals();
+
+    return this.convertToEthLikeDenomination(outputAmounts[1], decimals);
+  }
+
+  //*** HELPER METHODS ***//
+
+  private getERC20Contract(tokenAddress: string): Contract {
+    let tokenContract = this.#erc20Tokens.get(tokenAddress);
+
+    if (!tokenContract) {
+      tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.#wallet);
+      this.#erc20Tokens.set(tokenAddress, tokenContract);
+    }
+
+    return tokenContract;
+  }
+
+  private convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
+    return ethers.utils.parseUnits(`${amountEthLike}`, decimals);
+  }
+
+  private convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
+    return decimals
+      ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
+      : parseFloat(ethers.utils.formatEther(amountWeiLike));
   }
 }

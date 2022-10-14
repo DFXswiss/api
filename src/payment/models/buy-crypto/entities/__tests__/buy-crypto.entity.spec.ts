@@ -179,10 +179,10 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('USDT');
     });
 
-    it('assigns outputReferenceAsset to ETH, on Ethereum blockchain', () => {
+    it('assigns outputReferenceAsset to ETH, on Ethereum blockchain when outputAsset is not DFI', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
-        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }) }),
+        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM, dexName: 'GOOGL' }) }),
       });
 
       expect(entity.outputReferenceAsset).toBeUndefined();
@@ -192,10 +192,25 @@ describe('BuyCrypto', () => {
       expect(entity.outputReferenceAsset).toBe('ETH');
     });
 
-    it('assigns outputReferenceAsset to BNB, on BSC blockchain', () => {
+    it('assigns outputReferenceAsset to outputAsset, on Ethereum blockchain when outputAsset is DFI', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
-        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN }) }),
+        buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM, dexName: 'DFI' }) }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('DFI');
+    });
+
+    it('assigns outputReferenceAsset to BNB, on BSC blockchain when outputAsset is not DFI | BUSD', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({
+          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'GOOGL' }),
+        }),
       });
 
       expect(entity.outputReferenceAsset).toBeUndefined();
@@ -203,6 +218,36 @@ describe('BuyCrypto', () => {
       entity.defineAssetExchangePair();
 
       expect(entity.outputReferenceAsset).toBe('BNB');
+    });
+
+    it('assigns outputReferenceAsset to outputAsset, on BSC blockchain when outputAsset is DFI', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({
+          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'DFI' }),
+        }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('DFI');
+    });
+
+    it('assigns outputReferenceAsset to outputAsset, on BSC blockchain when outputAsset is BUSD', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({
+          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'BUSD' }),
+        }),
+      });
+
+      expect(entity.outputReferenceAsset).toBeUndefined();
+
+      entity.defineAssetExchangePair();
+
+      expect(entity.outputReferenceAsset).toBe('BUSD');
     });
 
     it('defaults outputReferenceAsset to BTC on Bitcoin blockchain', () => {

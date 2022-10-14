@@ -7,6 +7,12 @@ export interface LiquidityRequest {
   referenceAsset: string;
   referenceAmount: number;
   targetAsset: Asset;
+  options?: LiquidityRequestOptions;
+}
+
+export interface LiquidityRequestOptions {
+  bypassAvailabilityCheck?: boolean;
+  bypassSlippageProtection?: boolean;
 }
 
 export interface TransferRequest {

@@ -134,10 +134,20 @@ export class BuyCrypto extends IEntity {
 
     switch (this.target.asset.blockchain) {
       case Blockchain.ETHEREUM:
+        if (this.outputAsset === 'DFI') {
+          this.outputReferenceAsset = this.outputAsset;
+          break;
+        }
+
         this.outputReferenceAsset = 'ETH';
         break;
 
       case Blockchain.BINANCE_SMART_CHAIN:
+        if (['DFI', 'BUSD'].includes(this.outputAsset)) {
+          this.outputReferenceAsset = this.outputAsset;
+          break;
+        }
+
         this.outputReferenceAsset = 'BNB';
         break;
 

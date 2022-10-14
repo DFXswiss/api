@@ -86,6 +86,12 @@
     "ethApiKey": {
       "value": "xxx"
     },
+    "ethSwapContractAddress": {
+      "value": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+    },
+    "ethSwapTokenAddress": {
+      "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },
@@ -94,6 +100,12 @@
     },
     "bscGatewayUrl": {
       "value": "https://bsc-dataseed.binance.org"
+    },
+    "bscSwapContractAddress": {
+      "value": "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+    },
+    "bscSwapTokenAddress": {
+      "value": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
     },
     "btcCollectorAddress": {
       "value": "xxx"

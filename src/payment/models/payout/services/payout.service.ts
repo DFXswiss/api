@@ -6,7 +6,6 @@ import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/strategies.facade';
-import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { PayoutLogService } from './payout-log.service';
 import { PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/notification/enums';
@@ -18,7 +17,8 @@ export class PayoutService {
   private readonly processOrdersLock = new Lock(1800);
 
   constructor(
-    private readonly strategies: PayoutStrategiesFacade,
+    private readonly payoutStrategies: PayoutStrategiesFacade,
+    private readonly prepareStrategies: PrepareStrategiesFacade,
     private readonly logs: PayoutLogService,
     private readonly notificationService: NotificationService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
@@ -88,7 +88,7 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const strategy = this.strategies.getPrepareStrategy(order.asset);
+      const strategy = this.prepareStrategies.getPrepareStrategy(order.asset);
 
       try {
         await strategy.checkPreparationCompletion(order);
@@ -107,7 +107,7 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const strategy = this.strategies.getPayoutStrategy(order.asset);
+      const strategy = this.payoutStrategies.getPayoutStrategy(order.asset);
 
       try {
         await strategy.checkPayoutCompletion(order);
@@ -125,7 +125,7 @@ export class PayoutService {
     const confirmedOrders = [];
 
     for (const order of orders) {
-      const strategy = this.strategies.getPrepareStrategy(order.asset);
+      const strategy = this.prepareStrategies.getPrepareStrategy(order.asset);
 
       try {
         await strategy.preparePayout(order);
@@ -140,23 +140,16 @@ export class PayoutService {
 
   private async payoutOrders(): Promise<void> {
     const orders = await this.payoutOrderRepo.find({ status: PayoutOrderStatus.PREPARATION_CONFIRMED });
+    const groups = this.groupOrdersByPayoutStrategies(orders);
 
-    const dfiOrders = orders.filter((o) => o.asset.blockchain === Blockchain.DEFICHAIN && o.asset.dexName === 'DFI');
-    const tokenOrders = orders.filter((o) => o.asset.blockchain === Blockchain.DEFICHAIN && o.asset.dexName !== 'DFI');
-    const ethOrders = orders.filter((o) => o.asset.blockchain === Blockchain.ETHEREUM && o.asset.dexName === 'ETH');
-    const bnbOrders = orders.filter(
-      (o) => o.asset.blockchain === Blockchain.BINANCE_SMART_CHAIN && o.asset.dexName === 'BNB',
-    );
-
-    const dfiStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_DFI);
-    const tokenStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.DEFICHAIN_TOKEN);
-    const ethStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_DEFAULT);
-    const bnbStrategy = this.strategies.getPayoutStrategy(PayoutStrategyAlias.BSC_DEFAULT);
-
-    await dfiStrategy.doPayout(dfiOrders);
-    await tokenStrategy.doPayout(tokenOrders);
-    await ethStrategy.doPayout(ethOrders);
-    await bnbStrategy.doPayout(bnbOrders);
+    for (const group of groups.entries()) {
+      try {
+        const strategy = this.payoutStrategies.getPayoutStrategy(group[0]);
+        await strategy.doPayout(group[1]);
+      } catch {
+        continue;
+      }
+    }
   }
 
   private async processFailedOrders(): Promise<void> {
@@ -173,6 +166,26 @@ export class PayoutService {
       order.pendingInvestigation();
       await this.payoutOrderRepo.save(order);
     }
+  }
+
+  private groupOrdersByPayoutStrategies(orders: PayoutOrder[]): Map<PayoutStrategyAlias, PayoutOrder[]> {
+    const groups = new Map<PayoutStrategyAlias, PayoutOrder[]>();
+
+    for (const order of orders) {
+      const alias = this.payoutStrategies.getPayoutStrategyAlias(order.asset);
+
+      if (!alias) {
+        console.warn(`No payout alias found for payout order ID ${order.id}. Ignoring the order`);
+        continue;
+      }
+
+      const group = groups.get(alias) ?? [];
+      group.push(order);
+
+      groups.set(alias, group);
+    }
+
+    return groups;
   }
 
   private createMailRequest(errorMessage: string, orders: PayoutOrder[] = []): MailRequest {

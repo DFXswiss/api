@@ -4,8 +4,7 @@ import { IEntity } from '../entity';
 
 export enum AssetType {
   COIN = 'Coin',
-  DCT = 'DCT',
-  DAT = 'DAT',
+  TOKEN = 'Token',
 }
 
 export enum AssetCategory {
@@ -19,8 +18,8 @@ export enum AssetCategory {
   unique: true,
 })
 export class Asset extends IEntity {
-  @Column({ type: 'int', nullable: true })
-  chainId: number;
+  @Column({ nullable: true })
+  chainId: string;
 
   @Column({ length: 256 })
   name: string;
