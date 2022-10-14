@@ -326,7 +326,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(fixerService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
-    const request = { from: 'EUR', to: 'BUSD' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'EUR', to: 'BUSD' };
     const result = await service.getPrice(request);
 
     expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
@@ -416,7 +416,7 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 23111 }),
       );
 
-    const request = { from: 'EUR', to: 'DFI' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'EUR', to: 'DFI' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);

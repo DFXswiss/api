@@ -1,9 +1,9 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
 import { PayoutBscService } from '../../../services/payout-bsc.service';
@@ -30,14 +30,18 @@ describe('PayoutStrategiesFacade', () => {
   let facade: PayoutStrategiesFacadeWrapper;
 
   beforeEach(() => {
-    bitcoin = new BitcoinStrategy(mock<MailService>(), mock<PayoutBitcoinService>(), mock<PayoutOrderRepository>());
+    bitcoin = new BitcoinStrategy(
+      mock<NotificationService>(),
+      mock<PayoutBitcoinService>(),
+      mock<PayoutOrderRepository>(),
+    );
     deFiChainCoin = new DeFiChainCoinStrategy(
-      mock<MailService>(),
+      mock<NotificationService>(),
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
     );
     deFiChainToken = new DeFiChainTokenStrategy(
-      mock<MailService>(),
+      mock<NotificationService>(),
       mock<DexService>(),
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),

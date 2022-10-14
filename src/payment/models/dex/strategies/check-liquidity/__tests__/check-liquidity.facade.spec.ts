@@ -7,12 +7,11 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { DexBscService } from '../../../services/dex-bsc.service';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
-import { CheckLiquidityStrategies } from '../check-liquidity.facade';
+import { CheckLiquidityStrategies, CheckLiquidityAlias } from '../check-liquidity.facade';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { DeFiChainDefaultStrategy } from '../impl/defichain-default.strategy';
 import { DeFiChainPoolPairStrategy } from '../impl/defichain-poolpair.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
-import { CheckLiquidityAlias } from '../check-liquidity.facade';
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';

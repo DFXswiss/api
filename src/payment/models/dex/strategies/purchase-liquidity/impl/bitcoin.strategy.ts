@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { LiquidityRequest } from '../../../interfaces';
-import { MailService } from 'src/shared/services/mail.service';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
+import { NotificationService } from 'src/notification/services/notification.service';
 
 @Injectable()
 export class BitcoinStrategy extends PurchaseLiquidityStrategy {
-  constructor(mailService: MailService, private readonly dexBtcService: DexBitcoinService) {
-    super(mailService);
+  constructor(notificationService: NotificationService, private readonly dexBtcService: DexBitcoinService) {
+    super(notificationService);
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
