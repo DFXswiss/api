@@ -14,4 +14,13 @@ export class BankTxReturn extends IEntity {
 
   @Column({ length: 256, nullable: true })
   info: string;
+
+  @Column({ type: 'float', nullable: true })
+  amountInChf: number;
+
+  @Column({ type: 'float', nullable: true })
+  amountInEur: number;
+
+  @Column({ type: 'float', nullable: true })
+  amountInUsd: number;
 }

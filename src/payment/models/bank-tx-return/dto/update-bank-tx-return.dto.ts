@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateBankTxReturnDto {
   @IsOptional()
@@ -8,4 +8,16 @@ export class UpdateBankTxReturnDto {
   @IsOptional()
   @IsInt()
   chargebackBankTxId: number;
+
+  @IsOptional()
+  @IsNumber()
+  amountInChf: number;
+
+  @IsOptional()
+  @IsNumber()
+  amountInEur: number;
+
+  @IsOptional()
+  @IsNumber()
+  amountInUsd: number;
 }
