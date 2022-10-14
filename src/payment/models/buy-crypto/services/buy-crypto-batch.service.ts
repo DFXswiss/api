@@ -6,7 +6,8 @@ import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repos
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
-import { PriceResult } from '../../pricing/interfaces';
+import { PriceRequest, PriceResult } from '../../pricing/interfaces';
+import { PriceRequestContext } from '../../pricing/enums';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -82,7 +83,7 @@ export class BuyCryptoBatchService {
 
     const prices = await Promise.all<PriceResult>(
       referenceAssetPairs.map(async (pair) => {
-        const priceRequest = { from: pair[0], to: pair[1] };
+        const priceRequest = this.createPriceRequest(pair, txWithAssets);
 
         return this.pricingService.getPrice(priceRequest).catch((e) => {
           console.error('Failed to get price:', e);
@@ -142,5 +143,10 @@ export class BuyCryptoBatchService {
     }
 
     return [...batches.values()];
+  }
+
+  private createPriceRequest(currencyPair: string[], transactions: BuyCrypto[] = []): PriceRequest {
+    const correlationId = 'BuyCryptoTransactions' + transactions.reduce((acc, t) => acc + `|${t.id}|`, '');
+    return { context: PriceRequestContext.BUY_CRYPTO, correlationId, from: currencyPair[0], to: currencyPair[1] };
   }
 }

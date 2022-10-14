@@ -15,6 +15,7 @@ import { PaymentObserver } from './observers/payment.observer';
 import { StakingBalanceObserver } from './observers/staking-balance.observer';
 import { UserObserver } from './observers/user.observer';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     AinModule,
     PaymentModule,
     UserModule,
+    NotificationModule,
   ],
   providers: [
     MonitoringService,

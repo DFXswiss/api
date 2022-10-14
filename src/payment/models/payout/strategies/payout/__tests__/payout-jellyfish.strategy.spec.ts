@@ -1,6 +1,6 @@
 import { mock } from 'jest-mock-extended';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import {
   createCustomPayoutOrder,
@@ -13,7 +13,7 @@ import { JellyfishStrategy } from '../impl/base/jellyfish.strategy';
 describe('PayoutJellyfishStrategy', () => {
   let strategy: PayoutJellyfishStrategyWrapper;
 
-  let mailService: MailService;
+  let notificationService: NotificationService;
   let payoutOrderRepo: PayoutOrderRepository;
   let defichainService: PayoutDeFiChainService;
 
@@ -21,14 +21,14 @@ describe('PayoutJellyfishStrategy', () => {
   let sendErrorMailSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    mailService = mock<MailService>();
+    notificationService = mock<NotificationService>();
     payoutOrderRepo = mock<PayoutOrderRepository>();
     defichainService = mock<PayoutDeFiChainService>();
 
     repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save');
-    sendErrorMailSpy = jest.spyOn(mailService, 'sendErrorMail');
+    sendErrorMailSpy = jest.spyOn(notificationService, 'sendMail');
 
-    strategy = new PayoutJellyfishStrategyWrapper(mailService, payoutOrderRepo, defichainService);
+    strategy = new PayoutJellyfishStrategyWrapper(notificationService, payoutOrderRepo, defichainService);
   });
 
   afterEach(() => {
@@ -235,28 +235,52 @@ describe('PayoutJellyfishStrategy', () => {
 
   describe('#sendNonRecoverableErrorMailWrapper(...)', () => {
     it('combines custom message with error message', async () => {
-      await strategy.sendNonRecoverableErrorMailWrapper('Test message', new Error('Another message'));
+      await strategy.sendNonRecoverableErrorMailWrapper(
+        createDefaultPayoutOrder(),
+        'Test message',
+        new Error('Another message'),
+      );
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
-      expect(sendErrorMailSpy).toBeCalledWith('Payout Error', ['Test message', 'Another message']);
+      expect(sendErrorMailSpy).toBeCalledWith({
+        input: { errors: ['Test message', 'Another message'], subject: 'Payout Error' },
+        type: 'ErrorMonitoring',
+        metadata: {
+          context: 'Payout',
+          correlationId: 'PayoutOrder&BuyCrypto&1',
+        },
+        options: {
+          suppressRecurring: true,
+        },
+      });
     });
 
-    it('calls mailService with Payout Error subject', async () => {
-      await strategy.sendNonRecoverableErrorMailWrapper('');
+    it('calls notificationService with Payout Error subject', async () => {
+      await strategy.sendNonRecoverableErrorMailWrapper(createDefaultPayoutOrder(), '');
 
       expect(sendErrorMailSpy).toBeCalledTimes(1);
-      expect(sendErrorMailSpy).toBeCalledWith('Payout Error', ['']);
+      expect(sendErrorMailSpy).toBeCalledWith({
+        input: { errors: [''], subject: 'Payout Error' },
+        type: 'ErrorMonitoring',
+        metadata: {
+          context: 'Payout',
+          correlationId: 'PayoutOrder&BuyCrypto&1',
+        },
+        options: {
+          suppressRecurring: true,
+        },
+      });
     });
   });
 });
 
 class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     payoutOrderRepo: PayoutOrderRepository,
     defichainService: PayoutDeFiChainService,
   ) {
-    super(mailService, payoutOrderRepo, defichainService);
+    super(notificationService, payoutOrderRepo, defichainService);
   }
 
   protected doPayoutForContext(): Promise<void> {
@@ -287,7 +311,7 @@ class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
     return this.rollbackPayoutDesignation(orders);
   }
 
-  sendNonRecoverableErrorMailWrapper(message: string, e?: Error) {
-    return this.sendNonRecoverableErrorMail(message, e);
+  sendNonRecoverableErrorMailWrapper(order: PayoutOrder, message: string, e?: Error) {
+    return this.sendNonRecoverableErrorMail(order, message, e);
   }
 }

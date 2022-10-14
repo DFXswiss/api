@@ -1,3 +1,8 @@
+export enum PriceRequestContext {
+  BUY_CRYPTO = 'BuyCrypto',
+  STAKING_REWARD = 'StakingReward',
+}
+
 export enum Fiat {
   EUR = 'EUR',
   CHF = 'CHF',

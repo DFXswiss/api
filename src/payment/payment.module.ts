@@ -65,6 +65,7 @@ import { FrickService } from './models/bank-tx/frick.service';
 import { BankAccountController } from './models/bank-account/bank-account.controller';
 import { ExchangeModule } from './models/exchange/exchange.module';
 import { PricingModule } from './models/pricing/pricing.module';
+import { NotificationModule } from 'src/notification/notification.module';
 import { BankTxReturnRepository } from './models/bank-tx-return/bank-tx-return.repository';
 import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.service';
 import { BankTxRepeatRepository } from './models/bank-tx-repeat/bank-tx-repeat.repository';
@@ -102,6 +103,7 @@ import { BankTxReturnController } from './models/bank-tx-return/bank-tx-return.c
     PayoutModule,
     ExchangeModule,
     PricingModule,
+    NotificationModule,
   ],
   controllers: [
     BankTxController,

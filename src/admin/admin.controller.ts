@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { BankTxType } from 'src/payment/models/bank-tx/bank-tx.entity';
 import { BuyCrypto } from 'src/payment/models/buy-crypto/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/payment/models/buy-crypto/services/buy-crypto.service';
@@ -29,7 +31,6 @@ import { StakingRewardService } from 'src/payment/models/staking-reward/staking-
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/shared/services/letter.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
@@ -43,7 +44,7 @@ import { UploadFileDto } from './dto/upload-file.dto';
 @Controller('admin')
 export class AdminController {
   constructor(
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly letterService: LetterService,
@@ -63,7 +64,7 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
-      await this.mailService.sendMail(dto);
+      await this.notificationService.sendMail({ type: MailType.GENERIC, input: dto });
     }
   }
 

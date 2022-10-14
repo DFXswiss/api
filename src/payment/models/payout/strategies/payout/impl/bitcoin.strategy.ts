@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MailService } from 'src/shared/services/mail.service';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
@@ -9,11 +9,11 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     protected readonly bitcoinService: PayoutBitcoinService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo, bitcoinService);
+    super(notificationService, payoutOrderRepo, bitcoinService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

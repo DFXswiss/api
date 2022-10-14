@@ -5,10 +5,12 @@ import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
-import { MailService } from 'src/shared/services/mail.service';
-import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { PayoutLogService } from './payout-log.service';
 import { PayoutRequest } from '../interfaces';
+import { MailContext, MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
+import { MailRequest } from 'src/notification/interfaces';
+import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
 
 @Injectable()
@@ -19,7 +21,7 @@ export class PayoutService {
     private readonly payoutStrategies: PayoutStrategiesFacade,
     private readonly prepareStrategies: PrepareStrategiesFacade,
     private readonly logs: PayoutLogService,
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
     private readonly payoutOrderFactory: PayoutOrderFactory,
   ) {}
@@ -157,7 +159,9 @@ export class PayoutService {
     if (orders.length === 0) return;
 
     const logMessage = this.logs.logFailedOrders(orders);
-    await this.mailService.sendErrorMail('Payout Error', [logMessage]);
+    const mailRequest = this.createMailRequest(logMessage, orders);
+
+    await this.notificationService.sendMail(mailRequest);
 
     for (const order of orders) {
       order.pendingInvestigation();
@@ -183,5 +187,19 @@ export class PayoutService {
     }
 
     return groups;
+  }
+
+  private createMailRequest(errorMessage: string, orders: PayoutOrder[] = []): MailRequest {
+    const correlationId = orders.reduce((acc, o) => acc + `|${o.id}&${o.context}|`, '');
+
+    return {
+      type: MailType.ERROR_MONITORING,
+      input: { subject: 'Payout Error', errors: [errorMessage] },
+      metadata: {
+        context: MailContext.PAYOUT,
+        correlationId,
+      },
+      options: { suppressRecurring: true },
+    };
   }
 }

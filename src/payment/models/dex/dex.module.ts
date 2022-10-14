@@ -28,10 +28,19 @@ import { BscCoinStrategy as BscCryptoStrategyPL } from './strategies/purchase-li
 import { BitcoinStrategy as BitcoinStrategyPL } from './strategies/purchase-liquidity/impl/bitcoin.strategy';
 import { BscTokenStrategy as BscTokenStrategyPL } from './strategies/purchase-liquidity/impl/bsc-token.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-token.strategy';
+import { NotificationModule } from 'src/notification/notification.module';
+import { DexController } from './dex.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), AinModule, EthereumModule, BscModule, SharedModule],
-  controllers: [],
+  imports: [
+    TypeOrmModule.forFeature([LiquidityOrderRepository]),
+    AinModule,
+    EthereumModule,
+    BscModule,
+    NotificationModule,
+    SharedModule,
+  ],
+  controllers: [DexController],
   providers: [
     DexService,
     LiquidityOrderFactory,

@@ -1,11 +1,11 @@
-import { MailService } from 'src/shared/services/mail.service';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { LiquidityRequest } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/dex-evm.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
 
 export class EvmCoinStrategy extends PurchaseLiquidityStrategy {
-  constructor(mailService: MailService, protected readonly dexEvmService: DexEvmService) {
-    super(mailService);
+  constructor(notificationService: NotificationService, protected readonly dexEvmService: DexEvmService) {
+    super(notificationService);
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {

@@ -1,7 +1,7 @@
 import { mock } from 'jest-mock-extended';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import {
   createCustomPayoutOrder,
@@ -14,18 +14,23 @@ import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
 describe('PayoutDeFiChainTokenStrategy', () => {
   let strategy: PayoutDeFiChainTokenStrategyWrapper;
 
-  let mailService: MailService;
+  let notificationService: NotificationService;
   let dexService: DexService;
   let defichainService: PayoutDeFiChainService;
   let payoutOrderRepo: PayoutOrderRepository;
 
   beforeEach(() => {
-    mailService = mock<MailService>();
+    notificationService = mock<NotificationService>();
     dexService = mock<DexService>();
     defichainService = mock<PayoutDeFiChainService>();
     payoutOrderRepo = mock<PayoutOrderRepository>();
 
-    strategy = new PayoutDeFiChainTokenStrategyWrapper(mailService, dexService, defichainService, payoutOrderRepo);
+    strategy = new PayoutDeFiChainTokenStrategyWrapper(
+      notificationService,
+      dexService,
+      defichainService,
+      payoutOrderRepo,
+    );
   });
 
   describe('#groupOrdersByTokens(...)', () => {
@@ -68,12 +73,12 @@ describe('PayoutDeFiChainTokenStrategy', () => {
 
 class PayoutDeFiChainTokenStrategyWrapper extends DeFiChainTokenStrategy {
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     dexService: DexService,
     defichainService: PayoutDeFiChainService,
     payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, dexService, defichainService, payoutOrderRepo);
+    super(notificationService, dexService, defichainService, payoutOrderRepo);
   }
 
   groupOrdersByTokenWrapper(orders: PayoutOrder[]) {

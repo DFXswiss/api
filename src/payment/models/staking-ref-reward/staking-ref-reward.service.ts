@@ -4,7 +4,6 @@ import { StakingRefRewardRepository } from './staking-ref-reward.repository';
 import { StakingRefReward, StakingRefType } from './staking-ref-reward.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { Interval } from '@nestjs/schedule';
-import { MailService } from 'src/shared/services/mail.service';
 import { User } from 'src/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
@@ -12,6 +11,9 @@ import { ConversionService } from 'src/shared/services/conversion.service';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { PricingService } from '../pricing/services/pricing.service';
 import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { NotificationService } from 'src/notification/services/notification.service';
+import { MailType } from 'src/notification/enums';
+import { PriceRequestContext } from '../pricing/enums';
 
 @Injectable()
 export class StakingRefRewardService {
@@ -23,7 +25,7 @@ export class StakingRefRewardService {
     private readonly userService: UserService,
     private readonly conversionService: ConversionService,
     private readonly pricingService: PricingService,
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
   ) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
@@ -95,7 +97,8 @@ export class StakingRefRewardService {
       });
 
       if (openRewards.length > 0) {
-        const { price } = await this.pricingService.getPrice({ from: 'EUR', to: 'BTC' }).catch((e) => {
+        const priceRequest = this.createPriceRequest(openRewards);
+        const { price } = await this.pricingService.getPrice(priceRequest).catch((e) => {
           console.error('Failed to get price:', e);
           throw e;
         });
@@ -145,13 +148,16 @@ export class StakingRefRewardService {
       for (const reward of confirmedRewards) {
         try {
           if (reward.user.userData.mail) {
-            await this.mailService.sendTranslatedMail({
-              userData: reward.user.userData,
-              translationKey: `mail.stakingRef.${reward.stakingRefType.toString().toLowerCase()}`,
-              params: {
-                txId: reward.txId,
-                outputAmount: reward.outputAmount,
-                outputAsset: reward.outputAsset,
+            await this.notificationService.sendMail({
+              type: MailType.USER,
+              input: {
+                userData: reward.user.userData,
+                translationKey: `mail.stakingRef.${reward.stakingRefType.toString().toLowerCase()}`,
+                translationParams: {
+                  txId: reward.txId,
+                  outputAmount: reward.outputAmount,
+                  outputAsset: reward.outputAsset,
+                },
               },
             });
           } else {
@@ -215,5 +221,10 @@ export class StakingRefRewardService {
     }
 
     return confirmedRewards;
+  }
+
+  private createPriceRequest(openRewards: StakingRefReward[]) {
+    const correlationId = 'StakingRefRewards&' + openRewards.reduce((acc, r) => acc + `|${r.id}|`, '');
+    return { context: PriceRequestContext.STAKING_REWARD, correlationId, from: 'EUR', to: 'BTC' };
   }
 }

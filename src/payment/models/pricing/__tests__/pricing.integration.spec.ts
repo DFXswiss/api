@@ -1,5 +1,5 @@
 import { mock } from 'jest-mock-extended';
-import { MailService } from 'src/shared/services/mail.service';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { Price } from '../../exchange/dto/price.dto';
 import { createCustomPrice } from '../../exchange/dto/__mocks__/price.dto.mock';
 import { BinanceService } from '../../exchange/services/binance.service';
@@ -10,10 +10,11 @@ import { FixerService } from '../../exchange/services/fixer.service';
 import { FtxService } from '../../exchange/services/ftx.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
 import { DfiPricingDexService } from '../services/dfi-pricing-dex.service';
+import { PriceRequestContext } from '../enums';
 import { PricingService } from '../services/pricing.service';
 
 describe('Pricing Module Integration Tests', () => {
-  let mailService: MailService;
+  let notificationService: NotificationService;
   let krakenService: KrakenService;
   let binanceService: BinanceService;
   let bitstampService: BitstampService;
@@ -35,7 +36,7 @@ describe('Pricing Module Integration Tests', () => {
   let service: PricingService;
 
   beforeEach(() => {
-    mailService = mock<MailService>();
+    notificationService = mock<NotificationService>();
     krakenService = mock<KrakenService>({ name: 'Kraken' });
     binanceService = mock<BinanceService>({ name: 'Binance' });
     bitstampService = mock<BitstampService>({ name: 'Bitstamp' });
@@ -46,7 +47,7 @@ describe('Pricing Module Integration Tests', () => {
     dfiDexService = mock<DfiPricingDexService>({ name: 'DfiPricingDexService' });
 
     service = new PricingService(
-      mailService,
+      notificationService,
       krakenService,
       binanceService,
       bitstampService,
@@ -79,7 +80,7 @@ describe('Pricing Module Integration Tests', () => {
   });
 
   it('calculates price path for MATCHING_ASSETS', async () => {
-    const request = { from: 'BTC', to: 'BTC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BTC', to: 'BTC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -109,7 +110,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(binanceService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.00005 }));
 
-    const request = { from: 'USD', to: 'BTC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'USD', to: 'BTC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -139,7 +140,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(ftxService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 0.014 }));
 
-    const request = { from: 'BNB', to: 'BTC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BNB', to: 'BTC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -182,7 +183,7 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 71.3 }),
       );
 
-    const request = { from: 'GBP', to: 'BNB' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'GBP', to: 'BNB' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -231,7 +232,7 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 71.3 }),
       );
 
-    const request = { from: 'ETH', to: 'BNB' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'ETH', to: 'BNB' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -270,7 +271,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(ftxService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 12.38 }));
 
-    const request = { from: 'BTC', to: 'ETH' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'BTC', to: 'ETH' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -292,7 +293,7 @@ describe('Pricing Module Integration Tests', () => {
   });
 
   it('calculates price path for MATCHING_FIAT_TO_USD_STABLE_COIN', async () => {
-    const request = { from: 'USD', to: 'USDC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'USD', to: 'USDC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -325,7 +326,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(fixerService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
-    const request = { from: 'EUR', to: 'BUSD' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'EUR', to: 'BUSD' };
     const result = await service.getPrice(request);
 
     expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
@@ -357,7 +358,7 @@ describe('Pricing Module Integration Tests', () => {
       .spyOn(fixerService, 'getPrice')
       .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
 
-    const request = { from: 'EUR', to: 'USDC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'EUR', to: 'USDC' };
     const result = await service.getPrice(request);
 
     expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
@@ -381,7 +382,7 @@ describe('Pricing Module Integration Tests', () => {
   });
 
   it('calculates price path for NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN', async () => {
-    const request = { from: 'USDT', to: 'USDC' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'USDT', to: 'USDC' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);
@@ -415,7 +416,7 @@ describe('Pricing Module Integration Tests', () => {
         createCustomPrice({ source, target, price: 23111 }),
       );
 
-    const request = { from: 'EUR', to: 'DFI' };
+    const request = { context: PriceRequestContext.BUY_CRYPTO, correlationId: '1', from: 'EUR', to: 'DFI' };
     const result = await service.getPrice(request);
 
     expect(result.price).toBeInstanceOf(Price);

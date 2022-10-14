@@ -26,6 +26,8 @@ import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
 import { DeFiChainStrategy as DeFiChainStrategyPR } from './strategies/prepare/impl/defichain.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
+import { NotificationModule } from 'src/notification/notification.module';
+import { PayoutController } from './payout.controller';
 
 @Module({
   imports: [
@@ -35,8 +37,9 @@ import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/imp
     BscModule,
     SharedModule,
     DexModule,
+    NotificationModule,
   ],
-  controllers: [],
+  controllers: [PayoutController],
   providers: [
     PayoutOrderFactory,
     PayoutLogService,

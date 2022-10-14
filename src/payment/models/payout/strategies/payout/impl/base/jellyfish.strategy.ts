@@ -1,13 +1,14 @@
 import { PayoutGroup, PayoutJellyfishService } from 'src/payment/models/payout/services/base/payout-jellyfish.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
+import { MailContext, MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 
 export abstract class JellyfishStrategy implements PayoutStrategy {
   constructor(
-    protected readonly mailService: MailService,
+    protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly jellyfishService: PayoutJellyfishService,
   ) {}
@@ -110,7 +111,7 @@ export abstract class JellyfishStrategy implements PayoutStrategy {
         const errorMessage = `Error on saving payout payoutTxId to the database. Order ID: ${order.id}. Payout ID: ${payoutTxId}`;
 
         console.error(errorMessage, e);
-        await this.sendNonRecoverableErrorMail(errorMessage, e);
+        await this.sendNonRecoverableErrorMail(order, errorMessage, e);
       }
     }
   }
@@ -136,10 +137,16 @@ export abstract class JellyfishStrategy implements PayoutStrategy {
     }
   }
 
-  protected async sendNonRecoverableErrorMail(message: string, e?: Error): Promise<void> {
-    const body = e ? [message, e.message] : [message];
+  protected async sendNonRecoverableErrorMail(order: PayoutOrder, message: string, e?: Error): Promise<void> {
+    const correlationId = `PayoutOrder&${order.context}&${order.id}`;
+    const errors = e ? [message, e.message] : [message];
 
-    await this.mailService.sendErrorMail('Payout Error', body);
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      input: { subject: 'Payout Error', errors },
+      options: { suppressRecurring: true },
+      metadata: { context: MailContext.PAYOUT, correlationId },
+    });
   }
 
   //*** HELPER METHODS ***//

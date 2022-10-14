@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderContext, PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
@@ -12,12 +12,12 @@ type TokenName = string;
 @Injectable()
 export class DeFiChainTokenStrategy extends JellyfishStrategy {
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     private readonly dexService: DexService,
     protected readonly jellyfishService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo, jellyfishService);
+    super(notificationService, payoutOrderRepo, jellyfishService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

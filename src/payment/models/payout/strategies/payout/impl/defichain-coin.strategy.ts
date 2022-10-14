@@ -1,19 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { MailService } from 'src/shared/services/mail.service';
 import { PayoutOrderContext, PayoutOrder } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { NotificationService } from 'src/notification/services/notification.service';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
   constructor(
-    mailService: MailService,
+    notificationService: NotificationService,
     protected readonly deFiChainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
   ) {
-    super(mailService, payoutOrderRepo, deFiChainService);
+    super(notificationService, payoutOrderRepo, deFiChainService);
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

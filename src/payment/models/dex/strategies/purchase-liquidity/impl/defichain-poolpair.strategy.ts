@@ -5,7 +5,6 @@ import { Not } from 'typeorm';
 import { Config } from 'src/config/config';
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { MailService } from 'src/shared/services/mail.service';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -16,6 +15,7 @@ import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liqu
 import { PriceSlippageException } from '../../../exceptions/price-slippage.exception';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
 import { LiquidityRequest } from '../../../interfaces';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
 import { DexService } from '../../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
@@ -28,7 +28,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
   constructor(
     readonly nodeService: NodeService,
-    readonly mailService: MailService,
+    readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly assetService: AssetService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
@@ -36,7 +36,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     @Inject(forwardRef(() => DexService))
     private readonly dexService: DexService,
   ) {
-    super(mailService);
+    super(notificationService);
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.chainClient = client));
   }
 
