@@ -111,6 +111,7 @@ export class BuyCryptoDexService {
 
     try {
       const request = await this.createLiquidityRequest(batch);
+      //
       await this.dexService.purchaseLiquidity(request);
 
       batch.pending();

@@ -13,10 +13,20 @@ export interface LiquidityRequest {
 export interface LiquidityRequestOptions {
   bypassAvailabilityCheck?: boolean;
   bypassSlippageProtection?: boolean;
+  estimatePurchaseFee?: boolean;
 }
 
 export interface TransferRequest {
   asset: Asset;
   amount: number;
   destinationAddress: string;
+}
+
+export interface LiquidityResponse {
+  targetAsset: Asset;
+  targetAmount: number;
+  availableAmount: number;
+  purchaseAmount?: number;
+  purchasableAmount?: number;
+  purchaseFee?: number;
 }
