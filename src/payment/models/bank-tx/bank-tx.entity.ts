@@ -15,6 +15,7 @@ export enum BankTxType {
   BUY_FIAT = 'BuyFiat',
   FIAT_FIAT = 'FiatFiat',
   TEST_FIAT_FIAT = 'TestFiatFiat',
+  PENDING = 'Pending',
   UNKNOWN = 'Unknown',
 }
 
