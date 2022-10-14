@@ -34,26 +34,23 @@ export class PricePath {
       results.push(await step.execute());
     }
 
-    return this.calculatePrice(results);
+    return this.calculatePrice(request, results);
   }
 
   //*** HELPER METHODS ***//
 
-  private calculatePrice(path: PriceStepResult[]): PriceResult {
+  private calculatePrice(request: PriceRequest, path: PriceStepResult[]): PriceResult {
     let result = 1;
 
     path.forEach((step) => {
       result = result * step.price.price;
     });
 
-    return this.createPriceResult(path, result);
+    return this.createPriceResult(request, path, result);
   }
 
-  private createPriceResult(path: PriceStepResult[], targetPrice: number): PriceResult {
-    const firstStep = path[0];
-    const lastStep = path[path.length - 1];
-
-    const price = Price.create(firstStep.price.source, lastStep.price.target, targetPrice);
+  private createPriceResult(request: PriceRequest, path: PriceStepResult[], targetPrice: number): PriceResult {
+    const price = Price.create(request.from, request.to, targetPrice);
 
     return { price, path };
   }

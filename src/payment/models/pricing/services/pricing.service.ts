@@ -14,6 +14,7 @@ import { PathNotConfiguredException } from '../exceptions/path-not-configured.ex
 import { PriceRequest, PriceResult } from '../interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
+import { DfiPricingDexService } from './dfi-pricing-dex.service';
 
 export enum PricingPathAlias {
   MATCHING_ASSETS = 'MatchingAssets',
@@ -23,8 +24,10 @@ export enum PricingPathAlias {
   ALTCOIN_TO_ALTCOIN = 'AltcoinToAltcoin',
   BTC_TO_ALTCOIN = 'BTCToAltcoin',
   MATCHING_FIAT_TO_USD_STABLE_COIN = 'MatchingFiatToUSDStableCoin',
+  NON_MATCHING_FIAT_TO_BUSD = 'NonMatchingFiatToBUSD',
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
   NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN = 'NonMatchingUSDStableCoinToUSDStableCoin',
+  FIAT_TO_DFI = 'FiatToDfi',
 }
 
 @Injectable()
@@ -40,6 +43,7 @@ export class PricingService {
     private readonly ftxService: FtxService,
     private readonly currencyService: CurrencyService,
     private readonly fixerService: FixerService,
+    private readonly dfiDexService: DfiPricingDexService,
   ) {
     this.configurePaths();
   }
@@ -164,9 +168,22 @@ export class PricingService {
     );
 
     this.addPath(
+      new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_BUSD, [
+        new PriceStep({
+          overwriteReferenceTo: 'USD',
+          fallbackPrimaryTo: 'USDC',
+          providers: {
+            primary: [this.krakenService],
+            reference: [this.fixerService, this.currencyService],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
       new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN, [
         new PriceStep({
-          referenceTo: 'USD',
+          overwriteReferenceTo: 'USD',
           providers: {
             primary: [this.krakenService],
             reference: [this.fixerService, this.currencyService],
@@ -179,6 +196,25 @@ export class PricingService {
       new PricePath(PricingPathAlias.NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN, [
         new PriceStep({
           fixedPrice: 1,
+        }),
+      ]),
+    );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.FIAT_TO_DFI, [
+        new PriceStep({
+          to: 'BTC',
+          providers: {
+            primary: [this.krakenService],
+            reference: [this.binanceService, this.bitstampService, this.bitpandaService],
+          },
+        }),
+        new PriceStep({
+          from: 'BTC',
+          providers: {
+            primary: [this.dfiDexService],
+            reference: [],
+          },
         }),
       ]),
     );
@@ -224,11 +260,16 @@ export class PricingService {
 
     if (from === 'USD' && this.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
 
+    if (this.isFiat(from) && this.isUSDStablecoin(to) && to === 'BUSD')
+      return PricingPathAlias.NON_MATCHING_FIAT_TO_BUSD;
+
     if (this.isFiat(from) && this.isUSDStablecoin(to)) return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
 
     if (this.isUSDStablecoin(from) && this.isUSDStablecoin(to) && from !== to) {
       return PricingPathAlias.NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN;
     }
+
+    if (this.isFiat(from) && to === 'DFI') return PricingPathAlias.FIAT_TO_DFI;
 
     throw new Error(`No matching pricing path alias found. From: ${request.from} to: ${request.to}`);
   }
@@ -250,7 +291,9 @@ export class PricingService {
   }
 
   private isKnownAsset(asset: string): boolean {
-    return this.isFiat(asset) || this.isBTC(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset);
+    return (
+      this.isFiat(asset) || this.isBTC(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset) || asset === 'DFI'
+    );
   }
 
   private logPriceResult(request: PriceRequest, result: PriceResult, pathAlias: PricingPathAlias): void {

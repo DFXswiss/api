@@ -9,15 +9,17 @@ import { Interval } from '@nestjs/schedule';
 import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
-import { DexStrategiesFacade } from '../strategies/strategies.facade';
+import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
 import { LiquidityRequest, TransferRequest } from '../interfaces';
+import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 
 @Injectable()
 export class DexService {
   private readonly verifyPurchaseOrdersLock = new Lock(1800);
 
   constructor(
-    private readonly strategies: DexStrategiesFacade,
+    private readonly checkStrategies: CheckLiquidityStrategies,
+    private readonly purchaseStrategies: PurchaseLiquidityStrategies,
     private readonly dexDeFiChainService: DexDeFiChainService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
@@ -29,7 +31,7 @@ export class DexService {
     const { context, correlationId, targetAsset } = request;
 
     try {
-      const strategy = this.strategies.getCheckLiquidityStrategy(targetAsset);
+      const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
       return strategy.checkLiquidity(request);
     } catch (e) {
@@ -50,7 +52,7 @@ export class DexService {
     try {
       console.info(`Reserving ${targetAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
 
-      const strategy = this.strategies.getCheckLiquidityStrategy(targetAsset);
+      const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
       const liquidity = await strategy.checkLiquidity(request);
 
@@ -80,7 +82,7 @@ export class DexService {
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
     const { context, correlationId, targetAsset } = request;
-    const strategy = this.strategies.getPurchaseLiquidityStrategy(targetAsset);
+    const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(targetAsset);
 
     if (!strategy) {
       throw new Error(`No purchase liquidity strategy for asset category ${targetAsset?.category}`);

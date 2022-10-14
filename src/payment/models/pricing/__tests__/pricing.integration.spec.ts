@@ -9,6 +9,7 @@ import { CurrencyService } from '../../exchange/services/currency.service';
 import { FixerService } from '../../exchange/services/fixer.service';
 import { FtxService } from '../../exchange/services/ftx.service';
 import { KrakenService } from '../../exchange/services/kraken.service';
+import { DfiPricingDexService } from '../services/dfi-pricing-dex.service';
 import { PricingService } from '../services/pricing.service';
 
 describe('Pricing Module Integration Tests', () => {
@@ -20,6 +21,7 @@ describe('Pricing Module Integration Tests', () => {
   let ftxService: FtxService;
   let currencyService: CurrencyService;
   let fixerService: FixerService;
+  let dfiDexService: DfiPricingDexService;
 
   let krakenServiceGetPriceSpy: jest.SpyInstance;
   let binanceServiceGetPriceSpy: jest.SpyInstance;
@@ -28,6 +30,7 @@ describe('Pricing Module Integration Tests', () => {
   let ftxServiceGetPriceSpy: jest.SpyInstance;
   let currencyServiceGetPriceSpy: jest.SpyInstance;
   let fixerServiceGetPriceSpy: jest.SpyInstance;
+  let dfiDexServiceGetPriceSpy: jest.SpyInstance;
 
   let service: PricingService;
 
@@ -40,6 +43,7 @@ describe('Pricing Module Integration Tests', () => {
     ftxService = mock<FtxService>({ name: 'Ftx' });
     currencyService = mock<CurrencyService>({ name: 'CurrencyService' });
     fixerService = mock<FixerService>({ name: 'FixerService' });
+    dfiDexService = mock<DfiPricingDexService>({ name: 'DfiPricingDexService' });
 
     service = new PricingService(
       mailService,
@@ -50,6 +54,7 @@ describe('Pricing Module Integration Tests', () => {
       ftxService,
       currencyService,
       fixerService,
+      dfiDexService,
     );
 
     krakenServiceGetPriceSpy = jest.spyOn(krakenService, 'getPrice');
@@ -59,6 +64,7 @@ describe('Pricing Module Integration Tests', () => {
     ftxServiceGetPriceSpy = jest.spyOn(ftxService, 'getPrice');
     currencyServiceGetPriceSpy = jest.spyOn(currencyService, 'getPrice');
     fixerServiceGetPriceSpy = jest.spyOn(fixerService, 'getPrice');
+    dfiDexServiceGetPriceSpy = jest.spyOn(dfiDexService, 'getPrice');
   });
 
   afterEach(() => {
@@ -69,6 +75,7 @@ describe('Pricing Module Integration Tests', () => {
     ftxServiceGetPriceSpy.mockClear();
     currencyServiceGetPriceSpy.mockClear();
     fixerServiceGetPriceSpy.mockClear();
+    dfiDexServiceGetPriceSpy.mockClear();
   });
 
   it('calculates price path for MATCHING_ASSETS', async () => {
@@ -306,6 +313,41 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
   });
 
+  it('calculates price path for NON_MATCHING_FIAT_TO_BUSD', async () => {
+    krakenServiceGetPriceSpy = jest
+      .spyOn(krakenService, 'getPrice')
+      .mockImplementationOnce(async () => {
+        throw new Error();
+      })
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
+
+    fixerServiceGetPriceSpy = jest
+      .spyOn(fixerService, 'getPrice')
+      .mockImplementationOnce(async (source, target) => createCustomPrice({ source, target, price: 1.1 }));
+
+    const request = { from: 'EUR', to: 'BUSD' };
+    const result = await service.getPrice(request);
+
+    expect(fixerServiceGetPriceSpy).toHaveBeenCalledWith('EUR', 'USD');
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('EUR');
+    expect(result.price.target).toBe('BUSD');
+    expect(result.price.price).toBe(1.1);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(1);
+
+    expect(result.path[0].provider).toBe('Kraken');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('EUR');
+    expect(result.path[0].price.target).toBe('USDC');
+    expect(result.path[0].price.price).toBe(1.1);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
+  });
+
   it('calculates price path for NON_MATCHING_FIAT_TO_USD_STABLE_COIN', async () => {
     krakenServiceGetPriceSpy = jest
       .spyOn(krakenService, 'getPrice')
@@ -358,5 +400,50 @@ describe('Pricing Module Integration Tests', () => {
     expect(result.path[0].price.price).toBe(1);
 
     expect(result.path[0].timestamp).toBeInstanceOf(Date);
+  });
+
+  it('calculates price path for FIAT_TO_DFI', async () => {
+    krakenServiceGetPriceSpy = jest
+      .spyOn(krakenService, 'getPrice')
+      .mockImplementationOnce(async (source: string, target: string) =>
+        createCustomPrice({ source, target, price: 0.000049 }),
+      );
+
+    dfiDexServiceGetPriceSpy = jest
+      .spyOn(dfiDexService, 'getPrice')
+      .mockImplementationOnce(async (source: string, target: string) =>
+        createCustomPrice({ source, target, price: 23111 }),
+      );
+
+    const request = { from: 'EUR', to: 'DFI' };
+    const result = await service.getPrice(request);
+
+    expect(result.price).toBeInstanceOf(Price);
+    expect(result.price.source).toBe('EUR');
+    expect(result.price.target).toBe('DFI');
+    expect(result.price.price).toBe(1.132439);
+
+    expect(Array.isArray(result.path)).toBe(true);
+    expect(result.path.length).toBe(2);
+
+    expect(result.path[0].provider).toBe('Kraken');
+
+    expect(result.path[0].price).toBeInstanceOf(Price);
+    expect(result.path[0].price.source).toBe('EUR');
+    expect(result.path[0].price.target).toBe('BTC');
+    expect(result.path[0].price.price).toBe(0.000049);
+
+    expect(result.path[0].timestamp).toBeInstanceOf(Date);
+
+    expect(result.path[1].provider).toBe('DfiPricingDexService');
+
+    expect(result.path[1].price).toBeInstanceOf(Price);
+    expect(result.path[1].price.source).toBe('BTC');
+    expect(result.path[1].price.target).toBe('DFI');
+    expect(result.path[1].price.price).toBe(23111);
+
+    expect(result.path[1].timestamp).toBeInstanceOf(Date);
+
+    expect(result.path[1].provider).toBe('DfiPricingDexService');
   });
 });
