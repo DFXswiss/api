@@ -7,9 +7,7 @@ import { Wallet } from './wallet.entity';
 
 @Injectable()
 export class WalletService {
-  constructor(
-    private readonly walletRepo: WalletRepository,
-  ) {}
+  constructor(private readonly walletRepo: WalletRepository) {}
 
   async getWalletOrDefault(id: number): Promise<Wallet> {
     return (await this.walletRepo.findOne(id)) ?? (await this.walletRepo.findOne(1));
@@ -20,15 +18,9 @@ export class WalletService {
   }
 
   async getAllKycData(walletId: number): Promise<User[]> {
-    const wallet = await this.walletRepo.findOne({ where: { id: walletId } , relations: ['users', 'users.userData']});
+    const wallet = await this.walletRepo.findOne({ where: { id: walletId }, relations: ['users', 'users.userData'] });
     return wallet.users;
   }
-
-  // TODO: remove?
-  // private verifySignature(address: string, signature: string): boolean {
-  //   const signatureMessage = Config.auth.signMessageWallet + address;
-  //   return this.cryptoService.verifySignature(signatureMessage, address, signature);
-  // }
 
   public getApiKeyInternal(name: string): string {
     return (

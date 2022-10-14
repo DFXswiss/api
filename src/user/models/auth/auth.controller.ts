@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { RealIP } from 'nestjs-real-ip';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AuthCompanyCredentialsDto } from './dto/auth-company-credentials.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -27,7 +28,12 @@ export class AuthController {
   }
 
   @Post('company/signIn')
-  signInCompany(@Body() credentials: AuthCredentialsDto): Promise<{ accessToken: string }> {
+  signInCompany(@Body() credentials: AuthCompanyCredentialsDto): Promise<{ accessToken: string }> {
     return this.authService.companySignIn(credentials);
+  }
+
+  @Post('company/challenge')
+  companyChallenge(): Promise<{ key: string; challenge: string }> {
+    return this.authService.getCompanyChallenge();
   }
 }

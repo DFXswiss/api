@@ -1922,7 +1922,7 @@
     "method": "PUT",
     "sortNum": 700000,
     "created": "2022-09-20T23:34:03.919Z",
-    "modified": "2022-09-20T23:35:28.369Z",
+    "modified": "2022-10-05T20:44:02.945Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1949,6 +1949,59 @@
       "raw": "{\n  \"decision\": \"Rejected\",\n  \"clerk\": \"CT\",\n  \"edited\":\"2000-08-18T10:00:20.100\"\n}",
       "form": []
     },
+    "tests": []
+  },
+  {
+    "_id": "a0a206f0-13eb-493a-9b07-3a140b0eeedf",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Company Challenge",
+    "url": "{{url}}/v1/auth/company/challenge",
+    "method": "POST",
+    "sortNum": 85000,
+    "created": "2022-10-14T13:12:37.193Z",
+    "modified": "2022-10-14T13:13:30.037Z",
+    "headers": [],
+    "params": [],
+    "auth": {
+      "type": "none"
+    },
+    "tests": []
+  },
+  {
+    "_id": "8384887d-f0e7-43a4-9a28-1859576d0c1c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Company SignIn",
+    "url": "{{url}}/v1/auth/company/signin",
+    "method": "POST",
+    "sortNum": 82500,
+    "created": "2022-10-14T13:12:39.907Z",
+    "modified": "2022-10-14T16:15:14.884Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"address\": \"<put-address-here-5>\",\n    \"signature\": \"<put-signature-here-5>\",\n    \"name\": \"LOCK.space\",\n    \"key\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidGltZSI6IjIwMjItMTAtMTRUMTY6MTQ6MzQuMTAyWiIsImlhdCI6MTY2NTc2NDA3NCwiZXhwIjoxNjY1Nzk1NjEwfQ.VezXEV_wCKeBjafa0y5r1LE5mxtMCekd6d-cU16vB1k\",\n    \"challengeHash\":\"d18e0609c7067a8d6d79511ce269902d9a9d197ac55597b133c1f0a096d1ad86\"\n}",
+      "form": []
+    },
+    "auth": {
+      "type": "none"
+    },
+    "tests": []
+  },
+  {
+    "_id": "14441e24-4e57-4e7c-88cc-dff408c5837e",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "9baf5a17-7886-4959-ab65-eea8e3dae524",
+    "name": "KycData",
+    "url": "{{url}}/v1/wallet/kycData",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-10-14T16:15:32.185Z",
+    "modified": "2022-10-14T16:16:42.670Z",
+    "headers": [],
+    "params": [],
     "tests": []
   }
 ]
