@@ -132,11 +132,12 @@ export class KycService {
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
     let result: { kycId: string };
 
-    const wallet = await this.walletRepo.findOne({ where: dto.wallet });
+    const wallet = await this.walletRepo.findOne({ where: { name: dto.walletName } });
     if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
 
     const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!user) throw new NotFoundException('DFX user not found');
+    if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
 
     const apiKey = this.walletService.getApiKeyInternal(wallet.description);
     if (!apiKey) throw new ConflictException(`ApiKey for wallet ${wallet.description} not available`);
@@ -153,7 +154,6 @@ export class KycService {
 
     const slaveUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
     if (!slaveUser) throw new NotFoundException('KYC user not found');
-    if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
     if (user.userData.id == slaveUser.userData.id) throw new ConflictException('User already merged');
 
     await this.userDataService.mergeUserData(user.userData.id, slaveUser.userData.id);

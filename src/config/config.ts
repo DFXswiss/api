@@ -4,7 +4,7 @@ import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { MailOptions } from 'src/shared/services/mail.service';
+import { MailOptions } from 'src/notification/services/mail.service';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -24,6 +24,7 @@ export class Configuration {
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
   apiKeyVersionCT = '0'; // single digit hex number
+  azureIpSubstring = '169.254';
 
   colors = {
     white: '#FFFFFF',
@@ -218,17 +219,30 @@ export class Configuration {
           USD: 1,
         },
       },
+      minTransactionVolume: {
+        // outputAsset: { minTransactionAsset: minTransactionVolume }
+        USD: {
+          USD: 1000,
+        },
+        default: {
+          USD: 1,
+        },
+      },
     },
     ethereum: {
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
+      uniswapV2Router02Address: process.env.ETH_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
     },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
   };
 
@@ -297,13 +311,6 @@ export class Configuration {
         password: process.env.OLKY_PASSWORD,
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
-      account: { currency: 'EUR', iban: 'LU116060002000005040', bic: 'OLKILUL1' },
-    },
-    maerkiBaumann: {
-      accounts: [
-        { currency: 'EUR', iban: 'CH6808573177975201814', bic: 'MAEBCHZZ' },
-        { currency: 'CHF', iban: 'CH3408573177975200001', bic: 'MAEBCHZZ' },
-      ],
     },
     frick: {
       credentials: {
@@ -312,11 +319,6 @@ export class Configuration {
         password: process.env.FRICK_PASSWORD,
         privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
       },
-      accounts: [
-        { currency: 'EUR', iban: 'LI95088110104693K000E', bic: 'BFRILI22' },
-        { currency: 'CHF', iban: 'LI52088110104693K000C', bic: 'BFRILI22' },
-        { currency: 'USD', iban: 'LI51088110104693K000U', bic: 'BFRILI22' },
-      ],
     },
   };
 

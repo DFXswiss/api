@@ -138,7 +138,7 @@ export class CryptoRouteController {
       case Blockchain.BITCOIN:
         return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
       case Blockchain.DEFICHAIN:
-        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain);
+        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'USD');
     }
   }
 

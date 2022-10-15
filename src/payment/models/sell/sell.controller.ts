@@ -17,6 +17,7 @@ import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -84,7 +85,7 @@ export class SellController {
       ...sell,
       fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain),
+      minDeposits: this.getMinDeposit(sell.fiat.name),
     };
   }
 
@@ -92,12 +93,20 @@ export class SellController {
     return {
       fee: await this.getFee(userId),
       depositAddress: sell.deposit.address,
-      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain),
+      minDeposits: this.getMinDeposit(sell.fiat.name),
     };
   }
 
   // --- HELPER-METHODS --- //
   async getFee(userId: number): Promise<number> {
     return this.userService.getUserSellFee(userId);
+  }
+
+  private getMinDeposit(outputAsset: string): MinDeposit[] {
+    const minVolume = Object.entries(Config.blockchain.default.minTransactionVolume)
+      .filter(([key, _]) => key === outputAsset)
+      .map(([_, value]) => value);
+
+    return Util.transformToMinDeposit(minVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
   }
 }

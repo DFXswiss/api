@@ -5,7 +5,7 @@ export function createDefaultPriceStep(): PriceStep {
 }
 
 export function createCustomPriceStep(customOptions: Partial<PriceStepOptions>): PriceStep {
-  const { from, to, referenceTo, providers, fixedPrice } = customOptions;
+  const { from, to, overwriteReferenceTo: referenceTo, providers, fixedPrice } = customOptions;
 
   const keys = Object.keys(customOptions);
 

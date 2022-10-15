@@ -10,7 +10,6 @@ import {
   UserData,
 } from 'src/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
-import { MailService } from '../../../shared/services/mail.service';
 import { SpiderApiService } from './spider-api.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { In, LessThan } from 'typeorm';
@@ -22,6 +21,8 @@ import { KycDocuments, KycDocumentState, KycContentType, KycDocument, DocumentVe
 import { IdentResultDto } from 'src/user/models/ident/dto/ident-result.dto';
 import { DocumentState, SpiderService } from './spider.service';
 import { KycProcessService } from 'src/user/models/kyc/kyc-process.service';
+import { NotificationService } from 'src/notification/services/notification.service';
+import { MailType } from 'src/notification/enums';
 
 @Injectable()
 export class SpiderSyncService {
@@ -33,7 +34,7 @@ export class SpiderSyncService {
   private readonly lock = new Lock(1800);
 
   constructor(
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly userDataRepo: UserDataRepository,
     private readonly kycProcess: KycProcessService,
     private readonly spiderApi: SpiderApiService,
@@ -65,7 +66,11 @@ export class SpiderSyncService {
         await this.syncKycUser(user.id);
       } catch (e) {
         console.error(`Exception during KYC check for user ${user.id}:`, e);
-        await this.mailService.sendErrorMail('KYC Error', [`Exception during KYC check for user ${user.id}: ${e}`]);
+
+        await this.notificationService.sendMail({
+          type: MailType.ERROR_MONITORING,
+          input: { subject: 'KYC Error', errors: [`Exception during KYC check for user ${user.id}: ${e}`] },
+        });
       }
     }
   }
@@ -103,7 +108,11 @@ export class SpiderSyncService {
         await this.syncKycUser(userDataId);
       } catch (e) {
         console.error(`Exception during KYC sync for user ${userDataId}:`, e);
-        await this.mailService.sendErrorMail('KYC Error',[`Exception during KYC sync for user ${userDataId}: ${e}`]);
+
+        await this.notificationService.sendMail({
+          type: MailType.ERROR_MONITORING,
+          input: { subject: 'KYC Error', errors: [`Exception during KYC sync for user ${userDataId}: ${e}`] },
+        });
       }
     }
   }
@@ -136,6 +145,9 @@ export class SpiderSyncService {
           });
         }
       }
+
+      if (!userData.spiderData.identPdf) console.error(`Failed to fetch ident PDF for user ${userDataId}`);
+
       await this.spiderDataRepo.save(userData.spiderData);
     }
 
@@ -175,12 +187,15 @@ export class SpiderSyncService {
     if (userData.kycStatus === KycStatus.CHATBOT) {
       userData = await this.kycProcess.chatbotCompleted(userData);
 
-      await this.mailService
-        .sendTranslatedMail({
-          userData,
-          translationKey: 'mail.kyc.chatbot',
-          params: {
-            url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+      await this.notificationService
+        .sendMail({
+          type: MailType.USER,
+          input: {
+            userData,
+            translationKey: 'mail.kyc.chatbot',
+            translationParams: {
+              url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+            },
           },
         })
         .catch(() => null);
@@ -197,13 +212,16 @@ export class SpiderSyncService {
 
   private async handleExpiring(userData: UserData): Promise<UserData> {
     // send reminder
-    await this.mailService
-      .sendTranslatedMail({
-        userData,
-        translationKey: 'mail.kyc.reminder',
-        params: {
-          status: this.kycStatusTranslation[userData.kycStatus],
-          url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+    await this.notificationService
+      .sendMail({
+        type: MailType.USER,
+        input: {
+          userData,
+          translationKey: 'mail.kyc.reminder',
+          translationParams: {
+            status: this.kycStatusTranslation[userData.kycStatus],
+            url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+          },
         },
       })
       .catch(() => null);
@@ -215,7 +233,7 @@ export class SpiderSyncService {
 
   private async getIdentPdfUrl(userData: UserData): Promise<string> {
     const result = await this.getIdentResult(userData, KycContentType.PDF);
-    return result
+    return result?.part
       ? this.spiderService.getDocumentUrl(userData.kycCustomerId, result.document, result.version, result.part.name)
       : null;
   }

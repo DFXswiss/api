@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { MailService } from 'src/shared/services/mail.service';
+import { MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 import { Blank, BlankType, UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
 import { User } from '../user/user.entity';
@@ -14,7 +15,7 @@ export class LinkService {
     private readonly linkAddressRepo: LinkAddressRepository,
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async getLinkAddress(authentication: string): Promise<LinkAddress> {
@@ -30,16 +31,19 @@ export class LinkService {
 
     const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
 
-    await this.mailService.sendTranslatedMail({
-      userData: user,
-      translationKey: 'mail.link.address',
-      params: {
-        firstname: completedUser.firstname,
-        surname: completedUser.surname,
-        organizationName: completedUser.organizationName ?? '',
-        existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
-        newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
-        url: this.buildLinkUrl(linkAddress.authentication),
+    await this.notificationService.sendMail({
+      type: MailType.USER,
+      input: {
+        userData: user,
+        translationKey: 'mail.link.address',
+        translationParams: {
+          firstname: completedUser.firstname,
+          surname: completedUser.surname,
+          organizationName: completedUser.organizationName ?? '',
+          existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
+          newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
+          url: this.buildLinkUrl(linkAddress.authentication),
+        },
       },
     });
   }

@@ -10,7 +10,6 @@ import { Lock } from 'src/shared/lock';
 import { IsNull, Not } from 'typeorm';
 import { KycStatus, UserData } from 'src/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
-import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoInputService } from './crypto-input.service';
 import { BtcClient } from 'src/blockchain/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
@@ -18,6 +17,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { ChainalysisService } from './chainalysis.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {

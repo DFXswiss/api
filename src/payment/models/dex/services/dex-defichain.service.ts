@@ -31,15 +31,17 @@ export class DexDeFiChainService {
     sourceAmount: number,
     targetAsset: string,
     maxSlippage: number,
+    bypassAvailabilityCheck?: boolean,
+    bypassSlippageProtection?: boolean,
   ): Promise<TargetAmount> {
     const targetAmount =
       targetAsset === sourceAsset
         ? sourceAmount
         : await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, sourceAmount);
 
-    await this.checkAssetAvailability(targetAsset, targetAmount);
+    !bypassAvailabilityCheck && (await this.checkAssetAvailability(targetAsset, targetAmount));
 
-    if ((await this.settingService.get('slippage-protection')) === 'on') {
+    if ((await this.settingService.get('slippage-protection')) === 'on' && !bypassSlippageProtection) {
       await this.checkTestSwapPriceSlippage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxSlippage);
     }
 
@@ -70,7 +72,7 @@ export class DexDeFiChainService {
     } catch (e) {
       if (this.isCompositeSwapSlippageError(e)) {
         throw new PriceSlippageException(
-          `Price is higher than indicated. Composite swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
+          `Price is higher than indicated. Composite swap ${swapAmount} ${swapAsset} to ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
         );
       }
 
@@ -185,7 +187,7 @@ export class DexDeFiChainService {
 
     if (targetAmount > 0.000001 && targetAmount < minimalAllowedTargetAmount) {
       throw new PriceSlippageException(
-        `Price is higher than indicated. Test swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
+        `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
           sourceAmount / targetAmount,
           8,
         )} ${sourceAsset}`,

@@ -1,7 +1,7 @@
 import { Buy } from 'src/payment/models/buy/buy.entity';
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { BankTx } from '../../bank-tx/bank-tx.entity';
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Price } from '../../exchange/dto/price.dto';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { Util } from 'src/shared/util';
@@ -134,10 +134,20 @@ export class BuyCrypto extends IEntity {
 
     switch (this.target.asset.blockchain) {
       case Blockchain.ETHEREUM:
+        if (this.outputAsset === 'DFI') {
+          this.outputReferenceAsset = this.outputAsset;
+          break;
+        }
+
         this.outputReferenceAsset = 'ETH';
         break;
 
       case Blockchain.BINANCE_SMART_CHAIN:
+        if (['DFI', 'BUSD'].includes(this.outputAsset)) {
+          this.outputReferenceAsset = this.outputAsset;
+          break;
+        }
+
         this.outputReferenceAsset = 'BNB';
         break;
 
@@ -188,17 +198,26 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  confirmSentMail(): this {
+  confirmSentMail(): UpdateResult<BuyCrypto> {
     this.recipientMail = this.user.userData.mail;
     this.mailSendDate = Date.now();
 
-    return this;
+    return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
   }
 
   get translationKey(): string {
-    return this.inputReferenceAsset === this.outputReferenceAsset
-      ? 'mail.payment.buyCryptoCrypto'
-      : 'mail.payment.buyCryptoFiat';
+    if (this.amlCheck === AmlCheck.PASS) {
+      return this.inputReferenceAsset === this.outputReferenceAsset
+        ? 'mail.payment.deposit.buyCryptoCrypto'
+        : 'mail.payment.deposit.buyCryptoFiat';
+    } else if (this.amlCheck === AmlCheck.PENDING) {
+      if (this.amlReason === AmlReason.DAILY_LIMIT) return 'mail.payment.pending.dailyLimit';
+      if (this.amlReason === AmlReason.ANNUAL_LIMIT) return 'mail.payment.pending.annualLimit';
+    } else if (this.amlCheck === AmlCheck.FAIL) {
+      return 'mail.payment.deposit.paybackInitiated';
+    }
+
+    throw new Error(`Tried to send a mail for BuyCrypto ${this.id} in invalid state`);
   }
 
   get user(): User {

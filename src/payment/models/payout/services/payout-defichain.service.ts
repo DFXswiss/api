@@ -4,15 +4,15 @@ import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { WhaleService } from 'src/blockchain/ain/whale/whale.service';
 import { Config } from 'src/config/config';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
-
-export type PayoutGroup = { addressTo: string; amount: number }[];
+import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
 
 @Injectable()
-export class PayoutDeFiChainService {
+export class PayoutDeFiChainService extends PayoutJellyfishService {
   #outClient: DeFiClient;
   #intClient: DeFiClient;
 
   constructor(readonly nodeService: NodeService, private readonly whaleService: WhaleService) {
+    super();
     nodeService.getConnectedNode(NodeType.OUTPUT).subscribe((client) => (this.#outClient = client));
     nodeService.getConnectedNode(NodeType.INT).subscribe((client) => (this.#intClient = client));
   }

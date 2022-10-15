@@ -1,6 +1,9 @@
 import { Price } from '../../exchange/dto/price.dto';
+import { PriceRequestContext } from '../enums';
 
 export interface PriceRequest {
+  context: PriceRequestContext;
+  correlationId: string;
   from: string;
   to: string;
 }

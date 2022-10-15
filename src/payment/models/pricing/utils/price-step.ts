@@ -7,7 +7,8 @@ import { PriceStepInitSpecification } from '../specifications/price-step-init.sp
 export interface PriceStepOptions {
   from?: string | 'input';
   to?: string | 'output';
-  referenceTo?: string;
+  overwriteReferenceTo?: string;
+  fallbackPrimaryTo?: string;
   providers?: PriceStepProviders;
   fixedPrice?: number;
 }
@@ -24,7 +25,8 @@ export class PriceStep {
     this.options = {
       from: options.from || 'input',
       to: options.to || 'output',
-      referenceTo: options.referenceTo,
+      overwriteReferenceTo: options.overwriteReferenceTo,
+      fallbackPrimaryTo: options.fallbackPrimaryTo,
       providers: {
         primary: options.providers?.primary || [],
         reference: options.providers?.reference || [],
@@ -102,14 +104,14 @@ export class PriceStep {
   private async getPrimaryPrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
     const primaryProviders = this.options.providers.primary;
 
-    const [price, providerName] = await this.tryProviders(fromCurrency, toCurrency, primaryProviders);
+    let [price, providerName] = await this.tryProviders(fromCurrency, toCurrency, primaryProviders);
+
+    if (!price && this.options.fallbackPrimaryTo) {
+      [price, providerName] = await this.tryProviders(fromCurrency, this.options.fallbackPrimaryTo, primaryProviders);
+    }
 
     if (!price) {
-      throw new Error(
-        `Could not find primary price at: ${primaryProviders.map(
-          (p) => p.name + ' ',
-        )}. From ${fromCurrency} to ${toCurrency}`,
-      );
+      throw new Error(this.createPrimaryPriceErrorMessage(primaryProviders, fromCurrency, toCurrency));
     }
 
     return [price, providerName];
@@ -118,8 +120,8 @@ export class PriceStep {
   private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
     const referenceProviders = this.options.providers.reference;
 
-    const [price, providerName] = this.options.referenceTo
-      ? await this.tryProviders(fromCurrency, this.options.referenceTo, referenceProviders)
+    const [price, providerName] = this.options.overwriteReferenceTo
+      ? await this.tryProviders(fromCurrency, this.options.overwriteReferenceTo, referenceProviders)
       : await this.tryProviders(fromCurrency, toCurrency, referenceProviders);
 
     if (!price) {
@@ -147,6 +149,20 @@ export class PriceStep {
     }
 
     return [null, null];
+  }
+
+  private createPrimaryPriceErrorMessage(
+    primaryProviders: PriceProvider[],
+    fromCurrency: string,
+    toCurrency: string,
+  ): string {
+    const mainMessage = `Could not find primary price at: ${primaryProviders.map(
+      (p) => p.name + ' ',
+    )}. From ${fromCurrency} to ${toCurrency}. `;
+
+    const fallbackMessage = this.options.fallbackPrimaryTo && `Fallback to currency: ${this.options.fallbackPrimaryTo}`;
+
+    return mainMessage + fallbackMessage;
   }
 
   //*** GETTERS ***//

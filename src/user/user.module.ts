@@ -33,6 +33,7 @@ import { GeoLocationService } from './services/geo-location.service';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
+import { NotificationModule } from 'src/notification/notification.module';
 import { LimitRequestController } from './models/limit-request/limit-request.controller';
 import { KycWebhookService } from './models/kyc/kyc-webhook.service';
 import { WalletController } from './models/wallet/wallet.controller';
@@ -50,6 +51,7 @@ import { WalletController } from './models/wallet/wallet.controller';
       LinkAddressRepository,
     ]),
     SharedModule,
+    NotificationModule,
     AinModule,
   ],
   controllers: [
