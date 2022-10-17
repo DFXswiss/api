@@ -232,7 +232,18 @@ export class SpiderSyncService {
   // --- HELPER METHODS --- //
 
   private async getIdentPdfUrl(userData: UserData): Promise<string> {
-    const result = await this.getIdentResult(userData, KycContentType.PDF);
+    let result = await this.getIdentResult(userData, KycContentType.PDF);
+
+    if (!result) {
+      //fallback to other ident
+      result = await this.getIdentResult(
+        userData,
+        KycContentType.PDF,
+        this.getKycDocument(userData) === KycDocument.ONLINE_IDENTIFICATION
+          ? KycDocument.VIDEO_IDENTIFICATION
+          : KycDocument.ONLINE_IDENTIFICATION,
+      );
+    }
     return result?.part
       ? this.spiderService.getDocumentUrl(userData.kycCustomerId, result.document, result.version, result.part.name)
       : null;
@@ -262,8 +273,26 @@ export class SpiderSyncService {
       : null;
   }
 
+  private getKycDocument(userData: UserData): KycDocument {
+    return IdentInProgress(userData.kycStatus)
+      ? KycDocuments[userData.kycStatus].document
+      : KycDocument.ONLINE_IDENTIFICATION;
+  }
+
   private async fetchIdentResult(userData: UserData): Promise<IdentResultDto> {
-    const result = await this.getIdentResult(userData, KycContentType.XML);
+    let result = await this.getIdentResult(userData, KycContentType.XML);
+
+    if (!result) {
+      //fallback to other ident
+      result = await this.getIdentResult(
+        userData,
+        KycContentType.PDF,
+        this.getKycDocument(userData) === KycDocument.ONLINE_IDENTIFICATION
+          ? KycDocument.VIDEO_IDENTIFICATION
+          : KycDocument.ONLINE_IDENTIFICATION,
+      );
+    }
+
     if (!result) throw new Error(`No XML ident result found for user ${userData.id}`);
 
     const file = await this.spiderApi.getDocument<string>(
@@ -289,30 +318,15 @@ export class SpiderSyncService {
   private async getIdentResult(
     userData: UserData,
     documentType: KycContentType,
+    document?: KycDocument,
   ): Promise<{ document: KycDocument; version: string; part: DocumentVersionPart }> {
-    let document = IdentInProgress(userData.kycStatus)
-      ? KycDocuments[userData.kycStatus].document
-      : KycDocument.ONLINE_IDENTIFICATION;
-    let version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
-
-    let part = await this.spiderApi
+    document = document ?? this.getKycDocument(userData);
+    const version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+    const part = await this.spiderApi
       .getDocumentVersionParts(userData.id, false, document, version?.name)
       .then((parts) => parts.find((p) => p.contentType === documentType));
 
-    if (!version || !part) {
-      // fallback to other ident method
-      document =
-        document === KycDocument.ONLINE_IDENTIFICATION
-          ? KycDocument.VIDEO_IDENTIFICATION
-          : KycDocument.ONLINE_IDENTIFICATION;
-      version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
-
-      part = await this.spiderApi
-        .getDocumentVersionParts(userData.id, false, document, version.name)
-        .then((parts) => parts.find((p) => p.contentType === documentType));
-    }
-
-    if (!version) return null;
+    if (!version || !part) return null;
 
     return { document, version: version.name, part };
   }
