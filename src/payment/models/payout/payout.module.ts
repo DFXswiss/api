@@ -12,14 +12,22 @@ import { PayoutDeFiChainService } from './services/payout-defichain.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
 import { PayoutLogService } from './services/payout-log.service';
 import { PayoutService } from './services/payout.service';
-import { PayoutBscStrategy } from './strategies/payout/payout-bsc.strategy';
-import { PayoutDeFiChainDFIStrategy } from './strategies/payout/payout-defichain-dfi.strategy';
-import { PayoutEthereumStrategy } from './strategies/payout/payout-ethereum.strategy';
-import { PayoutDeFiChainTokenStrategy } from './strategies/payout/payout-defichain-token.strategy';
-import { PrepareBscStrategy } from './strategies/prepare/prepare-bsc.strategy';
-import { PrepareDeFiChainStrategy } from './strategies/prepare/prepare-defichain.strategy';
-import { PrepareEthereumStrategy } from './strategies/prepare/prepare-ethereum.strategy';
-import { PayoutStrategiesFacade } from './strategies/strategies.facade';
+import { PayoutStrategiesFacade } from './strategies/payout/payout.facade';
+import { PayoutBitcoinService } from './services/payout-bitcoin.service';
+import { PrepareStrategiesFacade } from './strategies/prepare/prepare.facade';
+import { BitcoinStrategy as BitcoinStrategyPO } from './strategies/payout/impl/bitcoin.strategy';
+import { BscCoinStrategy as BscCryptoStrategyPO } from './strategies/payout/impl/bsc-coin.strategy';
+import { BscTokenStrategy as BscTokenStrategyPO } from './strategies/payout/impl/bsc-token.strategy';
+import { DeFiChainCoinStrategy as DeFiChainDfiStrategyPO } from './strategies/payout/impl/defichain-coin.strategy';
+import { DeFiChainTokenStrategy as DeFiChainTokenStrategyPO } from './strategies/payout/impl/defichain-token.strategy';
+import { EthereumCoinStrategy as EthereumCryptoStrategyPO } from './strategies/payout/impl/ethereum-coin.strategy';
+import { EthereumTokenStrategy as EthereumTokenStrategyPO } from './strategies/payout/impl/ethereum-token.strategy';
+import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/bitcoin.strategy';
+import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
+import { DeFiChainStrategy as DeFiChainStrategyPR } from './strategies/prepare/impl/defichain.strategy';
+import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
+import { NotificationModule } from 'src/notification/notification.module';
+import { PayoutController } from './payout.controller';
 
 @Module({
   imports: [
@@ -29,23 +37,30 @@ import { PayoutStrategiesFacade } from './strategies/strategies.facade';
     BscModule,
     SharedModule,
     DexModule,
+    NotificationModule,
   ],
-  controllers: [],
+  controllers: [PayoutController],
   providers: [
     PayoutOrderFactory,
     PayoutLogService,
     PayoutService,
+    PayoutBitcoinService,
     PayoutDeFiChainService,
     PayoutEthereumService,
     PayoutBscService,
-    PayoutDeFiChainDFIStrategy,
-    PayoutDeFiChainTokenStrategy,
-    PayoutEthereumStrategy,
-    PayoutBscStrategy,
-    PrepareDeFiChainStrategy,
-    PrepareEthereumStrategy,
-    PrepareBscStrategy,
     PayoutStrategiesFacade,
+    PrepareStrategiesFacade,
+    BitcoinStrategyPO,
+    BscCryptoStrategyPO,
+    BscTokenStrategyPO,
+    DeFiChainDfiStrategyPO,
+    DeFiChainTokenStrategyPO,
+    EthereumCryptoStrategyPO,
+    EthereumTokenStrategyPO,
+    BitcoinStrategyPR,
+    BscStrategyPR,
+    DeFiChainStrategyPR,
+    EthereumStrategyPR,
   ],
   exports: [PayoutService],
 })

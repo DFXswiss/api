@@ -4,7 +4,7 @@ import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { MailOptions } from 'src/shared/services/mail.service';
+import { MailOptions } from 'src/notification/services/mail.service';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -226,11 +226,15 @@ export class Configuration {
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
       ethApiKey: process.env.ETH_API_KEY,
+      uniswapV2Router02Address: process.env.ETH_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
     },
     bsc: {
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
   };
 
