@@ -97,7 +97,9 @@ export class EvmClient {
   }
 
   private convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
-    return ethers.utils.parseUnits(`${amountEthLike}`, decimals);
+    const amount = decimals === 'ether' ? amountEthLike : amountEthLike.toFixed(decimals);
+
+    return ethers.utils.parseUnits(`${amount}`, decimals);
   }
 
   private convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {

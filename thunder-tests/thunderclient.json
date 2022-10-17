@@ -118,7 +118,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-10-12T08:47:09.606Z",
+    "modified": "2022-10-14T09:57:53.958Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1936,7 +1936,8 @@
       "form": []
     },
     "tests": []
-  },{
+  },
+  {
     "_id": "3fb4c1f6-1038-4288-b6c3-252c6892875b",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "af415d12-0498-48a6-a81d-4d3ef4497cdf",
@@ -1945,12 +1946,12 @@
     "method": "PUT",
     "sortNum": 710000,
     "created": "2022-10-12T08:33:46.230Z",
-    "modified": "2022-10-12T08:46:18.982Z",
+    "modified": "2022-10-14T09:57:14.180Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"info\":\"BankTxReturn123\",\n  \"chargebackBankTxId\": 14\n}",
+      "raw": "{\n  \"info\":\"BankTxReturn123\",\n  \"chargebackBankTxId\": 14,\n  \"amountInEur\": 100,\n  \"amountInUsd\": 100,\n  \"amountInChf\": 100\n}",
       "form": []
     },
     "tests": []
