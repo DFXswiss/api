@@ -36,6 +36,7 @@ import { Customer } from 'src/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
+import { dbQueryDto } from './dto/db-query.dto';
 import { RenameRefDto } from './dto/rename-ref.dto';
 import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';
@@ -121,37 +122,32 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getRawData(
     @Query()
-    {
-      table,
-      min,
-      updatedSince,
-      extended,
-      maxLine,
-      sorting = 'ASC',
-    }: {
-      table: string;
-      min?: string;
-      updatedSince?: string;
-      extended?: string;
-      maxLine?: string;
-      sorting?: 'ASC' | 'DESC';
-    },
+    query: dbQueryDto,
   ): Promise<any> {
-    const id = min ? +min : 1;
-    const maxResult = maxLine ? +maxLine : undefined;
-    const updated = updatedSince ? new Date(updatedSince) : new Date(0);
+    const id = query.min ? +query.min : 1;
+    const maxResult = query.maxLine ? +query.maxLine : undefined;
+    const updated = query.updatedSince ? new Date(query.updatedSince) : new Date(0);
 
     let data: any[];
 
-    if (extended && table === 'bank_tx') {
-      data = await this.getExtendedBankTxData(table, id, updated, maxResult, sorting);
+    if (query.extended && query.table === 'bank_tx') {
+      data = await this.getExtendedBankTxData({
+        table: query.table,
+        min: id,
+        updatedSince: updated,
+        maxLine: maxResult,
+        sorting: query.sorting,
+        filterCols: query.filterCols,
+        extended: true,
+      });
     } else {
       data = await getConnection()
         .createQueryBuilder()
-        .from(table, table)
+        .select(query.filterCols)
+        .from(query.table, query.table)
         .where('id >= :id', { id })
         .andWhere('updated >= :updated', { updated })
-        .orderBy('id', sorting)
+        .orderBy('id', query.sorting)
         .take(maxResult)
         .getRawMany()
         .catch((e: Error) => {
@@ -170,7 +166,7 @@ export class AdminController {
 
     // workarounds for GS's
     if (arrayData) {
-      switch (table) {
+      switch (query.table) {
         case 'buy':
           const userTable = await getConnection().createQueryBuilder().from('user', 'user').getRawMany();
 
@@ -188,27 +184,28 @@ export class AdminController {
     return arrayData;
   }
 
-  private async getExtendedBankTxData(
-    table: string,
-    id: number,
-    updated: Date,
-    maxResult: number,
-    sorting: 'ASC' | 'DESC',
-  ): Promise<any[]> {
+  private async getExtendedBankTxData(dbQuery: dbQueryDto): Promise<any[]> {
+    const select = dbQuery.filterCols
+      ? dbQuery.filterCols
+          .split(',')
+          .map((e) => dbQuery.table + '.' + e)
+          .join(',')
+      : dbQuery.table;
+
     const buyCryptoData = await getConnection()
       .createQueryBuilder()
-      .from(table, table)
-      .select('bank_tx', 'bankTx')
+      .from(dbQuery.table, dbQuery.table)
+      .select(select)
       .addSelect('userData.id', 'userDataId')
       .leftJoin('bank_tx.buyCrypto', 'buyCrypto')
       .leftJoin('buyCrypto.buy', 'buy')
       .leftJoin('buy.user', 'user')
       .leftJoin('user.userData', 'userData')
-      .where('bank_tx.id >= :id', { id })
-      .andWhere('bank_tx.updated >= :updated', { updated })
+      .where('bank_tx.id >= :id', { id: dbQuery.min })
+      .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_CRYPTO })
-      .orderBy('bank_tx.id', sorting)
-      .take(maxResult)
+      .orderBy('bank_tx.id', dbQuery.sorting)
+      .take(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -216,18 +213,18 @@ export class AdminController {
 
     const buyFiatData = await getConnection()
       .createQueryBuilder()
-      .from(table, table)
-      .select('bank_tx', 'bankTx')
+      .from(dbQuery.table, dbQuery.table)
+      .select(select)
       .addSelect('userData.id', 'userDataId')
       .leftJoin('bank_tx.buyFiat', 'buyFiat')
       .leftJoin('buyFiat.sell', 'sell')
       .leftJoin('sell.user', 'user')
       .leftJoin('user.userData', 'userData')
-      .where('bank_tx.id >= :id', { id })
-      .andWhere('bank_tx.updated >= :updated', { updated })
+      .where('bank_tx.id >= :id', { id: dbQuery.min })
+      .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
       .andWhere('bank_tx.type = :type', { type: BankTxType.BUY_FIAT })
-      .orderBy('bank_tx.id', sorting)
-      .take(maxResult)
+      .orderBy('bank_tx.id', dbQuery.sorting)
+      .take(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -235,16 +232,16 @@ export class AdminController {
 
     const bankTxRestData = await getConnection()
       .createQueryBuilder()
-      .from(table, table)
-      .select('bank_tx', 'bankTx')
-      .where('bank_tx.id >= :id', { id })
-      .andWhere('bank_tx.updated >= :updated', { updated })
+      .from(dbQuery.table, dbQuery.table)
+      .select(select)
+      .where('bank_tx.id >= :id', { id: dbQuery.min })
+      .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
       .andWhere('(type IS NULL OR type NOT IN (:crypto, :fiat))', {
         crypto: BankTxType.BUY_CRYPTO,
         fiat: BankTxType.BUY_FIAT,
       })
-      .orderBy('bank_tx.id', sorting)
-      .take(maxResult)
+      .orderBy('bank_tx.id', dbQuery.sorting)
+      .take(dbQuery.maxLine)
       .getRawMany()
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
@@ -254,7 +251,7 @@ export class AdminController {
 
     return buyCryptoData
       .concat(buyFiatData, bankTxRestData)
-      .sort((a, b) => (sorting == 'ASC' ? a.bank_tx_id - b.bank_tx_id : b.bank_tx_id - a.bank_tx_id));
+      .sort((a, b) => (dbQuery.sorting == 'ASC' ? a.bank_tx_id - b.bank_tx_id : b.bank_tx_id - a.bank_tx_id));
   }
 
   @Get('support')
