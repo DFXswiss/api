@@ -290,31 +290,30 @@ export class SpiderSyncService {
     userData: UserData,
     documentType: KycContentType,
   ): Promise<{ document: KycDocument; version: string; part: DocumentVersionPart }> {
-    const { document, version } = await this.getCompletedIdentDocument(userData);
-    if (!version) return null;
-
-    const part = await this.spiderApi
-      .getDocumentVersionParts(userData.id, false, document, version)
-      .then((parts) => parts.find((p) => p.contentType === documentType));
-
-    return { document, version, part };
-  }
-
-  private async getCompletedIdentDocument(userData: UserData): Promise<{ document: KycDocument; version: string }> {
     let document = IdentInProgress(userData.kycStatus)
       ? KycDocuments[userData.kycStatus].document
       : KycDocument.ONLINE_IDENTIFICATION;
     let version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
 
-    if (!version) {
+    let part = await this.spiderApi
+      .getDocumentVersionParts(userData.id, false, document, version?.name)
+      .then((parts) => parts.find((p) => p.contentType === documentType));
+
+    if (!version || !part) {
       // fallback to other ident method
       document =
         document === KycDocument.ONLINE_IDENTIFICATION
           ? KycDocument.VIDEO_IDENTIFICATION
           : KycDocument.ONLINE_IDENTIFICATION;
       version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+
+      part = await this.spiderApi
+        .getDocumentVersionParts(userData.id, false, document, version.name)
+        .then((parts) => parts.find((p) => p.contentType === documentType));
     }
 
-    return { document, version: version?.name };
+    if (!version) return null;
+
+    return { document, version: version.name, part };
   }
 }
