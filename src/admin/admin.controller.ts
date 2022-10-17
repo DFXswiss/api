@@ -187,9 +187,9 @@ export class AdminController {
     const select = dbQuery.filterCols
       ? dbQuery.filterCols
           .split(',')
-          .map((e) => 'bank_tx.' + e)
+          .map((e) => dbQuery.table + '.' + e)
           .join(',')
-      : 'bank_tx';
+      : dbQuery.table;
 
     const buyCryptoData = await getConnection()
       .createQueryBuilder()
