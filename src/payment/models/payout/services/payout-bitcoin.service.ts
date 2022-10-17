@@ -25,7 +25,7 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
     return this.#client.sendUtxoToMany(payout);
   }
 
-  async checkPayoutCompletion(payoutTxId: string): Promise<boolean> {
+  async checkPayoutCompletion(_context: any, payoutTxId: string): Promise<boolean> {
     const transaction = await this.#client.getTx(payoutTxId);
 
     return transaction && transaction.blockhash && transaction.confirmations > 0;
