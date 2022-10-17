@@ -41,16 +41,6 @@ import { SendLetterDto } from './dto/send-letter.dto';
 import { SendMailDto } from './dto/send-mail.dto';
 import { UploadFileDto } from './dto/upload-file.dto';
 
-export interface dbQueryInput {
-  table: string;
-  min?: string;
-  updatedSince: string;
-  extended: string;
-  maxLine: string;
-  sorting: 'ASC' | 'DESC';
-  customCols?: string[];
-}
-
 @Controller('admin')
 export class AdminController {
   constructor(
