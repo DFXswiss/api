@@ -2,7 +2,8 @@ import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { createDefaultCountry } from 'src/shared/models/country/__tests__/mock/country.entity.mock';
+import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { HttpService } from 'src/shared/services/http.service';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { LinkService } from '../link/link.service';
@@ -15,7 +16,9 @@ import {
   kycHashFor,
   MockUserData,
   userDataIdFor,
-} from '../user-data/__tests__/mock/user-data.entity.mock';
+} from '../user-data/__mocks__/user-data.entity.mock';
+import { UserRepository } from '../user/user.repository';
+import { WalletRepository } from '../wallet/wallet.repository';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
 import { KycInfo, KycService } from './kyc.service';
@@ -30,6 +33,9 @@ describe('KycService', () => {
   let countryService: CountryService;
   let kycProcess: KycProcessService;
   let linkService: LinkService;
+  let userRepo: UserRepository;
+  let walletRepo: WalletRepository;
+  let httpService: HttpService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -122,6 +128,9 @@ describe('KycService', () => {
     countryService = createMock<CountryService>();
     kycProcess = createMock<KycProcessService>();
     linkService = createMock<LinkService>();
+    userRepo = createMock<UserRepository>();
+    walletRepo = createMock<WalletRepository>();
+    httpService = createMock<HttpService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -133,6 +142,9 @@ describe('KycService', () => {
         { provide: CountryService, useValue: countryService },
         { provide: KycProcessService, useValue: kycProcess },
         { provide: LinkService, useValue: linkService },
+        { provide: UserRepository, useValue: userRepo },
+        { provide: WalletRepository, useValue: walletRepo },
+        { provide: HttpService, useValue: httpService },
       ],
     }).compile();
 

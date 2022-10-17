@@ -6,13 +6,13 @@ import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not } from 'typeorm';
-import { User } from '../../../user/models/user/user.entity';
 import { Util } from 'src/shared/util';
 import { StakingService } from '../staking/staking.service';
 import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BuyService {
@@ -68,8 +68,8 @@ export class BuyService {
     // check asset
     const asset =
       dto.type === BuyType.WALLET
-        ? await this.assetService.getAsset(dto.asset.id)
-        : await this.assetService.getAssetByDexName('DFI');
+        ? await this.assetService.getAssetById(dto.asset.id)
+        : await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking
@@ -86,7 +86,7 @@ export class BuyService {
         ...(dto.type === BuyType.WALLET ? { asset: asset, deposit: IsNull() } : { deposit: staking?.deposit }),
         user: { id: userId },
       },
-      relations: ['deposit', 'user', 'user.userData', 'user.userData.country', 'bankAccount'],
+      relations: ['deposit', 'bankAccount', 'user', 'user.userData'],
     });
 
     if (existing) {
@@ -103,7 +103,7 @@ export class BuyService {
 
     // create the entity
     const buy = this.buyRepo.create(dto);
-    buy.user = { id: userId } as User;
+    buy.user = await this.userService.getUser(userId, true);
     buy.asset = asset;
     buy.deposit = staking?.deposit ?? null;
     buy.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);

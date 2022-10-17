@@ -12,11 +12,12 @@ import { SellDto } from './dto/sell.dto';
 import { Sell } from './sell.entity';
 import { UserService } from 'src/user/models/user/user.service';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
-import { BuyFiatHistoryDto } from '../buy-fiat/dto/buy-fiat-history.dto';
+import { SellHistoryDto } from './dto/sell-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
+import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -64,8 +65,8 @@ export class SellController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyFiatHistoryDto[]> {
-    return this.buyFiatService.getHistory(jwt.id, +id);
+  async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellHistoryDto[]> {
+    return this.buyFiatService.getSellHistory(jwt.id, +id);
   }
 
   // --- DTO --- //
@@ -84,7 +85,7 @@ export class SellController {
       ...sell,
       fee,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
+      minDeposits: this.getMinDeposit(sell.fiat.name),
     };
   }
 
@@ -92,12 +93,20 @@ export class SellController {
     return {
       fee: await this.getFee(userId),
       depositAddress: sell.deposit.address,
-      minDeposits: Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain),
+      minDeposits: this.getMinDeposit(sell.fiat.name),
     };
   }
 
   // --- HELPER-METHODS --- //
   async getFee(userId: number): Promise<number> {
     return this.userService.getUserSellFee(userId);
+  }
+
+  private getMinDeposit(outputAsset: string): MinDeposit[] {
+    const minVolume = Object.entries(Config.blockchain.default.minTransactionVolume)
+      .filter(([key, _]) => key === outputAsset)
+      .map(([_, value]) => value);
+
+    return Util.transformToMinDeposit(minVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
   }
 }

@@ -65,11 +65,47 @@
     "outWalletAddress": {
       "value": "xxx"
     },
+    "intWalletAddress": {
+      "value": "xxx"
+    },
     "stakingWalletAddress": {
       "value": "xxx"
     },
     "utxoSpenderAddress": {
       "value": "xxx"
+    },
+    "ethWalletAddress": {
+      "value": "xxx"
+    },
+    "ethWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "ethGatewayUrl": {
+      "value": "https://goerli.infura.io/v3"
+    },
+    "ethApiKey": {
+      "value": "xxx"
+    },
+    "ethSwapContractAddress": {
+      "value": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+    },
+    "ethSwapTokenAddress": {
+      "value": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6"
+    },
+    "bscWalletAddress": {
+      "value": "xxx"
+    },
+    "bscWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "bscGatewayUrl": {
+      "value": "https://data-seed-prebsc-1-s1.binance.org:8545"
+    },
+    "bscSwapContractAddress": {
+      "value": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"
+    },
+    "bscSwapTokenAddress": {
+      "value": "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"
     },
     "btcCollectorAddress": {
       "value": "xxx"
@@ -134,6 +170,12 @@
     "letterAuth": {
       "value": "xxx"
     },
+    "fixerUrl": {
+      "value": "https://api.apilayer.com/fixer"
+    },
+    "fixerApiKey": {
+      "value": "xxx"
+    },
     "sepaToolsUser": {
       "value": "xxx"
     },
@@ -157,6 +199,9 @@
     },
     "paymentUrl": {
       "value": "http://localhost:19006"
+    },
+    "lockApiKey": {
+      "value": "xxx"
     }
   }
 }

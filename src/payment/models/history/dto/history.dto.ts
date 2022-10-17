@@ -1,23 +1,39 @@
-abstract class HistoryDtoBase {
-  type: string;
-  buyAmount: number;
-  buyAsset: string;
-  sellAmount: number;
-  sellAsset: string;
-  fee: number;
-  feeAsset: string;
-  exchange: string;
-  tradeGroup: string;
-  comment: string;
-  txid: string;
-  buyValueInEur: number;
-  sellValueInEur: number;
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AmlCheck } from '../../buy-crypto/enums/aml-check.enum';
+
+export enum HistoryTransactionType {
+  BUY = 'Buy',
+  SELL = 'Sell',
+  CRYPTO = 'Crypto',
 }
 
-export class HistoryDto extends HistoryDtoBase {
+export class HistoryDto {
+  @ApiProperty()
+  inputAmount: number;
+
+  @ApiProperty()
+  inputAsset: string;
+
+  @ApiPropertyOptional()
+  outputAmount: number;
+
+  @ApiPropertyOptional()
+  outputAsset: string;
+
+  @ApiPropertyOptional()
+  txId: string;
+
+  @ApiProperty()
   date: Date;
+
+  @ApiProperty()
+  amlCheck: AmlCheck;
+
+  @ApiProperty()
+  isComplete: boolean;
 }
 
-export class CoinTrackingHistoryDto extends HistoryDtoBase {
-  date: number;
+export class TypedHistoryDto extends HistoryDto {
+  @ApiProperty({ enum: HistoryTransactionType })
+  type: HistoryTransactionType;
 }

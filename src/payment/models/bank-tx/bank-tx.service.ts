@@ -4,7 +4,6 @@ import { BankTxBatchRepository } from './bank-tx-batch.repository';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
-import { MailService } from 'src/shared/services/mail.service';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
 import { BankTx, BankTxType } from './bank-tx.entity';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
@@ -12,6 +11,10 @@ import { Interval } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FrickService } from './frick.service';
 import { OlkypayService } from './olkypay.service';
+import { NotificationService } from 'src/notification/services/notification.service';
+import { MailType } from 'src/notification/enums';
+import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
+import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 
 @Injectable()
 export class BankTxService {
@@ -19,10 +22,12 @@ export class BankTxService {
     private readonly bankTxRepo: BankTxRepository,
     private readonly bankTxBatchRepo: BankTxBatchRepository,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly frickService: FrickService,
     private readonly olkyService: OlkypayService,
+    private readonly bankTxReturnService: BankTxReturnService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
 
   // --- TRANSACTION HANDLING --- //
@@ -73,7 +78,17 @@ export class BankTxService {
 
     bankTx.type = dto.type;
 
-    if (bankTx.type === BankTxType.BUY_CRYPTO) await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
+    switch (bankTx.type) {
+      case BankTxType.BUY_CRYPTO:
+        await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
+        break;
+      case BankTxType.BANK_TX_RETURN:
+        await this.bankTxReturnService.create(bankTx);
+        break;
+      case BankTxType.BANK_TX_REPEAT:
+        await this.bankTxRepeatService.create(bankTx);
+        break;
+    }
 
     return await this.bankTxRepo.save(bankTx);
   }
@@ -97,7 +112,11 @@ export class BankTxService {
     if (duplicates.length > 0) {
       const message = `Duplicate SEPA entries found in batch ${batch.identification}:`;
       console.log(message, duplicates);
-      this.mailService.sendErrorMail('SEPA Error', [message + ` ${duplicates.join(', ')}`]);
+
+      await this.notificationService.sendMail({
+        type: MailType.ERROR_MONITORING,
+        input: { subject: 'SEPA Error', errors: [message + ` ${duplicates.join(', ')}`] },
+      });
     }
 
     // store the entries

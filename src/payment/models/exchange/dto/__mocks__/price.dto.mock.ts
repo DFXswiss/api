@@ -1,0 +1,18 @@
+import { Price } from '../price.dto';
+
+export function createDefaultPrice(): Price {
+  return createCustomPrice({});
+}
+
+export function createCustomPrice(customValues: Partial<Price>): Price {
+  const { source, target, price } = customValues;
+  const keys = Object.keys(customValues);
+
+  const entity = new Price();
+
+  entity.source = keys.includes('source') ? source : 'BTC';
+  entity.target = keys.includes('target') ? target : 'DFI';
+  entity.price = keys.includes('price') ? price : 10;
+
+  return entity;
+}

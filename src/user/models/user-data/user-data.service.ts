@@ -4,7 +4,7 @@ import { UserDataRepository } from './user-data.repository';
 import { KycInProgress, KycState, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { MoreThan, Not } from 'typeorm';
+import { getRepository, MoreThan, Not } from 'typeorm';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -15,6 +15,8 @@ import { SpiderApiService } from 'src/user/services/spider/spider-api.service';
 import { Util } from 'src/shared/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
+import { BankTx } from 'src/payment/models/bank-tx/bank-tx.entity';
+import { KycWebhookService } from '../kyc/kyc-webhook.service';
 
 @Injectable()
 export class UserDataService {
@@ -28,6 +30,7 @@ export class UserDataService {
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
+    private readonly kycWebhookService: KycWebhookService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -76,6 +79,11 @@ export class UserDataService {
       if (!userData.country) throw new BadRequestException('Country not found');
     }
 
+    if (dto.nationality) {
+      userData.nationality = await this.countryService.getCountry(dto.nationality.id);
+      if (!userData.nationality) throw new BadRequestException('Nationality not found');
+    }
+
     if (dto.organizationCountryId) {
       userData.organizationCountry = await this.countryService.getCountry(dto.organizationCountryId);
       if (!userData.organizationCountry) throw new BadRequestException('Country not found');
@@ -103,8 +111,9 @@ export class UserDataService {
         );
     }
 
-    if (dto.kycStatus && userData.kycStatus != dto.kycStatus)
+    if (dto.kycStatus && userData.kycStatus != dto.kycStatus) {
       userData = await this.kycProcessService.goToStatus(userData, dto.kycStatus);
+    }
 
     return await this.userDataRepo.save({ ...userData, ...dto });
   }
@@ -184,8 +193,11 @@ export class UserDataService {
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
     const [master, slave] = await Promise.all([
-      this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'bankDatas'] }),
-      this.userDataRepo.findOne({ where: { id: slaveId }, relations: ['users', 'bankDatas'] }),
+      this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'users.wallet', 'bankDatas'] }),
+      this.userDataRepo.findOne({
+        where: { id: slaveId },
+        relations: ['users', 'users.wallet', 'bankDatas'],
+      }),
     ]);
     console.log(
       `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas
@@ -193,10 +205,15 @@ export class UserDataService {
         .join(', ')} and users ${slave.users.map((u) => u.id).join(', ')}`,
     );
 
+    await this.updateBankTxTime(slave.id);
+
     // reassign bank datas and users
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
+
+    // KYC change Webhook
+    await this.kycWebhookService.kycChanged(master);
 
     // update volumes
     await this.updateVolumes(masterId);
@@ -212,5 +229,31 @@ export class UserDataService {
     }
 
     return idList;
+  }
+
+  private async updateBankTxTime(userDataId: number): Promise<void> {
+    const txList = await getRepository(BankTx).find({
+      select: ['id'],
+      where: [
+        { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
+        { buyFiat: { sell: { user: { userData: { id: userDataId } } } } },
+      ],
+      relations: [
+        'buyCrypto',
+        'buyCrypto.buy',
+        'buyCrypto.buy.user',
+        'buyCrypto.buy.user.userData',
+        'buyFiat',
+        'buyFiat.sell',
+        'buyFiat.sell.user',
+        'buyFiat.sell.user.userData',
+      ],
+    });
+
+    if (txList.length != 0)
+      getRepository(BankTx).update(
+        txList.map((tx) => tx.id),
+        { updated: new Date() },
+      );
   }
 }

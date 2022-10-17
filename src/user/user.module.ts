@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AinModule } from 'src/ain/ain.module';
+import { AinModule } from 'src/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserDataController } from 'src/user/models/user-data/user-data.controller';
 import { UserDataRepository } from 'src/user/models/user-data/user-data.repository';
@@ -33,6 +33,9 @@ import { GeoLocationService } from './services/geo-location.service';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
+import { NotificationModule } from 'src/notification/notification.module';
+import { LimitRequestController } from './models/limit-request/limit-request.controller';
+import { KycWebhookService } from './models/kyc/kyc-webhook.service';
 
 @Module({
   imports: [
@@ -47,6 +50,7 @@ import { LinkAddressRepository } from './models/link/link-address.repository';
       LinkAddressRepository,
     ]),
     SharedModule,
+    NotificationModule,
     AinModule,
   ],
   controllers: [
@@ -58,6 +62,7 @@ import { LinkAddressRepository } from './models/link/link-address.repository';
     IdentController,
     KycController,
     LinkController,
+    LimitRequestController,
   ],
   providers: [
     UserService,
@@ -75,7 +80,17 @@ import { LinkAddressRepository } from './models/link/link-address.repository';
     IdentService,
     GeoLocationService,
     LinkService,
+    KycWebhookService,
   ],
-  exports: [UserService, UserDataService, RefService, KycService, SpiderService, SpiderApiService, LinkService],
+  exports: [
+    UserService,
+    UserDataService,
+    RefService,
+    KycService,
+    SpiderService,
+    SpiderApiService,
+    LinkService,
+    KycWebhookService,
+  ],
 })
 export class UserModule {}

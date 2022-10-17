@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { NodeMode } from 'src/ain/node/node-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { NodeMode } from 'src/blockchain/ain/node/node-client';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { MetricObserver } from 'src/monitoring/metric.observer';
 import { MonitoringService } from 'src/monitoring/monitoring.service';
-import { MailService } from 'src/shared/services/mail.service';
+import { MailType } from 'src/notification/enums';
+import { NotificationService } from 'src/notification/services/notification.service';
 
 type MailMessage = string;
 
@@ -26,7 +27,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
   constructor(
     monitoringService: MonitoringService,
     readonly nodeService: NodeService,
-    readonly mailService: MailService,
+    readonly notificationService: NotificationService,
   ) {
     super(monitoringService, 'node', 'health');
   }
@@ -98,7 +99,10 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     if (messages.length > 0) {
       console.log(messages);
 
-      await this.mailService.sendErrorMail('Node Error', messages);
+      await this.notificationService.sendMail({
+        type: MailType.ERROR_MONITORING,
+        input: { subject: 'Node Error', errors: messages },
+      });
     }
   }
 }

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AinModule } from 'src/ain/ain.module';
+import { AinModule } from 'src/blockchain/ain/ain.module';
 import { PaymentModule } from 'src/payment/payment.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/user/user.module';
@@ -15,6 +15,7 @@ import { PaymentObserver } from './observers/payment.observer';
 import { StakingBalanceObserver } from './observers/staking-balance.observer';
 import { UserObserver } from './observers/user.observer';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     AinModule,
     PaymentModule,
     UserModule,
+    NotificationModule,
   ],
   providers: [
     MonitoringService,

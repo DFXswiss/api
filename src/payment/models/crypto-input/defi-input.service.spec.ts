@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeService } from 'src/ain/node/node.service';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { CryptoInputRepository } from './crypto-input.repository';
@@ -73,7 +73,9 @@ describe('DeFiInputService', () => {
         { provide: CryptoStakingService, useValue: cryptoStakingService },
         { provide: HttpService, useValue: http },
         { provide: BuyFiatService, useValue: buyFiatService },
-        TestUtil.provideConfig({ node: { utxoSpenderAddress: 'addr2', minDeposit: { DeFiChain: { DFI: 0.01 } } } }),
+        TestUtil.provideConfig({
+          blockchain: { default: { utxoSpenderAddress: 'addr2', minDeposit: { DeFiChain: { DFI: 0.01 } } } },
+        }),
       ],
     }).compile();
 

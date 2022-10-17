@@ -2,8 +2,8 @@ import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dis
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression, Interval } from '@nestjs/schedule';
-import { DeFiClient } from 'src/ain/node/defi-client';
-import { NodeService, NodeType } from 'src/ain/node/node.service';
+import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
+import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Config } from 'src/config/config';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -17,12 +17,12 @@ import { IsNull, Not } from 'typeorm';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { KycStatus } from 'src/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
-import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
 import { CryptoInputService } from './crypto-input.service';
 import { Sell } from '../sell/sell.entity';
 import { Staking } from '../staking/staking.entity';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 
 interface HistoryAmount {
   amount: number;
@@ -61,7 +61,11 @@ export class DeFiInputService extends CryptoInputService {
       for (const token of tokens) {
         try {
           const { amount, asset } = this.client.parseAmount(token.amount);
-          const assetEntity = await this.assetService.getAssetByDexName(asset, true);
+          const assetEntity = await this.assetService.getAssetByQuery({
+            dexName: asset,
+            blockchain: Blockchain.DEFICHAIN,
+            isToken: true,
+          });
 
           if (assetEntity?.category === AssetCategory.POOL_PAIR) {
             console.log('Removing pool liquidity:', token);
@@ -77,16 +81,23 @@ export class DeFiInputService extends CryptoInputService {
               await this.sendFeeUtxo(token.owner);
             }
           } else {
+            // ignoring dust DFI transactions
+            if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
+              continue;
+            }
+
             // check for min. deposit
             // TODO: remove temporary DUSD pool fix
             const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
-            if (usdtAmount < Config.node.minDeposit.DeFiChain.USD * 0.4) {
+            if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USD * 0.4) {
               console.log('Retrieving small token:', token);
 
               await this.doTokenTx(
                 token.owner,
                 async (utxo) =>
-                  await this.client.sendToken(token.owner, Config.node.dexWalletAddress, asset, amount, [utxo]),
+                  await this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [
+                    utxo,
+                  ]),
               );
             } else {
               const route = await this.getDepositRoute(token.owner);
@@ -143,7 +154,7 @@ export class DeFiInputService extends CryptoInputService {
     const tokens = await this.client.getToken();
 
     const newInputs = await this.getAddressesWithFunds(utxos, tokens)
-      .then((i) => i.filter((e) => e != Config.node.utxoSpenderAddress))
+      .then((i) => i.filter((e) => e != Config.blockchain.default.utxoSpenderAddress))
       // get receive history
       .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
       .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
@@ -197,7 +208,11 @@ export class DeFiInputService extends CryptoInputService {
 
   private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
     // get asset
-    const assetEntity = await this.assetService.getAssetByDexName(asset, isToken);
+    const assetEntity = await this.assetService.getAssetByQuery({
+      dexName: asset,
+      blockchain: Blockchain.DEFICHAIN,
+      isToken,
+    });
     if (!assetEntity) {
       console.error(`Failed to process DeFiChain input. No asset ${asset} found. History entry:`, history);
       return null;
@@ -213,8 +228,8 @@ export class DeFiInputService extends CryptoInputService {
 
     // min. deposit
     if (
-      (asset === 'DFI' && amount < Config.node.minDeposit.DeFiChain.DFI) ||
-      (asset !== 'DFI' && usdtAmount < Config.node.minDeposit.DeFiChain.USD * 0.4)
+      (asset === 'DFI' && amount < Config.blockchain.default.minDeposit.DeFiChain.DFI) ||
+      (asset !== 'DFI' && usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USD * 0.4)
     ) {
       console.log(`Ignoring too small DeFiChain input (${amount} ${asset}). History entry:`, history);
       return null;
@@ -312,7 +327,9 @@ export class DeFiInputService extends CryptoInputService {
     for (const input of inputs) {
       try {
         const targetAddress =
-          input.route.type === RouteType.SELL ? Config.node.dexWalletAddress : Config.node.stakingWalletAddress;
+          input.route.type === RouteType.SELL
+            ? Config.blockchain.default.dexWalletAddress
+            : Config.blockchain.default.stakingWalletAddress;
 
         input.asset.type === AssetType.COIN
           ? await this.forwardUtxo(input, targetAddress)
@@ -379,14 +396,19 @@ export class DeFiInputService extends CryptoInputService {
       for (const utxo of utxos) {
         try {
           if (
-            utxo.address != Config.node.utxoSpenderAddress &&
-            utxo.amount.toNumber() < Config.node.minDeposit.DeFiChain.DFI &&
-            utxo.amount.toNumber() - this.client.utxoFee >= Config.node.minTxAmount &&
+            utxo.address != Config.blockchain.default.utxoSpenderAddress &&
+            utxo.amount.toNumber() < Config.blockchain.default.minDeposit.DeFiChain.DFI &&
+            utxo.amount.toNumber() - this.client.utxoFee >= Config.blockchain.default.minTxAmount &&
             !utxos.find(
-              (u) => u.address === utxo.address && u.amount.toNumber() >= Config.node.minDeposit.DeFiChain.DFI,
+              (u) =>
+                u.address === utxo.address && u.amount.toNumber() >= Config.blockchain.default.minDeposit.DeFiChain.DFI,
             )
           ) {
-            await this.client.sendCompleteUtxo(utxo.address, Config.node.utxoSpenderAddress, utxo.amount.toNumber());
+            await this.client.sendCompleteUtxo(
+              utxo.address,
+              Config.blockchain.default.utxoSpenderAddress,
+              utxo.amount.toNumber(),
+            );
           }
         } catch (e) {
           console.log('Failed to retrieve fee UTXO:', e);
@@ -401,7 +423,7 @@ export class DeFiInputService extends CryptoInputService {
 
   async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
     const utxoAddresses = utxo
-      .filter((u) => u.amount.toNumber() >= Config.node.minDeposit.DeFiChain.DFI)
+      .filter((u) => u.amount.toNumber() >= Config.blockchain.default.minDeposit.DeFiChain.DFI)
       .map((u) => u.address);
     const tokenAddresses = token.map((t) => t.owner);
 
@@ -459,17 +481,17 @@ export class DeFiInputService extends CryptoInputService {
         utxos.find(
           (u) =>
             u.address === address &&
-            u.amount.toNumber() < Config.node.minDeposit.DeFiChain.DFI &&
-            u.amount.toNumber() > Config.node.minDeposit.DeFiChain.DFI / 4,
+            u.amount.toNumber() < Config.blockchain.default.minDeposit.DeFiChain.DFI &&
+            u.amount.toNumber() > Config.blockchain.default.minDeposit.DeFiChain.DFI / 4,
         ),
       );
   }
 
   private async sendFeeUtxo(address: string): Promise<string> {
     return await this.client.sendUtxo(
-      Config.node.utxoSpenderAddress,
+      Config.blockchain.default.utxoSpenderAddress,
       address,
-      Config.node.minDeposit.DeFiChain.DFI / 2,
+      Config.blockchain.default.minDeposit.DeFiChain.DFI / 2,
     );
   }
 

@@ -21,9 +21,9 @@ import { CryptoRouteRepository } from '../../crypto-route/crypto-route.repositor
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoRouteService } from '../../crypto-route/crypto-route.service';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
-import { BuyCryptoHistoryDto } from '../dto/buy-crypto-history.dto';
-import { CryptoRouteHistoryDto } from '../../crypto-route/dto/crypto-route-history.dto';
-import { RouteHistoryDto } from '../../route/dto/route-history.dto';
+import { BuyHistoryDto as BuyHistoryDto } from '../../buy/dto/buy-history.dto';
+import { CryptoHistoryDto as CryptoHistoryDto } from '../../crypto-route/dto/crypto-history.dto';
+import { HistoryDto } from '../../history/dto/history.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -71,7 +71,7 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user'],
+      relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user', 'bankTx'],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -91,17 +91,23 @@ export class BuyCryptoService {
     if (dto.buyId) {
       if (!entity.buy) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a buy route`);
       update.buy = await this.getBuy(dto.buyId);
+      if (entity.bankTx) await this.bankTxRepo.setNewUpdateTime(entity.bankTx.id);
     }
 
     // crypto route
     if (dto.cryptoRouteId) {
       if (!entity.cryptoRoute) throw new BadRequestException(`Cannot assign BuyCrypto ${id} to a crypto route`);
       update.cryptoRoute = await this.getCryptoRoute(dto.cryptoRouteId);
+      if (entity.bankTx) await this.bankTxRepo.setNewUpdateTime(entity.bankTx.id);
     }
 
     Util.removeNullFields(entity);
 
-    entity = await this.buyCryptoRepo.save({ ...update, ...entity });
+    const amlUpdate =
+      entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
+        ? { amlCheck: update.amlCheck, mailSendDate: null }
+        : undefined;
+    entity = await this.buyCryptoRepo.save({ ...update, ...entity, ...amlUpdate });
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {
@@ -122,7 +128,6 @@ export class BuyCryptoService {
 
     await this.buyCryptoBatchService.batchTransactionsByAssets();
     await this.buyCryptoDexService.secureLiquidity();
-    await this.buyCryptoDexService.transferLiquidityForOutput();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
 
@@ -168,19 +173,23 @@ export class BuyCryptoService {
     });
   }
 
-  async getHistory(userId: number, buyId: number): Promise<BuyCryptoHistoryDto[]> {
+  async getBuyHistory(userId: number, buyId?: number): Promise<BuyHistoryDto[]> {
+    const where = { user: { id: userId }, id: buyId };
+    Util.removeNullFields(where);
     return this.buyCryptoRepo
       .find({
-        where: { buy: { id: buyId, user: { id: userId } } },
+        where: { buy: where },
         relations: ['buy', 'buy.user'],
       })
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
 
-  async getCryptoRouteHistory(userId: number, routeId: number): Promise<CryptoRouteHistoryDto[]> {
+  async getCryptoHistory(userId: number, routeId?: number): Promise<CryptoHistoryDto[]> {
+    const where = { user: { id: userId }, id: routeId };
+    Util.removeNullFields(where);
     return this.buyCryptoRepo
       .find({
-        where: { cryptoRoute: { id: routeId, user: { id: userId } } },
+        where: { cryptoRoute: where },
         relations: ['cryptoRoute', 'cryptoRoute.user'],
       })
       .then((history) => history.map(this.toHistoryDto));
@@ -188,7 +197,7 @@ export class BuyCryptoService {
 
   // --- HELPER METHODS --- //
 
-  private toHistoryDto(buyCrypto: BuyCrypto): RouteHistoryDto {
+  private toHistoryDto(buyCrypto: BuyCrypto): HistoryDto {
     return {
       inputAmount: buyCrypto.inputAmount,
       inputAsset: buyCrypto.inputAsset,

@@ -94,7 +94,7 @@ export class SpiderService {
       type: 'AdditionalPersonInformation',
       nickName: user.firstname,
       onlyOwner: user.accountType === AccountType.BUSINESS ? undefined : 'YES',
-      authorisesConversationPartner: 'YES',
+      authorisesConversationPartner: user.accountType === AccountType.BUSINESS ? undefined : 'YES',
       contribution: '0',
       businessActivity: {
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',

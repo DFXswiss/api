@@ -27,12 +27,13 @@ import { GeoLocationService } from 'src/user/services/geo-location.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { AmlCheck } from 'src/payment/models/crypto-buy/enums/aml-check.enum';
 import { UserData } from '../user-data/user-data.entity';
-import { Blockchain, CryptoService } from 'src/ain/services/crypto.service';
+import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AmlCheck } from 'src/payment/models/buy-crypto/enums/aml-check.enum';
 
 @Injectable()
 export class UserService {
@@ -53,8 +54,8 @@ export class UserService {
     return await this.userRepo.find();
   }
 
-  async getUser(userId: number): Promise<User> {
-    return await this.userRepo.findOne(userId);
+  async getUser(userId: number, loadUserData = false): Promise<User> {
+    return await this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
   }
 
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
@@ -129,6 +130,11 @@ export class UserService {
   }
 
   private async checkIpCountry(userIp: string): Promise<string> {
+    // ignore Azure private addresses
+    if (userIp?.includes(Config.azureIpSubstring)) {
+      return;
+    }
+
     const ipCountry = await this.geoLocationService.getCountry(userIp);
 
     const country = await this.countryService.getCountryWithSymbol(ipCountry);
@@ -484,8 +490,9 @@ export class UserService {
       paidRefCredit: user.paidRefCredit,
       refCount: await this.userRepo.count({ usedRef: user.ref }),
       refCountActive: await this.userRepo.count({ usedRef: user.ref, status: Not(UserStatus.NA) }),
-      buyVolume: user.buyVolume,
-      sellVolume: user.sellVolume,
+      buyVolume: { total: user.buyVolume, annual: user.annualBuyVolume },
+      sellVolume: { total: user.sellVolume, annual: user.annualSellVolume },
+      cryptoVolume: { total: user.cryptoVolume, annual: user.annualCryptoVolume },
       stakingBalance: user.stakingBalance,
     };
   }

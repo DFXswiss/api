@@ -19,11 +19,11 @@ import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
-import { CryptoRouteHistoryDto } from './dto/crypto-route-history.dto';
+import { CryptoHistoryDto } from './dto/crypto-history.dto';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/util';
-import { Blockchain } from 'src/ain/services/crypto.service';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
 import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
 
@@ -79,8 +79,8 @@ export class CryptoRouteController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoRouteHistoryDto[]> {
-    return this.buyCryptoService.getCryptoRouteHistory(jwt.id, +id);
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoHistoryDto[]> {
+    return this.buyCryptoService.getCryptoHistory(jwt.id, +id);
   }
 
   // --- DTO --- //
@@ -136,9 +136,9 @@ export class CryptoRouteController {
   private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
     switch (blockchain) {
       case Blockchain.BITCOIN:
-        return Util.transformToMinDeposit(Config.node.minDeposit.Bitcoin);
+        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
       case Blockchain.DEFICHAIN:
-        return Util.transformToMinDeposit(Config.node.minDeposit.DeFiChain);
+        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'USD');
     }
   }
 

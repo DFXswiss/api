@@ -9,8 +9,8 @@ import { CryptoRouteService } from '../crypto-route.service';
 import { BuyCryptoService } from '../../buy-crypto/services/buy-crypto.service';
 import { TestUtil } from 'src/shared/test.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { createDefaultCryptoRoute } from './mock/crypto-route.entity.mock';
-import { Blockchain } from 'src/ain/services/crypto.service';
+import { createDefaultCryptoRoute } from '../__mocks__/crypto-route.entity.mock';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 describe('CryptoRouteController', () => {
   let controller: CryptoRouteController;
@@ -51,8 +51,8 @@ describe('CryptoRouteController', () => {
   it('should return a min deposit of 0.0005 for a default crypto route', async () => {
     jest.spyOn(cryptoRouteService, 'getUserCryptos').mockResolvedValue([createDefaultCryptoRoute()]);
 
-    await expect(controller.getAllCrypto({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] })).resolves.toMatchObject([
-      { minDeposits: [{ amount: 0.0005, asset: 'BTC' }] },
-    ]);
+    await expect(
+      controller.getAllCrypto({ id: 0, address: '', role: UserRole.USER, blockchains: [Blockchain.DEFICHAIN] }),
+    ).resolves.toMatchObject([{ minDeposits: [{ amount: 0.0005, asset: 'BTC' }] }]);
   });
 });

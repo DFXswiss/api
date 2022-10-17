@@ -3,14 +3,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankTxRepository } from '../../bank-tx/bank-tx.repository';
-import { createCustomCryptoInput } from '../../crypto-input/__tests__/mock/crypto-input.entity.mock';
+import { createCustomCryptoInput } from '../../crypto-input/__mocks__/crypto-input.entity.mock';
 import { SellRepository } from '../../sell/sell.repository';
 import { SellService } from '../../sell/sell.service';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from '../buy-fiat.service';
-import { createCustomBuyFiatHistory } from '../dto/__tests__/mock/buy-fiat-history.dto.mock';
-import { createCustomBuyFiat } from './mock/buy-fiat.entity.mock';
+import { createCustomSellHistory } from '../../sell/dto/__mocks__/sell-history.dto.mock';
+import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 
 enum MockBuyData {
   DEFAULT,
@@ -110,20 +110,20 @@ describe('BuyFiatService', () => {
   it('should return an empty array, if sell route has no history', async () => {
     setup(MockBuyData.BUY_HISTORY_EMPTY);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([]);
+    await expect(service.getSellHistory(1, 1)).resolves.toStrictEqual([]);
   });
 
   it('should return a history, if sell route has transactions', async () => {
     const date = new Date();
     setup(MockBuyData.BUY_HISTORY, date);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
-      createCustomBuyFiatHistory({
+    await expect(service.getSellHistory(1, 1)).resolves.toStrictEqual([
+      createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
         ...txOne,
       }),
-      createCustomBuyFiatHistory({
+      createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_1',
         ...txTwo,
@@ -135,8 +135,8 @@ describe('BuyFiatService', () => {
     const date = new Date();
     setup(MockBuyData.BUY_HISTORY_SMALL, date);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
-      createCustomBuyFiatHistory({
+    await expect(service.getSellHistory(1, 1)).resolves.toStrictEqual([
+      createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
         ...txSmallAmount,

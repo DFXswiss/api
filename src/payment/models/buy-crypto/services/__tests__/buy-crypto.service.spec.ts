@@ -4,16 +4,16 @@ import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository'
 import { BuyRepository } from 'src/payment/models/buy/buy.repository';
 import { BuyService } from 'src/payment/models/buy/buy.service';
 import { CryptoInputType } from 'src/payment/models/crypto-input/crypto-input.entity';
-import { createCustomCryptoInput } from 'src/payment/models/crypto-input/__tests__/mock/crypto-input.entity.mock';
+import { createCustomCryptoInput } from 'src/payment/models/crypto-input/__mocks__/crypto-input.entity.mock';
 import { CryptoRouteRepository } from 'src/payment/models/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/payment/models/crypto-route/crypto-route.service';
-import { createCustomCryptoRouteHistory } from 'src/payment/models/crypto-route/dto/__tests__/mock/crypto-route-history.dto.mock';
+import { createCustomCryptoHistory } from 'src/payment/models/crypto-route/dto/__mocks__/crypto-history.dto.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { UserService } from 'src/user/models/user/user.service';
-import { createCustomBuyCryptoHistory } from '../../dto/__tests__/mock/buy-crypto-history.dto.mock';
+import { createCustomBuyHistory } from '../../../buy/dto/__mocks__/buy-history.dto.mock';
 import { BuyCrypto } from '../../entities/buy-crypto.entity';
-import { createCustomBuyCrypto } from '../../entities/__tests__/mock/buy-crypto.entity.mock';
+import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
 import { BuyCryptoDexService } from '../buy-crypto-dex.service';
@@ -148,19 +148,19 @@ describe('BuyCryptoService', () => {
   it('should return an empty array, if buy route has no history', async () => {
     setup(MockBuyData.BUY_HISTORY_EMPTY);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([]);
+    await expect(service.getBuyHistory(1, 1)).resolves.toStrictEqual([]);
   });
 
   it('should return a history, if buy route has transactions', async () => {
     const date = new Date();
     setup(MockBuyData.BUY_HISTORY, date);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
-      createCustomBuyCryptoHistory({
+    await expect(service.getBuyHistory(1, 1)).resolves.toStrictEqual([
+      createCustomBuyHistory({
         date: date,
         ...txOne,
       }),
-      createCustomBuyCryptoHistory({
+      createCustomBuyHistory({
         date: date,
         ...txTwo,
       }),
@@ -171,8 +171,8 @@ describe('BuyCryptoService', () => {
     const date = new Date();
     setup(MockBuyData.BUY_HISTORY_SMALL, date);
 
-    await expect(service.getHistory(1, 1)).resolves.toStrictEqual([
-      createCustomBuyCryptoHistory({
+    await expect(service.getBuyHistory(1, 1)).resolves.toStrictEqual([
+      createCustomBuyHistory({
         date: date,
         ...txSmallAmount,
       }),
@@ -182,15 +182,15 @@ describe('BuyCryptoService', () => {
   it('should return an empty history, if crypto route has no transactions', async () => {
     setup(MockBuyData.CRYPTO_HISTORY_EMPTY);
 
-    await expect(service.getCryptoRouteHistory(1, 1)).resolves.toStrictEqual([]);
+    await expect(service.getCryptoHistory(1, 1)).resolves.toStrictEqual([]);
   });
 
   it('should return a history, if crypto route has transactions', async () => {
     const date = new Date();
     setup(MockBuyData.CRYPTO_HISTORY, date);
 
-    await expect(service.getCryptoRouteHistory(1, 1)).resolves.toStrictEqual([
-      createCustomCryptoRouteHistory({
+    await expect(service.getCryptoHistory(1, 1)).resolves.toStrictEqual([
+      createCustomCryptoHistory({
         date: date,
         ...txCrypto,
       }),
