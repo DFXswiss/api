@@ -1,21 +1,8 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Entity, Column, OneToOne } from 'typeorm';
+import { BankTxType } from '../bank-tx/bank-tx.entity';
 import { BuyCrypto } from '../buy-crypto/entities/buy-crypto.entity';
 import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
-import { CryptoBuy } from '../crypto-buy/crypto-buy.entity';
-import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
-
-export enum BankTxType {
-  INTERNAL = 'Internal',
-  BUY_CRYPTO_RETURN = 'BuyCryptoReturn',
-  BANK_TX_RETURN = 'BankTxReturn',
-  REPEAT = 'Repeat',
-  BUY_CRYPTO = 'BuyCrypto',
-  BUY_FIAT = 'BuyFiat',
-  FIAT_FIAT = 'FiatFiat',
-  TEST_FIAT_FIAT = 'TestFiatFiat',
-  UNKNOWN = 'Unknown',
-}
 
 @Entity()
 export class FiatOutput extends IEntity {
@@ -134,12 +121,6 @@ export class FiatOutput extends IEntity {
 
   @Column({ length: 256, nullable: true })
   type: BankTxType;
-
-  @OneToOne(() => CryptoSell, (sell) => sell.bankTx, { nullable: true })
-  cryptoSell?: CryptoSell;
-
-  @OneToOne(() => CryptoBuy, (buy) => buy.bankTx, { nullable: true })
-  cryptoBuy?: CryptoBuy;
 
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.bankTx, { nullable: true })
   buyCrypto?: BuyCrypto;
