@@ -40,10 +40,6 @@ export enum BlankType {
 
 @Entity()
 export class UserData extends IEntity {
-  // TODO: remove
-  @Column({ default: true })
-  isMigrated: boolean;
-
   @Column({ default: AccountType.PERSONAL, length: 256 })
   accountType: AccountType;
 
