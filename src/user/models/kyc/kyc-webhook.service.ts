@@ -2,7 +2,6 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { KycCompleted, UserData } from '../user-data/user-data.entity';
-import { Config } from 'src/config/config';
 import { UserRepository } from '../user/user.repository';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
 import { WalletService } from '../wallet/wallet.service';
@@ -57,17 +56,11 @@ export class KycWebhookService {
   }
 
   private async triggerWebhook(userData: UserData, result: KycWebhookResult, reason?: string): Promise<void> {
-    userData.users ??= await this.userRepo.find({ where: { userData: { id: userData.id } }, relations: ['wallet'] });
+    userData.users = await this.userRepo.find({ where: { userData: { id: userData.id } }, relations: ['wallet'] });
 
     for (const user of userData.users) {
       try {
-        if (!user.wallet?.id) {
-          console.error(`Tried to trigger webhook for user ${userData.id}, but wallet were not loaded`);
-          continue;
-        }
-
-        const wallet = await this.walletRepo.findOne({ where: { id: user.wallet.id } });
-        if (!wallet || !wallet.isKycClient || !wallet.apiUrl) continue;
+        if (!user.wallet.isKycClient || !user.wallet.apiUrl) continue;
 
         const spiderData = await this.spiderRepo.findOne({ where: { userData: { id: userData.id } } });
 
@@ -94,10 +87,10 @@ export class KycWebhookService {
           reason: reason,
         };
 
-        const apiKey = this.walletService.getApiKeyInternal(wallet.description);
-        if (!apiKey) throw new ConflictException(`ApiKey for wallet ${wallet.description} not available`);
+        const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
+        if (!apiKey) throw new ConflictException(`ApiKey for wallet ${user.wallet.name} not available`);
 
-        await this.http.post(`${wallet.apiUrl}/kyc/update`, data, {
+        await this.http.post(`${user.wallet.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': apiKey },
         });
       } catch (error) {

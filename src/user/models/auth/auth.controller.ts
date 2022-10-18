@@ -33,7 +33,7 @@ export class AuthController {
   }
 
   @Post('company/challenge')
-  companyChallenge(): Promise<{ key: string; challenge: string }> {
-    return this.authService.getCompanyChallenge();
+  companyChallenge(@Query('address') address: string): Promise<{ challenge: string }> {
+    return this.authService.getCompanyChallenge(address);
   }
 }

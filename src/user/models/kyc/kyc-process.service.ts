@@ -25,7 +25,7 @@ export class KycProcessService {
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
     const users = await this.userRepo.find({ where: { userData: { id: userData.id } }, relations: ['wallet'] });
-    const lockUser = users.find((e) => e.wallet.description === 'LOCK.space');
+    const lockUser = users.find((e) => e.wallet.name === 'LOCK.space');
     return await this.goToStatus(userData, lockUser ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
   }
 

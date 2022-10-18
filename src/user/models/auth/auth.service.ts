@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { CreateUserDto } from 'src/user/models/user/dto/create-user.dto';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import { JwtPayloadBase, JwtPayload, JwtChallengePayload } from 'src/shared/auth/jwt-payload.interface';
+import { JwtPayloadBase, JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/blockchain/ain/services/crypto.service';
 import { Config } from 'src/config/config';
@@ -23,18 +23,17 @@ import { Wallet } from '../wallet/wallet.entity';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AuthCompanyCredentialsDto } from './dto/auth-company-credentials.dto';
 import { Util } from 'src/shared/util';
-import { sign } from 'crypto';
-import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { Interval } from '@nestjs/schedule';
+import { randomUUID } from 'crypto';
 
-export interface keyChallengePair {
-  [key: string]: string;
+export interface ChallengeData {
+  created: Date;
+  challenge: string;
 }
 
 @Injectable()
 export class AuthService {
-  private challengeList: keyChallengePair = {};
-  private challengeIndex: number = 0;
+  private challengeList: Map<string, ChallengeData> = new Map<string, ChallengeData>();
 
   constructor(
     private readonly userService: UserService,
@@ -47,10 +46,10 @@ export class AuthService {
 
   @Interval(90000)
   checkChallengeList() {
-    const keyList = Object.entries(this.challengeList);
-    for (const keyChallengePair of keyList) {
-      if (!this.checkChallengeToken(keyChallengePair[0])) {
-        this.deleteChallengeToken(keyChallengePair[0]);
+    const keyList = this.challengeList.entries();
+    for (const [key, challenge] of keyList) {
+      if (!this.checkChallengeToken(challenge)) {
+        this.challengeList.delete(key);
       }
     }
   }
@@ -62,7 +61,9 @@ export class AuthService {
       throw new ConflictException('User already exists');
     }
 
-    if (!this.verifySignature(dto.address, dto.signature)) {
+    const signatureMessage = this.getSignMessage(dto.address);
+
+    if (!this.verifySignature(signatureMessage.message, dto.address, dto.signature)) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -79,7 +80,9 @@ export class AuthService {
     const user = await this.userRepo.getByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
-    const credentialsValid = this.verifySignature(address, signature);
+    const signatureMessage = this.getSignMessage(address);
+
+    const credentialsValid = this.verifySignature(signatureMessage.message, address, signature);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
@@ -91,23 +94,24 @@ export class AuthService {
   }
 
   async companySignIn(dto: AuthCompanyCredentialsDto): Promise<{ accessToken: string }> {
-    const wallet = await this.walletRepo.findOne({ where: { address: dto.address, description: dto.name } });
+    const wallet = await this.walletRepo.findOne({ where: { address: dto.address } });
     if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
 
-    const credentialsValid = this.verifyCompanyChallengeHash(dto, wallet.signature);
+    const credentialsValid = this.verifyCompanyChallengeHash(dto);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet) };
   }
 
-  async getCompanyChallenge(): Promise<{ key: string; challenge: string }> {
-    const key = this.generateChallengeToken(this.challengeIndex++, new Date());
+  async getCompanyChallenge(address: string): Promise<{ challenge: string }> {
+    const wallet = await this.walletRepo.findOne({ where: { address: address } });
+    if (!wallet || !wallet.isKycClient) throw new BadRequestException('Address is not valid');
 
-    const challenge = Util.createHash(new Date().getTime() + Config.auth.challenge.company.secret, 'sha256');
+    const challenge = randomUUID();
 
-    this.addChallengeToken(key, challenge);
+    this.challengeList.set(address, { created: new Date(), challenge: challenge });
 
-    return { key: key, challenge: challenge };
+    return { challenge: challenge };
   }
 
   async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
@@ -146,22 +150,17 @@ export class AuthService {
       .getRawOne<User>();
   }
 
-  private verifySignature(address: string, signature: string): boolean {
-    const signatureMessage = this.getSignMessage(address);
-    return this.cryptoService.verifySignature(signatureMessage.message, address, signature);
+  private verifySignature(message: string, address: string, signature: string): boolean {
+    return this.cryptoService.verifySignature(message, address, signature);
   }
 
-  private verifyCompanyChallengeHash(dto: AuthCompanyCredentialsDto, signature: string): boolean {
-    const challengeToken = this.getChallengeToken(dto.key);
-    if (!challengeToken || !this.checkChallengeToken(dto.key))
+  private verifyCompanyChallengeHash(dto: AuthCompanyCredentialsDto): boolean {
+    const challengeData = this.challengeList.get(dto.address);
+    if (!challengeData || !this.checkChallengeToken(challengeData))
       throw new ConflictException('key/challenge Token is not valid anymore');
-    this.deleteChallengeToken(dto.key);
+    this.challengeList.delete(dto.address);
 
-    return this.generateChallengeHash(dto, signature, challengeToken).toLowerCase() === dto.challengeHash.toLowerCase();
-  }
-
-  private generateChallengeHash(dto: AuthCompanyCredentialsDto, signature: string, challengeToken: string): string {
-    return Util.createHash(dto.name + dto.address + signature + dto.key + challengeToken, 'sha256');
+    return this.verifySignature(challengeData.challenge, dto.address, dto.challengeHash);
   }
 
   private generateUserToken(user: User): string {
@@ -180,35 +179,13 @@ export class AuthService {
       address: wallet.address,
       role: UserRole.KYC_CLIENT_COMPANY,
     };
-    return this.jwtService.sign(payload);
+    return this.jwtService.sign(payload, { expiresIn: Config.auth.jwt.signOptions.companyExpiresIn });
   }
 
-  private generateChallengeToken(id: number, time: Date): string {
-    const payload: JwtChallengePayload = {
-      id: id,
-      time: time,
-    };
-    return this.jwtService.sign(payload);
-  }
-
-  private getChallengeToken(key: string): string {
-    return this.challengeList[key];
-  }
-
-  private deleteChallengeToken(key: string): void {
-    delete this.challengeList[key];
-  }
-
-  private addChallengeToken(key: string, challenge: string): void {
-    this.challengeList[key] = challenge;
-  }
-
-  private checkChallengeToken(key: string): boolean {
-    const keyDecoded = this.jwtService.decode(key);
-
+  private checkChallengeToken(challenge: ChallengeData): boolean {
     return (
-      new Date().getTime() - new Date(keyDecoded['time']).getTime() <=
-      Number.parseInt(Config.auth.challenge.company.expiresIn)
+      new Date().getTime() - challenge.created.getTime() <=
+      Number.parseInt(Config.auth.challenge.company.expiresIn.toString())
     );
   }
 }

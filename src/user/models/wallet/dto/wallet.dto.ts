@@ -1,3 +1,3 @@
 export class WalletDto {
-  description: string;
+  name: string;
 }

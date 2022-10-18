@@ -6,17 +6,7 @@ export class AuthCompanyCredentialsDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  key: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  name: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  //@Matches(GetConfig().addressFormat)
+  @Matches(GetConfig().addressFormat)
   address: string;
 
   @ApiProperty()

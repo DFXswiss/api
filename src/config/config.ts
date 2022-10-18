@@ -70,12 +70,12 @@ export class Configuration {
       secret: process.env.JWT_SECRET,
       signOptions: {
         expiresIn: process.env.JWT_EXPIRES_IN ?? 172800,
+        companyExpiresIn: process.env.JWT_EXPIRES_IN_COMPANY ?? 30000,
       },
     },
     challenge: {
       company: {
-        secret: process.env.COMPANY_CHALLENGE_SECRET,
-        expiresIn: process.env.COMPANY_CHALLENGE_EXPIRES_IN,
+        expiresIn: process.env.COMPANY_CHALLENGE_EXPIRES_IN ?? 10000,
       },
     },
     signMessage:

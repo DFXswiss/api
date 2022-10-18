@@ -28,7 +28,6 @@ import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { HttpService } from 'src/shared/services/http.service';
-import { Config } from 'src/config/config';
 import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
 
@@ -139,8 +138,8 @@ export class KycService {
     if (!user) throw new NotFoundException('DFX user not found');
     if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
 
-    const apiKey = this.walletService.getApiKeyInternal(wallet.description);
-    if (!apiKey) throw new ConflictException(`ApiKey for wallet ${wallet.description} not available`);
+    const apiKey = this.walletService.getApiKeyInternal(wallet.name);
+    if (!apiKey) throw new ConflictException(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
