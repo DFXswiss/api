@@ -8,6 +8,7 @@ import { DexService } from '../../dex/services/dex.service';
 import { Price } from '../../exchange/dto/price.dto';
 import { PriceProvider } from '../interfaces';
 import { Util } from 'src/shared/util';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class DfiPricingDexService implements PriceProvider {
@@ -22,7 +23,7 @@ export class DfiPricingDexService implements PriceProvider {
       throw new Error(`DfiPricingDexService supports only DFI as target asset, instead provided: ${to}`);
     }
 
-    const dfi = await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
+    const dfi = await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN, type: AssetType.TOKEN });
 
     const liquidityRequest: LiquidityRequest = {
       context: LiquidityOrderContext.PRICING,

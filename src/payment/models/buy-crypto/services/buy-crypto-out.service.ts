@@ -70,6 +70,7 @@ export class BuyCryptoOutService {
             const asset = await this.assetService.getAssetByQuery({
               dexName: outputAsset,
               blockchain: target.asset.blockchain,
+              // TODO: type
             });
 
             const request: PayoutRequest = {

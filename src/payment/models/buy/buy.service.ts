@@ -13,6 +13,7 @@ import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class BuyService {
@@ -69,7 +70,11 @@ export class BuyService {
     const asset =
       dto.type === BuyType.WALLET
         ? await this.assetService.getAssetById(dto.asset.id)
-        : await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
+        : await this.assetService.getAssetByQuery({
+            dexName: 'DFI',
+            blockchain: Blockchain.DEFICHAIN,
+            type: AssetType.COIN,
+          });
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking

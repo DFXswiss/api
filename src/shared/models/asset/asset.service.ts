@@ -7,7 +7,7 @@ import { Asset, AssetType } from './asset.entity';
 export interface AssetQuery {
   dexName: string;
   blockchain: string;
-  type?: AssetType;
+  type: AssetType;
 }
 
 @Injectable()

@@ -3,7 +3,7 @@ import { Interval } from '@nestjs/schedule';
 import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 import { Not } from 'typeorm';
 import { Config } from 'src/config/config';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
@@ -109,10 +109,12 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     const leftAsset = await this.assetService.getAssetByQuery({
       dexName: assetPair[0],
       blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
     });
     const rightAsset = await this.assetService.getAssetByQuery({
       dexName: assetPair[1],
       blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
     });
 
     if (!leftAsset || !rightAsset) {

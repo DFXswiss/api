@@ -18,6 +18,7 @@ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { ChainalysisService } from './chainalysis.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -90,7 +91,11 @@ export class BtcInputService extends CryptoInputService {
 
   private async createEntity(utxo: UTXO): Promise<CryptoInput> {
     // get asset
-    const assetEntity = await this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
+    const assetEntity = await this.assetService.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.BITCOIN,
+      type: AssetType.COIN,
+    });
     if (!assetEntity) {
       console.error(`Failed to process Bitcoin input. No asset BTC found. UTXO:`, utxo);
       return null;
