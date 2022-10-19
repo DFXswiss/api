@@ -13,6 +13,8 @@ export enum BuyCryptoBatchStatus {
   COMPLETE = 'Complete',
 }
 
+type IsPurchaseRequired = boolean;
+
 @Entity()
 export class BuyCryptoBatch extends IEntity {
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.batch, { cascade: true })
@@ -46,17 +48,49 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  optimize(
-    availableAmount: number,
-    maxPurchasableAmount: number,
-    purchaseFeeAmount: number,
-    payoutFeeAmount: number,
-  ): this {
-    this.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
-    this.optimizeByFees(purchaseFeeAmount, payoutFeeAmount);
+  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): [this, IsPurchaseRequired] {
+    if (this.isEnoughToSecureBatch(availableAmount)) {
+      return [this, false];
+    }
 
+    if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
+      this.reBatchToMaxReferenceAmount(availableAmount);
+
+      return [this, false];
+    }
+
+    if (
+      !this.isWholeMissingAmountPurchasable(availableAmount, maxPurchasableAmount) &&
+      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)
+    ) {
+      this.reBatchToMaxReferenceAmount(availableAmount + maxPurchasableAmount);
+
+      return [this, true];
+    }
+
+    if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)) {
+      throw new AbortBatchCreationException(
+        `
+          Not enough liquidity to create batch for asset ${this.outputAsset}.
+          Required reference amount: ${this.outputReferenceAmount} ${this.outputReferenceAsset}.
+          Available amount: ${availableAmount}  ${this.outputReferenceAsset}.
+          Maximum purchasable amount: ${maxPurchasableAmount} ${this.outputReferenceAsset}.
+        `,
+      );
+    }
+
+    return [this, true];
+  }
+
+  optimizeByFees(purchaseFeeAmount: number, payoutFeeAmounts: { [key: number]: number }): this {
+    if (this.transactions.length === 0)
+      throw new Error(
+        `Cannot re-batch transactions in batch, no transaction satisfy fee limit. Out asset: ${this.outputAsset}`,
+      );
     return this;
   }
+
+  addFeesEstimations(purchaseFeeAmount: number, payoutFeeAmount: number): this {}
 
   reBatchToMaxReferenceAmount(liquidity: number): this {
     if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
@@ -125,44 +159,6 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   //*** HELPER METHODS ***//
-
-  protected optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): this {
-    if (this.isEnoughToSecureBatch(availableAmount)) {
-      return this;
-    }
-
-    if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
-      this.reBatchToMaxReferenceAmount(availableAmount);
-
-      return this;
-    }
-
-    if (
-      !this.isWholeMissingAmountPurchasable(availableAmount, maxPurchasableAmount) &&
-      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)
-    ) {
-      this.reBatchToMaxReferenceAmount(availableAmount + maxPurchasableAmount);
-
-      return this;
-    }
-
-    if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)) {
-      throw new AbortBatchCreationException(
-        `
-          Not enough liquidity to create batch for asset ${this.outputAsset}.
-          Required reference amount: ${this.outputReferenceAmount} ${this.outputReferenceAsset}.
-          Available amount: ${availableAmount}  ${this.outputReferenceAsset}.
-          Maximum purchasable amount: ${maxPurchasableAmount} ${this.outputReferenceAsset}.
-        `,
-      );
-    }
-
-    return this;
-  }
-
-  protected optimizeByFees(purchaseFeeAmount: number, payoutFeeAmount: number): this {
-    return this;
-  }
 
   private isEnoughToSecureBatch(amount: number): boolean {
     return amount >= this.outputReferenceAmount * 1.05;

@@ -17,10 +17,10 @@ export interface FeeRequest {
 export interface FeeResponse {
   reference: {
     asset: Asset;
-    amount: number;
+    amounts: { [key: number]: number };
   };
   native: {
     asset: Asset;
-    amount: number;
+    amounts: { [key: number]: number };
   };
 }
