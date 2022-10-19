@@ -15,6 +15,12 @@ export interface FeeRequest {
 }
 
 export interface FeeResponse {
-  asset: Asset;
-  amount: number;
+  reference: {
+    asset: Asset;
+    amount: number;
+  };
+  native: {
+    asset: Asset;
+    amount: number;
+  };
 }

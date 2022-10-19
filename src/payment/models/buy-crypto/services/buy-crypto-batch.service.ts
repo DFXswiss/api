@@ -124,7 +124,7 @@ export class BuyCryptoBatchService {
 
     batches = this.batchTransactions(transactions);
     batches = await this.filterOutExistingBatches(batches);
-    batches = await this.validateBatches(batches);
+    batches = await this.optimizeBatches(batches);
 
     return batches;
   }
@@ -183,21 +183,23 @@ export class BuyCryptoBatchService {
     return filteredBatches;
   }
 
-  private async validateBatches(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
-    batches = await this.reBatchGivenLiquidityEstimation(batches);
-    batches = await this.reBatchGivenFeesEstimation(batches);
-
-    return batches;
-  }
-
-  private async reBatchGivenLiquidityEstimation(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
+  private async optimizeBatches(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
     const optimizedBatches = [];
 
     for (const batch of batches) {
       try {
-        const { reference } = await this.checkLiquidity(batch);
+        const liquidity = await this.checkLiquidity(batch);
+        const payoutFee = await this.checkPayoutFees(batch);
 
-        batch.optimizeByLiquidity(reference.availableAmount, reference.maxPurchasableAmount);
+        const {
+          reference: { availableAmount, maxPurchasableAmount, currentPurchaseFee: purchaseFeeAmount },
+        } = liquidity;
+
+        const {
+          reference: { amount: payoutFeeAmount },
+        } = payoutFee;
+
+        batch.optimize(availableAmount, maxPurchasableAmount, purchaseFeeAmount, payoutFeeAmount);
 
         optimizedBatches.push(batch);
       } catch (e) {
@@ -238,6 +240,26 @@ export class BuyCryptoBatchService {
     };
   }
 
+  private async checkPayoutFees(batch: BuyCryptoBatch): Promise<FeeResponse> {
+    try {
+      const request = await this.createPayoutFeeRequest(batch);
+
+      return await this.payoutService.estimateFee(request);
+    } catch (e) {
+      throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
+    }
+  }
+
+  private async createPayoutFeeRequest(batch: BuyCryptoBatch): Promise<FeeRequest> {
+    const { outputAsset, blockchain } = batch;
+    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
+
+    return {
+      asset: targetAsset,
+      quantityOfTransactions: batch.transactions.length,
+    };
+  }
+
   private async handleAbortBatchCreationException(
     batch: BuyCryptoBatch,
     error: AbortBatchCreationException,
@@ -250,48 +272,6 @@ export class BuyCryptoBatchService {
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);
     }
-  }
-
-  private async reBatchGivenFeesEstimation(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
-    // !!! filter out small transactions where fee % is too high and reslice the batch again.
-    // estimate fees here?
-    // purchase fees and payout fees
-
-    const optimizedBatches = [];
-
-    for (const batch of batches) {
-      try {
-        const payoutFees = await this.checkFee(batch);
-
-        batch.optimizeByFees(payoutFees);
-
-        optimizedBatches.push(batch);
-      } catch (e) {
-        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset}.`, e.message);
-      }
-    }
-
-    return optimizedBatches;
-  }
-
-  private async checkFee(batch: BuyCryptoBatch): Promise<FeeResponse> {
-    try {
-      const request = await this.createFeeRequest(batch);
-
-      return await this.payoutService.estimateFee(request);
-    } catch (e) {
-      throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
-    }
-  }
-
-  private async createFeeRequest(batch: BuyCryptoBatch): Promise<FeeRequest> {
-    const { outputAsset, blockchain } = batch;
-    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
-
-    return {
-      asset: targetAsset,
-      quantityOfTransactions: batch.transactions.length,
-    };
   }
 
   private createPriceRequest(currencyPair: string[], transactions: BuyCrypto[] = []): PriceRequest {

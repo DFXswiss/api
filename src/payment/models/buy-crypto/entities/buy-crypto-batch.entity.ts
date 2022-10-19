@@ -46,40 +46,14 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): this {
-    if (this.isEnoughToSecureBatch(availableAmount)) {
-      return this;
-    }
-
-    if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
-      this.reBatchToMaxReferenceAmount(availableAmount);
-
-      return this;
-    }
-
-    if (
-      !this.isWholeMissingAmountPurchasable(availableAmount, maxPurchasableAmount) &&
-      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)
-    ) {
-      this.reBatchToMaxReferenceAmount(availableAmount + maxPurchasableAmount);
-
-      return this;
-    }
-
-    if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)) {
-      throw new AbortBatchCreationException(
-        `
-          Not enough dex liquidity to create batch for asset ${this.outputAsset}.
-          Required reference amount: ${this.outputReferenceAmount} ${this.outputReferenceAsset}.
-          Available amount: ${availableAmount}  ${this.outputReferenceAsset}.
-          Maximum purchasable amount: ${maxPurchasableAmount} ${this.outputReferenceAsset}.
-        `,
-      );
-    }
-
-    // stop the batching if there is no liquidity at all.
-    // remove the amount from email at this stage
-    // OR CAUTION - amount could change, if some new tx came in.
+  optimize(
+    availableAmount: number,
+    maxPurchasableAmount: number,
+    purchaseFeeAmount: number,
+    payoutFeeAmount: number,
+  ): this {
+    this.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
+    this.optimizeByFees(purchaseFeeAmount, payoutFeeAmount);
 
     return this;
   }
@@ -151,6 +125,44 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   //*** HELPER METHODS ***//
+
+  protected optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): this {
+    if (this.isEnoughToSecureBatch(availableAmount)) {
+      return this;
+    }
+
+    if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
+      this.reBatchToMaxReferenceAmount(availableAmount);
+
+      return this;
+    }
+
+    if (
+      !this.isWholeMissingAmountPurchasable(availableAmount, maxPurchasableAmount) &&
+      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)
+    ) {
+      this.reBatchToMaxReferenceAmount(availableAmount + maxPurchasableAmount);
+
+      return this;
+    }
+
+    if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)) {
+      throw new AbortBatchCreationException(
+        `
+          Not enough liquidity to create batch for asset ${this.outputAsset}.
+          Required reference amount: ${this.outputReferenceAmount} ${this.outputReferenceAsset}.
+          Available amount: ${availableAmount}  ${this.outputReferenceAsset}.
+          Maximum purchasable amount: ${maxPurchasableAmount} ${this.outputReferenceAsset}.
+        `,
+      );
+    }
+
+    return this;
+  }
+
+  protected optimizeByFees(purchaseFeeAmount: number, payoutFeeAmount: number): this {
+    return this;
+  }
 
   private isEnoughToSecureBatch(amount: number): boolean {
     return amount >= this.outputReferenceAmount * 1.05;
