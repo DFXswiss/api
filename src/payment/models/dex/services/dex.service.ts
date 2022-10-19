@@ -10,7 +10,7 @@ import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
-import { LiquidityRequest, TransferRequest } from '../interfaces';
+import { LiquidityRequest, LiquidityResponse, TransferRequest } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 
 @Injectable()
@@ -27,7 +27,7 @@ export class DexService {
 
   // *** PUBLIC API *** //
 
-  async checkLiquidity(request: LiquidityRequest): Promise<number> {
+  async checkLiquidity(request: LiquidityRequest): Promise<LiquidityResponse> {
     const { context, correlationId, targetAsset } = request;
 
     try {

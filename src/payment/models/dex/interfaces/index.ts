@@ -24,9 +24,11 @@ export interface TransferRequest {
 
 export interface LiquidityResponse {
   targetAsset: Asset;
+  referenceAsset: Asset;
   targetAmount: number;
-  availableAmount: number;
-  purchaseAmount?: number;
-  purchasableAmount?: number;
-  purchaseFee?: number;
+  availableAmountInTargetAsset: number;
+  maxPurchasableAmountInTargetAsset: number;
+  availableAmountInReferenceAsset: number;
+  maxPurchasableAmountInReferenceAsset: number;
+  currentPurchaseFee?: number;
 }

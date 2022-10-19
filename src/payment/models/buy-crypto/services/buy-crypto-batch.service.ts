@@ -8,7 +8,7 @@ import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-bat
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { PriceRequest, PriceResult } from '../../pricing/interfaces';
 import { PriceRequestContext } from '../../pricing/enums';
-import { LiquidityRequest } from '../../dex/interfaces';
+import { LiquidityRequest, LiquidityResponse } from '../../dex/interfaces';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
@@ -126,10 +126,6 @@ export class BuyCryptoBatchService {
     batches = await this.filterOutExistingBatches(batches);
     batches = await this.validateBatches(batches);
 
-    // maybe combine together since fee estimation and liquidity check can be done in one call "checkLiquidity"
-    batches = await this.reBatchGivenLiquidityEstimation(batches); // ??? possibly move to secure liquidity step, then fee estimation doesn't fit anymore....
-    batches = await this.adjustGivenFeesEstimation(batches);
-
     return batches;
   }
 
@@ -185,6 +181,14 @@ export class BuyCryptoBatchService {
     return filteredBatches;
   }
 
+  private async validateBatches(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
+    // maybe combine together since fee estimation and liquidity check can be done in one call "checkLiquidity"
+    batches = await this.reBatchGivenLiquidityEstimation(batches); // ??? possibly move to secure liquidity step, then fee estimation doesn't fit anymore....
+    batches = await this.reBatchGivenFeesEstimation(batches);
+
+    return batches;
+  }
+
   private async reBatchGivenLiquidityEstimation(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
     // estimate liquidity here
 
@@ -193,32 +197,53 @@ export class BuyCryptoBatchService {
     // if there is not enough liquidity - rebatch, take available liquidity amount
 
     // consider minimalAvailableAmount as an INPUT! to make generic asset prioritisation. and maxAvailableAmount
+    // method name - optimizeBatch(...)
+    const batchesResult = [];
 
     for (const batch of batches) {
       try {
         const liquidity = await this.checkLiquidity(batch);
 
-        if (liquidity !== 0) {
-          batch.secure(liquidity);
+        if (liquidity.availableAmountInReferenceAsset >= batch.outputReferenceAmount * 1.05) {
+          batchesResult.push(batch);
 
           continue;
         }
+
+        if (liquidity.availableAmountInReferenceAsset >= batch.smallestTransactionReferenceAmount * 1.05) {
+          batch.reBatchToMaxReferenceAmount(liquidity.availableAmountInReferenceAsset);
+          batchesResult.push(batch);
+
+          continue;
+        }
+
+        if (
+          (batch.outputReferenceAmount - liquidity.availableAmountInReferenceAsset) * 1.05 >=
+            liquidity.maxPurchasableAmountInReferenceAsset &&
+          liquidity.maxPurchasableAmountInReferenceAsset + liquidity.availableAmountInReferenceAsset >=
+            batch.smallestTransactionReferenceAmount * 1.05
+        ) {
+          const amount = liquidity.maxPurchasableAmountInReferenceAsset + liquidity.availableAmountInReferenceAsset;
+
+          batch.reBatchToMaxReferenceAmount(amount);
+          batchesResult.push(batch);
+
+          continue;
+        }
+
+        batchesResult.push(batch);
       } catch (e) {
         console.info(`Error in processing new batch. Batch ID: ${batch.id}.`, e.message);
       }
     }
   }
 
-  private async checkLiquidity(batch: BuyCryptoBatch): Promise<number> {
+  private async checkLiquidity(batch: BuyCryptoBatch): Promise<LiquidityResponse> {
     try {
       const request = await this.createLiquidityRequest(batch);
 
       return await this.dexService.checkLiquidity(request);
     } catch (e) {
-      if (e instanceof NotEnoughLiquidityException) {
-        return 0;
-      }
-
       throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
     }
   }
@@ -239,10 +264,12 @@ export class BuyCryptoBatchService {
     };
   }
 
-  private async adjustGivenFeesEstimation(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
+  private async reBatchGivenFeesEstimation(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
     // !!! filter out small transactions where fee % is too high and reslice the batch again.
     // estimate fees here?
     // purchase fees and payout fees
+
+    return batches;
   }
 
   private createPriceRequest(currencyPair: string[], transactions: BuyCrypto[] = []): PriceRequest {

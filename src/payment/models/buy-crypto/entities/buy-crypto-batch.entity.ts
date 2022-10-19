@@ -45,6 +45,10 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
+  reBatchToMaxReferenceAmount(liquidity: number): this {
+    return this;
+  }
+
   secure(liquidity: number): this {
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
@@ -80,6 +84,10 @@ export class BuyCryptoBatch extends IEntity {
 
   get minimalOutputReferenceAmount(): number {
     return this.outputReferenceAsset === 'BTC' ? 0.001 : 1;
+  }
+
+  get smallestTransactionReferenceAmount(): number {
+    return 2;
   }
 
   private fixRoundingMismatch(): void {
