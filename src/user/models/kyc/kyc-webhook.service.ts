@@ -1,7 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
-import { WalletRepository } from '../wallet/wallet.repository';
-import { KycCompleted, UserData } from '../user-data/user-data.entity';
+import { KycCompleted, KycStatus, UserData } from '../user-data/user-data.entity';
 import { UserRepository } from '../user/user.repository';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
 import { WalletService } from '../wallet/wallet.service';
@@ -10,6 +9,7 @@ export enum KycWebhookStatus {
   NA = 'NA',
   LIGHT = 'Light',
   FULL = 'Full',
+  REJECTED = 'Rejected',
 }
 
 export enum KycWebhookResult {
@@ -41,7 +41,6 @@ export class KycWebhookDto {
 export class KycWebhookService {
   constructor(
     private readonly http: HttpService,
-    private readonly walletRepo: WalletRepository,
     private readonly walletService: WalletService,
     private readonly userRepo: UserRepository,
     private readonly spiderRepo: SpiderDataRepository,
@@ -81,6 +80,8 @@ export class KycWebhookService {
                 ? KycWebhookStatus.FULL
                 : KycCompleted(userData.kycStatus)
                 ? KycWebhookStatus.LIGHT
+                : userData.kycStatus === KycStatus.REJECTED
+                ? KycWebhookStatus.REJECTED
                 : KycWebhookStatus.NA,
             kycHash: userData.kycHash,
           },
