@@ -2,6 +2,7 @@ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
 import { Column, Entity, OneToMany } from 'typeorm';
+import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCrypto } from './buy-crypto.entity';
 
 export enum BuyCryptoBatchStatus {
@@ -45,7 +46,66 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
+  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): this {
+    if (this.isEnoughToSecureBatch(availableAmount)) {
+      return this;
+    }
+
+    if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
+      this.reBatchToMaxReferenceAmount(availableAmount);
+
+      return this;
+    }
+
+    if (
+      !this.isWholeMissingAmountPurchasable(availableAmount, maxPurchasableAmount) &&
+      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)
+    ) {
+      this.reBatchToMaxReferenceAmount(availableAmount + maxPurchasableAmount);
+
+      return this;
+    }
+
+    if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)) {
+      throw new AbortBatchCreationException(
+        `
+          Not enough dex liquidity to create batch for asset ${this.outputAsset}.
+          Required reference amount: ${this.outputReferenceAmount} ${this.outputReferenceAsset}.
+          Available amount: ${availableAmount}  ${this.outputReferenceAsset}.
+          Maximum purchasable amount: ${maxPurchasableAmount} ${this.outputReferenceAsset}.
+        `,
+      );
+    }
+
+    // stop the batching if there is no liquidity at all.
+    // remove the amount from email at this stage
+    // OR CAUTION - amount could change, if some new tx came in.
+
+    return this;
+  }
+
   reBatchToMaxReferenceAmount(liquidity: number): this {
+    if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
+
+    const currentTransactions = this.transactions.sort((a, b) => a.outputReferenceAmount - b.outputReferenceAmount);
+    const newTransactions = [];
+    let totalAmount = 0;
+
+    for (const tx of currentTransactions) {
+      if (totalAmount + tx.outputReferenceAmount < liquidity) {
+        newTransactions.push(tx);
+        totalAmount += tx.outputReferenceAmount;
+      }
+
+      break;
+    }
+
+    if (newTransactions.length === 0) {
+      throw new Error(
+        `Cannot re-batch transactions in batch, liquidity limit is too low. Out asset: ${this.outputAsset}`,
+      );
+    }
+
     return this;
   }
 
@@ -88,6 +148,22 @@ export class BuyCryptoBatch extends IEntity {
 
   get smallestTransactionReferenceAmount(): number {
     return 2;
+  }
+
+  //*** HELPER METHODS ***//
+
+  private isEnoughToSecureBatch(amount: number): boolean {
+    return amount >= this.outputReferenceAmount * 1.05;
+  }
+
+  private isEnoughToSecureAtLeastOneTransaction(amount: number): boolean {
+    return amount >= this.smallestTransactionReferenceAmount * 1.05;
+  }
+
+  private isWholeMissingAmountPurchasable(availableAmount: number, maxPurchasableAmount: number): boolean {
+    const missingAmount = this.outputReferenceAmount - availableAmount;
+
+    return maxPurchasableAmount >= missingAmount * 1.05;
   }
 
   private fixRoundingMismatch(): void {

@@ -11,8 +11,11 @@ import { PriceRequestContext } from '../../pricing/enums';
 import { LiquidityRequest, LiquidityResponse } from '../../dex/interfaces';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
-import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
 import { DexService } from '../../dex/services/dex.service';
+import { PayoutService } from '../../payout/services/payout.service';
+import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
+import { FeeRequest, FeeResponse } from '../../payout/interfaces';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -22,6 +25,8 @@ export class BuyCryptoBatchService {
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
+    private readonly payoutService: PayoutService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
   ) {}
 
   async batchTransactionsByAssets(): Promise<void> {
@@ -58,8 +63,7 @@ export class BuyCryptoBatchService {
       const txWithAssets = await this.defineAssetPair(txInput);
       const referencePrices = await this.getReferencePrices(txWithAssets);
       const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
-      const sortedTx = this.sortTransactions(txWithReferenceAmount);
-      const batches = await this.createBatches(sortedTx);
+      const batches = await this.createBatches(txWithReferenceAmount);
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
@@ -115,10 +119,6 @@ export class BuyCryptoBatchService {
     return transactions.filter((tx) => tx.outputReferenceAmount);
   }
 
-  private sortTransactions(transactions: BuyCrypto[]): BuyCrypto[] {
-    return transactions.sort((a, b) => a.outputReferenceAmount - b.outputReferenceAmount);
-  }
-
   private async createBatches(transactions: BuyCrypto[]): Promise<BuyCryptoBatch[]> {
     let batches: BuyCryptoBatch[] = [];
 
@@ -135,7 +135,9 @@ export class BuyCryptoBatchService {
     for (const tx of transactions) {
       const { outputReferenceAsset, outputAsset, target } = tx;
 
-      let batch = batches.get(outputReferenceAsset + '&' + outputAsset + '&' + target.asset.blockchain);
+      let batch = batches.get(
+        outputReferenceAsset + '&' + outputAsset + '&' + target.asset.blockchain + '&' + target.asset.type,
+      );
 
       if (!batch) {
         batch = this.buyCryptoBatchRepo.create({
@@ -182,60 +184,32 @@ export class BuyCryptoBatchService {
   }
 
   private async validateBatches(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
-    // maybe combine together since fee estimation and liquidity check can be done in one call "checkLiquidity"
-    batches = await this.reBatchGivenLiquidityEstimation(batches); // ??? possibly move to secure liquidity step, then fee estimation doesn't fit anymore....
+    batches = await this.reBatchGivenLiquidityEstimation(batches);
     batches = await this.reBatchGivenFeesEstimation(batches);
 
     return batches;
   }
 
   private async reBatchGivenLiquidityEstimation(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
-    // estimate liquidity here
-
-    // if there is enough liquidity - keep the batch
-    // if the available liquidity amount (including DUSD/DFI for potential purchase) is less then smallest tx - keep the batch for subsequent purchase
-    // if there is not enough liquidity - rebatch, take available liquidity amount
-
-    // consider minimalAvailableAmount as an INPUT! to make generic asset prioritisation. and maxAvailableAmount
-    // method name - optimizeBatch(...)
-    const batchesResult = [];
+    const optimizedBatches = [];
 
     for (const batch of batches) {
       try {
-        const liquidity = await this.checkLiquidity(batch);
+        const { reference } = await this.checkLiquidity(batch);
 
-        if (liquidity.availableAmountInReferenceAsset >= batch.outputReferenceAmount * 1.05) {
-          batchesResult.push(batch);
+        batch.optimizeByLiquidity(reference.availableAmount, reference.maxPurchasableAmount);
 
-          continue;
-        }
-
-        if (liquidity.availableAmountInReferenceAsset >= batch.smallestTransactionReferenceAmount * 1.05) {
-          batch.reBatchToMaxReferenceAmount(liquidity.availableAmountInReferenceAsset);
-          batchesResult.push(batch);
-
-          continue;
-        }
-
-        if (
-          (batch.outputReferenceAmount - liquidity.availableAmountInReferenceAsset) * 1.05 >=
-            liquidity.maxPurchasableAmountInReferenceAsset &&
-          liquidity.maxPurchasableAmountInReferenceAsset + liquidity.availableAmountInReferenceAsset >=
-            batch.smallestTransactionReferenceAmount * 1.05
-        ) {
-          const amount = liquidity.maxPurchasableAmountInReferenceAsset + liquidity.availableAmountInReferenceAsset;
-
-          batch.reBatchToMaxReferenceAmount(amount);
-          batchesResult.push(batch);
-
-          continue;
-        }
-
-        batchesResult.push(batch);
+        optimizedBatches.push(batch);
       } catch (e) {
-        console.info(`Error in processing new batch. Batch ID: ${batch.id}.`, e.message);
+        if (e instanceof AbortBatchCreationException) {
+          await this.handleAbortBatchCreationException(batch, e);
+        }
+
+        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset}.`, e.message);
       }
     }
+
+    return optimizedBatches;
   }
 
   private async checkLiquidity(batch: BuyCryptoBatch): Promise<LiquidityResponse> {
@@ -264,12 +238,60 @@ export class BuyCryptoBatchService {
     };
   }
 
+  private async handleAbortBatchCreationException(
+    batch: BuyCryptoBatch,
+    error: AbortBatchCreationException,
+  ): Promise<void> {
+    try {
+      const { outputAsset } = batch;
+      const { blockchain, type } = batch.transactions[0]?.target?.asset; // TODO - remove when outputAsset changed to Asset on BuyCryptoBatch
+
+      await this.buyCryptoNotificationService.sendMissingLiquidityError(outputAsset, blockchain, type, error.message);
+    } catch (e) {
+      console.error('Error in handling AbortBatchCreationException', e);
+    }
+  }
+
   private async reBatchGivenFeesEstimation(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
     // !!! filter out small transactions where fee % is too high and reslice the batch again.
     // estimate fees here?
     // purchase fees and payout fees
 
-    return batches;
+    const optimizedBatches = [];
+
+    for (const batch of batches) {
+      try {
+        const payoutFees = await this.checkFee(batch);
+
+        batch.optimizeByFees(payoutFees);
+
+        optimizedBatches.push(batch);
+      } catch (e) {
+        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset}.`, e.message);
+      }
+    }
+
+    return optimizedBatches;
+  }
+
+  private async checkFee(batch: BuyCryptoBatch): Promise<FeeResponse> {
+    try {
+      const request = await this.createFeeRequest(batch);
+
+      return await this.payoutService.estimateFee(request);
+    } catch (e) {
+      throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
+    }
+  }
+
+  private async createFeeRequest(batch: BuyCryptoBatch): Promise<FeeRequest> {
+    const { outputAsset, blockchain } = batch;
+    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
+
+    return {
+      asset: targetAsset,
+      quantityOfTransactions: batch.transactions.length,
+    };
   }
 
   private createPriceRequest(currencyPair: string[], transactions: BuyCrypto[] = []): PriceRequest {

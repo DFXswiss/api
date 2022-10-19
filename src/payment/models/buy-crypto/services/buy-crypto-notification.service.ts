@@ -86,6 +86,24 @@ export class BuyCryptoNotificationService {
     }
   }
 
+  async sendMissingLiquidityError(
+    outputAsset: string,
+    blockchain: string,
+    type: string,
+    message: string,
+  ): Promise<void> {
+    const correlationId = `BuyCryptoBatch&LiquidityCheck&${outputAsset}&${blockchain}&${type}`;
+    const additionalMessage =
+      'Caution! this mail has debounce time of 30 minutes, by the moment you read this mail required amounts might have changed.';
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: [message, additionalMessage] },
+      options: { debounce: 1800000 },
+      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+    });
+  }
+
   async sendNonRecoverableErrorMail(batch: BuyCryptoBatch, message: string, e?: Error): Promise<void> {
     const correlationId = `BuyCryptoBatch&${batch.id}`;
     const errors = e ? [message, e.message] : [message];

@@ -8,3 +8,13 @@ export interface PayoutRequest {
   amount: number;
   destinationAddress: string;
 }
+
+export interface FeeRequest {
+  asset: Asset;
+  quantityOfTransactions: number;
+}
+
+export interface FeeResponse {
+  asset: Asset;
+  amount: number;
+}

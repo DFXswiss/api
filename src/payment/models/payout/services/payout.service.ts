@@ -12,6 +12,7 @@ import { NotificationService } from 'src/notification/services/notification.serv
 import { MailRequest } from 'src/notification/interfaces';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class PayoutService {
@@ -62,6 +63,8 @@ export class PayoutService {
 
     return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId };
   }
+
+  async estimateFee(request: FeeRequest): Promise<FeeResponse> {}
 
   //*** JOBS ***//
 
