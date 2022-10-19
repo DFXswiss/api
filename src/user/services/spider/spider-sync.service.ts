@@ -233,7 +233,6 @@ export class SpiderSyncService {
 
   private async getIdentPdfUrl(userData: UserData): Promise<string> {
     const result = await this.getIdentResult(userData, KycContentType.PDF);
-
     return result?.part
       ? this.spiderService.getDocumentUrl(userData.kycCustomerId, result.document, result.version, result.part.name)
       : null;
@@ -302,7 +301,6 @@ export class SpiderSyncService {
         document === KycDocument.ONLINE_IDENTIFICATION
           ? KycDocument.VIDEO_IDENTIFICATION
           : KycDocument.ONLINE_IDENTIFICATION;
-
       result = await this.getCompletedIdentDocument(userData, document, documentType);
     }
 
