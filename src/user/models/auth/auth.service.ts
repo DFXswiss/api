@@ -152,7 +152,7 @@ export class AuthService {
 
   private verifyCompanySignature(dto: AuthCredentialsDto): boolean {
     const challengeData = this.challengeList.get(dto.address);
-    if (!challengeData || !this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
+    if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(dto.address);
 
     return this.verifySignature(challengeData.challenge, dto.address, dto.signature);
@@ -178,9 +178,8 @@ export class AuthService {
   }
 
   private isChallengeValid(challenge: ChallengeData): boolean {
-    return (
-      Util.secondsDiff(new Date(), challenge.created) <=
-      Number.parseInt(Config.auth.challenge.expiresIn.toString())
-    );
+    return !challenge
+      ? false
+      : Util.secondsDiff(new Date(), challenge.created) <= Number.parseInt(Config.auth.challenge.expiresIn.toString());
   }
 }
