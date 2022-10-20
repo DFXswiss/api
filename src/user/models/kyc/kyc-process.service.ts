@@ -24,8 +24,7 @@ export class KycProcessService {
 
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
-    const users = await this.userRepo.find({ where: { userData: { id: userData.id } }, relations: ['wallet'] });
-    const lockUser = users.find((e) => e.wallet.name === 'LOCK.space');
+    const lockUser = userData.users.find((e) => e.wallet.name === 'LOCK.space');
     return await this.goToStatus(userData, lockUser ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
   }
 
@@ -58,7 +57,9 @@ export class KycProcessService {
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
 
-    if (status === KycStatus.MANUAL) {
+    const externalUser = userData.users.find((e) => e.wallet.isKycClient === true);
+
+    if (status === KycStatus.MANUAL && !externalUser) {
       if (userData.mail) {
         await this.notificationService.sendMail({
           type: MailType.USER,
@@ -97,18 +98,22 @@ export class KycProcessService {
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
 
-      await this.notificationService
-        .sendMail({
-          type: MailType.USER,
-          input: {
-            userData,
-            translationKey: 'mail.kyc.failed',
-            translationParams: {
-              url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+      const externalUser = userData.users.find((e) => e.wallet.isKycClient === true);
+
+      if (!externalUser) {
+        await this.notificationService
+          .sendMail({
+            type: MailType.USER,
+            input: {
+              userData,
+              translationKey: 'mail.kyc.failed',
+              translationParams: {
+                url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+              },
             },
-          },
-        })
-        .catch(() => null);
+          })
+          .catch(() => null);
+      }
 
       return userData;
     }
@@ -172,12 +177,16 @@ export class KycProcessService {
   async identCompleted(userData: UserData, result: IdentResultDto): Promise<UserData> {
     userData = await this.storeIdentResult(userData, result);
 
-    await this.notificationService
-      .sendMail({
-        type: MailType.USER,
-        input: { userData, translationKey: 'mail.kyc.ident', translationParams: {} },
-      })
-      .catch(() => null);
+    const externalUser = userData.users.find((e) => e.wallet.isKycClient === true);
+
+    if (!externalUser) {
+      await this.notificationService
+        .sendMail({
+          type: MailType.USER,
+          input: { userData, translationKey: 'mail.kyc.ident', translationParams: {} },
+        })
+        .catch(() => null);
+    }
 
     return await this.goToStatus(userData, KycStatus.CHECK);
   }

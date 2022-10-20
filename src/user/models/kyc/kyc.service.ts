@@ -74,7 +74,7 @@ export class KycService {
   }
 
   async updateKycStatus(userDataId: number, dto: UpdateKycStatusDto): Promise<void> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users', 'users.wallet'] });
     if (!userData) throw new NotFoundException('User data not found');
 
     // update status
@@ -291,7 +291,10 @@ export class KycService {
   }
 
   private async getUserByKycCode(code: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['users', 'spiderData'] });
+    const userData = await this.userDataRepo.findOne({
+      where: { kycHash: code },
+      relations: ['users', 'users.wallet', 'spiderData'],
+    });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
   }
