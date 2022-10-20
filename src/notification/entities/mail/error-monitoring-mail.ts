@@ -1,4 +1,5 @@
 import { GetConfig } from 'src/config/config';
+import { MailContext } from 'src/notification/enums';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
 import { Mail } from './base/mail';
 
@@ -13,8 +14,11 @@ export interface ErrorMonitoringMailParams {
 
 export class ErrorMonitoringMail extends Mail {
   constructor(params: ErrorMonitoringMailParams) {
+    const to = [GetConfig().mail.contact.monitoringMail];
+    ErrorMonitoringMail.isLiqMail(params) && to.push(GetConfig().mail.contact.liqMail);
+
     const _params = {
-      to: GetConfig().mail.contact.monitoringMail,
+      to: to,
       subject: `${params.subject} (${GetConfig().environment.toUpperCase()})`,
       salutation: 'Hi DFX Tech Support',
       body: ErrorMonitoringMail.createBody(params.errors),
@@ -23,6 +27,12 @@ export class ErrorMonitoringMail extends Mail {
     };
 
     super(_params);
+  }
+
+  private static isLiqMail(params: ErrorMonitoringMailParams): boolean {
+    return [MailContext.BUY_CRYPTO, MailContext.DEX, MailContext.PAYOUT, MailContext.PRICING].includes(
+      params.metadata?.context,
+    );
   }
 
   static createBody(errors: string[]): string {

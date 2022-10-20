@@ -3,7 +3,7 @@ import { NotificationType } from 'src/notification/enums';
 import { Notification, NotificationOptions, NotificationMetadata } from '../../notification.entity';
 
 export interface MailParams {
-  to: string;
+  to: string | string[];
   subject: string;
   salutation: string;
   body: string;
@@ -26,7 +26,7 @@ export class Mail extends Notification {
     name: 'DFX.swiss',
     address: GetConfig().mail.contact.noReplyMail,
   };
-  readonly #to: string;
+  readonly #to: string | string[];
   readonly #cc: string;
   readonly #bcc: string;
   readonly #template: string = GetConfig().mail.defaultMailTemplate;
@@ -66,7 +66,7 @@ export class Mail extends Notification {
     return { name, address };
   }
 
-  get to(): string {
+  get to(): string | string[] {
     return this.#to;
   }
 

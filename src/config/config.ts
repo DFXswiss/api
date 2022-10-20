@@ -149,6 +149,7 @@ export class Configuration {
     contact: {
       supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
+      liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
     },
   };
