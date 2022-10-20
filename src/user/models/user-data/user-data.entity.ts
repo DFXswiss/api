@@ -178,6 +178,11 @@ export class UserData extends IEntity {
 
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
+
+  get hasExternalUser(): boolean {
+    const externalUser = this.users.find((e) => e.wallet.isKycClient === true);
+    return externalUser ? true : false;
+  }
 }
 
 export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];

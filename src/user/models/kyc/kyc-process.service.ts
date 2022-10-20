@@ -57,9 +57,7 @@ export class KycProcessService {
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
 
-    const externalUser = userData.users.find((e) => e.wallet.isKycClient === true);
-
-    if (status === KycStatus.MANUAL && !externalUser) {
+    if (status === KycStatus.MANUAL && !userData.hasExternalUser) {
       if (userData.mail) {
         await this.notificationService.sendMail({
           type: MailType.USER,
@@ -98,9 +96,7 @@ export class KycProcessService {
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
 
-      const externalUser = userData.users.find((e) => e.wallet.isKycClient === true);
-
-      if (!externalUser) {
+      if (!userData.hasExternalUser) {
         await this.notificationService
           .sendMail({
             type: MailType.USER,
@@ -177,9 +173,7 @@ export class KycProcessService {
   async identCompleted(userData: UserData, result: IdentResultDto): Promise<UserData> {
     userData = await this.storeIdentResult(userData, result);
 
-    const externalUser = userData.users.find((e) => e.wallet.isKycClient === true);
-
-    if (!externalUser) {
+    if (!userData.hasExternalUser) {
       await this.notificationService
         .sendMail({
           type: MailType.USER,
