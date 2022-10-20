@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { WalletRepository } from 'src/user/models/wallet/wallet.repository';
-import { IsNull, Not } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Wallet } from './wallet.entity';
 
@@ -14,7 +13,7 @@ export class WalletService {
   }
 
   async getAllExternalServices(): Promise<Wallet[]> {
-    return await this.walletRepo.find({ where: { apiUrl: Not(IsNull()), isKycClient: true } });
+    return await this.walletRepo.find({ where: { isKycClient: true } });
   }
 
   async getAllKycData(walletId: number): Promise<User[]> {

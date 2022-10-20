@@ -10,14 +10,17 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { User } from '../user/user.entity';
 import { KycDataDto } from './dto/kyc-data.dto';
-import { KycCompleted } from '../user-data/user-data.entity';
-import { KycWebhookStatus } from '../kyc/kyc-webhook.service';
+import { KycWebhookService } from '../kyc/kyc-webhook.service';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
 
 @ApiTags('wallet')
 @Controller('wallet')
 export class WalletController {
-  constructor(private readonly walletService: WalletService, private readonly spiderRepo: SpiderDataRepository) {}
+  constructor(
+    private readonly walletService: WalletService,
+    private readonly spiderRepo: SpiderDataRepository,
+    private readonly kycWebhookService: KycWebhookService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -47,19 +50,14 @@ export class WalletController {
 
     return {
       address: user.address,
-      kycStatus:
-        KycCompleted(user.userData.kycStatus) && spiderData?.chatbotResult
-          ? KycWebhookStatus.FULL
-          : KycCompleted(user.userData.kycStatus)
-          ? KycWebhookStatus.LIGHT
-          : KycWebhookStatus.NA,
+      kycStatus: this.kycWebhookService.getKycWebhookStatus(user.userData.kycStatus, spiderData?.chatbotResult),
       kycHash: user.userData.kycHash,
     };
   }
 
   private async toDto(wallet: Wallet): Promise<WalletDto> {
     return {
-      ...wallet,
+      name: wallet.name,
     };
   }
 }

@@ -1871,13 +1871,19 @@
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
     "name": "Company Challenge",
-    "url": "{{url}}/v1/auth/company/challenge",
+    "url": "{{url}}/v1/auth/company/challenge?address=8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
     "method": "POST",
     "sortNum": 85000,
     "created": "2022-10-14T13:12:37.193Z",
-    "modified": "2022-10-14T13:13:30.037Z",
+    "modified": "2022-10-20T10:15:12.521Z",
     "headers": [],
-    "params": [],
+    "params": [
+      {
+        "name": "address",
+        "value": "8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
+        "isPath": false
+      }
+    ],
     "auth": {
       "type": "none"
     },
@@ -1892,12 +1898,12 @@
     "method": "POST",
     "sortNum": 82500,
     "created": "2022-10-14T13:12:39.907Z",
-    "modified": "2022-10-14T16:15:14.884Z",
+    "modified": "2022-10-20T10:28:14.156Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n    \"address\": \"<put-address-here-5>\",\n    \"signature\": \"<put-signature-here-5>\",\n    \"name\": \"LOCK.space\",\n    \"key\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidGltZSI6IjIwMjItMTAtMTRUMTY6MTQ6MzQuMTAyWiIsImlhdCI6MTY2NTc2NDA3NCwiZXhwIjoxNjY1Nzk1NjEwfQ.VezXEV_wCKeBjafa0y5r1LE5mxtMCekd6d-cU16vB1k\",\n    \"challengeHash\":\"d18e0609c7067a8d6d79511ce269902d9a9d197ac55597b133c1f0a096d1ad86\"\n}",
+      "raw": "{\n    \"address\": \"8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4\",\n    \"signature\": \"HzRZfDlmtAp4ywy7MuGpwCEEGoemH6rB82VNJUaKM7P1PCmiBRo2MyuuYfIBKE/nakafSymO8ep+84AGIzeEm/I=\"\n}",
       "form": []
     },
     "auth": {

@@ -139,7 +139,7 @@ export class KycService {
     if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
 
     const apiKey = this.walletService.getApiKeyInternal(wallet.name);
-    if (!apiKey) throw new ConflictException(`ApiKey for wallet ${wallet.name} not available`);
+    if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {

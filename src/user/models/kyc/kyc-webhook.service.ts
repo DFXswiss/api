@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { HttpService } from 'src/shared/services/http.service';
 import { KycCompleted, KycStatus, UserData } from '../user-data/user-data.entity';
 import { UserRepository } from '../user/user.repository';
@@ -75,21 +75,14 @@ export class KycWebhookService {
             city: userData.location,
             zip: userData.zip,
             phone: userData.phone,
-            kycStatus:
-              KycCompleted(userData.kycStatus) && spiderData?.chatbotResult
-                ? KycWebhookStatus.FULL
-                : KycCompleted(userData.kycStatus)
-                ? KycWebhookStatus.LIGHT
-                : userData.kycStatus === KycStatus.REJECTED
-                ? KycWebhookStatus.REJECTED
-                : KycWebhookStatus.NA,
+            kycStatus: this.getKycWebhookStatus(userData.kycStatus, spiderData?.chatbotResult),
             kycHash: userData.kycHash,
           },
           reason: reason,
         };
 
         const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
-        if (!apiKey) throw new ConflictException(`ApiKey for wallet ${user.wallet.name} not available`);
+        if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
         await this.http.post(`${user.wallet.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': apiKey },
@@ -97,6 +90,16 @@ export class KycWebhookService {
       } catch (error) {
         console.error(`Exception during KYC webhook (${result}) for user ${userData.id}:`, error);
       }
+    }
+  }
+
+  getKycWebhookStatus(kycStatus: KycStatus, chatbotResult: string): KycWebhookStatus {
+    if (KycCompleted(kycStatus)) {
+      return chatbotResult ? KycWebhookStatus.FULL : KycWebhookStatus.LIGHT;
+    } else if (kycStatus === KycStatus.REJECTED) {
+      return KycWebhookStatus.REJECTED;
+    } else {
+      return KycWebhookStatus.NA;
     }
   }
 }
