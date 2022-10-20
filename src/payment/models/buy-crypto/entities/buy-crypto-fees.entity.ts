@@ -35,4 +35,16 @@ export class BuyCryptoFees extends IEntity {
 
   @Column({ type: 'float', nullable: false })
   actualPayoutFeePercent: number;
+
+  //*** FACTORY METHODS ***//
+
+  static create(purchaseFeeAmount: number, payoutFeeAmount: number, transactionAmount: number): BuyCryptoFees {
+    return new BuyCryptoFees();
+  }
+
+  //*** PUBIC API ***//
+
+  isSatisfyConstraints(): boolean {
+    return true;
+  }
 }

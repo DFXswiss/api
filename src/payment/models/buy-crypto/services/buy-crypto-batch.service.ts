@@ -237,6 +237,7 @@ export class BuyCryptoBatchService {
   }
 
   private async optimizeByFees(batch: BuyCryptoBatch, purchaseFeeAmount: number): Promise<void> {
+    // distribute purchase fee by volume, not quantity, and check constraint for entire batch volume
     const inputBatchLength = batch.transactions.length;
     const {
       reference: { amounts: payoutFeeAmounts },

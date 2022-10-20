@@ -3,6 +3,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
 import { Column, Entity, OneToMany } from 'typeorm';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
+import { BuyCryptoFees } from './buy-crypto-fees.entity';
 import { BuyCrypto } from './buy-crypto.entity';
 
 export enum BuyCryptoBatchStatus {
@@ -83,14 +84,33 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   optimizeByFees(purchaseFeeAmount: number, payoutFeeAmounts: { [key: number]: number }): this {
-    if (this.transactions.length === 0)
+    const inputBatchLength = this.transactions.length;
+
+    this.transactions = this.transactions.reduce((txs, tx, index) => {
+      const fees = BuyCryptoFees.create(
+        purchaseFeeAmount / this.transactions.length,
+        payoutFeeAmounts[index],
+        tx.outputReferenceAmount,
+      );
+
+      if (fees.isSatisfyConstraints()) {
+        tx.fees = fees;
+        txs.push(tx);
+      }
+
+      return txs;
+    }, []);
+
+    if (this.transactions.length === 0) {
       throw new Error(
         `Cannot re-batch transactions in batch, no transaction satisfy fee limit. Out asset: ${this.outputAsset}`,
       );
-    return this;
-  }
+    }
 
-  addFeesEstimations(purchaseFeeAmount: number, payoutFeeAmount: number): this {}
+    if (inputBatchLength === this.transactions.length) return this;
+
+    this.optimizeByFees(purchaseFeeAmount, payoutFeeAmounts);
+  }
 
   reBatchToMaxReferenceAmount(liquidity: number): this {
     if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
