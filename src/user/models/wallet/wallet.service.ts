@@ -17,7 +17,10 @@ export class WalletService {
   }
 
   async getAllKycData(walletId: number): Promise<User[]> {
-    const wallet = await this.walletRepo.findOne({ where: { id: walletId }, relations: ['users', 'users.userData'] });
+    const wallet = await this.walletRepo.findOne({
+      where: { id: walletId },
+      relations: ['users', 'users.userData', 'users.userData.spiderData'],
+    });
     return wallet.users;
   }
 

@@ -46,11 +46,12 @@ export class WalletController {
   }
 
   private async toKycDataDto(user: User): Promise<KycDataDto> {
-    const spiderData = await this.spiderRepo.findOne({ where: { userData: { id: user.userData.id } } });
-
     return {
       address: user.address,
-      kycStatus: this.kycWebhookService.getKycWebhookStatus(user.userData.kycStatus, spiderData?.chatbotResult),
+      kycStatus: this.kycWebhookService.getKycWebhookStatus(
+        user.userData.kycStatus,
+        user.userData.spiderData?.chatbotResult,
+      ),
       kycHash: user.userData.kycHash,
     };
   }

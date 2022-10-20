@@ -178,8 +178,6 @@ export class AuthService {
   }
 
   private isChallengeValid(challenge: ChallengeData): boolean {
-    return !challenge
-      ? false
-      : Util.secondsDiff(new Date(), challenge.created) <= Number.parseInt(Config.auth.challenge.expiresIn.toString());
+    return !challenge ? false : Util.secondsDiff(new Date(), challenge.created) <= Config.auth.challenge.expiresIn;
   }
 }
