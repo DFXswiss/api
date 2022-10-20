@@ -189,13 +189,18 @@ export class BuyCryptoBatchService {
     for (const batch of batches) {
       try {
         const liquidity = await this.checkLiquidity(batch);
+        const fee = await this.checkPayoutFees(batch);
 
         const {
           reference: { availableAmount, maxPurchasableAmount, currentPurchaseFee: purchaseFeeAmount },
         } = liquidity;
 
+        const {
+          reference: { amount: payoutFeeAmount },
+        } = fee;
+
         const [_, isPurchaseRequired] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
-        await this.optimizeByFees(batch, isPurchaseRequired ? purchaseFeeAmount : 0);
+        batch.checkAndRecordFeesEstimations(isPurchaseRequired ? purchaseFeeAmount : 0, payoutFeeAmount);
 
         optimizedBatches.push(batch);
       } catch (e) {
@@ -234,20 +239,6 @@ export class BuyCryptoBatchService {
         bypassSlippageProtection: true,
       },
     };
-  }
-
-  private async optimizeByFees(batch: BuyCryptoBatch, purchaseFeeAmount: number): Promise<void> {
-    // distribute purchase fee by volume, not quantity, and check constraint for entire batch volume
-    const inputBatchLength = batch.transactions.length;
-    const {
-      reference: { amounts: payoutFeeAmounts },
-    } = await this.checkPayoutFees(batch);
-
-    batch.optimizeByFees(purchaseFeeAmount, payoutFeeAmounts);
-
-    if (inputBatchLength === batch.transactions.length) return;
-
-    return await this.optimizeByFees(batch, purchaseFeeAmount);
   }
 
   private async checkPayoutFees(batch: BuyCryptoBatch): Promise<FeeResponse> {

@@ -12,7 +12,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
-import { BuyCryptoFees } from './buy-crypto-fees.entity';
+import { BuyCryptoFee } from './buy-crypto-fees.entity';
 
 @Entity()
 export class BuyCrypto extends IEntity {
@@ -115,8 +115,8 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   chargebackBankTx: BankTx;
 
-  @OneToOne(() => BuyCryptoFees, (fees) => fees.buyCrypto, { eager: true, cascade: true })
-  fees: BuyCryptoFees;
+  @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
+  fee: BuyCryptoFee;
 
   defineAssetExchangePair(): this {
     this.outputAsset = this.target?.asset?.dexName;

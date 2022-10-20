@@ -3,7 +3,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
 import { Column, Entity, OneToMany } from 'typeorm';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
-import { BuyCryptoFees } from './buy-crypto-fees.entity';
+import { BuyCryptoFee } from './buy-crypto-fees.entity';
 import { BuyCrypto } from './buy-crypto.entity';
 
 export enum BuyCryptoBatchStatus {
@@ -83,33 +83,11 @@ export class BuyCryptoBatch extends IEntity {
     return [this, true];
   }
 
-  optimizeByFees(purchaseFeeAmount: number, payoutFeeAmounts: { [key: number]: number }): this {
-    const inputBatchLength = this.transactions.length;
+  checkAndRecordFeesEstimations(purchaseFeeAmount: number, payoutFeeAmount: number): this {
+    this.checkFees(purchaseFeeAmount, payoutFeeAmount);
+    this.recordFees(purchaseFeeAmount, payoutFeeAmount);
 
-    this.transactions = this.transactions.reduce((txs, tx, index) => {
-      const fees = BuyCryptoFees.create(
-        purchaseFeeAmount / this.transactions.length,
-        payoutFeeAmounts[index],
-        tx.outputReferenceAmount,
-      );
-
-      if (fees.isSatisfyConstraints()) {
-        tx.fees = fees;
-        txs.push(tx);
-      }
-
-      return txs;
-    }, []);
-
-    if (this.transactions.length === 0) {
-      throw new Error(
-        `Cannot re-batch transactions in batch, no transaction satisfy fee limit. Out asset: ${this.outputAsset}`,
-      );
-    }
-
-    if (inputBatchLength === this.transactions.length) return this;
-
-    this.optimizeByFees(purchaseFeeAmount, payoutFeeAmounts);
+    return this;
   }
 
   reBatchToMaxReferenceAmount(liquidity: number): this {
@@ -192,6 +170,30 @@ export class BuyCryptoBatch extends IEntity {
     const missingAmount = this.outputReferenceAmount - availableAmount;
 
     return maxPurchasableAmount >= missingAmount * 1.05;
+  }
+
+  private checkFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
+    const feeRatio = (purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount;
+
+    if (feeRatio > 0.001) {
+      throw new Error(`BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset}. Fee ratio: ${feeRatio}`);
+    }
+  }
+
+  private recordFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
+    this.transactions.forEach((tx) => {
+      const fee = BuyCryptoFee.create(
+        this.calculateFeeShare(tx, purchaseFeeAmount),
+        this.calculateFeeShare(tx, payoutFeeAmount),
+        tx,
+      );
+
+      tx.fee = fee;
+    });
+  }
+
+  private calculateFeeShare(tx: BuyCrypto, totalFee: number): number {
+    return Util.round((totalFee / this.outputReferenceAmount) * tx.outputReferenceAmount, 8);
   }
 
   private fixRoundingMismatch(): void {

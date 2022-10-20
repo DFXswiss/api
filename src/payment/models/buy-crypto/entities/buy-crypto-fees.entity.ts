@@ -1,16 +1,16 @@
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Util } from 'src/shared/util';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { BuyCrypto } from './buy-crypto.entity';
 
 @Entity()
-export class BuyCryptoFees extends IEntity {
-  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.fees)
+export class BuyCryptoFee extends IEntity {
+  @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.fee)
   @JoinColumn()
   buyCrypto: BuyCrypto;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
-  feeAsset: Asset;
+  @Column({ nullable: false })
+  feeAsset: string;
 
   @Column({ type: 'float', nullable: false })
   estimatePurchaseFeeAmount: number;
@@ -24,27 +24,31 @@ export class BuyCryptoFees extends IEntity {
   @Column({ type: 'float', nullable: false })
   estimatePayoutFeePercent: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float', nullable: true })
   actualPurchaseFeeAmount: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float', nullable: true })
   actualPurchaseFeePercent: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float', nullable: true })
   actualPayoutFeeAmount: number;
 
-  @Column({ type: 'float', nullable: false })
+  @Column({ type: 'float', nullable: true })
   actualPayoutFeePercent: number;
 
   //*** FACTORY METHODS ***//
 
-  static create(purchaseFeeAmount: number, payoutFeeAmount: number, transactionAmount: number): BuyCryptoFees {
-    return new BuyCryptoFees();
-  }
+  static create(purchaseFeeAmount: number, payoutFeeAmount: number, transaction: BuyCrypto): BuyCryptoFee {
+    const entity = new BuyCryptoFee();
 
-  //*** PUBIC API ***//
+    entity.buyCrypto = transaction;
+    entity.feeAsset = transaction.outputReferenceAsset;
 
-  isSatisfyConstraints(): boolean {
-    return true;
+    entity.estimatePurchaseFeeAmount = purchaseFeeAmount;
+    entity.estimatePurchaseFeePercent = Util.round(purchaseFeeAmount / transaction.outputReferenceAmount, 8);
+    entity.estimatePayoutFeeAmount = payoutFeeAmount;
+    entity.estimatePayoutFeePercent = Util.round(payoutFeeAmount / transaction.outputReferenceAmount, 8);
+
+    return entity;
   }
 }
