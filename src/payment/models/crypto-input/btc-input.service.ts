@@ -13,27 +13,26 @@ import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessib
 import { CryptoInputService } from './crypto-input.service';
 import { BtcClient } from 'src/blockchain/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
-import { HttpService } from 'src/shared/services/http.service';
 import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
 import { ChainalysisService } from './chainalysis.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
+import { BtcFeeService } from 'src/blockchain/ain/services/btc-fee.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
   private readonly lock = new Lock(7200);
-  private readonly btcFeeUrl = 'https://mempool.space/api/v1/fees/recommended';
 
   private btcClient: BtcClient;
 
   constructor(
     nodeService: NodeService,
     cryptoInputRepo: CryptoInputRepository,
-    private readonly http: HttpService,
     private readonly assetService: AssetService,
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly chainalysisService: ChainalysisService,
+    private readonly feeService: BtcFeeService,
   ) {
     super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
@@ -177,16 +176,8 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async getFeeRate(amount: number): Promise<number> {
-    const { fastestFee } = await this.http.get<{
-      fastestFee: number;
-      halfHourFee: number;
-      hourFee: number;
-      economyFee: number;
-      minimumFee: number;
-    }>(this.btcFeeUrl, {
-      tryCount: 3,
-    });
-    return Math.floor(Math.max(Math.min(fastestFee, 500 * amount), 1));
+    const feeRate = await this.feeService.getRecommendedFeeRate();
+    return Math.floor(Math.max(Math.min(feeRate, 500 * amount), 1));
   }
 
   // --- CONFIRMATION HANDLING --- //
