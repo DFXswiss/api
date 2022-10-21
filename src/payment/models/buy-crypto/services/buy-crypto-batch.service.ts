@@ -8,7 +8,7 @@ import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-bat
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { PriceRequest, PriceResult } from '../../pricing/interfaces';
 import { PriceRequestContext } from '../../pricing/enums';
-import { LiquidityRequest, LiquidityResponse } from '../../dex/interfaces';
+import { LiquidityRequest, CheckLiquidityResponse } from '../../dex/interfaces';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
 import { DexService } from '../../dex/services/dex.service';
@@ -192,7 +192,7 @@ export class BuyCryptoBatchService {
         const fee = await this.checkPayoutFees(batch);
 
         const {
-          reference: { availableAmount, maxPurchasableAmount, currentPurchaseFee: purchaseFeeAmount },
+          reference: { availableAmount, maxPurchasableAmount, purchaseFee: purchaseFeeAmount },
         } = liquidity;
 
         const {
@@ -215,7 +215,7 @@ export class BuyCryptoBatchService {
     return optimizedBatches;
   }
 
-  private async checkLiquidity(batch: BuyCryptoBatch): Promise<LiquidityResponse> {
+  private async checkLiquidity(batch: BuyCryptoBatch): Promise<CheckLiquidityResponse> {
     try {
       const request = await this.createLiquidityRequest(batch);
 

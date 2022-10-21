@@ -71,7 +71,7 @@ export class DexController {
     @Query('correlationId') correlationId: string,
   ): Promise<number> {
     if (process.env.ENVIRONMENT === 'test') {
-      return this.dexService.fetchTargetLiquidityAfterPurchase(context, correlationId);
+      return this.dexService.fetchLiquidityAfterPurchase(context, correlationId);
     }
   }
 

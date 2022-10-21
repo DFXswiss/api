@@ -51,4 +51,13 @@ export class BuyCryptoFee extends IEntity {
 
     return entity;
   }
+
+  //*** PUBLIC API ***//
+
+  addActualPurchaseFee(purchaseFeeAmount: number, transaction: BuyCrypto): this {
+    this.actualPurchaseFeeAmount = purchaseFeeAmount;
+    this.actualPurchaseFeePercent = Util.round(purchaseFeeAmount / transaction.outputReferenceAmount, 8);
+
+    return this;
+  }
 }

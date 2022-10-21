@@ -10,7 +10,7 @@ import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
-import { LiquidityRequest, LiquidityResponse, TransferRequest } from '../interfaces';
+import { LiquidityRequest, CheckLiquidityResponse, TransferRequest, PurchaseLiquidityResult } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 
 @Injectable()
@@ -27,7 +27,7 @@ export class DexService {
 
   // *** PUBLIC API *** //
 
-  async checkLiquidity(request: LiquidityRequest): Promise<LiquidityResponse> {
+  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResponse> {
     const { context, correlationId, targetAsset } = request;
 
     try {
@@ -115,7 +115,12 @@ export class DexService {
     return this.dexDeFiChainService.transferMinimalUtxo(address);
   }
 
-  async fetchTargetLiquidityAfterPurchase(context: LiquidityOrderContext, correlationId: string): Promise<number> {
+  // TODO get actual fee here OR on the purchase stage
+  // TODO - move to strategies
+  async fetchLiquidityAfterPurchase(
+    context: LiquidityOrderContext,
+    correlationId: string,
+  ): Promise<PurchaseLiquidityResult> {
     const order = await this.liquidityOrderRepo.findOne({ where: { context, correlationId } });
 
     if (!order) {

@@ -43,12 +43,12 @@ export class BuyCryptoDexService {
   private async checkPendingBatches(pendingBatches: BuyCryptoBatch[]): Promise<void> {
     for (const batch of pendingBatches) {
       try {
-        const liquidity = await this.dexService.fetchTargetLiquidityAfterPurchase(
+        const { amount: liquidity, purchaseFee } = await this.dexService.fetchLiquidityAfterPurchase(
           LiquidityOrderContext.BUY_CRYPTO,
           batch.id.toString(),
         );
 
-        batch.secure(liquidity);
+        batch.secure(liquidity, purchaseFee);
         await this.buyCryptoBatchRepo.save(batch);
 
         console.info(`Secured liquidity for batch. Batch ID: ${batch.id}`);
@@ -111,7 +111,7 @@ export class BuyCryptoDexService {
 
     try {
       const request = await this.createLiquidityRequest(batch);
-      //
+
       await this.dexService.purchaseLiquidity(request);
 
       batch.pending();

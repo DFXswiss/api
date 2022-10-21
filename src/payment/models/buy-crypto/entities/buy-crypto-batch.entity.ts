@@ -115,13 +115,15 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  secure(liquidity: number): this {
+  secure(liquidity: number, purchaseFee = 0): this {
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
-    const updatedTransactions = this.transactions.map((t) =>
-      t.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount),
-    );
+    const updatedTransactions = this.transactions.map((t) => {
+      this.addActualPurchaseFee(purchaseFee, t);
+
+      return t.calculateOutputAmount(this.outputReferenceAmount, this.outputAmount);
+    });
 
     this.fixRoundingMismatch();
 
@@ -190,6 +192,11 @@ export class BuyCryptoBatch extends IEntity {
 
       tx.fee = fee;
     });
+  }
+
+  private addActualPurchaseFee(purchaseFeeAmount: number, tx: BuyCrypto): void {
+    const txPurchaseFee = this.calculateFeeShare(tx, purchaseFeeAmount);
+    tx.fee.addActualPurchaseFee(txPurchaseFee, tx);
   }
 
   private calculateFeeShare(tx: BuyCrypto, totalFee: number): number {
