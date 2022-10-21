@@ -136,7 +136,7 @@ export class UserData extends IEntity {
   @Index({ unique: true })
   kycHash: string;
 
-  @Column({ type: 'float', default: 90000 })
+  @Column({ type: 'float', nullable: true })
   depositLimit: number;
 
   @Column({ type: 'integer', nullable: true })
