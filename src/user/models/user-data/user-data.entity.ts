@@ -196,7 +196,7 @@ export class UserData extends IEntity {
     } else if (this.kycStatus === KycStatus.REJECTED) {
       return { limit: 0, period: LimitPeriod.DAY };
     } else {
-      return { limit: Config.defaultTradingLimit, period: LimitPeriod.DAY };
+      return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
     }
   }
 }
