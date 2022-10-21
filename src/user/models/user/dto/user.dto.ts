@@ -2,7 +2,7 @@ import { HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycState, KycStatus } from '../../user-data/user-data.entity';
+import { KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
 import { UserStatus } from '../user.entity';
 import { LinkedUserOutDto } from './linked-user.dto';
 
@@ -19,7 +19,7 @@ export interface UserDto {
   kycStatus: KycStatus;
   kycState: KycState;
   kycHash: string;
-  depositLimit: number;
+  tradingLimit: TradingLimit;
   kycDataComplete: boolean;
   apiKeyCT: string;
   apiFilterCT: HistoryFilterKey[];
@@ -44,6 +44,11 @@ export interface UserDetails {
 export interface VolumeInformation {
   total: number;
   annual: number;
+}
+
+export interface TradingLimit {
+  limit: number;
+  period: LimitPeriod;
 }
 
 export type UserDetailDto = UserDto & UserDetails;

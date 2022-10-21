@@ -471,7 +471,7 @@ export class UserService {
       kycStatus: user.userData?.kycStatus,
       kycState: user.userData?.kycState,
       kycHash: user.userData?.kycHash,
-      depositLimit: user.userData?.depositLimit,
+      tradingLimit: user.userData?.tradingLimit,
       kycDataComplete: this.kycService.isDataComplete(user.userData),
       apiKeyCT: user.apiKeyCT,
       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
