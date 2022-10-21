@@ -72,6 +72,14 @@ export class Configuration {
         expiresIn: process.env.JWT_EXPIRES_IN ?? 172800,
       },
     },
+    company: {
+      signOptions: {
+        expiresIn: process.env.JWT_EXPIRES_IN_COMPANY ?? 30,
+      },
+    },
+    challenge: {
+      expiresIn: +process.env.CHALLENGE_EXPIRES_IN ?? 10,
+    },
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageWallet:
@@ -119,8 +127,10 @@ export class Configuration {
     apiKey: process.env.FIXER_API_KEY,
   };
 
-  lock = {
-    apiKey: process.env.LOCK_API_KEY,
+  externalKycServices = {
+    'LOCK.space': {
+      apiKey: process.env.LOCK_API_KEY,
+    },
   };
 
   mail: MailOptions = {

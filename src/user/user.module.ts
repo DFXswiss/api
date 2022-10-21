@@ -36,6 +36,7 @@ import { LinkAddressRepository } from './models/link/link-address.repository';
 import { NotificationModule } from 'src/notification/notification.module';
 import { LimitRequestController } from './models/limit-request/limit-request.controller';
 import { KycWebhookService } from './models/kyc/kyc-webhook.service';
+import { WalletController } from './models/wallet/wallet.controller';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { KycWebhookService } from './models/kyc/kyc-webhook.service';
     KycController,
     LinkController,
     LimitRequestController,
+    WalletController,
   ],
   providers: [
     UserService,

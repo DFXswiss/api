@@ -118,7 +118,10 @@ export class SpiderSyncService {
   }
 
   async syncKycUser(userDataId: number, forceSync = false): Promise<void> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['spiderData'] });
+    let userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: ['spiderData', 'users', 'users.wallet'],
+    });
     if (!userData) return;
 
     // update KYC data

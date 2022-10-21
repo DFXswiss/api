@@ -21,7 +21,7 @@ export class IdentService {
           spiderData: { identIdentificationIds: Like(`%${result?.identificationprocess?.id}%`) },
         },
       ],
-      relations: ['spiderData'],
+      relations: ['spiderData', 'users', 'users.wallet'],
     });
 
     if (!user) {
