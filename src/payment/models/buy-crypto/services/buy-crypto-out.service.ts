@@ -107,13 +107,13 @@ export class BuyCryptoOutService {
       }
 
       try {
-        const { isComplete, payoutTxId } = await this.payoutService.checkOrderCompletion(
+        const { isComplete, payoutTxId, payoutFee } = await this.payoutService.checkOrderCompletion(
           PayoutOrderContext.BUY_CRYPTO,
           tx.id.toString(),
         );
 
         if (isComplete) {
-          tx.complete(payoutTxId);
+          tx.complete(payoutTxId, payoutFee);
           await this.buyCryptoRepo.save(tx);
         }
       } catch (e) {

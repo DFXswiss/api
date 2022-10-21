@@ -60,4 +60,11 @@ export class BuyCryptoFee extends IEntity {
 
     return this;
   }
+
+  addActualPayoutFee(payoutFeeAmount: number, transaction: BuyCrypto): this {
+    this.actualPayoutFeeAmount = payoutFeeAmount;
+    this.actualPayoutFeePercent = Util.round(payoutFeeAmount / transaction.outputReferenceAmount, 8);
+
+    return this;
+  }
 }

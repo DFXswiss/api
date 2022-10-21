@@ -57,7 +57,7 @@ export class PayoutService {
   async checkOrderCompletion(
     context: PayoutOrderContext,
     correlationId: string,
-  ): Promise<{ isComplete: boolean; payoutTxId: string }> {
+  ): Promise<{ isComplete: boolean; payoutTxId: string; payoutFee: number }> {
     const order = await this.payoutOrderRepo.findOne({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
 
