@@ -22,25 +22,43 @@ export interface TransferRequest {
   destinationAddress: string;
 }
 
-export interface CheckLiquidityResponse {
+export interface CheckLiquidityResult {
   target: {
     asset: Asset;
     amount: number;
     availableAmount: number;
     maxPurchasableAmount: number;
-    purchaseFee: number;
   };
   reference: {
     asset: Asset;
     amount: number;
     availableAmount: number;
     maxPurchasableAmount: number;
-    purchaseFee: number;
+  };
+  purchaseFee: {
+    asset: Asset;
+    amount: number;
+  };
+  metadata: {
+    isEnoughLiquidity: boolean;
+    isSlippageDetected: boolean;
+  };
+}
+
+export interface ReserveLiquidityResult {
+  target: {
+    asset: Asset;
+    amount: number;
   };
 }
 
 export interface PurchaseLiquidityResult {
-  asset: Asset;
-  amount: number;
-  purchaseFee: number;
+  target: {
+    asset: Asset;
+    amount: number;
+  };
+  purchaseFee: {
+    asset: Asset;
+    amount: number;
+  };
 }

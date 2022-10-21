@@ -1,6 +1,7 @@
 import { MailContext, MailType } from 'src/notification/enums';
 import { MailRequest } from 'src/notification/interfaces';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { LiquidityOrder } from 'src/payment/models/dex/entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../../../exceptions/price-slippage.exception';
 import { LiquidityRequest } from '../../../../interfaces';
@@ -9,6 +10,10 @@ export abstract class PurchaseLiquidityStrategy {
   constructor(protected readonly notificationService: NotificationService) {}
 
   abstract purchaseLiquidity(request: LiquidityRequest): Promise<void>;
+
+  abstract recordPurchasedLiquidity(order: LiquidityOrder): Promise<void>;
+
+  abstract recordPurchaseFee(order: LiquidityOrder): Promise<void>;
 
   protected async handlePurchaseLiquidityError(e: Error, request: LiquidityRequest): Promise<void> {
     const errorMessage = `Correlation ID: ${request.correlationId}. Context: ${request.context}. ${e.message}`;

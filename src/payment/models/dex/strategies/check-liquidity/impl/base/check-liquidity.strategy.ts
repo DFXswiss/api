@@ -1,5 +1,5 @@
-import { LiquidityRequest } from '../../../../interfaces';
+import { CheckLiquidityResult, LiquidityRequest } from '../../../../interfaces';
 
 export interface CheckLiquidityStrategy {
-  checkLiquidity(request: LiquidityRequest): Promise<number>;
+  checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult>;
 }

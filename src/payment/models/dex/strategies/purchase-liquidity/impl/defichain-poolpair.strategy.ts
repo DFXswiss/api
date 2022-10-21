@@ -61,6 +61,14 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     }
   }
 
+  recordPurchasedLiquidity(order: LiquidityOrder): Promise<void> {
+    throw new Error('Method not implemented.');
+  }
+
+  recordPurchaseFee(order: LiquidityOrder): Promise<void> {
+    throw new Error('Method not implemented.');
+  }
+
   @Interval(30000)
   async verifyDerivedOrders(): Promise<void> {
     if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;

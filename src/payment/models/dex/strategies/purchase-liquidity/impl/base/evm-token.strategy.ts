@@ -1,4 +1,5 @@
 import { NotificationService } from 'src/notification/services/notification.service';
+import { LiquidityOrder } from 'src/payment/models/dex/entities/liquidity-order.entity';
 import { LiquidityRequest } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/dex-evm.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
@@ -27,5 +28,13 @@ export class EvmTokenStrategy extends PurchaseLiquidityStrategy {
     } catch (e) {
       await this.handlePurchaseLiquidityError(e, request);
     }
+  }
+
+  recordPurchasedLiquidity(order: LiquidityOrder): Promise<void> {
+    throw new Error('Method not implemented.');
+  }
+
+  recordPurchaseFee(order: LiquidityOrder): Promise<void> {
+    throw new Error('Method not implemented.');
   }
 }

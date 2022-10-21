@@ -2,6 +2,7 @@ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
+import { PurchaseLiquidityResult } from '../interfaces';
 
 export enum LiquidityOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
@@ -65,6 +66,12 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   purchasedAmount?: number;
 
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  purchaseFeeAsset?: Asset;
+
+  @Column({ type: 'float', nullable: true })
+  purchaseFee?: number;
+
   reserved(targetAmount: number): this {
     this.setTargetAmount(targetAmount);
     this.isReady = true;
@@ -82,10 +89,25 @@ export class LiquidityOrder extends IEntity {
 
   purchased(purchasedAmount: number): this {
     this.purchasedAmount = purchasedAmount;
+
     this.setTargetAmount(purchasedAmount);
     this.isReady = true;
 
     return this;
+  }
+
+  recordPurchaseFee(purchaseFeeAsset: Asset, purchaseFee: number): this {
+    this.purchaseFeeAsset = purchaseFeeAsset;
+    this.purchaseFee = purchaseFee;
+
+    return this;
+  }
+
+  getPurchaseLiquidityResult(): PurchaseLiquidityResult {
+    return {
+      target: { asset: this.targetAsset, amount: this.targetAmount },
+      purchaseFee: { asset: this.purchaseFeeAsset, amount: this.purchaseFee },
+    };
   }
 
   complete(): this {

@@ -10,7 +10,7 @@ import { Lock } from 'src/shared/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
-import { LiquidityRequest, CheckLiquidityResponse, TransferRequest, PurchaseLiquidityResult } from '../interfaces';
+import { LiquidityRequest, CheckLiquidityResult, TransferRequest, PurchaseLiquidityResult } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 
 @Injectable()
@@ -25,9 +25,9 @@ export class DexService {
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
   ) {}
 
-  // *** PUBLIC API *** //
+  // *** MAIN PUBLIC API *** //
 
-  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResponse> {
+  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
     const { context, correlationId, targetAsset } = request;
 
     try {
@@ -35,13 +35,8 @@ export class DexService {
 
       return strategy.checkLiquidity(request);
     } catch (e) {
-      // publicly exposed exceptions
-      if (e instanceof NotEnoughLiquidityException) return 0;
-      if (e instanceof PriceSlippageException) throw e;
-
       console.error(e.message);
 
-      // default public exception
       throw new Error(`Error while checking liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
     }
   }
@@ -54,11 +49,11 @@ export class DexService {
 
       const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
-      const liquidity = await strategy.checkLiquidity(request);
+      const { target, metadata } = await strategy.checkLiquidity(request);
 
-      if (liquidity !== 0) {
+      if (metadata.isEnoughLiquidity) {
         const order = this.liquidityOrderFactory.createReservationOrder(request, targetAsset.blockchain);
-        order.reserved(liquidity);
+        order.reserved(target.amount);
 
         await this.liquidityOrderRepo.save(order);
 
@@ -105,18 +100,6 @@ export class DexService {
     }
   }
 
-  async transferLiquidity(request: TransferRequest): Promise<string> {
-    const { destinationAddress, asset, amount } = request;
-
-    return this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
-  }
-
-  async transferMinimalUtxo(address: string): Promise<string> {
-    return this.dexDeFiChainService.transferMinimalUtxo(address);
-  }
-
-  // TODO get actual fee here OR on the purchase stage
-  // TODO - move to strategies
   async fetchLiquidityAfterPurchase(
     context: LiquidityOrderContext,
     correlationId: string,
@@ -131,11 +114,7 @@ export class DexService {
       throw new LiquidityOrderNotReadyException(`Order is not ready. Order ID: ${order.id}`);
     }
 
-    return order.targetAmount;
-  }
-
-  async checkTransferCompletion(transferTxId: string): Promise<boolean> {
-    return this.dexDeFiChainService.checkTransferCompletion(transferTxId);
+    return order.getPurchaseLiquidityResult();
   }
 
   async completeOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
@@ -149,29 +128,54 @@ export class DexService {
     }
   }
 
+  // *** SUPPLEMENTARY PUBLIC API *** //
+
+  async transferLiquidity(request: TransferRequest): Promise<string> {
+    const { destinationAddress, asset, amount } = request;
+
+    return this.dexDeFiChainService.transferLiquidity(destinationAddress, asset.dexName, amount);
+  }
+
+  async transferMinimalUtxo(address: string): Promise<string> {
+    return this.dexDeFiChainService.transferMinimalUtxo(address);
+  }
+
+  async checkTransferCompletion(transferTxId: string): Promise<boolean> {
+    return this.dexDeFiChainService.checkTransferCompletion(transferTxId);
+  }
+
+  //*** JOBS ***//
+
   @Interval(30000)
-  async verifyPurchaseOrders(): Promise<void> {
+  async finalizePurchaseOrders(): Promise<void> {
     if (!this.verifyPurchaseOrdersLock.acquire()) return;
 
-    const standingOrders = await this.liquidityOrderRepo.find({
-      isReady: false,
-      purchaseTxId: Not(IsNull()),
-    });
+    try {
+      const standingOrders = await this.liquidityOrderRepo.find({
+        isReady: false,
+        purchaseTxId: Not(IsNull()),
+      });
 
-    await this.addPurchasedAmountsToOrders(standingOrders);
-
-    this.verifyPurchaseOrdersLock.release();
+      await this.addPurchaseDataToOrders(standingOrders);
+    } finally {
+      this.verifyPurchaseOrdersLock.release();
+    }
   }
 
   // *** HELPER METHODS *** //
 
-  private async addPurchasedAmountsToOrders(orders: LiquidityOrder[]): Promise<void> {
+  private async addPurchaseDataToOrders(orders: LiquidityOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const amount = await this.dexDeFiChainService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
+        const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(order.targetAsset);
 
-        order.purchased(amount);
-        await this.liquidityOrderRepo.save(order);
+        if (!strategy) {
+          const { dexName, blockchain, type } = order.targetAsset;
+          throw new Error(`No purchase liquidity strategy for asset ${dexName} ${blockchain} ${type}`);
+        }
+
+        await strategy.recordPurchasedLiquidity(order);
+        await strategy.recordPurchaseFee(order);
 
         console.info(
           `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,

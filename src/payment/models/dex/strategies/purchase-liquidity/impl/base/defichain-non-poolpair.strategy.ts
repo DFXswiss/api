@@ -34,6 +34,17 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     }
   }
 
+  async recordPurchasedLiquidity(order: LiquidityOrder): Promise<void> {
+    const amount = await this.dexDeFiChainService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
+
+    order.purchased(amount);
+    await this.liquidityOrderRepo.save(order);
+  }
+
+  async recordPurchaseFee(order: LiquidityOrder): Promise<void> {
+    throw new Error('Method not implemented');
+  }
+
   private async bookLiquiditySwap(order: LiquidityOrder): Promise<void> {
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
 
