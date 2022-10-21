@@ -180,8 +180,7 @@ export class UserData extends IEntity {
   spiderData: SpiderData;
 
   get hasExternalUser(): boolean {
-    const externalUser = this.users.find((e) => e.wallet.isKycClient === true);
-    return externalUser ? true : false;
+    return !!this.users.find((e) => e.wallet.isKycClient === true);
   }
 }
 
