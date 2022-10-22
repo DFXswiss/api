@@ -126,6 +126,7 @@ export class SpiderService {
         organisationType: user.accountType === AccountType.SOLE_PROPRIETORSHIP ? 'SOLE_PROPRIETORSHIP' : 'LEGAL_ENTITY',
         purposeBusinessRelationship: 'Kauf und Verkauf von DeFiChain Assets',
         bearerShares: 'NO',
+        contribution: '0',
       };
 
       await this.uploadDocument(
