@@ -28,21 +28,7 @@ export class BuyCryptoOutService {
 
   async payoutTransactions(): Promise<void> {
     try {
-      const batches = await this.buyCryptoBatchRepo.find({
-        where: {
-          // PAYING_OUT batches are fetch for retry in case of failure in previous iteration
-          status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
-        },
-        relations: [
-          'transactions',
-          'transactions.buy',
-          'transactions.buy.user',
-          'transactions.buy.asset',
-          'transactions.cryptoRoute',
-          'transactions.cryptoRoute.user',
-          'transactions.cryptoRoute.asset',
-        ],
-      });
+      const batches = await this.fetchBatchesForPayout();
 
       if (batches.length === 0) {
         return;
@@ -56,6 +42,7 @@ export class BuyCryptoOutService {
           continue;
         }
 
+        // TODO - refactor process so not rely on DuplicatedEntryException when retrying half-successful batch
         if (!(batch.status === BuyCryptoBatchStatus.SECURED || batch.status === BuyCryptoBatchStatus.PAYING_OUT)) {
           continue;
         }
@@ -67,22 +54,7 @@ export class BuyCryptoOutService {
 
         for (const transaction of batch.transactions) {
           try {
-            const { outputAsset, target } = transaction;
-
-            const asset = await this.assetService.getAssetByQuery({
-              dexName: outputAsset,
-              blockchain: target.asset.blockchain,
-            });
-
-            const request: PayoutRequest = {
-              context: PayoutOrderContext.BUY_CRYPTO,
-              correlationId: transaction.id.toString(),
-              asset,
-              amount: transaction.outputAmount,
-              destinationAddress: transaction.target.address,
-            };
-
-            await this.payoutService.doPayout(request);
+            await this.doPayout(transaction);
             successfulRequests.push(transaction);
           } catch (e) {
             if (e instanceof DuplicatedEntryException) {
@@ -102,7 +74,46 @@ export class BuyCryptoOutService {
     }
   }
 
-  async checkCompletion(batch: BuyCryptoBatch) {
+  //*** HELPER METHODS ***//
+
+  private async fetchBatchesForPayout(): Promise<BuyCryptoBatch[]> {
+    return this.buyCryptoBatchRepo.find({
+      where: {
+        // PAYING_OUT batches are fetch for retry in case of failure in previous iteration
+        status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
+      },
+      relations: [
+        'transactions',
+        'transactions.buy',
+        'transactions.buy.user',
+        'transactions.buy.asset',
+        'transactions.cryptoRoute',
+        'transactions.cryptoRoute.user',
+        'transactions.cryptoRoute.asset',
+      ],
+    });
+  }
+
+  private async doPayout(transaction: BuyCrypto): Promise<void> {
+    const { outputAsset, target } = transaction;
+
+    const asset = await this.assetService.getAssetByQuery({
+      dexName: outputAsset,
+      blockchain: target.asset.blockchain,
+    });
+
+    const request: PayoutRequest = {
+      context: PayoutOrderContext.BUY_CRYPTO,
+      correlationId: transaction.id.toString(),
+      asset,
+      amount: transaction.outputAmount,
+      destinationAddress: transaction.target.address,
+    };
+
+    await this.payoutService.doPayout(request);
+  }
+
+  private async checkCompletion(batch: BuyCryptoBatch) {
     for (const tx of batch.transactions) {
       if (tx.isComplete) {
         continue;
