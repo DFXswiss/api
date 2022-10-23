@@ -10,10 +10,7 @@ import { LiquidityOrderNotReadyException } from '../../dex/exceptions/liquidity-
 import { PriceSlippageException } from '../../dex/exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
 import { LiquidityRequest } from '../../dex/interfaces';
-import { PricingService } from '../../pricing/services/pricing.service';
-import { PriceRequestContext } from '../../pricing/enums';
-import { PriceRequest } from '../../pricing/interfaces';
-import { Util } from 'src/shared/util';
+import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -22,7 +19,7 @@ export class BuyCryptoDexService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
-    private readonly pricingService: PricingService,
+    private readonly buyCryptoPricingService: BuyCryptoPricingService,
     readonly nodeService: NodeService,
   ) {}
 
@@ -53,11 +50,12 @@ export class BuyCryptoDexService {
           batch.id.toString(),
         );
 
-        const finalFee = await this.convertPurchaseFeeToBatchAsset(
+        const finalFee = await this.buyCryptoPricingService.convertToTargetAsset(
           batch,
           nativeFee.asset.dexName,
           nativeFee.amount,
           batch.outputReferenceAsset,
+          'ConvertActualPurchaseFee',
         );
 
         batch.secure(liquidity.amount, finalFee);
@@ -72,28 +70,6 @@ export class BuyCryptoDexService {
         console.error(`Failed to check pending batch. Batch ID: ${batch.id}`, e);
       }
     }
-  }
-
-  private async convertPurchaseFeeToBatchAsset(
-    batch: BuyCryptoBatch,
-    nativeFeeAsset: string,
-    nativeFeeAmount: number,
-    targetFeeAsset: string,
-  ): Promise<number> {
-    const priceRequest = this.createPriceRequest(batch, [nativeFeeAsset, targetFeeAsset]);
-
-    const { price } = await this.pricingService.getPrice(priceRequest).catch((e) => {
-      console.error('Failed to get price:', e);
-      return undefined;
-    });
-
-    // TODO - add better handling and move calculation to entity
-    return Util.round(nativeFeeAmount * price.price, 8);
-  }
-
-  private createPriceRequest(batch: BuyCryptoBatch, currencyPair: string[]): PriceRequest {
-    const correlationId = 'BuyCryptoBatch' + batch.id;
-    return { context: PriceRequestContext.BUY_CRYPTO, correlationId, from: currencyPair[0], to: currencyPair[1] };
   }
 
   private async processNewBatches(newBatches: BuyCryptoBatch[]): Promise<void> {

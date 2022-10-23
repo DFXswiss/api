@@ -71,6 +71,7 @@ import { BankTxReturnService } from './models/bank-tx-return/bank-tx-return.serv
 import { BankTxRepeatRepository } from './models/bank-tx-repeat/bank-tx-repeat.repository';
 import { BankTxRepeatService } from './models/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnController } from './models/bank-tx-return/bank-tx-return.controller';
+import { BuyCryptoPricingService } from './models/buy-crypto/services/buy-crypto-pricing.service';
 
 @Module({
   imports: [
@@ -132,6 +133,7 @@ import { BankTxReturnController } from './models/bank-tx-return/bank-tx-return.c
     BuyCryptoService,
     BuyCryptoBatchService,
     BuyCryptoDexService,
+    BuyCryptoPricingService,
     BuyCryptoNotificationService,
     BuyCryptoOutService,
     BankTxService,

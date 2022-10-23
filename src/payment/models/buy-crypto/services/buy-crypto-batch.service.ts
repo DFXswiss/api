@@ -15,7 +15,8 @@ import { DexService } from '../../dex/services/dex.service';
 import { PayoutService } from '../../payout/services/payout.service';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { FeeRequest, FeeResponse } from '../../payout/interfaces';
+import { FeeRequest, FeeResult } from '../../payout/interfaces';
+import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -23,6 +24,7 @@ export class BuyCryptoBatchService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly pricingService: PricingService,
+    private readonly buyCryptoPricingService: BuyCryptoPricingService,
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
@@ -189,18 +191,15 @@ export class BuyCryptoBatchService {
     for (const batch of batches) {
       try {
         const liquidity = await this.checkLiquidity(batch);
-        const fee = await this.checkPayoutFees(batch);
+        const nativePayoutFee = await this.checkPayoutFees(batch);
+        const [purchaseFee, payoutFee] = await this.getFeeAmountsInBatchAsset(batch, liquidity, nativePayoutFee);
 
         const {
-          reference: { availableAmount, maxPurchasableAmount, purchaseFee: purchaseFeeAmount },
+          reference: { availableAmount, maxPurchasableAmount },
         } = liquidity;
 
-        const {
-          reference: { amount: payoutFeeAmount },
-        } = fee;
-
         const [_, isPurchaseRequired] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
-        batch.checkAndRecordFeesEstimations(isPurchaseRequired ? purchaseFeeAmount : 0, payoutFeeAmount);
+        batch.checkAndRecordFeesEstimations(isPurchaseRequired ? purchaseFee : 0, payoutFee);
 
         optimizedBatches.push(batch);
       } catch (e) {
@@ -241,7 +240,7 @@ export class BuyCryptoBatchService {
     };
   }
 
-  private async checkPayoutFees(batch: BuyCryptoBatch): Promise<FeeResponse> {
+  private async checkPayoutFees(batch: BuyCryptoBatch): Promise<FeeResult> {
     try {
       const request = await this.createPayoutFeeRequest(batch);
 
@@ -259,6 +258,31 @@ export class BuyCryptoBatchService {
       asset: targetAsset,
       quantityOfTransactions: batch.transactions.length,
     };
+  }
+
+  private async getFeeAmountsInBatchAsset(
+    batch: BuyCryptoBatch,
+    liquidity: CheckLiquidityResult,
+    nativePayoutFee: FeeResult,
+  ): Promise<[number, number]> {
+    const { purchaseFee: nativePurchaseFee } = liquidity;
+    const purchaseFeeInBatchCurrency = await this.buyCryptoPricingService.convertToTargetAsset(
+      batch,
+      nativePurchaseFee.asset.dexName,
+      nativePurchaseFee.amount,
+      batch.outputReferenceAsset,
+      'ConvertEstimatedPurchaseFee',
+    );
+
+    const payoutFeeInBatchCurrency = await this.buyCryptoPricingService.convertToTargetAsset(
+      batch,
+      nativePayoutFee.asset.dexName,
+      nativePayoutFee.amount,
+      batch.outputReferenceAsset,
+      'ConvertEstimatedPayoutFee',
+    );
+
+    return [purchaseFeeInBatchCurrency, payoutFeeInBatchCurrency];
   }
 
   private async handleAbortBatchCreationException(

@@ -12,12 +12,14 @@ import { PayoutOrderContext } from '../../payout/entities/payout-order.entity';
 import { DuplicatedEntryException } from '../../payout/exceptions/duplicated-entry.exception';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutRequest } from '../../payout/interfaces';
+import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
 @Injectable()
 export class BuyCryptoOutService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
+    private readonly buyCryptoPricingService: BuyCryptoPricingService,
     private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
@@ -107,12 +109,21 @@ export class BuyCryptoOutService {
       }
 
       try {
-        const { isComplete, payoutTxId, payoutFee } = await this.payoutService.checkOrderCompletion(
-          PayoutOrderContext.BUY_CRYPTO,
-          tx.id.toString(),
-        );
+        const {
+          isComplete,
+          payoutTxId,
+          payoutFee: nativePayoutFee,
+        } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
         if (isComplete) {
+          const payoutFee = await this.buyCryptoPricingService.convertToTargetAsset(
+            batch,
+            nativePayoutFee.asset.dexName,
+            nativePayoutFee.amount,
+            batch.outputReferenceAsset,
+            'ConvertActualPayoutFee',
+          );
+
           tx.complete(payoutTxId, payoutFee);
           await this.buyCryptoRepo.save(tx);
         }

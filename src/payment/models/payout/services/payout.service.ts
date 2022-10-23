@@ -6,7 +6,7 @@ import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutLogService } from './payout-log.service';
-import { PayoutRequest } from '../interfaces';
+import { FeeResult, PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { MailRequest } from 'src/notification/interfaces';
@@ -57,14 +57,14 @@ export class PayoutService {
   async checkOrderCompletion(
     context: PayoutOrderContext,
     correlationId: string,
-  ): Promise<{ isComplete: boolean; payoutTxId: string; payoutFee: number }> {
+  ): Promise<{ isComplete: boolean; payoutTxId: string; payoutFee: FeeResult }> {
     const order = await this.payoutOrderRepo.findOne({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
 
     return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId };
   }
 
-  async estimateFee(request: FeeRequest): Promise<FeeResponse> {}
+  async estimateFee(request: FeeRequest): Promise<FeeResult> {}
 
   //*** JOBS ***//
 

@@ -14,13 +14,7 @@ export interface FeeRequest {
   quantityOfTransactions: number;
 }
 
-export interface FeeResponse {
-  reference: {
-    asset: Asset;
-    amount: number;
-  };
-  native: {
-    asset: Asset;
-    amounts: number;
-  };
+export interface FeeResult {
+  asset: Asset;
+  amount: number;
 }
