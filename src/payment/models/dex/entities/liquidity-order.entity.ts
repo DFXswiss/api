@@ -70,7 +70,7 @@ export class LiquidityOrder extends IEntity {
   purchaseFeeAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  purchaseFee?: number;
+  purchaseFeeAmount?: number;
 
   reserved(targetAmount: number): this {
     this.setTargetAmount(targetAmount);
@@ -96,9 +96,9 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
-  recordPurchaseFee(purchaseFeeAsset: Asset, purchaseFee: number): this {
+  recordPurchaseFee(purchaseFeeAsset: Asset, purchaseFeeAmount: number): this {
     this.purchaseFeeAsset = purchaseFeeAsset;
-    this.purchaseFee = purchaseFee;
+    this.purchaseFeeAmount = purchaseFeeAmount;
 
     return this;
   }
@@ -106,7 +106,7 @@ export class LiquidityOrder extends IEntity {
   getPurchaseLiquidityResult(): PurchaseLiquidityResult {
     return {
       target: { asset: this.targetAsset, amount: this.targetAmount },
-      purchaseFee: { asset: this.purchaseFeeAsset, amount: this.purchaseFee },
+      purchaseFee: { asset: this.purchaseFeeAsset, amount: this.purchaseFeeAmount },
     };
   }
 

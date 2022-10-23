@@ -6,13 +6,12 @@ import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutLogService } from './payout-log.service';
-import { FeeResult, PayoutRequest } from '../interfaces';
+import { FeeRequest, FeeResult, PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { MailRequest } from 'src/notification/interfaces';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class PayoutService {
@@ -60,11 +59,16 @@ export class PayoutService {
   ): Promise<{ isComplete: boolean; payoutTxId: string; payoutFee: FeeResult }> {
     const order = await this.payoutOrderRepo.findOne({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
+    const payoutFee = order && order.payoutFee;
 
-    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId };
+    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId, payoutFee };
   }
 
-  async estimateFee(request: FeeRequest): Promise<FeeResult> {}
+  async estimateFee(request: FeeRequest): Promise<FeeResult> {
+    const strategy = this.payoutStrategies.getPayoutStrategy(request.asset);
+
+    return strategy.estimateFee(request.quantityOfTransactions);
+  }
 
   //*** JOBS ***//
 
