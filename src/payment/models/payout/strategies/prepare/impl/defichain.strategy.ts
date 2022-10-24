@@ -1,17 +1,24 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
+import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PrepareStrategy } from './base/prepare.strategy';
 
 @Injectable()
-export class DeFiChainStrategy implements PrepareStrategy {
+export class DeFiChainStrategy extends PrepareStrategy {
   constructor(
+    private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly defichainService: PayoutDeFiChainService,
     private readonly payoutOrderRepo: PayoutOrderRepository,
-  ) {}
+  ) {
+    super();
+  }
 
   async preparePayout(order: PayoutOrder): Promise<void> {
     try {
@@ -52,5 +59,15 @@ export class DeFiChainStrategy implements PrepareStrategy {
     } catch (e) {
       console.error(`Error in checking completion of funds transfer for payout order. Order ID: ${order.id}`, e);
     }
+  }
+
+  async estimateFee(): Promise<FeeResult> {
+    this.feeAsset = this.feeAsset ?? (await this.getFeeAsset());
+
+    return { asset: this.feeAsset, amount: 0 };
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
   }
 }

@@ -5,11 +5,8 @@ import { PayoutOrderRepository } from '../../../../repositories/payout-order.rep
 import { PayoutStrategy } from './payout.strategy';
 import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export abstract class JellyfishStrategy extends PayoutStrategy {
-  protected feeAsset: Asset;
-
   constructor(
     protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,

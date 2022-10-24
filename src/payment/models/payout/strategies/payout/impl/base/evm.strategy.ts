@@ -6,8 +6,6 @@ import { PayoutEvmService } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
 
 export abstract class EvmStrategy extends PayoutStrategy {
-  protected feeAsset: Asset;
-
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,

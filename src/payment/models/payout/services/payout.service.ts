@@ -12,6 +12,7 @@ import { NotificationService } from 'src/notification/services/notification.serv
 import { MailRequest } from 'src/notification/interfaces';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class PayoutService {
@@ -65,9 +66,15 @@ export class PayoutService {
   }
 
   async estimateFee(request: FeeRequest): Promise<FeeResult> {
-    const strategy = this.payoutStrategies.getPayoutStrategy(request.asset);
+    const prepareStrategy = this.prepareStrategies.getPrepareStrategy(request.asset);
+    const payoutStrategy = this.payoutStrategies.getPayoutStrategy(request.asset);
 
-    return strategy.estimateFee(request.quantityOfTransactions, request.asset);
+    const prepareFee = await prepareStrategy.estimateFee(request.asset);
+    const payoutFee = await payoutStrategy.estimateFee(request.quantityOfTransactions, request.asset);
+
+    const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 8);
+
+    return { asset: payoutFee.asset, amount: totalFeeAmount };
   }
 
   //*** JOBS ***//
