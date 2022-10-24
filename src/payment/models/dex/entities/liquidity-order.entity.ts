@@ -33,7 +33,7 @@ export class LiquidityOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   chain: Blockchain;
 
-  @Column({ length: 256, nullable: false })
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   referenceAsset: Asset;
 
   @Column({ type: 'float', nullable: false })

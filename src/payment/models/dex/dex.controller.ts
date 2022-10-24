@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LiquidityOrderContext } from './entities/liquidity-order.entity';
-import { LiquidityRequest, TransferRequest } from './interfaces';
+import { CheckLiquidityResult, LiquidityRequest, PurchaseLiquidityResult, TransferRequest } from './interfaces';
 import { DexService } from './services/dex.service';
 
 @ApiTags('dex')
@@ -16,7 +16,7 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async checkLiquidity(@Query() dto: LiquidityRequest): Promise<number> {
+  async checkLiquidity(@Query() dto: LiquidityRequest): Promise<CheckLiquidityResult> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.checkLiquidity(dto);
     }
@@ -69,7 +69,7 @@ export class DexController {
   async fetchTargetLiquidityAfterPurchase(
     @Query('context') context: LiquidityOrderContext,
     @Query('correlationId') correlationId: string,
-  ): Promise<number> {
+  ): Promise<PurchaseLiquidityResult> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.fetchLiquidityAfterPurchase(context, correlationId);
     }
