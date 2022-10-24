@@ -33,6 +33,7 @@ export class BuyCryptoNotificationService {
           txId: Not(IsNull()),
           isComplete: true,
           batch: { status: BuyCryptoBatchStatus.COMPLETE },
+          amlCheck: AmlCheck.PASS,
         },
         relations: [
           'bankTx',
@@ -158,7 +159,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
-        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT]),
+        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT, AmlReason.OLKY_NO_KYC]),
         amlCheck: AmlCheck.PENDING,
       },
       relations: [
