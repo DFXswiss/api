@@ -1,6 +1,6 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AssetCategory } from 'src/shared/models/asset/asset.entity';
-import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../liquidity-order.entity';
 
 export function createDefaultLiquidityOrder(): LiquidityOrder {
@@ -33,7 +33,7 @@ export function createCustomLiquidityOrder(customValues: Partial<LiquidityOrder>
   entity.context = keys.includes('context') ? context : LiquidityOrderContext.BUY_CRYPTO;
   entity.correlationId = keys.includes('correlationId') ? correlationId : 'CID_01';
   entity.chain = keys.includes('chain') ? chain : Blockchain.DEFICHAIN;
-  entity.referenceAsset = keys.includes('referenceAsset') ? referenceAsset : 'BTC';
+  entity.referenceAsset = keys.includes('referenceAsset') ? referenceAsset : createCustomAsset({ dexName: 'BTC' });
   entity.referenceAmount = keys.includes('referenceAmount') ? referenceAmount : 1;
   entity.targetAsset = keys.includes('targetAsset') ? targetAsset : createDefaultAsset();
   entity.targetAmount = keys.includes('targetAmount') ? targetAmount : 2;

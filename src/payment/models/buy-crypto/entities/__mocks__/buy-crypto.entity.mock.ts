@@ -2,6 +2,7 @@ import { createDefaultBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mo
 import { AmlCheck } from '../../enums/aml-check.enum';
 import { BuyCrypto } from '../buy-crypto.entity';
 import { createCustomBuyCryptoBatch } from './buy-crypto-batch.entity.mock';
+import { createDefaultBuyCryptoFee } from './buy-crypto-fee.entity.mock';
 
 export function createDefaultBuyCrypto(): BuyCrypto {
   return createCustomBuyCrypto({});
@@ -35,6 +36,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
     refFactor,
     isComplete,
     cryptoInput,
+    fee,
   } = customValues;
 
   const keys = Object.keys(customValues);
@@ -68,6 +70,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   entity.refFactor = keys.includes('refFactor') ? refFactor : 0;
   entity.isComplete = keys.includes('isComplete') ? isComplete : false;
   entity.cryptoInput = keys.includes('cryptoInput') ? cryptoInput : undefined;
+  entity.fee = keys.includes('fee') ? fee : createDefaultBuyCryptoFee();
 
   return entity;
 }

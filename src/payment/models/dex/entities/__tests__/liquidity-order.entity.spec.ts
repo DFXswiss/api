@@ -6,7 +6,7 @@ describe('LiquidityOrder', () => {
   describe('#reserved(...)', () => {
     it('sets targetAmount to reference amount in case referenceAssets equals targetAsset, incomingAmount ignored', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XYZ',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'XYZ' }),
         referenceAmount: 50,
         targetAmount: undefined,
@@ -21,7 +21,7 @@ describe('LiquidityOrder', () => {
 
     it('sets targetAmount to incomingAmount amount in case referenceAssets NOT equals targetAsset', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XZY',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'ABC' }),
         referenceAmount: 50,
         targetAmount: undefined,
@@ -95,7 +95,7 @@ describe('LiquidityOrder', () => {
 
     it('sets targetAmount to reference amount in case referenceAssets equals targetAsset, incomingAmount ignored', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XYZ',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'XYZ' }),
         referenceAmount: 50,
         targetAmount: undefined,
@@ -110,7 +110,7 @@ describe('LiquidityOrder', () => {
 
     it('sets targetAmount to incomingAmount amount in case referenceAssets NOT equals targetAsset', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XZY',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'ABC' }),
         referenceAmount: 50,
         targetAmount: undefined,

@@ -4,6 +4,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
+import { CheckLiquidityUtil } from '../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
@@ -15,7 +16,14 @@ export class BitcoinStrategy extends CheckLiquidityStrategy {
   async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAmount: bitcoinAmount } = request;
 
-    return this.dexBtcService.checkAvailableTargetLiquidity(bitcoinAmount);
+    const [targetAmount, availableAmount] = await this.dexBtcService.checkAvailableTargetLiquidity(bitcoinAmount);
+
+    return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
+      request,
+      targetAmount,
+      availableAmount,
+      await this.feeAsset(),
+    );
   }
 
   protected getFeeAsset(): Promise<Asset> {

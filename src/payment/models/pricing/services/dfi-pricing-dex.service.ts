@@ -23,21 +23,18 @@ export class DfiPricingDexService implements PriceProvider {
     }
 
     const dfi = await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
+    const fromAsset = await this.assetService.getAssetByQuery({ dexName: from, blockchain: Blockchain.DEFICHAIN });
 
     const liquidityRequest: LiquidityRequest = {
       context: LiquidityOrderContext.PRICING,
       correlationId: uuid(),
-      referenceAsset: from,
+      referenceAsset: fromAsset,
       referenceAmount: 0.001,
       targetAsset: dfi,
-      options: {
-        bypassAvailabilityCheck: true,
-        bypassSlippageProtection: true,
-      },
     };
 
-    const targetAmount = await this.dexService.checkLiquidity(liquidityRequest);
+    const { target } = await this.dexService.checkLiquidity(liquidityRequest);
 
-    return Price.create(from, to, Util.round(targetAmount / 0.001, 8));
+    return Price.create(from, to, Util.round(target.amount / 0.001, 8));
   }
 }

@@ -225,18 +225,16 @@ export class BuyCryptoBatchService {
   }
 
   private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
-    const { outputAsset, blockchain } = batch;
+    const { outputAsset, outputReferenceAsset, blockchain } = batch;
     const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
+    const referenceAsset = await this.assetService.getAssetByQuery({ dexName: outputReferenceAsset, blockchain });
 
     return {
       context: LiquidityOrderContext.BUY_CRYPTO,
       correlationId: batch.id.toString(),
-      referenceAsset: batch.outputReferenceAsset,
+      referenceAsset,
       referenceAmount: batch.outputReferenceAmount,
       targetAsset,
-      options: {
-        bypassSlippageProtection: true,
-      },
     };
   }
 
@@ -266,21 +264,25 @@ export class BuyCryptoBatchService {
     nativePayoutFee: FeeResult,
   ): Promise<[number, number]> {
     const { purchaseFee: nativePurchaseFee } = liquidity;
-    const purchaseFeeInBatchCurrency = await this.buyCryptoPricingService.convertToTargetAsset(
-      batch,
-      nativePurchaseFee.asset.dexName,
-      nativePurchaseFee.amount,
-      batch.outputReferenceAsset,
-      'ConvertEstimatedPurchaseFee',
-    );
+    const purchaseFeeInBatchCurrency = nativePurchaseFee.amount
+      ? await this.buyCryptoPricingService.convertToTargetAsset(
+          batch,
+          nativePurchaseFee.asset.dexName,
+          nativePurchaseFee.amount,
+          batch.outputReferenceAsset,
+          'ConvertEstimatedPurchaseFee',
+        )
+      : 0;
 
-    const payoutFeeInBatchCurrency = await this.buyCryptoPricingService.convertToTargetAsset(
-      batch,
-      nativePayoutFee.asset.dexName,
-      nativePayoutFee.amount,
-      batch.outputReferenceAsset,
-      'ConvertEstimatedPayoutFee',
-    );
+    const payoutFeeInBatchCurrency = nativePayoutFee.amount
+      ? await this.buyCryptoPricingService.convertToTargetAsset(
+          batch,
+          nativePayoutFee.asset.dexName,
+          nativePayoutFee.amount,
+          batch.outputReferenceAsset,
+          'ConvertEstimatedPayoutFee',
+        )
+      : 0;
 
     return [purchaseFeeInBatchCurrency, payoutFeeInBatchCurrency];
   }

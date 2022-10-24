@@ -3,6 +3,7 @@ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
@@ -34,22 +35,33 @@ describe('PayoutStrategiesFacade', () => {
       mock<NotificationService>(),
       mock<PayoutBitcoinService>(),
       mock<PayoutOrderRepository>(),
+      mock<AssetService>(),
     );
     deFiChainCoin = new DeFiChainCoinStrategy(
       mock<NotificationService>(),
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
+      mock<AssetService>(),
     );
     deFiChainToken = new DeFiChainTokenStrategy(
       mock<NotificationService>(),
       mock<DexService>(),
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
+      mock<AssetService>(),
     );
-    ethereumCoin = new EthereumCoinStrategy(mock<PayoutEthereumService>(), mock<PayoutOrderRepository>());
-    ethereumToken = new EthereumTokenStrategy(mock<PayoutEthereumService>(), mock<PayoutOrderRepository>());
-    bscCoin = new BscCoinStrategy(mock<PayoutBscService>(), mock<PayoutOrderRepository>());
-    bscToken = new BscTokenStrategy(mock<PayoutBscService>(), mock<PayoutOrderRepository>());
+    ethereumCoin = new EthereumCoinStrategy(
+      mock<PayoutEthereumService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    ethereumToken = new EthereumTokenStrategy(
+      mock<PayoutEthereumService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    bscCoin = new BscCoinStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
+    bscToken = new BscTokenStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
 
     facade = new PayoutStrategiesFacadeWrapper(
       bitcoin,

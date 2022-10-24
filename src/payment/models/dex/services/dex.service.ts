@@ -64,6 +64,12 @@ export class DexService {
         `Not enough liquidity of asset ${targetAsset.dexName}. Available amount: 0. Fallback error message.`,
       );
     } catch (e) {
+      // throw new PriceSlippageException(
+      //   `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
+      //     sourceAmount / targetAmount,
+      //     8,
+      //   )} ${sourceAsset}`,
+      // );
       // publicly exposed exceptions
       if (e instanceof NotEnoughLiquidityException) throw e;
       if (e instanceof PriceSlippageException) throw e;

@@ -46,7 +46,7 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
 
     const { asset: swapAsset, amount: swapAmount } = await this.getSuitableSwapAsset(
-      referenceAsset,
+      referenceAsset.dexName,
       referenceAmount,
       targetAsset.dexName,
     );

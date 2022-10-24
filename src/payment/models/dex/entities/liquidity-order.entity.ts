@@ -34,7 +34,7 @@ export class LiquidityOrder extends IEntity {
   chain: Blockchain;
 
   @Column({ length: 256, nullable: false })
-  referenceAsset: string;
+  referenceAsset: Asset;
 
   @Column({ type: 'float', nullable: false })
   referenceAmount: number;
@@ -117,7 +117,8 @@ export class LiquidityOrder extends IEntity {
   }
 
   private setTargetAmount(incomingAmount: number): void {
-    this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : incomingAmount;
+    this.targetAmount =
+      this.referenceAsset.dexName === this.targetAsset.dexName ? this.referenceAmount : incomingAmount;
   }
 
   static getIsReferenceAsset(asset: string): boolean {

@@ -407,7 +407,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.isComplete).toBe(undefined);
 
-      entity.complete('TX_ID_01');
+      entity.complete('TX_ID_01', 0);
 
       expect(entity.isComplete).toBe(true);
     });
@@ -417,7 +417,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.txId).toBe(undefined);
 
-      entity.complete('TX_ID_01');
+      entity.complete('TX_ID_01', 0);
 
       expect(entity.txId).toBe('TX_ID_01');
     });
@@ -427,7 +427,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputDate).toBe(undefined);
 
-      entity.complete('TX_ID_01');
+      entity.complete('TX_ID_01', 0);
 
       expect(entity.outputDate).toBeInstanceOf(Date);
     });
@@ -435,7 +435,7 @@ describe('BuyCrypto', () => {
     it('returns instance of BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
 
-      const updatedEntity = entity.complete('TX_ID_01');
+      const updatedEntity = entity.complete('TX_ID_01', 0);
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
     });

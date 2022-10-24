@@ -4,10 +4,9 @@ import { LiquidityOrderContext } from '../entities/liquidity-order.entity';
 export interface LiquidityRequest {
   context: LiquidityOrderContext;
   correlationId: string;
-  referenceAsset: string;
+  referenceAsset: Asset;
   referenceAmount: number;
   targetAsset: Asset;
-  options?: LiquidityRequestOptions;
 }
 
 export interface LiquidityRequestOptions {

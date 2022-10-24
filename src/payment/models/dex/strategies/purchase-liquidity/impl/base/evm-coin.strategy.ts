@@ -1,5 +1,4 @@
 import { NotificationService } from 'src/notification/services/notification.service';
-import { LiquidityOrder } from 'src/payment/models/dex/entities/liquidity-order.entity';
 import { LiquidityRequest } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/dex-evm.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
@@ -14,7 +13,7 @@ export abstract class EvmCoinStrategy extends PurchaseLiquidityStrategy {
 
     try {
       // should always throw, even if there is amount, additional check is done for API consistency and sending mail
-      if (referenceAsset === this.dexEvmService._nativeCoin) {
+      if (referenceAsset.dexName === this.dexEvmService._nativeCoin) {
         const amount = await this.dexEvmService.checkNativeCoinAvailability(referenceAmount);
 
         if (amount) {

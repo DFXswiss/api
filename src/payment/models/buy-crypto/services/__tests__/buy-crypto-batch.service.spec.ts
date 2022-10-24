@@ -1,8 +1,12 @@
 import { mock } from 'jest-mock-extended';
 import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
+import { CheckLiquidityResult } from 'src/payment/models/dex/interfaces';
+import { DexService } from 'src/payment/models/dex/services/dex.service';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
+import { PayoutService } from 'src/payment/models/payout/services/payout.service';
 import { PricingService } from 'src/payment/models/pricing/services/pricing.service';
-import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import {
   createCustomBuyCryptoBatch,
   createDefaultBuyCryptoBatch,
@@ -11,6 +15,8 @@ import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../../entities/__
 import { BuyCryptoBatchRepository } from '../../repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
 import { BuyCryptoBatchService } from '../buy-crypto-batch.service';
+import { BuyCryptoNotificationService } from '../buy-crypto-notification.service';
+import { BuyCryptoPricingService } from '../buy-crypto-pricing.service';
 
 describe('BuyCryptoBatchService', () => {
   let service: BuyCryptoBatchService;
@@ -20,6 +26,11 @@ describe('BuyCryptoBatchService', () => {
   let buyCryptoRepo: BuyCryptoRepository;
   let buyCryptoBatchRepo: BuyCryptoBatchRepository;
   let pricingService: PricingService;
+  let buyCryptoPricingService: BuyCryptoPricingService;
+  let assetService: AssetService;
+  let dexService: DexService;
+  let payoutService: PayoutService;
+  let buyCryptoNotificationService: BuyCryptoNotificationService;
 
   /*** Spies ***/
 
@@ -28,6 +39,10 @@ describe('BuyCryptoBatchService', () => {
   let buyCryptoBatchRepoSave: jest.SpyInstance;
   let buyCryptoBatchRepoCreate: jest.SpyInstance;
   let exchangeUtilityServiceGetMatchingPrice: jest.SpyInstance;
+  let buyCryptoPricingServiceConvert: jest.SpyInstance;
+  let dexServiceCheckLiquidity: jest.SpyInstance;
+  let payoutServiceEstimateFee: jest.SpyInstance;
+  let assetServiceQueryAsset: jest.SpyInstance;
 
   beforeEach(() => {
     setupMocks();
@@ -45,7 +60,7 @@ describe('BuyCryptoBatchService', () => {
       const result = await service.batchTransactionsByAssets();
 
       expect(result).toBeUndefined();
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(0);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(0);
     });
 
     it('defines asset pair', async () => {
@@ -60,7 +75,7 @@ describe('BuyCryptoBatchService', () => {
 
       expect(defineAssetExchangePairSpy).toBeCalledTimes(1);
       expect(transactions[0].outputReferenceAsset).toBe('BTC');
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(1);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
     });
 
     it('defines output reference amounts', async () => {
@@ -73,7 +88,7 @@ describe('BuyCryptoBatchService', () => {
 
       await service.batchTransactionsByAssets();
 
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(1);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
       expect(exchangeUtilityServiceGetMatchingPrice).toBeCalledTimes(1);
       expect(calculateOutputReferenceAmountSpy).toBeCalledTimes(1);
       expect(transactions[0].outputReferenceAmount).toBe(10);
@@ -82,7 +97,7 @@ describe('BuyCryptoBatchService', () => {
     it('moves on normally if there is no blocked assets', async () => {
       await service.batchTransactionsByAssets();
 
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(1);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
     });
 
     it('blocks creating a batch if there already existing batch for an asset', async () => {
@@ -96,7 +111,7 @@ describe('BuyCryptoBatchService', () => {
 
       await service.batchTransactionsByAssets();
 
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(0);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(0);
     });
 
     it('creates separate batches for separate asset pairs', async () => {
@@ -126,7 +141,7 @@ describe('BuyCryptoBatchService', () => {
 
       await service.batchTransactionsByAssets();
 
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(3);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(3);
     });
 
     it('groups transactions with same asset pair into one batch', async () => {
@@ -153,7 +168,7 @@ describe('BuyCryptoBatchService', () => {
 
       await service.batchTransactionsByAssets();
 
-      expect(buyCryptoBatchRepoSave).toBeCalledTimes(2);
+      expect(dexServiceCheckLiquidity).toBeCalledTimes(2);
     });
   });
 
@@ -163,8 +178,22 @@ describe('BuyCryptoBatchService', () => {
     buyCryptoRepo = mock<BuyCryptoRepository>();
     buyCryptoBatchRepo = mock<BuyCryptoBatchRepository>();
     pricingService = mock<PricingService>();
+    buyCryptoPricingService = mock<BuyCryptoPricingService>();
+    assetService = mock<AssetService>();
+    dexService = mock<DexService>();
+    payoutService = mock<PayoutService>();
+    buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
 
-    service = new BuyCryptoBatchService(buyCryptoRepo, buyCryptoBatchRepo, pricingService);
+    service = new BuyCryptoBatchService(
+      buyCryptoRepo,
+      buyCryptoBatchRepo,
+      pricingService,
+      buyCryptoPricingService,
+      assetService,
+      dexService,
+      payoutService,
+      buyCryptoNotificationService,
+    );
   }
 
   function setupSpies() {
@@ -185,6 +214,26 @@ describe('BuyCryptoBatchService', () => {
       (price.price = 10), (price.source = 'EUR'), (price.target = 'BTC');
       return { price, path: [] };
     });
+
+    buyCryptoPricingServiceConvert = jest
+      .spyOn(buyCryptoPricingService, 'convertToTargetAsset')
+      .mockImplementation(async () => 1);
+
+    dexServiceCheckLiquidity = jest.spyOn(dexService, 'checkLiquidity').mockImplementation(
+      async () =>
+        ({
+          reference: { availableAmount: 10000, maxPurchasableAmount: 1000000 },
+        } as unknown as CheckLiquidityResult),
+    );
+
+    payoutServiceEstimateFee = jest.spyOn(payoutService, 'estimateFee').mockImplementation(async () => ({
+      asset: createCustomAsset({}),
+      amount: 0.0000001,
+    }));
+
+    assetServiceQueryAsset = jest
+      .spyOn(assetService, 'getAssetByQuery')
+      .mockImplementation(async () => createDefaultAsset());
   }
 
   function clearSpies() {
@@ -193,5 +242,9 @@ describe('BuyCryptoBatchService', () => {
     buyCryptoBatchRepoSave.mockClear();
     buyCryptoBatchRepoCreate.mockClear();
     exchangeUtilityServiceGetMatchingPrice.mockClear();
+    buyCryptoPricingServiceConvert.mockClear();
+    dexServiceCheckLiquidity.mockClear();
+    payoutServiceEstimateFee.mockClear();
+    assetServiceQueryAsset.mockClear();
   }
 });

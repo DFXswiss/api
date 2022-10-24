@@ -3,6 +3,7 @@ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
@@ -24,7 +25,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
   async estimateFee(quantityOfTransactions: number): Promise<FeeResult> {
     const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
     const satoshiFeeAmount = (200 + 50 * quantityOfTransactions) * feeRate;
-    const btcFeeAmount = satoshiFeeAmount / 100000000;
+    const btcFeeAmount = Util.round(satoshiFeeAmount / 100000000, 8);
 
     return { asset: await this.feeAsset(), amount: btcFeeAmount };
   }

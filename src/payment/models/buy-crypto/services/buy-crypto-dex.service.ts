@@ -50,13 +50,15 @@ export class BuyCryptoDexService {
           batch.id.toString(),
         );
 
-        const finalFee = await this.buyCryptoPricingService.convertToTargetAsset(
-          batch,
-          nativeFee.asset.dexName,
-          nativeFee.amount,
-          batch.outputReferenceAsset,
-          'ConvertActualPurchaseFee',
-        );
+        const finalFee = nativeFee.amount
+          ? await this.buyCryptoPricingService.convertToTargetAsset(
+              batch,
+              nativeFee.asset.dexName,
+              nativeFee.amount,
+              batch.outputReferenceAsset,
+              'ConvertActualPurchaseFee',
+            )
+          : 0;
 
         batch.secure(liquidity.amount, finalFee);
         await this.buyCryptoBatchRepo.save(batch);
@@ -151,13 +153,14 @@ export class BuyCryptoDexService {
   }
 
   private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
-    const { outputAsset, blockchain } = batch;
+    const { outputAsset, outputReferenceAsset, blockchain } = batch;
     const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
+    const referenceAsset = await this.assetService.getAssetByQuery({ dexName: outputReferenceAsset, blockchain });
 
     return {
       context: LiquidityOrderContext.BUY_CRYPTO,
       correlationId: batch.id.toString(),
-      referenceAsset: batch.outputReferenceAsset,
+      referenceAsset,
       referenceAmount: batch.outputReferenceAmount,
       targetAsset,
     };

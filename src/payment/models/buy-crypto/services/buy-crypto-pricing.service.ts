@@ -23,7 +23,6 @@ export class BuyCryptoPricingService {
       return undefined;
     });
 
-    // TODO - add better handling and move calculation to entity
     return Util.round(sourceAmount * price.price, 8);
   }
 

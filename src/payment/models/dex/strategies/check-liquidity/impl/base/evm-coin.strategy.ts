@@ -1,5 +1,6 @@
 import { CheckLiquidityResult, LiquidityRequest } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/dex-evm.service';
+import { CheckLiquidityUtil } from '../../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './check-liquidity.strategy';
 
 export abstract class EvmCoinStrategy extends CheckLiquidityStrategy {
@@ -10,8 +11,15 @@ export abstract class EvmCoinStrategy extends CheckLiquidityStrategy {
   async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, context, correlationId } = request;
 
-    if (referenceAsset === this.dexEvmService._nativeCoin) {
-      return this.dexEvmService.checkNativeCoinAvailability(referenceAmount);
+    if (referenceAsset.dexName === this.dexEvmService._nativeCoin) {
+      const [targetAmount, availableAmount] = await this.dexEvmService.checkNativeCoinAvailability(referenceAmount);
+
+      return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
+        request,
+        targetAmount,
+        availableAmount,
+        await this.feeAsset(),
+      );
     }
 
     // only native coin is enabled as a referenceAsset
