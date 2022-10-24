@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { BuyService } from 'src/payment/models/buy/buy.service';
 import { MasternodeService } from 'src/payment/models/masternode/masternode.service';
 import { SellService } from 'src/payment/models/sell/sell.service';
 import { StakingRewardService } from 'src/payment/models/staking-reward/staking-reward.service';
 import { StakingService } from 'src/payment/models/staking/staking.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { Util } from 'src/shared/util';
 import { UserService } from 'src/user/models/user/user.service';
 
 @Injectable()
@@ -29,12 +31,12 @@ export class StatisticService {
     try {
       this.statistic = {
         totalVolume: {
-          buy: await this.buyService.getTotalVolume(),
-          sell: await this.sellService.getTotalVolume(),
+          buy: Util.round(await this.buyService.getTotalVolume(), Config.defaultVolumeDecimal),
+          sell: Util.round(await this.sellService.getTotalVolume(), Config.defaultVolumeDecimal),
         },
         totalRewards: {
-          staking: await this.stakingService.getTotalStakingRewards(),
-          ref: await this.userService.getTotalRefRewards(),
+          staking: Util.round(await this.stakingService.getTotalStakingRewards(), Config.defaultVolumeDecimal),
+          ref: Util.round(await this.userService.getTotalRefRewards(), Config.defaultVolumeDecimal),
         },
         staking: {
           masternodes: await this.masternodeService.getActiveCount(),

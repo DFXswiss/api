@@ -118,7 +118,10 @@ export class SpiderSyncService {
   }
 
   async syncKycUser(userDataId: number, forceSync = false): Promise<void> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['spiderData'] });
+    let userData = await this.userDataRepo.findOne({
+      where: { id: userDataId },
+      relations: ['spiderData', 'users', 'users.wallet'],
+    });
     if (!userData) return;
 
     // update KYC data
@@ -290,31 +293,36 @@ export class SpiderSyncService {
     userData: UserData,
     documentType: KycContentType,
   ): Promise<{ document: KycDocument; version: string; part: DocumentVersionPart }> {
-    const { document, version } = await this.getCompletedIdentDocument(userData);
-    if (!version) return null;
-
-    const part = await this.spiderApi
-      .getDocumentVersionParts(userData.id, false, document, version)
-      .then((parts) => parts.find((p) => p.contentType === documentType));
-
-    return { document, version, part };
-  }
-
-  private async getCompletedIdentDocument(userData: UserData): Promise<{ document: KycDocument; version: string }> {
     let document = IdentInProgress(userData.kycStatus)
       ? KycDocuments[userData.kycStatus].document
       : KycDocument.ONLINE_IDENTIFICATION;
-    let version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+    let result = await this.getCompletedIdentDocument(userData, document, documentType);
 
-    if (!version) {
+    if (!result) {
       // fallback to other ident method
       document =
         document === KycDocument.ONLINE_IDENTIFICATION
           ? KycDocument.VIDEO_IDENTIFICATION
           : KycDocument.ONLINE_IDENTIFICATION;
-      version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+      result = await this.getCompletedIdentDocument(userData, document, documentType);
     }
 
-    return { document, version: version?.name };
+    return result;
+  }
+
+  private async getCompletedIdentDocument(
+    userData: UserData,
+    document: KycDocument,
+    documentType: KycContentType,
+  ): Promise<{ document: KycDocument; version: string; part: DocumentVersionPart }> {
+    const version = await this.spiderApi.getDocumentVersion(userData.id, false, document, KycDocumentState.COMPLETED);
+    if (!version) return null;
+
+    const part = await this.spiderApi
+      .getDocumentVersionParts(userData.id, false, document, version?.name)
+      .then((parts) => parts.find((p) => p.contentType === documentType));
+    if (!part) return null;
+
+    return { document, version: version.name, part };
   }
 }

@@ -213,6 +213,7 @@ export class BuyCrypto extends IEntity {
     } else if (this.amlCheck === AmlCheck.PENDING) {
       if (this.amlReason === AmlReason.DAILY_LIMIT) return 'mail.payment.pending.dailyLimit';
       if (this.amlReason === AmlReason.ANNUAL_LIMIT) return 'mail.payment.pending.annualLimit';
+      if (this.amlReason === AmlReason.OLKY_NO_KYC) return 'mail.payment.pending.olkyNoKyc';
     } else if (this.amlCheck === AmlCheck.FAIL) {
       return 'mail.payment.deposit.paybackInitiated';
     }
@@ -224,15 +225,19 @@ export class BuyCrypto extends IEntity {
     return this.buy ? this.buy.user : this.cryptoRoute.user;
   }
 
-  get target(): { address: string; asset: Asset } {
+  get target(): { address: string; asset: Asset; trimmedReturnAddress: string } {
     return this.buy
       ? {
           address: this.buy.deposit?.address ?? this.buy.user.address,
           asset: this.buy.asset,
+          trimmedReturnAddress: this.buy?.iban ? Util.trimIBAN(this.buy.iban) : null,
         }
       : {
           address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
           asset: this.cryptoRoute.asset,
+          trimmedReturnAddress: this.cryptoRoute?.user?.address
+            ? Util.trimBlockchainAddress(this.cryptoRoute.user.address)
+            : null,
         };
   }
 }

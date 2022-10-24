@@ -40,10 +40,6 @@ export enum BlankType {
 
 @Entity()
 export class UserData extends IEntity {
-  // TODO: remove
-  @Column({ default: true })
-  isMigrated: boolean;
-
   @Column({ default: AccountType.PERSONAL, length: 256 })
   accountType: AccountType;
 
@@ -178,6 +174,10 @@ export class UserData extends IEntity {
 
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
+
+  get hasExternalUser(): boolean {
+    return !!this.users.find((e) => e.wallet.isKycClient === true);
+  }
 }
 
 export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];

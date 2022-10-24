@@ -34,7 +34,7 @@ export class CryptoStakingService {
     private readonly stakingRefRewardRepo: StakingRefRewardRepository,
     private readonly stakingRepo: StakingRepository,
   ) {
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
   // --- CRUD --- //

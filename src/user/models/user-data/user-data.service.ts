@@ -36,10 +36,11 @@ export class UserDataService {
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
-      .innerJoin('userData.users', 'user')
+      .leftJoinAndSelect('userData.users', 'user')
       .leftJoinAndSelect('userData.country', 'country')
       .leftJoinAndSelect('userData.organizationCountry', 'organizationCountry')
       .leftJoinAndSelect('userData.language', 'language')
+      .leftJoinAndSelect('user.wallet', 'wallet')
       .where('user.id = :id', { id: userId })
       .getOne();
   }
@@ -69,7 +70,7 @@ export class UserDataService {
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
-    let userData = await this.userDataRepo.findOne(userDataId);
+    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users', 'users.wallet'] });
     if (!userData) throw new NotFoundException('User data not found');
 
     userData = await this.updateSpiderIfNeeded(userData, dto);

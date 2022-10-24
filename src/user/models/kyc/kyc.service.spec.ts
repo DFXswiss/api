@@ -19,6 +19,7 @@ import {
 } from '../user-data/__mocks__/user-data.entity.mock';
 import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
+import { WalletService } from '../wallet/wallet.service';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
 import { KycInfo, KycService } from './kyc.service';
@@ -36,6 +37,7 @@ describe('KycService', () => {
   let userRepo: UserRepository;
   let walletRepo: WalletRepository;
   let httpService: HttpService;
+  let walletService: WalletService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -131,6 +133,7 @@ describe('KycService', () => {
     userRepo = createMock<UserRepository>();
     walletRepo = createMock<WalletRepository>();
     httpService = createMock<HttpService>();
+    walletService = createMock<WalletService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -145,6 +148,7 @@ describe('KycService', () => {
         { provide: UserRepository, useValue: userRepo },
         { provide: WalletRepository, useValue: walletRepo },
         { provide: HttpService, useValue: httpService },
+        { provide: WalletService, useValue: walletService },
       ],
     }).compile();
 

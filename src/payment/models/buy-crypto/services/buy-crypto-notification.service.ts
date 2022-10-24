@@ -9,6 +9,7 @@ import { BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.e
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { AmlReason } from '../enums/aml-reason.enum';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -32,6 +33,7 @@ export class BuyCryptoNotificationService {
           txId: Not(IsNull()),
           isComplete: true,
           batch: { status: BuyCryptoBatchStatus.COMPLETE },
+          amlCheck: AmlCheck.PASS,
         },
         relations: [
           'bankTx',
@@ -137,7 +139,7 @@ export class BuyCryptoNotificationService {
                 returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.user.userData.language?.symbol.toLowerCase(),
                 }),
-                userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
+                userAddressTrimmed: entity.target.trimmedReturnAddress,
               },
             },
           });
@@ -157,7 +159,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
-        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT]),
+        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT, AmlReason.OLKY_NO_KYC]),
         amlCheck: AmlCheck.PENDING,
       },
       relations: [
@@ -182,7 +184,7 @@ export class BuyCryptoNotificationService {
               userData: entity.user.userData,
               translationKey: entity.translationKey,
               translationParams: {
-                hashLink: `https://payment.dfx.swiss/kyc?code=${entity.user.userData.kycHash}`,
+                hashLink: `${Config.payment.url}/kyc?code=${entity.user.userData.kycHash}`,
               },
             },
           });
