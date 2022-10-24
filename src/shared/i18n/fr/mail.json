@@ -106,6 +106,6 @@
     "NameCheck": "Pour des raisons légales, nous ne pouvons vous servir comme client",
     "AnnualLimit": "Vous avez dépassé votre limite annuelle",
     "OlkyNoKyc": "Vous devez terminer le KYC de DFX pour utiliser Olkypay Bank",
-    "MinDepositNotReached": "The minimum deposit limit was not reached"
+    "MinDepositNotReached": "La limite de dépôt minimum n'a pas été atteinte"
   }
 }
