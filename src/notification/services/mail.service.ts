@@ -32,6 +32,7 @@ export class MailService {
               salutation: mail.salutation,
               body: mail.body,
               date: mail.date,
+              banner: mail.banner,
               telegramUrl: mail.telegramUrl,
               twitterUrl: mail.twitterUrl,
               linkedinUrl: mail.linkedinUrl,

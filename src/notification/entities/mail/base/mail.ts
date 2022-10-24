@@ -3,7 +3,7 @@ import { NotificationType } from 'src/notification/enums';
 import { Notification, NotificationOptions, NotificationMetadata } from '../../notification.entity';
 
 export interface MailParams {
-  to: string | string[];
+  to: string | string[];
   subject: string;
   salutation: string;
   body: string;
@@ -13,6 +13,7 @@ export interface MailParams {
   bcc?: string;
   template?: string;
   date?: number;
+  banner?: string;
   telegramUrl?: string;
   twitterUrl?: string;
   linkedinUrl?: string;
@@ -26,13 +27,14 @@ export class Mail extends Notification {
     name: 'DFX.swiss',
     address: GetConfig().mail.contact.noReplyMail,
   };
-  readonly #to: string | string[];
+  readonly #to: string | string[];
   readonly #cc: string;
   readonly #bcc: string;
   readonly #template: string = GetConfig().mail.defaultMailTemplate;
   readonly #subject: string;
   readonly #salutation: string;
   readonly #body: string;
+  readonly #banner: string;
   readonly #date: number = new Date().getFullYear();
   readonly #telegramUrl: string = GetConfig().defaultTelegramUrl;
   readonly #twitterUrl: string = GetConfig().defaultTwitterUrl;
@@ -55,6 +57,7 @@ export class Mail extends Notification {
     this.#bcc = params.bcc ?? this.#bcc;
     this.#template = params.template ?? this.#template;
     this.#date = params.date ?? this.#date;
+    this.#banner = params.banner ?? this.#banner;
     this.#telegramUrl = params.telegramUrl ?? this.#telegramUrl;
     this.#twitterUrl = params.twitterUrl ?? this.#twitterUrl;
     this.#linkedinUrl = params.linkedinUrl ?? this.#linkedinUrl;
@@ -66,7 +69,7 @@ export class Mail extends Notification {
     return { name, address };
   }
 
-  get to(): string | string[] {
+  get to(): string | string[] {
     return this.#to;
   }
 
@@ -96,6 +99,10 @@ export class Mail extends Notification {
 
   get date(): number {
     return this.#date;
+  }
+
+  get banner(): string {
+    return this.#banner;
   }
 
   get telegramUrl(): string {
