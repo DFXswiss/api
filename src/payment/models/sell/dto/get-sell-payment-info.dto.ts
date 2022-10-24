@@ -18,6 +18,7 @@ export class GetSellPaymentInfoDto {
   currency: Fiat;
 
   @ApiProperty()
+  @IsNotEmpty()
   @IsOptional()
   @IsEnum(Blockchain)
   blockchain: Blockchain = Blockchain.DEFICHAIN;

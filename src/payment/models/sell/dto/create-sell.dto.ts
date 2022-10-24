@@ -18,6 +18,7 @@ export class CreateSellDto {
   fiat: Fiat;
 
   @ApiProperty()
+  @IsNotEmpty()
   @IsOptional()
   @IsEnum(Blockchain)
   blockchain: Blockchain = Blockchain.DEFICHAIN;
