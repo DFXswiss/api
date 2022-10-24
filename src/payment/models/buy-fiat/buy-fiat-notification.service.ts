@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
+import { Config } from 'src/config/config';
 import { MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { Lock } from 'src/shared/lock';
 import { Util } from 'src/shared/util';
-import { IsNull, Not } from 'typeorm';
+import { IsNull, Not, In } from 'typeorm';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
+import { AmlReason } from '../buy-crypto/enums/aml-reason.enum';
 import { BuyFiatRepository } from './buy-fiat.repository';
 
 @Injectable()
@@ -28,6 +30,7 @@ export class BuyFiatNotificationService {
     await this.cryptoExchangedToFiat();
     await this.fiatToBankTransferInitiated();
     await this.paybackToAddressInitiated();
+    await this.pendingBuyFiat();
 
     this.lock.release();
   }
@@ -76,7 +79,7 @@ export class BuyFiatNotificationService {
         mail1SendDate: Not(IsNull()),
         mail2SendDate: IsNull(),
         outputAmount: Not(IsNull()),
-        amlCheck: Not(AmlCheck.FAIL),
+        amlCheck: AmlCheck.PASS,
       },
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
@@ -116,7 +119,7 @@ export class BuyFiatNotificationService {
         mail2SendDate: Not(IsNull()),
         mail3SendDate: IsNull(),
         bankTx: Not(IsNull()),
-        amlCheck: Not(AmlCheck.FAIL),
+        amlCheck: AmlCheck.PASS,
       },
       relations: ['sell', 'sell.user', 'sell.user.userData'],
     });
@@ -189,6 +192,44 @@ export class BuyFiatNotificationService {
         }
 
         await this.buyFiatRepo.update({ id: entity.id }, { mailReturnSendDate: entity.mailReturnSendDate });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  async pendingBuyFiat(): Promise<void> {
+    const entities = await this.buyFiatRepo.find({
+      where: {
+        mail2SendDate: IsNull(),
+        outputAmount: IsNull(),
+        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT]),
+        amlCheck: AmlCheck.PENDING,
+      },
+      relations: ['sell', 'sell.user', 'sell.user.userData'],
+    });
+
+    entities.length > 0 && console.log(`Sending ${entities.length} 'pending' email(s)`);
+
+    for (const entity of entities) {
+      try {
+        if (entity.sell.user.userData.mail) {
+          await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: entity.sell.user.userData,
+              translationKey:
+                entity.amlReason === AmlReason.DAILY_LIMIT
+                  ? 'mail.payment.pending.dailyLimit'
+                  : 'mail.payment.pending.annualLimit',
+              translationParams: {
+                hashLink: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}`,
+              },
+            },
+          });
+        }
+
+        await this.buyFiatRepo.update(...entity.pendingMail());
       } catch (e) {
         console.error(e);
       }
