@@ -130,6 +130,13 @@ export class BuyFiat extends IEntity {
     return [this.id, { recipientMail: this.recipientMail, mail1SendDate: this.mail1SendDate }];
   }
 
+  pendingMail(): UpdateResult<BuyFiat> {
+    this.recipientMail = this.sell.user.userData.mail;
+    this.mail2SendDate = new Date();
+
+    return [this.id, { recipientMail: this.recipientMail, mail2SendDate: this.mail2SendDate }];
+  }
+
   cryptoExchangedToFiat(): UpdateResult<BuyFiat> {
     this.mail2SendDate = new Date();
 
