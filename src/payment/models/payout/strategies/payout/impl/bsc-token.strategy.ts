@@ -10,6 +10,8 @@ export class BscTokenStrategy extends EvmStrategy {
     super(bscService, payoutOrderRepo);
   }
 
+  estimateFee(quantityOfTransactions: number): Promise<FeeResult> {}
+
   protected dispatchPayout(order: PayoutOrder): Promise<string> {
     return this.bscService.sendToken(order.destinationAddress, order.asset, order.amount);
   }

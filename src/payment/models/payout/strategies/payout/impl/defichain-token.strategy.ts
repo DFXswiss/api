@@ -20,6 +20,8 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
     super(notificationService, payoutOrderRepo, jellyfishService);
   }
 
+  estimateFee(quantityOfTransactions: number): Promise<FeeResult> {}
+
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     const tokenGroups = this.groupOrdersByTokens(orders);
 

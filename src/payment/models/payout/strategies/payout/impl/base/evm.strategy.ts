@@ -3,11 +3,13 @@ import { PayoutOrderRepository } from '../../../../repositories/payout-order.rep
 import { PayoutEvmService } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class EvmStrategy implements PayoutStrategy {
+export abstract class EvmStrategy extends PayoutStrategy {
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
-  ) {}
+  ) {
+    super();
+  }
 
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
 

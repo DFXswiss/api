@@ -10,6 +10,8 @@ export class EthereumTokenStrategy extends EvmStrategy {
     super(ethereumService, payoutOrderRepo);
   }
 
+  estimateFee(quantityOfTransactions: number): Promise<FeeResult> {}
+
   protected dispatchPayout(order: PayoutOrder): Promise<string> {
     return this.ethereumService.sendToken(order.destinationAddress, order.asset, order.amount);
   }

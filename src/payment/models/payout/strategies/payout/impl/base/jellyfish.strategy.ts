@@ -6,12 +6,14 @@ import { PayoutStrategy } from './payout.strategy';
 import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 
-export abstract class JellyfishStrategy implements PayoutStrategy {
+export abstract class JellyfishStrategy extends PayoutStrategy {
   constructor(
     protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly jellyfishService: PayoutJellyfishService,
-  ) {}
+  ) {
+    super();
+  }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {

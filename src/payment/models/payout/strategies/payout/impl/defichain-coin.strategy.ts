@@ -16,6 +16,8 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     super(notificationService, payoutOrderRepo, deFiChainService);
   }
 
+  estimateFee(quantityOfTransactions: number): Promise<FeeResult> {}
+
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     const payoutGroups = this.createPayoutGroups(orders, 100);
 

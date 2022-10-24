@@ -10,6 +10,8 @@ export class BscCoinStrategy extends EvmStrategy {
     super(bscService, payoutOrderRepo);
   }
 
+  estimateFee(quantityOfTransactions: number): Promise<FeeResult> {}
+
   protected dispatchPayout(order: PayoutOrder): Promise<string> {
     return this.bscService.sendNativeCoin(order.destinationAddress, order.amount);
   }
