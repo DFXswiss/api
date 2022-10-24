@@ -172,7 +172,7 @@ export class BtcInputService extends CryptoInputService {
       input.vout,
       await this.getFeeRate(input.amount),
     );
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId, feeAmount });
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId, forwardFeeAmount: feeAmount });
   }
 
   private async getFeeRate(amount: number): Promise<number> {
