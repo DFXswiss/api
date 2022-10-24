@@ -40,7 +40,7 @@ describe('UserService', () => {
   ) {
     jest
       .spyOn(userRepo, 'findOne')
-      .mockResolvedValue({ accountType, refFeePercent, buyFee, usedRef, cryptoFee } as User);
+      .mockResolvedValue({ refFeePercent, buyFee, usedRef, cryptoFee, userData: { accountType: accountType } } as User);
   }
 
   beforeEach(async () => {
