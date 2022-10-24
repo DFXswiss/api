@@ -33,5 +33,7 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
     return transaction && transaction.blockhash && transaction.confirmations > 0;
   }
 
-  async getCurrentFastestFeeRate(): Promise<number> {}
+  async getCurrentFastestFeeRate(): Promise<number> {
+    return this.feeService.getRecommendedFeeRate();
+  }
 }

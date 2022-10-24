@@ -67,7 +67,7 @@ export class PayoutService {
   async estimateFee(request: FeeRequest): Promise<FeeResult> {
     const strategy = this.payoutStrategies.getPayoutStrategy(request.asset);
 
-    return strategy.estimateFee(request.quantityOfTransactions);
+    return strategy.estimateFee(request.quantityOfTransactions, request.asset);
   }
 
   //*** JOBS ***//

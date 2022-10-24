@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
@@ -11,6 +12,8 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
+  #feeAsset: Asset;
+
   constructor(
     notificationService: NotificationService,
     protected readonly bitcoinService: PayoutBitcoinService,
@@ -21,12 +24,13 @@ export class BitcoinStrategy extends JellyfishStrategy {
   }
 
   async estimateFee(quantityOfTransactions: number): Promise<FeeResult> {
-    const feeRate = this.bitcoinService.getCurrentFastestFeeRate();
-    const satoshiFeeAmount = 200 + 50 * feeRate;
+    const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
+    const satoshiFeeAmount = (200 + 50 * quantityOfTransactions) * feeRate;
     const btcFeeAmount = satoshiFeeAmount / 100000000;
-    const asset = await this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
+    this.#feeAsset =
+      this.#feeAsset ?? (await this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN }));
 
-    return { asset, amount: btcFeeAmount };
+    return { asset: this.#feeAsset, amount: btcFeeAmount };
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

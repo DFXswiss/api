@@ -5,6 +5,9 @@ import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { FeeResult } from '../../../interfaces';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
@@ -12,11 +15,17 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     notificationService: NotificationService,
     protected readonly deFiChainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
+    protected readonly assetService: AssetService,
   ) {
     super(notificationService, payoutOrderRepo, deFiChainService);
   }
 
-  estimateFee(quantityOfTransactions: number): Promise<FeeResult> {}
+  async estimateFee(_quantityOfTransactions: number): Promise<FeeResult> {
+    this.feeAsset =
+      this.feeAsset ?? (await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN }));
+
+    return { asset: this.feeAsset, amount: 0 };
+  }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
     const payoutGroups = this.createPayoutGroups(orders, 100);

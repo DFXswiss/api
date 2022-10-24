@@ -48,6 +48,12 @@ export class PayoutOrder extends IEntity {
   payoutTxId: string;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
+  preparationFeeAsset?: Asset;
+
+  @Column({ type: 'float', nullable: true })
+  preparationFeeAmount?: number;
+
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   payoutFeeAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
@@ -109,7 +115,7 @@ export class PayoutOrder extends IEntity {
   get payoutFee(): { asset: Asset; amount: number } {
     return {
       asset: this.payoutFeeAsset,
-      amount: this.payoutFeeAmount,
+      amount: this.payoutFeeAmount + this.preparationFeeAmount,
     };
   }
 }
