@@ -165,14 +165,14 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
-    const outTxId = await this.btcClient.send(
+    const { outTxId, feeAmount } = await this.btcClient.send(
       address,
       input.inTxId,
       input.amount,
       input.vout,
       await this.getFeeRate(input.amount),
     );
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId, feeAmount });
   }
 
   private async getFeeRate(amount: number): Promise<number> {

@@ -42,6 +42,9 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'float' })
   amount: number;
 
+  @Column({ type: 'float' })
+  feeAmount: number;
+
   @Column({ type: 'float', nullable: true })
   btcAmount?: number;
 
