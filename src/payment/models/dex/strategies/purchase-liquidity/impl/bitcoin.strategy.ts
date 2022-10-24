@@ -3,10 +3,18 @@ import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { LiquidityRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class BitcoinStrategy extends PurchaseLiquidityStrategy {
-  constructor(notificationService: NotificationService, private readonly dexBtcService: DexBitcoinService) {
+  constructor(
+    protected readonly assetService: AssetService,
+    notificationService: NotificationService,
+    private readonly dexBtcService: DexBitcoinService,
+  ) {
     super(notificationService);
   }
 
@@ -24,5 +32,13 @@ export class BitcoinStrategy extends PurchaseLiquidityStrategy {
     } catch (e) {
       await this.handlePurchaseLiquidityError(e, request);
     }
+  }
+
+  addPurchaseData(order: LiquidityOrder): Promise<void> {
+    throw new Error('Method not implemented.');
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
   }
 }

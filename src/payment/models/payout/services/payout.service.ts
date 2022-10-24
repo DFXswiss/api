@@ -125,7 +125,7 @@ export class PayoutService {
       const strategy = this.payoutStrategies.getPayoutStrategy(order.asset);
 
       try {
-        await strategy.checkPayoutCompletion(order);
+        await strategy.checkPayoutCompletionData(order);
         order.status === PayoutOrderStatus.COMPLETE && confirmedOrders.push(order);
       } catch {
         continue;

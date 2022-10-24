@@ -29,7 +29,7 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
     }
   }
 
-  async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
+  async checkPayoutCompletionData(order: PayoutOrder): Promise<void> {
     try {
       const [isComplete, payoutFee] = await this.jellyfishService.getPayoutCompletionData(
         order.context,

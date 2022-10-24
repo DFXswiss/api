@@ -174,8 +174,7 @@ export class DexService {
           throw new Error(`No purchase liquidity strategy for asset ${dexName} ${blockchain} ${type}`);
         }
 
-        await strategy.recordPurchasedLiquidity(order);
-        await strategy.recordPurchaseFee(order);
+        await strategy.addPurchaseData(order);
 
         console.info(
           `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,

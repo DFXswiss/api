@@ -61,11 +61,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     }
   }
 
-  recordPurchasedLiquidity(order: LiquidityOrder): Promise<void> {
-    throw new Error('Method not implemented.');
-  }
-
-  recordPurchaseFee(order: LiquidityOrder): Promise<void> {
+  addPurchaseData(order: LiquidityOrder): Promise<void> {
     throw new Error('Method not implemented.');
   }
 
@@ -99,6 +95,10 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     }
 
     this.verifyDerivedOrdersLock.release();
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
   }
 
   private parseAssetPair(asset: Asset): [string, string] {

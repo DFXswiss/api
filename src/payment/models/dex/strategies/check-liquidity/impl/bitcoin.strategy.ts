@@ -1,15 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { LiquidityRequest } from '../../../interfaces';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
-export class BitcoinStrategy implements CheckLiquidityStrategy {
-  constructor(private readonly dexBtcService: DexBitcoinService) {}
+export class BitcoinStrategy extends CheckLiquidityStrategy {
+  constructor(protected readonly assetService: AssetService, private readonly dexBtcService: DexBitcoinService) {
+    super();
+  }
 
-  async checkLiquidity(request: LiquidityRequest): Promise<number> {
+  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAmount: bitcoinAmount } = request;
 
     return this.dexBtcService.checkAvailableTargetLiquidity(bitcoinAmount);
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
   }
 }
