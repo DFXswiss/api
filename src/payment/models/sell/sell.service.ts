@@ -57,6 +57,7 @@ export class SellService {
 
     // check if exists
     const existing = await this.sellRepo.findOne({
+      relations: ['deposit'],
       where: { iban: dto.iban, fiat: fiat, deposit: { blockchain: dto.blockchain }, user: { id: userId } },
     });
 
