@@ -105,6 +105,7 @@
     "KycRejected": "Your KYC Request was rejected",
     "NameCheck": "For legal reasons we can not serve you as a customer",
     "AnnualLimit": "You exceeded your annual limit",
-    "OlkyNoKyc": "You have to complete KYC for DFX in order to use Olkypay Bank"
+    "OlkyNoKyc": "You have to complete KYC for DFX in order to use Olkypay Bank",
+    "MinDepositNotReached": "The minimum deposit limit was not reached"
   }
 }

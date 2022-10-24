@@ -106,6 +106,7 @@
     "KycRejected": "Deine Verifizierung wurde abgelehnt",
     "NameCheck": "Aus rechtlichen Gründen können dich als Kunden leider nicht bedienen",
     "AnnualLimit": "Du hast das Jahreslimit überschritten",
-    "OlkyNoKyc": "Für Nutzung der Olkypay Bank musst du dich vorher vollständig verifzieren (KYC)"
+    "OlkyNoKyc": "Für Nutzung der Olkypay Bank musst du dich vorher vollständig verifzieren (KYC)",
+    "MinDepositNotReached": "Die Mindesteinzahlungsgrenze wurde nicht erreicht"
   }
 }
