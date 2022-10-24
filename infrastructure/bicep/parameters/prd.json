@@ -110,6 +110,9 @@
     "btcCollectorAddress": {
       "value": "xxx"
     },
+    "btcOutWalletAddress": {
+      "value": "xxx"
+    },
     "nodeServicePlanSkuName": {
       "value": "P2v2"
     },

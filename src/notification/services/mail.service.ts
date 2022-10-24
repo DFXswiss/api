@@ -9,6 +9,7 @@ export interface MailOptions {
   contact: {
     supportMail: string;
     monitoringMail: string;
+    liqMail: string;
     noReplyMail: string;
   };
 }

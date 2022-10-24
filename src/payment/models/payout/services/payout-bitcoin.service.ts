@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
+import { BtcFeeService } from 'src/blockchain/ain/services/btc-fee.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
 
@@ -8,7 +9,7 @@ import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.ser
 export class PayoutBitcoinService extends PayoutJellyfishService {
   #client: BtcClient;
 
-  constructor(readonly nodeService: NodeService) {
+  constructor(readonly nodeService: NodeService, private readonly feeService: BtcFeeService) {
     super();
     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.#client = client));
   }
@@ -22,10 +23,11 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
   }
 
   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    return this.#client.sendUtxoToMany(payout);
+    const feeRate = await this.feeService.getRecommendedFeeRate();
+    return this.#client.sendMany(payout, feeRate);
   }
 
-  async checkPayoutCompletion(payoutTxId: string): Promise<boolean> {
+  async checkPayoutCompletion(_context: any, payoutTxId: string): Promise<boolean> {
     const transaction = await this.#client.getTx(payoutTxId);
 
     return transaction && transaction.blockhash && transaction.confirmations > 0;

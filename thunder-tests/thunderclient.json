@@ -1867,6 +1867,64 @@
     "tests": []
   },
   {
+    "_id": "a0a206f0-13eb-493a-9b07-3a140b0eeedf",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Company Challenge",
+    "url": "{{url}}/v1/auth/company/challenge?address=8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
+    "method": "POST",
+    "sortNum": 85000,
+    "created": "2022-10-14T13:12:37.193Z",
+    "modified": "2022-10-20T10:15:12.521Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "address",
+        "value": "8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
+        "isPath": false
+      }
+    ],
+    "auth": {
+      "type": "none"
+    },
+    "tests": []
+  },
+  {
+    "_id": "8384887d-f0e7-43a4-9a28-1859576d0c1c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Company SignIn",
+    "url": "{{url}}/v1/auth/company/signin",
+    "method": "POST",
+    "sortNum": 82500,
+    "created": "2022-10-14T13:12:39.907Z",
+    "modified": "2022-10-20T10:28:14.156Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"address\": \"8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4\",\n    \"signature\": \"HzRZfDlmtAp4ywy7MuGpwCEEGoemH6rB82VNJUaKM7P1PCmiBRo2MyuuYfIBKE/nakafSymO8ep+84AGIzeEm/I=\"\n}",
+      "form": []
+    },
+    "auth": {
+      "type": "none"
+    },
+    "tests": []
+  },
+  {
+    "_id": "14441e24-4e57-4e7c-88cc-dff408c5837e",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "9baf5a17-7886-4959-ab65-eea8e3dae524",
+    "name": "KycData",
+    "url": "{{url}}/v1/wallet/kycData",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-10-14T16:15:32.185Z",
+    "modified": "2022-10-14T16:16:42.670Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },{
     "_id": "fb9bc645-856b-46a8-98c3-445abc95a2c4",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",

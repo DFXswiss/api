@@ -155,7 +155,7 @@ export class BuyCryptoNotificationService {
                 returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.user.userData.language?.symbol.toLowerCase(),
                 }),
-                userAddressTrimmed: Util.trimBlockchainAddress(entity.user.address),
+                userAddressTrimmed: entity.target.trimmedReturnAddress,
               },
             },
           });

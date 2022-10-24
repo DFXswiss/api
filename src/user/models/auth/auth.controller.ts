@@ -30,4 +30,9 @@ export class AuthController {
   signInCompany(@Body() credentials: AuthCredentialsDto): Promise<{ accessToken: string }> {
     return this.authService.companySignIn(credentials);
   }
+
+  @Post('company/challenge')
+  companyChallenge(@Query('address') address: string): Promise<{ challenge: string }> {
+    return this.authService.getCompanyChallenge(address);
+  }
 }

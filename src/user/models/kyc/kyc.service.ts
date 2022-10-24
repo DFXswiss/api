@@ -28,8 +28,8 @@ import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { HttpService } from 'src/shared/services/http.service';
-import { Config } from 'src/config/config';
 import { UserRepository } from '../user/user.repository';
+import { WalletService } from '../wallet/wallet.service';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -51,6 +51,7 @@ export class KycService {
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
     private readonly walletRepo: WalletRepository,
+    private readonly walletService: WalletService,
     private readonly spiderService: SpiderService,
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
@@ -73,7 +74,7 @@ export class KycService {
   }
 
   async updateKycStatus(userDataId: number, dto: UpdateKycStatusDto): Promise<void> {
-    let userData = await this.userDataRepo.findOne({ where: { id: userDataId } });
+    let userData = await this.userDataRepo.findOne({ where: { id: userDataId }, relations: ['users', 'users.wallet'] });
     if (!userData) throw new NotFoundException('User data not found');
 
     // update status
@@ -137,9 +138,12 @@ export class KycService {
     if (!user) throw new NotFoundException('DFX user not found');
     if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
 
+    const apiKey = this.walletService.getApiKeyInternal(wallet.name);
+    if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
+
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
-        headers: { 'x-api-key': Config.lock.apiKey },
+        headers: { 'x-api-key': apiKey },
 
         params: { address: user.address },
       });
@@ -221,7 +225,7 @@ export class KycService {
 
     const users = await this.userDataService.getUsersByMail(user.mail);
     const completedUser = users.find((data) => KycCompleted(data.kycStatus));
-    if (completedUser) {
+    if (completedUser && !user.hasExternalUser) {
       await this.linkService.createNewLinkAddress(user, completedUser);
       throw new ConflictException('User already has completed Kyc');
     }
@@ -287,7 +291,10 @@ export class KycService {
   }
 
   private async getUserByKycCode(code: string): Promise<UserData> {
-    const userData = await this.userDataRepo.findOne({ where: { kycHash: code }, relations: ['users', 'spiderData'] });
+    const userData = await this.userDataRepo.findOne({
+      where: { kycHash: code },
+      relations: ['users', 'users.wallet', 'spiderData'],
+    });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
   }

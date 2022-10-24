@@ -21,9 +21,19 @@ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/util';
+import { Interval } from '@nestjs/schedule';
+import { randomUUID } from 'crypto';
+
+export interface ChallengeData {
+  created: Date;
+  challenge: string;
+}
 
 @Injectable()
 export class AuthService {
+  private challengeList: Map<string, ChallengeData> = new Map<string, ChallengeData>();
+
   constructor(
     private readonly userService: UserService,
     private readonly userRepo: UserRepository,
@@ -33,13 +43,24 @@ export class AuthService {
     private readonly refService: RefService,
   ) {}
 
+  @Interval(90000)
+  checkChallengeList() {
+    for (const [key, challenge] of this.challengeList.entries()) {
+      if (!this.isChallengeValid(challenge)) {
+        this.challengeList.delete(key);
+      }
+    }
+  }
+
+  // --- AUTH METHODS --- //
   async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
     const existingUser = await this.userRepo.getByAddress(dto.address);
     if (existingUser) {
       throw new ConflictException('User already exists');
     }
 
-    if (!this.verifySignature(dto.address, dto.signature)) {
+    const { message } = this.getSignMessage(dto.address);
+    if (!this.verifySignature(message, dto.address, dto.signature)) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -56,7 +77,8 @@ export class AuthService {
     const user = await this.userRepo.getByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
-    const credentialsValid = this.verifySignature(address, signature);
+    const { message } = this.getSignMessage(address);
+    const credentialsValid = this.verifySignature(message, address, signature);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
@@ -67,16 +89,35 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async companySignIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    const wallet = await this.walletRepo.getByAddress(address);
+  async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    const wallet = await this.walletRepo.findOne({ where: { address: dto.address } });
     if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
 
-    // TODO add challenge response
-    const credentialsValid = this.verifyCompanySignature(address, signature);
+    const credentialsValid = this.verifyCompanySignature(dto);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet) };
   }
+
+  async getCompanyChallenge(address: string): Promise<{ challenge: string }> {
+    const wallet = await this.walletRepo.findOne({ where: { address: address } });
+    if (!wallet || !wallet.isKycClient) throw new BadRequestException('Wallet not found/invalid');
+
+    const challenge = randomUUID();
+
+    this.challengeList.set(address, { created: new Date(), challenge: challenge });
+
+    return { challenge: challenge };
+  }
+
+  async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
+    const user = await this.getLinkedUser(id, changeUser.address);
+    if (!user) throw new NotFoundException('User not found');
+    if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
+    return { accessToken: this.generateUserToken(user) };
+  }
+
+  // --- HELPER METHODS --- //
 
   getSignMessage(address: string): { message: string; blockchains: Blockchain[] } {
     const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
@@ -94,13 +135,6 @@ export class AuthService {
     };
   }
 
-  async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
-    const user = await this.getLinkedUser(id, changeUser.address);
-    if (!user) throw new NotFoundException('User not found');
-    if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
-    return { accessToken: this.generateUserToken(user) };
-  }
-
   private async getLinkedUser(id: number, address: string): Promise<User> {
     return this.userRepo
       .createQueryBuilder('user')
@@ -112,14 +146,16 @@ export class AuthService {
       .getRawOne<User>();
   }
 
-  private verifySignature(address: string, signature: string): boolean {
-    const signatureMessage = this.getSignMessage(address);
-    return this.cryptoService.verifySignature(signatureMessage.message, address, signature);
+  private verifySignature(message: string, address: string, signature: string): boolean {
+    return this.cryptoService.verifySignature(message, address, signature);
   }
 
-  private verifyCompanySignature(address: string, signature: string): boolean {
-    const signatureMessage = this.getCompanySignMessage(address);
-    return this.cryptoService.verifySignature(signatureMessage.message, address, signature);
+  private verifyCompanySignature(dto: AuthCredentialsDto): boolean {
+    const challengeData = this.challengeList.get(dto.address);
+    if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
+    this.challengeList.delete(dto.address);
+
+    return this.verifySignature(challengeData.challenge, dto.address, dto.signature);
   }
 
   private generateUserToken(user: User): string {
@@ -138,6 +174,10 @@ export class AuthService {
       address: wallet.address,
       role: UserRole.KYC_CLIENT_COMPANY,
     };
-    return this.jwtService.sign(payload);
+    return this.jwtService.sign(payload, { expiresIn: Config.auth.company.signOptions.expiresIn });
+  }
+
+  private isChallengeValid(challenge: ChallengeData): boolean {
+    return challenge && Util.secondsDiff(challenge.created, new Date()) <= Config.auth.challenge.expiresIn;
   }
 }
