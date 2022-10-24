@@ -9,6 +9,7 @@ import { BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.e
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { AmlReason } from '../enums/aml-reason.enum';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -182,7 +183,7 @@ export class BuyCryptoNotificationService {
               userData: entity.user.userData,
               translationKey: entity.translationKey,
               translationParams: {
-                hashLink: `https://payment.dfx.swiss/kyc?code=${entity.user.userData.kycHash}`,
+                hashLink: `${Config.payment.url}/kyc?code=${entity.user.userData.kycHash}`,
               },
             },
           });

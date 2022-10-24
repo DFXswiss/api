@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { I18nService } from 'nestjs-i18n';
 import { BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.enum';
+import { Config } from 'src/config/config';
 import { MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { Lock } from 'src/shared/lock';
@@ -29,7 +30,7 @@ export class BuyFiatNotificationService {
     await this.cryptoExchangedToFiat();
     await this.fiatToBankTransferInitiated();
     await this.paybackToAddressInitiated();
-    await this.pendingBuyCrypto();
+    await this.pendingBuyFiat();
 
     this.lock.release();
   }
@@ -197,7 +198,7 @@ export class BuyFiatNotificationService {
     }
   }
 
-  async pendingBuyCrypto(): Promise<void> {
+  async pendingBuyFiat(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
         mail2SendDate: IsNull(),
@@ -222,7 +223,7 @@ export class BuyFiatNotificationService {
                   ? 'mail.payment.pending.dailyLimit'
                   : 'mail.payment.pending.annualLimit',
               translationParams: {
-                hashLink: `https://payment.dfx.swiss/kyc?code=${entity.sell.user.userData.kycHash}`,
+                hashLink: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}`,
               },
             },
           });
