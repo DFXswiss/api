@@ -1,6 +1,4 @@
 import { Buy } from 'src/payment/models/buy/buy.entity';
-import { Country } from 'src/shared/models/country/country.entity';
-import { Language } from 'src/shared/models/language/language.entity';
 import { Sell } from 'src/payment/models/sell/sell.entity';
 import { UserData } from 'src/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/user/models/wallet/wallet.entity';
@@ -8,8 +6,6 @@ import { Entity, Column, OneToMany, ManyToOne, Index } from 'typeorm';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Staking } from '../../../payment/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { AccountType } from '../user-data/account-type.enum';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { RefReward } from 'src/payment/models/ref-reward/ref-reward.entity';
 import { StakingRefReward } from 'src/payment/models/staking-ref-reward/staking-ref-reward.entity';
 import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
