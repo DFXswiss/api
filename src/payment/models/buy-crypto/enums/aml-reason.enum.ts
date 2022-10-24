@@ -7,4 +7,5 @@ export enum AmlReason {
   KYC_REJECTED = 'KycRejected',
   NAME_CHECK = 'NameCheck',
   OLKY_NO_KYC = 'OlkyNoKyc',
+  MIN_DEPOSIT_NOT_REACHED = 'MinDepositNotReached',
 }
