@@ -1,14 +1,12 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { DeFiClient } from 'src/blockchain/ain/node/defi-client';
 import { Not } from 'typeorm';
-import { Config } from 'src/config/config';
+
 import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { LiquidityOrderContext, LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
@@ -19,15 +17,13 @@ import { NotificationService } from 'src/notification/services/notification.serv
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
 import { DexService } from '../../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
+import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 
 @Injectable()
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   private readonly verifyDerivedOrdersLock = new Lock(1800);
 
-  private chainClient: DeFiClient;
-
   constructor(
-    readonly nodeService: NodeService,
     readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly assetService: AssetService,
@@ -35,9 +31,9 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
     @Inject(forwardRef(() => DexService))
     private readonly dexService: DexService,
+    private readonly dexDeFiChainService: DexDeFiChainService,
   ) {
     super(notificationService);
-    nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.chainClient = client));
   }
 
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
@@ -61,8 +57,12 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     }
   }
 
-  addPurchaseData(order: LiquidityOrder): Promise<void> {
-    throw new Error('Method not implemented.');
+  async addPurchaseData(order: LiquidityOrder): Promise<void> {
+    const amount = await this.dexDeFiChainService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
+
+    order.purchased(amount);
+    order.recordPurchaseFee(await this.feeAsset(), 0);
+    await this.liquidityOrderRepo.save(order);
   }
 
   @Interval(30000)
@@ -198,7 +198,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   ): Promise<void> {
     const poolPair: [string, string] = [`${leftAmount}@${leftAsset}`, `${rightAmount}@${rightAsset}`];
 
-    const txId = await this.chainClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
+    const txId = await this.dexDeFiChainService.addPoolLiquidity(poolPair);
 
     order.addPurchaseMetadata(txId);
 

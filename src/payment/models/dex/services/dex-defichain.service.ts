@@ -80,6 +80,10 @@ export class DexDeFiChainService {
     }
   }
 
+  async addPoolLiquidity(poolPair: [string, string]): Promise<string> {
+    return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
+  }
+
   async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
     return this.#dexClient.sendToken(Config.blockchain.default.dexWalletAddress, addressTo, asset, amount);
   }

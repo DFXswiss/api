@@ -38,6 +38,7 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     const amount = await this.dexDeFiChainService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
 
     order.purchased(amount);
+    order.recordPurchaseFee(await this.feeAsset(), 0);
     await this.liquidityOrderRepo.save(order);
   }
 

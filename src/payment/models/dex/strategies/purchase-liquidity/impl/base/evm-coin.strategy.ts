@@ -33,7 +33,8 @@ export abstract class EvmCoinStrategy extends PurchaseLiquidityStrategy {
     }
   }
 
-  addPurchaseData(order: LiquidityOrder): Promise<void> {
-    throw new Error('Method not implemented.');
+  addPurchaseData(): Promise<void> {
+    // liquidity purchase not applicable
+    return;
   }
 }
