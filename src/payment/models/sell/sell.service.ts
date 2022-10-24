@@ -56,7 +56,9 @@ export class SellService {
     dto.iban = dto.iban.split(' ').join('');
 
     // check if exists
-    const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
+    const existing = await this.sellRepo.findOne({
+      where: { iban: dto.iban, fiat: fiat, deposit: { blockchain: dto.blockchain }, user: { id: userId } },
+    });
 
     if (existing) {
       if (existing.active && !ignoreExisting) throw new ConflictException('Sell route already exists');
