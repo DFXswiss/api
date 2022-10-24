@@ -10,6 +10,7 @@ export abstract class AutoConfirmStrategy extends PrepareStrategy {
 
   async preparePayout(order: PayoutOrder): Promise<void> {
     order.preparationConfirmed();
+    order.recordPreparationFee(await this.feeAsset(), 0);
 
     await this.payoutOrderRepo.save(order);
   }
@@ -22,8 +23,6 @@ export abstract class AutoConfirmStrategy extends PrepareStrategy {
   }
 
   async estimateFee(): Promise<FeeResult> {
-    this.feeAsset = this.feeAsset ?? (await this.getFeeAsset());
-
-    return { asset: this.feeAsset, amount: 0 };
+    return { asset: await this.feeAsset(), amount: 0 };
   }
 }

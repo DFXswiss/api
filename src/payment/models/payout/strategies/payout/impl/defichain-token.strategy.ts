@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrderContext, PayoutOrder } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
@@ -25,10 +26,7 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
   }
 
   async estimateFee(_quantityOfTransactions: number): Promise<FeeResult> {
-    this.feeAsset =
-      this.feeAsset ?? (await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN }));
-
-    return { asset: this.feeAsset, amount: 0 };
+    return { asset: await this.feeAsset(), amount: 0 };
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -96,6 +94,10 @@ export class DeFiChainTokenStrategy extends JellyfishStrategy {
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, outputAsset: string): Promise<string> {
     return this.jellyfishService.sendTokenToMany(context, payout, outputAsset);
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
   }
 
   private async sendToken(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {

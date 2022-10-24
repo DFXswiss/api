@@ -27,10 +27,13 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
     return this.#client.sendMany(payout, feeRate);
   }
 
-  async checkPayoutCompletion(_context: any, payoutTxId: string): Promise<boolean> {
+  async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {
     const transaction = await this.#client.getTx(payoutTxId);
 
-    return transaction && transaction.blockhash && transaction.confirmations > 0;
+    const isComplete = transaction && transaction.blockhash && transaction.confirmations > 0;
+    const payoutFee = isComplete ? transaction.fee : 0;
+
+    return [isComplete, payoutFee];
   }
 
   async getCurrentFastestFeeRate(): Promise<number> {

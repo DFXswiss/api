@@ -1,6 +1,7 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
+import { Util } from 'src/shared/util';
 import { Column, Entity, ManyToOne } from 'typeorm';
 
 export enum PayoutOrderContext {
@@ -72,6 +73,13 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
+  recordPreparationFee(preparationFeeAsset: Asset, preparationFeeAmount: number): this {
+    this.preparationFeeAsset = preparationFeeAsset;
+    this.preparationFeeAmount = preparationFeeAmount;
+
+    return this;
+  }
+
   designatePayout(): this {
     this.status = PayoutOrderStatus.PAYOUT_DESIGNATED;
 
@@ -115,7 +123,7 @@ export class PayoutOrder extends IEntity {
   get payoutFee(): { asset: Asset; amount: number } {
     return {
       asset: this.payoutFeeAsset,
-      amount: this.payoutFeeAmount + this.preparationFeeAmount,
+      amount: Util.round(this.payoutFeeAmount + this.preparationFeeAmount, 8),
     };
   }
 }

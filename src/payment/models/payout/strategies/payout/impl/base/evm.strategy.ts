@@ -15,15 +15,12 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
   protected abstract getCurrentGasForTransaction(token?: Asset): Promise<number>;
-  protected abstract getFeeAsset(): Promise<Asset>;
 
   async estimateFee(quantityOfTransactions: number, asset: Asset): Promise<FeeResult> {
     const gasPerTransaction = await this.getCurrentGasForTransaction(asset);
     const feeAmount = quantityOfTransactions * gasPerTransaction;
 
-    this.feeAsset = this.feeAsset ?? (await this.getFeeAsset());
-
-    return { asset: this.feeAsset, amount: feeAmount };
+    return { asset: await this.feeAsset(), amount: feeAmount };
   }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
@@ -41,10 +38,11 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
   async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
     try {
-      const isComplete = await this.payoutEvmService.checkPayoutCompletion(order.payoutTxId);
+      const [isComplete, payoutFee] = await this.payoutEvmService.getPayoutCompletionData(order.payoutTxId);
 
       if (isComplete) {
         order.complete();
+        order.recordPayoutFee(await this.feeAsset(), payoutFee);
 
         await this.payoutOrderRepo.save(order);
       }

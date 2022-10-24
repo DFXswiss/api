@@ -12,8 +12,6 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
-  #feeAsset: Asset;
-
   constructor(
     notificationService: NotificationService,
     protected readonly bitcoinService: PayoutBitcoinService,
@@ -27,10 +25,8 @@ export class BitcoinStrategy extends JellyfishStrategy {
     const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
     const satoshiFeeAmount = (200 + 50 * quantityOfTransactions) * feeRate;
     const btcFeeAmount = satoshiFeeAmount / 100000000;
-    this.#feeAsset =
-      this.#feeAsset ?? (await this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN }));
 
-    return { asset: this.#feeAsset, amount: btcFeeAmount };
+    return { asset: await this.feeAsset(), amount: btcFeeAmount };
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -57,6 +53,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     return this.bitcoinService.sendUtxoToMany(context, payout);
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
   }
 
   private async sendBTC(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

@@ -18,8 +18,11 @@ export abstract class PayoutEvmService {
     return this.#client.sendToken(address, tokenName, amount);
   }
 
-  async checkPayoutCompletion(txHash: string): Promise<boolean> {
-    return this.#client.isTxComplete(txHash);
+  async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {
+    const isComplete = await this.#client.isTxComplete(txHash);
+    const payoutFee = isComplete ? await this.#client.getTxActualFee(txHash) : 0;
+
+    return [isComplete, payoutFee];
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {

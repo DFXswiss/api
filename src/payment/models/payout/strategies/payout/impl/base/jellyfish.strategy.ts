@@ -31,10 +31,14 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
 
   async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
     try {
-      const isComplete = await this.jellyfishService.checkPayoutCompletion(order.context, order.payoutTxId);
+      const [isComplete, payoutFee] = await this.jellyfishService.getPayoutCompletionData(
+        order.context,
+        order.payoutTxId,
+      );
 
       if (isComplete) {
         order.complete();
+        order.recordPayoutFee(await this.feeAsset(), payoutFee);
 
         await this.payoutOrderRepo.save(order);
       }

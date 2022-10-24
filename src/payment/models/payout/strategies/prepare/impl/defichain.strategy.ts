@@ -53,6 +53,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
 
       if (isTransferComplete) {
         order.preparationConfirmed();
+        order.recordPreparationFee(await this.feeAsset(), 0);
 
         await this.payoutOrderRepo.save(order);
       }
@@ -62,9 +63,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
   }
 
   async estimateFee(): Promise<FeeResult> {
-    this.feeAsset = this.feeAsset ?? (await this.getFeeAsset());
-
-    return { asset: this.feeAsset, amount: 0 };
+    return { asset: await this.feeAsset(), amount: 0 };
   }
 
   protected getFeeAsset(): Promise<Asset> {

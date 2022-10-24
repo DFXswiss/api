@@ -33,10 +33,13 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
     return this.getClient(context).sendTokenToMany(this.getWalletAddress(context), asset, payout);
   }
 
-  async checkPayoutCompletion(context: PayoutOrderContext, payoutTxId: string): Promise<boolean> {
+  async getPayoutCompletionData(context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {
     const transaction = await this.getClient(context).getTx(payoutTxId);
 
-    return transaction && transaction.blockhash && transaction.confirmations > 0;
+    const isComplete = transaction && transaction.blockhash && transaction.confirmations > 0;
+    const payoutFee = isComplete ? transaction.fee : 0;
+
+    return [isComplete, payoutFee];
   }
 
   async getUtxoForAddress(address: string): Promise<number> {

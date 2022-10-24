@@ -86,6 +86,17 @@ export class EvmClient {
     return this.#provider.getTransaction(txHash);
   }
 
+  async getTxReceipt(txHash: string): Promise<ethers.providers.TransactionReceipt> {
+    return this.#provider.getTransactionReceipt(txHash);
+  }
+
+  async getTxActualFee(txHash: string): Promise<number> {
+    const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
+    const actualFee = gasUsed.mul(effectiveGasPrice);
+
+    return this.convertToEthLikeDenomination(actualFee, 'gwei');
+  }
+
   async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
     const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
     const inputAmount = this.convertToWeiLikeDenomination(nativeCryptoAmount, 'ether');
