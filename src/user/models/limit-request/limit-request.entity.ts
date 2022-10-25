@@ -1,4 +1,4 @@
-import { IEntity } from 'src/shared/models/entity';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
@@ -49,6 +49,23 @@ export class LimitRequest extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   edited: Date;
 
+  //Mail
+  @Column({ length: 256, nullable: true })
+  recipientMail: string;
+
+  @Column({ type: 'datetime2', nullable: true })
+  mailSendDate: Date;
+
+  // References
+
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
+
+  //
+  limitRequestMailSendDate(): UpdateResult<LimitRequest> {
+    this.recipientMail = this.userData.mail;
+    this.mailSendDate = new Date();
+
+    return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
+  }
 }

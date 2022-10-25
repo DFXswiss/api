@@ -38,12 +38,10 @@ export class BuyCryptoNotificationService {
           'buy',
           'buy.user',
           'buy.user.userData',
-          'buy.asset',
           'batch',
           'cryptoRoute',
           'cryptoRoute.user',
           'cryptoRoute.user.userData',
-          'cryptoRoute.asset',
         ],
       });
 

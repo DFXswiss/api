@@ -13,6 +13,17 @@ export interface NotificationOptions {
   debounce?: number; // debounce time in milliseconds
 }
 
+export enum Banner {
+  THERESIA = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerTheresia.png',
+  CYRILL = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerCyrill.png',
+  DANIEL = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerDaniel.png',
+  MATTHIAS = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerMatthias.png',
+  OLI = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerOli.png',
+  YANNICK = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerYannick.png',
+  TORSTEN = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerTorsten.png',
+  SUPPORT = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerSupport.png',
+}
+
 @Entity()
 export class Notification extends IEntity {
   @Column({ length: 256, nullable: false })

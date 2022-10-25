@@ -6,6 +6,7 @@ import { Mail } from '../entities/mail/base/mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import { MailRequest, MailRequestGenericInput } from '../interfaces';
+import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 
 @Injectable()
 export class MailFactory {
@@ -27,6 +28,10 @@ export class MailFactory {
 
       case MailType.USER: {
         return this.createUserMail(request);
+      }
+
+      case MailType.PERSONAL: {
+        return this.createPersonalMail(request);
       }
 
       default: {
@@ -79,6 +84,30 @@ export class MailFactory {
       subject,
       salutation,
       body,
+      metadata,
+      options,
+    });
+  }
+
+  private async createPersonalMail(request: MailRequest): Promise<PersonalMail> {
+    const { userData, translationKey, translationParams, banner, displayName, from } =
+      request.input as PersonalMailInput;
+    const { metadata, options } = request;
+
+    const { subject, salutation, body } = await this.t(
+      translationKey,
+      userData.language?.symbol.toLowerCase(),
+      translationParams,
+    );
+
+    return new PersonalMail({
+      to: userData.mail,
+      subject,
+      salutation,
+      body,
+      banner,
+      displayName,
+      from,
       metadata,
       options,
     });
