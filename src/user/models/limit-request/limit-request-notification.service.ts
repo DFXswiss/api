@@ -53,7 +53,6 @@ export class LimitRequestNotificationService {
               },
               from: 'theresia@dfx.swiss',
               displayName: 'Theresia Zahner | DFX',
-              template: '',
               banner: Banner.THERESIA,
             },
           });
