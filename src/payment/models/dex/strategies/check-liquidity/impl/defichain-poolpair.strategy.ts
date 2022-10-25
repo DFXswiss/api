@@ -12,7 +12,10 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
     super();
   }
 
-  // assume there is no poolpair liquidity available on DEX node
+  /**
+   * Assume there is no pool pair liquidity available on DEX node
+   * special case - availability check and target amount calculation is omitted
+   */
   async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
     return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(request, 0, 0, await this.feeAsset());
   }

@@ -14,15 +14,22 @@ export class BitcoinStrategy extends CheckLiquidityStrategy {
   }
 
   async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
-    const { referenceAmount: bitcoinAmount } = request;
+    const { context, correlationId, referenceAsset, referenceAmount: bitcoinAmount } = request;
 
-    const [targetAmount, availableAmount] = await this.dexBtcService.checkAvailableTargetLiquidity(bitcoinAmount);
+    if (referenceAsset.dexName === 'BTC') {
+      const [targetAmount, availableAmount] = await this.dexBtcService.checkAvailableTargetLiquidity(bitcoinAmount);
 
-    return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
-      request,
-      targetAmount,
-      availableAmount,
-      await this.feeAsset(),
+      return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
+        request,
+        targetAmount,
+        availableAmount,
+        await this.feeAsset(),
+      );
+    }
+
+    // only native coin is enabled as a referenceAsset
+    throw new Error(
+      `Only native coin reference is supported by Bitcoin CheckLiquidity strategy. Provided reference asset: ${referenceAsset} Context: ${context}. CorrelationID: ${correlationId}`,
     );
   }
 

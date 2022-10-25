@@ -14,7 +14,7 @@ export abstract class EvmTokenStrategy extends PurchaseLiquidityStrategy {
     try {
       // should always throw, even if there is amount, additional check is done for API consistency and sending mail
       const amount = await this.dexEvmService.getAndCheckTokenAvailability(
-        referenceAsset.dexName,
+        referenceAsset,
         referenceAmount,
         targetAsset,
       );

@@ -12,7 +12,7 @@ export abstract class EvmTokenStrategy extends CheckLiquidityStrategy {
     const { referenceAmount, referenceAsset, targetAsset } = request;
 
     const [targetAmount, availableAmount] = await this.dexEvmService.getAndCheckTokenAvailability(
-      referenceAsset.dexName,
+      referenceAsset,
       referenceAmount,
       targetAsset,
     );

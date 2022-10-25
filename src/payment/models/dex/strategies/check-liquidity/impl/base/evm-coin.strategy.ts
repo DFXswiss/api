@@ -9,10 +9,10 @@ export abstract class EvmCoinStrategy extends CheckLiquidityStrategy {
   }
 
   async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
-    const { referenceAsset, referenceAmount, context, correlationId } = request;
+    const { referenceAsset, referenceAmount: nativeCoinAmount, context, correlationId } = request;
 
     if (referenceAsset.dexName === this.dexEvmService._nativeCoin) {
-      const [targetAmount, availableAmount] = await this.dexEvmService.checkNativeCoinAvailability(referenceAmount);
+      const [targetAmount, availableAmount] = await this.dexEvmService.checkNativeCoinAvailability(nativeCoinAmount);
 
       return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
         request,

@@ -26,7 +26,7 @@ export abstract class DexEvmService {
   }
 
   async getAndCheckTokenAvailability(
-    sourceAsset: string,
+    sourceAsset: Asset,
     sourceAmount: number,
     targetAsset: Asset,
   ): Promise<[number, number]> {
@@ -42,9 +42,9 @@ export abstract class DexEvmService {
 
   //*** HELPER METHODS ***//
 
-  private async getTargetAmount(sourceAsset: string, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    if (sourceAsset === targetAsset.dexName) return sourceAmount;
-    if (sourceAsset !== this._nativeCoin) {
+  private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    if (sourceAsset.dexName === targetAsset.dexName) return sourceAmount;
+    if (sourceAsset.dexName !== this._nativeCoin) {
       // only native coin is enabled as a sourceAsset
       throw new Error(
         `Only native coin reference is supported by EVM test swap. Provided source asset: ${sourceAsset}. Target asset: ${targetAsset.dexName}. Blockchain: ${targetAsset.blockchain}`,
