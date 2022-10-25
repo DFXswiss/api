@@ -222,12 +222,7 @@ export class BuyCryptoBatchService {
         const nativePayoutFee = await this.checkPayoutFees(batch);
         const [purchaseFee, payoutFee] = await this.getFeeAmountsInBatchAsset(batch, liquidity, nativePayoutFee);
 
-        const {
-          reference: { availableAmount, maxPurchasableAmount },
-        } = liquidity;
-
-        const [_, isPurchaseRequired] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
-        batch.checkAndRecordFeesEstimations(isPurchaseRequired ? purchaseFee : 0, payoutFee);
+        await this.optimizeBatch(batch, liquidity, purchaseFee, payoutFee);
 
         optimizedBatches.push(batch);
       } catch (e) {
@@ -287,27 +282,93 @@ export class BuyCryptoBatchService {
     nativePayoutFee: FeeResult,
   ): Promise<[number, number]> {
     const { purchaseFee: nativePurchaseFee } = liquidity;
-    const purchaseFeeInBatchCurrency = nativePurchaseFee.amount
-      ? await this.buyCryptoPricingService.convertToTargetAsset(
-          batch,
-          nativePurchaseFee.asset,
-          nativePurchaseFee.amount,
-          batch.outputReferenceAsset,
-          'ConvertEstimatedPurchaseFee',
-        )
-      : 0;
 
-    const payoutFeeInBatchCurrency = nativePayoutFee.amount
-      ? await this.buyCryptoPricingService.convertToTargetAsset(
-          batch,
-          nativePayoutFee.asset,
-          nativePayoutFee.amount,
-          batch.outputReferenceAsset,
-          'ConvertEstimatedPayoutFee',
-        )
-      : 0;
+    const purchaseFeeInBatchCurrency = await this.getPurchaseFeeAmountInBatchAsset(batch, nativePurchaseFee);
+    const payoutFeeInBatchCurrency = await this.getPayoutFeeAmountInBatchAsset(batch, nativePayoutFee);
 
     return [purchaseFeeInBatchCurrency, payoutFeeInBatchCurrency];
+  }
+
+  private async getPurchaseFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativePurchaseFee: FeeResult): Promise<number> {
+    try {
+      return nativePurchaseFee.amount
+        ? await this.buyCryptoPricingService.convertToTargetAsset(
+            batch,
+            nativePurchaseFee.asset,
+            nativePurchaseFee.amount,
+            batch.outputReferenceAsset,
+            'ConvertEstimatedPurchaseFee',
+          )
+        : 0;
+    } catch (e) {
+      const message = `Could not get price for purchase fee calculation. Ignoring fee estimate. Native fee asset: ${nativePurchaseFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
+      console.error(message, e);
+
+      await this.handleFeeConversionError(
+        nativePurchaseFee.asset.dexName,
+        batch.outputReferenceAsset.dexName,
+        message,
+        e,
+      );
+
+      return 0;
+    }
+  }
+
+  private async getPayoutFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativePayoutFee: FeeResult): Promise<number> {
+    try {
+      return nativePayoutFee.amount
+        ? await this.buyCryptoPricingService.convertToTargetAsset(
+            batch,
+            nativePayoutFee.asset,
+            nativePayoutFee.amount,
+            batch.outputReferenceAsset,
+            'ConvertEstimatedPayoutFee',
+          )
+        : 0;
+    } catch (e) {
+      const message = `Could not get price for payout fee calculation. Ignoring fee estimate. Native fee asset: ${nativePayoutFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
+      console.error(message, e);
+
+      await this.handleFeeConversionError(
+        nativePayoutFee.asset.dexName,
+        batch.outputReferenceAsset.dexName,
+        message,
+        e,
+      );
+
+      return 0;
+    }
+  }
+
+  private async optimizeBatch(
+    batch: BuyCryptoBatch,
+    liquidity: CheckLiquidityResult,
+    purchaseFee: number,
+    payoutFee: number,
+  ): Promise<void> {
+    const {
+      reference: { availableAmount, maxPurchasableAmount },
+    } = liquidity;
+
+    const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
+
+    liquidityWarning && (await this.handleLiquidityWarning(batch));
+    const effectivePurchaseFee = isPurchaseRequired ? purchaseFee : 0;
+
+    batch.checkAndRecordFeesEstimations(effectivePurchaseFee, payoutFee);
+  }
+
+  private async handleLiquidityWarning(batch: BuyCryptoBatch): Promise<void> {
+    try {
+      const {
+        outputAsset: { dexName, blockchain, type },
+      } = batch;
+
+      await this.buyCryptoNotificationService.sendMissingLiquidityWarning(dexName, blockchain, type);
+    } catch (e) {
+      console.error('Error in handling buy crypto batch liquidity warning', e);
+    }
   }
 
   private async handleAbortBatchCreationException(
@@ -322,6 +383,24 @@ export class BuyCryptoBatchService {
       await this.buyCryptoNotificationService.sendMissingLiquidityError(dexName, blockchain, type, error.message);
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);
+    }
+  }
+
+  private async handleFeeConversionError(
+    nativeAssetName: string,
+    referenceAssetName: string,
+    message: string,
+    error: Error,
+  ): Promise<void> {
+    try {
+      await this.buyCryptoNotificationService.sendFeeConversionError(
+        nativeAssetName,
+        referenceAssetName,
+        message,
+        error,
+      );
+    } catch (e) {
+      console.error('Error in handling fee calculation error', e);
     }
   }
 

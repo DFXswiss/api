@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/util';
 import { PriceRequestContext } from '../../pricing/enums';
-import { PriceRequest } from '../../pricing/interfaces';
+import { PriceRequest, PriceResult } from '../../pricing/interfaces';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 
@@ -19,12 +19,18 @@ export class BuyCryptoPricingService {
   ): Promise<number> {
     const priceRequest = this.createPriceRequest(batch, [sourceAsset.dexName, targetAsset.dexName], correlation);
 
-    const { price } = await this.pricingService.getPrice(priceRequest).catch((e) => {
+    const result = (await this.pricingService.getPrice(priceRequest).catch((e) => {
       console.error('Failed to get price:', e);
       return undefined;
-    });
+    })) as PriceResult | undefined;
 
-    return Util.round(sourceAmount * price.price, 8);
+    if (!result) {
+      throw new Error(
+        `Could not get price from source asset: ${sourceAsset.dexName} to target asset: ${targetAsset.dexName}`,
+      );
+    }
+
+    return Util.round(sourceAmount * result.price.price, 8);
   }
 
   //*** HELPER METHODS ***//

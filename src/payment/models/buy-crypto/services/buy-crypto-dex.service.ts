@@ -10,6 +10,7 @@ import { PriceSlippageException } from '../../dex/exceptions/price-slippage.exce
 import { NotEnoughLiquidityException } from '../../dex/exceptions/not-enough-liquidity.exception';
 import { LiquidityRequest } from '../../dex/interfaces';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { FeeResult } from '../../payout/interfaces';
 
 @Injectable()
 export class BuyCryptoDexService {
@@ -48,15 +49,7 @@ export class BuyCryptoDexService {
           batch.id.toString(),
         );
 
-        const finalFee = nativeFee.amount
-          ? await this.buyCryptoPricingService.convertToTargetAsset(
-              batch,
-              nativeFee.asset,
-              nativeFee.amount,
-              batch.outputReferenceAsset,
-              'ConvertActualPurchaseFee',
-            )
-          : 0;
+        const finalFee = await this.getPurchaseFeeAmountInBatchAsset(batch, nativeFee);
 
         batch.secure(liquidity.amount, finalFee);
         await this.buyCryptoBatchRepo.save(batch);
@@ -147,6 +140,45 @@ export class BuyCryptoDexService {
         e,
       );
       throw e;
+    }
+  }
+
+  private async getPurchaseFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativeFee: FeeResult): Promise<number> {
+    try {
+      return nativeFee.amount
+        ? await this.buyCryptoPricingService.convertToTargetAsset(
+            batch,
+            nativeFee.asset,
+            nativeFee.amount,
+            batch.outputReferenceAsset,
+            'ConvertActualPurchaseFee',
+          )
+        : 0;
+    } catch (e) {
+      const message = `Could not get price for actual purchase fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
+      console.error(message, e);
+
+      await this.handleFeeConversionError(nativeFee.asset.dexName, batch.outputReferenceAsset.dexName, message, e);
+
+      return 0;
+    }
+  }
+
+  private async handleFeeConversionError(
+    nativeAssetName: string,
+    referenceAssetName: string,
+    message: string,
+    error: Error,
+  ): Promise<void> {
+    try {
+      await this.buyCryptoNotificationService.sendFeeConversionError(
+        nativeAssetName,
+        referenceAssetName,
+        message,
+        error,
+      );
+    } catch (e) {
+      console.error('Error in handling actual purchase fee calculation error', e);
     }
   }
 

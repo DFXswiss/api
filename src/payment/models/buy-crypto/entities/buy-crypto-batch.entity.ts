@@ -16,6 +16,7 @@ export enum BuyCryptoBatchStatus {
 }
 
 type IsPurchaseRequired = boolean;
+type LiquidityWarning = boolean;
 
 @Entity()
 export class BuyCryptoBatch extends IEntity {
@@ -50,68 +51,47 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
-  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): [this, IsPurchaseRequired] {
+  // amounts to be provided in reference asset
+  optimizeByLiquidity(availableAmount: number, maxPurchasableAmount: number): [IsPurchaseRequired, LiquidityWarning] {
     if (this.isEnoughToSecureBatch(availableAmount)) {
-      return [this, false];
+      // no changes to batch required, no purchase required
+      return [false, false];
     }
 
     if (this.isEnoughToSecureAtLeastOneTransaction(availableAmount)) {
       this.reBatchToMaxReferenceAmount(availableAmount);
 
-      return [this, false];
+      // no purchase required yet, proceeding with transactions for all available liquidity
+      return [false, false];
     }
 
     if (
-      !this.isWholeMissingAmountPurchasable(availableAmount, maxPurchasableAmount) &&
-      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)
+      !this.isWholeBatchAmountPurchasable(maxPurchasableAmount) &&
+      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)
     ) {
-      this.reBatchToMaxReferenceAmount(availableAmount + maxPurchasableAmount);
+      this.reBatchToMaxReferenceAmount(maxPurchasableAmount);
 
-      return [this, true];
+      // purchase is required, though liquidity is not enough to purchase for entire batch -> re-batching to smaller amount
+      return [true, true];
     }
 
-    if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount + availableAmount)) {
+    if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)) {
       throw new AbortBatchCreationException(
         `
           Not enough liquidity to create batch for asset ${this.outputAsset}.
           Required reference amount: ${this.outputReferenceAmount} ${this.outputReferenceAsset}.
-          Available amount: ${availableAmount}  ${this.outputReferenceAsset}.
+          Available amount: ${availableAmount} ${this.outputReferenceAsset}.
           Maximum purchasable amount: ${maxPurchasableAmount} ${this.outputReferenceAsset}.
         `,
       );
     }
 
-    return [this, true];
+    return [true, false];
   }
 
   checkAndRecordFeesEstimations(purchaseFeeAmount: number, payoutFeeAmount: number): this {
     this.checkFees(purchaseFeeAmount, payoutFeeAmount);
     this.recordFees(purchaseFeeAmount, payoutFeeAmount);
-
-    return this;
-  }
-
-  reBatchToMaxReferenceAmount(liquidity: number): this {
-    if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
-
-    const currentTransactions = this.transactions.sort((a, b) => a.outputReferenceAmount - b.outputReferenceAmount);
-    const newTransactions = [];
-    let totalAmount = 0;
-
-    for (const tx of currentTransactions) {
-      if (totalAmount + tx.outputReferenceAmount < liquidity) {
-        newTransactions.push(tx);
-        totalAmount += tx.outputReferenceAmount;
-      }
-
-      break;
-    }
-
-    if (newTransactions.length === 0) {
-      throw new Error(
-        `Cannot re-batch transactions in batch, liquidity limit is too low. Out asset: ${this.outputAsset}`,
-      );
-    }
 
     return this;
   }
@@ -151,12 +131,14 @@ export class BuyCryptoBatch extends IEntity {
     return this;
   }
 
+  //*** GETTERS ***//
+
   get minimalOutputReferenceAmount(): number {
     return this.outputReferenceAsset.dexName === 'BTC' ? 0.001 : 1;
   }
 
   get smallestTransactionReferenceAmount(): number {
-    return 2;
+    return Util.minObj<BuyCrypto>(this.transactions, 'outputReferenceAmount');
   }
 
   //*** HELPER METHODS ***//
@@ -169,10 +151,37 @@ export class BuyCryptoBatch extends IEntity {
     return amount >= this.smallestTransactionReferenceAmount * 1.05;
   }
 
-  private isWholeMissingAmountPurchasable(availableAmount: number, maxPurchasableAmount: number): boolean {
-    const missingAmount = this.outputReferenceAmount - availableAmount;
+  private isWholeBatchAmountPurchasable(maxPurchasableAmount: number): boolean {
+    return maxPurchasableAmount >= this.outputReferenceAmount * 1.05;
+  }
 
-    return maxPurchasableAmount >= missingAmount * 1.05;
+  private reBatchToMaxReferenceAmount(liquidityLimit: number): this {
+    if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
+
+    const currentTransactions = this.sortTransactionsAsc();
+    const reBatchedTransactions = [];
+    let requiredLiquidity = 0;
+
+    for (const tx of currentTransactions) {
+      requiredLiquidity += tx.outputReferenceAmount;
+
+      if (requiredLiquidity < liquidityLimit) {
+        reBatchedTransactions.push(tx);
+        continue;
+      }
+
+      break;
+    }
+
+    if (reBatchedTransactions.length === 0) {
+      const { dexName, type, blockchain } = this.outputAsset;
+
+      throw new Error(
+        `Cannot re-batch transactions in batch, liquidity limit is too low. Out asset: ${dexName} ${type} ${blockchain}`,
+      );
+    }
+
+    return this;
   }
 
   private checkFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
@@ -234,5 +243,9 @@ export class BuyCryptoBatch extends IEntity {
     } else {
       throw new Error(`Output amount mismatch is too high. Mismatch: ${mismatch} ${this.outputAsset.dexName}`);
     }
+  }
+
+  private sortTransactionsAsc(): BuyCrypto[] {
+    return this.transactions.sort((a, b) => a.outputReferenceAmount - b.outputReferenceAmount);
   }
 }

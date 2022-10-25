@@ -10,8 +10,9 @@ import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity
 import { PayoutService } from '../../payout/services/payout.service';
 import { PayoutOrderContext } from '../../payout/entities/payout-order.entity';
 import { DuplicatedEntryException } from '../../payout/exceptions/duplicated-entry.exception';
-import { PayoutRequest } from '../../payout/interfaces';
+import { FeeResult, PayoutRequest } from '../../payout/interfaces';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -21,6 +22,7 @@ export class BuyCryptoOutService {
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     readonly nodeService: NodeService,
   ) {}
 
@@ -118,13 +120,7 @@ export class BuyCryptoOutService {
         } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
         if (isComplete) {
-          const payoutFee = await this.buyCryptoPricingService.convertToTargetAsset(
-            batch,
-            nativePayoutFee.asset,
-            nativePayoutFee.amount,
-            batch.outputReferenceAsset,
-            'ConvertActualPayoutFee',
-          );
+          const payoutFee = await this.getPayoutFeeAmountInBatchAsset(batch, nativePayoutFee);
 
           tx.complete(payoutTxId, payoutFee);
           await this.buyCryptoRepo.save(tx);
@@ -143,6 +139,50 @@ export class BuyCryptoOutService {
 
       await this.buyCryptoBatchRepo.save(batch);
       await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
+    }
+  }
+
+  private async getPayoutFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativeFee: FeeResult): Promise<number> {
+    try {
+      return nativeFee
+        ? await this.buyCryptoPricingService.convertToTargetAsset(
+            batch,
+            nativeFee.asset,
+            nativeFee.amount,
+            batch.outputReferenceAsset,
+            'ConvertActualPayoutFee',
+          )
+        : 0;
+    } catch (e) {
+      const message = `Could not get price for actual payout fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
+      console.error(message, e);
+
+      await this.handleFeeConversionError(
+        nativeFee.asset.dexName,
+        batch.outputReferenceAsset.dexName,
+        message,
+        exports,
+      );
+
+      return 0;
+    }
+  }
+
+  private async handleFeeConversionError(
+    nativeAssetName: string,
+    referenceAssetName: string,
+    message: string,
+    error: Error,
+  ): Promise<void> {
+    try {
+      await this.buyCryptoNotificationService.sendFeeConversionError(
+        nativeAssetName,
+        referenceAssetName,
+        message,
+        error,
+      );
+    } catch (e) {
+      console.error('Error in handling actual payout fee calculation error', e);
     }
   }
 

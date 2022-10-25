@@ -19,71 +19,88 @@ export class BuyCryptoNotificationService {
   ) {}
 
   async sendNotificationMails(): Promise<void> {
-    await this.buyCryptoConfirmed();
-    await this.paybackToAddressInitiated();
-    await this.pendingBuyCrypto();
-  }
-
-  async buyCryptoConfirmed(): Promise<void> {
     try {
-      const txOutput = await this.buyCryptoRepo.find({
-        where: {
-          mailSendDate: IsNull(),
-          txId: Not(IsNull()),
-          isComplete: true,
-          batch: { status: BuyCryptoBatchStatus.COMPLETE },
-        },
-        relations: [
-          'bankTx',
-          'buy',
-          'buy.user',
-          'buy.user.userData',
-          'buy.asset',
-          'batch',
-          'cryptoRoute',
-          'cryptoRoute.user',
-          'cryptoRoute.user.userData',
-          'cryptoRoute.asset',
-        ],
-      });
-
-      txOutput.length &&
-        console.info(
-          `Sending notifications for ${txOutput.length} buy crypto transaction(s). Transaction ID(s): ${txOutput.map(
-            (t) => t.id,
-          )}`,
-        );
-
-      for (const tx of txOutput) {
-        try {
-          tx.user.userData.mail &&
-            (await this.notificationService.sendMail({
-              type: MailType.USER,
-              input: {
-                userData: tx.user.userData,
-                translationKey: tx.translationKey,
-                translationParams: {
-                  buyInputAmount: tx.inputAmount,
-                  buyInputAsset: tx.inputAsset,
-                  buyOutputAmount: tx.outputAmount,
-                  buyOutputAsset: tx.outputAsset,
-                  buyFeePercentage: Util.round(tx.percentFee * 100, 2),
-                  exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
-                  buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
-                  buyTxId: tx.txId,
-                  buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
-                },
-              },
-            }));
-
-          await this.buyCryptoRepo.update(...tx.confirmSentMail());
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      await this.buyCryptoConfirmed();
+      await this.paybackToAddressInitiated();
+      await this.pendingBuyCrypto();
     } catch (e) {
       console.error(e);
     }
+  }
+
+  async buyCryptoConfirmed(): Promise<void> {
+    const txOutput = await this.buyCryptoRepo.find({
+      where: {
+        mailSendDate: IsNull(),
+        txId: Not(IsNull()),
+        isComplete: true,
+        batch: { status: BuyCryptoBatchStatus.COMPLETE },
+      },
+      relations: [
+        'bankTx',
+        'buy',
+        'buy.user',
+        'buy.user.userData',
+        'buy.asset',
+        'batch',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.user.userData',
+        'cryptoRoute.asset',
+      ],
+    });
+
+    txOutput.length &&
+      console.info(
+        `Sending notifications for ${txOutput.length} buy crypto transaction(s). Transaction ID(s): ${txOutput.map(
+          (t) => t.id,
+        )}`,
+      );
+
+    for (const tx of txOutput) {
+      try {
+        tx.user.userData.mail &&
+          (await this.notificationService.sendMail({
+            type: MailType.USER,
+            input: {
+              userData: tx.user.userData,
+              translationKey: tx.translationKey,
+              translationParams: {
+                buyInputAmount: tx.inputAmount,
+                buyInputAsset: tx.inputAsset,
+                buyOutputAmount: tx.outputAmount,
+                buyOutputAsset: tx.outputAsset,
+                buyFeePercentage: Util.round(tx.percentFee * 100, 2),
+                exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
+                buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
+                buyTxId: tx.txId,
+                buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
+              },
+            },
+          }));
+
+        await this.buyCryptoRepo.update(...tx.confirmSentMail());
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  async sendMissingLiquidityWarning(outputAsset: string, blockchain: string, type: string): Promise<void> {
+    const correlationId = `BuyCryptoBatch&LiquidityCheckWarning&${outputAsset}&${blockchain}&${type}`;
+    const message = `One or more transactions were removed from batching, due to insufficient purchasable liquidity. Batch asset: ${outputAsset} ${blockchain} ${type}`;
+    const additionalMessage =
+      'Caution! this mail has debounce time of 30 minutes, by the moment you read this mail required amounts might have changed.';
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      input: {
+        subject: 'Buy Crypto Warning - liquidity about to be missing.',
+        errors: [message, additionalMessage],
+      },
+      options: { debounce: 1800000 },
+      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+    });
   }
 
   async sendMissingLiquidityError(
@@ -99,6 +116,21 @@ export class BuyCryptoNotificationService {
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
       input: { subject: 'Buy Crypto Error - missing liquidity.', errors: [message, additionalMessage] },
+      options: { debounce: 1800000 },
+      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+    });
+  }
+
+  async sendFeeConversionError(
+    nativeAssetName: string,
+    referenceAssetName: string,
+    message: string,
+    error: Error,
+  ): Promise<void> {
+    const correlationId = `BuyCryptoBatch&FeeConversion&from_${nativeAssetName}&to_${referenceAssetName}`;
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      input: { subject: 'Buy Crypto Error - cannot calculate fee.', errors: [message, error.message] },
       options: { debounce: 1800000 },
       metadata: { context: MailContext.BUY_CRYPTO, correlationId },
     });
