@@ -25,7 +25,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
     const prioritySwapAssets = await this.getPrioritySwapAssets(targetAsset);
 
     // calculating how much targetAmount is needed and if it's available on the node
-    const { targetAmount, availableAmount, maxPurchasableAmount, isSlippageDetected, feeAmount } =
+    const { targetAmount, availableAmount, maxPurchasableAmount, isSlippageDetected, slippageMessage, feeAmount } =
       await this.dexDeFiChainService.getAndCheckAvailableTargetLiquidity(
         referenceAsset,
         referenceAmount,
@@ -40,6 +40,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
       availableAmount,
       maxPurchasableAmount,
       isSlippageDetected,
+      slippageMessage,
       await this.feeAsset(),
       feeAmount,
     );
@@ -80,6 +81,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
     availableAmount: number,
     maxPurchasableAmount: number,
     isSlippageDetected: boolean,
+    slippageMessage: string,
     feeAsset: Asset,
     feeAmount: number,
   ): CheckLiquidityResult {
@@ -103,8 +105,9 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
         amount: feeAmount,
       },
       metadata: {
-        isEnoughLiquidity: availableAmount > targetAmount * 1.05,
+        isEnoughAvailableLiquidity: availableAmount > targetAmount * 1.05,
         isSlippageDetected,
+        slippageMessage,
       },
     };
   }

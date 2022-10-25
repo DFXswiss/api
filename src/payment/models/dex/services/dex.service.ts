@@ -33,6 +33,12 @@ export class DexService {
     try {
       const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
+      if (!strategy) {
+        throw new Error(
+          `No check liquidity strategy for asset ${targetAsset.dexName} ${targetAsset.type} ${targetAsset.blockchain}`,
+        );
+      }
+
       return strategy.checkLiquidity(request);
     } catch (e) {
       console.error(e.message);
@@ -49,27 +55,23 @@ export class DexService {
 
       const strategy = this.checkStrategies.getCheckLiquidityStrategy(targetAsset);
 
-      const { target, metadata } = await strategy.checkLiquidity(request);
-
-      if (metadata.isEnoughLiquidity) {
-        const order = this.liquidityOrderFactory.createReservationOrder(request, targetAsset.blockchain);
-        order.reserved(target.amount);
-
-        await this.liquidityOrderRepo.save(order);
-
-        return order.targetAmount;
+      if (!strategy) {
+        throw new Error(
+          `No check liquidity strategy for asset ${targetAsset.dexName} ${targetAsset.type} ${targetAsset.blockchain}`,
+        );
       }
 
-      throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${targetAsset.dexName}. Available amount: 0. Fallback error message.`,
-      );
+      const liquidity = await strategy.checkLiquidity(request);
+
+      this.handleCheckLiquidityResult(liquidity);
+
+      const order = this.liquidityOrderFactory.createReservationOrder(request, targetAsset.blockchain);
+      order.reserved(liquidity.target.amount);
+
+      await this.liquidityOrderRepo.save(order);
+
+      return order.targetAmount;
     } catch (e) {
-      // throw new PriceSlippageException(
-      //   `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
-      //     sourceAmount / targetAmount,
-      //     8,
-      //   )} ${sourceAsset}`,
-      // );
       // publicly exposed exceptions
       if (e instanceof NotEnoughLiquidityException) throw e;
       if (e instanceof PriceSlippageException) throw e;
@@ -86,7 +88,9 @@ export class DexService {
     const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(targetAsset);
 
     if (!strategy) {
-      throw new Error(`No purchase liquidity strategy for asset category ${targetAsset?.category}`);
+      throw new Error(
+        `No purchase liquidity strategy for asset ${targetAsset.dexName} ${targetAsset.type} ${targetAsset.blockchain}`,
+      );
     }
 
     try {
@@ -169,6 +173,19 @@ export class DexService {
   }
 
   // *** HELPER METHODS *** //
+
+  private handleCheckLiquidityResult(liquidity: CheckLiquidityResult): void {
+    const { metadata, target } = liquidity;
+    if (!metadata.isEnoughAvailableLiquidity) {
+      throw new NotEnoughLiquidityException(
+        `Not enough liquidity of asset ${target.asset.dexName}. Available amount: ${target.availableAmount}.`,
+      );
+    }
+
+    if (metadata.isSlippageDetected) {
+      throw new PriceSlippageException(metadata.slippageMessage);
+    }
+  }
 
   private async addPurchaseDataToOrders(orders: LiquidityOrder[]): Promise<void> {
     for (const order of orders) {

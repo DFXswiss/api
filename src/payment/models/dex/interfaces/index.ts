@@ -39,8 +39,9 @@ export interface CheckLiquidityResult {
     amount: number;
   };
   metadata: {
-    isEnoughLiquidity: boolean;
+    isEnoughAvailableLiquidity: boolean;
     isSlippageDetected: boolean;
+    slippageMessage: string;
   };
 }
 

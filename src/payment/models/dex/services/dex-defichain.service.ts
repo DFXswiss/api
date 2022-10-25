@@ -38,6 +38,7 @@ export class DexDeFiChainService {
     availableAmount: number;
     maxPurchasableAmount: number;
     isSlippageDetected: boolean;
+    slippageMessage: string;
     feeAmount: number;
   }> {
     const targetAmount =
@@ -47,7 +48,7 @@ export class DexDeFiChainService {
 
     const [availableAmount, pendingAmount] = await this.getAssetAvailability(targetAsset);
     const maxPurchasableAmount = await this.getMaxPurchasableAmount(purchaseAssets, targetAsset);
-    const isSlippageDetected = await this.checkTestSwapPriceSlippage(
+    const [isSlippageDetected, slippageMessage] = await this.checkTestSwapPriceSlippage(
       sourceAsset,
       sourceAmount,
       targetAsset,
@@ -60,6 +61,7 @@ export class DexDeFiChainService {
       availableAmount: availableAmount - pendingAmount,
       maxPurchasableAmount,
       isSlippageDetected,
+      slippageMessage,
       feeAmount: 0,
     };
   }
@@ -228,13 +230,30 @@ export class DexDeFiChainService {
     targetAsset: Asset,
     targetAmount: number,
     maxSlippage: number,
-  ): Promise<boolean> {
+  ): Promise<[boolean, string]> {
     // how much sourceAsset we are willing to pay for 1 unit of targetAsset max
     const maxPrice = await this.calculateMaxTargetAssetPrice(sourceAsset, targetAsset, maxSlippage);
 
     const minimalAllowedTargetAmount = Util.round(sourceAmount / maxPrice, 8);
 
-    return targetAmount > 0.000001 && targetAmount < minimalAllowedTargetAmount;
+    const isSlippageDetected = targetAmount > 0.000001 && targetAmount < minimalAllowedTargetAmount;
+    const slippageMessage = isSlippageDetected
+      ? this.generateSlippageMessage(sourceAsset, sourceAmount, targetAsset, targetAmount, maxPrice)
+      : 'no slippage detected';
+
+    return [isSlippageDetected, slippageMessage];
+  }
+
+  private generateSlippageMessage(
+    sourceAsset: Asset,
+    sourceAmount: number,
+    targetAsset: Asset,
+    targetAmount: number,
+    maxPrice: number,
+  ): string {
+    const actualPrice = Util.round(sourceAmount / targetAmount, 8);
+
+    return `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${actualPrice} ${sourceAsset}`;
   }
 
   private async calculateMaxTargetAssetPrice(

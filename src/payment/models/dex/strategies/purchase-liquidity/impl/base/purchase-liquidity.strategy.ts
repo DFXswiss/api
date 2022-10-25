@@ -27,6 +27,7 @@ export abstract class PurchaseLiquidityStrategy {
       const mailRequest = this.createMailRequest(request, errorMessage);
 
       await this.notificationService.sendMail(mailRequest);
+      throw new NotEnoughLiquidityException(errorMessage);
     }
 
     if (e instanceof PriceSlippageException) {
