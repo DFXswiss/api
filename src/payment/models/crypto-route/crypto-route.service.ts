@@ -16,6 +16,7 @@ import { DepositService } from '../deposit/deposit.service';
 import { UserDataService } from 'src/user/models/user-data/user-data.service';
 import { KycCompleted } from 'src/user/models/user-data/user-data.entity';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class CryptoRouteService {
@@ -88,7 +89,11 @@ export class CryptoRouteService {
     const asset =
       dto.type === BuyType.WALLET
         ? await this.assetService.getAssetById(dto.asset.id)
-        : await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
+        : await this.assetService.getAssetByQuery({
+            dexName: 'DFI',
+            blockchain: Blockchain.DEFICHAIN,
+            type: AssetType.COIN,
+          });
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking

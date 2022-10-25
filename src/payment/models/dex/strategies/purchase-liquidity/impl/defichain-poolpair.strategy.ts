@@ -2,7 +2,7 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Not } from 'typeorm';
 
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/util';
 import { Lock } from 'src/shared/lock';
@@ -117,10 +117,12 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     const leftAsset = await this.assetService.getAssetByQuery({
       dexName: assetPair[0],
       blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
     });
     const rightAsset = await this.assetService.getAssetByQuery({
       dexName: assetPair[1],
       blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
     });
 
     if (!leftAsset || !rightAsset) {
