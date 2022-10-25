@@ -28,7 +28,12 @@ export class DfiPricingDexService implements PriceProvider {
       blockchain: Blockchain.DEFICHAIN,
       type: AssetType.TOKEN,
     });
-    const fromAsset = await this.assetService.getAssetByQuery({ dexName: from, blockchain: Blockchain.DEFICHAIN });
+
+    const fromAsset = await this.assetService.getAssetByQuery({
+      dexName: from,
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
 
     const liquidityRequest: LiquidityRequest = {
       context: LiquidityOrderContext.PRICING,
