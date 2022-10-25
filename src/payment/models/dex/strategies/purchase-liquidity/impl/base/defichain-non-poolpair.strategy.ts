@@ -26,6 +26,8 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     this.prioritySwapAssetDescriptors = prioritySwapAssetDescriptors;
   }
 
+  //*** PUBLIC API ***//
+
   async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
     const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, AssetCategory.STOCK);
 
@@ -44,6 +46,21 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     order.recordPurchaseFee(await this.feeAsset(), 0);
     await this.liquidityOrderRepo.save(order);
   }
+
+  async getPrioritySwapAssets(): Promise<Asset[]> {
+    const prioritySwapAssets = [];
+
+    for (const descriptor of this.prioritySwapAssetDescriptors) {
+      try {
+        const prioritySwapAsset = await this.getSwapAsset(descriptor);
+        if (prioritySwapAsset) prioritySwapAssets.push(prioritySwapAsset);
+      } catch {}
+    }
+
+    return prioritySwapAssets;
+  }
+
+  //*** HELPER METHODS ***//
 
   private async bookLiquiditySwap(order: LiquidityOrder): Promise<void> {
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
@@ -101,15 +118,18 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
 
   private async getSwapAsset(descriptor: { name: string; type: AssetType }): Promise<Asset> {
     const { name, type } = descriptor;
-    const cache = this.prioritySwapAssets.find(
+    const cachedAsset = this.prioritySwapAssets.find(
       (a) => a.name === name && a.type === type && a.blockchain === Blockchain.DEFICHAIN,
     );
 
-    if (cache) return cache;
+    if (cachedAsset) return cachedAsset;
 
     const asset = await this.assetService.getAssetByQuery({ dexName: name, type, blockchain: Blockchain.DEFICHAIN });
 
-    if (asset) return asset;
+    if (asset) {
+      this.prioritySwapAssets.push(asset);
+      return asset;
+    }
 
     throw new Error(
       `Swap Asset reference not found. Query: name - ${name}, type - ${type}, blockchain - ${Blockchain.DEFICHAIN}.`,

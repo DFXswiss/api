@@ -5,6 +5,8 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { DeFiChainNonPoolPairStrategy } from '../../purchase-liquidity/impl/base/defichain-non-poolpair.strategy';
+import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
@@ -12,12 +14,15 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
   constructor(
     protected readonly assetService: AssetService,
     private readonly dexDeFiChainService: DexDeFiChainService,
+    private readonly purchaseStrategies: PurchaseLiquidityStrategies,
   ) {
     super();
   }
 
   async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, targetAsset } = request;
+
+    const prioritySwapAssets = await this.getPrioritySwapAssets(targetAsset);
 
     // calculating how much targetAmount is needed and if it's available on the node
     const { targetAmount, availableAmount, maxPurchasableAmount, isSlippageDetected, feeAmount } =
@@ -26,6 +31,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
         referenceAmount,
         targetAsset,
         LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
+        prioritySwapAssets,
       );
 
     return this.createCheckLiquidityResult(
@@ -48,6 +54,25 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
   }
 
   //*** HELPER METHODS ***/
+
+  private async getPrioritySwapAssets(targetAsset: Asset): Promise<Asset[]> {
+    try {
+      const purchaseStrategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(
+        targetAsset,
+      ) as DeFiChainNonPoolPairStrategy;
+
+      if (!purchaseStrategy) return [];
+
+      return purchaseStrategy.getPrioritySwapAssets();
+    } catch (e) {
+      const { dexName, type, blockchain } = targetAsset;
+      console.warn(
+        `Error while getting priority assets from purchase liquidity strategy. Target asset: ${dexName} ${type} ${blockchain}`,
+      );
+
+      return [];
+    }
+  }
 
   private createCheckLiquidityResult(
     request: LiquidityRequest,

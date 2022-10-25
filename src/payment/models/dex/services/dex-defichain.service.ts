@@ -32,6 +32,7 @@ export class DexDeFiChainService {
     sourceAmount: number,
     targetAsset: Asset,
     maxSlippage: number,
+    purchaseAssets: Asset[],
   ): Promise<{
     targetAmount: number;
     availableAmount: number;
@@ -45,7 +46,7 @@ export class DexDeFiChainService {
         : await this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, sourceAmount);
 
     const [availableAmount, pendingAmount] = await this.getAssetAvailability(targetAsset);
-    const maxPurchasableAmount = await this.getMaxPurchasableAmount(targetAsset);
+    const maxPurchasableAmount = await this.getMaxPurchasableAmount(purchaseAssets, targetAsset);
     const isSlippageDetected = await this.checkTestSwapPriceSlippage(
       sourceAsset,
       sourceAmount,
@@ -177,13 +178,30 @@ export class DexDeFiChainService {
     return [availableAmount, pendingAmount];
   }
 
-  private async getMaxPurchasableAmount(targetAsset: Asset): Promise<number> {
-    const [availableAmount, pendingAmount] = await this.getAssetAvailability('DFI');
-    return this.#dexClient.testCompositeSwap(
-      'DFI',
-      targetAsset.dexName,
-      Util.round(availableAmount - pendingAmount, 8),
-    );
+  private async getMaxPurchasableAmount(swapAssets: Asset[], targetAsset: Asset): Promise<number> {
+    let maxPurchasableAmount = 0;
+
+    for (const swapAsset of swapAssets) {
+      const purchasableAmount = await this.getPurchasableAmount(swapAsset, targetAsset);
+      maxPurchasableAmount = purchasableAmount > maxPurchasableAmount ? purchasableAmount : maxPurchasableAmount;
+    }
+
+    return maxPurchasableAmount;
+  }
+
+  private async getPurchasableAmount(swapAsset: Asset, targetAsset: Asset): Promise<number> {
+    try {
+      const [availableAmount, pendingAmount] = await this.getAssetAvailability(swapAsset);
+      return this.#dexClient.testCompositeSwap(
+        swapAsset.dexName,
+        targetAsset.dexName,
+        Util.round(availableAmount - pendingAmount, 8),
+      );
+    } catch (e) {
+      console.warn(
+        `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
+      );
+    }
   }
 
   private async calculateSwapAmountForPurchase(
