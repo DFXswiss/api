@@ -176,7 +176,7 @@ export class BuyCrypto extends IEntity {
 
       if (!price) {
         throw new Error(
-          `Cannot calculate outputReferenceAmount, ${this.inputReferenceAsset}/${this.outputReferenceAsset} price is missing`,
+          `Cannot calculate outputReferenceAmount, ${this.inputReferenceAsset}/${this.outputReferenceAsset.dexName} price is missing`,
         );
       }
 

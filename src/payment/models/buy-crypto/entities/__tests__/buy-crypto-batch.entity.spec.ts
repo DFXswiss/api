@@ -1,4 +1,5 @@
 import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Util } from 'src/shared/util';
 import { createCustomUser } from 'src/user/models/user/__mocks__/user.entity.mock';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';
@@ -140,7 +141,7 @@ describe('BuyCryptoBatch', () => {
     it('fixes outputAmount rounding issues after distribution between transactions, for ultra small amounts', () => {
       const entity = createCustomBuyCryptoBatch({
         status: BuyCryptoBatchStatus.CREATED,
-        outputAsset: 'MSFT',
+        outputAsset: createCustomAsset({ dexName: 'MSFT' }),
         outputReferenceAmount: 0.010348,
         transactions: [
           ...[...new Array(200)].map((_, i) =>
@@ -176,7 +177,7 @@ describe('BuyCryptoBatch', () => {
       const entity = createCustomBuyCryptoBatch({
         transactions: [transactionA, transactionB],
         outputReferenceAmount: 30,
-        outputAsset: 'BTC',
+        outputAsset: createCustomAsset({ dexName: 'BTC' }),
       });
 
       const testCall = () => entity.secure(30);

@@ -66,6 +66,9 @@ describe('BuyCryptoBatchService', () => {
     it('defines asset pair', async () => {
       const transactions = [createCustomBuyCrypto({ outputReferenceAsset: null })];
       const defineAssetExchangePairSpy = jest.spyOn(transactions[0], 'defineAssetExchangePair');
+      assetServiceQueryAsset = jest
+        .spyOn(assetService, 'getAssetByQuery')
+        .mockImplementation(async ({ dexName }) => createCustomAsset({ dexName }));
 
       buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => transactions);
 
@@ -74,13 +77,22 @@ describe('BuyCryptoBatchService', () => {
       await service.batchTransactionsByAssets();
 
       expect(defineAssetExchangePairSpy).toBeCalledTimes(1);
-      expect(transactions[0].outputReferenceAsset).toBe('BTC');
+      expect(transactions[0].outputReferenceAsset.dexName).toBe('BTC');
       expect(dexServiceCheckLiquidity).toBeCalledTimes(1);
     });
 
     it('defines output reference amounts', async () => {
-      const transactions = [createCustomBuyCrypto({ outputReferenceAmount: null, inputReferenceAmountMinusFee: 100 })];
+      const transactions = [
+        createCustomBuyCrypto({
+          outputReferenceAsset: null,
+          outputReferenceAmount: null,
+          inputReferenceAmountMinusFee: 100,
+        }),
+      ];
       const calculateOutputReferenceAmountSpy = jest.spyOn(transactions[0], 'calculateOutputReferenceAmount');
+      assetServiceQueryAsset = jest
+        .spyOn(assetService, 'getAssetByQuery')
+        .mockImplementation(async ({ dexName }) => createCustomAsset({ dexName }));
 
       buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => transactions);
 
@@ -101,11 +113,13 @@ describe('BuyCryptoBatchService', () => {
     });
 
     it('blocks creating a batch if there already existing batch for an asset', async () => {
-      const transactions = [createCustomBuyCrypto({ outputAsset: 'dDOGE' })];
+      const transactions = [createCustomBuyCrypto({ outputAsset: createCustomAsset({ dexName: 'dDOGE' }) })];
 
       buyCryptoBatchRepoFindOne = jest
         .spyOn(buyCryptoBatchRepo, 'findOne')
-        .mockImplementation(async () => createCustomBuyCryptoBatch({ outputAsset: 'dDOGE' }));
+        .mockImplementation(async () =>
+          createCustomBuyCryptoBatch({ outputAsset: createCustomAsset({ dexName: 'dDOGE' }) }),
+        );
 
       buyCryptoRepoFind = jest.spyOn(buyCryptoRepo, 'find').mockImplementation(async () => transactions);
 
@@ -132,11 +146,22 @@ describe('BuyCryptoBatchService', () => {
       buyCryptoBatchRepoCreate = jest
         .spyOn(buyCryptoBatchRepo, 'create')
         .mockImplementationOnce(() =>
-          createCustomBuyCryptoBatch({ outputReferenceAsset: 'BTC', outputAsset: 'dGOOGL' }),
+          createCustomBuyCryptoBatch({
+            outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+            outputAsset: createCustomAsset({ dexName: 'dGOOGL' }),
+          }),
         )
-        .mockImplementationOnce(() => createCustomBuyCryptoBatch({ outputReferenceAsset: 'BTC', outputAsset: 'dTSLA' }))
         .mockImplementationOnce(() =>
-          createCustomBuyCryptoBatch({ outputReferenceAsset: 'USDT', outputAsset: 'USDT' }),
+          createCustomBuyCryptoBatch({
+            outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+            outputAsset: createCustomAsset({ dexName: 'dTSLA' }),
+          }),
+        )
+        .mockImplementationOnce(() =>
+          createCustomBuyCryptoBatch({
+            outputReferenceAsset: createCustomAsset({ dexName: 'USDT' }),
+            outputAsset: createCustomAsset({ dexName: 'USDT' }),
+          }),
         );
 
       await service.batchTransactionsByAssets();
@@ -161,9 +186,17 @@ describe('BuyCryptoBatchService', () => {
 
       buyCryptoBatchRepoCreate = jest
         .spyOn(buyCryptoBatchRepo, 'create')
-        .mockImplementationOnce(() => createCustomBuyCryptoBatch({ outputReferenceAsset: 'BTC', outputAsset: 'dDOGE' }))
         .mockImplementationOnce(() =>
-          createCustomBuyCryptoBatch({ outputReferenceAsset: 'USDT', outputAsset: 'USDT' }),
+          createCustomBuyCryptoBatch({
+            outputReferenceAsset: createCustomAsset({ dexName: 'BTC' }),
+            outputAsset: createCustomAsset({ dexName: 'dDOGE' }),
+          }),
+        )
+        .mockImplementationOnce(() =>
+          createCustomBuyCryptoBatch({
+            outputReferenceAsset: createCustomAsset({ dexName: 'USDT' }),
+            outputAsset: createCustomAsset({ dexName: 'USDT' }),
+          }),
         );
 
       await service.batchTransactionsByAssets();

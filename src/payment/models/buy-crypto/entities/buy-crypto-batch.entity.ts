@@ -228,11 +228,11 @@ export class BuyCryptoBatch extends IEntity {
 
       console.info(
         `Fixed total output amount mismatch of ${mismatch} ${
-          this.outputAsset
+          this.outputAsset.dexName
         }. Added to transaction ID(s): ${adjustedTransactions.map((tx) => tx.id)}`,
       );
     } else {
-      throw new Error(`Output amount mismatch is too high. Mismatch: ${mismatch} ${this.outputAsset}`);
+      throw new Error(`Output amount mismatch is too high. Mismatch: ${mismatch} ${this.outputAsset.dexName}`);
     }
   }
 }

@@ -17,6 +17,7 @@ import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
 
 describe('CheckLiquidityStrategies', () => {
   let nodeService: NodeService;
@@ -39,7 +40,11 @@ describe('CheckLiquidityStrategies', () => {
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<AssetService>(), mock<DexBscService>());
     deFiChainPoolPair = new DeFiChainPoolPairStrategy(mock<AssetService>());
-    deFiChainDefault = new DeFiChainDefaultStrategy(mock<AssetService>(), mock<DexDeFiChainService>());
+    deFiChainDefault = new DeFiChainDefaultStrategy(
+      mock<AssetService>(),
+      mock<DexDeFiChainService>(),
+      mock<PurchaseLiquidityStrategies>(),
+    );
     ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<DexEthereumService>());
     ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<DexEthereumService>());
 

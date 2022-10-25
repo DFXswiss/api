@@ -73,9 +73,9 @@ describe('LiquidityOrder', () => {
       expect(entity.swapAsset).toBeUndefined();
       expect(entity.swapAmount).toBeUndefined();
 
-      entity.addPurchaseMetadata('PID_01', 'DFI', 20);
+      entity.addPurchaseMetadata('PID_01', createCustomAsset({ dexName: 'DFI' }), 20);
 
-      expect(entity.swapAsset).toBe('DFI');
+      expect(entity.swapAsset.dexName).toBe('DFI');
       expect(entity.swapAmount).toBe(20);
     });
   });

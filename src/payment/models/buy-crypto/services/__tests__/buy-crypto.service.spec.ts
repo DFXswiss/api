@@ -8,6 +8,7 @@ import { createCustomCryptoInput } from 'src/payment/models/crypto-input/__mocks
 import { CryptoRouteRepository } from 'src/payment/models/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/payment/models/crypto-route/crypto-route.service';
 import { createCustomCryptoHistory } from 'src/payment/models/crypto-route/dto/__mocks__/crypto-history.dto.mock';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/test.shared.module';
 import { UserService } from 'src/user/models/user/user.service';
@@ -117,12 +118,18 @@ describe('BuyCryptoService', () => {
       switch (mock) {
         case MockBuyData.BUY_HISTORY:
           wantedData = [
-            createCustomBuyCrypto({ outputDate: date, ...txOne }),
-            createCustomBuyCrypto({ outputDate: date, ...txTwo }),
+            createCustomBuyCrypto({ outputDate: date, ...txOne, outputAsset: createCustomAsset({ dexName: 'BTC' }) }),
+            createCustomBuyCrypto({ outputDate: date, ...txTwo, outputAsset: createCustomAsset({ dexName: 'BTC' }) }),
           ];
           break;
         case MockBuyData.BUY_HISTORY_SMALL:
-          wantedData = [createCustomBuyCrypto({ outputDate: date, ...txSmallAmount })];
+          wantedData = [
+            createCustomBuyCrypto({
+              outputDate: date,
+              ...txSmallAmount,
+              outputAsset: createCustomAsset({ dexName: 'GOOGL' }),
+            }),
+          ];
           break;
         case MockBuyData.CRYPTO_HISTORY:
           wantedData = [
@@ -132,6 +139,7 @@ describe('BuyCryptoService', () => {
                 type: CryptoInputType.BUY_CRYPTO,
               }),
               ...txCrypto,
+              outputAsset: createCustomAsset({ dexName: 'BTC' }),
             }),
           ];
           break;
