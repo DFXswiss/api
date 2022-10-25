@@ -4,6 +4,7 @@ import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
 import { DeFiChainUtil } from 'src/blockchain/ain/utils/defichain.util';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/util';
 import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity';
@@ -27,9 +28,9 @@ export class DexDeFiChainService {
   // *** PUBLIC API *** //
 
   async getAndCheckAvailableTargetLiquidity(
-    sourceAsset: string,
+    sourceAsset: Asset,
     sourceAmount: number,
-    targetAsset: string,
+    targetAsset: Asset,
     maxSlippage: number,
   ): Promise<{
     targetAmount: number;
@@ -41,7 +42,7 @@ export class DexDeFiChainService {
     const targetAmount =
       targetAsset === sourceAsset
         ? sourceAmount
-        : await this.#dexClient.testCompositeSwap(sourceAsset, targetAsset, sourceAmount);
+        : await this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, sourceAmount);
 
     const [availableAmount, pendingAmount] = await this.getAssetAvailability(targetAsset);
     const maxPurchasableAmount = await this.getMaxPurchasableAmount(targetAsset);
@@ -63,9 +64,9 @@ export class DexDeFiChainService {
   }
 
   async purchaseLiquidity(
-    swapAsset: string,
+    swapAsset: Asset,
     swapAmount: number,
-    targetAsset: string,
+    targetAsset: Asset,
     maxSlippage: number,
   ): Promise<ChainSwapId> {
     const maxPrice =
@@ -76,9 +77,9 @@ export class DexDeFiChainService {
     try {
       return await this.#dexClient.compositeSwap(
         Config.blockchain.default.dexWalletAddress,
-        swapAsset,
+        swapAsset.dexName,
         Config.blockchain.default.dexWalletAddress,
-        targetAsset,
+        targetAsset.dexName,
         swapAmount,
         [],
         maxPrice,
@@ -136,10 +137,10 @@ export class DexDeFiChainService {
   }
 
   async getSwapAmountForPurchase(
-    referenceAsset: string,
+    referenceAsset: Asset,
     referenceAmount: number,
-    targetAsset: string,
-    swapAsset: string,
+    targetAsset: Asset,
+    swapAsset: Asset,
   ): Promise<number> {
     const swapAmount = await this.calculateSwapAmountForPurchase(
       referenceAsset,
@@ -155,7 +156,7 @@ export class DexDeFiChainService {
 
   // *** HELPER METHODS *** //
 
-  private async checkAssetAvailability(asset: string, amount: number): Promise<void> {
+  private async checkAssetAvailability(asset: Asset, amount: number): Promise<void> {
     const [availableAmount, pendingAmount] = await this.getAssetAvailability(asset);
 
     // 5% cap for unexpected meantime swaps
@@ -166,26 +167,30 @@ export class DexDeFiChainService {
     }
   }
 
-  private async getAssetAvailability(asset: string): Promise<[number, number]> {
+  private async getAssetAvailability(asset: Asset): Promise<[number, number]> {
     const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === asset && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
+      (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
     );
     const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
-    const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset, this.#dexClient);
+    const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
 
     return [availableAmount, pendingAmount];
   }
 
-  private async getMaxPurchasableAmount(targetAsset: string): Promise<number> {
+  private async getMaxPurchasableAmount(targetAsset: Asset): Promise<number> {
     const [availableAmount, pendingAmount] = await this.getAssetAvailability('DFI');
-    return this.#dexClient.testCompositeSwap('DFI', targetAsset, Util.round(availableAmount - pendingAmount, 8));
+    return this.#dexClient.testCompositeSwap(
+      'DFI',
+      targetAsset.dexName,
+      Util.round(availableAmount - pendingAmount, 8),
+    );
   }
 
   private async calculateSwapAmountForPurchase(
-    referenceAsset: string,
+    referenceAsset: Asset,
     referenceAmount: number,
-    targetAsset: string,
-    swapAsset: string,
+    targetAsset: Asset,
+    swapAsset: Asset,
   ): Promise<number> {
     if (referenceAsset === targetAsset) {
       const swapAssetPrice = await this.calculatePrice(swapAsset, referenceAsset);
@@ -196,13 +201,13 @@ export class DexDeFiChainService {
       return Util.round(swapAmount + swapAmount * 0.05, 8);
     }
 
-    return this.#dexClient.testCompositeSwap(referenceAsset, swapAsset, referenceAmount);
+    return this.#dexClient.testCompositeSwap(referenceAsset.dexName, swapAsset.dexName, referenceAmount);
   }
 
   private async checkTestSwapPriceSlippage(
-    sourceAsset: string,
+    sourceAsset: Asset,
     sourceAmount: number,
-    targetAsset: string,
+    targetAsset: Asset,
     targetAmount: number,
     maxSlippage: number,
   ): Promise<boolean> {
@@ -215,8 +220,8 @@ export class DexDeFiChainService {
   }
 
   private async calculateMaxTargetAssetPrice(
-    sourceAsset: string,
-    targetAsset: string,
+    sourceAsset: Asset,
+    targetAsset: Asset,
     maxSlippage: number,
   ): Promise<number> {
     // how much of sourceAsset you get for 1 unit of targetAsset
@@ -225,16 +230,16 @@ export class DexDeFiChainService {
     return Util.round(targetAssetPrice * (1 + maxSlippage), 8);
   }
 
-  private async calculatePrice(sourceAsset: string, targetAsset: string): Promise<number> {
+  private async calculatePrice(sourceAsset: Asset, targetAsset: Asset): Promise<number> {
     // how much of sourceAsset you going to pay for 1 unit of targetAsset, caution - only indicative calculation
     return (
       1 /
       ((await this.#dexClient.testCompositeSwap(
-        sourceAsset,
-        targetAsset,
-        this.getMinimalPriceReferenceAmount(sourceAsset),
+        sourceAsset.dexName,
+        targetAsset.dexName,
+        this.getMinimalPriceReferenceAmount(sourceAsset.dexName),
       )) /
-        this.getMinimalPriceReferenceAmount(sourceAsset))
+        this.getMinimalPriceReferenceAmount(sourceAsset.dexName))
     );
   }
 

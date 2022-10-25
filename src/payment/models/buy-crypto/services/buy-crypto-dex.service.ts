@@ -3,7 +3,6 @@ import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
 import { BuyCryptoBatchStatus, BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity';
 import { DexService } from '../../dex/services/dex.service';
 import { LiquidityOrderNotReadyException } from '../../dex/exceptions/liquidity-order-not-ready.exception';
@@ -17,7 +16,6 @@ export class BuyCryptoDexService {
   constructor(
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
-    private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
     readonly nodeService: NodeService,
@@ -53,7 +51,7 @@ export class BuyCryptoDexService {
         const finalFee = nativeFee.amount
           ? await this.buyCryptoPricingService.convertToTargetAsset(
               batch,
-              nativeFee.asset.dexName,
+              nativeFee.asset,
               nativeFee.amount,
               batch.outputReferenceAsset,
               'ConvertActualPurchaseFee',
@@ -153,9 +151,7 @@ export class BuyCryptoDexService {
   }
 
   private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
-    const { outputAsset, outputReferenceAsset, blockchain } = batch;
-    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
-    const referenceAsset = await this.assetService.getAssetByQuery({ dexName: outputReferenceAsset, blockchain });
+    const { outputAsset: targetAsset, outputReferenceAsset: referenceAsset } = batch;
 
     return {
       context: LiquidityOrderContext.BUY_CRYPTO,

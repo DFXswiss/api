@@ -1,7 +1,8 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
-import { Column, Entity, OneToMany } from 'typeorm';
+import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
 import { BuyCrypto } from './buy-crypto.entity';
@@ -21,19 +22,19 @@ export class BuyCryptoBatch extends IEntity {
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.batch, { cascade: true })
   transactions: BuyCrypto[];
 
-  @Column({ length: 256, nullable: true })
-  outputReferenceAsset: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  outputReferenceAsset: Asset;
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
-  @Column({ length: 256, nullable: true })
-  outputAsset: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  outputAsset: Asset;
 
   @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   status: BuyCryptoBatchStatus;
 
   @Column({ length: 256, nullable: true })
@@ -151,7 +152,7 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   get minimalOutputReferenceAmount(): number {
-    return this.outputReferenceAsset === 'BTC' ? 0.001 : 1;
+    return this.outputReferenceAsset.dexName === 'BTC' ? 0.001 : 1;
   }
 
   get smallestTransactionReferenceAmount(): number {

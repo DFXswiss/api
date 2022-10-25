@@ -17,6 +17,7 @@ import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { FeeRequest, FeeResult } from '../../payout/interfaces';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -80,7 +81,29 @@ export class BuyCryptoBatchService {
 
   private async defineAssetPair(transactions: BuyCrypto[]): Promise<BuyCrypto[]> {
     for (const tx of transactions) {
-      tx.defineAssetExchangePair();
+      try {
+        const outputReferenceAssetToFetch = tx.defineAssetExchangePair();
+
+        if (outputReferenceAssetToFetch) {
+          const { outputReferenceAssetName, type } = outputReferenceAssetToFetch;
+
+          const outputReferenceAsset = await this.assetService.getAssetByQuery({
+            dexName: outputReferenceAssetName,
+            blockchain: tx.outputAsset.blockchain,
+            type,
+          });
+
+          if (!outputReferenceAsset) {
+            throw new Error(
+              `Asset with name ${outputReferenceAssetName}, type: ${type}, blockchain: ${tx.outputAsset.blockchain} not found by asset service.`,
+            );
+          }
+
+          tx.setOutputReferenceAsset(outputReferenceAsset);
+        }
+      } catch (e) {
+        console.error('Error while defining asset pair for BuyCrypto', e);
+      }
     }
 
     return transactions.filter((tx) => tx.outputAsset);
@@ -90,8 +113,8 @@ export class BuyCryptoBatchService {
     const referenceAssetPairs = [
       ...new Set(
         txWithAssets
-          .filter((tx) => tx.inputReferenceAsset !== tx.outputReferenceAsset)
-          .map((tx) => `${tx.inputReferenceAsset}/${tx.outputReferenceAsset}`),
+          .filter((tx) => tx.inputReferenceAsset !== tx.outputReferenceAsset.dexName)
+          .map((tx) => `${tx.inputReferenceAsset}/${tx.outputReferenceAsset.dexName}`),
       ),
     ].map((assets) => assets.split('/'));
 
@@ -135,27 +158,32 @@ export class BuyCryptoBatchService {
     const batches = new Map<string, BuyCryptoBatch>();
 
     for (const tx of transactions) {
-      const { outputReferenceAsset, outputAsset, target } = tx;
+      const { outputReferenceAsset, outputAsset } = tx;
 
-      let batch = batches.get(
-        outputReferenceAsset + '&' + outputAsset + '&' + target.asset.blockchain + '&' + target.asset.type,
-      );
+      let batch = batches.get(this.getBatchTempKey(outputReferenceAsset, outputAsset));
 
       if (!batch) {
         batch = this.buyCryptoBatchRepo.create({
           outputReferenceAsset,
           outputAsset,
-          blockchain: target.asset.blockchain,
+          blockchain: outputAsset.blockchain,
           status: BuyCryptoBatchStatus.CREATED,
           transactions: [],
         });
-        batches.set(outputReferenceAsset + '&' + outputAsset + '&' + target.asset.blockchain, batch);
+        batches.set(this.getBatchTempKey(outputReferenceAsset, outputAsset), batch);
       }
 
       batch.addTransaction(tx);
     }
 
     return [...batches.values()];
+  }
+
+  private getBatchTempKey(outputReferenceAsset: Asset, outputAsset: Asset): string {
+    const { dexName: targetDexName, blockchain, type } = outputAsset;
+    const { dexName: referenceDexName } = outputReferenceAsset;
+
+    return referenceDexName + '&' + targetDexName + '&' + blockchain + '&' + type;
   }
 
   private async filterOutExistingBatches(batches: BuyCryptoBatch[]): Promise<BuyCryptoBatch[]> {
@@ -225,9 +253,7 @@ export class BuyCryptoBatchService {
   }
 
   private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
-    const { outputAsset, outputReferenceAsset, blockchain } = batch;
-    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
-    const referenceAsset = await this.assetService.getAssetByQuery({ dexName: outputReferenceAsset, blockchain });
+    const { outputAsset: targetAsset, outputReferenceAsset: referenceAsset } = batch;
 
     return {
       context: LiquidityOrderContext.BUY_CRYPTO,
@@ -249,11 +275,8 @@ export class BuyCryptoBatchService {
   }
 
   private async createPayoutFeeRequest(batch: BuyCryptoBatch): Promise<FeeRequest> {
-    const { outputAsset, blockchain } = batch;
-    const targetAsset = await this.assetService.getAssetByQuery({ dexName: outputAsset, blockchain });
-
     return {
-      asset: targetAsset,
+      asset: batch.outputAsset,
       quantityOfTransactions: batch.transactions.length,
     };
   }
@@ -267,7 +290,7 @@ export class BuyCryptoBatchService {
     const purchaseFeeInBatchCurrency = nativePurchaseFee.amount
       ? await this.buyCryptoPricingService.convertToTargetAsset(
           batch,
-          nativePurchaseFee.asset.dexName,
+          nativePurchaseFee.asset,
           nativePurchaseFee.amount,
           batch.outputReferenceAsset,
           'ConvertEstimatedPurchaseFee',
@@ -277,7 +300,7 @@ export class BuyCryptoBatchService {
     const payoutFeeInBatchCurrency = nativePayoutFee.amount
       ? await this.buyCryptoPricingService.convertToTargetAsset(
           batch,
-          nativePayoutFee.asset.dexName,
+          nativePayoutFee.asset,
           nativePayoutFee.amount,
           batch.outputReferenceAsset,
           'ConvertEstimatedPayoutFee',
@@ -292,10 +315,11 @@ export class BuyCryptoBatchService {
     error: AbortBatchCreationException,
   ): Promise<void> {
     try {
-      const { outputAsset } = batch;
-      const { blockchain, type } = batch.transactions[0]?.target?.asset; // TODO - remove when outputAsset changed to Asset on BuyCryptoBatch
+      const {
+        outputAsset: { dexName, blockchain, type },
+      } = batch;
 
-      await this.buyCryptoNotificationService.sendMissingLiquidityError(outputAsset, blockchain, type, error.message);
+      await this.buyCryptoNotificationService.sendMissingLiquidityError(dexName, blockchain, type, error.message);
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);
     }

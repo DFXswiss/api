@@ -51,8 +51,8 @@ export class LiquidityOrder extends IEntity {
   @Column({ nullable: false, default: false })
   isComplete: boolean;
 
-  @Column({ length: 256, nullable: true })
-  swapAsset?: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  swapAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
   swapAmount?: number;
@@ -79,7 +79,7 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
-  addPurchaseMetadata(purchaseTxId: string, swapAsset?: string, swapAmount?: number): this {
+  addPurchaseMetadata(purchaseTxId: string, swapAsset?: Asset, swapAmount?: number): this {
     this.purchaseTxId = purchaseTxId;
     this.swapAsset = swapAsset;
     this.swapAmount = swapAmount;

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/util';
 import { PriceRequestContext } from '../../pricing/enums';
 import { PriceRequest } from '../../pricing/interfaces';
@@ -11,12 +12,12 @@ export class BuyCryptoPricingService {
 
   async convertToTargetAsset(
     batch: BuyCryptoBatch,
-    sourceAsset: string,
+    sourceAsset: Asset,
     sourceAmount: number,
-    targetAsset: string,
+    targetAsset: Asset,
     correlation: string,
   ): Promise<number> {
-    const priceRequest = this.createPriceRequest(batch, [sourceAsset, targetAsset], correlation);
+    const priceRequest = this.createPriceRequest(batch, [sourceAsset.dexName, targetAsset.dexName], correlation);
 
     const { price } = await this.pricingService.getPrice(priceRequest).catch((e) => {
       console.error('Failed to get price:', e);

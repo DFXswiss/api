@@ -48,15 +48,15 @@ describe('PurchaseLiquidityStrategies', () => {
       mock<DexDeFiChainService>(),
     );
     deFiChainStock = new DeFiChainStockStrategy(
-      mock<AssetService>(),
       mock<NotificationService>(),
+      mock<AssetService>(),
       mock<DexDeFiChainService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
     );
     deFiChainCrypto = new DeFiChainCryptoStrategy(
-      mock<AssetService>(),
       mock<NotificationService>(),
+      mock<AssetService>(),
       mock<DexDeFiChainService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),

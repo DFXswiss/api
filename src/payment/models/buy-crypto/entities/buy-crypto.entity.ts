@@ -8,7 +8,7 @@ import { Util } from 'src/shared/util';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { CryptoRoute } from '../../crypto-route/crypto-route.entity';
 import { CryptoInput } from '../../crypto-input/crypto-input.entity';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
@@ -72,14 +72,14 @@ export class BuyCrypto extends IEntity {
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
-  @Column({ length: 256, nullable: true })
-  outputReferenceAsset: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  outputReferenceAsset: Asset;
 
   @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
-  @Column({ length: 256, nullable: true })
-  outputAsset: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  outputAsset: Asset;
 
   @Column({ length: 256, nullable: true })
   txId: string;
@@ -118,55 +118,61 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
   fee: BuyCryptoFee;
 
-  defineAssetExchangePair(): this {
-    this.outputAsset = this.target?.asset?.dexName;
+  defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
+    this.outputAsset = this.target?.asset;
 
-    if (this.outputAsset === this.inputReferenceAsset) {
+    if (this.outputAsset.dexName === this.inputReferenceAsset) {
       this.outputReferenceAsset = this.outputAsset;
-      return this;
+      return null;
     }
 
-    if (['USDC', 'USDT'].includes(this.outputAsset)) {
+    if (['USDC', 'USDT'].includes(this.outputAsset.dexName)) {
       if (['EUR', 'CHF', 'USD', 'USDC', 'USDT'].includes(this.inputReferenceAsset)) {
         this.outputReferenceAsset = this.outputAsset;
-      } else {
-        this.outputReferenceAsset = 'BTC';
-      }
 
-      return this;
+        return null;
+      } else {
+        return { outputReferenceAssetName: 'BTC', type: AssetType.COIN };
+      }
     }
 
     switch (this.target.asset.blockchain) {
       case Blockchain.ETHEREUM:
-        if (this.outputAsset === 'DFI') {
+        if (this.outputAsset.dexName === 'DFI') {
           this.outputReferenceAsset = this.outputAsset;
-          break;
+
+          return null;
         }
 
-        this.outputReferenceAsset = 'ETH';
-        break;
+        return { outputReferenceAssetName: 'ETH', type: AssetType.COIN };
 
       case Blockchain.BINANCE_SMART_CHAIN:
-        if (['DFI', 'BUSD'].includes(this.outputAsset)) {
+        if (['DFI', 'BUSD'].includes(this.outputAsset.dexName)) {
           this.outputReferenceAsset = this.outputAsset;
-          break;
+
+          return null;
         }
 
-        this.outputReferenceAsset = 'BNB';
-        break;
+        return { outputReferenceAssetName: 'BNB', type: AssetType.COIN };
 
       default:
-        this.outputReferenceAsset = 'BTC';
+        return { outputReferenceAssetName: 'BTC', type: AssetType.COIN };
     }
+  }
+
+  setOutputReferenceAsset(outputReferenceAsset: Asset): this {
+    this.outputReferenceAsset = outputReferenceAsset;
 
     return this;
   }
 
   calculateOutputReferenceAmount(prices: Price[]): this {
-    if (this.inputReferenceAsset === this.outputReferenceAsset) {
+    if (this.inputReferenceAsset === this.outputReferenceAsset.dexName) {
       this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee, 8);
     } else {
-      const price = prices.find((p) => p.source === this.inputReferenceAsset && p.target === this.outputReferenceAsset);
+      const price = prices.find(
+        (p) => p.source === this.inputReferenceAsset && p.target === this.outputReferenceAsset.dexName,
+      );
 
       if (!price) {
         throw new Error(
@@ -212,7 +218,7 @@ export class BuyCrypto extends IEntity {
 
   get translationKey(): string {
     if (this.amlCheck === AmlCheck.PASS) {
-      return this.inputReferenceAsset === this.outputReferenceAsset
+      return this.inputReferenceAsset === this.outputReferenceAsset.dexName
         ? 'mail.payment.deposit.buyCryptoCrypto'
         : 'mail.payment.deposit.buyCryptoFiat';
     } else if (this.amlCheck === AmlCheck.PENDING) {

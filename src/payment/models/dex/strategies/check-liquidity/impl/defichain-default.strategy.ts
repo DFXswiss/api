@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
@@ -22,9 +22,9 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
     // calculating how much targetAmount is needed and if it's available on the node
     const { targetAmount, availableAmount, maxPurchasableAmount, isSlippageDetected, feeAmount } =
       await this.dexDeFiChainService.getAndCheckAvailableTargetLiquidity(
-        referenceAsset.dexName,
+        referenceAsset,
         referenceAmount,
-        targetAsset.dexName,
+        targetAsset,
         LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
       );
 
@@ -40,7 +40,11 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
+    return this.assetService.getAssetByQuery({
+      dexName: 'DFI',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.COIN,
+    });
   }
 
   //*** HELPER METHODS ***/

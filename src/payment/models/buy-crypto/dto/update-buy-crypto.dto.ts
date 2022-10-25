@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum, IsBoolean } from 'class-validator';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { AmlReason } from '../enums/aml-reason.enum';
 
@@ -65,16 +66,16 @@ export class UpdateBuyCryptoDto {
   outputReferenceAmount: number;
 
   @IsOptional()
-  @IsString()
-  outputReferenceAsset: string;
+  @Type(() => Asset)
+  outputReferenceAsset: Asset;
 
   @IsOptional()
   @IsNumber()
   outputAmount: number;
 
   @IsOptional()
-  @IsString()
-  outputAsset: string;
+  @Type(() => Asset)
+  outputAsset: Asset;
 
   @IsOptional()
   @IsString()

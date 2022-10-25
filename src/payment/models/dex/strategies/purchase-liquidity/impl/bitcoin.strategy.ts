@@ -3,9 +3,8 @@ import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { LiquidityRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { NotificationService } from 'src/notification/services/notification.service';
-import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
@@ -40,6 +39,6 @@ export class BitcoinStrategy extends PurchaseLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN });
+    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN, type: AssetType.COIN });
   }
 }

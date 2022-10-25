@@ -94,7 +94,7 @@ export class HistoryService {
           buyValueInEur: c.amountInEur,
           sellValueInEur: null,
         },
-        c.inputAsset == c.outputAsset
+        c.inputAsset == c.outputAsset.dexName
           ? c.percentFee && c.inputAmount && c.inputAsset
             ? {
                 type: 'Other Fee',

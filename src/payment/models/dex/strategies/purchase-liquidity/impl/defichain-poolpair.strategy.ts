@@ -98,7 +98,11 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
+    return this.assetService.getAssetByQuery({
+      dexName: 'DFI',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.COIN,
+    });
   }
 
   private parseAssetPair(asset: Asset): [string, string] {

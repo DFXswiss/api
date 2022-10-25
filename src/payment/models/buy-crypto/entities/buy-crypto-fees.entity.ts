@@ -1,6 +1,7 @@
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
-import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BuyCrypto } from './buy-crypto.entity';
 
 @Entity()
@@ -9,8 +10,8 @@ export class BuyCryptoFee extends IEntity {
   @JoinColumn()
   buyCrypto: BuyCrypto;
 
-  @Column({ nullable: false })
-  feeAsset: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  feeAsset: Asset;
 
   @Column({ type: 'float', nullable: false })
   estimatePurchaseFeeAmount: number;

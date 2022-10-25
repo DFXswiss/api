@@ -10,7 +10,6 @@ import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity
 import { PayoutService } from '../../payout/services/payout.service';
 import { PayoutOrderContext } from '../../payout/entities/payout-order.entity';
 import { DuplicatedEntryException } from '../../payout/exceptions/duplicated-entry.exception';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutRequest } from '../../payout/interfaces';
 import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 
@@ -20,7 +19,6 @@ export class BuyCryptoOutService {
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
     private readonly buyCryptoPricingService: BuyCryptoPricingService,
-    private readonly assetService: AssetService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
     readonly nodeService: NodeService,
@@ -95,17 +93,10 @@ export class BuyCryptoOutService {
   }
 
   private async doPayout(transaction: BuyCrypto): Promise<void> {
-    const { outputAsset, target } = transaction;
-
-    const asset = await this.assetService.getAssetByQuery({
-      dexName: outputAsset,
-      blockchain: target.asset.blockchain,
-    });
-
     const request: PayoutRequest = {
       context: PayoutOrderContext.BUY_CRYPTO,
       correlationId: transaction.id.toString(),
-      asset,
+      asset: transaction.outputAsset,
       amount: transaction.outputAmount,
       destinationAddress: transaction.target.address,
     };
@@ -129,7 +120,7 @@ export class BuyCryptoOutService {
         if (isComplete) {
           const payoutFee = await this.buyCryptoPricingService.convertToTargetAsset(
             batch,
-            nativePayoutFee.asset.dexName,
+            nativePayoutFee.asset,
             nativePayoutFee.amount,
             batch.outputReferenceAsset,
             'ConvertActualPayoutFee',
