@@ -14,14 +14,14 @@ export interface NotificationOptions {
 }
 
 export enum Banner {
-  THERESIA = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerTheresia.png',
-  CYRILL = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerCyrill.png',
-  DANIEL = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerDaniel.png',
-  MATTHIAS = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerMatthias.png',
-  OLI = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerOli.png',
-  YANNICK = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerYannick.png',
-  TORSTEN = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerTorsten.png',
-  SUPPORT = 'https://dfx.swiss/wp-content/uploads/2022/10/MailBannerSupport.png',
+  TZ = '2022/10/MailBannerTZ.png',
+  CT = '2022/10/MailBannerCT.png',
+  DK = '2022/10/MailBannerDK.png',
+  ML = '2022/10/MailBannerML.png',
+  OL = '2022/10/MailBannerOL.png',
+  YO = '2022/10/MailBannerYO.png',
+  TR = '2022/10/MailBannerTR.png',
+  SUPPORT = '2022/10/MailBannerSupport.png',
 }
 
 @Entity()

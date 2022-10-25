@@ -25,6 +25,7 @@ export class Configuration {
   defaultPercentageDecimal = 2;
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
+  mediaUrl = process.env.MEDIA_URL;
 
   colors = {
     white: '#FFFFFF',

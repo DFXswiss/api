@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { Banner } from 'src/notification/entities/notification.entity';
 import { MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
@@ -53,7 +54,7 @@ export class LimitRequestNotificationService {
               },
               from: 'theresia@dfx.swiss',
               displayName: 'Theresia Zahner | DFX',
-              banner: Banner.THERESIA,
+              banner: Config.mediaUrl + Banner.TZ,
             },
           });
         } else {
