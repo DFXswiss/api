@@ -13,17 +13,6 @@ export interface NotificationOptions {
   debounce?: number; // debounce time in milliseconds
 }
 
-export enum Banner {
-  TZ = '2022/10/MailBannerTZ.png',
-  CT = '2022/10/MailBannerCT.png',
-  DK = '2022/10/MailBannerDK.png',
-  ML = '2022/10/MailBannerML.png',
-  OL = '2022/10/MailBannerOL.png',
-  YO = '2022/10/MailBannerYO.png',
-  TR = '2022/10/MailBannerTR.png',
-  SUPPORT = '2022/10/MailBannerSupport.png',
-}
-
 @Entity()
 export class Notification extends IEntity {
   @Column({ length: 256, nullable: false })

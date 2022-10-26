@@ -25,7 +25,6 @@ export class Configuration {
   defaultPercentageDecimal = 2;
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
-  mediaUrl = process.env.MEDIA_URL;
 
   colors = {
     white: '#FFFFFF',
@@ -112,6 +111,14 @@ export class Configuration {
       htmlBodyInclude: '',
     },
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
+  };
+
+  support = {
+    limitRequest: {
+      mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
+      mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
+      mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
+    },
   };
 
   letter = {
