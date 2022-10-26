@@ -194,7 +194,10 @@ export class BuyCryptoBatch extends IEntity {
 
     if (feeRatio > 0.001) {
       throw new Error(
-        `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${feeRatio * 100}%`,
+        `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
+          feeRatio * 100,
+          5,
+        )}%`,
       );
     }
   }

@@ -70,8 +70,9 @@ export class BuyCryptoBatchService {
 
       for (const batch of batches) {
         const savedBatch = await this.buyCryptoBatchRepo.save(batch);
+        const { dexName, type, blockchain } = savedBatch.outputAsset;
         console.info(
-          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${savedBatch.outputAsset}. Transaction(s) count ${batch.transactions.length}`,
+          `Created buy crypto batch. Batch ID: ${savedBatch.id}. Asset: ${dexName} ${type} ${blockchain}. Transaction(s) count ${batch.transactions.length}`,
         );
       }
     } catch (e) {
