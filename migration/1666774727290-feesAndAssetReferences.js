@@ -4,8 +4,6 @@ module.exports = class feesAndAssetReferences1666774727290 {
   name = 'feesAndAssetReferences1666774727290';
 
   async up(queryRunner) {
-    await queryRunner.query(`DROP INDEX "nameBlockchain" ON "asset"`);
-    await queryRunner.query(`CREATE UNIQUE INDEX "nameTypeBlockchain" ON "asset" ("name", "type", "blockchain") `);
     await queryRunner.query(
       `CREATE TABLE "buy_crypto_fee" ("id" int NOT NULL IDENTITY(1,1), "updated" datetime2 NOT NULL CONSTRAINT "DF_5d6821f63ac7fee2578852037fa" DEFAULT getdate(), "created" datetime2 NOT NULL CONSTRAINT "DF_e7958cfa15682c6e1a9677ae2a9" DEFAULT getdate(), "estimatePurchaseFeeAmount" float NOT NULL, "estimatePurchaseFeePercent" float NOT NULL, "estimatePayoutFeeAmount" float NOT NULL, "estimatePayoutFeePercent" float NOT NULL, "actualPurchaseFeeAmount" float, "actualPurchaseFeePercent" float, "actualPayoutFeeAmount" float, "actualPayoutFeePercent" float, "buyCryptoId" int, "feeAssetId" int NOT NULL, CONSTRAINT "PK_5d15f373a8930e6732ef7e9e425" PRIMARY KEY ("id"))`,
     );
@@ -95,7 +93,5 @@ module.exports = class feesAndAssetReferences1666774727290 {
     await queryRunner.query(`ALTER TABLE "buy_crypto_batch" DROP COLUMN "outputReferenceAssetId"`);
     await queryRunner.query(`DROP INDEX "REL_eb25df1202d7a05df6146b4229" ON "buy_crypto_fee"`);
     await queryRunner.query(`DROP TABLE "buy_crypto_fee"`);
-    await queryRunner.query(`DROP INDEX "nameTypeBlockchain" ON "asset"`);
-    await queryRunner.query(`CREATE UNIQUE INDEX "nameBlockchain" ON "asset" ("name", "blockchain") `);
   }
 };
