@@ -82,6 +82,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
       reference: {
         asset: referenceAsset,
         amount: referenceAmount,
+        // indicative calculation, doesn't have to be 100% precise (no test swap required)
         availableAmount: (availableAmount / targetAmount) * referenceAmount,
         maxPurchasableAmount: (maxPurchasableAmount / targetAmount) * referenceAmount,
       },
