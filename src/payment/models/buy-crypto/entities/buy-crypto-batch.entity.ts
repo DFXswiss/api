@@ -71,7 +71,10 @@ export class BuyCryptoBatch extends IEntity {
     ) {
       this.reBatchToMaxReferenceAmount(maxPurchasableAmount);
 
-      // purchase is required, though liquidity is not enough to purchase for entire batch -> re-batching to smaller amount
+      /**
+       * purchase is required, though liquidity is not enough to purchase for entire batch -> re-batching to smaller amount *
+       * warning is returned because on high load of small transactions, big transaction might be sliced out over and over again, without any notice
+       */
       return [true, true];
     }
 
@@ -180,6 +183,8 @@ export class BuyCryptoBatch extends IEntity {
         `Cannot re-batch transactions in batch, liquidity limit is too low. Out asset: ${dexName} ${type} ${blockchain}`,
       );
     }
+
+    this.transactions = reBatchedTransactions;
 
     return this;
   }
