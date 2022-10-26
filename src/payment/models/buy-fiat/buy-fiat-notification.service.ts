@@ -65,7 +65,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.offRampInitiated(recipientMail));
       } catch (e) {
-        console.error(e);
+        console.error(`Failed to send buyFiat off-ramp initiated mail ${entity.id}:`, e);
       }
     }
   }
@@ -105,7 +105,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.cryptoExchangedToFiat());
       } catch (e) {
-        console.error(e);
+        console.error(`Failed to send buyFiat crypto exchanged to fiat mail ${entity.id}:`, e);
       }
     }
   }
@@ -143,7 +143,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update(...entity.fiatToBankTransferInitiated());
       } catch (e) {
-        console.error(e);
+        console.error(`Failed to send buyFiat fiat to bank transfer mail ${entity.id}:`, e);
       }
     }
   }
@@ -190,7 +190,7 @@ export class BuyFiatNotificationService {
 
         await this.buyFiatRepo.update({ id: entity.id }, { mailReturnSendDate: entity.mailReturnSendDate });
       } catch (e) {
-        console.error(e);
+        console.error(`Failed to send buyFiat payback to address mail ${entity.id}:`, e);
       }
     }
   }

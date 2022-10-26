@@ -61,7 +61,7 @@ export class LimitRequest extends IEntity {
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 
-  //
+  // Mail sent
   limitRequestMailSendDate(): UpdateResult<LimitRequest> {
     this.recipientMail = this.userData.mail;
     this.mailSendDate = new Date();

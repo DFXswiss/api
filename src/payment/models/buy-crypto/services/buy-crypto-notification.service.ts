@@ -76,11 +76,11 @@ export class BuyCryptoNotificationService {
 
           await this.buyCryptoRepo.update(...tx.confirmSentMail());
         } catch (e) {
-          console.error(e);
+          console.error(`Failed to send buyCrypto confirmed mail ${tx.id}:`, e);
         }
       }
     } catch (e) {
-      console.error(e);
+      console.error(`Failed to send buyCrypto confirmed mails:`, e);
     }
   }
 
@@ -143,7 +143,7 @@ export class BuyCryptoNotificationService {
 
         await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
-        console.error(e);
+        console.error(`Failed to send buyCrypto payback to address mail ${entity.id}:`, e);
       }
     }
   }
@@ -188,7 +188,7 @@ export class BuyCryptoNotificationService {
 
         await this.buyCryptoRepo.update(...entity.confirmSentMail());
       } catch (e) {
-        console.error(e);
+        console.error(`Failed to send buyCrypto pending mail ${entity.id}:`, e);
       }
     }
   }

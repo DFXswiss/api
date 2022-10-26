@@ -17,7 +17,7 @@ export class LimitRequestNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  @Interval(60000)
+  @Interval(300000)
   async sendNotificationMails(): Promise<void> {
     if (!this.lock.acquire()) return;
 
@@ -37,7 +37,7 @@ export class LimitRequestNotificationService {
       relations: ['userData'],
     });
 
-    entities.length > 0 && console.log(`Sending ${entities.length} 'limit-request initiated' email(s)`);
+    entities.length > 0 && console.log(`Sending ${entities.length} 'limit-request accepted' email(s)`);
 
     for (const entity of entities) {
       try {
@@ -57,12 +57,12 @@ export class LimitRequestNotificationService {
             },
           });
         } else {
-          console.error(`Failed to send buy fiat mails ${entity.id}: user has no email`);
+          console.error(`Failed to send limit request accepted mail ${entity.id}: user has no email`);
         }
 
         await this.limitRequestRepo.update(...entity.limitRequestMailSendDate());
       } catch (e) {
-        console.error(e);
+        console.error(`Failed to send limit request accepted mail ${entity.id}:`, e);
       }
     }
   }
