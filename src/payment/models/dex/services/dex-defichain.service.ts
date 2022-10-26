@@ -12,6 +12,15 @@ import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
+export interface DexDeFiChainLiquidityResult {
+  targetAmount: number;
+  availableAmount: number;
+  maxPurchasableAmount: number;
+  isSlippageDetected: boolean;
+  slippageMessage: string;
+  feeAmount: number;
+}
+
 @Injectable()
 export class DexDeFiChainService {
   #dexClient: DeFiClient;
@@ -33,20 +42,10 @@ export class DexDeFiChainService {
     targetAsset: Asset,
     maxSlippage: number,
     purchaseAssets: Asset[],
-  ): Promise<{
-    targetAmount: number;
-    availableAmount: number;
-    maxPurchasableAmount: number;
-    isSlippageDetected: boolean;
-    slippageMessage: string;
-    feeAmount: number;
-  }> {
-    const targetAmount =
-      targetAsset === sourceAsset
-        ? sourceAmount
-        : await this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, sourceAmount);
+  ): Promise<DexDeFiChainLiquidityResult> {
+    const targetAmount = await this.getTargetAmount(sourceAsset, sourceAmount, targetAsset);
 
-    const [availableAmount, pendingAmount] = await this.getAssetAvailability(targetAsset);
+    const availableAmount = await this.getAssetAvailability(targetAsset);
     const maxPurchasableAmount = await this.getMaxPurchasableAmount(purchaseAssets, targetAsset);
     const [isSlippageDetected, slippageMessage] = await this.checkTestSwapPriceSlippage(
       sourceAsset,
@@ -58,7 +57,7 @@ export class DexDeFiChainService {
 
     return {
       targetAmount,
-      availableAmount: availableAmount - pendingAmount,
+      availableAmount: availableAmount,
       maxPurchasableAmount,
       isSlippageDetected,
       slippageMessage,
@@ -72,10 +71,7 @@ export class DexDeFiChainService {
     targetAsset: Asset,
     maxSlippage: number,
   ): Promise<ChainSwapId> {
-    const maxPrice =
-      (await this.settingService.get('slippage-protection')) === 'on'
-        ? await this.calculateMaxTargetAssetPrice(swapAsset, targetAsset, maxSlippage)
-        : undefined;
+    const maxPrice = await this.getMaxPriceForPurchaseLiquidity(swapAsset, targetAsset, maxSlippage);
 
     try {
       return await this.#dexClient.compositeSwap(
@@ -159,25 +155,31 @@ export class DexDeFiChainService {
 
   // *** HELPER METHODS *** //
 
-  private async checkAssetAvailability(asset: Asset, amount: number): Promise<void> {
-    const [availableAmount, pendingAmount] = await this.getAssetAvailability(asset);
+  private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    return targetAsset.dexName === sourceAsset.dexName
+      ? sourceAmount
+      : await this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, sourceAmount);
+  }
+
+  private async checkAssetAvailability(asset: Asset, requiredAmount: number): Promise<void> {
+    const availableAmount = await this.getAssetAvailability(asset);
 
     // 5% cap for unexpected meantime swaps
-    if (amount * 1.05 > availableAmount - pendingAmount) {
+    if (requiredAmount * 1.05 > availableAmount) {
       throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${asset}. Trying to use ${amount} ${asset} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
+        `Not enough liquidity of asset ${asset}. Trying to use ${requiredAmount} ${asset} worth liquidity. Available amount: ${availableAmount}.`,
       );
     }
   }
 
-  private async getAssetAvailability(asset: Asset): Promise<[number, number]> {
+  private async getAssetAvailability(asset: Asset): Promise<number> {
     const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
       (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
     );
     const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
     const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
 
-    return [availableAmount, pendingAmount];
+    return Util.round(availableAmount - pendingAmount, 8);
   }
 
   private async getMaxPurchasableAmount(swapAssets: Asset[], targetAsset: Asset): Promise<number> {
@@ -193,12 +195,9 @@ export class DexDeFiChainService {
 
   private async getPurchasableAmount(swapAsset: Asset, targetAsset: Asset): Promise<number> {
     try {
-      const [availableAmount, pendingAmount] = await this.getAssetAvailability(swapAsset);
-      return this.#dexClient.testCompositeSwap(
-        swapAsset.dexName,
-        targetAsset.dexName,
-        Util.round(availableAmount - pendingAmount, 8),
-      );
+      const availableAmount = await this.getAssetAvailability(swapAsset);
+
+      return this.#dexClient.testCompositeSwap(swapAsset.dexName, targetAsset.dexName, availableAmount);
     } catch (e) {
       console.warn(
         `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
@@ -254,6 +253,16 @@ export class DexDeFiChainService {
     const actualPrice = Util.round(sourceAmount / targetAmount, 8);
 
     return `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${actualPrice} ${sourceAsset}`;
+  }
+
+  private async getMaxPriceForPurchaseLiquidity(
+    swapAsset: Asset,
+    targetAsset: Asset,
+    maxSlippage: number,
+  ): Promise<number | undefined> {
+    return (await this.settingService.get('slippage-protection')) === 'on'
+      ? await this.calculateMaxTargetAssetPrice(swapAsset, targetAsset, maxSlippage)
+      : undefined;
   }
 
   private async calculateMaxTargetAssetPrice(

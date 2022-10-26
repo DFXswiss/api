@@ -4,7 +4,7 @@ import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
-import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { DexDeFiChainLiquidityResult, DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DeFiChainNonPoolPairStrategy } from '../../purchase-liquidity/impl/base/defichain-non-poolpair.strategy';
 import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
@@ -24,26 +24,15 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
 
     const prioritySwapAssets = await this.getPrioritySwapAssets(targetAsset);
 
-    // calculating how much targetAmount is needed and if it's available on the node
-    const { targetAmount, availableAmount, maxPurchasableAmount, isSlippageDetected, slippageMessage, feeAmount } =
-      await this.dexDeFiChainService.getAndCheckAvailableTargetLiquidity(
-        referenceAsset,
-        referenceAmount,
-        targetAsset,
-        LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
-        prioritySwapAssets,
-      );
-
-    return this.createCheckLiquidityResult(
-      request,
-      targetAmount,
-      availableAmount,
-      maxPurchasableAmount,
-      isSlippageDetected,
-      slippageMessage,
-      await this.feeAsset(),
-      feeAmount,
+    const liquidity = await this.dexDeFiChainService.getAndCheckAvailableTargetLiquidity(
+      referenceAsset,
+      referenceAmount,
+      targetAsset,
+      LiquidityOrder.getMaxPriceSlippage(targetAsset.dexName),
+      prioritySwapAssets,
     );
+
+    return this.createCheckLiquidityResult(request, liquidity);
   }
 
   protected getFeeAsset(): Promise<Asset> {
@@ -75,17 +64,13 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
     }
   }
 
-  private createCheckLiquidityResult(
+  private async createCheckLiquidityResult(
     request: LiquidityRequest,
-    targetAmount: number,
-    availableAmount: number,
-    maxPurchasableAmount: number,
-    isSlippageDetected: boolean,
-    slippageMessage: string,
-    feeAsset: Asset,
-    feeAmount: number,
-  ): CheckLiquidityResult {
+    liquidity: DexDeFiChainLiquidityResult,
+  ): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, targetAsset } = request;
+    const { targetAmount, availableAmount, maxPurchasableAmount, isSlippageDetected, slippageMessage, feeAmount } =
+      liquidity;
 
     return {
       target: {
@@ -101,7 +86,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
         maxPurchasableAmount: (maxPurchasableAmount / targetAmount) * referenceAmount,
       },
       purchaseFee: {
-        asset: feeAsset,
+        asset: await this.feeAsset(),
         amount: feeAmount,
       },
       metadata: {
