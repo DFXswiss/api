@@ -39,7 +39,7 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: false })
   referenceAmount: number;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   targetAsset: Asset;
 
   @Column({ type: 'float', nullable: true })

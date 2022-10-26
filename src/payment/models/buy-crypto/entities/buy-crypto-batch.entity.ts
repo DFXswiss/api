@@ -23,19 +23,19 @@ export class BuyCryptoBatch extends IEntity {
   @OneToMany(() => BuyCrypto, (buyCrypto) => buyCrypto.batch, { cascade: true })
   transactions: BuyCrypto[];
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputReferenceAsset: Asset;
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount: number;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputAsset: Asset;
 
   @Column({ type: 'float', nullable: true })
   outputAmount: number;
 
-  @Column({ length: 256, nullable: false })
+  @Column({ length: 256, nullable: true })
   status: BuyCryptoBatchStatus;
 
   @Column({ length: 256, nullable: true })
