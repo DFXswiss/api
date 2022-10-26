@@ -14,7 +14,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/user/models/user/user.service';
 import { BankAccountService } from '../bank-account/bank-account.service';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class SellService {
@@ -57,7 +56,10 @@ export class SellService {
     dto.iban = dto.iban.split(' ').join('');
 
     // check if exists
-    const existing = await this.sellRepo.findOne({ where: { iban: dto.iban, fiat: fiat, user: { id: userId } } });
+    const existing = await this.sellRepo.findOne({
+      relations: ['deposit'],
+      where: { iban: dto.iban, fiat: fiat, deposit: { blockchain: dto.blockchain }, user: { id: userId } },
+    });
 
     if (existing) {
       if (existing.active && !ignoreExisting) throw new ConflictException('Sell route already exists');
@@ -75,7 +77,7 @@ export class SellService {
     const sell = this.sellRepo.create(dto);
     sell.user = { id: userId } as User;
     sell.fiat = fiat;
-    sell.deposit = await this.depositService.getNextDeposit(Blockchain.DEFICHAIN);
+    sell.deposit = await this.depositService.getNextDeposit(dto.blockchain);
     sell.bankAccount = await this.bankAccountService.getOrCreateBankAccount(dto.iban, userId);
 
     return this.sellRepo.save(sell);

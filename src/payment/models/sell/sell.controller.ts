@@ -84,6 +84,7 @@ export class SellController {
     return {
       ...sell,
       fee,
+      blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
       minDeposits: this.getMinDeposit(sell.fiat.name),
     };
@@ -93,6 +94,7 @@ export class SellController {
     return {
       fee: await this.getFee(userId),
       depositAddress: sell.deposit.address,
+      blockchain: sell.deposit.blockchain,
       minDeposits: this.getMinDeposit(sell.fiat.name),
     };
   }

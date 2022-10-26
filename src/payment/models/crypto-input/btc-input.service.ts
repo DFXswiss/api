@@ -19,6 +19,8 @@ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 import { BtcFeeService } from 'src/blockchain/ain/services/btc-fee.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { RouteType } from '../route/deposit-route.entity';
+import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -32,6 +34,7 @@ export class BtcInputService extends CryptoInputService {
     private readonly assetService: AssetService,
     private readonly cryptoRouteService: CryptoRouteService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyFiatService: BuyFiatService,
     private readonly chainalysisService: ChainalysisService,
     private readonly feeService: BtcFeeService,
   ) {
@@ -65,7 +68,9 @@ export class BtcInputService extends CryptoInputService {
 
     for (const input of newInputs) {
       await this.cryptoInputRepo.save(input);
-      await this.buyCryptoService.createFromCrypto(input);
+      input.type === CryptoInputType.BUY_CRYPTO
+        ? await this.buyCryptoService.createFromCrypto(input)
+        : await this.buyFiatService.create(input);
     }
   }
 
@@ -131,7 +136,7 @@ export class BtcInputService extends CryptoInputService {
       btcAmount: utxo.amount.toNumber(),
       isConfirmed: false,
       amlCheck,
-      type: CryptoInputType.BUY_CRYPTO,
+      type: route.type === RouteType.CRYPTO ? CryptoInputType.BUY_CRYPTO : CryptoInputType.BUY_FIAT,
       vout: utxo.vout,
     });
   }

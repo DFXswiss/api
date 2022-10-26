@@ -9,6 +9,7 @@ import { BlockchainExplorerUrls } from 'src/blockchain/shared/enums/blockchain.e
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
 import { AmlReason } from '../enums/aml-reason.enum';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -29,60 +30,65 @@ export class BuyCryptoNotificationService {
   }
 
   async buyCryptoConfirmed(): Promise<void> {
-    const txOutput = await this.buyCryptoRepo.find({
-      where: {
-        mailSendDate: IsNull(),
-        txId: Not(IsNull()),
-        isComplete: true,
-        batch: { status: BuyCryptoBatchStatus.COMPLETE },
-      },
-      relations: [
-        'bankTx',
-        'buy',
-        'buy.user',
-        'buy.user.userData',
-        'buy.asset',
-        'batch',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.user.userData',
-        'cryptoRoute.asset',
-      ],
-    });
+    try {
+      const txOutput = await this.buyCryptoRepo.find({
+        where: {
+          mailSendDate: IsNull(),
+          txId: Not(IsNull()),
+          isComplete: true,
+          batch: { status: BuyCryptoBatchStatus.COMPLETE },
+          amlCheck: AmlCheck.PASS,
+        },
+        relations: [
+          'bankTx',
+          'buy',
+          'buy.user',
+          'buy.user.userData',
+          'buy.asset',
+          'batch',
+          'cryptoRoute',
+          'cryptoRoute.user',
+          'cryptoRoute.user.userData',
+          'cryptoRoute.asset',
+        ],
+      });
 
-    txOutput.length &&
-      console.info(
-        `Sending notifications for ${txOutput.length} buy crypto transaction(s). Transaction ID(s): ${txOutput.map(
-          (t) => t.id,
-        )}`,
-      );
+      txOutput.length &&
+        console.info(
+          `Sending notifications for ${txOutput.length} buy crypto transaction(s). Transaction ID(s): ${txOutput.map(
+            (t) => t.id,
+          )}`,
+        );
 
-    for (const tx of txOutput) {
-      try {
-        tx.user.userData.mail &&
-          (await this.notificationService.sendMail({
-            type: MailType.USER,
-            input: {
-              userData: tx.user.userData,
-              translationKey: tx.translationKey,
-              translationParams: {
-                buyInputAmount: tx.inputAmount,
-                buyInputAsset: tx.inputAsset,
-                buyOutputAmount: tx.outputAmount,
-                buyOutputAsset: tx.outputAsset,
-                buyFeePercentage: Util.round(tx.percentFee * 100, 2),
-                exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
-                buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
-                buyTxId: tx.txId,
-                buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
+      for (const tx of txOutput) {
+        try {
+          tx.user.userData.mail &&
+            (await this.notificationService.sendMail({
+              type: MailType.USER,
+              input: {
+                userData: tx.user.userData,
+                translationKey: tx.translationKey,
+                translationParams: {
+                  buyInputAmount: tx.inputAmount,
+                  buyInputAsset: tx.inputAsset,
+                  buyOutputAmount: tx.outputAmount,
+                  buyOutputAsset: tx.outputAsset,
+                  buyFeePercentage: Util.round(tx.percentFee * 100, 2),
+                  exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
+                  buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
+                  buyTxId: tx.txId,
+                  buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
+                },
               },
-            },
-          }));
+            }));
 
-        await this.buyCryptoRepo.update(...tx.confirmSentMail());
-      } catch (e) {
-        console.error(e);
+          await this.buyCryptoRepo.update(...tx.confirmSentMail());
+        } catch (e) {
+          console.error(e);
+        }
       }
+    } catch (e) {
+      console.error(e);
     }
   }
 
@@ -207,7 +213,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
-        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT]),
+        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT, AmlReason.OLKY_NO_KYC]),
         amlCheck: AmlCheck.PENDING,
       },
       relations: [
@@ -232,7 +238,7 @@ export class BuyCryptoNotificationService {
               userData: entity.user.userData,
               translationKey: entity.translationKey,
               translationParams: {
-                hashLink: `https://payment.dfx.swiss/kyc?code=${entity.user.userData.kycHash}`,
+                hashLink: `${Config.payment.url}/kyc?code=${entity.user.userData.kycHash}`,
               },
             },
           });
