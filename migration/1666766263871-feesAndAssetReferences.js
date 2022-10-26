@@ -93,12 +93,6 @@ module.exports = class feesAndAssetReferences1666766263871 {
     await queryRunner.query(`ALTER TABLE "buy_crypto" DROP COLUMN "outputReferenceAssetId"`);
     await queryRunner.query(`ALTER TABLE "buy_crypto_batch" DROP COLUMN "outputAssetId"`);
     await queryRunner.query(`ALTER TABLE "buy_crypto_batch" DROP COLUMN "outputReferenceAssetId"`);
-    await queryRunner.query(`ALTER TABLE "liquidity_order" ADD "swapAsset" nvarchar(256)`);
-    await queryRunner.query(`ALTER TABLE "liquidity_order" ADD "referenceAsset" nvarchar(256) NOT NULL`);
-    await queryRunner.query(`ALTER TABLE "buy_crypto" ADD "outputAsset" nvarchar(256)`);
-    await queryRunner.query(`ALTER TABLE "buy_crypto" ADD "outputReferenceAsset" nvarchar(256)`);
-    await queryRunner.query(`ALTER TABLE "buy_crypto_batch" ADD "outputAsset" nvarchar(256)`);
-    await queryRunner.query(`ALTER TABLE "buy_crypto_batch" ADD "outputReferenceAsset" nvarchar(256)`);
     await queryRunner.query(`DROP INDEX "REL_eb25df1202d7a05df6146b4229" ON "buy_crypto_fee"`);
     await queryRunner.query(`DROP TABLE "buy_crypto_fee"`);
     await queryRunner.query(`DROP INDEX "nameTypeBlockchain" ON "dbo"."asset"`);
