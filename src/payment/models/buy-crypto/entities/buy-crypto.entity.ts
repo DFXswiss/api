@@ -132,7 +132,10 @@ export class BuyCrypto extends IEntity {
 
         return null;
       } else {
-        return { outputReferenceAssetName: 'BTC', type: AssetType.COIN };
+        return {
+          outputReferenceAssetName: 'BTC',
+          type: this.target.asset.blockchain === Blockchain.BITCOIN ? AssetType.COIN : AssetType.TOKEN,
+        };
       }
     }
 
@@ -156,7 +159,10 @@ export class BuyCrypto extends IEntity {
         return { outputReferenceAssetName: 'BNB', type: AssetType.COIN };
 
       default:
-        return { outputReferenceAssetName: 'BTC', type: AssetType.COIN };
+        return {
+          outputReferenceAssetName: 'BTC',
+          type: this.target.asset.blockchain === Blockchain.BITCOIN ? AssetType.COIN : AssetType.TOKEN,
+        };
     }
   }
 

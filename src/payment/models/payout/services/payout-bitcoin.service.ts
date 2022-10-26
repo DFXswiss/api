@@ -32,7 +32,7 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
     const transaction = await this.#client.getTx(payoutTxId);
 
     const isComplete = transaction && transaction.blockhash && transaction.confirmations > 0;
-    const payoutFee = isComplete ? Util.round(transaction.fee / 100000000, 8) : 0;
+    const payoutFee = isComplete ? Util.round(-transaction.fee / 100000000, 8) : 0;
 
     return [isComplete, payoutFee];
   }

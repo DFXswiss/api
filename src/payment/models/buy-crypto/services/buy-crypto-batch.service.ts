@@ -106,7 +106,7 @@ export class BuyCryptoBatchService {
       }
     }
 
-    return transactions.filter((tx) => tx.outputAsset);
+    return transactions.filter((tx) => tx.outputReferenceAsset && tx.outputAsset);
   }
 
   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
@@ -230,7 +230,7 @@ export class BuyCryptoBatchService {
           await this.handleAbortBatchCreationException(batch, e);
         }
 
-        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset}.`, e.message);
+        console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.dexName}.`, e.message);
       }
     }
 
@@ -239,20 +239,22 @@ export class BuyCryptoBatchService {
 
   private async checkLiquidity(batch: BuyCryptoBatch): Promise<CheckLiquidityResult> {
     try {
-      const request = await this.createLiquidityRequest(batch);
+      const request = await this.createReadonlyLiquidityRequest(batch);
 
       return await this.dexService.checkLiquidity(request);
     } catch (e) {
-      throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
+      throw new Error(
+        `Error in checking liquidity for a batch. Batch target asset: ${batch.outputAsset.dexName}. ${e.message}`,
+      );
     }
   }
 
-  private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
+  private async createReadonlyLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
     const { outputAsset: targetAsset, outputReferenceAsset: referenceAsset } = batch;
 
     return {
       context: LiquidityOrderContext.BUY_CRYPTO,
-      correlationId: batch.id.toString(),
+      correlationId: 'not_required_for_readonly_liquidity_request',
       referenceAsset,
       referenceAmount: batch.outputReferenceAmount,
       targetAsset,
@@ -265,7 +267,7 @@ export class BuyCryptoBatchService {
 
       return await this.payoutService.estimateFee(request);
     } catch (e) {
-      throw new Error(`Error in checking liquidity for a batch, ID: ${batch.id}. ${e.message}`);
+      throw new Error(`Error in checking payout fees for a batch, ID: ${batch.id}. ${e.message}`);
     }
   }
 
@@ -347,6 +349,8 @@ export class BuyCryptoBatchService {
     purchaseFee: number,
     payoutFee: number,
   ): Promise<void> {
+    const inputBatchLength = batch.transactions.length;
+
     const {
       reference: { availableAmount, maxPurchasableAmount },
     } = liquidity;
@@ -357,6 +361,15 @@ export class BuyCryptoBatchService {
     const effectivePurchaseFee = isPurchaseRequired ? purchaseFee : 0;
 
     batch.checkAndRecordFeesEstimations(effectivePurchaseFee, payoutFee);
+
+    if (inputBatchLength !== batch.transactions.length) {
+      const { dexName, type, blockchain } = batch.outputAsset;
+      console.log(
+        `Optimized batch for output asset: ${dexName} ${type} ${blockchain}. ${
+          inputBatchLength - batch.transactions.length
+        } removed from the batch`,
+      );
+    }
   }
 
   private async handleLiquidityWarning(batch: BuyCryptoBatch): Promise<void> {

@@ -11,7 +11,7 @@ export class BuyCryptoFee extends IEntity {
   buyCrypto: BuyCrypto;
 
   @ManyToOne(() => Asset, { eager: true, nullable: false })
-  feeAsset: Asset;
+  feeReferenceAsset: Asset;
 
   @Column({ type: 'float', nullable: false })
   estimatePurchaseFeeAmount: number;
@@ -43,7 +43,7 @@ export class BuyCryptoFee extends IEntity {
     const entity = new BuyCryptoFee();
 
     entity.buyCrypto = transaction;
-    entity.feeAsset = transaction.outputReferenceAsset;
+    entity.feeReferenceAsset = transaction.outputReferenceAsset;
 
     entity.estimatePurchaseFeeAmount = purchaseFeeAmount;
     entity.estimatePurchaseFeePercent = Util.round(purchaseFeeAmount / transaction.outputReferenceAmount, 8);

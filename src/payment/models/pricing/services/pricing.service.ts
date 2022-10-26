@@ -29,6 +29,7 @@ export enum PricingPathAlias {
   NON_MATCHING_FIAT_TO_USD_STABLE_COIN = 'NonMatchingFiatToUSDStableCoin',
   NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN = 'NonMatchingUSDStableCoinToUSDStableCoin',
   FIAT_TO_DFI = 'FiatToDfi',
+  DFI_TO_NON_FIAT = 'DfiToNonFiat',
 }
 
 @Injectable()
@@ -229,6 +230,17 @@ export class PricingService {
         }),
       ]),
     );
+
+    this.addPath(
+      new PricePath(PricingPathAlias.DFI_TO_NON_FIAT, [
+        new PriceStep({
+          providers: {
+            primary: [this.dfiDexService],
+            reference: [],
+          },
+        }),
+      ]),
+    );
   }
 
   //*** HELPER METHODS ***//
@@ -281,6 +293,8 @@ export class PricingService {
     }
 
     if (this.isFiat(from) && to === 'DFI') return PricingPathAlias.FIAT_TO_DFI;
+
+    if (from === 'DFI' && !this.isFiat(to)) return PricingPathAlias.DFI_TO_NON_FIAT;
 
     throw new Error(`No matching pricing path alias found. From: ${request.from} to: ${request.to}`);
   }

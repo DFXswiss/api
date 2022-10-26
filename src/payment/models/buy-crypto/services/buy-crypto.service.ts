@@ -121,7 +121,7 @@ export class BuyCryptoService {
     return entity;
   }
 
-  @Interval(60000)
+  @Interval(20000)
   async process() {
     if ((await this.settingService.get('buy-process')) !== 'on') return;
     if (!this.lock.acquire()) return;

@@ -190,10 +190,12 @@ export class BuyCryptoBatch extends IEntity {
   }
 
   private checkFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
-    const feeRatio = (purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount;
+    const feeRatio = Util.round((purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount, 8);
 
     if (feeRatio > 0.001) {
-      throw new Error(`BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset}. Fee ratio: ${feeRatio}`);
+      throw new Error(
+        `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${feeRatio * 100}%`,
+      );
     }
   }
 

@@ -53,7 +53,7 @@ describe('BuyCrypto', () => {
       const requiredAssetFetch = entity.defineAssetExchangePair();
 
       expect(requiredAssetFetch.outputReferenceAssetName).toBe('BTC');
-      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
+      expect(requiredAssetFetch.type).toBe(AssetType.TOKEN);
       expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
@@ -129,7 +129,7 @@ describe('BuyCrypto', () => {
       const requiredAssetFetch = entity.defineAssetExchangePair();
 
       expect(requiredAssetFetch.outputReferenceAssetName).toBe('BTC');
-      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
+      expect(requiredAssetFetch.type).toBe(AssetType.TOKEN);
       expect(entity.outputReferenceAsset).toBeUndefined();
     });
 

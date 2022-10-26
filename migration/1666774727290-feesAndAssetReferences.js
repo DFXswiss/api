@@ -5,7 +5,7 @@ module.exports = class feesAndAssetReferences1666774727290 {
 
   async up(queryRunner) {
     await queryRunner.query(
-      `CREATE TABLE "buy_crypto_fee" ("id" int NOT NULL IDENTITY(1,1), "updated" datetime2 NOT NULL CONSTRAINT "DF_5d6821f63ac7fee2578852037fa" DEFAULT getdate(), "created" datetime2 NOT NULL CONSTRAINT "DF_e7958cfa15682c6e1a9677ae2a9" DEFAULT getdate(), "estimatePurchaseFeeAmount" float NOT NULL, "estimatePurchaseFeePercent" float NOT NULL, "estimatePayoutFeeAmount" float NOT NULL, "estimatePayoutFeePercent" float NOT NULL, "actualPurchaseFeeAmount" float, "actualPurchaseFeePercent" float, "actualPayoutFeeAmount" float, "actualPayoutFeePercent" float, "buyCryptoId" int, "feeAssetId" int NOT NULL, CONSTRAINT "PK_5d15f373a8930e6732ef7e9e425" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "buy_crypto_fee" ("id" int NOT NULL IDENTITY(1,1), "updated" datetime2 NOT NULL CONSTRAINT "DF_5d6821f63ac7fee2578852037fa" DEFAULT getdate(), "created" datetime2 NOT NULL CONSTRAINT "DF_e7958cfa15682c6e1a9677ae2a9" DEFAULT getdate(), "estimatePurchaseFeeAmount" float NOT NULL, "estimatePurchaseFeePercent" float NOT NULL, "estimatePayoutFeeAmount" float NOT NULL, "estimatePayoutFeePercent" float NOT NULL, "actualPurchaseFeeAmount" float, "actualPurchaseFeePercent" float, "actualPayoutFeeAmount" float, "actualPayoutFeePercent" float, "buyCryptoId" int, "feeReferenceAssetId" int NOT NULL, CONSTRAINT "PK_5d15f373a8930e6732ef7e9e425" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE UNIQUE INDEX "REL_eb25df1202d7a05df6146b4229" ON "buy_crypto_fee" ("buyCryptoId") WHERE "buyCryptoId" IS NOT NULL`,
@@ -28,7 +28,7 @@ module.exports = class feesAndAssetReferences1666774727290 {
       `ALTER TABLE "buy_crypto_fee" ADD CONSTRAINT "FK_eb25df1202d7a05df6146b4229d" FOREIGN KEY ("buyCryptoId") REFERENCES "buy_crypto"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
     );
     await queryRunner.query(
-      `ALTER TABLE "buy_crypto_fee" ADD CONSTRAINT "FK_88516904512221a608f408dadaf" FOREIGN KEY ("feeAssetId") REFERENCES "asset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+      `ALTER TABLE "buy_crypto_fee" ADD CONSTRAINT "FK_88516904512221a608f408dadaf" FOREIGN KEY ("feeReferenceAssetId") REFERENCES "asset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
     );
     await queryRunner.query(
       `ALTER TABLE "buy_crypto_batch" ADD CONSTRAINT "FK_37c45f78682091aa273e913c72c" FOREIGN KEY ("outputReferenceAssetId") REFERENCES "asset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,

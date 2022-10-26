@@ -94,7 +94,7 @@ export class EvmClient {
     const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
     const actualFee = gasUsed.mul(effectiveGasPrice);
 
-    return this.convertToEthLikeDenomination(actualFee, 'gwei');
+    return this.convertToEthLikeDenomination(actualFee);
   }
 
   async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
@@ -114,7 +114,7 @@ export class EvmClient {
 
   //*** PUBLIC HELPER METHODS ***//
 
-  convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number | 'gwei'): number {
+  convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
     return decimals
       ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
       : parseFloat(ethers.utils.formatEther(amountWeiLike));

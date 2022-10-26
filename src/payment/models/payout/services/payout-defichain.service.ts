@@ -37,7 +37,7 @@ export class PayoutDeFiChainService extends PayoutJellyfishService {
     const transaction = await this.getClient(context).getTx(payoutTxId);
 
     const isComplete = transaction && transaction.blockhash && transaction.confirmations > 0;
-    const payoutFee = isComplete ? transaction.fee : 0;
+    const payoutFee = isComplete ? -transaction.fee : 0;
 
     return [isComplete, payoutFee];
   }

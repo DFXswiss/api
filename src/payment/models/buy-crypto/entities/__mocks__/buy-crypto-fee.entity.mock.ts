@@ -10,7 +10,7 @@ export function createCustomBuyCryptoFee(customValues: Partial<BuyCryptoFee>): B
   const {
     id,
     buyCrypto,
-    feeAsset,
+    feeReferenceAsset,
     estimatePurchaseFeeAmount,
     estimatePurchaseFeePercent,
     estimatePayoutFeeAmount,
@@ -27,7 +27,9 @@ export function createCustomBuyCryptoFee(customValues: Partial<BuyCryptoFee>): B
   entity.id = keys.includes('id') ? id : 1;
   // default to object literal to avoid circular creation
   entity.buyCrypto = keys.includes('buyCrypto') ? buyCrypto : ({ id: 'ID_01' } as unknown as BuyCrypto);
-  entity.feeAsset = keys.includes('feeAsset') ? feeAsset : createCustomAsset({ dexName: 'BTC' });
+  entity.feeReferenceAsset = keys.includes('feeReferenceAsset')
+    ? feeReferenceAsset
+    : createCustomAsset({ dexName: 'BTC' });
   entity.estimatePurchaseFeeAmount = keys.includes('estimatePurchaseFeeAmount') ? estimatePurchaseFeeAmount : 2;
   entity.estimatePurchaseFeePercent = keys.includes('estimatePurchaseFeePercent') ? estimatePurchaseFeePercent : 0.001;
   entity.estimatePayoutFeeAmount = keys.includes('estimatePayoutFeeAmount') ? estimatePayoutFeeAmount : 1;

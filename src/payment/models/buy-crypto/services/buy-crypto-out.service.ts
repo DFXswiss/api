@@ -154,15 +154,10 @@ export class BuyCryptoOutService {
           )
         : 0;
     } catch (e) {
-      const message = `Could not get price for actual payout fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
+      const message = `Could not get price for actual payout fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}.`;
       console.error(message, e);
 
-      await this.handleFeeConversionError(
-        nativeFee.asset.dexName,
-        batch.outputReferenceAsset.dexName,
-        message,
-        exports,
-      );
+      await this.handleFeeConversionError(nativeFee.asset.dexName, batch.outputReferenceAsset.dexName, message, e);
 
       return 0;
     }

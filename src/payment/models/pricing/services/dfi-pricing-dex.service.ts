@@ -19,18 +19,14 @@ export class DfiPricingDexService implements PriceProvider {
   }
 
   async getPrice(from: string, to: string): Promise<Price> {
-    if (to !== 'DFI') {
-      throw new Error(`DfiPricingDexService supports only DFI as target asset, instead provided: ${to}`);
-    }
-
-    const dfi = await this.assetService.getAssetByQuery({
-      dexName: 'DFI',
+    const fromAsset = await this.assetService.getAssetByQuery({
+      dexName: from,
       blockchain: Blockchain.DEFICHAIN,
       type: AssetType.TOKEN,
     });
 
-    const fromAsset = await this.assetService.getAssetByQuery({
-      dexName: from,
+    const toAsset = await this.assetService.getAssetByQuery({
+      dexName: to,
       blockchain: Blockchain.DEFICHAIN,
       type: AssetType.TOKEN,
     });
@@ -40,7 +36,7 @@ export class DfiPricingDexService implements PriceProvider {
       correlationId: uuid(),
       referenceAsset: fromAsset,
       referenceAmount: 0.001,
-      targetAsset: dfi,
+      targetAsset: toAsset,
     };
 
     const { target } = await this.dexService.checkLiquidity(liquidityRequest);
