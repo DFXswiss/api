@@ -101,6 +101,8 @@ export class UserDataService {
       });
       if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
 
+      await this.userDataRepo.save({ ...userData, ...{ kycFileId: dto.kycFileId } });
+
       const customerInfo = await this.spiderApiService.getCustomerInfo(userDataId);
       if (customerInfo?.contractReference == null) throw new BadRequestException('Spider KYC file reference is null');
 
