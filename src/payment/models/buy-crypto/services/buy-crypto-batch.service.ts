@@ -227,10 +227,6 @@ export class BuyCryptoBatchService {
 
         optimizedBatches.push(batch);
       } catch (e) {
-        if (e instanceof AbortBatchCreationException) {
-          await this.handleAbortBatchCreationException(batch, e);
-        }
-
         console.info(`Error in optimizing new batch. Batch target asset: ${batch.outputAsset.dexName}.`, e.message);
       }
     }
@@ -350,26 +346,35 @@ export class BuyCryptoBatchService {
     purchaseFee: number,
     payoutFee: number,
   ): Promise<void> {
-    const inputBatchLength = batch.transactions.length;
+    try {
+      const inputBatchLength = batch.transactions.length;
 
-    const {
-      reference: { availableAmount, maxPurchasableAmount },
-    } = liquidity;
+      const {
+        reference: { availableAmount, maxPurchasableAmount },
+      } = liquidity;
 
-    const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
+      const [isPurchaseRequired, liquidityWarning] = batch.optimizeByLiquidity(availableAmount, maxPurchasableAmount);
 
-    liquidityWarning && (await this.handleLiquidityWarning(batch));
-    const effectivePurchaseFee = isPurchaseRequired ? purchaseFee : 0;
+      liquidityWarning && (await this.handleLiquidityWarning(batch));
+      const effectivePurchaseFee = isPurchaseRequired ? purchaseFee : 0;
 
-    batch.checkAndRecordFeesEstimations(effectivePurchaseFee, payoutFee);
+      batch.checkAndRecordFeesEstimations(effectivePurchaseFee, payoutFee);
 
-    if (inputBatchLength !== batch.transactions.length) {
-      const { dexName, type, blockchain } = batch.outputAsset;
-      console.log(
-        `Optimized batch for output asset: ${dexName} ${type} ${blockchain}. ${
-          inputBatchLength - batch.transactions.length
-        } removed from the batch`,
-      );
+      if (inputBatchLength !== batch.transactions.length) {
+        const { dexName, type, blockchain } = batch.outputAsset;
+        console.log(
+          `Optimized batch for output asset: ${dexName} ${type} ${blockchain}. ${
+            inputBatchLength - batch.transactions.length
+          } removed from the batch`,
+        );
+      }
+    } catch (e) {
+      if (e instanceof AbortBatchCreationException) {
+        await this.handleAbortBatchCreationException(batch, liquidity, e);
+      }
+
+      // re-throw by default to abort proceeding with batch
+      throw e;
     }
   }
 
@@ -387,20 +392,29 @@ export class BuyCryptoBatchService {
 
   private async handleAbortBatchCreationException(
     batch: BuyCryptoBatch,
+    liquidity: CheckLiquidityResult,
     error: AbortBatchCreationException,
   ): Promise<void> {
     try {
       const {
-        outputAsset: { dexName, blockchain, type },
-        transactions,
-      } = batch;
+        target: { availableAmount, maxPurchasableAmount },
+      } = liquidity;
+
+      const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
+
+      const message = `
+        ${error.message}
+        Required reference amount: ${outputReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.
+        Available amount: ${availableAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.
+        Maximum purchasable amount (approximately): ${maxPurchasableAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.
+      `;
 
       await this.buyCryptoNotificationService.sendMissingLiquidityError(
-        dexName,
-        blockchain,
-        type,
+        oa.dexName,
+        oa.blockchain,
+        oa.type,
         transactions.map((t) => t.id),
-        error.message,
+        message,
       );
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);

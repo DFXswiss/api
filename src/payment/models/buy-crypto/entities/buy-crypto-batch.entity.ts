@@ -79,16 +79,10 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     if (!this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)) {
-      const oa = this.outputAsset;
-      const ora = this.outputReferenceAsset;
+      const { dexName, type, blockchain } = this.outputAsset;
 
       throw new AbortBatchCreationException(
-        `
-          Not enough liquidity to create batch for asset ${oa.dexName} ${oa.type} ${oa.blockchain}.
-          Required reference amount: ${this.outputReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.
-          Available amount: ${availableAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.
-          Maximum purchasable amount (approximately): ${maxPurchasableAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.
-        `,
+        `Not enough liquidity to create batch for asset ${dexName} ${type} ${blockchain}.`,
       );
     }
 
