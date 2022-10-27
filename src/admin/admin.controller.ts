@@ -178,10 +178,52 @@ export class AdminController {
             buy.splice(1, 0, userTable.find((u) => u.id === buy[userIdIndex]).address);
           }
           break;
+
+        case 'user':
+          this.insertEmptyCol(arrayData, 5, [
+            'mail (deactivated)',
+            'firstname (deactivated)',
+            'surname (deactivated)',
+            'street (deactivated)',
+            'houseNumber (deactivated)',
+            'location (deactivated)',
+            'zip (deactivated)',
+            'phone (deactivated)',
+          ]);
+
+          this.insertEmptyCol(arrayData, 19, ['country (deactivated)', 'language (deactivated)']);
+
+          this.insertEmptyCol(arrayData, 22, ['currencyId (deactivated)']);
+
+          this.insertEmptyCol(arrayData, 24, [
+            'accountType (deactivated)',
+            'organizationName (deactivated)',
+            'organizationStreet (deactivated)',
+            'organizationHouseNumber (deactivated)',
+            'organizationLocation (deactivated)',
+            'organizationZip (deactivated)',
+            'organizationCountryId (deactivated)',
+          ]);
+
+          break;
+
+        case 'user_data':
+          this.insertEmptyCol(arrayData, 8, ['isMigrated (deactivated)']);
+
+          break;
       }
     }
 
     return arrayData;
+  }
+
+  private insertEmptyCol(
+    arrayData: { keys: string[]; values: unknown[][] },
+    colNumber: number,
+    colNames: string[],
+  ): void {
+    arrayData.keys.splice(colNumber, 0, ...colNames);
+    arrayData.values.forEach((v) => v.splice(colNumber, 0, ...Array(colNames.length).fill('')));
   }
 
   private async getExtendedBankTxData(dbQuery: dbQueryDto): Promise<any[]> {
