@@ -12,6 +12,7 @@ export class EvmClient {
   #swapTokenAddress: string;
 
   #sendCoinGasLimit = 21000;
+  #randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
 
   constructor(
     gatewayUrl: string,
@@ -48,7 +49,7 @@ export class EvmClient {
   async getTokenGasLimit(token: Asset): Promise<BigNumber> {
     const contract = this.getERC20Contract(token.chainId);
 
-    return contract.estimateGas.transfer(this.#dfxAddress, 1);
+    return contract.estimateGas.transfer(this.#randomReceiverAddress, 1);
   }
 
   async sendNativeCoin(address: string, amount: number): Promise<string> {
