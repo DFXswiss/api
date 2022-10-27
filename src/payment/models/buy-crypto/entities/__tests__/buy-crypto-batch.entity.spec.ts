@@ -88,6 +88,7 @@ describe('BuyCryptoBatch', () => {
       expect(batch.transactions[0].outputReferenceAmount).toBe(100);
       expect(batch.transactions[1].outputReferenceAmount).toBe(10);
       expect(batch.transactions[2].outputReferenceAmount).toBe(1);
+      expect(batch.outputReferenceAmount).toBe(111);
     });
 
     it('returns no purchase requirement and no warning if available liquidity is enough', () => {
@@ -107,6 +108,7 @@ describe('BuyCryptoBatch', () => {
       expect(batchA.transactions.length).toBe(2);
       expect(batchA.transactions[0].outputReferenceAmount).toBe(1);
       expect(batchA.transactions[1].outputReferenceAmount).toBe(10);
+      expect(batchA.outputReferenceAmount).toBe(11);
 
       const batchB = createDiverseBuyCryptoBatch();
 
@@ -114,6 +116,7 @@ describe('BuyCryptoBatch', () => {
 
       expect(batchB.transactions.length).toBe(1);
       expect(batchB.transactions[0].outputReferenceAmount).toBe(1);
+      expect(batchB.outputReferenceAmount).toBe(1);
     });
 
     it('returns no purchase requirement and no warning if available liquidity is enough at least for one tx, but not for entire batch', () => {
@@ -133,6 +136,7 @@ describe('BuyCryptoBatch', () => {
       expect(batchA.transactions.length).toBe(2);
       expect(batchA.transactions[0].outputReferenceAmount).toBe(1);
       expect(batchA.transactions[1].outputReferenceAmount).toBe(10);
+      expect(batchA.outputReferenceAmount).toBe(11);
 
       const batchB = createDiverseBuyCryptoBatch();
 
@@ -140,6 +144,7 @@ describe('BuyCryptoBatch', () => {
 
       expect(batchB.transactions.length).toBe(1);
       expect(batchB.transactions[0].outputReferenceAmount).toBe(1);
+      expect(batchB.outputReferenceAmount).toBe(1);
     });
 
     it('returns purchase requirement and a warning if purchasable liquidity is enough at least for one tx, but not for entire batch', () => {
@@ -169,6 +174,7 @@ describe('BuyCryptoBatch', () => {
       expect(batch.transactions[0].outputReferenceAmount).toBe(100);
       expect(batch.transactions[1].outputReferenceAmount).toBe(10);
       expect(batch.transactions[2].outputReferenceAmount).toBe(1);
+      expect(batch.outputReferenceAmount).toBe(111);
     });
 
     it('returns purchase requirement for entire batch and no warning if no upper conditions met', () => {

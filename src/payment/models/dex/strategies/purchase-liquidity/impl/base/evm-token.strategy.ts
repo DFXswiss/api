@@ -21,7 +21,7 @@ export abstract class EvmTokenStrategy extends PurchaseLiquidityStrategy {
 
       if (amount) {
         throw new Error(
-          `Requested ${referenceAsset} liquidity is already available on the wallet. No purchase required, retry checkLiquidity. Context: ${context}. CorrelationID: ${correlationId}`,
+          `Requested ${referenceAsset.dexName} liquidity is already available on the wallet. No purchase required, retry checkLiquidity. Context: ${context}. CorrelationID: ${correlationId}`,
         );
       }
     } catch (e) {

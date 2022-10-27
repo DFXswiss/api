@@ -90,19 +90,19 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
   protected abstract dispatchPayout(
     context: PayoutOrderContext,
     payout: PayoutGroup,
-    outputAsset: string,
+    outputAssetName: string,
   ): Promise<string>;
 
-  protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {
+  protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAssetName: string): Promise<void> {
     let payoutTxId: string;
 
     try {
       const payout = this.aggregatePayout(orders);
 
       await this.designatePayout(orders);
-      payoutTxId = await this.dispatchPayout(context, payout, outputAsset);
+      payoutTxId = await this.dispatchPayout(context, payout, outputAssetName);
     } catch (e) {
-      console.error(`Error on sending ${outputAsset} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
+      console.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
 
       if (e.message.includes('timeout')) throw e;
 

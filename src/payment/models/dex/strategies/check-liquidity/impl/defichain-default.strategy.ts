@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/util';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
 import { DexDeFiChainLiquidityResult, DexDeFiChainService } from '../../../services/dex-defichain.service';
@@ -83,8 +84,8 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
         asset: referenceAsset,
         amount: referenceAmount,
         // indicative calculation, doesn't have to be 100% precise (no test swap required)
-        availableAmount: (availableAmount / targetAmount) * referenceAmount,
-        maxPurchasableAmount: (maxPurchasableAmount / targetAmount) * referenceAmount,
+        availableAmount: Util.round((availableAmount / targetAmount) * referenceAmount, 8),
+        maxPurchasableAmount: Util.round((maxPurchasableAmount / targetAmount) * referenceAmount, 8),
       },
       purchaseFee: {
         asset: await this.feeAsset(),

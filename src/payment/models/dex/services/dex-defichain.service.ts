@@ -86,7 +86,7 @@ export class DexDeFiChainService {
     } catch (e) {
       if (this.isCompositeSwapSlippageError(e)) {
         throw new PriceSlippageException(
-          `Price is higher than indicated. Composite swap ${swapAmount} ${swapAsset} to ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
+          `Price is higher than indicated. Composite swap ${swapAmount} ${swapAsset.dexName} to ${targetAsset.dexName}. Maximum price for asset ${targetAsset.dexName} is ${maxPrice} ${swapAsset.dexName}.`,
         );
       }
 
@@ -252,7 +252,7 @@ export class DexDeFiChainService {
   ): string {
     const actualPrice = Util.round(sourceAmount / targetAmount, 8);
 
-    return `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${actualPrice} ${sourceAsset}`;
+    return `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset.dexName} to ${targetAmount} ${targetAsset.dexName}. Maximum price for asset ${targetAsset.dexName} is ${maxPrice} ${sourceAsset.dexName}. Actual price is ${actualPrice} ${sourceAsset.dexName}`;
   }
 
   private async getMaxPriceForPurchaseLiquidity(

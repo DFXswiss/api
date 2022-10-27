@@ -47,7 +47,7 @@ export abstract class DexEvmService {
     if (sourceAsset.dexName !== this._nativeCoin) {
       // only native coin is enabled as a sourceAsset
       throw new Error(
-        `Only native coin reference is supported by EVM test swap. Provided source asset: ${sourceAsset}. Target asset: ${targetAsset.dexName}. Blockchain: ${targetAsset.blockchain}`,
+        `Only native coin reference is supported by EVM test swap. Provided source asset: ${sourceAsset.dexName}. Target asset: ${targetAsset.dexName}. Blockchain: ${targetAsset.blockchain}`,
       );
     }
 

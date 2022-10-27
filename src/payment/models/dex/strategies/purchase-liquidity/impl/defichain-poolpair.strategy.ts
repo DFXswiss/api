@@ -131,7 +131,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
     if (!leftAsset || !rightAsset) {
       throw new Error(
-        `Could not find all matching assets for pair ${asset.dexName}. LeftAsset: ${leftAsset}. Right asset: ${rightAsset}`,
+        `Could not find all matching assets for pair ${asset.dexName}. LeftAsset: ${leftAsset.dexName}. Right asset: ${rightAsset.dexName}`,
       );
     }
 
@@ -197,19 +197,19 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
   private async addPoolLiquidity(
     order: LiquidityOrder,
-    leftAsset: string,
+    leftAssetName: string,
     leftAmount: number,
-    rightAsset: string,
+    rightAssetName: string,
     rightAmount: number,
   ): Promise<void> {
-    const poolPair: [string, string] = [`${leftAmount}@${leftAsset}`, `${rightAmount}@${rightAsset}`];
+    const poolPair: [string, string] = [`${leftAmount}@${leftAssetName}`, `${rightAmount}@${rightAssetName}`];
 
     const txId = await this.dexDeFiChainService.addPoolLiquidity(poolPair);
 
     order.addPurchaseMetadata(txId);
 
     console.info(
-      `Booked poolpair purchase of ${leftAmount} ${leftAsset} and ${rightAmount} ${rightAsset} . Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
+      `Booked poolpair purchase of ${leftAmount} ${leftAssetName} and ${rightAmount} ${rightAssetName} . Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
   }
 

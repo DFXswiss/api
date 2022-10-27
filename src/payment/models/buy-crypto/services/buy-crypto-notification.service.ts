@@ -92,9 +92,9 @@ export class BuyCryptoNotificationService {
     }
   }
 
-  async sendMissingLiquidityWarning(outputAsset: string, blockchain: string, type: string): Promise<void> {
-    const correlationId = `BuyCryptoBatch&LiquidityCheckWarning&${outputAsset}&${blockchain}&${type}`;
-    const message = `One or more transactions were removed from batching, due to insufficient purchasable liquidity. Batch asset: ${outputAsset} ${blockchain} ${type}`;
+  async sendMissingLiquidityWarning(outputAssetName: string, blockchain: string, type: string): Promise<void> {
+    const correlationId = `BuyCryptoBatch&LiquidityCheckWarning&${outputAssetName}&${blockchain}&${type}`;
+    const message = `One or more transactions were removed from batching, due to insufficient purchasable liquidity. Batch asset: ${outputAssetName} ${blockchain} ${type}`;
     const additionalMessage =
       'Caution! this mail has debounce time of 30 minutes, by the moment you read this mail required amounts might have changed.';
 
@@ -110,18 +110,19 @@ export class BuyCryptoNotificationService {
   }
 
   async sendMissingLiquidityError(
-    outputAsset: string,
+    outputAssetName: string,
     blockchain: string,
     type: string,
+    transactionIds: number[],
     message: string,
   ): Promise<void> {
-    const correlationId = `BuyCryptoBatch&LiquidityCheck&${outputAsset}&${blockchain}&${type}`;
-    const additionalMessage =
-      'Caution! this mail has debounce time of 30 minutes, by the moment you read this mail required amounts might have changed.';
+    const correlationId = `BuyCryptoBatch&LiquidityCheck&${outputAssetName}&${blockchain}&${type}&TX_IDs_${transactionIds.map(
+      (id) => `${id}`,
+    )}`;
 
     await this.notificationService.sendMail({
       type: MailType.ERROR_MONITORING,
-      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: [message, additionalMessage] },
+      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: [message] },
       options: { debounce: 1800000 },
       metadata: { context: MailContext.BUY_CRYPTO, correlationId },
     });

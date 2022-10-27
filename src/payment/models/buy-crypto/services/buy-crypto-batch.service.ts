@@ -202,7 +202,7 @@ export class BuyCryptoBatchService {
         const txIds = batch.transactions.map((t) => t.id);
 
         console.info(
-          `Halting with creation of a new batch for asset: ${outputAsset}, existing batch for this asset is not complete yet. Transaction ID(s): ${txIds}`,
+          `Halting with creation of a new batch for asset: ${outputAsset.dexName}, existing batch for this asset is not complete yet. Transaction ID(s): ${txIds}`,
         );
 
         continue;
@@ -392,9 +392,16 @@ export class BuyCryptoBatchService {
     try {
       const {
         outputAsset: { dexName, blockchain, type },
+        transactions,
       } = batch;
 
-      await this.buyCryptoNotificationService.sendMissingLiquidityError(dexName, blockchain, type, error.message);
+      await this.buyCryptoNotificationService.sendMissingLiquidityError(
+        dexName,
+        blockchain,
+        type,
+        transactions.map((t) => t.id),
+        error.message,
+      );
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);
     }

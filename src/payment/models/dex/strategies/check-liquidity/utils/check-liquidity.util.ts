@@ -1,4 +1,5 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/util';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
 
 export class CheckLiquidityUtil {
@@ -9,7 +10,9 @@ export class CheckLiquidityUtil {
     feeAsset: Asset,
   ): CheckLiquidityResult {
     const { referenceAsset, referenceAmount, targetAsset } = request;
-    const referenceAvailableAmount = targetAmount ? (availableAmount / targetAmount) * referenceAmount : 0;
+    const referenceAvailableAmount = targetAmount
+      ? Util.round((availableAmount / targetAmount) * referenceAmount, 8)
+      : 0;
 
     return {
       target: {

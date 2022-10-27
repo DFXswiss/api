@@ -29,7 +29,7 @@ export class BitcoinStrategy extends CheckLiquidityStrategy {
 
     // only native coin is enabled as a referenceAsset
     throw new Error(
-      `Only native coin reference is supported by Bitcoin CheckLiquidity strategy. Provided reference asset: ${referenceAsset} Context: ${context}. CorrelationID: ${correlationId}`,
+      `Only native coin reference is supported by Bitcoin CheckLiquidity strategy. Provided reference asset: ${referenceAsset.dexName} Context: ${context}. CorrelationID: ${correlationId}`,
     );
   }
 

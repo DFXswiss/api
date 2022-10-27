@@ -24,7 +24,7 @@ export abstract class EvmCoinStrategy extends CheckLiquidityStrategy {
 
     // only native coin is enabled as a referenceAsset
     throw new Error(
-      `Only native coin reference is supported by EVM CheckLiquidity strategy. Provided reference asset: ${referenceAsset} Context: ${context}. CorrelationID: ${correlationId}`,
+      `Only native coin reference is supported by EVM CheckLiquidity strategy. Provided reference asset: ${referenceAsset.dexName} Context: ${context}. CorrelationID: ${correlationId}`,
     );
   }
 }
