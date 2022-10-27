@@ -43,8 +43,12 @@ export class DeFiClient extends NodeClient {
     );
   }
 
-  async sendCompleteUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
-    return this.callNode(
+  async sendCompleteUtxo(
+    addressFrom: string,
+    addressTo: string,
+    amount: number,
+  ): Promise<{ outTxId: string; feeAmount: number }> {
+    const sendCompleteUtxo = await this.callNode<{ txid: string }>(
       (c) =>
         c.call(
           NodeCommand.SEND_UTXO,
@@ -53,6 +57,7 @@ export class DeFiClient extends NodeClient {
         ),
       true,
     );
+    return { outTxId: sendCompleteUtxo.txid, feeAmount: this.utxoFee };
   }
 
   // token

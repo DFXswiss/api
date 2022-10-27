@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -6,6 +7,7 @@ import { BankData } from 'src/user/models/bank-data/bank-data.entity';
 import { User } from 'src/user/models/user/user.entity';
 import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index, Generated } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
+import { TradingLimit } from '../user/dto/user.dto';
 import { AccountType } from './account-type.enum';
 
 export enum KycStatus {
@@ -36,6 +38,11 @@ export enum BlankType {
   PHONE,
   MAIL,
   WALLET_ADDRESS,
+}
+
+export enum LimitPeriod {
+  DAY = 'Day',
+  YEAR = 'Year',
 }
 
 @Entity()
@@ -132,7 +139,7 @@ export class UserData extends IEntity {
   @Index({ unique: true })
   kycHash: string;
 
-  @Column({ type: 'float', default: 90000 })
+  @Column({ type: 'float', nullable: true })
   depositLimit: number;
 
   @Column({ type: 'integer', nullable: true })
@@ -177,6 +184,16 @@ export class UserData extends IEntity {
 
   get hasExternalUser(): boolean {
     return !!this.users.find((e) => e.wallet.isKycClient === true);
+  }
+
+  get tradingLimit(): TradingLimit {
+    if (KycCompleted(this.kycStatus)) {
+      return { limit: this.depositLimit, period: LimitPeriod.YEAR };
+    } else if (this.kycStatus === KycStatus.REJECTED) {
+      return { limit: 0, period: LimitPeriod.DAY };
+    } else {
+      return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
+    }
   }
 }
 

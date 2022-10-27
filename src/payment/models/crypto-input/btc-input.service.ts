@@ -20,6 +20,9 @@ import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 import { BtcFeeService } from 'src/blockchain/ain/services/btc-fee.service';
 import { RouteType } from '../route/deposit-route.entity';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
+import { SellService } from '../sell/sell.service';
+import { Sell } from '../sell/sell.entity';
+import { CryptoRoute } from '../crypto-route/crypto-route.entity';
 
 @Injectable()
 export class BtcInputService extends CryptoInputService {
@@ -36,6 +39,7 @@ export class BtcInputService extends CryptoInputService {
     private readonly buyFiatService: BuyFiatService,
     private readonly chainalysisService: ChainalysisService,
     private readonly feeService: BtcFeeService,
+    private readonly sellService: SellService,
   ) {
     super(cryptoInputRepo);
     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
@@ -107,7 +111,7 @@ export class BtcInputService extends CryptoInputService {
     }
 
     // get crypto route
-    const route = await this.cryptoRouteService.getCryptoRouteByAddress(utxo.address);
+    const route = await this.getDepositRoute(utxo.address);
     if (!route) {
       console.error(`Failed to process Bitcoin input. No matching route for ${utxo.address} found.. UTXO:`, utxo);
       return null;
@@ -134,6 +138,13 @@ export class BtcInputService extends CryptoInputService {
       type: route.type === RouteType.CRYPTO ? CryptoInputType.BUY_CRYPTO : CryptoInputType.BUY_FIAT,
       vout: utxo.vout,
     });
+  }
+
+  private async getDepositRoute(address: string): Promise<Sell | CryptoRoute> {
+    return (
+      (await this.sellService.getSellByAddress(address)) ??
+      (await this.cryptoRouteService.getCryptoRouteByAddress(address))
+    );
   }
 
   private async doAmlCheck(userData: UserData, utxo: UTXO): Promise<AmlCheck> {
@@ -170,14 +181,14 @@ export class BtcInputService extends CryptoInputService {
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
-    const outTxId = await this.btcClient.send(
+    const { outTxId, feeAmount } = await this.btcClient.send(
       address,
       input.inTxId,
       input.amount,
       input.vout,
       await this.getFeeRate(input.amount),
     );
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId, forwardFeeAmount: feeAmount });
   }
 
   private async getFeeRate(amount: number): Promise<number> {

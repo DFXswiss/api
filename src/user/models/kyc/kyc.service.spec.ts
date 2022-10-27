@@ -1,14 +1,16 @@
 import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { HttpService } from 'src/shared/services/http.service';
+import { TestUtil } from 'src/shared/test.util';
 import { SpiderSyncService } from 'src/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/user/services/spider/spider.service';
 import { LinkService } from '../link/link.service';
 import { AccountType } from '../user-data/account-type.enum';
-import { KycState, KycStatus, UserData } from '../user-data/user-data.entity';
+import { KycState, KycStatus, LimitPeriod, UserData } from '../user-data/user-data.entity';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { UserDataService } from '../user-data/user-data.service';
 import {
@@ -17,6 +19,7 @@ import {
   MockUserData,
   userDataIdFor,
 } from '../user-data/__mocks__/user-data.entity.mock';
+import { TradingLimit } from '../user/dto/user.dto';
 import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { WalletService } from '../wallet/wallet.service';
@@ -92,7 +95,7 @@ describe('KycService', () => {
       return Promise.resolve(userData);
     });
     jest.spyOn(userDataRepo, 'save').mockImplementation((entity) => {
-      return Promise.resolve(entity as UserData);
+      return Promise.resolve(Object.assign(new UserData(), entity));
     });
   }
 
@@ -101,7 +104,7 @@ describe('KycService', () => {
     kycStatus: KycStatus,
     kycHash: string,
     kycDataComplete: boolean,
-    depositLimit?: number,
+    tradingLimit?: TradingLimit,
     accountType?: AccountType,
     blankedMail?: string,
     blankedPhone?: string,
@@ -116,7 +119,7 @@ describe('KycService', () => {
       accountType,
       blankedMail,
       blankedPhone,
-      depositLimit,
+      tradingLimit,
       setupUrl,
       sessionUrl,
     };
@@ -149,6 +152,7 @@ describe('KycService', () => {
         { provide: WalletRepository, useValue: walletRepo },
         { provide: HttpService, useValue: httpService },
         { provide: WalletService, useValue: walletService },
+        TestUtil.provideConfig(),
       ],
     }).compile();
 
@@ -164,7 +168,10 @@ describe('KycService', () => {
 
     const kycHash = kycHashFor(MockUserData.EMPTY);
     await expect(service.getKycStatus(kycHash)).resolves.toStrictEqual(
-      createKycInfo(KycState.NA, KycStatus.NA, kycHash, false, 90000),
+      createKycInfo(KycState.NA, KycStatus.NA, kycHash, false, {
+        limit: Config.defaultDailyTradingLimit,
+        period: LimitPeriod.DAY,
+      }),
     );
   });
 
@@ -178,7 +185,7 @@ describe('KycService', () => {
         KycStatus.NA,
         kycHash,
         true,
-        90000,
+        { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY },
         AccountType.PERSONAL,
         't***@test.com',
         '***********89',
@@ -196,7 +203,7 @@ describe('KycService', () => {
         KycStatus.CHATBOT,
         kycHash,
         true,
-        90000,
+        { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY },
         AccountType.PERSONAL,
         't***@test.com',
         '***********89',
@@ -225,7 +232,7 @@ describe('KycService', () => {
         KycStatus.CHATBOT,
         kycHash,
         true,
-        90000,
+        { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY },
         AccountType.PERSONAL,
         't***@test.com',
         '***********89',
@@ -245,7 +252,7 @@ describe('KycService', () => {
         KycStatus.CHATBOT,
         kycHash,
         true,
-        90000,
+        { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY },
         AccountType.PERSONAL,
         't***@test.com',
         '***********89',
@@ -285,7 +292,7 @@ describe('KycService', () => {
         KycStatus.NA,
         kycHash,
         true,
-        90000,
+        { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY },
         AccountType.PERSONAL,
         't***@update.com',
         '***********12',
@@ -304,7 +311,7 @@ describe('KycService', () => {
         KycStatus.NA,
         kycHash,
         true,
-        90000,
+        { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY },
         AccountType.PERSONAL,
         't***@update.com',
         '***********12',

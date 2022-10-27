@@ -27,16 +27,16 @@ export function createUserDataFor(mock: MockUserData): UserData | undefined {
     case MockUserData.CLEAN_DB:
       return undefined;
     case MockUserData.EMPTY:
-      return {
+      return createCustomUserData({
         id: userDataIdFor(mock),
         kycHash: kycHashFor(mock),
         kycState: KycState.NA,
         kycStatus: KycStatus.NA,
-        depositLimit: 90000,
-      } as UserData;
+        mail: undefined,
+      });
     case MockUserData.COMPLETE:
     case MockUserData.STARTED:
-      return {
+      return createCustomUserData({
         id: userDataIdFor(mock),
         kycHash: kycHashFor(mock),
         kycState: KycState.NA,
@@ -52,7 +52,7 @@ export function createUserDataFor(mock: MockUserData): UserData | undefined {
         houseNumber: '42',
         location: 'Location',
         zip: '43210',
-      } as UserData;
+      });
     default:
       return createDefaultUserData();
   }

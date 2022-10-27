@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -27,6 +27,7 @@ export class UserController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: UserDto })
   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserDto> {
     return this.userService.getUserDto(jwt.id, false);
   }
@@ -34,6 +35,7 @@ export class UserController {
   @Get('detail')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: UserDetailDto })
   async getUserDetail(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
     return this.userService.getUserDto(jwt.id, true);
   }

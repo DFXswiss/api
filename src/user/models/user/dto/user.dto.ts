@@ -1,49 +1,111 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycState, KycStatus } from '../../user-data/user-data.entity';
+import { KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
 import { UserStatus } from '../user.entity';
 import { LinkedUserOutDto } from './linked-user.dto';
 
-export interface UserDto {
-  accountType: AccountType;
-  address: string;
-  status: UserStatus;
-  usedRef: string;
-  currency: Fiat;
-  mail: string;
-  phone: string;
-  language: Language;
-
-  kycStatus: KycStatus;
-  kycState: KycState;
-  kycHash: string;
-  depositLimit: number;
-  kycDataComplete: boolean;
-  apiKeyCT: string;
-  apiFilterCT: HistoryFilterKey[];
-}
-
-export interface UserDetails {
-  ref?: string;
-  refFeePercent?: number;
-  refVolume: number;
-  refCredit: number;
-  paidRefCredit: number;
-  refCount: number;
-  refCountActive: number;
-  buyVolume: VolumeInformation;
-  sellVolume: VolumeInformation;
-  cryptoVolume: VolumeInformation;
-  stakingBalance: number;
-
-  linkedAddresses?: LinkedUserOutDto[];
-}
-
-export interface VolumeInformation {
+export class VolumeInformation {
+  @ApiProperty()
   total: number;
+
+  @ApiProperty()
   annual: number;
 }
 
-export type UserDetailDto = UserDto & UserDetails;
+export class TradingLimit {
+  @ApiProperty()
+  limit: number;
+
+  @ApiProperty({ enum: LimitPeriod })
+  period: LimitPeriod;
+}
+
+export class UserDto {
+  @ApiProperty({ enum: AccountType })
+  accountType: AccountType;
+
+  @ApiProperty()
+  address: string;
+
+  @ApiProperty({ enum: UserStatus })
+  status: UserStatus;
+
+  @ApiProperty()
+  usedRef: string;
+
+  @ApiProperty({ type: Fiat })
+  currency: Fiat;
+
+  @ApiProperty()
+  mail: string;
+
+  @ApiProperty()
+  phone: string;
+
+  @ApiProperty({ type: Language })
+  language: Language;
+
+  @ApiProperty({ enum: KycStatus })
+  kycStatus: KycStatus;
+
+  @ApiProperty({ enum: KycState })
+  kycState: KycState;
+
+  @ApiProperty()
+  kycHash: string;
+
+  @ApiProperty({ type: TradingLimit })
+  tradingLimit: TradingLimit;
+
+  @ApiProperty()
+  kycDataComplete: boolean;
+
+  @ApiProperty()
+  apiKeyCT: string;
+
+  @ApiProperty({ type: String, isArray: true })
+  apiFilterCT: HistoryFilterKey[];
+}
+
+export type UserDetails = Omit<UserDetailDto, keyof UserDto>;
+
+export class UserDetailDto extends UserDto implements UserDetails {
+  @ApiPropertyOptional()
+  ref?: string;
+
+  @ApiPropertyOptional()
+  refFeePercent?: number;
+
+  @ApiProperty()
+  refVolume: number;
+
+  @ApiProperty()
+  refCredit: number;
+
+  @ApiProperty()
+  paidRefCredit: number;
+
+  @ApiProperty()
+  refCount: number;
+
+  @ApiProperty()
+  refCountActive: number;
+
+  @ApiProperty({ type: VolumeInformation })
+  buyVolume: VolumeInformation;
+
+  @ApiProperty({ type: VolumeInformation })
+  sellVolume: VolumeInformation;
+
+  @ApiProperty({ type: VolumeInformation })
+  cryptoVolume: VolumeInformation;
+
+  @ApiProperty()
+  stakingBalance: number;
+
+  @ApiPropertyOptional({ type: LinkedUserOutDto, isArray: true })
+  linkedAddresses?: LinkedUserOutDto[];
+}
