@@ -30,6 +30,7 @@ import { WalletRepository } from '../wallet/wallet.repository';
 import { HttpService } from 'src/shared/services/http.service';
 import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
+import { TradingLimit } from '../user/dto/user.dto';
 
 export interface KycInfo {
   kycStatus: KycStatus;
@@ -37,7 +38,7 @@ export interface KycInfo {
   kycHash: string;
   kycDataComplete: boolean;
   accountType: AccountType;
-  depositLimit: number;
+  tradingLimit: TradingLimit;
   sessionUrl?: string;
   setupUrl?: string;
   blankedPhone?: string;
@@ -270,7 +271,7 @@ export class KycService {
       kycHash: userData.kycHash,
       kycDataComplete: this.isDataComplete(userData),
       accountType: userData.accountType,
-      depositLimit: userData.depositLimit,
+      tradingLimit: userData.tradingLimit,
       blankedPhone: Blank(userData.phone, BlankType.PHONE),
       blankedMail: Blank(userData.mail, BlankType.MAIL),
       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
