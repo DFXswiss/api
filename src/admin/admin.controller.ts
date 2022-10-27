@@ -180,34 +180,56 @@ export class AdminController {
           break;
 
         case 'user':
-          this.insertEmptyCol(arrayData, 5, 'mail (deactivated)');
-          this.insertEmptyCol(arrayData, 6, 'firstname (deactivated)');
-          this.insertEmptyCol(arrayData, 7, 'surname (deactivated)');
-          this.insertEmptyCol(arrayData, 8, 'street (deactivated)');
-          this.insertEmptyCol(arrayData, 9, 'houseNumber (deactivated)');
-          this.insertEmptyCol(arrayData, 10, 'location (deactivated)');
-          this.insertEmptyCol(arrayData, 11, 'zip (deactivated)');
-          this.insertEmptyCol(arrayData, 12, 'phone (deactivated)');
-          this.insertEmptyCol(arrayData, 19, 'country (deactivated)');
-          this.insertEmptyCol(arrayData, 20, 'language (deactivated)');
-          this.insertEmptyCol(arrayData, 22, 'currencyId (deactivated)');
-          this.insertEmptyCol(arrayData, 24, 'accountType (deactivated)');
-          this.insertEmptyCol(arrayData, 25, 'organizationName (deactivated)');
-          this.insertEmptyCol(arrayData, 26, 'organizationStreet (deactivated)');
-          this.insertEmptyCol(arrayData, 27, 'organizationHouseNumber (deactivated)');
-          this.insertEmptyCol(arrayData, 28, 'organizationLocation (deactivated)');
-          this.insertEmptyCol(arrayData, 29, 'organizationZip (deactivated)');
-          this.insertEmptyCol(arrayData, 30, 'organizationCountryId (deactivated)');
+          // this.insertEmptyCol(arrayData, 5, 'mail (deactivated)');
+          // this.insertEmptyCol(arrayData, 6, 'firstname (deactivated)');
+          // this.insertEmptyCol(arrayData, 7, 'surname (deactivated)');
+          // this.insertEmptyCol(arrayData, 8, 'street (deactivated)');
+          // this.insertEmptyCol(arrayData, 9, 'houseNumber (deactivated)');
+          // this.insertEmptyCol(arrayData, 10, 'location (deactivated)');
+          // this.insertEmptyCol(arrayData, 11, 'zip (deactivated)');
+          // this.insertEmptyCol(arrayData, 12, 'phone (deactivated)');
+          // this.insertEmptyCol(arrayData, 19, 'country (deactivated)');
+          // this.insertEmptyCol(arrayData, 20, 'language (deactivated)');
+          // this.insertEmptyCol(arrayData, 22, 'currencyId (deactivated)');
+          // this.insertEmptyCol(arrayData, 24, 'accountType (deactivated)');
+          // this.insertEmptyCol(arrayData, 25, 'organizationName (deactivated)');
+          // this.insertEmptyCol(arrayData, 26, 'organizationStreet (deactivated)');
+          // this.insertEmptyCol(arrayData, 27, 'organizationHouseNumber (deactivated)');
+          // this.insertEmptyCol(arrayData, 28, 'organizationLocation (deactivated)');
+          // this.insertEmptyCol(arrayData, 29, 'organizationZip (deactivated)');
+          // this.insertEmptyCol(arrayData, 30, 'organizationCountryId (deactivated)');
 
-          break;
+          this.insertEmptyCol(arrayData, 5, [
+            'mail (deactivated)',
+            'firstname (deactivated)',
+            'surname (deactivated)',
+            'street (deactivated)',
+            'houseNumber (deactivated)',
+            'location (deactivated)',
+            'zip (deactivated)',
+            'phone (deactivated)',
+          ]);
 
-        case 'userData':
-          this.insertEmptyCol(arrayData, 8, 'isMigrated (deactivated)');
+          this.insertEmptyCol(arrayData, 19, ['country (deactivated)', 'language (deactivated)']);
+
+          this.insertEmptyCol(arrayData, 22, ['currencyId (deactivated)']);
+
+          this.insertEmptyCol(arrayData, 24, [
+            'accountType (deactivated)',
+            'organizationName (deactivated)',
+            'organizationStreet (deactivated)',
+            'organizationHouseNumber (deactivated)',
+            'organizationLocation (deactivated)',
+            'organizationZip (deactivated)',
+            'organizationCountryId (deactivated)',
+          ]);
 
           break;
 
         case 'user_data':
-          this.insertEmptyCol(arrayData, 8, 'isMigrated (deactivated)');
+          // this.insertEmptyCol(arrayData, 8, 'isMigrated (deactivated)');
+
+          this.insertEmptyCol(arrayData, 22, ['isMigrated (deactivated)']);
 
           break;
       }
@@ -216,11 +238,13 @@ export class AdminController {
     return arrayData;
   }
 
-  private insertEmptyCol(arrayData: { keys: string[]; values: unknown[][] }, colNumber: number, colName: string): void {
-    arrayData.keys.splice(colNumber, 0, colName);
-    arrayData.values.forEach((v) => {
-      v.splice(colNumber, 0, '');
-    });
+  private insertEmptyCol(
+    arrayData: { keys: string[]; values: unknown[][] },
+    colNumber: number,
+    colNames: string[],
+  ): void {
+    arrayData.keys.splice(colNumber, 0, ...colNames);
+    arrayData.values.forEach((v) => v.splice(colNumber, 0, ...Array(colNames.length).fill('')));
   }
 
   private async getExtendedBankTxData(dbQuery: dbQueryDto): Promise<any[]> {
