@@ -341,8 +341,12 @@ export class DeFiInputService extends CryptoInputService {
   }
 
   private async forwardUtxo(input: CryptoInput, address: string): Promise<void> {
-    const outTxId = await this.client.sendCompleteUtxo(input.route.deposit.address, address, input.amount);
-    await this.cryptoInputRepo.update({ id: input.id }, { outTxId });
+    const { outTxId, feeAmount } = await this.client.sendCompleteUtxo(
+      input.route.deposit.address,
+      address,
+      input.amount,
+    );
+    await this.cryptoInputRepo.update({ id: input.id }, { outTxId, forwardFeeAmount: feeAmount });
   }
 
   private async forwardToken(input: CryptoInput, address: string): Promise<void> {

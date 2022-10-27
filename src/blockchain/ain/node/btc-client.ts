@@ -8,11 +8,17 @@ export class BtcClient extends NodeClient {
     super(http, url, scheduler, mode);
   }
 
-  async send(addressTo: string, txId: string, amount: number, vout: number, feeRate: number): Promise<string> {
+  async send(
+    addressTo: string,
+    txId: string,
+    amount: number,
+    vout: number,
+    feeRate: number,
+  ): Promise<{ outTxId: string; feeAmount: number }> {
     // 135 vByte for a single-input single-output TX
     const feeAmount = (feeRate * 135) / Math.pow(10, 8);
 
-    return await this.callNode<{ txid: string }>(
+    const sendUtxo = await this.callNode<{ txid: string }>(
       (c) =>
         c.call(
           NodeCommand.SEND,
@@ -26,7 +32,9 @@ export class BtcClient extends NodeClient {
           'number',
         ),
       true,
-    ).then((r) => r.txid);
+    );
+
+    return { outTxId: sendUtxo.txid, feeAmount };
   }
 
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
