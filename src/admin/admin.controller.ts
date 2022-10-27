@@ -180,25 +180,6 @@ export class AdminController {
           break;
 
         case 'user':
-          // this.insertEmptyCol(arrayData, 5, 'mail (deactivated)');
-          // this.insertEmptyCol(arrayData, 6, 'firstname (deactivated)');
-          // this.insertEmptyCol(arrayData, 7, 'surname (deactivated)');
-          // this.insertEmptyCol(arrayData, 8, 'street (deactivated)');
-          // this.insertEmptyCol(arrayData, 9, 'houseNumber (deactivated)');
-          // this.insertEmptyCol(arrayData, 10, 'location (deactivated)');
-          // this.insertEmptyCol(arrayData, 11, 'zip (deactivated)');
-          // this.insertEmptyCol(arrayData, 12, 'phone (deactivated)');
-          // this.insertEmptyCol(arrayData, 19, 'country (deactivated)');
-          // this.insertEmptyCol(arrayData, 20, 'language (deactivated)');
-          // this.insertEmptyCol(arrayData, 22, 'currencyId (deactivated)');
-          // this.insertEmptyCol(arrayData, 24, 'accountType (deactivated)');
-          // this.insertEmptyCol(arrayData, 25, 'organizationName (deactivated)');
-          // this.insertEmptyCol(arrayData, 26, 'organizationStreet (deactivated)');
-          // this.insertEmptyCol(arrayData, 27, 'organizationHouseNumber (deactivated)');
-          // this.insertEmptyCol(arrayData, 28, 'organizationLocation (deactivated)');
-          // this.insertEmptyCol(arrayData, 29, 'organizationZip (deactivated)');
-          // this.insertEmptyCol(arrayData, 30, 'organizationCountryId (deactivated)');
-
           this.insertEmptyCol(arrayData, 5, [
             'mail (deactivated)',
             'firstname (deactivated)',
@@ -227,9 +208,7 @@ export class AdminController {
           break;
 
         case 'user_data':
-          // this.insertEmptyCol(arrayData, 8, 'isMigrated (deactivated)');
-
-          this.insertEmptyCol(arrayData, 22, ['isMigrated (deactivated)']);
+          this.insertEmptyCol(arrayData, 8, ['isMigrated (deactivated)']);
 
           break;
       }
