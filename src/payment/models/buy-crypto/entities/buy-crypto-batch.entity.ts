@@ -162,21 +162,21 @@ export class BuyCryptoBatch extends IEntity {
     if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
 
     const currentTransactions = this.sortTransactionsAsc();
-    const reBatchedTransactions = [];
+    const reBatchTransactions = [];
     let requiredLiquidity = 0;
 
     for (const tx of currentTransactions) {
       requiredLiquidity += tx.outputReferenceAmount;
 
       if (requiredLiquidity < liquidityLimit) {
-        reBatchedTransactions.push(tx);
+        reBatchTransactions.push(tx);
         continue;
       }
 
       break;
     }
 
-    if (reBatchedTransactions.length === 0) {
+    if (reBatchTransactions.length === 0) {
       const { dexName, type, blockchain } = this.outputAsset;
 
       throw new Error(
@@ -184,9 +184,27 @@ export class BuyCryptoBatch extends IEntity {
       );
     }
 
-    this.transactions = reBatchedTransactions;
+    this.overwriteTransactions(reBatchTransactions);
 
     return this;
+  }
+
+  private overwriteTransactions(overwriteTransaction: BuyCrypto[]): void {
+    if (this.id || this.created) {
+      throw new Error(`Cannot overwrite transactions of previously saved batch. Batch ID: ${this.id}`);
+    }
+
+    this.resetBatch();
+    overwriteTransaction.forEach((tx) => this.addTransaction(tx));
+  }
+
+  private resetBatch(): void {
+    if (this.id || this.created) {
+      throw new Error(`Cannot reset previously saved batch. Batch ID: ${this.id}`);
+    }
+
+    this.transactions = [];
+    this.outputReferenceAmount = 0;
   }
 
   private checkFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {

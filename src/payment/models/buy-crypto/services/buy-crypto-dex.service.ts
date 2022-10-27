@@ -100,7 +100,7 @@ export class BuyCryptoDexService {
       if (e instanceof PriceSlippageException) {
         await this.handleSlippageException(
           batch,
-          `Slippage error while checking liquidity for asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
+          `Slippage error while checking liquidity for asset '${batch.outputAsset.dexName}. Batch ID: ${batch.id}`,
           e,
         );
       }
@@ -122,13 +122,13 @@ export class BuyCryptoDexService {
       if (e instanceof PriceSlippageException) {
         await this.handleSlippageException(
           batch,
-          `Composite swap slippage error while purchasing asset '${batch.outputAsset}. Batch ID: ${batch.id}`,
+          `Composite swap slippage error while purchasing asset '${batch.outputAsset.dexName}. Batch ID: ${batch.id}`,
           e,
         );
       }
 
       throw new Error(
-        `Error in purchasing liquidity of asset '${batch.outputAsset}'. Batch ID: ${batch.id}. ${e.message}`,
+        `Error in purchasing liquidity of asset '${batch.outputAsset.dexName}'. Batch ID: ${batch.id}. ${e.message}`,
       );
     }
 
@@ -136,7 +136,7 @@ export class BuyCryptoDexService {
       await this.buyCryptoBatchRepo.save(batch);
     } catch (e) {
       console.error(
-        `Error in saving PENDING status after purchasing '${batch.outputAsset}'. Batch ID: ${batch.id}. Purchase ID: ${txId}`,
+        `Error in saving PENDING status after purchasing '${batch.outputAsset.dexName}'. Batch ID: ${batch.id}. Purchase ID: ${txId}`,
         e,
       );
       throw e;

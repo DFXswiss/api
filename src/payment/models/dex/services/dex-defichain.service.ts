@@ -167,7 +167,7 @@ export class DexDeFiChainService {
     // 5% cap for unexpected meantime swaps
     if (requiredAmount * 1.05 > availableAmount) {
       throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${asset}. Trying to use ${requiredAmount} ${asset} worth liquidity. Available amount: ${availableAmount}.`,
+        `Not enough liquidity of asset ${asset.dexName}. Trying to use ${requiredAmount} ${asset.dexName} worth liquidity. Available amount: ${availableAmount}.`,
       );
     }
   }
