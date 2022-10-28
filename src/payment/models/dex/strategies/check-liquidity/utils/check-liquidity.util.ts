@@ -32,7 +32,7 @@ export class CheckLiquidityUtil {
         amount: 0,
       },
       metadata: {
-        isEnoughAvailableLiquidity: availableAmount > targetAmount * 1.05,
+        isEnoughAvailableLiquidity: availableAmount > targetAmount,
         isSlippageDetected: false,
         slippageMessage: 'no slippage detected',
       },

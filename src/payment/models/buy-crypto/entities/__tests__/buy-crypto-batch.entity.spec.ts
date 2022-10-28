@@ -82,7 +82,7 @@ describe('BuyCryptoBatch', () => {
     it('does not change the batch if available liquidity is enough', () => {
       const batch = createDiverseBuyCryptoBatch();
 
-      batch.optimizeByLiquidity(112 * 1.05, 0);
+      batch.optimizeByLiquidity(112, 0);
 
       expect(batch.transactions.length).toBe(3);
       expect(batch.transactions[0].outputReferenceAmount).toBe(100);
@@ -103,7 +103,7 @@ describe('BuyCryptoBatch', () => {
     it('re-slices the batch if available liquidity is enough at least for one tx, but not for entire batch', () => {
       const batchA = createDiverseBuyCryptoBatch();
 
-      batchA.optimizeByLiquidity(11 * 1.05, 0);
+      batchA.optimizeByLiquidity(11, 0);
 
       expect(batchA.transactions.length).toBe(2);
       expect(batchA.transactions[0].outputReferenceAmount).toBe(1);
@@ -131,7 +131,7 @@ describe('BuyCryptoBatch', () => {
     it('re-slices the batch if purchasable liquidity is enough at least for one tx, but not for entire batch', () => {
       const batchA = createDiverseBuyCryptoBatch();
 
-      batchA.optimizeByLiquidity(0.5, 11 * 1.05);
+      batchA.optimizeByLiquidity(0.5, 11 * 1.06);
 
       expect(batchA.transactions.length).toBe(2);
       expect(batchA.transactions[0].outputReferenceAmount).toBe(1);

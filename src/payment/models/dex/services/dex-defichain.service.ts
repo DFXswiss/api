@@ -164,8 +164,7 @@ export class DexDeFiChainService {
   private async checkAssetAvailability(asset: Asset, requiredAmount: number): Promise<void> {
     const availableAmount = await this.getAssetAvailability(asset);
 
-    // 5% cap for unexpected meantime swaps
-    if (requiredAmount * 1.05 > availableAmount) {
+    if (requiredAmount > availableAmount) {
       throw new NotEnoughLiquidityException(
         `Not enough liquidity of asset ${asset.dexName}. Trying to use ${requiredAmount} ${asset.dexName} worth liquidity. Available amount: ${availableAmount}.`,
       );

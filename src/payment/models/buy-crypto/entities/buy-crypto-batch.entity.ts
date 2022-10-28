@@ -66,10 +66,10 @@ export class BuyCryptoBatch extends IEntity {
     }
 
     if (
-      !this.isWholeBatchAmountPurchasable(maxPurchasableAmount) &&
-      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount)
+      !this.isWholeBatchAmountPurchasable(maxPurchasableAmount, 0.05) &&
+      this.isEnoughToSecureAtLeastOneTransaction(maxPurchasableAmount, 0.05)
     ) {
-      this.reBatchToMaxReferenceAmount(maxPurchasableAmount);
+      this.reBatchToMaxReferenceAmount(maxPurchasableAmount, 0.05);
 
       /**
        * purchase is required, though liquidity is not enough to purchase for entire batch -> re-batching to smaller amount *
@@ -144,18 +144,20 @@ export class BuyCryptoBatch extends IEntity {
   //*** HELPER METHODS ***//
 
   private isEnoughToSecureBatch(amount: number): boolean {
-    return amount >= this.outputReferenceAmount * 1.05;
+    return amount >= this.outputReferenceAmount;
   }
 
-  private isEnoughToSecureAtLeastOneTransaction(amount: number): boolean {
-    return amount >= this.smallestTransactionReferenceAmount * 1.05;
+  private isEnoughToSecureAtLeastOneTransaction(amount: number, bufferCap = 0): boolean {
+    // configurable reserve cap, because purchasable amounts are indicative and may be different on actual purchase
+    return amount >= this.smallestTransactionReferenceAmount * (1 + bufferCap);
   }
 
-  private isWholeBatchAmountPurchasable(maxPurchasableAmount: number): boolean {
-    return maxPurchasableAmount >= this.outputReferenceAmount * 1.05;
+  private isWholeBatchAmountPurchasable(maxPurchasableAmount: number, bufferCap = 0): boolean {
+    // configurable reserve cap, because purchasable amounts are indicative and may be different on actual purchase
+    return maxPurchasableAmount >= this.outputReferenceAmount * (1 + bufferCap);
   }
 
-  private reBatchToMaxReferenceAmount(liquidityLimit: number): this {
+  private reBatchToMaxReferenceAmount(liquidityLimit: number, bufferCap = 0): this {
     if (this.id || this.created) throw new Error(`Cannot re-batch previously saved batch. Batch ID: ${this.id}`);
 
     const currentTransactions = this.sortTransactionsAsc();
@@ -165,7 +167,8 @@ export class BuyCryptoBatch extends IEntity {
     for (const tx of currentTransactions) {
       requiredLiquidity += tx.outputReferenceAmount;
 
-      if (requiredLiquidity < liquidityLimit) {
+      // configurable reserve cap, because purchasable amounts are indicative and may be different on actual purchase
+      if (requiredLiquidity <= liquidityLimit * (1 - bufferCap)) {
         reBatchTransactions.push(tx);
         continue;
       }
