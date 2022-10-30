@@ -3,7 +3,7 @@ import { Readable } from 'stream';
 import { Util } from 'src/shared/util';
 import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
 import { StakingRewardService } from '../staking-reward/staking-reward.service';
-import { PayoutType, StakingReward } from '../staking-reward/staking-reward.entity';
+import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { RefRewardService } from '../ref-reward/ref-reward.service';
 import { HistoryQuery } from './dto/history-query.dto';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
@@ -39,10 +39,18 @@ export class HistoryService {
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
     const transactions: CoinTrackingHistory[][] = await Promise.all([
-      all || query.buy != null ? await this.getBuyTransactions(userId, query.from, query.to) : Promise.resolve([]),
-      all || query.sell != null ? await this.getSellTransactions(userId, query.from, query.to) : Promise.resolve([]),
-      all || query.staking != null ? await this.getStakingRewards(userId, query.from, query.to) : Promise.resolve([]),
-      all || query.staking != null ? await this.getStakingInvests(userId, query.from, query.to) : Promise.resolve([]),
+      all || query.buy != null
+        ? await this.getBuyTransactions(userId, query.from, query.to).then(this.fixDuplicateTx)
+        : Promise.resolve([]),
+      all || query.sell != null
+        ? await this.getSellTransactions(userId, query.from, query.to).then(this.fixDuplicateTx)
+        : Promise.resolve([]),
+      all || query.staking != null
+        ? await this.getStakingRewards(userId, query.from, query.to).then(this.fixDuplicateTx)
+        : Promise.resolve([]),
+      all || query.staking != null
+        ? await this.getStakingInvests(userId, query.from, query.to).then(this.fixDuplicateTx)
+        : Promise.resolve([]),
       all || query.ref != null ? await this.getAllRefRewards(userId, query.from, query.to) : Promise.resolve([]),
       //all || query.lm != null ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout): Promise.resolve([]),
     ]);
@@ -236,9 +244,7 @@ export class HistoryService {
   }
 
   private async getStakingRewards(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
-    const stakingRewards = await this.stakingRewardService
-      .getUserRewards([userId], dateFrom, dateTo)
-      .then(this.fixDuplicateTxRewards);
+    const stakingRewards = await this.stakingRewardService.getUserRewards([userId], dateFrom, dateTo);
     return stakingRewards
       .map((c) => [
         {
@@ -262,9 +268,7 @@ export class HistoryService {
   }
 
   private async getStakingInvests(userId: number, dateFrom?: Date, dateTo?: Date): Promise<CoinTrackingHistory[]> {
-    const { deposits, withdrawals } = await this.cryptoStakingService
-      .getUserInvests(userId, dateFrom, dateTo)
-      .then(this.fixDuplicateTxInvest);
+    const { deposits, withdrawals } = await this.cryptoStakingService.getUserInvests(userId, dateFrom, dateTo);
     return [...this.getStakingDeposits(deposits), ...this.getStakingWithdrawals(withdrawals)];
   }
 
@@ -474,29 +478,12 @@ export class HistoryService {
       : `d${dexName}`;
   }
 
-  private fixDuplicateTxRewards(rewards: StakingReward[]): StakingReward[] {
-    Array.from(Util.groupBy(rewards, 'txId'))
+  private fixDuplicateTx(rewards: CoinTrackingHistory[]): CoinTrackingHistory[] {
+    Array.from(Util.groupBy(rewards, 'txid'))
       .map(([_, rewards]) => rewards)
       .filter((r) => r.length > 1)
-      .forEach((rewards) => rewards.forEach((r, i) => (r.txId += i > 0 ? i : '')));
+      .forEach((rewards) => rewards.forEach((r, i) => (r.txid += i > 0 ? i : '')));
 
     return rewards;
-  }
-
-  private fixDuplicateTxInvest(invests: { deposits: CryptoStaking[]; withdrawals: CryptoStaking[] }): {
-    deposits: CryptoStaking[];
-    withdrawals: CryptoStaking[];
-  } {
-    Array.from(Util.groupBy(invests.deposits, 'inTxId'))
-      .map(([_, stakingInvests]) => stakingInvests)
-      .filter((r) => r.length > 1)
-      .forEach((stakingInvests) => stakingInvests.forEach((r, i) => (r.inTxId += i > 0 ? i : '')));
-
-    Array.from(Util.groupBy(invests.withdrawals, 'outTxId'))
-      .map(([_, stakingInvests]) => stakingInvests)
-      .filter((r) => r.length > 1)
-      .forEach((stakingInvests) => stakingInvests.forEach((r, i) => (r.outTxId += i > 0 ? i : '')));
-
-    return invests;
   }
 }
