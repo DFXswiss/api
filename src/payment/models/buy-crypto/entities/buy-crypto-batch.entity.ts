@@ -210,13 +210,7 @@ export class BuyCryptoBatch extends IEntity {
 
   private checkFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
     const feeRatio = Util.round((purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount, 8);
-    const {
-      buy: {
-        fee: {
-          limits: { configuredFeeLimit, defaultFeeLimit },
-        },
-      },
-    } = Config;
+    const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
 
     if (feeRatio > (configuredFeeLimit ?? defaultFeeLimit)) {
       throw new Error(
