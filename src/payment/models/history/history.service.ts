@@ -38,26 +38,16 @@ export class HistoryService {
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
 
-    const transactions: CoinTrackingHistory[][] = await Promise.all([
-      all || query.buy != null
-        ? await this.getBuyTransactions(userId, query.from, query.to).then(this.fixDuplicateTx)
-        : Promise.resolve([]),
-      all || query.sell != null
-        ? await this.getSellTransactions(userId, query.from, query.to).then(this.fixDuplicateTx)
-        : Promise.resolve([]),
-      all || query.staking != null
-        ? await this.getStakingRewards(userId, query.from, query.to).then(this.fixDuplicateTx)
-        : Promise.resolve([]),
-      all || query.staking != null
-        ? await this.getStakingInvests(userId, query.from, query.to).then(this.fixDuplicateTx)
-        : Promise.resolve([]),
+    const transactions: CoinTrackingHistory[] = await Promise.all([
+      all || query.buy != null ? await this.getBuyTransactions(userId, query.from, query.to) : Promise.resolve([]),
+      all || query.sell != null ? await this.getSellTransactions(userId, query.from, query.to) : Promise.resolve([]),
+      all || query.staking != null ? await this.getStakingRewards(userId, query.from, query.to) : Promise.resolve([]),
+      all || query.staking != null ? await this.getStakingInvests(userId, query.from, query.to) : Promise.resolve([]),
       all || query.ref != null ? await this.getAllRefRewards(userId, query.from, query.to) : Promise.resolve([]),
       //all || query.lm != null ? await this.getDfiTaxRewards(userAddress, DfiTaxInterval.DAY, query.from, query.to, timeout): Promise.resolve([]),
-    ]);
+    ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
 
-    return transactions
-      .reduce((prev, curr) => prev.concat(curr), [])
-      .sort((tx1, tx2) => (tx1.date.getTime() > tx2.date.getTime() ? -1 : 1));
+    return this.fixDuplicateTx(transactions).sort((tx1, tx2) => (tx1.date.getTime() > tx2.date.getTime() ? -1 : 1));
   }
 
   async getHistoryCsv(userId: number, userAddress: string, query: HistoryQuery): Promise<Readable> {
