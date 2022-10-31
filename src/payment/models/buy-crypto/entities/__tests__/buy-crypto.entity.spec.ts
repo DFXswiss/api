@@ -1,6 +1,7 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { createCustomBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/payment/models/exchange/dto/price.dto';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
@@ -21,7 +22,7 @@ describe('BuyCrypto', () => {
 
       entity.defineAssetExchangePair();
 
-      expect(entity.outputAsset).toBe('GOOGL');
+      expect(entity.outputAsset.dexName).toBe('GOOGL');
     });
 
     it('assigns outputReferenceAsset to inputReferenceAsset, when outputAsset is the same', () => {
@@ -33,13 +34,14 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputAsset).toBe('XYZ');
-      expect(entity.outputReferenceAsset).toBe('XYZ');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputAsset.dexName).toBe('XYZ');
+      expect(entity.outputReferenceAsset.dexName).toBe('XYZ');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDC and input asset is not EUR | CHF | USD | USDT', () => {
+    it('returns query pointer to BTC, when outputAsset is USDC and input asset is not EUR | CHF | USD | USDT', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'ETH',
@@ -48,9 +50,11 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(requiredAssetFetch.outputReferenceAssetName).toBe('BTC');
+      expect(requiredAssetFetch.type).toBe(AssetType.TOKEN);
+      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
     it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset USD', () => {
@@ -62,9 +66,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDC');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDC');
     });
 
     it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is EUR', () => {
@@ -76,9 +81,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDC');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDC');
     });
 
     it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is CHF', () => {
@@ -90,9 +96,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDC');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDC');
     });
 
     it('assigns outputReferenceAsset to USDC, when outputAsset is USDC and input asset is USDT', () => {
@@ -104,12 +111,13 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDC');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDC');
     });
 
-    it('assigns outputReferenceAsset to BTC, when outputAsset is USDT and input asset is not EUR | CHF | USD | USDC', () => {
+    it('returns query pointer to BTC, when outputAsset is USDT and input asset is not EUR | CHF | USD | USDC', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         inputReferenceAsset: 'ETH',
@@ -118,9 +126,11 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(requiredAssetFetch.outputReferenceAssetName).toBe('BTC');
+      expect(requiredAssetFetch.type).toBe(AssetType.TOKEN);
+      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
     it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset USD', () => {
@@ -132,9 +142,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDT');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDT');
     });
 
     it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is EUR', () => {
@@ -146,9 +157,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDT');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDT');
     });
 
     it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is CHF', () => {
@@ -160,9 +172,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDT');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDT');
     });
 
     it('assigns outputReferenceAsset to USDT, when outputAsset is USDT and input asset is USDC', () => {
@@ -174,12 +187,13 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('USDT');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('USDT');
     });
 
-    it('assigns outputReferenceAsset to ETH, on Ethereum blockchain when outputAsset is not DFI', () => {
+    it('returns query pointer to ETH, on Ethereum blockchain when outputAsset is not DFI', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         buy: createCustomBuy({ asset: createCustomAsset({ blockchain: Blockchain.ETHEREUM, dexName: 'GOOGL' }) }),
@@ -187,9 +201,11 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('ETH');
+      expect(requiredAssetFetch.outputReferenceAssetName).toBe('ETH');
+      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
+      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
     it('assigns outputReferenceAsset to outputAsset, on Ethereum blockchain when outputAsset is DFI', () => {
@@ -200,12 +216,13 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('DFI');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('DFI');
     });
 
-    it('assigns outputReferenceAsset to BNB, on BSC blockchain when outputAsset is not DFI | BUSD', () => {
+    it('returns query pointer to BNB, on BSC blockchain when outputAsset is not DFI | BUSD', () => {
       const entity = createCustomBuyCrypto({
         outputReferenceAsset: undefined,
         buy: createCustomBuy({
@@ -215,9 +232,11 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BNB');
+      expect(requiredAssetFetch.outputReferenceAssetName).toBe('BNB');
+      expect(requiredAssetFetch.type).toBe(AssetType.COIN);
+      expect(entity.outputReferenceAsset).toBeUndefined();
     });
 
     it('assigns outputReferenceAsset to outputAsset, on BSC blockchain when outputAsset is DFI', () => {
@@ -230,9 +249,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('DFI');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('DFI');
     });
 
     it('assigns outputReferenceAsset to outputAsset, on BSC blockchain when outputAsset is BUSD', () => {
@@ -245,9 +265,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BUSD');
+      expect(requiredAssetFetch).toBe(null);
+      expect(entity.outputReferenceAsset.dexName).toBe('BUSD');
     });
 
     it('defaults outputReferenceAsset to BTC on Bitcoin blockchain', () => {
@@ -258,9 +279,10 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBeUndefined();
+      expect(requiredAssetFetch.outputReferenceAssetName).toBe('BTC');
     });
 
     it('defaults outputReferenceAsset to BTC on DeFiChain blockchain', () => {
@@ -271,17 +293,37 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputReferenceAsset).toBeUndefined();
 
-      entity.defineAssetExchangePair();
+      const requiredAssetFetch = entity.defineAssetExchangePair();
 
-      expect(entity.outputReferenceAsset).toBe('BTC');
+      expect(entity.outputReferenceAsset).toBeUndefined();
+      expect(requiredAssetFetch.outputReferenceAssetName).toBe('BTC');
     });
 
-    it('returns instance of BuyCrypto', () => {
-      const entity = createDefaultBuyCrypto();
+    it('returns null in case outputReferenceAsset is assignable right away', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({
+          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'DFI' }),
+        }),
+      });
 
-      const updatedEntity = entity.defineAssetExchangePair();
+      const response = entity.defineAssetExchangePair();
 
-      expect(updatedEntity).toBeInstanceOf(BuyCrypto);
+      expect(response).toBe(null);
+    });
+
+    it('returns query object in case outputReferenceAsset is needs to be additionally fetched', () => {
+      const entity = createCustomBuyCrypto({
+        outputReferenceAsset: undefined,
+        buy: createCustomBuy({
+          asset: createCustomAsset({ blockchain: Blockchain.BINANCE_SMART_CHAIN, dexName: 'GOOGL' }),
+        }),
+      });
+
+      const response = entity.defineAssetExchangePair();
+
+      expect(response.outputReferenceAssetName).toBeTruthy();
+      expect(response.type).toBeTruthy();
     });
   });
 
@@ -407,7 +449,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.isComplete).toBe(undefined);
 
-      entity.complete('TX_ID_01');
+      entity.complete('TX_ID_01', 0);
 
       expect(entity.isComplete).toBe(true);
     });
@@ -417,7 +459,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.txId).toBe(undefined);
 
-      entity.complete('TX_ID_01');
+      entity.complete('TX_ID_01', 0);
 
       expect(entity.txId).toBe('TX_ID_01');
     });
@@ -427,7 +469,7 @@ describe('BuyCrypto', () => {
 
       expect(entity.outputDate).toBe(undefined);
 
-      entity.complete('TX_ID_01');
+      entity.complete('TX_ID_01', 0);
 
       expect(entity.outputDate).toBeInstanceOf(Date);
     });
@@ -435,7 +477,7 @@ describe('BuyCrypto', () => {
     it('returns instance of BuyCrypto', () => {
       const entity = createDefaultBuyCrypto();
 
-      const updatedEntity = entity.complete('TX_ID_01');
+      const updatedEntity = entity.complete('TX_ID_01', 0);
 
       expect(updatedEntity).toBeInstanceOf(BuyCrypto);
     });

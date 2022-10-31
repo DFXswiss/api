@@ -1,6 +1,7 @@
 import { mock } from 'jest-mock-extended';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import {
@@ -18,18 +19,21 @@ describe('PayoutDeFiChainTokenStrategy', () => {
   let dexService: DexService;
   let defichainService: PayoutDeFiChainService;
   let payoutOrderRepo: PayoutOrderRepository;
+  let assetService: AssetService;
 
   beforeEach(() => {
     notificationService = mock<NotificationService>();
     dexService = mock<DexService>();
     defichainService = mock<PayoutDeFiChainService>();
     payoutOrderRepo = mock<PayoutOrderRepository>();
+    assetService = mock<AssetService>();
 
     strategy = new PayoutDeFiChainTokenStrategyWrapper(
       notificationService,
       dexService,
       defichainService,
       payoutOrderRepo,
+      assetService,
     );
   });
 
@@ -77,8 +81,9 @@ class PayoutDeFiChainTokenStrategyWrapper extends DeFiChainTokenStrategy {
     dexService: DexService,
     defichainService: PayoutDeFiChainService,
     payoutOrderRepo: PayoutOrderRepository,
+    assetService: AssetService,
   ) {
-    super(notificationService, dexService, defichainService, payoutOrderRepo);
+    super(notificationService, dexService, defichainService, payoutOrderRepo, assetService);
   }
 
   groupOrdersByTokenWrapper(orders: PayoutOrder[]) {

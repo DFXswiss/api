@@ -160,7 +160,9 @@ export class PriceStep {
       (p) => p.name + ' ',
     )}. From ${fromCurrency} to ${toCurrency}. `;
 
-    const fallbackMessage = this.options.fallbackPrimaryTo && `Fallback to currency: ${this.options.fallbackPrimaryTo}`;
+    const fallbackMessage = this.options.fallbackPrimaryTo
+      ? `Fallback to currency: ${this.options.fallbackPrimaryTo}`
+      : '';
 
     return mainMessage + fallbackMessage;
   }

@@ -1,7 +1,9 @@
 import { createDefaultBuy } from 'src/payment/models/buy/__mocks__/buy.entity.mock';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AmlCheck } from '../../enums/aml-check.enum';
 import { BuyCrypto } from '../buy-crypto.entity';
 import { createCustomBuyCryptoBatch } from './buy-crypto-batch.entity.mock';
+import { createDefaultBuyCryptoFee } from './buy-crypto-fee.entity.mock';
 
 export function createDefaultBuyCrypto(): BuyCrypto {
   return createCustomBuyCrypto({});
@@ -35,6 +37,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
     refFactor,
     isComplete,
     cryptoInput,
+    fee,
   } = customValues;
 
   const keys = Object.keys(customValues);
@@ -56,9 +59,11 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
     ? inputReferenceAmountMinusFee
     : 99;
   entity.outputReferenceAmount = keys.includes('outputReferenceAmount') ? outputReferenceAmount : 0.005;
-  entity.outputReferenceAsset = keys.includes('outputReferenceAsset') ? outputReferenceAsset : 'BTC';
+  entity.outputReferenceAsset = keys.includes('outputReferenceAsset')
+    ? outputReferenceAsset
+    : createCustomAsset({ dexName: 'BTC' });
   entity.outputAmount = keys.includes('outputAmount') ? outputAmount : 0.2;
-  entity.outputAsset = keys.includes('outputAsset') ? outputAsset : 'dTSLA';
+  entity.outputAsset = keys.includes('outputAsset') ? outputAsset : createCustomAsset({ dexName: 'dTSLA' });
   entity.txId = keys.includes('txId') ? txId : 'TX_ID_01';
   entity.outputDate = keys.includes('outputDate') ? outputDate : new Date();
   entity.recipientMail = keys.includes('recipientMail') ? recipientMail : '';
@@ -68,6 +73,7 @@ export function createCustomBuyCrypto(customValues: Partial<BuyCrypto>): BuyCryp
   entity.refFactor = keys.includes('refFactor') ? refFactor : 0;
   entity.isComplete = keys.includes('isComplete') ? isComplete : false;
   entity.cryptoInput = keys.includes('cryptoInput') ? cryptoInput : undefined;
+  entity.fee = keys.includes('fee') ? fee : createDefaultBuyCryptoFee();
 
   return entity;
 }

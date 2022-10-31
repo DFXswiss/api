@@ -55,7 +55,13 @@ describe('LiquidityOrderFactory', () => {
         context: LiquidityOrderContext.BUY_CRYPTO,
         correlationId: 'CID_01',
         chain: Blockchain.DEFICHAIN,
-        referenceAsset: 'BTC',
+        referenceAsset: {
+          blockchain: 'DeFiChain',
+          category: 'Crypto',
+          dexName: 'BTC',
+          name: 'dTSLA',
+          type: 'Coin',
+        },
         referenceAmount: 1,
         targetAsset: createCustomAsset({ dexName: 'TSLA' }),
       });
@@ -75,7 +81,13 @@ describe('LiquidityOrderFactory', () => {
         context: LiquidityOrderContext.BUY_CRYPTO,
         correlationId: 'CID_01',
         chain: Blockchain.DEFICHAIN,
-        referenceAsset: 'BTC',
+        referenceAsset: {
+          blockchain: 'DeFiChain',
+          category: 'Crypto',
+          dexName: 'BTC',
+          name: 'dTSLA',
+          type: 'Coin',
+        },
         referenceAmount: 1,
         targetAsset: createCustomAsset({ dexName: 'TSLA' }),
       });

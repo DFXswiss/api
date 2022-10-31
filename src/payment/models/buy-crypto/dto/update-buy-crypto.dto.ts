@@ -65,16 +65,16 @@ export class UpdateBuyCryptoDto {
   outputReferenceAmount: number;
 
   @IsOptional()
-  @IsString()
-  outputReferenceAsset: string;
+  @IsInt()
+  outputReferenceAssetId: number;
 
   @IsOptional()
   @IsNumber()
   outputAmount: number;
 
   @IsOptional()
-  @IsString()
-  outputAsset: string;
+  @IsInt()
+  outputAssetId: number;
 
   @IsOptional()
   @IsString()

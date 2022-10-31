@@ -8,6 +8,7 @@ import { DexService } from '../../dex/services/dex.service';
 import { Price } from '../../exchange/dto/price.dto';
 import { PriceProvider } from '../interfaces';
 import { Util } from 'src/shared/util';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class DfiPricingDexService implements PriceProvider {
@@ -18,26 +19,36 @@ export class DfiPricingDexService implements PriceProvider {
   }
 
   async getPrice(from: string, to: string): Promise<Price> {
-    if (to !== 'DFI') {
-      throw new Error(`DfiPricingDexService supports only DFI as target asset, instead provided: ${to}`);
-    }
+    const fromAsset = await this.assetService.getAssetByQuery({
+      dexName: from,
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
 
-    const dfi = await this.assetService.getAssetByQuery({ dexName: 'DFI', blockchain: Blockchain.DEFICHAIN });
+    const toAsset = await this.assetService.getAssetByQuery({
+      dexName: to,
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
 
     const liquidityRequest: LiquidityRequest = {
       context: LiquidityOrderContext.PRICING,
       correlationId: uuid(),
-      referenceAsset: from,
-      referenceAmount: 0.001,
-      targetAsset: dfi,
-      options: {
-        bypassAvailabilityCheck: true,
-        bypassSlippageProtection: true,
-      },
+      referenceAsset: fromAsset,
+      referenceAmount: this.getMinimalPriceReferenceAmount(fromAsset.dexName),
+      targetAsset: toAsset,
     };
 
-    const targetAmount = await this.dexService.checkLiquidity(liquidityRequest);
+    const { target } = await this.dexService.checkLiquidity(liquidityRequest);
 
-    return Price.create(from, to, Util.round(targetAmount / 0.001, 8));
+    return Price.create(
+      from,
+      to,
+      Util.round(target.amount / this.getMinimalPriceReferenceAmount(fromAsset.dexName), 8),
+    );
+  }
+
+  private getMinimalPriceReferenceAmount(sourceAsset: string): number {
+    return sourceAsset === 'BTC' ? 0.001 : 1;
   }
 }

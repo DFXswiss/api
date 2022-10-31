@@ -1,11 +1,13 @@
 import { mock } from 'jest-mock-extended';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import {
   createCustomPayoutOrder,
   createDefaultPayoutOrder,
 } from '../../../entities/__mocks__/payout-order.entity.mock';
+import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from '../impl/base/jellyfish.strategy';
@@ -313,5 +315,13 @@ class PayoutJellyfishStrategyWrapper extends JellyfishStrategy {
 
   sendNonRecoverableErrorMailWrapper(order: PayoutOrder, message: string, e?: Error) {
     return this.sendNonRecoverableErrorMail(order, message, e);
+  }
+
+  estimateFee(): Promise<FeeResult> {
+    throw new Error('Method not implemented.');
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    throw new Error('Method not implemented.');
   }
 }

@@ -14,7 +14,7 @@ export enum AssetCategory {
 }
 
 @Entity()
-@Index('nameBlockchain', (asset: Asset) => [asset.name, asset.blockchain], {
+@Index('nameTypeBlockchain', (asset: Asset) => [asset.name, asset.type, asset.blockchain], {
   unique: true,
 })
 export class Asset extends IEntity {

@@ -6,12 +6,13 @@ import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
 import { DuplicatedEntryException } from '../exceptions/duplicated-entry.exception';
 import { PayoutLogService } from './payout-log.service';
-import { PayoutRequest } from '../interfaces';
+import { FeeRequest, FeeResult, PayoutRequest } from '../interfaces';
 import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { MailRequest } from 'src/notification/interfaces';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
+import { Util } from 'src/shared/util';
 
 @Injectable()
 export class PayoutService {
@@ -56,11 +57,24 @@ export class PayoutService {
   async checkOrderCompletion(
     context: PayoutOrderContext,
     correlationId: string,
-  ): Promise<{ isComplete: boolean; payoutTxId: string }> {
+  ): Promise<{ isComplete: boolean; payoutTxId: string; payoutFee: FeeResult }> {
     const order = await this.payoutOrderRepo.findOne({ context, correlationId });
     const payoutTxId = order && order.payoutTxId;
+    const payoutFee = order && order.payoutFee;
 
-    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId };
+    return { isComplete: order && order.status === PayoutOrderStatus.COMPLETE, payoutTxId, payoutFee };
+  }
+
+  async estimateFee(request: FeeRequest): Promise<FeeResult> {
+    const prepareStrategy = this.prepareStrategies.getPrepareStrategy(request.asset);
+    const payoutStrategy = this.payoutStrategies.getPayoutStrategy(request.asset);
+
+    const prepareFee = await prepareStrategy.estimateFee(request.asset);
+    const payoutFee = await payoutStrategy.estimateFee(request.quantityOfTransactions, request.asset);
+
+    const totalFeeAmount = Util.round(prepareFee.amount + payoutFee.amount, 8);
+
+    return { asset: payoutFee.asset, amount: totalFeeAmount };
   }
 
   //*** JOBS ***//
@@ -111,7 +125,7 @@ export class PayoutService {
       const strategy = this.payoutStrategies.getPayoutStrategy(order.asset);
 
       try {
-        await strategy.checkPayoutCompletion(order);
+        await strategy.checkPayoutCompletionData(order);
         order.status === PayoutOrderStatus.COMPLETE && confirmedOrders.push(order);
       } catch {
         continue;

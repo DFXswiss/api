@@ -16,6 +16,8 @@ import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
 
 describe('CheckLiquidityStrategies', () => {
   let nodeService: NodeService;
@@ -34,13 +36,17 @@ describe('CheckLiquidityStrategies', () => {
     nodeService = mock<NodeService>();
     jest.spyOn(nodeService, 'getConnectedNode').mockImplementation(() => new BehaviorSubject(null));
 
-    bitcoin = new BitcoinStrategy(mock<DexBitcoinService>());
-    bscCoin = new BscCoinStrategy(mock<DexBscService>());
-    bscToken = new BscTokenStrategy(mock<DexBscService>());
-    deFiChainPoolPair = new DeFiChainPoolPairStrategy();
-    deFiChainDefault = new DeFiChainDefaultStrategy(mock<DexDeFiChainService>());
-    ethereumCoin = new EthereumCoinStrategy(mock<DexEthereumService>());
-    ethereumToken = new EthereumTokenStrategy(mock<DexEthereumService>());
+    bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<DexBitcoinService>());
+    bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<DexBscService>());
+    bscToken = new BscTokenStrategy(mock<AssetService>(), mock<DexBscService>());
+    deFiChainPoolPair = new DeFiChainPoolPairStrategy(mock<AssetService>());
+    deFiChainDefault = new DeFiChainDefaultStrategy(
+      mock<AssetService>(),
+      mock<DexDeFiChainService>(),
+      mock<PurchaseLiquidityStrategies>(),
+    );
+    ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<DexEthereumService>());
+    ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<DexEthereumService>());
 
     facade = new CheckLiquidityStrategiesWrapper(
       bitcoin,

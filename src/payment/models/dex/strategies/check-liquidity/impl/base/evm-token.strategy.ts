@@ -1,13 +1,28 @@
-import { LiquidityRequest } from '../../../../interfaces';
+import { CheckLiquidityResult, LiquidityRequest } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/dex-evm.service';
+import { CheckLiquidityUtil } from '../../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './check-liquidity.strategy';
 
-export class EvmTokenStrategy implements CheckLiquidityStrategy {
-  constructor(protected readonly dexEvmService: DexEvmService) {}
+export abstract class EvmTokenStrategy extends CheckLiquidityStrategy {
+  constructor(protected readonly dexEvmService: DexEvmService) {
+    super();
+  }
 
-  async checkLiquidity(request: LiquidityRequest): Promise<number> {
+  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAmount, referenceAsset, targetAsset } = request;
 
-    return this.dexEvmService.getAndCheckTokenAvailability(referenceAsset, referenceAmount, targetAsset);
+    const [targetAmount, availableAmount] = await this.dexEvmService.getAndCheckTokenAvailability(
+      referenceAsset,
+      referenceAmount,
+      targetAsset,
+    );
+
+    // will be different from coin implementation once token auto-purchase implemented.
+    return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
+      request,
+      targetAmount,
+      availableAmount,
+      await this.feeAsset(),
+    );
   }
 }

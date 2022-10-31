@@ -2,6 +2,7 @@ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
+import { PurchaseLiquidityResult } from '../interfaces';
 
 export enum LiquidityOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
@@ -32,13 +33,13 @@ export class LiquidityOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   chain: Blockchain;
 
-  @Column({ length: 256, nullable: false })
-  referenceAsset: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  referenceAsset: Asset;
 
   @Column({ type: 'float', nullable: false })
   referenceAmount: number;
 
-  @ManyToOne(() => Asset, { eager: true, nullable: false })
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   targetAsset: Asset;
 
   @Column({ type: 'float', nullable: true })
@@ -50,8 +51,8 @@ export class LiquidityOrder extends IEntity {
   @Column({ nullable: false, default: false })
   isComplete: boolean;
 
-  @Column({ length: 256, nullable: true })
-  swapAsset?: string;
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  swapAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
   swapAmount?: number;
@@ -65,6 +66,12 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   purchasedAmount?: number;
 
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
+  purchaseFeeAsset?: Asset;
+
+  @Column({ type: 'float', nullable: true })
+  purchaseFeeAmount?: number;
+
   reserved(targetAmount: number): this {
     this.setTargetAmount(targetAmount);
     this.isReady = true;
@@ -72,7 +79,7 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
-  addPurchaseMetadata(purchaseTxId: string, swapAsset?: string, swapAmount?: number): this {
+  addPurchaseMetadata(purchaseTxId: string, swapAsset?: Asset, swapAmount?: number): this {
     this.purchaseTxId = purchaseTxId;
     this.swapAsset = swapAsset;
     this.swapAmount = swapAmount;
@@ -82,10 +89,25 @@ export class LiquidityOrder extends IEntity {
 
   purchased(purchasedAmount: number): this {
     this.purchasedAmount = purchasedAmount;
+
     this.setTargetAmount(purchasedAmount);
     this.isReady = true;
 
     return this;
+  }
+
+  recordPurchaseFee(purchaseFeeAsset: Asset, purchaseFeeAmount: number): this {
+    this.purchaseFeeAsset = purchaseFeeAsset;
+    this.purchaseFeeAmount = purchaseFeeAmount;
+
+    return this;
+  }
+
+  getPurchaseLiquidityResult(): PurchaseLiquidityResult {
+    return {
+      target: { asset: this.targetAsset, amount: this.targetAmount },
+      purchaseFee: { asset: this.purchaseFeeAsset, amount: this.purchaseFeeAmount },
+    };
   }
 
   complete(): this {
@@ -95,7 +117,8 @@ export class LiquidityOrder extends IEntity {
   }
 
   private setTargetAmount(incomingAmount: number): void {
-    this.targetAmount = this.referenceAsset === this.targetAsset.dexName ? this.referenceAmount : incomingAmount;
+    this.targetAmount =
+      this.referenceAsset.dexName === this.targetAsset.dexName ? this.referenceAmount : incomingAmount;
   }
 
   static getIsReferenceAsset(asset: string): boolean {

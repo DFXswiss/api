@@ -113,6 +113,9 @@
     "btcOutWalletAddress": {
       "value": "xxx"
     },
+    "buyCryptoFeeLimit": {
+      "value": "0.001"
+    },
     "nodeServicePlanSkuName": {
       "value": "P2v2"
     },

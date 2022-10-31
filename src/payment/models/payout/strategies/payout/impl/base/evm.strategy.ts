@@ -1,15 +1,27 @@
+import { FeeResult } from 'src/payment/models/payout/interfaces';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutEvmService } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
 
-export abstract class EvmStrategy implements PayoutStrategy {
+export abstract class EvmStrategy extends PayoutStrategy {
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
-  ) {}
+  ) {
+    super();
+  }
 
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
+  protected abstract getCurrentGasForTransaction(token?: Asset): Promise<number>;
+
+  async estimateFee(quantityOfTransactions: number, asset: Asset): Promise<FeeResult> {
+    const gasPerTransaction = await this.getCurrentGasForTransaction(asset);
+    const feeAmount = quantityOfTransactions * gasPerTransaction;
+
+    return { asset: await this.feeAsset(), amount: feeAmount };
+  }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
@@ -24,12 +36,13 @@ export abstract class EvmStrategy implements PayoutStrategy {
     }
   }
 
-  async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
+  async checkPayoutCompletionData(order: PayoutOrder): Promise<void> {
     try {
-      const isComplete = await this.payoutEvmService.checkPayoutCompletion(order.payoutTxId);
+      const [isComplete, payoutFee] = await this.payoutEvmService.getPayoutCompletionData(order.payoutTxId);
 
       if (isComplete) {
         order.complete();
+        order.recordPayoutFee(await this.feeAsset(), payoutFee);
 
         await this.payoutOrderRepo.save(order);
       }

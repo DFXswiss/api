@@ -18,6 +18,7 @@ import { BehaviorSubject } from 'rxjs';
 import { DeFiInputService } from './defi-input.service';
 import { HttpService } from '@nestjs/axios';
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 describe('DeFiInputService', () => {
   let service: DeFiInputService;
@@ -112,22 +113,22 @@ describe('DeFiInputService', () => {
   });
 
   // --- AMOUNTS --- //
-  it('should return UTXO on receive', () => {
+  it('should return coin on receive', () => {
     expect(service.getAmounts({ type: 'receive', amounts: ['3@DFI'] } as AccountHistory)).toStrictEqual([
       {
         amount: 3,
         asset: 'DFI',
-        isToken: false,
+        type: AssetType.COIN,
       },
     ]);
   });
 
-  it('should return positive amount and UTXO on AccountToUtxos', () => {
+  it('should return positive amount and coin on AccountToUtxos', () => {
     expect(service.getAmounts({ type: 'AccountToUtxos', amounts: ['-2.456@DFI'] } as AccountHistory)).toStrictEqual([
       {
         amount: 2.456,
         asset: 'DFI',
-        isToken: false,
+        type: AssetType.COIN,
       },
     ]);
   });
@@ -139,12 +140,12 @@ describe('DeFiInputService', () => {
       {
         amount: 2,
         asset: 'BTC',
-        isToken: true,
+        type: AssetType.TOKEN,
       },
       {
         amount: 3,
         asset: 'USDT',
-        isToken: true,
+        type: AssetType.TOKEN,
       },
     ]);
   });
@@ -158,7 +159,7 @@ describe('DeFiInputService', () => {
       {
         amount: 1,
         asset: 'DFI',
-        isToken: true,
+        type: AssetType.TOKEN,
       },
     ]);
   });
@@ -168,7 +169,7 @@ describe('DeFiInputService', () => {
       {
         amount: 3,
         asset: 'USDT',
-        isToken: true,
+        type: AssetType.TOKEN,
       },
     ]);
   });
@@ -180,12 +181,12 @@ describe('DeFiInputService', () => {
       {
         amount: 3,
         asset: 'BTC',
-        isToken: true,
+        type: AssetType.TOKEN,
       },
       {
         amount: 1,
         asset: 'DFI',
-        isToken: true,
+        type: AssetType.TOKEN,
       },
     ]);
   });

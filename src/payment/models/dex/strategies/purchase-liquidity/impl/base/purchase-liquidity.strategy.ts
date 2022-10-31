@@ -1,14 +1,24 @@
 import { MailContext, MailType } from 'src/notification/enums';
 import { MailRequest } from 'src/notification/interfaces';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { LiquidityOrder } from 'src/payment/models/dex/entities/liquidity-order.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../../../exceptions/price-slippage.exception';
 import { LiquidityRequest } from '../../../../interfaces';
 
 export abstract class PurchaseLiquidityStrategy {
+  #feeAsset: Asset;
+
   constructor(protected readonly notificationService: NotificationService) {}
 
+  async feeAsset(): Promise<Asset> {
+    return this.#feeAsset ?? this.getFeeAsset();
+  }
+
   abstract purchaseLiquidity(request: LiquidityRequest): Promise<void>;
+  abstract addPurchaseData(order: LiquidityOrder): Promise<void>;
+  protected abstract getFeeAsset(): Promise<Asset>;
 
   protected async handlePurchaseLiquidityError(e: Error, request: LiquidityRequest): Promise<void> {
     const errorMessage = `Correlation ID: ${request.correlationId}. Context: ${request.context}. ${e.message}`;
@@ -17,6 +27,7 @@ export abstract class PurchaseLiquidityStrategy {
       const mailRequest = this.createMailRequest(request, errorMessage);
 
       await this.notificationService.sendMail(mailRequest);
+      throw new NotEnoughLiquidityException(errorMessage);
     }
 
     if (e instanceof PriceSlippageException) {
