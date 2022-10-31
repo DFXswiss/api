@@ -1,7 +1,7 @@
 import { GetConfig } from 'src/config/config';
 import { MailContext } from 'src/notification/enums';
 import { NotificationMetadata, NotificationOptions } from '../notification.entity';
-import { Mail } from './base/mail';
+import { Mail, MailParams } from './base/mail';
 
 export type ErrorMonitoringMailInput = ErrorMonitoringMailParams;
 
@@ -17,13 +17,15 @@ export class ErrorMonitoringMail extends Mail {
     const to = [GetConfig().mail.contact.monitoringMail];
     ErrorMonitoringMail.isLiqMail(params) && to.push(GetConfig().mail.contact.liqMail);
 
-    const _params = {
+    const _params: MailParams = {
       to: to,
       subject: `${params.subject} (${GetConfig().environment.toUpperCase()})`,
-      salutation: 'Hi DFX Tech Support',
-      body: ErrorMonitoringMail.createBody(params.errors),
       metadata: params.metadata,
       options: params.options,
+      templateParams: {
+        salutation: 'Hi DFX Tech Support',
+        body: ErrorMonitoringMail.createBody(params.errors),
+      },
     };
 
     super(_params);

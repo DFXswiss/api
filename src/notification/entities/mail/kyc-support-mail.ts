@@ -20,8 +20,10 @@ export class KycSupportMail extends Mail {
     const _params = {
       to: GetConfig().mail.contact.supportMail,
       subject: 'KYC failed or expired',
-      salutation: 'Hi DFX Support',
-      body: KycSupportMail.createBody(params),
+      templateParams: {
+        salutation: 'Hi DFX Support',
+        body: KycSupportMail.createBody(params),
+      },
       metadata: params.metadata,
       options: params.options,
     };
