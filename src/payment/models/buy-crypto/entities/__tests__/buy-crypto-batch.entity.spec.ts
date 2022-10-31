@@ -8,6 +8,12 @@ import { BuyCryptoFee } from '../buy-crypto-fees.entity';
 import { createCustomBuyCryptoBatch, createDefaultBuyCryptoBatch } from '../__mocks__/buy-crypto-batch.entity.mock';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 
+jest.mock('src/config/config', () => ({
+  Config: {
+    buy: { fee: { limits: { configuredFeeLimit: 0.001, constantFeeLimit: 0.001 } } },
+  },
+}));
+
 describe('BuyCryptoBatch', () => {
   describe('#addTransaction(...)', () => {
     it('sets transactions to empty array in case it is undefined', () => {

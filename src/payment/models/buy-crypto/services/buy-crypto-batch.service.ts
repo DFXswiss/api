@@ -289,55 +289,29 @@ export class BuyCryptoBatchService {
   }
 
   private async getPurchaseFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativePurchaseFee: FeeResult): Promise<number> {
-    try {
-      return nativePurchaseFee.amount
-        ? await this.buyCryptoPricingService.convertToTargetAsset(
-            batch,
-            nativePurchaseFee.asset,
-            nativePurchaseFee.amount,
-            batch.outputReferenceAsset,
-            'ConvertEstimatedPurchaseFee',
-          )
-        : 0;
-    } catch (e) {
-      const message = `Could not get price for purchase fee calculation. Ignoring fee estimate. Native fee asset: ${nativePurchaseFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
-      console.error(message, e);
+    const txIdStrings = batch.transactions.reduce((acc, t) => acc + `|${t.id}|`, '');
+    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertEstimatedPurchaseFee_${txIdStrings}`;
+    const errorMessage = `Could not get price for purchase fee calculation. Ignoring fee estimate. Native fee asset: ${nativePurchaseFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
 
-      await this.handleFeeConversionError(
-        nativePurchaseFee.asset.dexName,
-        batch.outputReferenceAsset.dexName,
-        message,
-        e,
-      );
-
-      return 0;
-    }
+    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
+      batch,
+      nativePurchaseFee,
+      priceRequestCorrelationId,
+      errorMessage,
+    );
   }
 
   private async getPayoutFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativePayoutFee: FeeResult): Promise<number> {
-    try {
-      return nativePayoutFee.amount
-        ? await this.buyCryptoPricingService.convertToTargetAsset(
-            batch,
-            nativePayoutFee.asset,
-            nativePayoutFee.amount,
-            batch.outputReferenceAsset,
-            'ConvertEstimatedPayoutFee',
-          )
-        : 0;
-    } catch (e) {
-      const message = `Could not get price for payout fee calculation. Ignoring fee estimate. Native fee asset: ${nativePayoutFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
-      console.error(message, e);
+    const txIdStrings = batch.transactions.reduce((acc, t) => acc + `|${t.id}|`, '');
+    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertEstimatedPayoutFee_${txIdStrings}`;
+    const errorMessage = `Could not get price for payout fee calculation. Ignoring fee estimate. Native fee asset: ${nativePayoutFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
 
-      await this.handleFeeConversionError(
-        nativePayoutFee.asset.dexName,
-        batch.outputReferenceAsset.dexName,
-        message,
-        e,
-      );
-
-      return 0;
-    }
+    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
+      batch,
+      nativePayoutFee,
+      priceRequestCorrelationId,
+      errorMessage,
+    );
   }
 
   private async optimizeBatch(
@@ -418,24 +392,6 @@ export class BuyCryptoBatchService {
       );
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);
-    }
-  }
-
-  private async handleFeeConversionError(
-    nativeAssetName: string,
-    referenceAssetName: string,
-    message: string,
-    error: Error,
-  ): Promise<void> {
-    try {
-      await this.buyCryptoNotificationService.sendFeeConversionError(
-        nativeAssetName,
-        referenceAssetName,
-        message,
-        error,
-      );
-    } catch (e) {
-      console.error('Error in handling fee calculation error', e);
     }
   }
 

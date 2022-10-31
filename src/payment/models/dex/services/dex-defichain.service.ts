@@ -201,6 +201,8 @@ export class DexDeFiChainService {
       console.warn(
         `Could not find purchasable amount for swapAsset: ${swapAsset.dexName}, targetAsset: ${targetAsset.dexName}`,
       );
+
+      return 0;
     }
   }
 

@@ -249,7 +249,7 @@ describe('BuyCryptoBatchService', () => {
     });
 
     buyCryptoPricingServiceConvert = jest
-      .spyOn(buyCryptoPricingService, 'convertToTargetAsset')
+      .spyOn(buyCryptoPricingService, 'getFeeAmountInBatchAsset')
       .mockImplementation(async () => 1);
 
     dexServiceCheckLiquidity = jest.spyOn(dexService, 'checkLiquidity').mockImplementation(

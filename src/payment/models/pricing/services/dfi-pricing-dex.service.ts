@@ -35,12 +35,20 @@ export class DfiPricingDexService implements PriceProvider {
       context: LiquidityOrderContext.PRICING,
       correlationId: uuid(),
       referenceAsset: fromAsset,
-      referenceAmount: 0.001,
+      referenceAmount: this.getMinimalPriceReferenceAmount(fromAsset.dexName),
       targetAsset: toAsset,
     };
 
     const { target } = await this.dexService.checkLiquidity(liquidityRequest);
 
-    return Price.create(from, to, Util.round(target.amount / 0.001, 8));
+    return Price.create(
+      from,
+      to,
+      Util.round(target.amount / this.getMinimalPriceReferenceAmount(fromAsset.dexName), 8),
+    );
+  }
+
+  private getMinimalPriceReferenceAmount(sourceAsset: string): number {
+    return sourceAsset === 'BTC' ? 0.001 : 1;
   }
 }

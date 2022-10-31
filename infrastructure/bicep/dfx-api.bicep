@@ -56,6 +56,8 @@ param bscGatewayUrl string
 param bscSwapContractAddress string
 param bscSwapTokenAddress string
 
+param buyCryptoFeeLimit string
+
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
 param hasBackupNodes bool
@@ -569,6 +571,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BTC_OUT_WALLET_ADDRESS'
           value: btcOutWalletAddress
+        }
+        {
+          name: 'BUY_CRYPTO_FEE_LIMIT'
+          value: buyCryptoFeeLimit
         }
         {
           name: 'FTP_HOST'

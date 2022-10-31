@@ -144,42 +144,15 @@ export class BuyCryptoDexService {
   }
 
   private async getPurchaseFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativeFee: FeeResult): Promise<number> {
-    try {
-      return nativeFee.amount
-        ? await this.buyCryptoPricingService.convertToTargetAsset(
-            batch,
-            nativeFee.asset,
-            nativeFee.amount,
-            batch.outputReferenceAsset,
-            'ConvertActualPurchaseFee',
-          )
-        : 0;
-    } catch (e) {
-      const message = `Could not get price for actual purchase fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
-      console.error(message, e);
+    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertActualPurchaseFee_${batch.id}`;
+    const errorMessage = `Could not get price for actual purchase fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}`;
 
-      await this.handleFeeConversionError(nativeFee.asset.dexName, batch.outputReferenceAsset.dexName, message, e);
-
-      return 0;
-    }
-  }
-
-  private async handleFeeConversionError(
-    nativeAssetName: string,
-    referenceAssetName: string,
-    message: string,
-    error: Error,
-  ): Promise<void> {
-    try {
-      await this.buyCryptoNotificationService.sendFeeConversionError(
-        nativeAssetName,
-        referenceAssetName,
-        message,
-        error,
-      );
-    } catch (e) {
-      console.error('Error in handling actual purchase fee calculation error', e);
-    }
+    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
+      batch,
+      nativeFee,
+      priceRequestCorrelationId,
+      errorMessage,
+    );
   }
 
   private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {

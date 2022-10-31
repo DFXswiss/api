@@ -1,4 +1,5 @@
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/util';
@@ -209,8 +210,15 @@ export class BuyCryptoBatch extends IEntity {
 
   private checkFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
     const feeRatio = Util.round((purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount, 8);
+    const {
+      buy: {
+        fee: {
+          limits: { configuredFeeLimit, defaultFeeLimit },
+        },
+      },
+    } = Config;
 
-    if (feeRatio > 0.001) {
+    if (feeRatio > (configuredFeeLimit ?? defaultFeeLimit)) {
       throw new Error(
         `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
           feeRatio * 100,

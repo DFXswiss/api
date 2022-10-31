@@ -259,6 +259,10 @@ export class Configuration {
         moreThan50k: 2.4,
         moreThan100k: 2.3,
       },
+      limits: {
+        configuredFeeLimit: this.configuredFeeLimit,
+        defaultFeeLimit: 0.001,
+      },
     },
   };
 
@@ -355,6 +359,12 @@ export class Configuration {
 
   get signatureFormat(): RegExp {
     return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132})$/;
+  }
+
+  get configuredFeeLimit(): number | null {
+    const limit = Number.parseFloat(process.env.BUY_CRYPTO_FEE_LIMIT);
+
+    return Number.isNaN(limit) ? null : limit;
   }
 }
 

@@ -74,8 +74,8 @@ export class UpdateBuyCryptoDto {
   outputAmount: number;
 
   @IsOptional()
-  @Type(() => Asset)
-  outputAsset: Asset;
+  @IsInt()
+  outputAssetId: number;
 
   @IsOptional()
   @IsString()
