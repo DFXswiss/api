@@ -119,7 +119,7 @@ export class AdminController {
   @Get('db')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getRawData(
     @Query()
     query: dbQueryDto,
@@ -299,7 +299,7 @@ export class AdminController {
   @Get('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getSupportData(@Query('id') id: string): Promise<{
     buy: BuyCrypto[];
     buyFiat: BuyFiat[];
