@@ -60,7 +60,7 @@ export class LimitRequestNotificationService {
           console.error(`Failed to send limit request accepted mail ${entity.id}: user has no email`);
         }
 
-        await this.limitRequestRepo.update(...entity.limitRequestMailSendDate());
+        await this.limitRequestRepo.update(...entity.sendMail());
       } catch (e) {
         console.error(`Failed to send limit request accepted mail ${entity.id}:`, e);
       }
