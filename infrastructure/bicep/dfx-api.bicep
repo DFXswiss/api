@@ -118,13 +118,8 @@ param paymentUrl string
 @secure()
 param lockApiKey string
 
-@secure()
 param limitRequestSupportBanner string
-
-@secure()
 param limitRequestSupportMail string
-
-@secure()
 param limitRequestSupportName string
 
 // --- VARIABLES --- //
