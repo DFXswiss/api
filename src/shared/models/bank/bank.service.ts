@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { BankAccount } from 'src/payment/models/bank-account/bank-account.entity';
-import { KycCompleted, KycStatus } from 'src/user/models/user-data/user-data.entity';
+import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
+import { KycCompleted, KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CountryService } from '../country/country.service';
 import { Bank, BankName } from './bank.entity';
 import { BankRepository } from './bank.repository';

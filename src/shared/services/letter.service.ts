@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from './http.service';
 import { Config } from 'src/config/config';
 import { Util } from '../util';
-import { SendLetterDto } from 'src/admin/dto/send-letter.dto';
+import { SendLetterDto } from 'src/subdomains/generic/admin/dto/send-letter.dto';
 
 interface LetterResponse {
   notice: {

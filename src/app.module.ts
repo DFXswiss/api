@@ -1,34 +1,31 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
-import { StatisticController } from './statistic/statistic.controller';
-import { StatisticService } from './statistic/statistic.service';
-import { CfpService } from './statistic/cfp.service';
-import { AinModule } from './blockchain/ain/ain.module';
+import { StatisticController } from './subdomains/core/statistic/statistic.controller';
+import { StatisticService } from './subdomains/core/statistic/statistic.service';
+import { CfpService } from './subdomains/core/statistic/cfp.service';
 import { SharedModule } from './shared/shared.module';
-import { PaymentModule } from './payment/payment.module';
-import { UserModule } from './user/user.module';
-import { AdminController } from './admin/admin.controller';
+import { MixModule } from './mix/mix.module';
+import { UserModule } from './subdomains/generic/user/user.module';
 import { GetConfig } from './config/config';
-import { MonitoringModule } from './monitoring/monitoring.module';
-import { EthereumModule } from './blockchain/ethereum/ethereum.module';
-import { BscModule } from './blockchain/bsc/bsc.module';
-import { NotificationModule } from './notification/notification.module';
+import { MonitoringModule } from './subdomains/core/monitoring/monitoring.module';
+import { NotificationModule } from './subdomains/supporting/notification/notification.module';
+import { IntegrationModule } from './integration/integration.module';
+import { SubdomainsModule } from './subdomains/subdomains.module';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot(GetConfig().database),
     SharedModule,
-    AinModule,
-    EthereumModule,
-    BscModule,
-    PaymentModule,
+    IntegrationModule,
+    MixModule,
+    SubdomainsModule,
     UserModule,
     MonitoringModule,
     NotificationModule,
   ],
-  controllers: [AppController, StatisticController, AdminController],
-  providers: [StatisticService, CfpService],
+  controllers: [AppController],
+  providers: [],
   exports: [],
 })
 export class AppModule {}

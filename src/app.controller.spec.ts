@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { HttpService } from './shared/services/http.service';
 import { SettingService } from './shared/models/setting/setting.service';
-import { RefService } from './user/models/referral/ref.service';
+import { RefService } from './subdomains/core/referral/process/ref.service';
 
 describe('AppController', () => {
   let controller: AppController;

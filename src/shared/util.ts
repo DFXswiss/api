@@ -1,7 +1,7 @@
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
-import { MinDeposit } from 'src/payment/models/deposit/dto/min-deposit.dto';
+import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 
 type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
