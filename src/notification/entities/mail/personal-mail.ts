@@ -25,6 +25,6 @@ export interface PersonalMailParams {
 
 export class PersonalMail extends Mail {
   constructor(params: PersonalMailParams) {
-    super({ ...params, template: 'personal-mail', templateParams: params });
+    super({ ...params, template: 'personal', templateParams: params });
   }
 }

@@ -33,7 +33,7 @@ export class ErrorMonitoringMail extends Mail {
       },
     };
 
-    super({ ..._params });
+    super(_params);
   }
 
   private static isLiqMail(params: ErrorMonitoringMailParams): boolean {

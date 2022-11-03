@@ -31,6 +31,6 @@ export class UserMail extends Mail {
       instagramUrl: Config.defaultInstagramUrl,
     };
 
-    super({ ...params, template: 'default', templateParams: { ...defaultParams, ...params } });
+    super({ ...params, template: 'user', templateParams: { ...defaultParams, ...params } });
   }
 }

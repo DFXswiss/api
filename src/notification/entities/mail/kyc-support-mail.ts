@@ -33,7 +33,7 @@ export class KycSupportMail extends Mail {
       options: params.options,
     };
 
-    super({ ..._params });
+    super(_params);
   }
 
   static createBody(params: KycSupportMailParams): string {

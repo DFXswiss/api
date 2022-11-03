@@ -163,7 +163,7 @@ export class Configuration {
         },
       },
     },
-    defaultMailTemplate: 'personal',
+    defaultMailTemplate: 'support',
     contact: {
       supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
