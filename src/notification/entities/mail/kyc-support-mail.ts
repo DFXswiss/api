@@ -11,23 +11,19 @@ export interface KycSupportMailParams {
   userDataId: number;
   kycCustomerId: number;
   kycStatus: string;
-  date?: number;
   metadata?: NotificationMetadata;
   options?: NotificationOptions;
 }
 
 export class KycSupportMail extends Mail {
   constructor(params: KycSupportMailParams) {
-    const defaultParams: Partial<KycSupportMailParams> = { date: new Date().getFullYear() };
     const _params = {
       to: GetConfig().mail.contact.supportMail,
       subject: 'KYC failed or expired',
       templateParams: {
-        ...defaultParams,
-        ...{
-          salutation: 'Hi DFX Support',
-          body: KycSupportMail.createBody(params),
-        },
+        salutation: 'Hi DFX Support',
+        body: KycSupportMail.createBody(params),
+        date: new Date().getFullYear(),
       },
       metadata: params.metadata,
       options: params.options,

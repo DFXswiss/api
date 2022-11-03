@@ -8,7 +8,6 @@ export type ErrorMonitoringMailInput = ErrorMonitoringMailParams;
 export interface ErrorMonitoringMailParams {
   subject: string;
   errors: string[];
-  date?: number;
   metadata?: NotificationMetadata;
   options?: NotificationOptions;
 }
@@ -18,18 +17,15 @@ export class ErrorMonitoringMail extends Mail {
     const to = [GetConfig().mail.contact.monitoringMail];
     ErrorMonitoringMail.isLiqMail(params) && to.push(GetConfig().mail.contact.liqMail);
 
-    const defaultParams: Partial<ErrorMonitoringMailParams> = { date: new Date().getFullYear() };
     const _params: MailParams = {
       to: to,
       subject: `${params.subject} (${GetConfig().environment.toUpperCase()})`,
       metadata: params.metadata,
       options: params.options,
       templateParams: {
-        ...defaultParams,
-        ...{
-          salutation: 'Hi DFX Tech Support',
-          body: ErrorMonitoringMail.createBody(params.errors),
-        },
+        salutation: 'Hi DFX Tech Support',
+        body: ErrorMonitoringMail.createBody(params.errors),
+        date: new Date().getFullYear(),
       },
     };
 
