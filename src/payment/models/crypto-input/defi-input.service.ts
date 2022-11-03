@@ -33,7 +33,8 @@ interface HistoryAmount {
 @Injectable()
 export class DeFiInputService extends CryptoInputService {
   private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
-  private readonly lock = new Lock(7200);
+  private readonly inputLock = new Lock(43200);
+  private readonly forwardingLock = new Lock(43200);
 
   private client: DeFiClient;
 
@@ -130,15 +131,14 @@ export class DeFiInputService extends CryptoInputService {
   // --- INPUT HANDLING --- //
   @Interval(300000)
   async checkInputs(): Promise<void> {
-    if (!this.lock.acquire()) return;
+    if (!this.inputLock.acquire()) return;
 
     try {
       await this.saveInputs();
-      await this.forwardInputs();
     } catch (e) {
       console.error('Exception during DeFiChain input checks:', e);
     } finally {
-      this.lock.release();
+      this.inputLock.release();
     }
   }
 
@@ -312,6 +312,20 @@ export class DeFiInputService extends CryptoInputService {
     return (
       (await this.sellService.getSellByAddress(address)) ?? (await this.stakingService.getStakingByAddress(address))
     );
+  }
+
+  // --- FORWARDING --- //
+  @Interval(60000)
+  async forward(): Promise<void> {
+    if (!this.forwardingLock.acquire()) return;
+
+    try {
+      await this.forwardInputs();
+    } catch (e) {
+      console.error('Exception during DeFiChain forwarding:', e);
+    } finally {
+      this.forwardingLock.release();
+    }
   }
 
   private async forwardInputs(): Promise<void> {
