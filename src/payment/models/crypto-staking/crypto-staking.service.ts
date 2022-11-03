@@ -20,6 +20,7 @@ import { Util } from 'src/shared/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 import { StakingRepository } from '../staking/staking.repository';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { UpdateOutputDateDto } from './dto/update-output-date.dto';
 
 @Injectable()
 export class CryptoStakingService {
@@ -91,6 +92,18 @@ export class CryptoStakingService {
     for (const id of stakingIds) {
       await this.stakingService.updateBalance(id);
     }
+  }
+
+  async manualPayout(id: number, dto: UpdateOutputDateDto): Promise<CryptoStaking> {
+    const entity = await this.cryptoStakingRepo.findOne(id);
+    if (!entity) throw new NotFoundException('Crypto staking not found');
+    if (Util.daysDiff(new Date(), dto.outputDate) <= 2)
+      throw new BadRequestException('OutputDate must be at least 2 days in future');
+
+    entity.paybackDeposit = null;
+    entity.payoutType = PayoutType.WALLET;
+
+    return await this.cryptoStakingRepo.save({ ...entity, ...dto });
   }
 
   // --- USER --- //
