@@ -13,7 +13,6 @@ import { BankDataController } from './models/bank-data/bank-data.controller';
 import { BankDataRepository } from './models/bank-data/bank-data.repository';
 import { BankDataService } from './models/bank-data/bank-data.service';
 import { SpiderDataRepository } from './models/spider-data/spider-data.repository';
-import { RefController } from '../../core/referral/process/ref.controller';
 import { UserController } from './models/user/user.controller';
 import { UserRepository } from './models/user/user.repository';
 import { UserService } from './models/user/user.service';
@@ -57,7 +56,6 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
     UserController,
     UserDataController,
     BankDataController,
-    RefController,
     AuthController,
     IdentController,
     KycController,

@@ -31,6 +31,7 @@ import { IbanService } from './services/iban.service';
 import { ApiKeyService } from './services/api-key.service';
 import { BankRepository } from './models/bank/bank.repository';
 import { BankService } from './models/bank/bank.service';
+import { BankController } from './models/bank/bank.controller';
 
 @Module({
   imports: [
@@ -49,7 +50,14 @@ import { BankService } from './models/bank/bank.service';
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
   ],
-  controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
+  controllers: [
+    AssetController,
+    FiatController,
+    CountryController,
+    LanguageController,
+    SettingController,
+    BankController,
+  ],
   providers: [
     ConversionService,
     HttpService,

@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
@@ -11,7 +11,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BuyService } from '../buy-crypto/route/buy.service';
 
 @Injectable()
-export class StatisticService {
+export class StatisticService implements OnModuleInit {
   private statistic: any;
 
   constructor(
@@ -22,7 +22,9 @@ export class StatisticService {
     private stakingService: StakingService,
     private masternodeService: MasternodeService,
     private userService: UserService,
-  ) {
+  ) {}
+
+  onModuleInit() {
     this.doUpdate().then();
   }
 
