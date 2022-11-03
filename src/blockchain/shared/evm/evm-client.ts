@@ -11,6 +11,9 @@ export class EvmClient {
   #erc20Tokens: Map<string, Contract> = new Map();
   #swapTokenAddress: string;
 
+  #sendCoinGasLimit = 21000;
+  #randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
+
   constructor(
     gatewayUrl: string,
     privateKey: string,
@@ -39,8 +42,18 @@ export class EvmClient {
     return this.convertToEthLikeDenomination(balance, decimals);
   }
 
+  async getGasPrice(): Promise<BigNumber> {
+    return this.#provider.getGasPrice();
+  }
+
+  async getTokenGasLimit(token: Asset): Promise<BigNumber> {
+    const contract = this.getERC20Contract(token.chainId);
+
+    return contract.estimateGas.transfer(this.#randomReceiverAddress, 1);
+  }
+
   async sendNativeCoin(address: string, amount: number): Promise<string> {
-    const gasPrice = await this.#provider.getGasPrice();
+    const gasPrice = await this.getGasPrice();
 
     const tx = await this.#wallet.sendTransaction({
       from: this.#dfxAddress,
@@ -48,7 +61,7 @@ export class EvmClient {
       value: this.convertToWeiLikeDenomination(amount, 'ether'),
       gasPrice,
       // has to be provided as a number for BSC
-      gasLimit: 21000,
+      gasLimit: this.#sendCoinGasLimit,
     });
 
     return tx.hash;
@@ -74,6 +87,17 @@ export class EvmClient {
     return this.#provider.getTransaction(txHash);
   }
 
+  async getTxReceipt(txHash: string): Promise<ethers.providers.TransactionReceipt> {
+    return this.#provider.getTransactionReceipt(txHash);
+  }
+
+  async getTxActualFee(txHash: string): Promise<number> {
+    const { gasUsed, effectiveGasPrice } = await this.getTxReceipt(txHash);
+    const actualFee = gasUsed.mul(effectiveGasPrice);
+
+    return this.convertToEthLikeDenomination(actualFee);
+  }
+
   async nativeCryptoTestSwap(nativeCryptoAmount: number, targetToken: Asset): Promise<number> {
     const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
     const inputAmount = this.convertToWeiLikeDenomination(nativeCryptoAmount, 'ether');
@@ -83,7 +107,21 @@ export class EvmClient {
     return this.convertToEthLikeDenomination(outputAmounts[1], decimals);
   }
 
-  //*** HELPER METHODS ***//
+  //*** GETTERS ***//
+
+  get sendCoinGasLimit(): number {
+    return this.#sendCoinGasLimit;
+  }
+
+  //*** PUBLIC HELPER METHODS ***//
+
+  convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
+    return decimals
+      ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
+      : parseFloat(ethers.utils.formatEther(amountWeiLike));
+  }
+
+  //*** PRIVATE HELPER METHODS ***//
 
   private getERC20Contract(tokenAddress: string): Contract {
     let tokenContract = this.#erc20Tokens.get(tokenAddress);
@@ -100,11 +138,5 @@ export class EvmClient {
     const amount = decimals === 'ether' ? amountEthLike : amountEthLike.toFixed(decimals);
 
     return ethers.utils.parseUnits(`${amount}`, decimals);
-  }
-
-  private convertToEthLikeDenomination(amountWeiLike: BigNumber, decimals?: number): number {
-    return decimals
-      ? parseFloat(ethers.utils.formatUnits(amountWeiLike, decimals))
-      : parseFloat(ethers.utils.formatEther(amountWeiLike));
   }
 }

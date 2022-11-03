@@ -1,6 +1,4 @@
 import { mock } from 'jest-mock-extended';
-import { BehaviorSubject } from 'rxjs';
-import { NodeService } from 'src/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { NotificationService } from 'src/notification/services/notification.service';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -24,8 +22,6 @@ import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { PurchaseLiquidityStrategyAlias, PurchaseLiquidityStrategies } from '../purchase-liquidity.facade';
 
 describe('PurchaseLiquidityStrategies', () => {
-  let nodeService: NodeService;
-
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
@@ -38,36 +34,35 @@ describe('PurchaseLiquidityStrategies', () => {
   let facade: PurchaseLiquidityStrategiesWrapper;
 
   beforeEach(() => {
-    nodeService = mock<NodeService>();
-    jest.spyOn(nodeService, 'getConnectedNode').mockImplementation(() => new BehaviorSubject(null));
-
-    bitcoin = new BitcoinStrategy(mock<NotificationService>(), mock<DexBitcoinService>());
-    bscCoin = new BscCoinStrategy(mock<NotificationService>(), mock<DexBscService>());
-    bscToken = new BscTokenStrategy(mock<NotificationService>(), mock<DexBscService>());
+    bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBitcoinService>());
+    bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
+    bscToken = new BscTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
 
     deFiChainPoolPair = new DeFiChainPoolPairStrategy(
-      nodeService,
       mock<NotificationService>(),
       mock<SettingService>(),
       mock<AssetService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
       mock<DexService>(),
+      mock<DexDeFiChainService>(),
     );
     deFiChainStock = new DeFiChainStockStrategy(
       mock<NotificationService>(),
+      mock<AssetService>(),
       mock<DexDeFiChainService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
     );
     deFiChainCrypto = new DeFiChainCryptoStrategy(
       mock<NotificationService>(),
+      mock<AssetService>(),
       mock<DexDeFiChainService>(),
       mock<LiquidityOrderRepository>(),
       mock<LiquidityOrderFactory>(),
     );
-    ethereumCoin = new EthereumCoinStrategy(mock<NotificationService>(), mock<DexBscService>());
-    ethereumToken = new EthereumTokenStrategy(mock<NotificationService>(), mock<DexBscService>());
+    ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
+    ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
 
     facade = new PurchaseLiquidityStrategiesWrapper(
       bitcoin,

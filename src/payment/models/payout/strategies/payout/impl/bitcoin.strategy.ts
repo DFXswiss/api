@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
+import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutBitcoinService } from '../../../services/payout-bitcoin.service';
@@ -12,8 +17,17 @@ export class BitcoinStrategy extends JellyfishStrategy {
     notificationService: NotificationService,
     protected readonly bitcoinService: PayoutBitcoinService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
+    protected readonly assetService: AssetService,
   ) {
     super(notificationService, payoutOrderRepo, bitcoinService);
+  }
+
+  async estimateFee(quantityOfTransactions: number): Promise<FeeResult> {
+    const feeRate = await this.bitcoinService.getCurrentFastestFeeRate();
+    const satoshiFeeAmount = (200 + 50 * quantityOfTransactions) * feeRate;
+    const btcFeeAmount = Util.round(satoshiFeeAmount / 100000000, 8);
+
+    return { asset: await this.feeAsset(), amount: btcFeeAmount };
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -40,6 +54,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     return this.bitcoinService.sendUtxoToMany(context, payout);
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN, type: AssetType.COIN });
   }
 
   private async sendBTC(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

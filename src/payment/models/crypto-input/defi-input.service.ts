@@ -27,13 +27,14 @@ import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
 interface HistoryAmount {
   amount: number;
   asset: string;
-  isToken: boolean;
+  type: AssetType;
 }
 
 @Injectable()
 export class DeFiInputService extends CryptoInputService {
   private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
-  private readonly lock = new Lock(7200);
+  private readonly inputLock = new Lock(43200);
+  private readonly forwardingLock = new Lock(43200);
 
   private client: DeFiClient;
 
@@ -64,7 +65,7 @@ export class DeFiInputService extends CryptoInputService {
           const assetEntity = await this.assetService.getAssetByQuery({
             dexName: asset,
             blockchain: Blockchain.DEFICHAIN,
-            isToken: true,
+            type: AssetType.TOKEN,
           });
 
           if (assetEntity?.category === AssetCategory.POOL_PAIR) {
@@ -130,15 +131,14 @@ export class DeFiInputService extends CryptoInputService {
   // --- INPUT HANDLING --- //
   @Interval(300000)
   async checkInputs(): Promise<void> {
-    if (!this.lock.acquire()) return;
+    if (!this.inputLock.acquire()) return;
 
     try {
       await this.saveInputs();
-      await this.forwardInputs();
     } catch (e) {
       console.error('Exception during DeFiChain input checks:', e);
     } finally {
-      this.lock.release();
+      this.inputLock.release();
     }
   }
 
@@ -206,12 +206,12 @@ export class DeFiInputService extends CryptoInputService {
     return inputs;
   }
 
-  private async createEntity(history: AccountHistory, { amount, asset, isToken }: HistoryAmount): Promise<CryptoInput> {
+  private async createEntity(history: AccountHistory, { amount, asset, type }: HistoryAmount): Promise<CryptoInput> {
     // get asset
     const assetEntity = await this.assetService.getAssetByQuery({
       dexName: asset,
       blockchain: Blockchain.DEFICHAIN,
-      isToken,
+      type: type,
     });
     if (!assetEntity) {
       console.error(`Failed to process DeFiChain input. No asset ${asset} found. History entry:`, history);
@@ -314,6 +314,20 @@ export class DeFiInputService extends CryptoInputService {
     );
   }
 
+  // --- FORWARDING --- //
+  @Interval(60000)
+  async forward(): Promise<void> {
+    if (!this.forwardingLock.acquire()) return;
+
+    try {
+      await this.forwardInputs();
+    } catch (e) {
+      console.error('Exception during DeFiChain forwarding:', e);
+    } finally {
+      this.forwardingLock.release();
+    }
+  }
+
   private async forwardInputs(): Promise<void> {
     const inputs = await this.cryptoInputRepo.find({
       where: {
@@ -354,7 +368,7 @@ export class DeFiInputService extends CryptoInputService {
       const outTxId = await this.client.sendToken(
         input.route.deposit.address,
         address,
-        input.asset.dexName.replace('-Token', ''),
+        input.asset.dexName,
         input.amount,
         [utxo],
       );
@@ -445,14 +459,14 @@ export class DeFiInputService extends CryptoInputService {
 
   getAmounts(history: AccountHistory): HistoryAmount[] {
     const amounts = this.utxoTxTypes.includes(history.type)
-      ? history.amounts.map((a) => this.parseAmount(a, false))
-      : history.amounts.map((a) => this.parseAmount(a, true)).filter((a) => a.amount > 0);
+      ? history.amounts.map((a) => this.parseAmount(a, AssetType.COIN))
+      : history.amounts.map((a) => this.parseAmount(a, AssetType.TOKEN)).filter((a) => a.amount > 0);
 
     return amounts.map((a) => ({ ...a, amount: Math.abs(a.amount) }));
   }
 
-  private parseAmount(amount: string, isToken: boolean): HistoryAmount {
-    return { ...this.client.parseAmount(amount), isToken };
+  private parseAmount(amount: string, type: AssetType): HistoryAmount {
+    return { ...this.client.parseAmount(amount), type };
   }
 
   private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {

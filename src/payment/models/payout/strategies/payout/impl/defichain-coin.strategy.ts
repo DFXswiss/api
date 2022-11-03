@@ -5,6 +5,10 @@ import { PayoutGroup } from '../../../services/base/payout-jellyfish.service';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { NotificationService } from 'src/notification/services/notification.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { FeeResult } from '../../../interfaces';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
@@ -12,8 +16,13 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
     notificationService: NotificationService,
     protected readonly deFiChainService: PayoutDeFiChainService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
+    protected readonly assetService: AssetService,
   ) {
     super(notificationService, payoutOrderRepo, deFiChainService);
+  }
+
+  async estimateFee(_quantityOfTransactions: number): Promise<FeeResult> {
+    return { asset: await this.feeAsset(), amount: 0 };
   }
 
   protected async doPayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
@@ -40,6 +49,14 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
 
   protected dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     return this.deFiChainService.sendUtxoToMany(context, payout);
+  }
+
+  protected getFeeAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      dexName: 'DFI',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.COIN,
+    });
   }
 
   private async sendDFI(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {

@@ -1,6 +1,8 @@
+import { BigNumber } from 'ethers';
 import { EvmClient } from 'src/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/util';
 
 export abstract class PayoutEvmService {
   #client: EvmClient;
@@ -17,7 +19,26 @@ export abstract class PayoutEvmService {
     return this.#client.sendToken(address, tokenName, amount);
   }
 
-  async checkPayoutCompletion(txHash: string): Promise<boolean> {
-    return this.#client.isTxComplete(txHash);
+  async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {
+    const isComplete = await this.#client.isTxComplete(txHash);
+    const payoutFee = isComplete ? await this.#client.getTxActualFee(txHash) : 0;
+
+    return [isComplete, payoutFee];
+  }
+
+  async getCurrentGasForCoinTransaction(): Promise<number> {
+    const gasPrice = await this.#client.getGasPrice();
+    const gasLimit = this.#client.sendCoinGasLimit;
+    const gasInWei = BigNumber.from(+gasPrice * gasLimit);
+
+    return Util.round(this.#client.convertToEthLikeDenomination(gasInWei), 8);
+  }
+
+  async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
+    const gasPrice = await this.#client.getGasPrice();
+    const gasLimit = await this.#client.getTokenGasLimit(token);
+    const gasInWei = BigNumber.from(+gasPrice * +gasLimit);
+
+    return Util.round(this.#client.convertToEthLikeDenomination(gasInWei), 8);
   }
 }

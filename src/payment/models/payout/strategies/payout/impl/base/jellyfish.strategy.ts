@@ -6,12 +6,14 @@ import { PayoutStrategy } from './payout.strategy';
 import { MailContext, MailType } from 'src/notification/enums';
 import { NotificationService } from 'src/notification/services/notification.service';
 
-export abstract class JellyfishStrategy implements PayoutStrategy {
+export abstract class JellyfishStrategy extends PayoutStrategy {
   constructor(
     protected readonly notificationService: NotificationService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly jellyfishService: PayoutJellyfishService,
-  ) {}
+  ) {
+    super();
+  }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {
@@ -27,12 +29,16 @@ export abstract class JellyfishStrategy implements PayoutStrategy {
     }
   }
 
-  async checkPayoutCompletion(order: PayoutOrder): Promise<void> {
+  async checkPayoutCompletionData(order: PayoutOrder): Promise<void> {
     try {
-      const isComplete = await this.jellyfishService.checkPayoutCompletion(order.context, order.payoutTxId);
+      const [isComplete, payoutFee] = await this.jellyfishService.getPayoutCompletionData(
+        order.context,
+        order.payoutTxId,
+      );
 
       if (isComplete) {
         order.complete();
+        order.recordPayoutFee(await this.feeAsset(), payoutFee);
 
         await this.payoutOrderRepo.save(order);
       }
@@ -84,19 +90,19 @@ export abstract class JellyfishStrategy implements PayoutStrategy {
   protected abstract dispatchPayout(
     context: PayoutOrderContext,
     payout: PayoutGroup,
-    outputAsset: string,
+    outputAssetName: string,
   ): Promise<string>;
 
-  protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAsset: string): Promise<void> {
+  protected async send(context: PayoutOrderContext, orders: PayoutOrder[], outputAssetName: string): Promise<void> {
     let payoutTxId: string;
 
     try {
       const payout = this.aggregatePayout(orders);
 
       await this.designatePayout(orders);
-      payoutTxId = await this.dispatchPayout(context, payout, outputAsset);
+      payoutTxId = await this.dispatchPayout(context, payout, outputAssetName);
     } catch (e) {
-      console.error(`Error on sending ${outputAsset} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
+      console.error(`Error on sending ${outputAssetName} for payout. Order ID(s): ${orders.map((o) => o.id)}`, e);
 
       if (e.message.includes('timeout')) throw e;
 

@@ -4,7 +4,6 @@ import { EvmService } from 'src/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
-import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
 export abstract class DexEvmService {
@@ -19,21 +18,22 @@ export abstract class DexEvmService {
     this.#client = service.getDefaultClient();
   }
 
-  async checkNativeCoinAvailability(amount: number): Promise<number> {
+  async checkNativeCoinAvailability(inputAmount: number): Promise<[number, number]> {
     const pendingAmount = await this.getPendingAmount(this.nativeCoin);
     const availableAmount = await this.#client.getNativeCoinBalance();
 
-    this.checkLiquidity(amount, pendingAmount, availableAmount, this.nativeCoin);
-
-    return amount;
+    return [inputAmount, availableAmount - pendingAmount];
   }
 
-  async getAndCheckTokenAvailability(sourceAsset: string, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    const amount = await this.getTargetAmount(sourceAsset, sourceAmount, targetAsset);
+  async getAndCheckTokenAvailability(
+    sourceAsset: Asset,
+    sourceAmount: number,
+    targetAsset: Asset,
+  ): Promise<[number, number]> {
+    const targetAmount = await this.getTargetAmount(sourceAsset, sourceAmount, targetAsset);
+    const availableAmount = await this.getTokenAvailableAmount(targetAsset);
 
-    await this.checkTokenAvailability(targetAsset, amount);
-
-    return amount;
+    return [targetAmount, availableAmount];
   }
 
   get _nativeCoin(): string {
@@ -42,23 +42,23 @@ export abstract class DexEvmService {
 
   //*** HELPER METHODS ***//
 
-  private async getTargetAmount(sourceAsset: string, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    if (sourceAsset === targetAsset.dexName) return sourceAmount;
-    if (sourceAsset !== this._nativeCoin) {
+  private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    if (sourceAsset.dexName === targetAsset.dexName) return sourceAmount;
+    if (sourceAsset.dexName !== this._nativeCoin) {
       // only native coin is enabled as a sourceAsset
       throw new Error(
-        `Only native coin reference is supported by EVM test swap. Provided source asset: ${sourceAsset}. Target asset: ${targetAsset.dexName}. Blockchain: ${targetAsset.blockchain}`,
+        `Only native coin reference is supported by EVM test swap. Provided source asset: ${sourceAsset.dexName}. Target asset: ${targetAsset.dexName}. Blockchain: ${targetAsset.blockchain}`,
       );
     }
 
     return this.#client.nativeCryptoTestSwap(sourceAmount, targetAsset);
   }
 
-  private async checkTokenAvailability(asset: Asset, amount: number): Promise<void> {
+  private async getTokenAvailableAmount(asset: Asset): Promise<number> {
     const pendingAmount = await this.getPendingAmount(asset.dexName);
     const availableAmount = await this.#client.getTokenBalance(asset);
 
-    this.checkLiquidity(amount, pendingAmount, availableAmount, asset.dexName);
+    return availableAmount - pendingAmount;
   }
 
   private async getPendingAmount(assetName: string): Promise<number> {
@@ -67,19 +67,5 @@ export abstract class DexEvmService {
     );
 
     return Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
-  }
-
-  private checkLiquidity(
-    requiredAmount: number,
-    pendingAmount: number,
-    availableAmount: number,
-    assetName: string,
-  ): void {
-    // 5% cap for unexpected meantime swaps
-    if (requiredAmount * 1.05 > availableAmount - pendingAmount) {
-      throw new NotEnoughLiquidityException(
-        `Not enough liquidity of asset ${assetName}. Trying to use ${requiredAmount} ${assetName} worth liquidity. Available amount: ${availableAmount}. Pending amount: ${pendingAmount}`,
-      );
-    }
   }
 }

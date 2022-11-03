@@ -23,6 +23,10 @@ export class Util {
     return this.sum(list.map((i) => i[key] as unknown as number));
   }
 
+  static minObj<T>(list: T[], key: KeyType<T, number>): number {
+    return Math.min(...list.map((i) => i[key] as unknown as number));
+  }
+
   static avg(list: number[]): number {
     return this.sum(list) / list.length;
   }

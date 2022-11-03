@@ -6,7 +6,7 @@ describe('LiquidityOrder', () => {
   describe('#reserved(...)', () => {
     it('sets targetAmount to reference amount in case referenceAssets equals targetAsset, incomingAmount ignored', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XYZ',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'XYZ' }),
         referenceAmount: 50,
         targetAmount: undefined,
@@ -21,7 +21,7 @@ describe('LiquidityOrder', () => {
 
     it('sets targetAmount to incomingAmount amount in case referenceAssets NOT equals targetAsset', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XZY',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'ABC' }),
         referenceAmount: 50,
         targetAmount: undefined,
@@ -73,9 +73,9 @@ describe('LiquidityOrder', () => {
       expect(entity.swapAsset).toBeUndefined();
       expect(entity.swapAmount).toBeUndefined();
 
-      entity.addPurchaseMetadata('PID_01', 'DFI', 20);
+      entity.addPurchaseMetadata('PID_01', createCustomAsset({ dexName: 'DFI' }), 20);
 
-      expect(entity.swapAsset).toBe('DFI');
+      expect(entity.swapAsset.dexName).toBe('DFI');
       expect(entity.swapAmount).toBe(20);
     });
   });
@@ -95,7 +95,7 @@ describe('LiquidityOrder', () => {
 
     it('sets targetAmount to reference amount in case referenceAssets equals targetAsset, incomingAmount ignored', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XYZ',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'XYZ' }),
         referenceAmount: 50,
         targetAmount: undefined,
@@ -110,7 +110,7 @@ describe('LiquidityOrder', () => {
 
     it('sets targetAmount to incomingAmount amount in case referenceAssets NOT equals targetAsset', () => {
       const entity = createCustomLiquidityOrder({
-        referenceAsset: 'XZY',
+        referenceAsset: createCustomAsset({ dexName: 'XYZ' }),
         targetAsset: createCustomAsset({ dexName: 'ABC' }),
         referenceAmount: 50,
         targetAmount: undefined,

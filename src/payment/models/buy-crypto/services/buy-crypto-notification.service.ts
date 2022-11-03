@@ -20,9 +20,13 @@ export class BuyCryptoNotificationService {
   ) {}
 
   async sendNotificationMails(): Promise<void> {
-    await this.buyCryptoConfirmed();
-    await this.paybackToAddressInitiated();
-    await this.pendingBuyCrypto();
+    try {
+      await this.buyCryptoConfirmed();
+      await this.paybackToAddressInitiated();
+      await this.pendingBuyCrypto();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async buyCryptoConfirmed(): Promise<void> {
@@ -68,7 +72,7 @@ export class BuyCryptoNotificationService {
                   buyInputAmount: tx.inputAmount,
                   buyInputAsset: tx.inputAsset,
                   buyOutputAmount: tx.outputAmount,
-                  buyOutputAsset: tx.outputAsset,
+                  buyOutputAsset: tx.outputAsset.dexName,
                   buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                   exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                   buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
@@ -86,6 +90,57 @@ export class BuyCryptoNotificationService {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  async sendMissingLiquidityWarning(outputAssetName: string, blockchain: string, type: string): Promise<void> {
+    const correlationId = `BuyCryptoBatch&LiquidityCheckWarning&${outputAssetName}&${blockchain}&${type}`;
+    const message = `One or more transactions were removed from batching, due to insufficient purchasable liquidity. Batch asset: ${outputAssetName} ${blockchain} ${type}`;
+    const additionalMessage =
+      'Caution! this mail has debounce time of 30 minutes, by the moment you read this mail required amounts might have changed.';
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      input: {
+        subject: 'Buy Crypto Warning - liquidity about to be missing.',
+        errors: [message, additionalMessage],
+      },
+      options: { debounce: 1800000 },
+      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+    });
+  }
+
+  async sendMissingLiquidityError(
+    outputAssetName: string,
+    blockchain: string,
+    type: string,
+    transactionIds: number[],
+    message: string,
+  ): Promise<void> {
+    const correlationId = `BuyCryptoBatch&LiquidityCheck&${outputAssetName}&${blockchain}&${type}&TX_IDs_${transactionIds.map(
+      (id) => `${id}`,
+    )}`;
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      input: { subject: 'Buy Crypto Error - missing liquidity.', errors: [message] },
+      options: { debounce: 1800000 },
+      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+    });
+  }
+
+  async sendFeeConversionError(
+    nativeAssetName: string,
+    referenceAssetName: string,
+    message: string,
+    error: Error,
+  ): Promise<void> {
+    const correlationId = `BuyCryptoBatch&FeeConversion&from_${nativeAssetName}&to_${referenceAssetName}`;
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      input: { subject: 'Buy Crypto Error - cannot calculate fee.', errors: [message, error.message] },
+      options: { debounce: 1800000 },
+      metadata: { context: MailContext.BUY_CRYPTO, correlationId },
+    });
   }
 
   async sendNonRecoverableErrorMail(batch: BuyCryptoBatch, message: string, e?: Error): Promise<void> {

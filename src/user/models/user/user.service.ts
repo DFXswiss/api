@@ -73,7 +73,8 @@ export class UserService {
       )
       .leftJoin('user.userData', 'userData')
       .leftJoin('userData.users', 'linkedUser')
-      .where('user.id = :id', { id })
+      .leftJoin('linkedUser.wallet', 'wallet')
+      .where('user.id = :id AND wallet.isKycClient = 0', { id })
       .getRawMany<LinkedUserOutDto>()
       .then((linkedUsers) => {
         return linkedUsers.map((u) => {

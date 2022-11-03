@@ -4,5 +4,5 @@ export type PayoutGroup = { addressTo: string; amount: number }[];
 
 export abstract class PayoutJellyfishService {
   abstract isHealthy(context: PayoutOrderContext): Promise<boolean>;
-  abstract checkPayoutCompletion(context: PayoutOrderContext, payoutTxId: string): Promise<boolean>;
+  abstract getPayoutCompletionData(context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]>;
 }

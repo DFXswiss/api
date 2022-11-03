@@ -10,37 +10,25 @@ import { LiquidityOrderContext } from '../../dex/entities/liquidity-order.entity
 import { PayoutService } from '../../payout/services/payout.service';
 import { PayoutOrderContext } from '../../payout/entities/payout-order.entity';
 import { DuplicatedEntryException } from '../../payout/exceptions/duplicated-entry.exception';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PayoutRequest } from '../../payout/interfaces';
+import { FeeResult, PayoutRequest } from '../../payout/interfaces';
+import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
+import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 
 @Injectable()
 export class BuyCryptoOutService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyCryptoBatchRepo: BuyCryptoBatchRepository,
-    private readonly assetService: AssetService,
+    private readonly buyCryptoPricingService: BuyCryptoPricingService,
     private readonly dexService: DexService,
     private readonly payoutService: PayoutService,
+    private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     readonly nodeService: NodeService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
     try {
-      const batches = await this.buyCryptoBatchRepo.find({
-        where: {
-          // PAYING_OUT batches are fetch for retry in case of failure in previous iteration
-          status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
-        },
-        relations: [
-          'transactions',
-          'transactions.buy',
-          'transactions.buy.user',
-          'transactions.buy.asset',
-          'transactions.cryptoRoute',
-          'transactions.cryptoRoute.user',
-          'transactions.cryptoRoute.asset',
-        ],
-      });
+      const batches = await this.fetchBatchesForPayout();
 
       if (batches.length === 0) {
         return;
@@ -54,6 +42,7 @@ export class BuyCryptoOutService {
           continue;
         }
 
+        // TODO - refactor process so not rely on DuplicatedEntryException when retrying half-successful batch
         if (!(batch.status === BuyCryptoBatchStatus.SECURED || batch.status === BuyCryptoBatchStatus.PAYING_OUT)) {
           continue;
         }
@@ -65,22 +54,7 @@ export class BuyCryptoOutService {
 
         for (const transaction of batch.transactions) {
           try {
-            const { outputAsset, target } = transaction;
-
-            const asset = await this.assetService.getAssetByQuery({
-              dexName: outputAsset,
-              blockchain: target.asset.blockchain,
-            });
-
-            const request: PayoutRequest = {
-              context: PayoutOrderContext.BUY_CRYPTO,
-              correlationId: transaction.id.toString(),
-              asset,
-              amount: transaction.outputAmount,
-              destinationAddress: transaction.target.address,
-            };
-
-            await this.payoutService.doPayout(request);
+            await this.doPayout(transaction);
             successfulRequests.push(transaction);
           } catch (e) {
             if (e instanceof DuplicatedEntryException) {
@@ -100,20 +74,55 @@ export class BuyCryptoOutService {
     }
   }
 
-  async checkCompletion(batch: BuyCryptoBatch) {
+  //*** HELPER METHODS ***//
+
+  private async fetchBatchesForPayout(): Promise<BuyCryptoBatch[]> {
+    return this.buyCryptoBatchRepo.find({
+      where: {
+        // PAYING_OUT batches are fetch for retry in case of failure in previous iteration
+        status: In([BuyCryptoBatchStatus.SECURED, BuyCryptoBatchStatus.PAYING_OUT]),
+      },
+      relations: [
+        'transactions',
+        'transactions.buy',
+        'transactions.buy.user',
+        'transactions.buy.asset',
+        'transactions.cryptoRoute',
+        'transactions.cryptoRoute.user',
+        'transactions.cryptoRoute.asset',
+      ],
+    });
+  }
+
+  private async doPayout(transaction: BuyCrypto): Promise<void> {
+    const request: PayoutRequest = {
+      context: PayoutOrderContext.BUY_CRYPTO,
+      correlationId: transaction.id.toString(),
+      asset: transaction.outputAsset,
+      amount: transaction.outputAmount,
+      destinationAddress: transaction.target.address,
+    };
+
+    await this.payoutService.doPayout(request);
+  }
+
+  private async checkCompletion(batch: BuyCryptoBatch) {
     for (const tx of batch.transactions) {
       if (tx.isComplete) {
         continue;
       }
 
       try {
-        const { isComplete, payoutTxId } = await this.payoutService.checkOrderCompletion(
-          PayoutOrderContext.BUY_CRYPTO,
-          tx.id.toString(),
-        );
+        const {
+          isComplete,
+          payoutTxId,
+          payoutFee: nativePayoutFee,
+        } = await this.payoutService.checkOrderCompletion(PayoutOrderContext.BUY_CRYPTO, tx.id.toString());
 
         if (isComplete) {
-          tx.complete(payoutTxId);
+          const payoutFee = await this.getPayoutFeeAmountInBatchAsset(batch, nativePayoutFee);
+
+          tx.complete(payoutTxId, payoutFee);
           await this.buyCryptoRepo.save(tx);
         }
       } catch (e) {
@@ -131,6 +140,18 @@ export class BuyCryptoOutService {
       await this.buyCryptoBatchRepo.save(batch);
       await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
     }
+  }
+
+  private async getPayoutFeeAmountInBatchAsset(batch: BuyCryptoBatch, nativeFee: FeeResult): Promise<number> {
+    const priceRequestCorrelationId = `BuyCryptoBatch_ConvertActualPayoutFee_${batch.id}`;
+    const errorMessage = `Could not get price for actual payout fee calculation. Ignoring fee. Batch ID: ${batch.id}. Native fee asset: ${nativeFee.asset.dexName}, batch reference asset: ${batch.outputReferenceAsset.dexName}.`;
+
+    return this.buyCryptoPricingService.getFeeAmountInBatchAsset(
+      batch,
+      nativeFee,
+      priceRequestCorrelationId,
+      errorMessage,
+    );
   }
 
   //*** LOGS ***//

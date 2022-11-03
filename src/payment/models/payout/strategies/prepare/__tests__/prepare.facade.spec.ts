@@ -1,6 +1,7 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
 import { DexService } from 'src/payment/models/dex/services/dex.service';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
@@ -19,14 +20,15 @@ describe('PrepareStrategiesFacade', () => {
   let facade: PrepareStrategiesFacadeWrapper;
 
   beforeEach(() => {
-    bitcoin = new BitcoinStrategy(mock<PayoutOrderRepository>());
+    bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     defichain = new DeFiChainStrategy(
+      mock<AssetService>(),
       mock<DexService>(),
       mock<PayoutDeFiChainService>(),
       mock<PayoutOrderRepository>(),
     );
-    ethereum = new EthereumStrategy(mock<PayoutOrderRepository>());
-    bsc = new BscStrategy(mock<PayoutOrderRepository>());
+    ethereum = new EthereumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    bsc = new BscStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
     facade = new PrepareStrategiesFacadeWrapper(bitcoin, defichain, ethereum, bsc);
   });

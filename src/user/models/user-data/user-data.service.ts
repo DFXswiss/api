@@ -137,7 +137,7 @@ export class UserDataService {
     // update spider
     user = await this.updateSpiderIfNeeded(user, dto);
 
-    return this.userDataRepo.save({ ...user, ...dto });
+    return this.userDataRepo.save(Object.assign(user, dto));
   }
 
   async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
