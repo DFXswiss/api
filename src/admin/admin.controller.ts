@@ -276,9 +276,14 @@ export class AdminController {
       .createQueryBuilder()
       .from(dbQuery.table, dbQuery.table)
       .select(select)
+      .addSelect('userData.id', 'userDataId')
+      .leftJoin('bank_tx.buyFiat', 'buyFiat')
+      .leftJoin('buyFiat.sell', 'sell')
+      .leftJoin('sell.user', 'user')
+      .leftJoin('user.userData', 'userData')
       .where('bank_tx.id >= :id', { id: dbQuery.min })
       .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
-      .andWhere('(type IS NULL OR type NOT IN (:crypto, :fiat))', {
+      .andWhere('(bank_tx.type IS NULL OR bank_tx.type NOT IN (:crypto, :fiat))', {
         crypto: BankTxType.BUY_CRYPTO,
         fiat: BankTxType.BUY_FIAT,
       })
@@ -288,8 +293,6 @@ export class AdminController {
       .catch((e: Error) => {
         throw new BadRequestException(e.message);
       });
-
-    bankTxRestData.map((a) => (a.userDataId = null));
 
     return buyCryptoData
       .concat(buyFiatData, bankTxRestData)
