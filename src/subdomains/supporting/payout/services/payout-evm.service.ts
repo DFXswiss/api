@@ -2,7 +2,7 @@ import { BigNumber } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 
 export abstract class PayoutEvmService {
   #client: EvmClient;

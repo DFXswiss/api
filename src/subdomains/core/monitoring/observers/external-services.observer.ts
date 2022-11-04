@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { IbanService } from 'src/shared/services/iban.service';
-import { LetterService } from 'src/shared/services/letter.service';
+import { IbanService } from 'src/integration/bank/services/iban.service';
+import { LetterService } from 'src/integration/letter/letter.service';
 
 interface ExternalServicesData {
   name: string;

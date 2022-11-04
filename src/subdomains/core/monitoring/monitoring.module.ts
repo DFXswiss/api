@@ -16,6 +16,8 @@ import { UserObserver } from './observers/user.observer';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
+import { BankModule as BankItegrationModule } from 'src/integration/bank/bank.module';
+import { LetterModule } from 'src/integration/letter/letter.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
     UserModule,
     NotificationModule,
     BankModule,
+    BankItegrationModule,
+    LetterModule,
   ],
   providers: [
     MonitoringService,

@@ -5,7 +5,7 @@ import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { HttpService } from 'src/shared/services/http.service';
-import { TestUtil } from 'src/shared/test.util';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { LinkService } from '../link/link.service';

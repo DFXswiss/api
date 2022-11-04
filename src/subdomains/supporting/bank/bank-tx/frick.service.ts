@@ -1,7 +1,7 @@
 import { AxiosRequestHeaders, Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 

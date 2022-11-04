@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createMock } from '@golevelup/ts-jest';
-import { TestUtil } from 'src/shared/test.util';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
@@ -10,7 +9,6 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { StakingRepository } from 'src/mix/models/staking/staking.repository';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
-import { TestSharedModule } from 'src/shared/test.shared.module';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
 import { BankRepository } from '../bank.repository';
@@ -25,6 +23,8 @@ import {
   olkyEUR,
 } from '../__mocks__/bank.entity.mock';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { TestUtil } from 'src/shared/utils/test.util';
 
 function createBankSelectorInput(
   currency = 'EUR',

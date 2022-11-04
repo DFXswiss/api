@@ -1,6 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BuyCrypto } from './buy-crypto.entity';
 

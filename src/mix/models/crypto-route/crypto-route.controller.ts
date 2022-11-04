@@ -19,7 +19,7 @@ import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
 import { CryptoHistoryDto } from './dto/crypto-history.dto';
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';

@@ -8,7 +8,7 @@ import { CryptoInput } from 'src/mix/models/crypto-input/crypto-input.entity';
 import { CryptoStakingRepository } from 'src/mix/models/crypto-staking/crypto-staking.repository';
 import { MasternodeRepository } from 'src/mix/models/masternode/masternode.repository';
 import { PayoutType } from 'src/mix/models/staking-reward/staking-reward.entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { getCustomRepository, IsNull, Not } from 'typeorm';
 import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
 

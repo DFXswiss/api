@@ -1,5 +1,5 @@
 import { Client, AccessOptions, FileInfo } from 'basic-ftp';
-import { Util } from '../util';
+import { Util } from '../utils/util';
 
 export class FtpService {
   private readonly tmpFile = 'tmp';

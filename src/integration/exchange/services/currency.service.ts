@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ConversionService } from 'src/shared/services/conversion.service';
+import { ConversionService } from 'src/integration/exchange/services/conversion.service';
 import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
 import { Price } from '../dto/price.dto';
 

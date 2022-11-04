@@ -6,7 +6,7 @@ import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
-import { Lock } from 'src/shared/lock';
+import { Lock } from 'src/shared/utils/lock';
 import { IsNull, Not } from 'typeorm';
 import { KycStatus, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/integration/blockchain/ain/exceptions/node-not-accessible.exception';

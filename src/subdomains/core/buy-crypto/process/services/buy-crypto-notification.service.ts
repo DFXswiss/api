@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { In, IsNull, Not } from 'typeorm';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';

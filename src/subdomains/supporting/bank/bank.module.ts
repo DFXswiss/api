@@ -17,6 +17,10 @@ import { BankTxRepository } from './bank-tx/bank-tx.repository';
 import { BankTxService } from './bank-tx/bank-tx.service';
 import { FrickService } from './bank-tx/frick.service';
 import { OlkypayService } from './bank-tx/olkypay.service';
+import { BankController } from './bank/bank.controller';
+import { BankRepository } from './bank/bank.repository';
+import { BankService } from './bank/bank.service';
+import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
 
 @Module({
   imports: [
@@ -26,12 +30,14 @@ import { OlkypayService } from './bank-tx/olkypay.service';
       BankAccountRepository,
       BankTxReturnRepository,
       BankTxRepeatRepository,
+      BankRepository,
     ]),
     SharedModule,
+    BankIntegrationModule,
     NotificationModule,
     forwardRef(() => BuyCryptoModule),
   ],
-  controllers: [BankTxController, BankAccountController, BankTxReturnController],
+  controllers: [BankTxController, BankAccountController, BankTxReturnController, BankController],
   providers: [
     BankTxService,
     BankTxReturnService,
@@ -39,7 +45,8 @@ import { OlkypayService } from './bank-tx/olkypay.service';
     BankAccountService,
     OlkypayService,
     FrickService,
+    BankService,
   ],
-  exports: [BankTxService, BankAccountService, OlkypayService, FrickService],
+  exports: [BankTxService, BankAccountService, OlkypayService, FrickService, BankService],
 })
 export class BankModule {}

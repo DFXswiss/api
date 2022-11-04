@@ -13,9 +13,9 @@ import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data
 import { SpiderApiService } from './spider-api.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { In, LessThan } from 'typeorm';
-import { Lock } from 'src/shared/lock';
+import { Lock } from 'src/shared/utils/lock';
 import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { KycDocuments, KycDocumentState, KycContentType, KycDocument, DocumentVersionPart } from './dto/spider.dto';
 import { IdentResultDto } from 'src/subdomains/generic/user/models/ident/dto/ident-result.dto';

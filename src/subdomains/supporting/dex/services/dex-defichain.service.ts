@@ -6,7 +6,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { ChainSwapId, LiquidityOrder } from '../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../exceptions/price-slippage.exception';

@@ -14,7 +14,7 @@ import { Sell } from './sell.entity';
 import { DepositService } from '../../../../mix/models/deposit/deposit.service';
 import { User } from '../../../generic/user/models/user/user.entity';
 import { StakingService } from '../../../../mix/models/staking/staking.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { KycService } from 'src/subdomains/generic/user/models/kyc/kyc.service';
 import { Not, Repository } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';

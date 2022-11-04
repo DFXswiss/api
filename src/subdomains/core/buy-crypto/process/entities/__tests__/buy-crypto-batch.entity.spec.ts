@@ -1,6 +1,6 @@
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/route/__mocks__/buy.entity.mock';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { createCustomUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
 import { AbortBatchCreationException } from '../../exceptions/abort-batch-creation.exception';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../buy-crypto-batch.entity';

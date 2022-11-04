@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
 import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/interfaces';

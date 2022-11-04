@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { HttpService } from './http.service';
+import { HttpService } from '../../../shared/services/http.service';
 
 export interface IbanDetailsDto {
   value_open: number;

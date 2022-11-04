@@ -3,7 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';

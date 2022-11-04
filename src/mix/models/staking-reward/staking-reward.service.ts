@@ -6,7 +6,7 @@ import { StakingRewardRepository } from './staking-reward.respository';
 import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { Config } from 'src/config/config';
 

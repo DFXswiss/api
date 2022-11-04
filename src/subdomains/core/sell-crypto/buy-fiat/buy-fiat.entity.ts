@@ -1,5 +1,5 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { Entity, OneToOne, JoinColumn, ManyToOne, Column } from 'typeorm';
 import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.entity';

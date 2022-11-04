@@ -7,7 +7,7 @@ import { LiquidityRequest } from '../../../../subdomains/supporting/dex/interfac
 import { DexService } from '../../../../subdomains/supporting/dex/services/dex.service';
 import { Price } from '../../../../integration/exchange/dto/price.dto';
 import { PriceProvider } from '../interfaces';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()

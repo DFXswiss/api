@@ -27,7 +27,7 @@ import { StakingReward } from 'src/mix/models/staking-reward/staking-reward.enti
 import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { LetterService } from 'src/shared/services/letter.service';
+import { LetterService } from 'src/integration/letter/letter.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { Customer } from 'src/subdomains/generic/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';

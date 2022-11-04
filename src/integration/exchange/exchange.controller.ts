@@ -19,7 +19,7 @@ import { Price } from './dto/price.dto';
 import { TradeResult, TradeStatus } from './dto/trade-result.dto';
 import { WithdrawalOrder } from './dto/withdrawal-order.dto';
 
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { BinanceService } from './services/binance.service';
 import { BitpandaService } from './services/bitpanda.service';
 import { BitstampService } from './services/bitstamp.service';

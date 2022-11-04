@@ -4,7 +4,7 @@ import { SepaCdi, SepaAddress, ChargeRecord } from './dto/sepa.dto';
 import { BankTxBatch } from './bank-tx-batch.entity';
 import { BankTx } from './bank-tx.entity';
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 
 export class SepaParser {
   static parseSepaFile(xmlFile: string): SepaFile {

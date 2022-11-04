@@ -1,7 +1,7 @@
 import { Entity, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';

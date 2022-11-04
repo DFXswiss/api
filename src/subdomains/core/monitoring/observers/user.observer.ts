@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
 import { KycStatus, IdentCompletedStates } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataRepository } from 'src/subdomains/generic/user/models/user-data/user-data.repository';

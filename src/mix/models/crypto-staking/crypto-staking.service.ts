@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { ConversionService } from 'src/shared/services/conversion.service';
+import { ConversionService } from 'src/integration/exchange/services/conversion.service';
 import { CryptoInput } from '../crypto-input/crypto-input.entity';
 import { Staking } from '../staking/staking.entity';
 import { StakingService } from '../staking/staking.service';
@@ -16,7 +16,7 @@ import { Between, In, IsNull, LessThan, Not, Raw } from 'typeorm';
 import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 import { StakingRepository } from '../staking/staking.repository';
 import { Cron, CronExpression } from '@nestjs/schedule';

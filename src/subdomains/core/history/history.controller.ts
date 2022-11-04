@@ -16,7 +16,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BuyFiatService } from '../sell-crypto/buy-fiat/buy-fiat.service';
 import { HistoryTransactionType, HistoryDto, TypedHistoryDto } from './dto/history.dto';

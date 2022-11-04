@@ -1,6 +1,6 @@
 import { MailerOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { Util } from '../../../../shared/util';
+import { Util } from 'src/shared/utils/util';
 import { Mail } from '../entities/mail/base/mail';
 
 export interface MailOptions {

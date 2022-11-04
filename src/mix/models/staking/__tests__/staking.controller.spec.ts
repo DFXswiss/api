@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TestSharedModule } from 'src/shared/test.shared.module';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CryptoStakingService } from '../../crypto-staking/crypto-staking.service';
 import { StakingController } from '../staking.controller';
 import { StakingService } from '../staking.service';

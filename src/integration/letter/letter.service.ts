@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { HttpService } from './http.service';
+import { HttpService } from '../../shared/services/http.service';
 import { Config } from 'src/config/config';
-import { Util } from '../util';
+import { Util } from '../../shared/utils/util';
 import { SendLetterDto } from 'src/subdomains/generic/admin/dto/send-letter.dto';
 
 interface LetterResponse {

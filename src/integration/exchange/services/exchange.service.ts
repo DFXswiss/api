@@ -2,7 +2,7 @@ import { BadRequestException, NotFoundException, ServiceUnavailableException } f
 import { Exchange, ExchangeError, Market, Order, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../dto/price.dto';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
 
 export enum OrderSide {

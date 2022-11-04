@@ -11,7 +11,7 @@ import { Buy } from './buy.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not, Repository } from 'typeorm';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Config } from 'src/config/config';

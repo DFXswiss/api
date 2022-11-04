@@ -3,7 +3,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not, Repository } from 'typeorm';
 import { User } from '../../../subdomains/generic/user/models/user/user.entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { StakingService } from '../staking/staking.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Config } from 'src/config/config';

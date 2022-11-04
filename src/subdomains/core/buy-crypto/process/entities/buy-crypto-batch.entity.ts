@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';

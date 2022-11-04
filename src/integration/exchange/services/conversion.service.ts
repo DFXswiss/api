@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { Util } from '../util';
-import { HttpService } from './http.service';
+import { Util } from '../../../shared/utils/util';
+import { HttpService } from '../../../shared/services/http.service';
 
 @Injectable()
 export class ConversionService {

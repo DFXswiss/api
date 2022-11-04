@@ -5,8 +5,8 @@ import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/
 import { Config } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Lock } from 'src/shared/lock';
-import { Util } from 'src/shared/util';
+import { Lock } from 'src/shared/utils/lock';
+import { Util } from 'src/shared/utils/util';
 import { IsNull, Not, In } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';

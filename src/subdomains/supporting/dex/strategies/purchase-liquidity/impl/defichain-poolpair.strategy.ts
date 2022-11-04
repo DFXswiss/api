@@ -4,8 +4,8 @@ import { Not } from 'typeorm';
 
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Util } from 'src/shared/util';
-import { Lock } from 'src/shared/lock';
+import { Util } from 'src/shared/utils/util';
+import { Lock } from 'src/shared/utils/lock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { LiquidityOrderContext, LiquidityOrder } from '../../../entities/liquidity-order.entity';

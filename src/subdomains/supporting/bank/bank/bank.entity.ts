@@ -1,5 +1,5 @@
 import { Entity, Column, Index } from 'typeorm';
-import { IEntity } from '../entity';
+import { IEntity } from '../../../../shared/models/entity';
 
 export enum BankName {
   FRICK = 'Bank Frick',

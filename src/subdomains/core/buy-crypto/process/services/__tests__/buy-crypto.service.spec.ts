@@ -7,9 +7,10 @@ import { CryptoRouteService } from 'src/mix/models/crypto-route/crypto-route.ser
 import { createCustomCryptoHistory } from 'src/mix/models/crypto-route/dto/__mocks__/crypto-history.dto.mock';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { TestSharedModule } from 'src/shared/test.shared.module';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
+import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyRepository } from '../../../route/buy.repository';
 import { BuyService } from '../../../route/buy.service';
 import { createCustomBuyHistory } from '../../../route/dto/__mocks__/buy-history.dto.mock';
@@ -36,6 +37,7 @@ describe('BuyCryptoService', () => {
 
   let buyCryptoRepo: BuyCryptoRepository;
   let bankTxRepo: BankTxRepository;
+  let bankTxService: BankTxService;
   let cryptoRouteRepo: CryptoRouteRepository;
   let buyRepo: BuyRepository;
   let settingService: SettingService;
@@ -50,6 +52,7 @@ describe('BuyCryptoService', () => {
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
     bankTxRepo = createMock<BankTxRepository>();
+    bankTxService = createMock<BankTxService>();
     cryptoRouteRepo = createMock<CryptoRouteRepository>();
     buyRepo = createMock<BuyRepository>();
     settingService = createMock<SettingService>();
@@ -67,6 +70,7 @@ describe('BuyCryptoService', () => {
         BuyCryptoService,
         { provide: BuyCryptoRepository, useValue: buyCryptoRepo },
         { provide: BankTxRepository, useValue: bankTxRepo },
+        { provide: BankTxService, useValue: bankTxService },
         { provide: CryptoRouteRepository, useValue: cryptoRouteRepo },
         { provide: BuyRepository, useValue: buyRepo },
         { provide: SettingService, useValue: settingService },

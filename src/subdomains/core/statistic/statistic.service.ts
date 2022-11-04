@@ -6,7 +6,7 @@ import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
 import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BuyService } from '../buy-crypto/route/buy.service';
 

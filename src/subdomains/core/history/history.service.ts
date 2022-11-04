@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Readable } from 'stream';
-import { Util } from 'src/shared/util';
-import { DfiTaxService } from 'src/shared/services/dfi-tax.service';
+import { Util } from 'src/shared/utils/util';
+import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { StakingRewardService } from '../../../mix/models/staking-reward/staking-reward.service';
 import { PayoutType } from '../../../mix/models/staking-reward/staking-reward.entity';
 import { RefRewardService } from '../referral/reward/ref-reward.service';

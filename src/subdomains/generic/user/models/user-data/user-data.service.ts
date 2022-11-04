@@ -12,7 +12,7 @@ import { Config } from 'src/config/config';
 import { ReferenceType, SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { UserRepository } from '../user/user.repository';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { KycWebhookService } from '../kyc/kyc-webhook.service';

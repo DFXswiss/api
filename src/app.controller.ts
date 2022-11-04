@@ -6,7 +6,7 @@ import { RealIP } from 'nestjs-real-ip';
 import { HttpService } from './shared/services/http.service';
 import { SettingService } from './shared/models/setting/setting.service';
 import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
-import { Util } from './shared/util';
+import { Util } from './shared/utils/util';
 import { AnnouncementDto } from './shared/dto/announcement.dto';
 import { FlagDto } from './shared/dto/flag.dto';
 import { RefService } from './subdomains/core/referral/process/ref.service';

@@ -9,7 +9,7 @@ import { StakingService } from './staking.service';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { UpdateStakingDto } from './dto/update-staking.dto';
 import { StakingDto } from './dto/staking.dto';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { StakingBatchDto } from '../crypto-staking/dto/staking-batch.dto';
 

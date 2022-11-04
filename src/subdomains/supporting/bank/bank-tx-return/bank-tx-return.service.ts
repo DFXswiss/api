@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx.entity';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { BankTxReturn } from './bank-tx-return.entity';

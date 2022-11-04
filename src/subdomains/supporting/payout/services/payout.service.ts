@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { Lock } from 'src/shared/lock';
+import { Lock } from 'src/shared/utils/lock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { PayoutOrderRepository } from '../repositories/payout-order.repository';
@@ -12,7 +12,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../strategies/payout/payout.facade';
 import { PrepareStrategiesFacade } from '../strategies/prepare/prepare.facade';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class PayoutService {

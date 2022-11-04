@@ -5,7 +5,7 @@ import { CreateRefRewardDto } from './dto/create-ref-reward.dto';
 import { RefReward } from './ref-reward.entity';
 import { UpdateRefRewardDto } from './dto/update-ref-reward.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class RefRewardService {

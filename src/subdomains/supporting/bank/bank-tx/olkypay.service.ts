@@ -2,11 +2,11 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Method } from 'axios';
 import { Config } from 'src/config/config';
 import { HttpError, HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator, BankTxType } from './bank-tx.entity';
 import { stringify } from 'qs';
-import { BankService } from 'src/shared/models/bank/bank.service';
-import { Bank, BankName } from 'src/shared/models/bank/bank.entity';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { Bank, BankName } from 'src/subdomains/supporting/bank/bank/bank.entity';
 
 interface Transaction {
   idCtp: number;

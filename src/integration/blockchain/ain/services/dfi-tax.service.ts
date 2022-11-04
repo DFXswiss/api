@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { Util } from '../util';
-import { HttpService } from './http.service';
+import { Util } from '../../../../shared/utils/util';
+import { HttpService } from '../../../../shared/services/http.service';
 
 export interface DfiTaxReward {
   value_open: number;

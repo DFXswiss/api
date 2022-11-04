@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { IsNull, LessThan } from 'typeorm';
 import { Ref } from './ref.entity';
 import { RefRepository } from './ref.repository';

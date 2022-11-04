@@ -8,8 +8,8 @@ import {
 } from '@nestjs/common';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Between, In, IsNull, Not } from 'typeorm';
-import { Util } from 'src/shared/util';
-import { Lock } from 'src/shared/lock';
+import { Util } from 'src/shared/utils/util';
+import { Lock } from 'src/shared/utils/lock';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';

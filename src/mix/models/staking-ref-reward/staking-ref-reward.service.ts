@@ -7,7 +7,7 @@ import { Interval } from '@nestjs/schedule';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { Staking } from '../staking/staking.entity';
-import { ConversionService } from 'src/shared/services/conversion.service';
+import { ConversionService } from 'src/integration/exchange/services/conversion.service';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';

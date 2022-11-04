@@ -11,7 +11,7 @@ import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
-import { Lock } from 'src/shared/lock';
+import { Lock } from 'src/shared/utils/lock';
 import { IsNull, Not } from 'typeorm';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';

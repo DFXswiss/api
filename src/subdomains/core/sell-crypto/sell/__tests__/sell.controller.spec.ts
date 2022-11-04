@@ -1,11 +1,11 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TestSharedModule } from 'src/shared/test.shared.module';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BuyFiatService } from '../../buy-fiat/buy-fiat.service';
 import { SellController } from '../sell.controller';
 import { SellService } from '../sell.service';
-import { TestUtil } from 'src/shared/test.util';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { createDefaultSell } from '../__mocks__/sell.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';

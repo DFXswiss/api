@@ -6,7 +6,7 @@ import { PriceSlippageException } from '../exceptions/price-slippage.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
 import { Interval } from '@nestjs/schedule';
-import { Lock } from 'src/shared/lock';
+import { Lock } from 'src/shared/utils/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';

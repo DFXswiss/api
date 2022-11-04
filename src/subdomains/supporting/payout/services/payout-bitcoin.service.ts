@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
 

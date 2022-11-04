@@ -1,4 +1,4 @@
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { LinkAddress } from '../link-address.entity';
 import { createCustomLinkAddress } from './mock/link-address.entity.mock';
 

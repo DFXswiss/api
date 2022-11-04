@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 

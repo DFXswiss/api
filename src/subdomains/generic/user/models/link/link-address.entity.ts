@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { Column, Entity, Generated, Index } from 'typeorm';
 
 @Entity()

@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TestSharedModule } from 'src/shared/test.shared.module';
+import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { createCustomCryptoInput } from '../../../../../mix/models/crypto-input/__mocks__/crypto-input.entity.mock';
 import { SellRepository } from '../../sell/sell.repository';
@@ -11,6 +11,7 @@ import { BuyFiatService } from '../buy-fiat.service';
 import { createCustomSellHistory } from '../../sell/dto/__mocks__/sell-history.dto.mock';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
+import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 
 enum MockBuyData {
   DEFAULT,
@@ -27,6 +28,7 @@ describe('BuyFiatService', () => {
   let sellRepo: SellRepository;
   let sellService: SellService;
   let bankTxRepo: BankTxRepository;
+  let bankTxService: BankTxService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -34,6 +36,7 @@ describe('BuyFiatService', () => {
     sellRepo = createMock<SellRepository>();
     sellService = createMock<SellService>();
     bankTxRepo = createMock<BankTxRepository>();
+    bankTxService = createMock<BankTxService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -44,6 +47,7 @@ describe('BuyFiatService', () => {
         { provide: SellRepository, useValue: sellRepo },
         { provide: SellService, useValue: sellService },
         { provide: BankTxRepository, useValue: bankTxRepo },
+        { provide: BankTxService, useValue: bankTxService },
       ],
     }).compile();
 

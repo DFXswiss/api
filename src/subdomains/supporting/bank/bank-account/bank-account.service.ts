@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { IbanService } from 'src/shared/services/iban.service';
+import { IbanService } from 'src/integration/bank/services/iban.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankAccountRepository } from './bank-account.repository';
-import { IbanDetailsDto } from 'src/shared/services/iban.service';
+import { IbanDetailsDto } from 'src/integration/bank/services/iban.service';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';

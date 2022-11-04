@@ -14,7 +14,7 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { SellHistoryDto } from './dto/sell-history.dto';
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { MinDeposit } from '../../../../mix/models/deposit/dto/min-deposit.dto';

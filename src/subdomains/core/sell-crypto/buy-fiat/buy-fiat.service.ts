@@ -5,7 +5,7 @@ import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.en
 import { Sell } from '../sell/sell.entity';
 import { Between, In } from 'typeorm';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { SellRepository } from '../sell/sell.repository';
 import { SellService } from '../sell/sell.service';

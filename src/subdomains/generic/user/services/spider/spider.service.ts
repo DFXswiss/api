@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { RiskState, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import {
   CreateResponse,

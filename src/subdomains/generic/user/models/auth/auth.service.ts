@@ -20,7 +20,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { WalletRepository } from '../wallet/wallet.repository';
 import { Wallet } from '../wallet/wallet.entity';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Util } from 'src/shared/util';
+import { Util } from 'src/shared/utils/util';
 import { Interval } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';

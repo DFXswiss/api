@@ -26,7 +26,7 @@ import { IdentService } from './models/ident/ident.service';
 import { SpiderService } from './services/spider/spider.service';
 import { KycProcessService } from './models/kyc/kyc-process.service';
 import { KycController } from './models/kyc/kyc.controller';
-import { GeoLocationService } from './services/geo-location.service';
+import { GeoLocationService } from '../../../integration/geolocation/geo-location.service';
 import { LinkController } from './models/link/link.controller';
 import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
@@ -35,6 +35,7 @@ import { LimitRequestController } from './models/limit-request/limit-request.con
 import { KycWebhookService } from './models/kyc/kyc-webhook.service';
 import { WalletController } from './models/wallet/wallet.controller';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
+import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
     SharedModule,
     NotificationModule,
     AinModule,
+    GeoLocationModule,
     ReferralModule,
   ],
   controllers: [
@@ -76,7 +78,6 @@ import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
     AuthService,
     LimitRequestService,
     IdentService,
-    GeoLocationService,
     LinkService,
     KycWebhookService,
   ],
