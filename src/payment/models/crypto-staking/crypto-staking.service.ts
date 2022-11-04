@@ -100,10 +100,15 @@ export class CryptoStakingService {
     if (Util.daysDiff(new Date(), dto.outputDate) <= 2)
       throw new BadRequestException('OutputDate must be at least 2 days in future');
 
-    entity.paybackDeposit = null;
-    entity.payoutType = PayoutType.WALLET;
-
-    return await this.cryptoStakingRepo.save({ ...entity, ...dto });
+    return Object.assign(
+      entity,
+      await this.cryptoStakingRepo.save({
+        id: entity.id,
+        paybackDeposit: null,
+        payoutType: PayoutType.WALLET,
+        outputDate: dto.outputDate,
+      }),
+    );
   }
 
   // --- USER --- //
