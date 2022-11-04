@@ -10,6 +10,7 @@ import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { UpdateCryptoStakingDto } from './dto/update-crypto-staking.dto';
+import { UpdateOutputDateDto } from './dto/update-output-date.dto';
 
 @ApiTags('cryptoStaking')
 @Controller('cryptoStaking')
@@ -80,5 +81,13 @@ export class CryptoStakingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async update(@Param('id') id: string, @Body() dto: UpdateCryptoStakingDto): Promise<CryptoStaking> {
     return this.cryptoStakingService.update(+id, dto);
+  }
+
+  @Put(':id/manualPayout')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async manualPayout(@Param('id') id: string, @Body() dto: UpdateOutputDateDto): Promise<CryptoStaking> {
+    return await this.cryptoStakingService.manualPayout(+id, dto);
   }
 }
