@@ -157,7 +157,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: path.join(__dirname, '../shared/assets/mails'),
+        dir: path.join(__dirname, '../subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
