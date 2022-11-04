@@ -31,14 +31,16 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
 
   async checkPayoutCompletionData(order: PayoutOrder): Promise<void> {
     try {
-      const [isComplete, payoutFee] = await this.jellyfishService.getPayoutCompletionData(
+      const [isComplete, totalPayoutFee] = await this.jellyfishService.getPayoutCompletionData(
         order.context,
         order.payoutTxId,
       );
 
       if (isComplete) {
+        const orderPayoutFee = await this.calculateOrderPayoutFee(order, totalPayoutFee);
+
         order.complete();
-        order.recordPayoutFee(await this.feeAsset(), payoutFee);
+        order.recordPayoutFee(await this.feeAsset(), orderPayoutFee);
 
         await this.payoutOrderRepo.save(order);
       }
@@ -159,5 +161,13 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
 
   private validateIfOrdersOfSameAsset(orders: PayoutOrder[]): boolean {
     return orders.every((order, i) => (orders[i + 1] ? order.asset.dexName === orders[i + 1].asset.dexName : true));
+  }
+
+  private async calculateOrderPayoutFee(order: PayoutOrder, totalPayoutFee: number): Promise<number> {
+    const ordersWithSamePayoutTxId = await this.payoutOrderRepo.find({ payoutTxId: order.payoutTxId });
+
+    const totalOrdersAmount = Util.sumObj<PayoutOrder>(ordersWithSamePayoutTxId, 'amount');
+
+    return Util.round((totalPayoutFee / totalOrdersAmount) * order.amount, 8);
   }
 }
