@@ -166,8 +166,6 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
   private async calculateOrderPayoutFee(order: PayoutOrder, totalPayoutFee: number): Promise<number> {
     const ordersWithSamePayoutTxId = await this.payoutOrderRepo.find({ payoutTxId: order.payoutTxId });
 
-    if (ordersWithSamePayoutTxId.length === 1) return totalPayoutFee;
-
     const totalOrdersAmount = Util.sumObj<PayoutOrder>(ordersWithSamePayoutTxId, 'amount');
 
     return Util.round((totalPayoutFee / totalOrdersAmount) * order.amount, 8);
