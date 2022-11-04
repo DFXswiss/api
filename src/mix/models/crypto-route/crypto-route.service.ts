@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { IsNull, Not, Repository } from 'typeorm';
+import { IsNull, Not } from 'typeorm';
 import { User } from '../../../subdomains/generic/user/models/user/user.entity';
 import { Util } from 'src/shared/utils/util';
 import { StakingService } from '../staking/staking.service';

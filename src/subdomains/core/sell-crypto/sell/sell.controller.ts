@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Param, forwardRef, Inject } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { SellService } from './sell.service';
