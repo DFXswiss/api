@@ -276,9 +276,14 @@ export class AdminController {
       .createQueryBuilder()
       .from(dbQuery.table, dbQuery.table)
       .select(select)
+      .addSelect('userData.id', 'userDataId')
+      .leftJoin('bank_tx.buyFiat', 'buyFiat')
+      .leftJoin('buyFiat.sell', 'sell')
+      .leftJoin('sell.user', 'user')
+      .leftJoin('user.userData', 'userData')
       .where('bank_tx.id >= :id', { id: dbQuery.min })
       .andWhere('bank_tx.updated >= :updated', { updated: dbQuery.updatedSince })
-      .andWhere('(type IS NULL OR type NOT IN (:crypto, :fiat))', {
+      .andWhere('(bank_tx.type IS NULL OR bank_tx.type NOT IN (:crypto, :fiat))', {
         crypto: BankTxType.BUY_CRYPTO,
         fiat: BankTxType.BUY_FIAT,
       })
@@ -289,8 +294,6 @@ export class AdminController {
         throw new BadRequestException(e.message);
       });
 
-    bankTxRestData.map((a) => (a.userDataId = null));
-
     return buyCryptoData
       .concat(buyFiatData, bankTxRestData)
       .sort((a, b) => (dbQuery.sorting == 'ASC' ? a.bank_tx_id - b.bank_tx_id : b.bank_tx_id - a.bank_tx_id));
@@ -299,7 +302,7 @@ export class AdminController {
   @Get('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getSupportData(@Query('id') id: string): Promise<{
     buy: BuyCrypto[];
     buyFiat: BuyFiat[];

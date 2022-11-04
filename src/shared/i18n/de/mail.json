@@ -97,6 +97,13 @@
 
     }
   },
+  "limitRequest": {
+    "manualApproved": {
+      "salutation": "Dein Transaktionsvolumen wurde genehmigt",
+      "body": "<p>Hi {firstname},</p><p>Deine Anfrage von {limitAmount} EUR Transaktionsvolumen wurde genehmigt und steht dir nun frei zur Verfügung.</p><p>Herzlichen Dank für dein entgegengebrachtes Vertrauen.</p><p>Bei Fragen zögere bitte nicht, mich anzusprechen.</p><p>Freundliche Grüsse,<br>Theresia</p><p>Assistenz CEO",
+      "title": "Transaktionsvolumen genehmigt"
+    }
+  },
   "link": {
     "address": {
       "salutation": "Du möchtest deine Adresse mit deinem bestehenden Konto verknüpfen?",

@@ -120,6 +120,10 @@ param paymentUrl string
 @secure()
 param lockApiKey string
 
+param limitRequestSupportBanner string
+param limitRequestSupportMail string
+param limitRequestSupportName string
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -687,6 +691,18 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LOCK_API_KEY'
           value: lockApiKey
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_BANNER'
+          value: limitRequestSupportBanner
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_MAIL'
+          value: limitRequestSupportMail
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_NAME'
+          value: limitRequestSupportName
         }
       ]
     }
