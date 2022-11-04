@@ -208,6 +208,15 @@
     },
     "lockApiKey": {
       "value": "xxx"
+    },
+    "limitRequestSupportBanner":{
+      "value": "xxx"
+    },
+    "limitRequestSupportMail":{
+      "value": "xxx"
+    },
+    "limitRequestSupportName":{
+      "value": "xxx"
     }
   }
 }

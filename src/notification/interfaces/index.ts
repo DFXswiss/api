@@ -21,6 +21,7 @@ export interface MailRequestGenericInput {
   cc?: string;
   bcc?: string;
   template?: string;
+  banner?: string;
   date?: number;
   telegramUrl?: string;
   twitterUrl?: string;

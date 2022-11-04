@@ -37,6 +37,7 @@ import { NotificationModule } from 'src/notification/notification.module';
 import { LimitRequestController } from './models/limit-request/limit-request.controller';
 import { KycWebhookService } from './models/kyc/kyc-webhook.service';
 import { WalletController } from './models/wallet/wallet.controller';
+import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { WalletController } from './models/wallet/wallet.controller';
     GeoLocationService,
     LinkService,
     KycWebhookService,
+    LimitRequestNotificationService,
   ],
   exports: [
     UserService,
