@@ -2,10 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { KycSupportMailInput, KycSupportMail } from '../entities/mail/kyc-support-mail';
-import { Mail } from '../entities/mail/base/mail';
+import { Mail, MailParams } from '../entities/mail/base/mail';
 import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import { MailRequest, MailRequestGenericInput } from '../interfaces';
+import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
 
 @Injectable()
 export class MailFactory {
@@ -29,6 +30,10 @@ export class MailFactory {
         return this.createUserMail(request);
       }
 
+      case MailType.PERSONAL: {
+        return this.createPersonalMail(request);
+      }
+
       default: {
         throw new Error(`Unsupported mail type: ${request.type}`);
       }
@@ -41,7 +46,14 @@ export class MailFactory {
     const input = request.input as MailRequestGenericInput;
     const { metadata, options } = request;
 
-    return new Mail({ ...input, metadata, options });
+    const mailParams: MailParams = {
+      ...input,
+      templateParams: input,
+      metadata,
+      options,
+    };
+
+    return new Mail(mailParams);
   }
 
   private createErrorMonitoringMail(request: MailRequest): ErrorMonitoringMail {
@@ -79,6 +91,30 @@ export class MailFactory {
       subject,
       salutation,
       body,
+      metadata,
+      options,
+    });
+  }
+
+  private async createPersonalMail(request: MailRequest): Promise<PersonalMail> {
+    const { userData, translationKey, translationParams, banner, displayName, from } =
+      request.input as PersonalMailInput;
+    const { metadata, options } = request;
+
+    const { subject, salutation, body } = await this.t(
+      translationKey,
+      userData.language?.symbol.toLowerCase(),
+      translationParams,
+    );
+
+    return new PersonalMail({
+      to: userData.mail,
+      subject,
+      salutation,
+      body,
+      banner,
+      displayName,
+      from,
       metadata,
       options,
     });

@@ -114,6 +114,14 @@ export class Configuration {
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
+  support = {
+    limitRequest: {
+      mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
+      mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
+      mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
+    },
+  };
+
   letter = {
     auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
@@ -156,7 +164,7 @@ export class Configuration {
         },
       },
     },
-    defaultMailTemplate: 'personal',
+    defaultMailTemplate: 'support',
     contact: {
       supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',

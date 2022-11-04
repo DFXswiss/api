@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
+import { SharedModule } from 'src/shared/shared.module';
 import { IbanService } from './services/iban.service';
 
 @Module({
-  imports: [],
+  imports: [SharedModule],
   controllers: [],
   providers: [IbanService],
   exports: [IbanService],

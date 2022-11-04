@@ -7,6 +7,7 @@ export enum MailType {
   KYC_SUPPORT = 'KycSupport',
   ERROR_MONITORING = 'ErrorMonitoring',
   USER = 'User',
+  PERSONAL = 'Personal',
 }
 
 export enum MailContext {

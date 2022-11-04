@@ -124,11 +124,11 @@ export class KycService {
 
     user = await this.userDataService.updateSpiderIfNeeded(user, data);
 
-    const updatedUser = await this.userDataRepo.save({ ...user, ...data });
+    const updatedUser = await this.userDataRepo.save(Object.assign(user, data));
 
     return this.createKycInfoBasedOn(updatedUser);
   }
-
+ 
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
     let result: { kycId: string };
 

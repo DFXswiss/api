@@ -96,6 +96,13 @@
       }
     }
   },
+  "limitRequest": {
+    "manualApproved": {
+      "salutation": "Your transaction volume has been approved",
+      "body": "<p>Hi {firstname},</p><p>Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you</p><p>Thank you very much for your trust.</p><p>Please do not hesitate to contact me if you have any questions.</p><p>Kind regards,<br>Theresia</p><p>Assistance CEO",
+      "title": "Transaction volume approved"
+    }
+  },
   "link": {
     "address": {
       "salutation": "Deseja ligar o seu endereço à sua conta existente?",
