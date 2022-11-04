@@ -4,6 +4,7 @@ export enum UserRole {
   VIP = 'VIP',
   BETA = 'Beta',
   ADMIN = 'Admin',
+  SUPPORT = 'Support',
 
   // service roles
   MASTERNODE_OPERATOR = 'MasternodeOperator',
