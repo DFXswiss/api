@@ -120,7 +120,7 @@ export class AdminController {
   @Get('db')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getRawData(
     @Query()
     query: dbQueryDto,
