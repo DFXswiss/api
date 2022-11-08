@@ -39,7 +39,7 @@ describe('CheckLiquidityStrategies', () => {
     bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<DexBitcoinService>());
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<AssetService>(), mock<DexBscService>());
-    deFiChainPoolPair = new DeFiChainPoolPairStrategy(mock<AssetService>());
+    deFiChainPoolPair = new DeFiChainPoolPairStrategy(mock<AssetService>(), mock<DexDeFiChainService>());
     deFiChainDefault = new DeFiChainDefaultStrategy(
       mock<AssetService>(),
       mock<DexDeFiChainService>(),

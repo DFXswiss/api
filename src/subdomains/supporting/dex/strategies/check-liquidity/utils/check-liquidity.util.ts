@@ -8,6 +8,7 @@ export class CheckLiquidityUtil {
     targetAmount: number,
     availableAmount: number,
     feeAsset: Asset,
+    referenceMaxPurchasableAmount = 0,
   ): CheckLiquidityResult {
     const { referenceAsset, referenceAmount, targetAsset } = request;
     const referenceAvailableAmount = targetAmount
@@ -25,7 +26,7 @@ export class CheckLiquidityUtil {
         asset: referenceAsset,
         amount: referenceAmount,
         availableAmount: referenceAvailableAmount,
-        maxPurchasableAmount: 0,
+        maxPurchasableAmount: referenceMaxPurchasableAmount,
       },
       purchaseFee: {
         asset: feeAsset,

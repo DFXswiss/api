@@ -371,16 +371,26 @@ export class BuyCryptoBatchService {
   ): Promise<void> {
     try {
       const {
-        target: { availableAmount, maxPurchasableAmount },
+        target: { availableAmount, maxPurchasableAmount: maxPurchasableTargetAmount },
+        reference: { maxPurchasableAmount: maxPurchasableReferenceAmount },
       } = liquidity;
 
       const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
+
+      const maxPurchasableTargetAmountMessage = maxPurchasableTargetAmount
+        ? `${maxPurchasableTargetAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.`
+        : 'zero or unknown';
+
+      const maxPurchasableReferenceAmountMessage = maxPurchasableReferenceAmount
+        ? `${maxPurchasableReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.`
+        : 'zero or unknown';
 
       const message = `
         ${error.message}
         Required reference amount: ${outputReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.
         Available amount: ${availableAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.
-        Maximum purchasable amount (approximately): ${maxPurchasableAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.
+        Maximum purchasable amount (target asset, approximately): ${maxPurchasableTargetAmountMessage}.
+        Maximum purchasable amount (reference asset, approximately): ${maxPurchasableReferenceAmountMessage}.
       `;
 
       await this.buyCryptoNotificationService.sendMissingLiquidityError(

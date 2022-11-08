@@ -153,6 +153,34 @@ export class DexDeFiChainService {
     return swapAmount;
   }
 
+  async calculateSwapAmountForPurchase(
+    referenceAsset: Asset,
+    referenceAmount: number,
+    targetAsset: Asset,
+    swapAsset: Asset,
+  ): Promise<number> {
+    if (referenceAsset === targetAsset) {
+      const swapAssetPrice = await this.calculatePrice(swapAsset, referenceAsset);
+
+      const swapAmount = referenceAmount * swapAssetPrice;
+
+      // adding 5% cap to liquidity swap to cover meantime referenceAmount price difference (initially taken from Kraken/Binance)
+      return Util.round(swapAmount + swapAmount * 0.05, 8);
+    }
+
+    return this.#dexClient.testCompositeSwap(referenceAsset.dexName, swapAsset.dexName, referenceAmount);
+  }
+
+  async getAssetAvailability(asset: Asset): Promise<number> {
+    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
+      (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
+    );
+    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
+    const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
+
+    return Util.round(availableAmount - pendingAmount, 8);
+  }
+
   // *** HELPER METHODS *** //
 
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
@@ -169,16 +197,6 @@ export class DexDeFiChainService {
         `Not enough liquidity of asset ${asset.dexName}. Trying to use ${requiredAmount} ${asset.dexName} worth liquidity. Available amount: ${availableAmount}.`,
       );
     }
-  }
-
-  private async getAssetAvailability(asset: Asset): Promise<number> {
-    const pendingOrders = (await this.liquidityOrderRepo.find({ isReady: true, isComplete: false })).filter(
-      (o) => o.targetAsset.dexName === asset.dexName && o.targetAsset.blockchain === Blockchain.DEFICHAIN,
-    );
-    const pendingAmount = Util.sumObj<LiquidityOrder>(pendingOrders, 'targetAmount');
-    const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
-
-    return Util.round(availableAmount - pendingAmount, 8);
   }
 
   private async getMaxPurchasableAmount(swapAssets: Asset[], targetAsset: Asset): Promise<number> {
@@ -204,24 +222,6 @@ export class DexDeFiChainService {
 
       return 0;
     }
-  }
-
-  private async calculateSwapAmountForPurchase(
-    referenceAsset: Asset,
-    referenceAmount: number,
-    targetAsset: Asset,
-    swapAsset: Asset,
-  ): Promise<number> {
-    if (referenceAsset === targetAsset) {
-      const swapAssetPrice = await this.calculatePrice(swapAsset, referenceAsset);
-
-      const swapAmount = referenceAmount * swapAssetPrice;
-
-      // adding 5% cap to liquidity swap to cover meantime referenceAmount price difference (initially taken from Kraken/Binance)
-      return Util.round(swapAmount + swapAmount * 0.05, 8);
-    }
-
-    return this.#dexClient.testCompositeSwap(referenceAsset.dexName, swapAsset.dexName, referenceAmount);
   }
 
   private async checkTestSwapPriceSlippage(
