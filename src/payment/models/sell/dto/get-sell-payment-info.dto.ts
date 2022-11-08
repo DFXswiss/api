@@ -19,6 +19,7 @@ export class GetSellPaymentInfoDto {
   currency: Fiat;
 
   @ApiProperty()
+  // TODO change to IsNotEmptyObject
   @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)

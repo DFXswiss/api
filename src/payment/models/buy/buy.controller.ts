@@ -128,9 +128,7 @@ export class BuyController {
     if (asset?.category === AssetCategory.STOCK) return { fee: 0, refBonus: 0 };
 
     const { annualVolume } = await this.buyService.getUserVolume(userId);
-    const { fee, refBonus } = await this.userService.getUserBuyFee(userId, annualVolume);
-
-    return { fee, refBonus };
+    return await this.userService.getUserBuyFee(userId, annualVolume);
   }
 
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
