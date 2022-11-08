@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Between, In, IsNull, Not } from 'typeorm';
 import { CreateStakingRewardDto } from './dto/create-staking-reward.dto';
 import { StakingReward } from './staking-reward.entity';
-import { StakingRewardRepository } from './staking-reward.respository';
+import { StakingRewardRepository } from './staking-reward.repository';
 import { UpdateStakingRewardDto } from './dto/update-staking-reward.dto';
 import { StakingRepository } from '../staking/staking.repository';
 import { StakingService } from '../staking/staking.service';

@@ -13,7 +13,7 @@ import { ReadyCryptoStakingDto } from './dto/ready-crypto-staking.dto';
 import { PayoutCryptoStakingDto } from './dto/payout-crypto-staking.dto';
 import { GetPayoutsCryptoStakingDto } from './dto/get-payouts-crypto-staking.dto';
 import { Between, In, IsNull, LessThan, Not, Raw } from 'typeorm';
-import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
+import { StakingRewardRepository } from '../staking-reward/staking-reward.repository';
 import { StakingBatchDto } from './dto/staking-batch.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
 import { Util } from 'src/shared/utils/util';

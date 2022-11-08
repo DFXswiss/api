@@ -7,7 +7,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { ConversionService } from 'src/integration/exchange/services/conversion.service';
 import { NodeService } from 'src/integration/blockchain/ain/node/node.service';
 import { StakingService } from '../staking/staking.service';
-import { StakingRewardRepository } from '../staking-reward/staking-reward.respository';
+import { StakingRewardRepository } from '../staking-reward/staking-reward.repository';
 import { StakingRefRewardRepository } from '../staking-ref-reward/staking-ref-reward.repository';
 import { StakingRepository } from '../staking/staking.repository';
 

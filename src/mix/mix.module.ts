@@ -13,7 +13,7 @@ import { StakingService } from './models/staking/staking.service';
 import { MasternodeController } from './models/masternode/masternode.controller';
 import { MasternodeService } from './models/masternode/masternode.service';
 import { MasternodeRepository } from './models/masternode/masternode.repository';
-import { StakingRewardRepository } from './models/staking-reward/staking-reward.respository';
+import { StakingRewardRepository } from './models/staking-reward/staking-reward.repository';
 import { StakingRewardController } from './models/staking-reward/staking-reward.controller';
 import { StakingRewardService } from './models/staking-reward/staking-reward.service';
 import { CryptoStakingService } from './models/crypto-staking/crypto-staking.service';
@@ -47,7 +47,6 @@ import { RouteController } from './models/route/route.controller';
       StakingRewardRepository,
       StakingRefRewardRepository,
       CryptoStakingRepository,
-      StakingRefRewardRepository,
       CryptoRouteRepository,
     ]),
     SharedModule,
@@ -82,7 +81,6 @@ import { RouteController } from './models/route/route.controller';
     StakingRewardService,
     StakingRefRewardService,
     CryptoStakingService,
-    StakingRefRewardService,
     CryptoRouteService,
     ChainalysisService,
   ],

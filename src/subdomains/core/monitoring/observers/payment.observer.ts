@@ -7,7 +7,7 @@ import { CryptoInputType } from 'src/mix/models/crypto-input/crypto-input.entity
 import { CryptoInputRepository } from 'src/mix/models/crypto-input/crypto-input.repository';
 import { DepositRepository } from 'src/mix/models/deposit/deposit.repository';
 import { StakingRefRewardRepository } from 'src/mix/models/staking-ref-reward/staking-ref-reward.repository';
-import { StakingRewardRepository } from 'src/mix/models/staking-reward/staking-reward.respository';
+import { StakingRewardRepository } from 'src/mix/models/staking-reward/staking-reward.repository';
 import { getCustomRepository, In, IsNull, Not } from 'typeorm';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
