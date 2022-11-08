@@ -3,10 +3,10 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 
 export abstract class PayoutStrategy {
-  #feeAsset: Asset;
+  private _feeAsset: Asset;
 
   async feeAsset(): Promise<Asset> {
-    return this.#feeAsset ?? (await this.getFeeAsset());
+    return (this._feeAsset ??= await this.getFeeAsset());
   }
 
   abstract doPayout(orders: PayoutOrder[]): Promise<void>;
