@@ -5,11 +5,7 @@ export abstract class CheckLiquidityStrategy {
   private _feeAsset: Asset;
 
   async feeAsset(): Promise<Asset> {
-    if (!this._feeAsset) {
-      this._feeAsset = await this.getFeeAsset();
-    }
-
-    return this._feeAsset;
+    return (this._feeAsset ??= await this.getFeeAsset());
   }
 
   abstract checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult>;

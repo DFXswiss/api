@@ -13,11 +13,7 @@ export abstract class PurchaseLiquidityStrategy {
   constructor(protected readonly notificationService: NotificationService) {}
 
   async feeAsset(): Promise<Asset> {
-    if (!this._feeAsset) {
-      this._feeAsset = await this.getFeeAsset();
-    }
-
-    return this._feeAsset;
+    return (this._feeAsset ??= await this.getFeeAsset());
   }
 
   abstract purchaseLiquidity(request: LiquidityRequest): Promise<void>;
