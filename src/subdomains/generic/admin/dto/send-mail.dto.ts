@@ -1,4 +1,5 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Config } from 'src/config/config';
 
 export class SendMailDto {
   @IsNotEmpty()
@@ -39,17 +40,25 @@ export class SendMailDto {
 
   @IsOptional()
   @IsString()
-  telegramUrl: string;
+  banner: string;
+
+  @IsOptional()
+  @IsNumber()
+  date: number = new Date().getFullYear();
 
   @IsOptional()
   @IsString()
-  instagramUrl: string;
+  telegramUrl: string = Config.defaultTelegramUrl;
 
   @IsOptional()
   @IsString()
-  linkedinUrl: string;
+  instagramUrl: string = Config.defaultInstagramUrl;
 
   @IsOptional()
   @IsString()
-  twitterUrl: string;
+  linkedinUrl: string = Config.defaultLinkedinUrl;
+
+  @IsOptional()
+  @IsString()
+  twitterUrl: string = Config.defaultTwitterUrl;
 }

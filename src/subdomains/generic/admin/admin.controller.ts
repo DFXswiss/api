@@ -65,6 +65,7 @@ export class AdminController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async sendMail(@Body() dtoList: SendMailDto[]): Promise<void> {
     for (const dto of dtoList) {
+      if (dto.template === 'default') dto.template = 'user';
       await this.notificationService.sendMail({ type: MailType.GENERIC, input: dto });
     }
   }
@@ -119,7 +120,7 @@ export class AdminController {
   @Get('db')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getRawData(
     @Query()
     query: dbQueryDto,
