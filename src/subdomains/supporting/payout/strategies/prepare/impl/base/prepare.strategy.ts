@@ -3,10 +3,14 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 
 export abstract class PrepareStrategy {
-  #feeAsset: Asset;
+  private _feeAsset: Asset;
 
   async feeAsset(): Promise<Asset> {
-    return this.#feeAsset ?? (await this.getFeeAsset());
+    if (!this._feeAsset) {
+      this._feeAsset = await this.getFeeAsset();
+    }
+
+    return this._feeAsset;
   }
 
   abstract preparePayout(order: PayoutOrder): Promise<void>;

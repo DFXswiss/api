@@ -202,7 +202,8 @@ export class DexService {
         console.info(
           `Liquidity purchase is ready. Order ID: ${order.id}. Context: ${order.context}. Correlation ID: ${order.correlationId}`,
         );
-      } catch {
+      } catch (e) {
+        console.error(`Error while trying to add purchase data to liquidity order. Order ID: ${order.id}`, e);
         continue;
       }
     }

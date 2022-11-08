@@ -2,10 +2,14 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../../interfaces';
 
 export abstract class CheckLiquidityStrategy {
-  #feeAsset: Asset;
+  private _feeAsset: Asset;
 
   async feeAsset(): Promise<Asset> {
-    return this.#feeAsset ?? this.getFeeAsset();
+    if (!this._feeAsset) {
+      this._feeAsset = await this.getFeeAsset();
+    }
+
+    return this._feeAsset;
   }
 
   abstract checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult>;
