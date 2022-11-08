@@ -4,7 +4,7 @@ import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { MailOptions } from 'src/notification/services/mail.service';
+import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -157,7 +157,7 @@ export class Configuration {
         },
       },
       template: {
-        dir: path.join(__dirname, '../shared/assets/mails'),
+        dir: path.join(__dirname, '../subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,

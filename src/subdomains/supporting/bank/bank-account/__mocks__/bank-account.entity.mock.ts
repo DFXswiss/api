@@ -1,0 +1,18 @@
+import { createDefaultUser } from 'src/subdomains/generic/user/models/user/__mocks__/user.entity.mock';
+import { BankAccount } from '../bank-account.entity';
+
+const defaultBankAccount: Partial<BankAccount> = {
+  iban: 'DE89370400440532013000',
+  user: createDefaultUser(),
+  buys: [],
+  sells: [],
+  sctInst: true,
+};
+
+export function createDefaultBankAccount(): BankAccount {
+  return createCustomBankAccount({});
+}
+
+export function createCustomBankAccount(customValues: Partial<BankAccount>): BankAccount {
+  return Object.assign(new BankAccount(), { ...defaultBankAccount, ...customValues });
+}

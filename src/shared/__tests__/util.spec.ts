@@ -1,5 +1,5 @@
 import { Configuration } from 'src/config/config';
-import { Util } from '../util';
+import { Util } from '../utils/util';
 
 describe('Util', () => {
   it('should transform configs min deposit to a min deposit array', () => {

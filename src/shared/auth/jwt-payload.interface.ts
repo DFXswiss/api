@@ -1,4 +1,4 @@
-import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { UserRole } from './user-role.enum';
 
 export interface JwtPayloadBase {

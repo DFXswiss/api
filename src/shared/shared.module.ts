@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { HttpService } from './services/http.service';
-import { ConversionService } from './services/conversion.service';
 import { AssetController } from './models/asset/asset.controller';
 import { AssetService } from './models/asset/asset.service';
 import { AssetRepository } from './models/asset/asset.repository';
@@ -25,12 +24,7 @@ import { GetConfig } from 'src/config/config';
 import { ConfigModule } from 'src/config/config.module';
 import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
-import { DfiTaxService } from './services/dfi-tax.service';
-import { LetterService } from './services/letter.service';
-import { IbanService } from './services/iban.service';
 import { ApiKeyService } from './services/api-key.service';
-import { BankRepository } from './models/bank/bank.repository';
-import { BankService } from './models/bank/bank.service';
 
 @Module({
   imports: [
@@ -42,7 +36,6 @@ import { BankService } from './models/bank/bank.service';
       CountryRepository,
       LanguageRepository,
       SettingRepository,
-      BankRepository,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
@@ -51,7 +44,6 @@ import { BankService } from './models/bank/bank.service';
   ],
   controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
   providers: [
-    ConversionService,
     HttpService,
     AssetService,
     FiatService,
@@ -59,28 +51,19 @@ import { BankService } from './models/bank/bank.service';
     LanguageService,
     SettingService,
     JwtStrategy,
-    DfiTaxService,
-    LetterService,
-    IbanService,
     ApiKeyService,
-    BankService,
   ],
   exports: [
     PassportModule,
     JwtModule,
     ScheduleModule,
-    ConversionService,
     HttpService,
     AssetService,
     FiatService,
     CountryService,
     LanguageService,
     SettingService,
-    DfiTaxService,
-    LetterService,
-    IbanService,
     ApiKeyService,
-    BankService,
   ],
 })
 export class SharedModule {}

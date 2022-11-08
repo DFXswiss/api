@@ -2,7 +2,7 @@ import { HttpService as Http } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
-import { Util } from '../util';
+import { Util } from '../utils/util';
 
 export interface HttpError {
   response?: {
