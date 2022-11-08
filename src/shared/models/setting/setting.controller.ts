@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CfpSettings } from 'src/statistic/cfp.service';
+import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
 import { FrontendSettings } from './dto/frontend-settings.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';

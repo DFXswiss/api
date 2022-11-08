@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
-import { User } from 'src/user/models/user/user.entity';
-import { Util } from '../util';
+import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { Util } from '../utils/util';
 
 @Injectable()
 export class ApiKeyService {
