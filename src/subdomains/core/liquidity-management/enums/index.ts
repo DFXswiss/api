@@ -7,15 +7,31 @@ export enum LiquidityManagementContext {
 }
 
 export enum LiquidityManagementSystem {
+  CAKE = 'Cake',
   KRAKEN = 'Kraken',
 }
 
-export enum LiquidityManagementOrderType {
-  BUY = 'Buy',
-  SELL = 'Sell',
+export enum LiquidityManagementRuleStatus {
+  ACTIVE = 'Active',
+  INACTIVE = 'Inactive',
+  PROCESSING = 'Processing',
 }
 
 export enum LiquidityManagementOrderStatus {
   CREATED = 'Created',
+  IN_PROGRESS = 'InProgress',
+  COMPLETE = 'Complete',
   FAILED = 'Failed',
+}
+
+export enum LiquidityManagementPipelineStatus {
+  CREATED = 'Created',
+  IN_PROGRESS = 'InProgress',
+  COMPLETE = 'Complete',
+  FAILED = 'Failed',
+}
+
+export enum LiquidityOptimizationType {
+  DEFICIT = 'Deficit',
+  REDUNDANCY = 'Redundancy',
 }

@@ -1,39 +1,40 @@
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
-import { LiquidityManagementProcessor } from './liquidity-management-processor.entity';
-import { LiquidityManagementRule } from './liquidity-management-rule.entity';
-import { LiquidityManagementOrderStatus, LiquidityManagementOrderType } from '../enums';
+import { LiquidityManagementAction } from './liquidity-management-action.entity';
+import { LiquidityManagementOrderStatus } from '../enums';
+import { LiquidityManagementPipeline } from './liquidity-management-pipeline.entity';
 
 @Entity()
 export class LiquidityManagementOrder extends IEntity {
   @Column({ length: 256, nullable: false })
   status: LiquidityManagementOrderStatus;
 
-  @Column({ length: 256, nullable: false })
-  type: LiquidityManagementOrderType;
-
   @Column({ type: 'float', nullable: true })
   amount: number;
 
-  @ManyToOne(() => LiquidityManagementProcessor, { eager: true, nullable: false })
+  @ManyToOne(() => LiquidityManagementPipeline, { eager: true, nullable: false })
   @JoinTable()
-  rule: LiquidityManagementRule;
+  pipeline: LiquidityManagementPipeline;
 
-  @ManyToOne(() => LiquidityManagementProcessor, { eager: true, nullable: false })
+  @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: false })
   @JoinTable()
-  processor: LiquidityManagementProcessor;
+  action: LiquidityManagementAction;
 
   //*** FACTORY ***//
 
   static create(
-    type: LiquidityManagementOrderType,
     amount: number,
-    rule: LiquidityManagementRule,
-    processor: LiquidityManagementProcessor,
+    pipeline: LiquidityManagementPipeline,
+    action: LiquidityManagementAction,
   ): LiquidityManagementOrder {
-    const entity = new LiquidityManagementOrder();
+    const order = new LiquidityManagementOrder();
 
-    return entity;
+    order.status = LiquidityManagementOrderStatus.CREATED;
+    order.amount = amount;
+    order.pipeline = pipeline;
+    order.action = action;
+
+    return order;
   }
 
   //*** PUBLIC API ***//

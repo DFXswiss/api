@@ -16,5 +16,5 @@ export interface LiquidityProcessor {
 export interface LiquidityVerificationResult {
   isOptimal: boolean;
   liquidityDeficit: number;
-  liquiditySurplus: number;
+  liquidityRedundancy: number;
 }
