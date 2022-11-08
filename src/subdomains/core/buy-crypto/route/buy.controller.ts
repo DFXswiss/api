@@ -25,6 +25,7 @@ import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { Staking } from 'src/mix/models/staking/staking.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BuyCryptoService } from '../process/services/buy-crypto.service';
+import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -81,26 +82,19 @@ export class BuyController {
 
   // --- DTO --- //
   private async toDtoList(userId: number, buys: Buy[]): Promise<BuyDto[]> {
-    const fees = await this.getFees(userId);
-
     const stakingRoutes = await this.stakingService
       .getStakingRepo()
       .find({ deposit: { id: In(buys.map((b) => b.deposit?.id)) } });
-    return Promise.all(buys.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
+    return Promise.all(buys.map((b) => this.toDto(userId, b, stakingRoutes)));
   }
 
-  private async toDto(
-    userId: number,
-    buy: Buy,
-    fees?: { fee: number; refBonus: number },
-    stakingRoutes?: Staking[],
-  ): Promise<BuyDto> {
-    fees ??= await this.getFees(userId);
+  private async toDto(userId: number, buy: Buy, stakingRoutes?: Staking[]): Promise<BuyDto> {
+    const fee = await this.getFees(userId, buy.asset);
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
-      ...fees,
+      ...fee,
       minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
     };
   }
@@ -109,7 +103,7 @@ export class BuyController {
     return {
       ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
-      ...(await this.getFees(userId)),
+      ...(await this.getFees(userId, buy.asset)),
       minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
     };
   }
@@ -130,9 +124,11 @@ export class BuyController {
     );
   }
 
-  async getFees(userId: number): Promise<{ fee: number; refBonus: number }> {
+  async getFees(userId: number, asset: Asset): Promise<{ fee: number; refBonus: number }> {
+    if (asset?.category === AssetCategory.STOCK) return { fee: 0, refBonus: 0 };
+
     const { annualVolume } = await this.buyService.getUserVolume(userId);
-    return this.userService.getUserBuyFee(userId, annualVolume);
+    return await this.userService.getUserBuyFee(userId, annualVolume);
   }
 
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {

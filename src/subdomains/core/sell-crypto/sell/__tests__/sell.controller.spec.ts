@@ -9,6 +9,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { createDefaultSell } from '../__mocks__/sell.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 describe('SellController', () => {
   let controller: SellController;
@@ -16,11 +17,13 @@ describe('SellController', () => {
   let sellService: SellService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
+  let assetService: AssetService;
 
   beforeEach(async () => {
     sellService = createMock<SellService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
+    assetService = createMock<AssetService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -29,6 +32,7 @@ describe('SellController', () => {
         { provide: SellService, useValue: sellService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
+        { provide: AssetService, useValue: assetService },
         TestUtil.provideConfig(),
       ],
     }).compile();
