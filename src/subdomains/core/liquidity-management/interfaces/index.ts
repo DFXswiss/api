@@ -6,11 +6,11 @@ export interface LiquidityBalanceProvider {
   getBalance(asset: Asset | Fiat): Promise<LiquidityBalance>;
 }
 
-export interface LiquidityProcessor {
+export interface LiquidityActionIntegration {
   target: Asset | Fiat;
 
-  buy(amount: number): Promise<void>;
-  sell(amount: number): Promise<void>;
+  runCommand(command: string): Promise<void>;
+  checkCompletion(): Promise<boolean>;
 }
 
 export interface LiquidityVerificationResult {

@@ -4,8 +4,8 @@ import { LiquidityManagementOrder } from '../entities/liquidity-management-order
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
-import { LiquidityProcessorFactory as LiquidityActionIntegrationFactory } from '../factories/liquidity-processor.factory';
-import { LiquidityProcessor as LiquidityActionIntegration } from '../interfaces';
+import { LiquidityActionIntegrationFactory } from '../factories/liquidity-processor.factory';
+import { LiquidityActionIntegration } from '../interfaces';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
@@ -93,7 +93,10 @@ export class LiquidityManagementPipelineService {
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
     const actionIntegration = await this.findLiquidityActionIntegration(order.action);
 
-    await actionIntegration[order.action.command]();
+    await actionIntegration.runCommand(order.action.command);
+    order.inProgress();
+
+    await this.orderRepo.save(order);
   }
 
   private async findLiquidityActionIntegration(action: LiquidityManagementAction): Promise<LiquidityActionIntegration> {
@@ -101,6 +104,27 @@ export class LiquidityManagementPipelineService {
   }
 
   private async checkRunningOrders(): Promise<void> {
-    return;
+    const runningOrders = await this.orderRepo.find({ status: LiquidityManagementOrderStatus.IN_PROGRESS });
+
+    for (const order of runningOrders) {
+      try {
+        await this.checkOrder(order);
+      } catch (e) {
+        if (e instanceof OrderNotProcessableException) {
+          order.fail();
+          await this.orderRepo.save(order);
+        }
+      }
+    }
+  }
+
+  private async checkOrder(order: LiquidityManagementOrder): Promise<void> {
+    const actionIntegration = await this.findLiquidityActionIntegration(order.action);
+    const isComplete = await actionIntegration.checkCompletion();
+
+    if (isComplete) {
+      order.complete();
+      await this.orderRepo.save(order);
+    }
   }
 }

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
-import { LiquidityProcessor } from '../interfaces';
+import { LiquidityActionIntegration } from '../interfaces';
 
 @Injectable()
-export class LiquidityProcessorFactory {
-  async getIntegration(processor: LiquidityManagementAction): LiquidityProcessor {}
+export class LiquidityActionIntegrationFactory {
+  async getIntegration(action: LiquidityManagementAction): Promise<LiquidityActionIntegration> {}
 }

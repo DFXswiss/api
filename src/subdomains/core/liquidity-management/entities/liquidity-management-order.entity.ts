@@ -39,6 +39,18 @@ export class LiquidityManagementOrder extends IEntity {
 
   //*** PUBLIC API ***//
 
+  inProgress(): this {
+    this.status = LiquidityManagementOrderStatus.IN_PROGRESS;
+
+    return this;
+  }
+
+  complete(): this {
+    this.status = LiquidityManagementOrderStatus.COMPLETE;
+
+    return this;
+  }
+
   fail(): this {
     this.status = LiquidityManagementOrderStatus.FAILED;
 
