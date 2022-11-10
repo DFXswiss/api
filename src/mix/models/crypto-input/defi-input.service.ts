@@ -329,6 +329,8 @@ export class DeFiInputService extends CryptoInputService {
   }
 
   private async forwardInputs(): Promise<void> {
+    await this.checkNodeInSync(this.client);
+
     const inputs = await this.cryptoInputRepo.find({
       where: {
         outTxId: IsNull(),
