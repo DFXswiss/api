@@ -8,12 +8,12 @@ export class LimitRequestDto {
   @IsInt()
   limit: number;
 
-  @ApiProperty()
+  @ApiProperty({ enum: InvestmentDate })
   @IsNotEmpty()
   @IsEnum(InvestmentDate)
   investmentDate: InvestmentDate;
 
-  @ApiProperty()
+  @ApiProperty({ enum: FundOrigin })
   @IsNotEmpty()
   @IsEnum(FundOrigin)
   fundOrigin: FundOrigin;
@@ -23,12 +23,12 @@ export class LimitRequestDto {
   @IsString()
   fundOriginText?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Base64 encoded file' })
   @IsOptional()
   @IsString()
   documentProof?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({description: 'Name of the proof document'})
   @ValidateIf((l: LimitRequestDto) => l.documentProof != null)
   @IsNotEmpty()
   @IsString()

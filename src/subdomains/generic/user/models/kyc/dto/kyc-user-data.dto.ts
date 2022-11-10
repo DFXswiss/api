@@ -6,7 +6,7 @@ import { Country } from 'src/shared/models/country/country.entity';
 import { AccountType } from '../../user-data/account-type.enum';
 
 export class KycUserDataDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: AccountType })
   @ValidateIf((d: KycUserDataDto) => d.accountType !== undefined)
   @IsNotEmpty()
   @IsEnum(AccountType)
@@ -48,7 +48,7 @@ export class KycUserDataDto {
   @IsString()
   zip: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: Country })
   @ValidateIf((d: KycUserDataDto) => d.country !== undefined)
   @IsNotEmptyObject()
   @ValidateNested()
@@ -99,7 +99,7 @@ export class KycUserDataDto {
   @IsString()
   organizationZip: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: Country })
   @ValidateIf((d: KycUserDataDto) => d.accountType && d.organizationCountry && d.accountType !== AccountType.PERSONAL)
   @IsNotEmptyObject()
   @ValidateNested()
