@@ -315,7 +315,7 @@ export class DeFiInputService extends CryptoInputService {
   }
 
   // --- FORWARDING --- //
-  @Interval(60000)
+  @Interval(300000)
   async forward(): Promise<void> {
     if (!this.forwardingLock.acquire()) return;
 
