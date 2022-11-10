@@ -17,7 +17,7 @@ export class LiquidityManagementService {
     private readonly balanceService: LiquidityManagementBalanceService,
   ) {}
 
-  @Interval(60000)
+  @Interval(60000000)
   async verifyRules() {
     const rules = await this.ruleRepo.find();
     const balances = await this.balanceService.refreshBalances(rules);

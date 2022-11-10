@@ -52,7 +52,7 @@ export class LiquidityManagementPipeline extends IEntity {
 
   start(): this {
     this.status = LiquidityManagementPipelineStatus.IN_PROGRESS;
-    this.currentAction = this.rule.getActions(this.type)[0];
+    this.currentAction = this.rule.getStartAction(this.type);
 
     return this;
   }

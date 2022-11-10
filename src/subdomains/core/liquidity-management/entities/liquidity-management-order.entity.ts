@@ -12,11 +12,11 @@ export class LiquidityManagementOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   amount: number;
 
-  @ManyToOne(() => LiquidityManagementPipeline, { eager: true, nullable: false })
+  @ManyToOne(() => LiquidityManagementPipeline, { nullable: false })
   @JoinTable()
   pipeline: LiquidityManagementPipeline;
 
-  @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: false })
+  @ManyToOne(() => LiquidityManagementAction, { nullable: false })
   @JoinTable()
   action: LiquidityManagementAction;
 

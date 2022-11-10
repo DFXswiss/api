@@ -4,5 +4,7 @@ import { LiquidityActionIntegration } from '../interfaces';
 
 @Injectable()
 export class LiquidityActionIntegrationFactory {
-  async getIntegration(action: LiquidityManagementAction): Promise<LiquidityActionIntegration> {}
+  getIntegration(action: LiquidityManagementAction): LiquidityActionIntegration {
+    return null;
+  }
 }

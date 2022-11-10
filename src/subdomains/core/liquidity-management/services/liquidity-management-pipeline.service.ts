@@ -4,7 +4,7 @@ import { LiquidityManagementOrder } from '../entities/liquidity-management-order
 import { LiquidityManagementAction } from '../entities/liquidity-management-action.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
-import { LiquidityActionIntegrationFactory } from '../factories/liquidity-processor.factory';
+import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action.integration.factory';
 import { LiquidityActionIntegration } from '../interfaces';
 import { LiquidityManagementOrderRepository } from '../repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';

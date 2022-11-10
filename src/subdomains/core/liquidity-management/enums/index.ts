@@ -9,6 +9,7 @@ export enum LiquidityManagementContext {
 export enum LiquidityManagementSystem {
   CAKE = 'Cake',
   KRAKEN = 'Kraken',
+  BINANCE = 'Binance',
 }
 
 export enum LiquidityManagementRuleStatus {

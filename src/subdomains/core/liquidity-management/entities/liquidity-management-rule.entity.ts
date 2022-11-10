@@ -1,12 +1,13 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Column, Entity, JoinTable, ManyToMany } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityBalance } from './liquidity-balance.entity';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 import { LiquidityManagementContext, LiquidityManagementRuleStatus, LiquidityOptimizationType } from '../enums';
 import { LiquidityVerificationResult } from '../interfaces';
 import { Util } from 'src/shared/utils/util';
+import { LiquidityManagementRuleInitSpecification } from '../specifications/liquidity-management-rule-init.specification';
 
 @Entity()
 export class LiquidityManagementRule extends IEntity {
@@ -16,14 +17,14 @@ export class LiquidityManagementRule extends IEntity {
   @Column({ length: 256, nullable: true })
   status: LiquidityManagementRuleStatus;
 
-  @Column({ length: 256, nullable: true })
+  @ManyToOne(() => Asset, { eager: true, nullable: true })
   targetAsset: Asset;
 
-  @Column({ length: 256, nullable: true })
+  @ManyToOne(() => Fiat, { eager: true, nullable: true })
   targetFiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
-  minimal: number;
+  minimum: number;
 
   @Column({ type: 'float', nullable: true })
   optimal: number;
@@ -31,22 +32,39 @@ export class LiquidityManagementRule extends IEntity {
   @Column({ type: 'float', nullable: true })
   maximum: number;
 
-  @ManyToMany(() => LiquidityManagementAction)
-  @JoinTable()
-  deficitActions: LiquidityManagementAction[];
+  @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
+  deficitStartAction: LiquidityManagementAction;
 
-  @ManyToMany(() => LiquidityManagementAction)
-  @JoinTable()
-  redundancyActions: LiquidityManagementAction[];
+  @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
+  redundancyStartAction: LiquidityManagementAction;
 
   //*** FACTORY METHODS ***//
 
-  static create(): LiquidityManagementRule {
-    // allow only Asset or Fiat, not both
+  static create(
+    context: LiquidityManagementContext,
+    targetAsset: Asset,
+    targetFiat: Fiat,
+    minimum: number,
+    optimal: number,
+    maximum: number,
+    deficitStartAction: LiquidityManagementAction,
+    redundancyStartAction: LiquidityManagementAction,
+  ): LiquidityManagementRule {
+    const rule = new LiquidityManagementRule();
 
-    const entity = new LiquidityManagementRule();
+    rule.status = LiquidityManagementRuleStatus.ACTIVE;
+    rule.context = context;
+    rule.targetAsset = targetAsset;
+    rule.targetFiat = targetFiat;
+    rule.minimum = minimum;
+    rule.optimal = optimal;
+    rule.maximum = maximum;
+    rule.deficitStartAction = deficitStartAction;
+    rule.redundancyStartAction = redundancyStartAction;
 
-    return entity;
+    LiquidityManagementRuleInitSpecification.isSatisfiedBy(rule);
+
+    return rule;
   }
 
   //*** PUBLIC API ***//
@@ -54,7 +72,7 @@ export class LiquidityManagementRule extends IEntity {
   verify(balance: LiquidityBalance): LiquidityVerificationResult {
     const deviation = Util.round(Math.abs(this.optimal - balance.amount), 8);
 
-    const deficit = balance.amount < this.minimal ? deviation : 0;
+    const deficit = balance.amount < this.minimum ? deviation : 0;
     const redundancy = !deficit && balance.amount > this.maximum ? deviation : 0;
 
     return {
@@ -64,10 +82,24 @@ export class LiquidityManagementRule extends IEntity {
     };
   }
 
+  deactivate(): this {
+    this.status = LiquidityManagementRuleStatus.INACTIVE;
+
+    return this;
+  }
+
+  reactivate(): this {
+    this.status = LiquidityManagementRuleStatus.ACTIVE;
+
+    return this;
+  }
+
   //*** GETTERS ***//
 
-  getActions(optimizationType: LiquidityOptimizationType): LiquidityManagementAction[] {
-    return optimizationType === LiquidityOptimizationType.DEFICIT ? this.deficitActions : this.redundancyActions;
+  getStartAction(optimizationType: LiquidityOptimizationType): LiquidityManagementAction {
+    return optimizationType === LiquidityOptimizationType.DEFICIT
+      ? this.deficitStartAction
+      : this.redundancyStartAction;
   }
 
   get target(): Asset | Fiat {

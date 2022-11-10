@@ -1,5 +1,5 @@
-import { IsEnum, IsInt, IsNotEmpty, IsOptional } from 'class-validator';
-import { LiquidityManagementSystem } from '../enums';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { LiquidityManagementSystem } from '../../enums';
 
 export class LiquidityManagementActionDto {
   @IsNotEmpty()
@@ -9,6 +9,10 @@ export class LiquidityManagementActionDto {
   @IsNotEmpty()
   @IsEnum(LiquidityManagementSystem)
   system: LiquidityManagementSystem;
+
+  @IsNotEmpty()
+  @IsString()
+  command: string;
 
   @IsOptional()
   @IsInt()

@@ -4,5 +4,7 @@ import { LiquidityBalanceProvider } from '../interfaces';
 
 @Injectable()
 export class LiquidityBalanceFactory {
-  async getIntegration(rule: LiquidityManagementRule): LiquidityBalanceProvider {}
+  getIntegration(rule: LiquidityManagementRule): LiquidityBalanceProvider {
+    return null;
+  }
 }
