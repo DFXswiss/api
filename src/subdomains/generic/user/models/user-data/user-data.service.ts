@@ -225,8 +225,10 @@ export class UserDataService {
     await this.updateVolumes(slaveId);
 
     // activate users
-    for (const user of master.users) {
-      await this.userService.activateUser(user);
+    if (master.hasActiveUser) {
+      for (const user of master.users) {
+        await this.userService.activateUser(user);
+      }
     }
   }
 
