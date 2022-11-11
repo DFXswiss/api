@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { Lock } from 'src/shared/utils/lock';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
-import { LiquidityManagementPipelineStatus } from '../enums';
+import { LiquidityManagementPipelineStatus, LiquidityManagementRuleStatus } from '../enums';
 import { LiquidityVerificationResult } from '../interfaces';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { LiquidityManagementBalanceService } from './liquidity-management-balance.service';
@@ -11,35 +12,44 @@ import { LiquidityManagementPipeline } from '../entities/liquidity-management-pi
 
 @Injectable()
 export class LiquidityManagementService {
+  private readonly verifyRulesLock = new Lock(1800);
+
   constructor(
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly balanceService: LiquidityManagementBalanceService,
   ) {}
 
-  @Interval(60000000)
+  @Interval(60000)
   async verifyRules() {
-    const rules = await this.ruleRepo.find();
-    const balances = await this.balanceService.refreshBalances(rules);
+    if (!this.verifyRulesLock.acquire()) return;
 
-    for (const rule of rules) {
-      try {
-        const balance = this.balanceService.findRelevantBalance(rule, balances);
-        await this.verifyRule(rule, balance);
-      } catch (e) {
-        console.error(`Error in verifying the liquidity management rule id: ${rule.id}`, e);
-        continue;
+    try {
+      const rules = await this.ruleRepo.find({ status: LiquidityManagementRuleStatus.ACTIVE });
+      const balances = await this.balanceService.refreshBalances(rules);
+
+      for (const rule of rules) {
+        await this.verifyRule(rule, balances);
       }
+    } catch (e) {
+      console.error('Error in verifying the liquidity management rules', e);
+    } finally {
+      this.verifyRulesLock.release();
     }
   }
 
   //*** HELPER METHODS ***//
 
-  private async verifyRule(rule: LiquidityManagementRule, balance: LiquidityBalance): Promise<void> {
-    const result = rule.verify(balance);
+  private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
+    try {
+      const balance = this.balanceService.findRelevantBalance(rule, balances);
+      const result = rule.verify(balance);
 
-    if (!result.isOptimal) {
-      await this.executeRule(rule, result);
+      if (!result.isOptimal) {
+        await this.executeRule(rule, result);
+      }
+    } catch (e) {
+      console.error(`Error in verifying the liquidity management rule id: ${rule.id}`, e);
     }
   }
 
