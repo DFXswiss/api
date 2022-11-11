@@ -30,9 +30,7 @@ export class KycProcessService {
 
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
-    const lockUser = userData.users.find((e) => e.wallet.name === 'LOCK.space');
-    userData.kycType = lockUser ? KycType.LOCK : KycType.DFX;
-    return await this.goToStatus(userData, lockUser ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
+    return await this.goToStatus(userData, userData.kycType === KycType.LOCK ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
   }
 
   async checkKycProcess(userData: UserData): Promise<UserData> {
