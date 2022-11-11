@@ -16,6 +16,7 @@ export class LiquidityManagementBalanceService {
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
     const balanceRequests = rules
       .map((rule) => {
+        // TODO -> think about call optimization, cause most of assets can be fetched in one batch/call
         const integration = this.balanceIntegrationFactory.getIntegration(rule);
 
         if (!integration) return null;

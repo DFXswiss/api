@@ -7,7 +7,6 @@ import { LiquidityManagementOrderRepository } from '../repositories/liquidity-ma
 import { LiquidityManagementPipelineRepository } from '../repositories/liquidity-management-pipeline.repository';
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { Lock } from 'src/shared/utils/lock';
-import { LiquidityManagementRuleService } from './liquidity-management-rule.service';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 
 @Injectable()
@@ -18,7 +17,6 @@ export class LiquidityManagementPipelineService {
   constructor(
     private readonly orderRepo: LiquidityManagementOrderRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
-    private readonly ruleService: LiquidityManagementRuleService,
     private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
   ) {}
 
