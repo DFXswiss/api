@@ -17,14 +17,13 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { KycWebhookService } from '../kyc/kyc-webhook.service';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
-import { UserService } from '../user/user.service';
+import { UserStatus } from '../user/user.entity';
 
 @Injectable()
 export class UserDataService {
   constructor(
     private readonly userDataRepo: UserDataRepository,
     private readonly userRepo: UserRepository,
-    private readonly userService: UserService,
     private readonly bankDataRepo: BankDataRepository,
     private readonly countryService: CountryService,
     private readonly languageService: LanguageService,
@@ -227,7 +226,7 @@ export class UserDataService {
     // activate users
     if (master.hasActiveUser) {
       for (const user of master.users) {
-        await this.userService.activateUser(user);
+        if (user?.status === UserStatus.NA) await this.userRepo.update(user.id, { status: UserStatus.ACTIVE });
       }
     }
   }
