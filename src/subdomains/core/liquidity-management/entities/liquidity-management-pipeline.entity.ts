@@ -57,6 +57,8 @@ export class LiquidityManagementPipeline extends IEntity {
     return this;
   }
 
+  // TODO -> link an order or is it redundant?
+  // TODO -> same for counter
   continue(currentActionOrderStatus: LiquidityManagementOrderStatus): this {
     if (currentActionOrderStatus === LiquidityManagementOrderStatus.COMPLETE) {
       if (this.currentAction.onSuccess) {
