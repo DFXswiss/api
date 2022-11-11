@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { LiquidityManagementRuleController } from './controllers/rule.controller';
-import { LiquidityActionIntegrationFactory } from './factories/liquidity-action.integration.factory';
-import { LiquidityBalanceFactory } from './factories/liquidity-balance.factory';
+import { LiquidityActionIntegrationFactory } from './factories/liquidity-action-integration.factory';
+import { LiquidityBalanceIntegrationFactory } from './factories/liquidity-balance-integration.factory';
 import { LiquidityManagementActionRepository } from './repositories/liquidity-management-action.repository';
 import { LiquidityManagementOrderRepository } from './repositories/liquidity-management-order.repository';
 import { LiquidityManagementPipelineRepository } from './repositories/liquidity-management-pipeline.repository';
@@ -30,7 +30,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     LiquidityManagementPipelineService,
     LiquidityManagementBalanceService,
     LiquidityActionIntegrationFactory,
-    LiquidityBalanceFactory,
+    LiquidityBalanceIntegrationFactory,
   ],
   exports: [],
 })

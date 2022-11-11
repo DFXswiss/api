@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
-import { LiquidityBalanceFactory } from '../factories/liquidity-balance.factory';
+import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 
 @Injectable()
 export class LiquidityManagementBalanceService {
-  constructor(private readonly balanceFactory: LiquidityBalanceFactory) {}
+  constructor(private readonly balanceIntegrationFactory: LiquidityBalanceIntegrationFactory) {}
 
   //*** PUBLIC API ***//
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
     const balanceRequests = rules
       .map((rule) => {
-        const integration = this.balanceFactory.getIntegration(rule);
+        const integration = this.balanceIntegrationFactory.getIntegration(rule);
 
         if (!integration) return null;
 

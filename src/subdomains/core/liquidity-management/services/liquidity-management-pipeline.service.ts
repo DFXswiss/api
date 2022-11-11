@@ -8,6 +8,7 @@ import { LiquidityManagementPipelineRepository } from '../repositories/liquidity
 import { LiquidityManagementPipeline } from '../entities/liquidity-management-pipeline.entity';
 import { Lock } from 'src/shared/utils/lock';
 import { LiquidityManagementRuleService } from './liquidity-management-rule.service';
+import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 
 @Injectable()
 export class LiquidityManagementPipelineService {
@@ -18,6 +19,7 @@ export class LiquidityManagementPipelineService {
     private readonly orderRepo: LiquidityManagementOrderRepository,
     private readonly pipelineRepo: LiquidityManagementPipelineRepository,
     private readonly ruleService: LiquidityManagementRuleService,
+    private readonly actionIntegrationFactory: LiquidityActionIntegrationFactory,
   ) {}
 
   //*** JOBS ***//
@@ -120,7 +122,7 @@ export class LiquidityManagementPipelineService {
   }
 
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
-    const actionIntegration = await this.ruleService.findLiquidityActionIntegration(order.action);
+    const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
     await actionIntegration.runCommand(order.action.command);
     order.inProgress();
@@ -147,7 +149,7 @@ export class LiquidityManagementPipelineService {
   }
 
   private async checkOrder(order: LiquidityManagementOrder): Promise<void> {
-    const actionIntegration = await this.ruleService.findLiquidityActionIntegration(order.action);
+    const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
     const isComplete = await actionIntegration.checkCompletion();
 
     if (isComplete) {
