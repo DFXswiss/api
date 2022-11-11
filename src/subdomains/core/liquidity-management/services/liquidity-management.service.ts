@@ -43,6 +43,9 @@ export class LiquidityManagementService {
   private async verifyRule(rule: LiquidityManagementRule, balances: LiquidityBalance[]): Promise<void> {
     try {
       const balance = this.balanceService.findRelevantBalance(rule, balances);
+
+      if (!balance) throw new Error('Could not proceed with rule verification, balance not found.');
+
       const result = rule.verify(balance);
 
       if (!result.isOptimal) {
