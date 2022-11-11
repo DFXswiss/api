@@ -10,16 +10,19 @@ export class LiquidityManagementBalanceService {
   //*** PUBLIC API ***//
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
-    // TODO -> return successful balances, kick out failed promises
-    return Promise.all(
-      rules.map((rule) => {
+    const balanceRequests = rules
+      .map((rule) => {
         const integration = this.balanceFactory.getIntegration(rule);
+
+        if (!integration) return null;
+
         return integration.getBalance(rule.target);
-      }),
-    ).then((b) => {
-      // TODO -> save balances to DB
-      return b;
-    });
+      })
+      .filter((i) => i);
+
+    return Promise.allSettled(balanceRequests).then((values) =>
+      values.filter(this.filterRejectedBalanceCalls).map((b) => b.value),
+    );
   }
 
   findRelevantBalance(rule: LiquidityManagementRule, balances: LiquidityBalance[]): LiquidityBalance {
@@ -30,5 +33,13 @@ export class LiquidityManagementBalanceService {
     }
 
     return balance;
+  }
+
+  //*** HELPER METHODS ***//
+
+  private filterRejectedBalanceCalls(
+    result: PromiseSettledResult<LiquidityBalance>,
+  ): result is PromiseFulfilledResult<LiquidityBalance> {
+    return result.status === 'fulfilled';
   }
 }
