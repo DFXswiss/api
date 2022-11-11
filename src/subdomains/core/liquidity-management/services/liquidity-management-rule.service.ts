@@ -12,6 +12,8 @@ import { LiquidityManagementActionRepository } from '../repositories/liquidity-m
 import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
 import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/liquidity-management-rule-output-dto.mapper';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
+import { LiquidityActionIntegration } from '../interfaces';
+import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action.integration.factory';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -20,6 +22,7 @@ export class LiquidityManagementRuleService {
     private readonly actionRepo: LiquidityManagementActionRepository,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    private readonly liquidityActionIntegrationFactory: LiquidityActionIntegrationFactory,
   ) {}
 
   //*** PUBLIC API ***//
@@ -71,6 +74,10 @@ export class LiquidityManagementRuleService {
     rule.reactivate();
 
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
+  }
+
+  findLiquidityActionIntegration(action: LiquidityManagementAction): LiquidityActionIntegration {
+    return this.liquidityActionIntegrationFactory.getIntegration(action);
   }
 
   //*** HELPER METHODS ***//
@@ -177,6 +184,14 @@ export class LiquidityManagementRuleService {
       actionOnSuccess,
       actionOnFail,
     );
+
+    const integration = this.findLiquidityActionIntegration(newAction);
+
+    if (!integration) {
+      throw new BadRequestException(
+        `No integration found for action. System: ${actionDto.system}, command: ${actionDto.command}`,
+      );
+    }
 
     return this.actionRepo.save(newAction);
   }
