@@ -4,6 +4,7 @@ import {
   KycInProgress,
   KycState,
   KycStatus,
+  KycType,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycDocument, KycDocuments, InitiateResponse } from '../../services/spider/dto/spider.dto';
@@ -30,6 +31,7 @@ export class KycProcessService {
   // --- GENERAL METHODS --- //
   async startKycProcess(userData: UserData): Promise<UserData> {
     const lockUser = userData.users.find((e) => e.wallet.name === 'LOCK.space');
+    userData.kycType = lockUser ? KycType.LOCK : KycType.DFX;
     return await this.goToStatus(userData, lockUser ? KycStatus.ONLINE_ID : KycStatus.CHATBOT);
   }
 

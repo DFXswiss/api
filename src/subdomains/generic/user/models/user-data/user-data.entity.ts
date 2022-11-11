@@ -28,6 +28,11 @@ export enum KycState {
   REVIEW = 'Review',
 }
 
+export enum KycType {
+  DFX = 'DFX',
+  LOCK = 'LOCK',
+}
+
 export enum RiskState {
   A = 'a',
   B = 'b',
@@ -138,6 +143,9 @@ export class UserData extends IEntity {
   @Generated('uuid')
   @Index({ unique: true })
   kycHash: string;
+
+  @Column({ length: 256, nullable: true })
+  kycType: KycType;
 
   @Column({ type: 'float', nullable: true })
   depositLimit: number;
