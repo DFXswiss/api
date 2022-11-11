@@ -315,7 +315,7 @@ export class DeFiInputService extends CryptoInputService {
   }
 
   // --- FORWARDING --- //
-  @Interval(60000)
+  @Interval(300000)
   async forward(): Promise<void> {
     if (!this.forwardingLock.acquire()) return;
 
@@ -329,6 +329,8 @@ export class DeFiInputService extends CryptoInputService {
   }
 
   private async forwardInputs(): Promise<void> {
+    await this.checkNodeInSync(this.client);
+
     const inputs = await this.cryptoInputRepo.find({
       where: {
         outTxId: IsNull(),

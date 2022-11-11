@@ -23,9 +23,10 @@ import { TradingLimit } from '../user/dto/user.dto';
 import { UserRepository } from '../user/user.repository';
 import { WalletRepository } from '../wallet/wallet.repository';
 import { WalletService } from '../wallet/wallet.service';
+import { KycInfo } from './dto/kyc-info.dto';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
-import { KycInfo, KycService } from './kyc.service';
+import { KycService } from './kyc.service';
 
 describe('KycService', () => {
   let service: KycService;

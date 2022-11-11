@@ -270,7 +270,7 @@ export class Configuration {
       },
       limits: {
         configuredFeeLimit: this.configuredFeeLimit,
-        defaultFeeLimit: 0.001,
+        defaultFeeLimit: 0.005,
       },
     },
   };

@@ -10,7 +10,6 @@ import {
   BlankType,
   KycCompleted,
   KycInProgress,
-  KycState,
   KycStatus,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -30,20 +29,7 @@ import { WalletRepository } from '../wallet/wallet.repository';
 import { HttpService } from 'src/shared/services/http.service';
 import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
-import { TradingLimit } from '../user/dto/user.dto';
-
-export interface KycInfo {
-  kycStatus: KycStatus;
-  kycState: KycState;
-  kycHash: string;
-  kycDataComplete: boolean;
-  accountType: AccountType;
-  tradingLimit: TradingLimit;
-  sessionUrl?: string;
-  setupUrl?: string;
-  blankedPhone?: string;
-  blankedMail?: string;
-}
+import { KycInfo } from './dto/kyc-info.dto';
 
 @Injectable()
 export class KycService {
@@ -128,7 +114,7 @@ export class KycService {
 
     return this.createKycInfoBasedOn(updatedUser);
   }
- 
+
   async transferKycData(userId: number, dto: KycDataTransferDto): Promise<void> {
     let result: { kycId: string };
 
@@ -249,8 +235,8 @@ export class KycService {
     return await this.kycProcess.startKycProcess(userData);
   }
 
-  async getKycStatus(code: string): Promise<KycInfo> {
-    let userData = await this.getUserByKycCode(code);
+  async getKycStatus(code: string, userId?: number): Promise<KycInfo> {
+    let userData = await this.getUser(code, userId);
 
     if (KycInProgress(userData.kycStatus)) {
       // update
