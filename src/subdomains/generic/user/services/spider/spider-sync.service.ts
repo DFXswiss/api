@@ -215,19 +215,21 @@ export class SpiderSyncService {
 
   private async handleExpiring(userData: UserData): Promise<UserData> {
     // send reminder
-    await this.notificationService
-      .sendMail({
-        type: MailType.USER,
-        input: {
-          userData,
-          translationKey: 'mail.kyc.reminder',
-          translationParams: {
-            status: this.kycStatusTranslation[userData.kycStatus],
-            url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+    if (!userData.hasExternalUser) {
+      await this.notificationService
+        .sendMail({
+          type: MailType.USER,
+          input: {
+            userData,
+            translationKey: 'mail.kyc.reminder',
+            translationParams: {
+              status: this.kycStatusTranslation[userData.kycStatus],
+              url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+            },
           },
-        },
-      })
-      .catch(() => null);
+        })
+        .catch(() => null);
+    }
 
     return this.kycProcess.updateKycState(userData, KycState.REMINDED);
   }
