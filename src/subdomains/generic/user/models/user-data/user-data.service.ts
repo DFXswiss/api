@@ -17,7 +17,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { KycWebhookService } from '../kyc/kyc-webhook.service';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
-import { UserStatus } from '../user/user.entity';
 
 @Injectable()
 export class UserDataService {
@@ -226,7 +225,7 @@ export class UserDataService {
     // activate users
     if (master.hasActiveUser) {
       for (const user of master.users) {
-        if (user?.status === UserStatus.NA) await this.userRepo.update(user.id, { status: UserStatus.ACTIVE });
+        await this.userRepo.activateUser(user);
       }
     }
   }
