@@ -4,7 +4,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { User, UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index, Generated } from 'typeorm';
 import { SpiderData } from '../spider-data/spider-data.entity';
 import { TradingLimit } from '../user/dto/user.dto';
@@ -184,6 +184,10 @@ export class UserData extends IEntity {
 
   get hasExternalUser(): boolean {
     return !!this.users.find((e) => e.wallet.isKycClient === true);
+  }
+
+  get hasActiveUser(): boolean {
+    return !!this.users.find((e) => e.status === UserStatus.ACTIVE);
   }
 
   get tradingLimit(): TradingLimit {
