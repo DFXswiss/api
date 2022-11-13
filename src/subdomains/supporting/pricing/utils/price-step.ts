@@ -74,7 +74,7 @@ export class PriceStep {
   private async getMatchingPrice(
     fromCurrency: string,
     toCurrency: string,
-    matchThreshold = 0.005,
+    matchThreshold = 0.01,
   ): Promise<[Price, PriceProviderName]> {
     const [primaryPrice, primaryProvider] = await this.getPrimaryPrice(fromCurrency, toCurrency);
 
