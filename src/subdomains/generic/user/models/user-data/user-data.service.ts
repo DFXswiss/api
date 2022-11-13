@@ -221,6 +221,13 @@ export class UserDataService {
     // update volumes
     await this.updateVolumes(masterId);
     await this.updateVolumes(slaveId);
+
+    // activate users
+    if (master.hasActiveUser) {
+      for (const user of master.users) {
+        await this.userRepo.activateUser(user);
+      }
+    }
   }
 
   async getAllUserDataWithEmptyFileId(): Promise<number[]> {
