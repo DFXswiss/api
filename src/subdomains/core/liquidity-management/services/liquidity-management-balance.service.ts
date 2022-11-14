@@ -16,7 +16,6 @@ export class LiquidityManagementBalanceService {
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
     const balanceRequests = rules
       .map((rule) => {
-        // TODO -> think about call optimization, cause most of assets can be fetched in one batch/call
         const integration = this.balanceIntegrationFactory.getIntegration(rule);
 
         if (!integration) return null;
@@ -54,6 +53,17 @@ export class LiquidityManagementBalanceService {
 
   private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {
     for (const balance of balances) {
+      const existingBalance = await this.balanceRepo.findOne({
+        where: [{ asset: balance.asset }, { fiat: balance.fiat }],
+      });
+
+      if (existingBalance) {
+        existingBalance.updateBalance(balance.amount);
+        await this.balanceRepo.save(existingBalance);
+
+        return;
+      }
+
       await this.balanceRepo.save(balance);
     }
   }

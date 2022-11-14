@@ -28,6 +28,9 @@ export class LiquidityManagementService {
       const rules = await this.ruleRepo.find({ status: LiquidityManagementRuleStatus.ACTIVE });
       const balances = await this.balanceService.refreshBalances(rules);
 
+      // TODO -> subsequent balance fails, think about infinite asset purchase loop
+      // maybe by update field
+
       for (const rule of rules) {
         await this.verifyRule(rule, balances);
       }
@@ -59,6 +62,11 @@ export class LiquidityManagementService {
   private async executeRule(rule: LiquidityManagementRule, result: LiquidityVerificationResult): Promise<void> {
     if (await this.findExistingPipeline(rule)) return;
 
+    this.logRuleExecution(rule, result);
+
+    rule.processing();
+    await this.ruleRepo.save(rule);
+
     const newPipeline = LiquidityManagementPipeline.create(rule, result);
     await this.pipelineRepo.save(newPipeline);
   }
@@ -76,5 +84,16 @@ export class LiquidityManagementService {
         },
       ],
     });
+  }
+
+  private logRuleExecution(rule: LiquidityManagementRule, result: LiquidityVerificationResult): void {
+    const deficitMessage = `${result.liquidityDeficit} deficit`;
+    const redundancyMessage = `${result.liquidityRedundancy} redundancy`;
+
+    console.log(
+      `Executing liquidity management rule ${rule.id}. Verification result -> ${
+        result.liquidityDeficit ? deficitMessage : redundancyMessage
+      } of ${rule.target.name}`,
+    );
   }
 }

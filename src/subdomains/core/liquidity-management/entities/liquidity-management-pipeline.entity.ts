@@ -1,8 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinTable, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementRule } from './liquidity-management-rule.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus, LiquidityOptimizationType } from '../enums';
-import { LiquidityManagementOrder } from './liquidity-management-order.entity';
 import { LiquidityVerificationResult } from '../interfaces';
 import { LiquidityManagementAction } from './liquidity-management-action.entity';
 
@@ -24,9 +23,6 @@ export class LiquidityManagementPipeline extends IEntity {
   @JoinTable()
   currentAction: LiquidityManagementAction;
 
-  @OneToMany(() => LiquidityManagementOrder, (order) => order.pipeline, { eager: true })
-  orders: LiquidityManagementOrder[];
-
   @Column({ type: 'int', nullable: true })
   ordersProcessed: number;
 
@@ -40,7 +36,6 @@ export class LiquidityManagementPipeline extends IEntity {
 
     pipeline.status = LiquidityManagementPipelineStatus.CREATED;
     pipeline.rule = rule;
-    pipeline.orders = [];
     pipeline.ordersProcessed = 0;
     pipeline.type = this.getPipelineType(verificationResult);
     pipeline.targetAmount = verificationResult.liquidityDeficit || verificationResult.liquidityRedundancy;
@@ -57,9 +52,9 @@ export class LiquidityManagementPipeline extends IEntity {
     return this;
   }
 
-  // TODO -> link an order or is it redundant?
-  // TODO -> same for counter
   continue(currentActionOrderStatus: LiquidityManagementOrderStatus): this {
+    this.ordersProcessed++;
+
     if (currentActionOrderStatus === LiquidityManagementOrderStatus.COMPLETE) {
       if (this.currentAction.onSuccess) {
         this.currentAction = this.currentAction.onSuccess;

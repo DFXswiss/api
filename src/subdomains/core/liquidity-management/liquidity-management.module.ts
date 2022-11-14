@@ -1,6 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BankModule } from 'src/integration/bank/bank.module';
+import { AinModule } from 'src/integration/blockchain/ain/ain.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
+import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
+import { BankAdapter } from './adapters/balances/bank.adapter';
+import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
 import { LiquidityManagementRuleController } from './controllers/rule.controller';
 import { LiquidityActionIntegrationFactory } from './factories/liquidity-action-integration.factory';
 import { LiquidityBalanceIntegrationFactory } from './factories/liquidity-balance-integration.factory';
@@ -24,6 +31,10 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
       LiquidityBalanceRepository,
     ]),
     SharedModule,
+    DexModule,
+    AinModule,
+    BankModule,
+    NotificationModule,
   ],
   controllers: [LiquidityManagementRuleController],
   providers: [
@@ -33,6 +44,9 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     LiquidityManagementBalanceService,
     LiquidityActionIntegrationFactory,
     LiquidityBalanceIntegrationFactory,
+    BlockchainAdapter,
+    BankAdapter,
+    DfxDexAdapter,
   ],
   exports: [],
 })

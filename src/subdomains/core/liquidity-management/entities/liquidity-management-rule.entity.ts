@@ -73,13 +73,18 @@ export class LiquidityManagementRule extends IEntity {
     const deviation = Util.round(Math.abs(this.optimal - balance.amount), 8);
 
     const deficit = balance.amount < this.minimum ? deviation : 0;
-    const redundancy = !deficit && balance.amount > this.maximum ? deviation : 0;
+    const redundancy = !deficit && this.maximum && balance.amount > this.maximum ? deviation : 0;
 
     return {
       isOptimal: !(deficit || redundancy),
       liquidityDeficit: deficit,
       liquidityRedundancy: redundancy,
     };
+  }
+
+  processing(): this {
+    this.status = LiquidityManagementRuleStatus.PROCESSING;
+    return this;
   }
 
   deactivate(): this {

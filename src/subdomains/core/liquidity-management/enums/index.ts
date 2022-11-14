@@ -10,6 +10,7 @@ export enum LiquidityManagementSystem {
   CAKE = 'Cake',
   KRAKEN = 'Kraken',
   BINANCE = 'Binance',
+  DFX_DEX = 'DfxDex',
 }
 
 export enum LiquidityManagementRuleStatus {

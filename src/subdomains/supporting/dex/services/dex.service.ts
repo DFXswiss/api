@@ -127,6 +127,30 @@ export class DexService {
     return order.getPurchaseLiquidityResult();
   }
 
+  async checkOrderReady(
+    context: LiquidityOrderContext,
+    correlationId: string,
+  ): Promise<{ isReady: boolean; purchaseTxId: string }> {
+    const order = await this.liquidityOrderRepo.findOne({ context, correlationId });
+
+    const purchaseTxId = order && order.purchaseTxId;
+    const isReady = order && order.isReady;
+
+    return { isReady, purchaseTxId };
+  }
+
+  async checkOrderCompletion(
+    context: LiquidityOrderContext,
+    correlationId: string,
+  ): Promise<{ isComplete: boolean; purchaseTxId: string }> {
+    const order = await this.liquidityOrderRepo.findOne({ context, correlationId });
+
+    const purchaseTxId = order && order.purchaseTxId;
+    const isComplete = order && order.isComplete;
+
+    return { isComplete, purchaseTxId };
+  }
+
   async completeOrders(context: LiquidityOrderContext, correlationId: string): Promise<void> {
     const incompleteOrders = await this.liquidityOrderRepo.find({
       where: { context, correlationId, isComplete: false, isReady: true },

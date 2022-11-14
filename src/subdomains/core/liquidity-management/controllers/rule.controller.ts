@@ -20,6 +20,8 @@ export class LiquidityManagementRuleController {
     return this.service.createRule(dto);
   }
 
+  // TODO -> API for updating minimum and maximum
+
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
