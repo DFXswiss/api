@@ -12,6 +12,8 @@ import { SellService } from '../sell/sell.service';
 import { SellHistoryDto } from '../sell/dto/sell-history.dto';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-output.service';
+import { CreateFiatOutputDto } from '../../../supporting/bank/fiat-output/dto/create-fiat-output.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -21,6 +23,7 @@ export class BuyFiatService {
     private readonly sellRepo: SellRepository,
     private readonly sellService: SellService,
     private readonly bankTxService: BankTxService,
+    private readonly fiatOutputService: FiatOutputService,
   ) {}
 
   async create(cryptoInput: CryptoInput): Promise<BuyFiat> {
@@ -28,6 +31,7 @@ export class BuyFiatService {
 
     entity.cryptoInput = cryptoInput;
     entity.sell = cryptoInput.route as Sell;
+    entity.fiatOutput = await this.fiatOutputService.create({ buyFiat: entity } as CreateFiatOutputDto);
 
     return await this.buyFiatRepo.save(entity);
   }
