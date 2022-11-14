@@ -6,8 +6,9 @@ import { LimitRequestDto } from './dto/limit-request.dto';
 import { LimitRequestRepository } from './limit-request.repository';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
-import { LimitRequest } from './limit-request.entity';
+import { LimitRequest, LimitRequestAccepted } from './limit-request.entity';
 import { Util } from 'src/shared/utils/util';
+import { KycWebhookService } from '../kyc/kyc-webhook.service';
 
 @Injectable()
 export class LimitRequestService {
@@ -15,6 +16,7 @@ export class LimitRequestService {
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly userDataService: UserDataService,
     private readonly spiderService: SpiderService,
+    private readonly kycWebhookService: KycWebhookService,
   ) {}
 
   async increaseLimit(dto: LimitRequestDto, kycHash: string, userId?: number): Promise<void> {
@@ -58,6 +60,8 @@ export class LimitRequestService {
     if (!entity) throw new NotFoundException('LimitRequest not found');
 
     const update = this.limitRequestRepo.create(dto);
+
+    if (LimitRequestAccepted(dto.decision)) this.kycWebhookService.kycChanged(entity.userData);
 
     Util.removeNullFields(entity);
 
