@@ -212,6 +212,11 @@ export class AdminController {
           this.insertEmptyCol(arrayData, 8, ['isMigrated (deactivated)']);
 
           break;
+
+        case 'bank_data':
+          this.insertEmptyCol(arrayData, 2, ['location', 'country']);
+
+          break;
       }
     }
 
