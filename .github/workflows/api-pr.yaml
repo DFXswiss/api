@@ -2,8 +2,9 @@ name: API PR CI
 
 on:
   pull_request:
-    branches:    
+    branches:
       - master
+      - develop
   workflow_dispatch:
 
 env:
