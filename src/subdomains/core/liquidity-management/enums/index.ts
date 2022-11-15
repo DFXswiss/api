@@ -30,6 +30,7 @@ export enum LiquidityManagementPipelineStatus {
   CREATED = 'Created',
   IN_PROGRESS = 'InProgress',
   COMPLETE = 'Complete',
+  STOPPED = 'Stopped',
   FAILED = 'Failed',
 }
 

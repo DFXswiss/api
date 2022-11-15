@@ -33,16 +33,7 @@ export class LiquidityManagementRuleService {
       throw new BadRequestException(`Rule for specified asset/fiat already exists. Rule ID: ${existingRule.id}`);
     }
 
-    const [targetAsset, targetFiat] = await this.checkTarget(dto);
-    const [firstDeficitAction, firstRedundancyAction] = await this.checkActions(dto);
-
-    const rule = await LiquidityManagementRuleFactory.create(
-      dto,
-      targetAsset,
-      targetFiat,
-      firstDeficitAction,
-      firstRedundancyAction,
-    );
+    const rule = await this.checkAndCreateInstance(dto);
 
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
   }

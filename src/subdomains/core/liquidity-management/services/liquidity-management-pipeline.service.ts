@@ -56,6 +56,21 @@ export class LiquidityManagementPipelineService {
 
   //*** PUBLIC API ***//
 
+  async getProcessingPipelines(): Promise<LiquidityManagementPipeline[]> {
+    return this.pipelineRepo.find({
+      where: [
+        { status: LiquidityManagementPipelineStatus.CREATED },
+        { status: LiquidityManagementPipelineStatus.IN_PROGRESS },
+      ],
+    });
+  }
+
+  async getStoppedPipelines(): Promise<LiquidityManagementPipeline[]> {
+    return this.pipelineRepo.find({
+      status: LiquidityManagementPipelineStatus.STOPPED,
+    });
+  }
+
   async getProcessingOrders(): Promise<LiquidityManagementOrder[]> {
     return this.orderRepo.find({
       where: [
@@ -88,11 +103,15 @@ export class LiquidityManagementPipelineService {
   private async checkRunningPipelines(): Promise<void> {
     const runningPipelines = await this.pipelineRepo.find({
       where: { status: LiquidityManagementPipelineStatus.IN_PROGRESS },
+      relations: ['currentAction', 'currentAction.onSuccess', 'currentAction.onFail'],
     });
 
     for (const pipeline of runningPipelines) {
       try {
-        const order = await this.orderRepo.findOne({ pipeline, action: pipeline.currentAction });
+        const order = await this.orderRepo.findOne({
+          pipeline,
+          action: pipeline.currentAction,
+        });
 
         if (!order) {
           await this.placeLiquidityOrder(pipeline);

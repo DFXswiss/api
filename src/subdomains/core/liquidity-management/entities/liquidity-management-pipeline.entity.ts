@@ -55,6 +55,13 @@ export class LiquidityManagementPipeline extends IEntity {
   continue(currentActionOrderStatus: LiquidityManagementOrderStatus): this {
     this.ordersProcessed++;
 
+    if (this.ordersProcessed >= 50) {
+      this.currentAction = null;
+      this.status = LiquidityManagementPipelineStatus.STOPPED;
+
+      return this;
+    }
+
     if (currentActionOrderStatus === LiquidityManagementOrderStatus.COMPLETE) {
       if (this.currentAction.onSuccess) {
         this.currentAction = this.currentAction.onSuccess;

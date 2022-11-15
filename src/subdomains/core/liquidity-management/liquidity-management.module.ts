@@ -9,7 +9,8 @@ import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
 import { LiquidityBalanceController } from './controllers/balance.controller';
-import { LiquidityOrderController } from './controllers/order.controller';
+import { LiquidityManagementOrderController } from './controllers/order.controller';
+import { LiquidityManagementPipelineController } from './controllers/pipeline.controller';
 import { LiquidityManagementRuleController } from './controllers/rule.controller';
 import { LiquidityActionIntegrationFactory } from './factories/liquidity-action-integration.factory';
 import { LiquidityBalanceIntegrationFactory } from './factories/liquidity-balance-integration.factory';
@@ -38,7 +39,12 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BankModule,
     NotificationModule,
   ],
-  controllers: [LiquidityManagementRuleController, LiquidityBalanceController, LiquidityOrderController],
+  controllers: [
+    LiquidityManagementRuleController,
+    LiquidityBalanceController,
+    LiquidityManagementOrderController,
+    LiquidityManagementPipelineController,
+  ],
   providers: [
     LiquidityManagementService,
     LiquidityManagementRuleService,
