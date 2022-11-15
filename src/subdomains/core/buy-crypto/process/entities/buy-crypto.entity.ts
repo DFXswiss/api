@@ -14,6 +14,11 @@ import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { Buy } from '../../route/buy.entity';
 
+export enum BuyCryptoStatus {
+  WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
+  COMPLETE = 'Complete',
+}
+
 @Entity()
 export class BuyCrypto extends IEntity {
   @OneToOne(() => BankTx, { nullable: true })
@@ -118,6 +123,9 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => BuyCryptoFee, (fee) => fee.buyCrypto, { eager: true, cascade: true })
   fee: BuyCryptoFee;
 
+  @Column({ length: 256, nullable: true })
+  status: BuyCryptoStatus;
+
   defineAssetExchangePair(): { outputReferenceAssetName: string; type: AssetType } | null {
     this.outputAsset = this.target?.asset;
 
@@ -206,10 +214,17 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
+  waitingForLowerFee(): this {
+    this.status = BuyCryptoStatus.WAITING_FOR_LOWER_FEE;
+
+    return this;
+  }
+
   complete(payoutTxId: string, payoutFee: number): this {
     this.txId = payoutTxId;
     this.outputDate = new Date();
     this.isComplete = true;
+    this.status = BuyCryptoStatus.COMPLETE;
     this.fee.addActualPayoutFee(payoutFee, this);
 
     return this;

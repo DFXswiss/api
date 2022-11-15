@@ -7,6 +7,7 @@ import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
 import { AbortBatchCreationException } from '../exceptions/abort-batch-creation.exception';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
 import { BuyCrypto } from './buy-crypto.entity';
+import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 
 export enum BuyCryptoBatchStatus {
   CREATED = 'Created',
@@ -213,7 +214,7 @@ export class BuyCryptoBatch extends IEntity {
     const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
 
     if (feeRatio > (configuredFeeLimit ?? defaultFeeLimit)) {
-      throw new Error(
+      throw new FeeLimitExceededException(
         `BuyCryptoBatch fee limit exceeded. Output Asset: ${this.outputAsset.dexName}. Fee ratio: ${Util.round(
           feeRatio * 100,
           5,
