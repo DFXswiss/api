@@ -18,6 +18,7 @@ import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.
 import { DexService } from '../../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { DexUtil } from '../../../utils/dex.util';
 
 @Injectable()
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
@@ -105,18 +106,8 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     });
   }
 
-  private parseAssetPair(asset: Asset): [string, string] {
-    const assetPair = asset.dexName.split('-');
-
-    if (assetPair.length !== 2) {
-      throw new Error(`Provided asset is not a liquidity pool pair. dexName: ${asset.dexName}`);
-    }
-
-    return [assetPair[0], assetPair[1]];
-  }
-
   private async getAssetPair(asset: Asset): Promise<[Asset, Asset]> {
-    const assetPair = this.parseAssetPair(asset);
+    const assetPair = DexUtil.parseAssetPair(asset);
 
     const leftAsset = await this.assetService.getAssetByQuery({
       dexName: assetPair[0],
@@ -168,7 +159,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   private async addPoolPair(parentOrder: LiquidityOrder, derivedOrders: LiquidityOrder[]): Promise<void> {
-    const [leftAsset, rightAsset] = this.parseAssetPair(parentOrder.targetAsset);
+    const [leftAsset, rightAsset] = DexUtil.parseAssetPair(parentOrder.targetAsset);
 
     const leftOrder = derivedOrders.find((o) => o.targetAsset.dexName === leftAsset);
     const rightOrder = derivedOrders.find((o) => o.targetAsset.dexName === rightAsset);
