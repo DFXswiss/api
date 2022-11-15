@@ -8,6 +8,8 @@ import { NotificationModule } from 'src/subdomains/supporting/notification/notif
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { BankAdapter } from './adapters/balances/bank.adapter';
 import { BlockchainAdapter } from './adapters/balances/blockchain.adapter';
+import { LiquidityBalanceController } from './controllers/balance.controller';
+import { LiquidityOrderController } from './controllers/order.controller';
 import { LiquidityManagementRuleController } from './controllers/rule.controller';
 import { LiquidityActionIntegrationFactory } from './factories/liquidity-action-integration.factory';
 import { LiquidityBalanceIntegrationFactory } from './factories/liquidity-balance-integration.factory';
@@ -36,7 +38,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     BankModule,
     NotificationModule,
   ],
-  controllers: [LiquidityManagementRuleController],
+  controllers: [LiquidityManagementRuleController, LiquidityBalanceController, LiquidityOrderController],
   providers: [
     LiquidityManagementService,
     LiquidityManagementRuleService,

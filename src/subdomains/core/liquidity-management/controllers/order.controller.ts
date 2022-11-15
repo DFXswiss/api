@@ -8,7 +8,7 @@ import { LiquidityManagementPipelineService } from '../services/liquidity-manage
 
 @ApiTags('liquidity-management')
 @Controller('liquidity-management/order')
-export class LiquidityBalanceController {
+export class LiquidityOrderController {
   constructor(private readonly service: LiquidityManagementPipelineService) {}
 
   @Get('in-progress')
