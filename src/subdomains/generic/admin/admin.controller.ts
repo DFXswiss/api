@@ -213,6 +213,12 @@ export class AdminController {
 
           break;
 
+        case 'buy_crypto':
+          this.insertEmptyCol(arrayData, 17, ['outputAsset']);
+          this.insertEmptyCol(arrayData, 15, ['outputReferenceAsset']);
+          
+          break;
+          
         case 'bank_data':
           this.insertEmptyCol(arrayData, 2, ['location', 'country']);
 
