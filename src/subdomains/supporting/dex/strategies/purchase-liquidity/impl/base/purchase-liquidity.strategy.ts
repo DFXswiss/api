@@ -8,12 +8,12 @@ import { PriceSlippageException } from '../../../../exceptions/price-slippage.ex
 import { LiquidityRequest } from '../../../../interfaces';
 
 export abstract class PurchaseLiquidityStrategy {
-  #feeAsset: Asset;
+  private _feeAsset: Asset;
 
   constructor(protected readonly notificationService: NotificationService) {}
 
   async feeAsset(): Promise<Asset> {
-    return this.#feeAsset ?? this.getFeeAsset();
+    return (this._feeAsset ??= await this.getFeeAsset());
   }
 
   abstract purchaseLiquidity(request: LiquidityRequest): Promise<void>;

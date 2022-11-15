@@ -383,7 +383,7 @@ export class UserService {
   }
 
   async activateUser(user?: User): Promise<void> {
-    if (user?.status === UserStatus.NA) await this.userRepo.update(user.id, { status: UserStatus.ACTIVE });
+    await this.userRepo.activateUser(user);
   }
 
   private async checkRef(user: User, usedRef: string): Promise<string> {

@@ -7,6 +7,7 @@ import { UserMail, UserMailInput } from '../entities/mail/user-mail';
 import { MailType } from '../enums';
 import { MailRequest, MailRequestGenericInput } from '../interfaces';
 import { PersonalMail, PersonalMailInput } from '../entities/mail/personal-mail';
+import { Config } from 'src/config/config';
 
 @Injectable()
 export class MailFactory {
@@ -46,9 +47,17 @@ export class MailFactory {
     const input = request.input as MailRequestGenericInput;
     const { metadata, options } = request;
 
+    const defaultParams: Partial<MailRequestGenericInput> = {
+      twitterUrl: Config.defaultTwitterUrl,
+      telegramUrl: Config.defaultTelegramUrl,
+      linkedinUrl: Config.defaultLinkedinUrl,
+      instagramUrl: Config.defaultInstagramUrl,
+      date: new Date().getFullYear(),
+    };
+
     const mailParams: MailParams = {
       ...input,
-      templateParams: input,
+      templateParams: { ...defaultParams, ...input },
       metadata,
       options,
     };
