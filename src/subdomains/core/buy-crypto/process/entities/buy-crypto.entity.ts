@@ -16,6 +16,7 @@ import { Buy } from '../../route/buy.entity';
 
 export enum BuyCryptoStatus {
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
+  IN_PROGRESS = 'InProgress',
   COMPLETE = 'Complete',
 }
 
@@ -215,7 +216,15 @@ export class BuyCrypto extends IEntity {
   }
 
   waitingForLowerFee(): this {
+    this.resetTransaction();
     this.status = BuyCryptoStatus.WAITING_FOR_LOWER_FEE;
+
+    return this;
+  }
+
+  recordFee(fee: BuyCryptoFee): this {
+    this.fee = fee;
+    this.status = BuyCryptoStatus.IN_PROGRESS;
 
     return this;
   }
@@ -271,5 +280,22 @@ export class BuyCrypto extends IEntity {
             ? Util.trimBlockchainAddress(this.cryptoRoute.user.address)
             : null,
         };
+  }
+
+  //*** HELPER METHODS ***//
+
+  private resetTransaction(): this {
+    this.outputReferenceAmount = null;
+    this.outputReferenceAsset = null;
+    this.outputAsset = null;
+    this.status = null;
+    this.batch = null;
+    this.isComplete = false;
+    this.outputAmount = null;
+    this.outputDate = null;
+    this.mailSendDate = null;
+    this.recipientMail = null;
+
+    return this;
   }
 }

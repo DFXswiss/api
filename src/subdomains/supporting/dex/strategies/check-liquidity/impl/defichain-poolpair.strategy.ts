@@ -63,7 +63,7 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
       type: AssetType.TOKEN,
     });
 
-    const requiredAmount = await this.dexDeFiChainService.getSwapAmountForPurchase(
+    const requiredAmount = await this.dexDeFiChainService.calculateSwapAmountForPurchase(
       referenceAsset,
       referenceAmount,
       null,

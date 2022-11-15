@@ -231,7 +231,7 @@ export class BuyCryptoBatch extends IEntity {
         tx,
       );
 
-      tx.fee = fee;
+      tx.recordFee(fee);
     });
   }
 
