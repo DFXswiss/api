@@ -43,6 +43,10 @@ export class LiquidityManagementBalanceService {
     return balance;
   }
 
+  async getBalances(): Promise<LiquidityBalance[]> {
+    return this.balanceRepo.find();
+  }
+
   //*** HELPER METHODS ***//
 
   private filterFulfilledBalanceCalls(

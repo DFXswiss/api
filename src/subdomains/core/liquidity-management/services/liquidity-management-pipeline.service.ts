@@ -54,6 +54,17 @@ export class LiquidityManagementPipelineService {
     }
   }
 
+  //*** PUBLIC API ***//
+
+  async getProcessingOrders(): Promise<LiquidityManagementOrder[]> {
+    return this.orderRepo.find({
+      where: [
+        { status: LiquidityManagementOrderStatus.CREATED },
+        { status: LiquidityManagementOrderStatus.IN_PROGRESS },
+      ],
+    });
+  }
+
   //*** HELPER METHODS ***//
 
   async startNewPipelines(): Promise<void> {
