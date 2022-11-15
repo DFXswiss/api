@@ -10,6 +10,6 @@ export class BankAdapter implements LiquidityBalanceIntegration {
       throw new Error(`BankAdapter supports only Fiat.`);
     }
 
-    return null;
+    throw new Error(`Method not implemented.`);
   }
 }

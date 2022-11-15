@@ -24,13 +24,13 @@ export class LiquidityManagementRule extends IEntity {
   targetFiat: Fiat;
 
   @Column({ type: 'float', nullable: true })
-  minimum: number;
+  minimal: number;
 
   @Column({ type: 'float', nullable: true })
   optimal: number;
 
   @Column({ type: 'float', nullable: true })
-  maximum: number;
+  maximal: number;
 
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   deficitStartAction: LiquidityManagementAction;
@@ -44,9 +44,9 @@ export class LiquidityManagementRule extends IEntity {
     context: LiquidityManagementContext,
     targetAsset: Asset,
     targetFiat: Fiat,
-    minimum: number,
+    minimal: number,
     optimal: number,
-    maximum: number,
+    maximal: number,
     deficitStartAction: LiquidityManagementAction,
     redundancyStartAction: LiquidityManagementAction,
   ): LiquidityManagementRule {
@@ -56,9 +56,9 @@ export class LiquidityManagementRule extends IEntity {
     rule.context = context;
     rule.targetAsset = targetAsset;
     rule.targetFiat = targetFiat;
-    rule.minimum = minimum;
+    rule.minimal = minimal;
     rule.optimal = optimal;
-    rule.maximum = maximum;
+    rule.maximal = maximal;
     rule.deficitStartAction = deficitStartAction;
     rule.redundancyStartAction = redundancyStartAction;
 
@@ -72,8 +72,8 @@ export class LiquidityManagementRule extends IEntity {
   verify(balance: LiquidityBalance): LiquidityVerificationResult {
     const deviation = Util.round(Math.abs(this.optimal - balance.amount), 8);
 
-    const deficit = balance.amount < this.minimum ? deviation : 0;
-    const redundancy = !deficit && this.maximum && balance.amount > this.maximum ? deviation : 0;
+    const deficit = balance.amount < this.minimal ? deviation : 0;
+    const redundancy = !deficit && this.maximal && balance.amount > this.maximal ? deviation : 0;
 
     return {
       isOptimal: !(deficit || redundancy),

@@ -7,9 +7,8 @@ import { CorrelationId, LiquidityActionIntegration } from '../../interfaces';
 
 @Injectable()
 export class DfxDexAdapter implements LiquidityActionIntegration {
-  private commands = new Map<string, (asset: Asset, amount: number, correlationId: number) => Promise<CorrelationId>>();
-
   private _supportedCommands: string[];
+  private commands = new Map<string, (asset: Asset, amount: number, correlationId: number) => Promise<CorrelationId>>();
 
   constructor(private readonly dexService: DexService) {
     this.commands.set('purchase', this.purchase.bind(this));
@@ -17,8 +16,13 @@ export class DfxDexAdapter implements LiquidityActionIntegration {
     this._supportedCommands = [...this.commands.keys()];
   }
 
-  async runCommand(command: string, order: LiquidityManagementOrder): Promise<CorrelationId> {
+  /**
+   * @note
+   * Returned correlationId is ignored in case of DFX DEX. correlation is provided by client call (liquidity management)
+   */
+  async executeOrder(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const {
+      action: { command },
       pipeline: {
         rule: { target: asset },
       },

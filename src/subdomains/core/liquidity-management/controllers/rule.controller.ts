@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -20,7 +20,16 @@ export class LiquidityManagementRuleController {
     return this.service.createRule(dto);
   }
 
-  // TODO -> API for updating minimum and maximum
+  @Put(':id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateRule(
+    @Param('id') id: number,
+    @Body() dto: LiquidityManagementRuleCreationDto,
+  ): Promise<LiquidityManagementRuleOutputDto> {
+    return this.service.updateRule(id, dto);
+  }
 
   @Get(':id')
   @ApiBearerAuth()

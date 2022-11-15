@@ -10,7 +10,7 @@ export class LiquidityManagementPipeline extends IEntity {
   @Column({ length: 256, nullable: false })
   status: LiquidityManagementPipelineStatus;
 
-  @ManyToOne(() => LiquidityManagementRule, { nullable: false, eager: true })
+  @ManyToOne(() => LiquidityManagementRule, { eager: true, nullable: false })
   rule: LiquidityManagementRule;
 
   @Column({ length: 256, nullable: false })
@@ -59,6 +59,7 @@ export class LiquidityManagementPipeline extends IEntity {
       if (this.currentAction.onSuccess) {
         this.currentAction = this.currentAction.onSuccess;
       } else {
+        this.currentAction = null;
         this.status = LiquidityManagementPipelineStatus.COMPLETE;
       }
     }
@@ -67,6 +68,7 @@ export class LiquidityManagementPipeline extends IEntity {
       if (this.currentAction.onFail) {
         this.currentAction = this.currentAction.onFail;
       } else {
+        this.currentAction = null;
         this.status = LiquidityManagementPipelineStatus.FAILED;
       }
     }

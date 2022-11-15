@@ -9,9 +9,9 @@ export class LiquidityManagementRuleOutputDtoMapper {
     dto.status = entity.status;
     dto.targetAsset = entity.targetAsset;
     dto.targetFiat = entity.targetFiat;
-    dto.minimum = entity.minimum;
+    dto.minimal = entity.minimal;
     dto.optimal = entity.optimal;
-    dto.maximum = entity.maximum;
+    dto.maximal = entity.maximal;
     dto.deficitStartActionId = entity.deficitStartAction?.id;
     dto.redundancyStartActionId = entity.redundancyStartAction?.id;
 

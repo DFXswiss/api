@@ -28,9 +28,6 @@ export class LiquidityManagementService {
       const rules = await this.ruleRepo.find({ status: LiquidityManagementRuleStatus.ACTIVE });
       const balances = await this.balanceService.refreshBalances(rules);
 
-      // TODO -> subsequent balance fails, think about infinite asset purchase loop
-      // maybe by update field
-
       for (const rule of rules) {
         await this.verifyRule(rule, balances);
       }

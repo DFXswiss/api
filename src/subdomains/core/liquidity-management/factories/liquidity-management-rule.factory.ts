@@ -7,14 +7,14 @@ import { LiquidityManagementRule } from '../entities/liquidity-management-rule.e
 
 @Injectable()
 export class LiquidityManagementRuleFactory {
-  static async create(
+  static create(
     dto: LiquidityManagementRuleCreationDto,
     targetAsset: Asset,
     targetFiat: Fiat,
     firstDeficitAction: LiquidityManagementAction,
     firstRedundancyAction: LiquidityManagementAction,
-  ): Promise<LiquidityManagementRule> {
-    const { context, minimum: minimal, optimal, maximum } = dto;
+  ): LiquidityManagementRule {
+    const { context, minimal, optimal, maximal } = dto;
 
     return LiquidityManagementRule.create(
       context,
@@ -22,7 +22,7 @@ export class LiquidityManagementRuleFactory {
       targetFiat,
       minimal,
       optimal,
-      maximum,
+      maximal,
       firstDeficitAction,
       firstRedundancyAction,
     );

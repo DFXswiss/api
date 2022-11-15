@@ -8,8 +8,14 @@ import { LiquidityBalanceIntegration } from '../../interfaces';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
+import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 
 type AssetHash = string;
+interface Balance {
+  name: string;
+  type: AssetType;
+  amount: number;
+}
 
 @Injectable()
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
@@ -17,7 +23,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private defiChainCache: Map<AssetHash, number> = new Map();
   private defiChainCacheTimestamp = 0;
-  private defiChainCacheUpdate: Promise<Map<AssetHash, number>> | null = null;
+  private defiChainCacheUpdateCall: Promise<Map<AssetHash, number>> | null = null;
 
   constructor(private readonly dexService: DexService, readonly nodeService: NodeService) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -40,7 +46,9 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       return LiquidityBalance.create(asset, await this.getForDeFiChain(asset));
     }
 
-    throw new Error('');
+    throw new Error(
+      `Error when getting balance for liquidity management. Provided blockchain is not supported by BlockchainAdapter: ${asset.blockchain}`,
+    );
   }
 
   //*** HELPER METHODS ***//
@@ -60,44 +68,37 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   private async getForDeFiChain(asset: Asset): Promise<number> {
-    if (!this.defiChainCacheUpdate && Date.now() - this.defiChainCacheTimestamp > 30000) {
+    if (!this.defiChainCacheUpdateCall && Date.now() - this.defiChainCacheTimestamp > 30000) {
       return this.updateCache().then(() => this.getFromCache(asset));
     }
 
-    if (!this.defiChainCacheUpdate && Date.now() - this.defiChainCacheTimestamp <= 30000) {
+    if (!this.defiChainCacheUpdateCall && Date.now() - this.defiChainCacheTimestamp <= 30000) {
       return this.getFromCache(asset);
     }
 
-    return this.defiChainCacheUpdate.then(() => this.getFromCache(asset));
+    return this.defiChainCacheUpdateCall.then(() => this.getFromCache(asset));
   }
 
   private async updateCache(): Promise<Map<AssetHash, number>> {
-    if (this.defiChainCacheUpdate) return this.defiChainCacheUpdate;
+    if (this.defiChainCacheUpdateCall) return this.defiChainCacheUpdateCall;
 
-    this.defiChainCacheUpdate = this.getNewBalances();
+    /**
+     * @note
+     * Should assign promise, not the result of the promise
+     */
+    this.defiChainCacheUpdateCall = this.getNewBalances();
 
-    return this.defiChainCacheUpdate;
+    return this.defiChainCacheUpdateCall;
   }
 
   private async getNewBalances(): Promise<Map<AssetHash, number>> {
     const tokens = await this.dexClient.getToken();
     const coinAmount = await this.dexClient.getBalance();
 
-    const tokensResult = tokens
-      .map((t) => {
-        const { asset, amount } = this.dexClient.parseAmount(t.amount);
+    const tokensResult = this.aggregateBalances(tokens, +coinAmount);
 
-        return { name: asset, type: AssetType.TOKEN, amount };
-      })
-      .concat([{ name: 'DFI', type: AssetType.COIN, amount: +coinAmount }]);
-
-    for (const token of tokensResult) {
-      const { name, type, amount } = token;
-
-      this.defiChainCache.set(JSON.stringify({ name, type }), amount);
-    }
-
-    this.defiChainCacheUpdate = null;
+    this.setCache(tokensResult);
+    this.resetCacheUpdateCall();
 
     return this.defiChainCache;
   }
@@ -106,5 +107,27 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     const { dexName: name, type } = asset;
 
     return this.defiChainCache.get(JSON.stringify({ name, type }));
+  }
+
+  private aggregateBalances(tokens: AccountResult<string, string>[], coinAmount: number): Balance[] {
+    return tokens
+      .map((t) => {
+        const { asset, amount } = this.dexClient.parseAmount(t.amount);
+
+        return { name: asset, type: AssetType.TOKEN, amount };
+      })
+      .concat([{ name: 'DFI', type: AssetType.COIN, amount: +coinAmount }]);
+  }
+
+  private setCache(balances: Balance[]): void {
+    for (const balance of balances) {
+      const { name, type, amount } = balance;
+
+      this.defiChainCache.set(JSON.stringify({ name, type }), amount);
+    }
+  }
+
+  private resetCacheUpdateCall(): void {
+    this.defiChainCacheUpdateCall = null;
   }
 }

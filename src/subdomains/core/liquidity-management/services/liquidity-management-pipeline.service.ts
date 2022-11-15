@@ -144,7 +144,7 @@ export class LiquidityManagementPipelineService {
   private async executeOrder(order: LiquidityManagementOrder): Promise<void> {
     const actionIntegration = this.actionIntegrationFactory.getIntegration(order.action);
 
-    await actionIntegration.runCommand(order.action.command, order);
+    await actionIntegration.executeOrder(order);
     order.inProgress();
 
     await this.orderRepo.save(order);

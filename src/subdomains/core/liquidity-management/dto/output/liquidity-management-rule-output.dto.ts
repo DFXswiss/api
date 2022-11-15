@@ -7,9 +7,9 @@ export class LiquidityManagementRuleOutputDto {
   status: LiquidityManagementRuleStatus;
   targetAsset: Asset;
   targetFiat: Fiat;
-  minimum: number;
+  minimal: number;
   optimal: number;
-  maximum: number;
+  maximal: number;
   deficitStartActionId: number;
   redundancyStartActionId: number;
 }

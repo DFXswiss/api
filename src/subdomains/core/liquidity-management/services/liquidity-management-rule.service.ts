@@ -47,6 +47,17 @@ export class LiquidityManagementRuleService {
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
   }
 
+  async updateRule(id: number, dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRuleOutputDto> {
+    const existingRule = await this.ruleRepo.findOne({ id });
+
+    if (!existingRule) throw new BadRequestException(`Rule with ID: ${id} was not found.`);
+
+    const rule = await this.checkAndCreateInstance(dto);
+    const updatedRule = await this.ruleRepo.save({ ...existingRule, ...rule });
+
+    return LiquidityManagementRuleOutputDtoMapper.entityToDto(updatedRule);
+  }
+
   async getRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
     const rule = await this.ruleRepo.findOne({ id });
 
@@ -58,7 +69,7 @@ export class LiquidityManagementRuleService {
   async deactivateRule(id: number): Promise<LiquidityManagementRuleOutputDto> {
     const rule = await this.ruleRepo.findOne({ id });
 
-    if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
+    if (!rule) throw new NotFoundException(`Rule with id ${id} was not found.`);
 
     rule.deactivate();
 
@@ -76,6 +87,19 @@ export class LiquidityManagementRuleService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async checkAndCreateInstance(dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRule> {
+    const [targetAsset, targetFiat] = await this.checkTarget(dto);
+    const [firstDeficitAction, firstRedundancyAction] = await this.checkActions(dto);
+
+    return LiquidityManagementRuleFactory.create(
+      dto,
+      targetAsset,
+      targetFiat,
+      firstDeficitAction,
+      firstRedundancyAction,
+    );
+  }
 
   private async findExistingRuleOnCreation(
     dto: LiquidityManagementRuleCreationDto,

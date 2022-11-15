@@ -34,23 +34,23 @@ export class LiquidityManagementRuleCreationDto {
   @IsInt()
   targetFiatId: number;
 
-  @ValidateIf((dto) => dto.minimum || (!dto.maximum && !dto.minimum))
-  @Validate(OR, ['maximum'])
+  @ValidateIf((dto) => dto.minimal || (!dto.maximal && !dto.minimal))
+  @Validate(OR, ['maximal'])
   @Validate(AND, ['deficitActions'])
   @IsNumber()
-  minimum: number;
+  minimal: number;
 
   @IsNotEmpty()
   @IsNumber()
   optimal: number;
 
-  @ValidateIf((dto) => dto.maximum || (!dto.maximum && !dto.minimum))
-  @Validate(OR, ['minimum'])
+  @ValidateIf((dto) => dto.maximal || (!dto.maximal && !dto.minimal))
+  @Validate(OR, ['minimal'])
   @Validate(AND, ['redundancyActions'])
   @IsNumber()
-  maximum: number;
+  maximal: number;
 
-  @ValidateIf((dto) => dto.minimum)
+  @ValidateIf((dto) => dto.minimal)
   @IsArray()
   @ArrayMinSize(1)
   @Validate(LiquidityActionsFirstStepValidator)
@@ -60,7 +60,7 @@ export class LiquidityManagementRuleCreationDto {
   @Type(() => LiquidityManagementActionDto)
   deficitActions: LiquidityManagementActionDto[];
 
-  @ValidateIf((dto) => dto.maximum)
+  @ValidateIf((dto) => dto.maximal)
   @IsArray()
   @ArrayMinSize(1)
   @Validate(LiquidityActionsFirstStepValidator)

@@ -25,7 +25,7 @@ export class LiquidityManagementBalanceService {
       .filter((i) => i);
 
     const balances = await Promise.allSettled(balanceRequests).then((values) =>
-      values.filter(this.filterRejectedBalanceCalls).map((b) => b.value),
+      values.filter(this.filterFulfilledBalanceCalls).map((b) => b.value),
     );
 
     await this.saveBalanceResults(balances);
@@ -45,7 +45,7 @@ export class LiquidityManagementBalanceService {
 
   //*** HELPER METHODS ***//
 
-  private filterRejectedBalanceCalls(
+  private filterFulfilledBalanceCalls(
     result: PromiseSettledResult<LiquidityBalance>,
   ): result is PromiseFulfilledResult<LiquidityBalance> {
     return result.status === 'fulfilled';
@@ -53,18 +53,22 @@ export class LiquidityManagementBalanceService {
 
   private async saveBalanceResults(balances: LiquidityBalance[]): Promise<void> {
     for (const balance of balances) {
-      const existingBalance = await this.balanceRepo.findOne({
-        where: [{ asset: balance.asset }, { fiat: balance.fiat }],
-      });
+      try {
+        const existingBalance = await this.balanceRepo.findOne({
+          where: [{ asset: balance.asset }, { fiat: balance.fiat }],
+        });
 
-      if (existingBalance) {
-        existingBalance.updateBalance(balance.amount);
-        await this.balanceRepo.save(existingBalance);
+        if (existingBalance) {
+          existingBalance.updateBalance(balance.amount);
+          await this.balanceRepo.save(existingBalance);
 
-        return;
+          return;
+        }
+
+        await this.balanceRepo.save(balance);
+      } catch (e) {
+        console.error(`Could not save balance of ${balance.target.name}.`, e);
       }
-
-      await this.balanceRepo.save(balance);
     }
   }
 }
