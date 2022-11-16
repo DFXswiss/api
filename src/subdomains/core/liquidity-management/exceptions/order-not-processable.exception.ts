@@ -1,5 +1,5 @@
 export class OrderNotProcessableException extends Error {
-  constructor() {
-    super();
+  constructor(message: string) {
+    super(message);
   }
 }

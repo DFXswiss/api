@@ -16,6 +16,7 @@ export enum LiquidityManagementSystem {
 export enum LiquidityManagementRuleStatus {
   ACTIVE = 'Active',
   INACTIVE = 'Inactive',
+  PAUSED = 'Paused',
   PROCESSING = 'Processing',
 }
 

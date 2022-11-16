@@ -3,7 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
-import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
+import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexUtil } from '../../../utils/dex.util';
 import { CheckLiquidityUtil } from '../utils/check-liquidity.util';
@@ -22,7 +22,7 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
    * Assume there is no pool pair liquidity available on DEX node
    * special case - availability check and target amount calculation is omitted
    */
-  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
+  async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, targetAsset } = request;
 
     const referenceMaxPurchasableAmount = await this.calculateReferenceMaxPurchasableAmount(

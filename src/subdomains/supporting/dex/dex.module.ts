@@ -17,17 +17,25 @@ import { BscCoinStrategy as BscCryptoStrategyCL } from './strategies/check-liqui
 import { BitcoinStrategy as BitcoinStrategyCL } from './strategies/check-liquidity/impl/bitcoin.strategy';
 import { BscTokenStrategy as BscTokenStrategyCL } from './strategies/check-liquidity/impl/bsc-token.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/check-liquidity/impl/ethereum-token.strategy';
+import { BitcoinStrategy as BitcoinStrategyPL } from './strategies/purchase-liquidity/impl/bitcoin.strategy';
+import { BscCoinStrategy as BscCryptoStrategyPL } from './strategies/purchase-liquidity/impl/bsc-coin.strategy';
+import { BscTokenStrategy as BscTokenStrategyPL } from './strategies/purchase-liquidity/impl/bsc-token.strategy';
 import { DeFiChainCryptoStrategy as DeFiChainCryptoStrategyPL } from './strategies/purchase-liquidity/impl/defichain-crypto.strategy';
 import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyPL } from './strategies/purchase-liquidity/impl/defichain-poolpair.strategy';
 import { DeFiChainStockStrategy as DeFiChainStockStrategyPL } from './strategies/purchase-liquidity/impl/defichain-stock.strategy';
 import { EthereumCoinStrategy as EthereumCryptoStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-coin.strategy';
-import { BscCoinStrategy as BscCryptoStrategyPL } from './strategies/purchase-liquidity/impl/bsc-coin.strategy';
-import { BitcoinStrategy as BitcoinStrategyPL } from './strategies/purchase-liquidity/impl/bitcoin.strategy';
-import { BscTokenStrategy as BscTokenStrategyPL } from './strategies/purchase-liquidity/impl/bsc-token.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPL } from './strategies/purchase-liquidity/impl/ethereum-token.strategy';
+import { BitcoinStrategy as BitcoinStrategySL } from './strategies/sell-liquidity/impl/bitcoin.strategy';
+import { BscCoinStrategy as BscCryptoStrategySL } from './strategies/sell-liquidity/impl/bsc-coin.strategy';
+import { BscTokenStrategy as BscTokenStrategySL } from './strategies/sell-liquidity/impl/bsc-token.strategy';
+import { DeFiChainCoinStrategy as DeFiChainCoinStrategySL } from './strategies/sell-liquidity/impl/defichain-coin.strategy';
+import { DeFiChainTokenStrategy as DeFiChainTokenStrategySL } from './strategies/sell-liquidity/impl/defichain-token.strategy';
+import { EthereumCoinStrategy as EthereumCryptoStrategySL } from './strategies/sell-liquidity/impl/ethereum-coin.strategy';
+import { EthereumTokenStrategy as EthereumTokenStrategySL } from './strategies/sell-liquidity/impl/ethereum-token.strategy';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { DexController } from './dex.controller';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { SellLiquidityStrategies } from './strategies/sell-liquidity/sell-liquidity.facade';
 
 @Module({
   imports: [TypeOrmModule.forFeature([LiquidityOrderRepository]), BlockchainModule, NotificationModule, SharedModule],
@@ -41,6 +49,7 @@ import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
     DexBitcoinService,
     CheckLiquidityStrategies,
     PurchaseLiquidityStrategies,
+    SellLiquidityStrategies,
     DeFiChainDefaultStrategyCL,
     DeFiChainPoolPairStrategyCL,
     EthereumCryptoStrategyCL,
@@ -56,6 +65,13 @@ import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
     BitcoinStrategyPL,
     BscTokenStrategyPL,
     EthereumTokenStrategyPL,
+    BitcoinStrategySL,
+    BscCryptoStrategySL,
+    BscTokenStrategySL,
+    DeFiChainCoinStrategySL,
+    DeFiChainTokenStrategySL,
+    EthereumCryptoStrategySL,
+    EthereumTokenStrategySL,
   ],
   exports: [DexService],
 })

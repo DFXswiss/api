@@ -7,7 +7,7 @@ import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/li
 import { LiquidityOrderNotReadyException } from 'src/subdomains/supporting/dex/exceptions/liquidity-order-not-ready.exception';
 import { NotEnoughLiquidityException } from 'src/subdomains/supporting/dex/exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from 'src/subdomains/supporting/dex/exceptions/price-slippage.exception';
-import { LiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import { PurchaseLiquidityRequest, ReserveLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 
@@ -42,7 +42,7 @@ export class BuyCryptoDexService {
   private async checkPendingBatches(pendingBatches: BuyCryptoBatch[]): Promise<void> {
     for (const batch of pendingBatches) {
       try {
-        const { target: liquidity, purchaseFee: nativeFee } = await this.dexService.fetchLiquidityAfterPurchase(
+        const { target: liquidity, fee: nativeFee } = await this.dexService.fetchLiquidityTransactionResult(
           LiquidityOrderContext.BUY_CRYPTO,
           batch.id.toString(),
         );
@@ -153,7 +153,9 @@ export class BuyCryptoDexService {
     );
   }
 
-  private async createLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
+  private async createLiquidityRequest(
+    batch: BuyCryptoBatch,
+  ): Promise<PurchaseLiquidityRequest | ReserveLiquidityRequest> {
     const { outputAsset: targetAsset, outputReferenceAsset: referenceAsset } = batch;
 
     return {

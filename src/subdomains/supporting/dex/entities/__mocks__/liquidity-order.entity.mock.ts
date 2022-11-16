@@ -21,8 +21,8 @@ export function createCustomLiquidityOrder(customValues: Partial<LiquidityOrder>
     isComplete,
     swapAsset,
     swapAmount,
-    purchaseStrategy,
-    purchaseTxId,
+    strategy,
+    txId,
     purchasedAmount,
   } = customValues;
 
@@ -41,8 +41,8 @@ export function createCustomLiquidityOrder(customValues: Partial<LiquidityOrder>
   entity.isComplete = keys.includes('isComplete') ? isComplete : false;
   entity.swapAsset = keys.includes('swapAsset') ? swapAsset : createCustomAsset({ dexName: 'DFI' });
   entity.swapAmount = keys.includes('swapAmount') ? swapAmount : 1;
-  entity.purchaseStrategy = keys.includes('purchaseStrategy') ? purchaseStrategy : AssetCategory.CRYPTO;
-  entity.purchaseTxId = keys.includes('purchaseTxId') ? purchaseTxId : 'PID_01';
+  entity.strategy = keys.includes('strategy') ? strategy : AssetCategory.CRYPTO;
+  entity.txId = keys.includes('txId') ? txId : 'PID_01';
   entity.purchasedAmount = keys.includes('purchasedAmount') ? purchasedAmount : 2;
 
   return entity;

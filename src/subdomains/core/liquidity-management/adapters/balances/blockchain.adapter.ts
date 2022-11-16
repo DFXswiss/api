@@ -111,13 +111,21 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   private aggregateBalances(tokens: AccountResult<string, string>[], coinAmount: number): Balance[] {
-    return tokens
+    const allBalances = tokens
       .map((t) => {
         const { asset, amount } = this.dexClient.parseAmount(t.amount);
 
-        return { name: asset, type: AssetType.TOKEN, amount };
+        return { key: `${asset}_${AssetType.TOKEN}`, amount };
       })
-      .concat([{ name: 'DFI', type: AssetType.COIN, amount: +coinAmount }]);
+      .concat([{ key: `DFI_${AssetType.COIN}`, amount: +coinAmount }]);
+
+    const aggregatedBalances = Util.aggregate<{ key: string; amount: number }>(allBalances, 'key', 'amount');
+
+    return Object.entries(aggregatedBalances).map((e) => ({
+      name: e[0].split('_')[0],
+      type: e[0].split('_')[1] as AssetType,
+      amount: e[1],
+    }));
   }
 
   private setCache(balances: Balance[]): void {

@@ -66,7 +66,7 @@ export class LiquidityManagementBalanceService {
           existingBalance.updateBalance(balance.amount);
           await this.balanceRepo.save(existingBalance);
 
-          return;
+          continue;
         }
 
         await this.balanceRepo.save(balance);

@@ -10,8 +10,17 @@ import { Lock } from 'src/shared/utils/lock';
 import { Not, IsNull } from 'typeorm';
 import { LiquidityOrderFactory } from '../factories/liquidity-order.factory';
 import { CheckLiquidityStrategies } from '../strategies/check-liquidity/check-liquidity.facade';
-import { LiquidityRequest, CheckLiquidityResult, TransferRequest, PurchaseLiquidityResult } from '../interfaces';
+import {
+  CheckLiquidityResult,
+  TransferRequest,
+  LiquidityTransactionResult,
+  PurchaseLiquidityRequest,
+  ReserveLiquidityRequest,
+  CheckLiquidityRequest,
+  SellLiquidityRequest,
+} from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
+import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
 
 @Injectable()
 export class DexService {
@@ -20,6 +29,7 @@ export class DexService {
   constructor(
     private readonly checkStrategies: CheckLiquidityStrategies,
     private readonly purchaseStrategies: PurchaseLiquidityStrategies,
+    private readonly sellStrategies: SellLiquidityStrategies,
     private readonly dexDeFiChainService: DexDeFiChainService,
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
@@ -27,7 +37,7 @@ export class DexService {
 
   // *** MAIN PUBLIC API *** //
 
-  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
+  async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     const { context, correlationId, targetAsset } = request;
 
     try {
@@ -47,7 +57,7 @@ export class DexService {
     }
   }
 
-  async reserveLiquidity(request: LiquidityRequest): Promise<number> {
+  async reserveLiquidity(request: ReserveLiquidityRequest): Promise<number> {
     const { context, correlationId, targetAsset } = request;
 
     try {
@@ -83,7 +93,7 @@ export class DexService {
     }
   }
 
-  async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
+  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
     const { context, correlationId, targetAsset } = request;
     const strategy = this.purchaseStrategies.getPurchaseLiquidityStrategy(targetAsset);
 
@@ -110,10 +120,35 @@ export class DexService {
     }
   }
 
-  async fetchLiquidityAfterPurchase(
+  async sellLiquidity(request: SellLiquidityRequest): Promise<void> {
+    const { context, correlationId, sellAsset } = request;
+    const strategy = this.sellStrategies.getSellLiquidityStrategy(sellAsset);
+
+    if (!strategy) {
+      throw new Error(
+        `No sell liquidity strategy for asset ${sellAsset.dexName} ${sellAsset.type} ${sellAsset.blockchain}`,
+      );
+    }
+
+    try {
+      console.info(`Selling ${sellAsset.dexName} liquidity. Context: ${context}. Correlation ID: ${correlationId}`);
+      await strategy.sellLiquidity(request);
+    } catch (e) {
+      // publicly exposed exception
+      if (e instanceof PriceSlippageException) throw e;
+      if (e instanceof NotEnoughLiquidityException) throw e;
+
+      console.error(e.message);
+
+      // default public exception
+      throw new Error(`Error while selling liquidity. Context: ${context}. Correlation ID: ${correlationId}. `);
+    }
+  }
+
+  async fetchLiquidityTransactionResult(
     context: LiquidityOrderContext,
     correlationId: string,
-  ): Promise<PurchaseLiquidityResult> {
+  ): Promise<LiquidityTransactionResult> {
     const order = await this.liquidityOrderRepo.findOne({ where: { context, correlationId } });
 
     if (!order) {
@@ -124,7 +159,7 @@ export class DexService {
       throw new LiquidityOrderNotReadyException(`Order is not ready. Order ID: ${order.id}`);
     }
 
-    return order.getPurchaseLiquidityResult();
+    return order.getLiquidityTransactionResult();
   }
 
   async checkOrderReady(
@@ -133,7 +168,7 @@ export class DexService {
   ): Promise<{ isReady: boolean; purchaseTxId: string }> {
     const order = await this.liquidityOrderRepo.findOne({ context, correlationId });
 
-    const purchaseTxId = order && order.purchaseTxId;
+    const purchaseTxId = order && order.txId;
     const isReady = order && order.isReady;
 
     return { isReady, purchaseTxId };
@@ -145,7 +180,7 @@ export class DexService {
   ): Promise<{ isComplete: boolean; purchaseTxId: string }> {
     const order = await this.liquidityOrderRepo.findOne({ context, correlationId });
 
-    const purchaseTxId = order && order.purchaseTxId;
+    const purchaseTxId = order && order.txId;
     const isComplete = order && order.isComplete;
 
     return { isComplete, purchaseTxId };
@@ -187,7 +222,7 @@ export class DexService {
     try {
       const standingOrders = await this.liquidityOrderRepo.find({
         isReady: false,
-        purchaseTxId: Not(IsNull()),
+        txId: Not(IsNull()),
       });
 
       await this.addPurchaseDataToOrders(standingOrders);
