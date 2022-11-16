@@ -233,7 +233,7 @@ export class KycService {
     userData.riskState = await this.spiderService.checkCustomer(userData.id);
 
     // select KYC type
-    const lockUser = userData.users.find((e) => e.wallet.name === 'LOCK.space');
+    const lockUser = userData.users.find((e) => e.wallet.customKyc === KycType.LOCK);
     userData.kycType = lockUser ? KycType.LOCK : KycType.DFX;
 
     // start KYC

@@ -140,6 +140,9 @@ export class Configuration {
     'LOCK.space': {
       apiKey: process.env.LOCK_API_KEY,
     },
+    'LOCK.space STG': {
+      apiKey: process.env.LOCK_API_KEY,
+    },
   };
 
   mail: MailOptions = {
