@@ -18,6 +18,7 @@ import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
 import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -347,6 +348,10 @@ export class BuyCryptoBatchService {
         await this.handleAbortBatchCreationException(batch, liquidity, e);
       }
 
+      if (e instanceof FeeLimitExceededException) {
+        await this.handleFeeLimitExceededException(batch);
+      }
+
       // re-throw by default to abort proceeding with batch
       throw e;
     }
@@ -402,6 +407,14 @@ export class BuyCryptoBatchService {
       );
     } catch (e) {
       console.error('Error in handling AbortBatchCreationException', e);
+    }
+  }
+
+  private async handleFeeLimitExceededException(batch: BuyCryptoBatch): Promise<void> {
+    for (const tx of batch.transactions) {
+      tx.waitingForLowerFee();
+
+      await this.buyCryptoRepo.save(tx);
     }
   }
 

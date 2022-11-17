@@ -1,8 +1,10 @@
 import { cloneDeep } from 'lodash';
 import { Price } from '../../../../integration/exchange/dto/price.dto';
 import { PriceMismatchException } from '../../../../integration/exchange/exceptions/price-mismatch.exception';
+import { Fiat } from '../enums';
 import { PriceStepResult, PriceProvider, PriceProviderName } from '../interfaces';
 import { PriceStepInitSpecification } from '../specifications/price-step-init.specification';
+import { PricingUtil } from './pricing.util';
 
 export interface PriceStepOptions {
   from?: string | 'input';
@@ -74,8 +76,9 @@ export class PriceStep {
   private async getMatchingPrice(
     fromCurrency: string,
     toCurrency: string,
-    matchThreshold = 0.01,
+    _matchThreshold?: number,
   ): Promise<[Price, PriceProviderName]> {
+    const matchThreshold = _matchThreshold ?? this.defineMatchThreshold(fromCurrency, toCurrency);
     const [primaryPrice, primaryProvider] = await this.getPrimaryPrice(fromCurrency, toCurrency);
 
     try {
@@ -84,10 +87,11 @@ export class PriceStep {
       const { price: _mainPrice } = primaryPrice;
       const { price: _refPrice } = refPrice;
 
-      if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold)
+      if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold) {
         throw new PriceMismatchException(
           `${fromCurrency} to ${toCurrency} price mismatch (${primaryProvider}: ${_mainPrice}, ${refSource}: ${_refPrice})`,
         );
+      }
     } catch (e) {
       if (e instanceof PriceMismatchException) throw e;
 
@@ -99,6 +103,19 @@ export class PriceStep {
     }
 
     return [primaryPrice, primaryProvider];
+  }
+
+  private defineMatchThreshold(fromCurrency: string, toCurrency: string): number {
+    if (
+      PricingUtil.isUSDStablecoin(fromCurrency) ||
+      PricingUtil.isUSDStablecoin(toCurrency) ||
+      fromCurrency === Fiat.USD ||
+      toCurrency === Fiat.USD
+    ) {
+      return 0.005;
+    }
+
+    return 0.02;
   }
 
   private async getPrimaryPrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceProviderName]> {
