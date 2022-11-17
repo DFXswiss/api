@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycInProgress, KycState, UserData } from './user-data.entity';
+import { KycInProgress, KycState, KycType, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { getRepository, MoreThan, Not } from 'typeorm';
@@ -60,10 +60,11 @@ export class UserDataService {
     });
   }
 
-  async createUserData(): Promise<UserData> {
+  async createUserData(kycType: KycType): Promise<UserData> {
     const userData = await this.userDataRepo.save({
       language: await this.languageService.getLanguageBySymbol(Config.defaultLanguage),
       currency: await this.fiatService.getFiatByName(Config.defaultCurrency),
+      kycType: kycType,
     });
 
     return userData;
@@ -202,6 +203,7 @@ export class UserDataService {
         relations: ['users', 'users.wallet', 'bankDatas'],
       }),
     ]);
+    if (master.isExternalUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KycType`);
     console.log(
       `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas
         .map((b) => b.id)

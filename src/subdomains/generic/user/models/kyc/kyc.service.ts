@@ -213,7 +213,7 @@ export class KycService {
 
     const users = await this.userDataService.getUsersByMail(user.mail);
     const completedUser = users.find((data) => KycCompleted(data.kycStatus));
-    if (completedUser && !user.hasExternalUser) {
+    if (completedUser && !user.isExternalUser) {
       await this.linkService.createNewLinkAddress(user, completedUser);
       throw new ConflictException('User already has completed Kyc');
     }

@@ -190,8 +190,8 @@ export class UserData extends IEntity {
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
 
-  get hasExternalUser(): boolean {
-    return !!this.users.find((e) => e.wallet.isKycClient === true);
+  get isExternalUser(): boolean {
+    return this.kycType !== KycType.DFX;
   }
 
   get hasActiveUser(): boolean {
