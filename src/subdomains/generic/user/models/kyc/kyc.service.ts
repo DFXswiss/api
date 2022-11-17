@@ -31,6 +31,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
+import { Country } from 'src/shared/models/country/country.entity';
 
 @Injectable()
 export class KycService {
@@ -89,6 +90,12 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
+  async getKycCountries(code: string): Promise<Country[]> {
+    const userData = await this.getUserByKycCode(code);
+
+    return await this.countryService.getCountriesByKycType(userData.kycType);
+  }
+
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
     let user = await this.getUser(code, userId);
     const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
@@ -99,6 +106,8 @@ export class KycService {
       this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
     ]);
     if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
+    if ((!country.dfxEnable && user.kycType === KycType.DFX) || (!country.lockEnable && user.kycType === KycType.LOCK))
+      throw new BadRequestException(`Country not allowed for ${user.kycType}`);
 
     if (isPersonalAccount) {
       data.organizationName = null;

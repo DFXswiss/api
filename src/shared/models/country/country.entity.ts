@@ -10,7 +10,10 @@ export class Country extends IEntity {
   name: string;
 
   @Column({ default: true })
-  enable: boolean;
+  dfxEnable: boolean;
+
+  @Column({ default: true })
+  lockEnable: boolean;
 
   @Column({ default: true })
   ipEnable: boolean;
