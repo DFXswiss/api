@@ -70,8 +70,8 @@ export class LimitRequest extends IEntity {
   }
 }
 
-export const LimitRequestStates = [LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED];
+export const LimitRequestAcceptedStates = [LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED];
 
 export function LimitRequestAccepted(decision?: LimitRequestDecision): boolean {
-  return LimitRequestStates.includes(decision);
+  return LimitRequestAcceptedStates.includes(decision);
 }
