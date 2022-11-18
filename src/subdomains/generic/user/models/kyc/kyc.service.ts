@@ -122,9 +122,9 @@ export class KycService {
     const wallet = await this.walletRepo.findOne({ where: { name: dto.walletName } });
     if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
 
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
-    if (!user) throw new NotFoundException('DFX user not found');
-    if (!KycCompleted(user.userData.kycStatus)) throw new ConflictException('KYC required');
+    const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+    if (!dfxUser) throw new NotFoundException('DFX user not found');
+    if (!KycCompleted(dfxUser.userData.kycStatus)) throw new ConflictException('KYC required');
 
     const apiKey = this.walletService.getApiKeyInternal(wallet.name);
     if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
@@ -133,17 +133,17 @@ export class KycService {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
         headers: { 'x-api-key': apiKey },
 
-        params: { address: user.address },
+        params: { address: dfxUser.address },
       });
     } catch (error) {
       throw new ServiceUnavailableException(error);
     }
 
-    const slaveUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
-    if (!slaveUser) throw new NotFoundException('KYC user not found');
-    if (user.userData.id == slaveUser.userData.id) throw new ConflictException('User already merged');
+    const externalUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
+    if (!externalUser) throw new NotFoundException('KYC user not found');
+    if (dfxUser.userData.id == externalUser.userData.id) throw new ConflictException('User already merged');
 
-    await this.userDataService.mergeUserData(user.userData.id, slaveUser.userData.id);
+    await this.userDataService.mergeUserData(dfxUser.userData.id, externalUser.userData.id);
   }
 
   async userDataComplete(userId: number): Promise<boolean> {
