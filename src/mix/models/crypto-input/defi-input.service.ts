@@ -251,8 +251,8 @@ export class DeFiInputService extends CryptoInputService {
       return null;
     }
 
-    // only DFI for staking
-    if (route.type === RouteType.STAKING && assetEntity.name != 'DFI') {
+    // only DFI coins for staking
+    if (route.type === RouteType.STAKING && assetEntity.type !== AssetType.COIN) {
       console.log(`Ignoring non-DFI DeFiChain input (${amount} ${asset}) on staking route. History entry:`, history);
       return null;
     }

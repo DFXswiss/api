@@ -5,6 +5,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
+import { DexUtil } from '../../../utils/dex.util';
 import { CheckLiquidityUtil } from '../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
@@ -22,11 +23,12 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
    * special case - availability check and target amount calculation is omitted
    */
   async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
-    const { referenceAsset, referenceAmount } = request;
+    const { referenceAsset, referenceAmount, targetAsset } = request;
 
     const referenceMaxPurchasableAmount = await this.calculateReferenceMaxPurchasableAmount(
       referenceAsset,
       referenceAmount,
+      targetAsset,
     );
 
     return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
@@ -51,23 +53,32 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
   private async calculateReferenceMaxPurchasableAmount(
     referenceAsset: Asset,
     referenceAmount: number,
+    targetAsset: Asset,
   ): Promise<number> {
-    const dfiToken = await this.assetService.getAssetByQuery({
-      dexName: 'DFI',
+    const containsDFI = this.pairContainsDFI(targetAsset);
+
+    const token = await this.assetService.getAssetByQuery({
+      dexName: containsDFI ? 'DFI' : 'DUSD',
       blockchain: Blockchain.DEFICHAIN,
       type: AssetType.TOKEN,
     });
 
-    const dfiRequiredAmount = await this.dexDeFiChainService.getSwapAmountForPurchase(
+    const requiredAmount = await this.dexDeFiChainService.calculateSwapAmountForPurchase(
       referenceAsset,
       referenceAmount,
       null,
-      dfiToken,
+      token,
     );
 
-    const dfiAvailableAmount = await this.dexDeFiChainService.getAssetAvailability(dfiToken);
+    const dfiAvailableAmount = await this.dexDeFiChainService.getAssetAvailability(token);
 
     // approximate, indicative calculation
-    return Util.round((referenceAmount / dfiRequiredAmount) * dfiAvailableAmount, 8);
+    return Util.round((referenceAmount / requiredAmount) * dfiAvailableAmount, 8);
+  }
+
+  private pairContainsDFI(targetAsset: Asset): boolean {
+    const pair = DexUtil.parseAssetPair(targetAsset);
+
+    return pair.some((name) => name === 'DFI');
   }
 }

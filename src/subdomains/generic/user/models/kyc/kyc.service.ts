@@ -11,6 +11,7 @@ import {
   KycCompleted,
   KycInProgress,
   KycStatus,
+  KycType,
   UserData,
 } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycDocument } from '../../services/spider/dto/spider.dto';
@@ -230,6 +231,10 @@ export class KycService {
 
     // do name check
     userData.riskState = await this.spiderService.checkCustomer(userData.id);
+
+    // select KYC type
+    const lockUser = userData.users.find((e) => e.wallet.customKyc === KycType.LOCK);
+    userData.kycType = lockUser ? KycType.LOCK : KycType.DFX;
 
     // start KYC
     return await this.kycProcess.startKycProcess(userData);

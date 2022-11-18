@@ -11,7 +11,7 @@ export class CryptoRoute extends DepositRoute {
   @Column({ type: 'float', default: 0 })
   annualVolume: number;
 
-  @ManyToOne(() => User, (user) => user.cryptoRoutes)
+  @ManyToOne(() => User, (user) => user.cryptoRoutes, { nullable: false })
   user: User;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })

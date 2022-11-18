@@ -20,7 +20,6 @@ export class BankDataService {
 
     const bankDataCheck = await this.bankDataRepo.findOne({
       iban: dto.iban,
-      location: dto.location ?? null,
       name: dto.name,
     });
     if (bankDataCheck) throw new ConflictException('Bank data already exists');
