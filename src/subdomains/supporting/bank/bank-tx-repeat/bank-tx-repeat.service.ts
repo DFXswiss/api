@@ -16,7 +16,7 @@ export class BankTxRepeatService {
   ) {}
 
   async create(bankTx: BankTx): Promise<BankTxRepeat> {
-    let entity = this.bankTxRepeatRepo.create({ bankTx });
+    let entity = await this.bankTxRepeatRepo.findOne({ where: { bankTx: { id: bankTx.id } } });
     if (entity) throw new BadRequestException('BankTx already used');
 
     entity = this.bankTxRepeatRepo.create({ bankTx });
@@ -38,10 +38,10 @@ export class BankTxRepeatService {
       update.chargebackBankTx = await this.bankTxRepo.findOne({ where: { id: dto.chargebackBankTxId } });
       if (!update.chargebackBankTx) throw new NotFoundException('ChargebackBankTx not found');
 
-      const existingReturnForChargeback = await this.bankTxRepeatRepo.findOne({
+      const existingRepeatForChargeback = await this.bankTxRepeatRepo.findOne({
         where: { chargebackBankTx: { id: dto.chargebackBankTxId } },
       });
-      if (existingReturnForChargeback) throw new BadRequestException('ChargebackBankTx already used');
+      if (existingRepeatForChargeback) throw new BadRequestException('ChargebackBankTx already used');
 
       await this.bankTxRepo.update(dto.chargebackBankTxId, { type: BankTxType.BANK_TX_RETURN_CHARGEBACK });
     }
@@ -51,10 +51,10 @@ export class BankTxRepeatService {
       update.sourceBankTx = await this.bankTxRepo.findOne({ where: { id: dto.sourceBankTxId } });
       if (!update.sourceBankTx) throw new NotFoundException('SourceBankTx not found');
 
-      const existingSourceBankTx = await this.bankTxRepeatRepo.findOne({
+      const existingRepeatForSource = await this.bankTxRepeatRepo.findOne({
         where: { sourceBankTx: { id: dto.sourceBankTxId } },
       });
-      if (existingSourceBankTx) throw new BadRequestException('SourceBankTx already used');
+      if (existingRepeatForSource) throw new BadRequestException('SourceBankTx already used');
     }
 
     // user
