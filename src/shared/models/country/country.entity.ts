@@ -25,10 +25,10 @@ export class Country extends IEntity {
   isEnabled(kycType: KycType): boolean {
     switch (kycType) {
       case KycType.DFX:
-        return this.dfxEnable ? true : false;
+        return this.dfxEnable;
 
       case KycType.LOCK:
-        return this.lockEnable ? true : false;
+        return this.lockEnable;
     }
   }
 }

@@ -90,21 +90,15 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
-  async getKycCountries(userId: number): Promise<Country[]> {
-    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+  async getKycCountries(code: string, userId?: number): Promise<Country[]> {
+    const user = await this.getUser(code, userId);
 
-    return await this.countryService.getCountriesByKycType(user.userData.kycType);
-  }
-
-  async getKycCountriesByCode(code: string): Promise<Country[]> {
-    const userData = await this.getUserByKycCode(code);
-
-    return await this.countryService.getCountriesByKycType(userData.kycType);
+    return await this.countryService.getCountriesByKycType(user.kycType);
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
     let user = await this.getUser(code, userId);
-    if (user.kycStatus !== KycStatus.NA) throw new BadRequestException('Kyc already started');
+    if (user.kycStatus !== KycStatus.NA) throw new BadRequestException('KYC already started');
 
     const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
 

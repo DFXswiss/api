@@ -40,9 +40,9 @@ export class KycController {
   @Get('countries')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 201, type: Country, isArray: true })
+  @ApiResponse({ status: 200, type: Country, isArray: true })
   async getKycCountries(@GetJwt() jwt: JwtPayload): Promise<Country[]> {
-    return await this.kycService.getKycCountries(jwt.id);
+    return await this.kycService.getKycCountries('', jwt.id);
   }
 
   @Post('data')
@@ -86,8 +86,9 @@ export class KycController {
   }
 
   @Get(':code/countries')
+  @ApiResponse({ status: 200, type: Country, isArray: true })
   async getKycCountriesByCode(@Param('code') code: string): Promise<Country[]> {
-    return await this.kycService.getKycCountriesByCode(code);
+    return await this.kycService.getKycCountries(code);
   }
 
   @Put(':code/data')
