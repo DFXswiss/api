@@ -104,6 +104,8 @@ export class KycService {
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
     let user = await this.getUser(code, userId);
+    if (user.kycStatus !== KycStatus.NA) throw new BadRequestException('Kyc already started');
+
     const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
 
     // check countries
