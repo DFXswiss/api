@@ -90,7 +90,13 @@ export class KycService {
     await this.spiderSyncService.syncKycUser(userId, true);
   }
 
-  async getKycCountries(code: string): Promise<Country[]> {
+  async getKycCountries(userId: number): Promise<Country[]> {
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
+
+    return await this.countryService.getCountriesByKycType(user.userData.kycType);
+  }
+
+  async getKycCountriesByCode(code: string): Promise<Country[]> {
     const userData = await this.getUserByKycCode(code);
 
     return await this.countryService.getCountriesByKycType(userData.kycType);
@@ -106,8 +112,7 @@ export class KycService {
       this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
     ]);
     if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
-    if ((!country.dfxEnable && user.kycType === KycType.DFX) || (!country.lockEnable && user.kycType === KycType.LOCK))
-      throw new BadRequestException(`Country not allowed for ${user.kycType}`);
+    if (!country.isEnabled(user.kycType)) throw new BadRequestException(`Country not allowed for ${user.kycType}`);
 
     if (isPersonalAccount) {
       data.organizationName = null;
