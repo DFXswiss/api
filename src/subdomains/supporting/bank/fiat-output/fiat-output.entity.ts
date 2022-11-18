@@ -5,8 +5,8 @@ import { BuyFiat } from '../../../core/sell-crypto/buy-fiat/buy-fiat.entity';
 @Entity()
 export class FiatOutput extends IEntity {
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.fiatOutput, { nullable: true })
-  buyFiat?: BuyFiat;
+  buyFiatId?: BuyFiat;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ length: 256, nullable: false })
   reason: string;
 }

@@ -32,22 +32,23 @@ export class BuyFiatService {
 
   // --- CHECK BUY FIAT --- //
   @Cron(CronExpression.EVERY_10_MINUTES)
-  async checkBuyFiats(): Promise<void> {
+  async addFiatOutputs(): Promise<void> {
     if (!this.lock.acquire()) return;
 
     try {
-      const buyFiatWithoutOutput = await this.buyFiatRepo.find({
+      const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
+        relations: ['fiatOutput'],
         where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
       });
 
-      for (const buyFiat of buyFiatWithoutOutput) {
-        const fiatOutput = await this.fiatOutputService.create({ buyFiat: buyFiat } as CreateFiatOutputDto);
-        await this.buyFiatRepo.update(buyFiat.id, {
-          fiatOutput,
-        });
+      for (const buyFiat of buyFiatsWithoutOutput) {
+        await this.fiatOutputService.create({
+          buyFiat: buyFiat,
+          reason: 'BuyFiat',
+        } as CreateFiatOutputDto);
       }
     } catch (e) {
-      console.error('Exception during buy fiat checks:', e);
+      console.error('Exception during adding fiat outputs:', e);
     } finally {
       this.lock.release();
     }
