@@ -1,13 +1,11 @@
-import { Type } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { BuyFiat } from '../../../../core/sell-crypto/buy-fiat/buy-fiat.entity';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateFiatOutputDto {
   @IsOptional()
-  @Type(() => BuyFiat)
-  buyFiat: BuyFiat;
+  @IsNumber()
+  buyFiatId: number;
 
   @IsNotEmpty()
   @IsString()
-  reason: string;
+  type: string;
 }
