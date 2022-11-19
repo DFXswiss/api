@@ -62,7 +62,7 @@ export class KycProcessService {
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
 
-    if (status === KycStatus.MANUAL && !userData.isExternalUser) {
+    if (status === KycStatus.MANUAL && userData.isDfxUser) {
       if (userData.mail) {
         await this.notificationService.sendMail({
           type: MailType.USER,
@@ -101,7 +101,7 @@ export class KycProcessService {
     if (userData.kycStatus === KycStatus.ONLINE_ID) {
       userData = await this.goToStatus(userData, KycStatus.VIDEO_ID);
 
-      if (!userData.isExternalUser) {
+      if (userData.isDfxUser) {
         await this.notificationService
           .sendMail({
             type: MailType.USER,
@@ -178,7 +178,7 @@ export class KycProcessService {
   async identCompleted(userData: UserData, result: IdentResultDto): Promise<UserData> {
     userData = await this.storeIdentResult(userData, result);
 
-    if (!userData.isExternalUser) {
+    if (userData.isDfxUser) {
       await this.notificationService
         .sendMail({
           type: MailType.USER,

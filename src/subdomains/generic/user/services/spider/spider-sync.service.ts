@@ -215,7 +215,7 @@ export class SpiderSyncService {
 
   private async handleExpiring(userData: UserData): Promise<UserData> {
     // send reminder
-    if (!userData.isExternalUser) {
+    if (userData.isDfxUser) {
       await this.notificationService
         .sendMail({
           type: MailType.USER,

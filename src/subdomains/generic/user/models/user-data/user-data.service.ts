@@ -203,7 +203,7 @@ export class UserDataService {
         relations: ['users', 'users.wallet', 'bankDatas'],
       }),
     ]);
-    if (master.isExternalUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KycType`);
+    if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KycType`);
     console.log(
       `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas
         .map((b) => b.id)

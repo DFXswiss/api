@@ -190,8 +190,8 @@ export class UserData extends IEntity {
   @OneToOne(() => SpiderData, (c) => c.userData, { nullable: true })
   spiderData: SpiderData;
 
-  get isExternalUser(): boolean {
-    return this.kycType !== KycType.DFX;
+  get isDfxUser(): boolean {
+    return this.kycType === KycType.DFX;
   }
 
   get hasActiveUser(): boolean {
