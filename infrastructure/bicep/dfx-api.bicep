@@ -124,6 +124,12 @@ param limitRequestSupportBanner string
 param limitRequestSupportMail string
 param limitRequestSupportName string
 
+param azureSubscriptionId string
+param azureTenantId string
+param azureClientId string
+@secure()
+param azureClientSecret string
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -703,6 +709,22 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'LIMIT_REQUEST_SUPPORT_NAME'
           value: limitRequestSupportName
+        }
+        {
+          name: 'AZURE_SUBSCRIPTION_ID'
+          value: azureSubscriptionId
+        }
+        {
+          name: 'AZURE_TENANT_ID'
+          value: azureTenantId
+        }
+        {
+          name: 'AZURE_CLIENT_ID'
+          value: azureClientId
+        }
+        {
+          name: 'AZURE_CLIENT_SECRET'
+          value: azureClientSecret
         }
       ]
     }
