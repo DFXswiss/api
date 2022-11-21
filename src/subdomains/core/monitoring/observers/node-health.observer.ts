@@ -18,6 +18,7 @@ interface NodeState {
   type: NodeType;
   mode: NodeMode;
   isDown: boolean;
+  downSince?: Date;
   errors: string[];
 }
 
@@ -34,8 +35,8 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
 
   @Interval(60000)
   async fetch(): Promise<NodePoolState[]> {
-    const poolStates = await this.getState();
-    await this.handleErrors(poolStates);
+    let poolStates = await this.getState();
+    poolStates = await this.handleErrors(poolStates);
 
     this.emit(poolStates);
 
@@ -59,7 +60,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     }));
   }
 
-  private async handleErrors(poolStates: NodePoolState[]): Promise<void> {
+  private async handleErrors(poolStates: NodePoolState[]): Promise<NodePoolState[]> {
     const messages: MailMessage[] = [];
 
     // handle errors by pool
@@ -84,8 +85,12 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
       // check for single node state changes
       for (const node of poolState.nodes) {
         const previous = previousPoolState?.nodes.find((pn) => pn.mode === node.mode);
+        node.downSince = previous?.downSince;
+
         if (node.isDown !== (previous?.isDown ?? false)) {
           // node state changed
+          node.downSince = node.isDown ? new Date() : undefined;
+
           const errors =
             node.errors.length > 0
               ? node.errors.map((e) => `ERR. ${e}`)
@@ -111,5 +116,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
         },
       });
     }
+
+    return poolStates;
   }
 }
