@@ -10,8 +10,6 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { AND } from 'src/shared/validators/and.validator';
-import { OR } from 'src/shared/validators/or.validator';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { LiquidityManagementContext } from '../../enums';
 import { LiquidityActionsAllStepsMatchValidator } from '../../validators/liquidity-actions-all-steps-match.validator';
@@ -34,9 +32,7 @@ export class LiquidityManagementRuleCreationDto {
   @IsInt()
   targetFiatId: number;
 
-  @ValidateIf((dto) => dto.minimal || (!dto.maximal && !dto.minimal))
-  @Validate(OR, ['maximal'])
-  @Validate(AND, ['deficitActions'])
+  @ValidateIf((dto) => dto.minimal != null || dto.maximal == null || dto.deficitActions)
   @IsNumber()
   minimal: number;
 
@@ -44,9 +40,7 @@ export class LiquidityManagementRuleCreationDto {
   @IsNumber()
   optimal: number;
 
-  @ValidateIf((dto) => dto.maximal || (!dto.maximal && !dto.minimal))
-  @Validate(OR, ['minimal'])
-  @Validate(AND, ['redundancyActions'])
+  @ValidateIf((dto) => dto.maximal != null || dto.minimal == null || dto.redundancyActions)
   @IsNumber()
   maximal: number;
 

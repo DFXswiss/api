@@ -9,6 +9,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
+import { Util } from 'src/shared/utils/util';
 
 type AssetHash = string;
 interface Balance {
@@ -68,11 +69,11 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   private async getForDeFiChain(asset: Asset): Promise<number> {
-    if (!this.defiChainCacheUpdateCall && Date.now() - this.defiChainCacheTimestamp > 30000) {
+    if (!this.defiChainCacheUpdateCall && Util.secondsDiff(new Date(this.defiChainCacheTimestamp), new Date()) > 30) {
       return this.updateCache().then(() => this.getFromCache(asset));
     }
 
-    if (!this.defiChainCacheUpdateCall && Date.now() - this.defiChainCacheTimestamp <= 30000) {
+    if (!this.defiChainCacheUpdateCall && Util.secondsDiff(new Date(this.defiChainCacheTimestamp), new Date()) <= 30) {
       return this.getFromCache(asset);
     }
 
@@ -106,7 +107,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private getFromCache(asset: Asset): number {
     const { dexName: name, type } = asset;
 
-    return this.defiChainCache.get(JSON.stringify({ name, type }));
+    return this.defiChainCache.get(`${name}_${type}`);
   }
 
   private aggregateBalances(tokens: AccountResult<string, string>[], coinAmount: number): Balance[] {
@@ -123,7 +124,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     for (const balance of balances) {
       const { name, type, amount } = balance;
 
-      this.defiChainCache.set(JSON.stringify({ name, type }), amount);
+      this.defiChainCache.set(`${name}_${type}`, amount);
     }
   }
 

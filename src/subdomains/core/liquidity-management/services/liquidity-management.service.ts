@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Lock } from 'src/shared/utils/lock';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
@@ -20,7 +20,7 @@ export class LiquidityManagementService {
     private readonly balanceService: LiquidityManagementBalanceService,
   ) {}
 
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
   async verifyRules() {
     if (!this.verifyRulesLock.acquire()) return;
 

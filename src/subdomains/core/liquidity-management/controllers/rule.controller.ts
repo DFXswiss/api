@@ -7,8 +7,8 @@ import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-manag
 import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-management-rule-output.dto';
 import { LiquidityManagementRuleService } from '../services/liquidity-management-rule.service';
 
-@ApiTags('liquidity-management')
-@Controller('liquidity-management/rule')
+@ApiTags('liquidityManagement')
+@Controller('liquidityManagement/rule')
 export class LiquidityManagementRuleController {
   constructor(private readonly service: LiquidityManagementRuleService) {}
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementOrderStatus, LiquidityManagementPipelineStatus } from '../enums';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
@@ -28,7 +28,7 @@ export class LiquidityManagementPipelineService {
 
   //*** JOBS ***//
 
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
   async processPipelines() {
     if (!this.processPipelinesLock.acquire()) return;
 
@@ -36,12 +36,13 @@ export class LiquidityManagementPipelineService {
       await this.startNewPipelines();
       await this.checkRunningPipelines();
     } catch (e) {
+      console.error('Error while processing liquidity management pipelines', e);
     } finally {
       this.processPipelinesLock.release();
     }
   }
 
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
   async processOrders() {
     if (!this.processOrdersLock.acquire()) return;
 
@@ -49,6 +50,7 @@ export class LiquidityManagementPipelineService {
       await this.startNewOrders();
       await this.checkRunningOrders();
     } catch (e) {
+      console.error('Error while processing liquidity management orders', e);
     } finally {
       this.processOrdersLock.release();
     }

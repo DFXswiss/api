@@ -81,7 +81,7 @@ export class LiquidityManagementRuleService {
 
   private async checkAndCreateInstance(dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRule> {
     const [targetAsset, targetFiat] = await this.checkTarget(dto);
-    const [firstDeficitAction, firstRedundancyAction] = await this.checkActions(dto);
+    const [firstDeficitAction, firstRedundancyAction] = await this.checkAllActions(dto);
 
     return LiquidityManagementRuleFactory.create(
       dto,
@@ -133,28 +133,18 @@ export class LiquidityManagementRuleService {
     return targetFiat;
   }
 
-  private async checkActions(
+  private async checkAllActions(
     dto: LiquidityManagementRuleCreationDto,
   ): Promise<[LiquidityManagementAction | null, LiquidityManagementAction | null]> {
     const { deficitActions, redundancyActions } = dto;
 
-    return [await this.checkDeficitActions(deficitActions), await this.checkRedundancyActions(redundancyActions)];
+    return [await this.checkActions(deficitActions), await this.checkActions(redundancyActions)];
   }
 
-  private async checkDeficitActions(
-    deficitActions: LiquidityManagementActionDto[],
-  ): Promise<LiquidityManagementAction | null> {
-    if (!deficitActions) return null;
+  private async checkActions(actions: LiquidityManagementActionDto[]): Promise<LiquidityManagementAction | null> {
+    if (!actions) return null;
 
-    return this.confirmOrCreateActionTree(deficitActions, 1);
-  }
-
-  private async checkRedundancyActions(
-    redundancyActions: LiquidityManagementActionDto[],
-  ): Promise<LiquidityManagementAction | null> {
-    if (!redundancyActions) return null;
-
-    return this.confirmOrCreateActionTree(redundancyActions, 1);
+    return this.confirmOrCreateActionTree(actions, 1);
   }
 
   private async confirmOrCreateActionTree(

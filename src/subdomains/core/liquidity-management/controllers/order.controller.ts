@@ -6,8 +6,8 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LiquidityManagementOrder } from '../entities/liquidity-management-order.entity';
 import { LiquidityManagementPipelineService } from '../services/liquidity-management-pipeline.service';
 
-@ApiTags('liquidity-management')
-@Controller('liquidity-management/order')
+@ApiTags('liquidityManagement')
+@Controller('liquidityManagement/order')
 export class LiquidityManagementOrderController {
   constructor(private readonly service: LiquidityManagementPipelineService) {}
 
