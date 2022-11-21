@@ -1,7 +1,6 @@
-import { Entity, OneToOne, JoinColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, OneToOne, JoinColumn, Column } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { BankTx } from '../bank-tx/bank-tx.entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 
 @Entity()
 export class BankTxRepeat extends IEntity {
@@ -17,8 +16,8 @@ export class BankTxRepeat extends IEntity {
   @JoinColumn()
   chargebackBankTx: BankTx;
 
-  @ManyToOne(() => User, { nullable: true })
-  user: User;
+  @Column({ type: 'integer', nullable: true })
+  userId: number;
 
   @Column({ length: 256, nullable: true })
   info: string;

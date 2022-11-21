@@ -21,7 +21,7 @@ import { BankController } from './bank/bank.controller';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
 import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
-import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
+import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controller';
 
 @Module({
   imports: [
@@ -32,14 +32,19 @@ import { UserRepository } from 'src/subdomains/generic/user/models/user/user.rep
       BankTxReturnRepository,
       BankTxRepeatRepository,
       BankRepository,
-      UserRepository,
     ]),
     SharedModule,
     BankIntegrationModule,
     NotificationModule,
     forwardRef(() => BuyCryptoModule),
   ],
-  controllers: [BankTxController, BankAccountController, BankTxReturnController, BankController],
+  controllers: [
+    BankTxController,
+    BankAccountController,
+    BankTxReturnController,
+    BankTxRepeatController,
+    BankController,
+  ],
   providers: [
     BankTxService,
     BankTxReturnService,

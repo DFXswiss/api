@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
-import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx.entity';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { BankTxRepeat } from './bank-tx-repeat.entity';
@@ -12,7 +11,6 @@ export class BankTxRepeatService {
   constructor(
     private readonly bankTxRepeatRepo: BankTxRepeatRepository,
     private readonly bankTxRepo: BankTxRepository,
-    private readonly userRepo: UserRepository,
   ) {}
 
   async create(bankTx: BankTx): Promise<BankTxRepeat> {
@@ -27,7 +25,7 @@ export class BankTxRepeatService {
   async update(id: number, dto: UpdateBankTxRepeatDto): Promise<BankTxRepeat> {
     const entity = await this.bankTxRepeatRepo.findOne({
       where: { id },
-      relations: ['chargebackBankTx', 'sourceBankTx', 'user'],
+      relations: ['chargebackBankTx', 'sourceBankTx'],
     });
     if (!entity) throw new NotFoundException('BankTxRepeat not found');
 
@@ -55,12 +53,6 @@ export class BankTxRepeatService {
         where: { sourceBankTx: { id: dto.sourceBankTxId } },
       });
       if (existingRepeatForSource) throw new BadRequestException('SourceBankTx already used');
-    }
-
-    // user
-    if (dto.userId && !entity.user) {
-      update.user = await this.userRepo.findOne({ where: { id: dto.userId } });
-      if (!update.user) throw new NotFoundException('User not found');
     }
 
     Util.removeNullFields(entity);
