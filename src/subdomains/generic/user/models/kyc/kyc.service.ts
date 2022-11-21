@@ -212,10 +212,12 @@ export class KycService {
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
     const users = await this.userDataService.getUsersByMail(user.mail);
-    const completedUser = users.find((data) => KycCompleted(data.kycStatus) && data.isDfxUser);
-    if (completedUser && user.isDfxUser) {
-      await this.linkService.createNewLinkAddress(user, completedUser);
-      throw new ConflictException('User already has completed Kyc');
+    if (user.isDfxUser) {
+      const completedUser = users.find((data) => KycCompleted(data.kycStatus));
+      if (completedUser) {
+        await this.linkService.createNewLinkAddress(user, completedUser);
+        throw new ConflictException('User already has completed Kyc');
+      }
     }
 
     // update

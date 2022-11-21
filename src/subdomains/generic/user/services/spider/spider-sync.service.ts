@@ -190,18 +190,20 @@ export class SpiderSyncService {
     if (userData.kycStatus === KycStatus.CHATBOT) {
       userData = await this.kycProcess.chatbotCompleted(userData);
 
-      await this.notificationService
-        .sendMail({
-          type: MailType.USER,
-          input: {
-            userData,
-            translationKey: 'mail.kyc.chatbot',
-            translationParams: {
-              url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+      if (userData.isDfxUser) {
+        await this.notificationService
+          .sendMail({
+            type: MailType.USER,
+            input: {
+              userData,
+              translationKey: 'mail.kyc.chatbot',
+              translationParams: {
+                url: `${Config.payment.url}/kyc?code=${userData.kycHash}`,
+              },
             },
-          },
-        })
-        .catch(() => null);
+          })
+          .catch(() => null);
+      }
     } else {
       const identResult = await this.fetchIdentResult(userData);
       userData = await this.kycProcess.identCompleted(userData, identResult);
