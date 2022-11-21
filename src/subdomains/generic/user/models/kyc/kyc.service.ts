@@ -211,8 +211,8 @@ export class KycService {
     const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
-    const users = await this.userDataService.getUsersByMail(user.mail);
     if (user.isDfxUser) {
+      const users = await this.userDataService.getUsersByMail(user.mail);
       const completedUser = users.find((data) => KycCompleted(data.kycStatus));
       if (completedUser) {
         await this.linkService.createNewLinkAddress(user, completedUser);
