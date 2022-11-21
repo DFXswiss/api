@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx.entity';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { BankTxRepeat } from './bank-tx-repeat.entity';
@@ -12,7 +12,7 @@ export class BankTxRepeatService {
   constructor(
     private readonly bankTxRepeatRepo: BankTxRepeatRepository,
     private readonly bankTxRepo: BankTxRepository,
-    private readonly userService: UserService,
+    private readonly userRepo: UserRepository,
   ) {}
 
   async create(bankTx: BankTx): Promise<BankTxRepeat> {
@@ -59,7 +59,7 @@ export class BankTxRepeatService {
 
     // user
     if (dto.userId && !entity.user) {
-      update.user = await this.userService.getUser(dto.userId);
+      update.user = await this.userRepo.findOne({ where: { id: dto.userId } });
       if (!update.user) throw new NotFoundException('User not found');
     }
 

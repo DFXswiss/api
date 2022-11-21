@@ -316,7 +316,7 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getSupportData(@Query('id') id: string): Promise<{
-    buy: BuyCrypto[];
+    buyCrypto: BuyCrypto[];
     buyFiat: BuyFiat[];
     ref: BuyCrypto[];
     refReward: RefReward[];
@@ -332,7 +332,7 @@ export class AdminController {
     const refCodes = userData.users.map((u) => u.ref);
 
     return {
-      buy: await this.buyCryptoService.getAllUserTransactions(userIds),
+      buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
       refReward: await this.refRewardService.getAllUserRewards(userIds),
