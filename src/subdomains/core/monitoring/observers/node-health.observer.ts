@@ -99,9 +99,16 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     if (messages.length > 0) {
       console.log(messages);
 
+      const currentStates = poolStates
+        .filter((s) => s.nodes.length > 0)
+        .map((s) => `${s.type}: ${s.nodes.map((n) => (n.isDown ? 'down' : 'up')).join(' ')}`);
+
       await this.notificationService.sendMail({
         type: MailType.ERROR_MONITORING,
-        input: { subject: 'Node Error', errors: messages },
+        input: {
+          subject: 'Node Error',
+          errors: ['Errors:', ...messages, '', 'Current State:', ...currentStates],
+        },
       });
     }
   }
