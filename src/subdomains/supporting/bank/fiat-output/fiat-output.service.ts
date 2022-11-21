@@ -8,11 +8,11 @@ import { FiatOutputRepository } from './fiat-output.repository';
 export class FiatOutputService {
   constructor(private readonly fiatOutputRepo: FiatOutputRepository, private readonly buyFiatRepo: BuyFiatRepository) {}
 
-  async create(createBuyFiatDto?: CreateFiatOutputDto): Promise<FiatOutput> {
-    const buyFiat = await this.buyFiatRepo.findOne({ where: { id: createBuyFiatDto.buyFiatId } });
+  async create({ type, buyFiatId }: CreateFiatOutputDto): Promise<FiatOutput> {
+    const buyFiat = await this.buyFiatRepo.findOne({ where: { id: buyFiatId } });
     if (!buyFiat) throw new NotFoundException('Buy fiat not found');
 
-    const entity = this.fiatOutputRepo.create({ type: createBuyFiatDto.type, buyFiat });
+    const entity = this.fiatOutputRepo.create({ type, buyFiat });
 
     return await this.fiatOutputRepo.save(entity);
   }
