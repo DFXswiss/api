@@ -21,6 +21,7 @@ import { BankController } from './bank/bank.controller';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
 import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
+import { UserRepository } from 'src/subdomains/generic/user/models/user/user.repository';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.m
       BankTxReturnRepository,
       BankTxRepeatRepository,
       BankRepository,
+      UserRepository,
     ]),
     SharedModule,
     BankIntegrationModule,
