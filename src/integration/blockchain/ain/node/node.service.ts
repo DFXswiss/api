@@ -183,7 +183,7 @@ export class NodeService {
   private handleNodeCheckSuccess(info: BlockchainInfo, type: NodeType, mode: NodeMode): NodeCheckResult {
     const result = { errors: [], info };
 
-    if (info.blocks < info.headers - 10) {
+    if (info.blocks < info.headers - 15) {
       result.errors.push({
         message: `${type} ${mode} node out of sync (blocks: ${info.blocks}, headers: ${info.headers})`,
         nodeType: type,
