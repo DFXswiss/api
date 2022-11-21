@@ -12,15 +12,15 @@ export class AzureService {
 
   constructor(private readonly http: HttpService) {}
 
-  public async restartWebApp(env: string, name: string, slot?: string) {
-    const appName = `app-dfx-${name}-${env}${slot ? `/slots/${slot}` : ''}`;
-    const resourceId = this.resourceId(env, 'Microsoft.Web/sites', appName);
+  public async restartWebApp(name: string, slot?: string) {
+    const appName = `app-dfx-${name}-${Config.environment}${slot ? `/slots/${slot}` : ''}`;
+    const resourceId = this.resourceId('Microsoft.Web/sites', appName);
     return await this.callApi(`${resourceId}/restart`, 'POST');
   }
 
   // --- HELPER METHODS --- //
-  private resourceId(env: string, provider: string, name: string): string {
-    return `subscriptions/${Config.azure.subscriptionId}/resourceGroups/rg-dfx-api-${env}/providers/${provider}/${name}`;
+  private resourceId(provider: string, name: string): string {
+    return `subscriptions/${Config.azure.subscriptionId}/resourceGroups/rg-dfx-api-${Config.environment}/providers/${provider}/${name}`;
   }
 
   private async callApi<T>(url: string, method: Method = 'GET', data?: any): Promise<T> {

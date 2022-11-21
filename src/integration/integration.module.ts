@@ -11,6 +11,6 @@ import { LetterModule } from './letter/letter.module';
   imports: [SharedModule, BankModule, BlockchainModule, ExchangeModule, GeoLocationModule, LetterModule],
   controllers: [],
   providers: [AzureService],
-  exports: [],
+  exports: [AzureService],
 })
 export class IntegrationModule {}
