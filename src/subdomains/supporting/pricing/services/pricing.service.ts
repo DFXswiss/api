@@ -9,12 +9,12 @@ import { CurrencyService } from '../../../../integration/exchange/services/curre
 import { FixerService } from '../../../../integration/exchange/services/fixer.service';
 import { FtxService } from '../../../../integration/exchange/services/ftx.service';
 import { KrakenService } from '../../../../integration/exchange/services/kraken.service';
-import { Altcoin, USDStableCoin, Fiat } from '../enums';
 import { BadPriceRequestException } from '../exceptions/bad-price-request.exception';
 import { PathNotConfiguredException } from '../exceptions/path-not-configured.exception';
 import { PriceRequest, PriceResult } from '../interfaces';
 import { PricePath } from '../utils/price-path';
 import { PriceStep } from '../utils/price-step';
+import { PricingUtil } from '../utils/pricing.util';
 import { DfiPricingDexService } from './dfi-pricing-dex.service';
 
 export enum PricingPathAlias {
@@ -249,8 +249,8 @@ export class PricingService {
   private validatePriceRequest(request: PriceRequest): void {
     const { from, to } = request;
 
-    const isKnownFrom = this.isKnownAsset(from);
-    const isKnownTo = this.isKnownAsset(to);
+    const isKnownFrom = PricingUtil.isKnownAsset(from);
+    const isKnownTo = PricingUtil.isKnownAsset(to);
 
     if (!isKnownFrom || !isKnownTo) {
       throw new BadPriceRequestException(!isKnownFrom && from, !isKnownTo && to);
@@ -272,53 +272,33 @@ export class PricingService {
 
     if (from === to) return PricingPathAlias.MATCHING_ASSETS;
 
-    if (this.isFiat(from) && to === 'BTC') return PricingPathAlias.FIAT_TO_BTC;
+    if (PricingUtil.isFiat(from) && to === 'BTC') return PricingPathAlias.FIAT_TO_BTC;
 
-    if (this.isAltcoin(from) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
+    if (PricingUtil.isAltcoin(from) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
 
-    if (this.isFiat(from) && this.isAltcoin(to)) return PricingPathAlias.FIAT_TO_ALTCOIN;
+    if (PricingUtil.isFiat(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.FIAT_TO_ALTCOIN;
 
-    if (this.isAltcoin(from) && this.isAltcoin(to)) return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
+    if (PricingUtil.isAltcoin(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
 
-    if (from === 'BTC' && this.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
+    if (from === 'BTC' && PricingUtil.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
-    if (from === 'USD' && this.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
+    if (from === 'USD' && PricingUtil.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
 
-    if (this.isFiat(from) && this.isUSDStablecoin(to)) return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
+    if (PricingUtil.isFiat(from) && PricingUtil.isUSDStablecoin(to))
+      return PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN;
 
-    if (this.isUSDStablecoin(from) && this.isUSDStablecoin(to) && from !== to) {
+    if (PricingUtil.isUSDStablecoin(from) && PricingUtil.isUSDStablecoin(to) && from !== to) {
       return PricingPathAlias.NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN;
     }
 
-    if (this.isFiat(from) && to === 'DFI') return PricingPathAlias.FIAT_TO_DFI;
+    if (PricingUtil.isFiat(from) && to === 'DFI') return PricingPathAlias.FIAT_TO_DFI;
 
-    if (from === 'DFI' && !this.isFiat(to)) return PricingPathAlias.DFI_TO_NON_FIAT;
+    if (from === 'DFI' && !PricingUtil.isFiat(to)) return PricingPathAlias.DFI_TO_NON_FIAT;
 
-    if (this.isAltcoin(from) && this.isUSDStablecoin(to)) return PricingPathAlias.ALTCOIN_TO_USD_STABLE_COIN;
+    if (PricingUtil.isAltcoin(from) && PricingUtil.isUSDStablecoin(to))
+      return PricingPathAlias.ALTCOIN_TO_USD_STABLE_COIN;
 
     throw new Error(`No matching pricing path alias found. From: ${request.from} to: ${request.to}`);
-  }
-
-  private isFiat(asset: string): boolean {
-    return Object.values(Fiat).includes(asset as unknown as Fiat);
-  }
-
-  private isBTC(asset: string): boolean {
-    return asset === 'BTC';
-  }
-
-  private isAltcoin(asset: string): boolean {
-    return Object.values(Altcoin).includes(asset as unknown as Altcoin);
-  }
-
-  private isUSDStablecoin(asset: string): boolean {
-    return Object.values(USDStableCoin).includes(asset as unknown as USDStableCoin);
-  }
-
-  private isKnownAsset(asset: string): boolean {
-    return (
-      this.isFiat(asset) || this.isBTC(asset) || this.isAltcoin(asset) || this.isUSDStablecoin(asset) || asset === 'DFI'
-    );
   }
 
   private logPriceResult(request: PriceRequest, result: PriceResult, pathAlias: PricingPathAlias): void {
