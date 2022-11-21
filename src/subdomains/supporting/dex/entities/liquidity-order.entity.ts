@@ -9,6 +9,7 @@ export enum LiquidityOrderContext {
   STAKING_REWARD = 'StakingReward',
   CREATE_POOL_PAIR = 'CreatePoolPair',
   PRICING = 'Pricing',
+  LIQUIDITY_MANAGEMENT = 'LiquidityManagement',
 }
 
 export enum LiquidityOrderType {
