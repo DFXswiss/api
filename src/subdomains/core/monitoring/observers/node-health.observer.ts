@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { NodeMode } from 'src/integration/blockchain/ain/node/node-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { AzureService } from 'src/integration/infrastructure/azure-service';
+import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
@@ -19,6 +21,7 @@ interface NodeState {
   mode: NodeMode;
   isDown: boolean;
   downSince?: Date;
+  restarted?: boolean;
   errors: string[];
 }
 
@@ -26,9 +29,10 @@ interface NodeState {
 @Injectable()
 export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
   constructor(
-    monitoringService: MonitoringService,
-    readonly nodeService: NodeService,
-    readonly notificationService: NotificationService,
+    readonly monitoringService: MonitoringService,
+    private readonly nodeService: NodeService,
+    private readonly notificationService: NotificationService,
+    private readonly azureService: AzureService,
   ) {
     super(monitoringService, 'node', 'health');
   }
@@ -56,7 +60,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
           errors: errors.filter((e) => e.nodeType === type && e.mode === mode).map((e) => e.message),
         }))
         .filter((n) => this.nodeService.allNodes.get(n.type)?.[n.mode])
-        .map((n) => ({ ...n, isDown: n.errors.length > 0 })),
+        .map((n) => ({ ...this.getPreviousNodeState(n.type, n.mode), ...n, isDown: n.errors.length > 0 })),
     }));
   }
 
@@ -65,42 +69,15 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
 
     // handle errors by pool
     for (const poolState of poolStates) {
-      const previousPoolState = this.$data.value?.find((p) => p.type === poolState.type);
-
-      // check, if swap required
-      const { value: connectedNode } = this.nodeService.connectedNodes.get(poolState.type);
-      const preferredNode = poolState.nodes.find((n) => !n.isDown);
-
-      if (!preferredNode) {
-        // all available nodes down
-        if (!previousPoolState || previousPoolState.nodes.some((n) => !n.isDown)) {
-          messages.push(`ALERT! Node '${poolState.type}' is fully down.`);
-        }
-      } else if (preferredNode.mode !== connectedNode.mode) {
-        // swap required
-        this.nodeService.swapNode(poolState.type, preferredNode.mode);
-        messages.push(`WARN. Node '${poolState.type}' switched from ${connectedNode.mode} to ${preferredNode.mode}`);
-      }
+      messages.push(...this.checkPool(poolState));
 
       // check for single node state changes
       for (const node of poolState.nodes) {
-        const previous = previousPoolState?.nodes.find((pn) => pn.mode === node.mode);
-        node.downSince = previous?.downSince;
-
-        if (node.isDown !== (previous?.isDown ?? false)) {
-          // node state changed
-          node.downSince = node.isDown ? new Date() : undefined;
-
-          const errors =
-            node.errors.length > 0
-              ? node.errors.map((e) => `ERR. ${e}`)
-              : [`OK. Node '${node.type}' ${node.mode} is up`];
-          messages.push(...errors);
-        }
+        messages.push(...(await this.checkNode(node)));
       }
     }
 
-    // send the mail
+    // send notification
     if (messages.length > 0) {
       console.log(messages);
 
@@ -118,5 +95,66 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
     }
 
     return poolStates;
+  }
+
+  private checkPool(poolState: NodePoolState): string[] {
+    const previousPoolState = this.getPreviousPoolState(poolState.type);
+
+    // check, if swap required
+    const { value: connectedNode } = this.nodeService.connectedNodes.get(poolState.type);
+    const preferredNode = poolState.nodes.find((n) => !n.isDown);
+
+    if (!preferredNode) {
+      // all available nodes down
+      if (!previousPoolState || previousPoolState.nodes.some((n) => !n.isDown)) {
+        return [`ALERT! Node '${poolState.type}' is fully down.`];
+      }
+    } else if (preferredNode.mode !== connectedNode.mode) {
+      // swap required
+      this.nodeService.swapNode(poolState.type, preferredNode.mode);
+      return [`WARN. Node '${poolState.type}' switched from ${connectedNode.mode} to ${preferredNode.mode}`];
+    }
+
+    return [];
+  }
+
+  private async checkNode(node: NodeState): Promise<string[]> {
+    const messages = [];
+    const previous = this.getPreviousNodeState(node.type, node.mode);
+
+    // node state changed
+    if (node.isDown !== (previous?.isDown ?? false)) {
+      if (node.isDown) {
+        node.downSince = new Date();
+      } else {
+        node.downSince = undefined;
+        node.restarted = undefined;
+      }
+
+      const errors =
+        node.errors.length > 0 ? node.errors.map((e) => `ERR. ${e}`) : [`OK. Node '${node.type}' ${node.mode} is up`];
+      messages.push(...errors);
+    }
+
+    // check for required restarts
+    if (!node.restarted && node.downSince && Util.minutesDiff(node.downSince, new Date()) > 30) {
+      const message = `ALERT! Restarting node ${node.type} ${node.mode} (down since ${node.downSince})`;
+      messages.push(message);
+      console.log(message);
+
+      node.restarted = true;
+
+      await this.azureService.restartWebApp(`node-${node.type}`, node.mode === NodeMode.PASSIVE ? 'stg' : undefined);
+    }
+
+    return messages;
+  }
+
+  private getPreviousPoolState(type: NodeType): NodePoolState | undefined {
+    return this.$data.value?.find((p) => p.type === type);
+  }
+
+  private getPreviousNodeState(type: NodeType, mode: NodeMode): NodeState | undefined {
+    return this.getPreviousPoolState(type)?.nodes.find((n) => n.mode === mode);
   }
 }
