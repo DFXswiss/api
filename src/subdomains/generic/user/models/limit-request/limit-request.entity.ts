@@ -69,3 +69,9 @@ export class LimitRequest extends IEntity {
     return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
   }
 }
+
+export const LimitRequestAcceptedStates = [LimitRequestDecision.ACCEPTED, LimitRequestDecision.PARTIALLY_ACCEPTED];
+
+export function LimitRequestAccepted(decision?: LimitRequestDecision): boolean {
+  return LimitRequestAcceptedStates.includes(decision);
+}

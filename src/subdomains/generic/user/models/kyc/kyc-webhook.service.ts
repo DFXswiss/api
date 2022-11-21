@@ -4,6 +4,7 @@ import { KycCompleted, KycStatus, UserData } from '../user-data/user-data.entity
 import { UserRepository } from '../user/user.repository';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
 import { WalletService } from '../wallet/wallet.service';
+import { TradingLimit } from '../user/dto/user.dto';
 
 export enum KycWebhookStatus {
   NA = 'NA',
@@ -28,6 +29,7 @@ export class KycWebhookDataDto {
   phone: string;
   kycStatus: KycWebhookStatus;
   kycHash: string;
+  tradingLimit: TradingLimit;
 }
 
 export class KycWebhookDto {
@@ -77,6 +79,7 @@ export class KycWebhookService {
             phone: userData.phone,
             kycStatus: this.getKycWebhookStatus(userData.kycStatus, spiderData?.chatbotResult),
             kycHash: userData.kycHash,
+            tradingLimit: userData.tradingLimit,
           },
           reason: reason,
         };
