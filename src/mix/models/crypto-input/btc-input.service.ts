@@ -16,7 +16,6 @@ import { CryptoRouteService } from '../crypto-route/crypto-route.service';
 import { ChainalysisService } from './chainalysis.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BuyFiatService } from '../../../subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { SellService } from '../../../subdomains/core/sell-crypto/sell/sell.service';
 import { Sell } from '../../../subdomains/core/sell-crypto/sell/sell.entity';
@@ -99,11 +98,8 @@ export class BtcInputService extends CryptoInputService {
 
   private async createEntity(utxo: UTXO): Promise<CryptoInput> {
     // get asset
-    const assetEntity = await this.assetService.getAssetByQuery({
-      dexName: 'BTC',
-      blockchain: Blockchain.BITCOIN,
-      type: AssetType.COIN,
-    });
+    const assetEntity = await this.assetService.getBtcCoin();
+
     if (!assetEntity) {
       console.error(`Failed to process Bitcoin input. No asset BTC found. UTXO:`, utxo);
       return null;

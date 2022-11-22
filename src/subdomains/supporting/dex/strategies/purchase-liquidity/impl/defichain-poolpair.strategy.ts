@@ -1,7 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Not } from 'typeorm';
-
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
@@ -96,11 +95,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.COIN,
-    });
+    return this.assetService.getDfiCoin();
   }
 
   private async getAssetPair(asset: Asset): Promise<[Asset, Asset]> {

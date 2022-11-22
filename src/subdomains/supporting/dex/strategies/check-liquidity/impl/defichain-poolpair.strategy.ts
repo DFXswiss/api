@@ -41,11 +41,7 @@ export class DeFiChainPoolPairStrategy extends CheckLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.COIN,
-    });
+    return this.assetService.getDfiCoin();
   }
 
   //*** HELPER METHODS ***//

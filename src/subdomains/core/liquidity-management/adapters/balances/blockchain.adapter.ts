@@ -11,6 +11,7 @@ import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Util } from 'src/shared/utils/util';
 import { BalanceNotCertainException } from '../../exceptions/balance-not-certain.exception';
+import { Config } from 'src/config/config';
 
 type AssetHash = string;
 interface Balance {
@@ -125,22 +126,14 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   private aggregateBalances(tokens: AccountResult<string, string>[], coinAmount: number): Balance[] {
-    const allBalances = tokens
+    return tokens
+      .filter((t) => t.owner === Config.blockchain.default.dexWalletAddress)
       .map((t) => {
         const { asset, amount } = this.dexClient.parseAmount(t.amount);
 
-        return { key: `${asset}_${AssetType.TOKEN}`, amount };
+        return { name: asset, type: AssetType.TOKEN, amount };
       })
-      .concat([{ key: `DFI_${AssetType.COIN}`, amount: +coinAmount }]);
-
-    // TODO -> filter by address DEX_WALLET_ADDRESS instead of summing up
-    const aggregatedBalances = Util.aggregate<{ key: string; amount: number }>(allBalances, 'key', 'amount');
-
-    return Object.entries(aggregatedBalances).map((e) => ({
-      name: e[0].split('_')[0],
-      type: e[0].split('_')[1] as AssetType,
-      amount: e[1],
-    }));
+      .concat([{ name: 'DFI', type: AssetType.COIN, amount: +coinAmount }]);
   }
 
   private setCache(balances: Balance[]): void {

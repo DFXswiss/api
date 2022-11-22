@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SellLiquidityStrategyAlias } from '../sell-liquidity.facade';
 import { SellLiquidityStrategy } from './base/sell-liquidity.strategy';
@@ -12,14 +11,14 @@ export class BitcoinStrategy extends SellLiquidityStrategy {
   }
 
   sellLiquidity(): Promise<void> {
-    throw new Error(`Selling liquidity on DEX is not supported for bitcoin`);
+    throw new Error('Selling liquidity on DEX is not supported for bitcoin');
   }
 
   addSellData(): Promise<void> {
-    throw new Error(`Selling liquidity on DEX is not supported for bitcoin`);
+    throw new Error('Selling liquidity on DEX is not supported for bitcoin');
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN, type: AssetType.COIN });
+    return this.assetService.getBtcCoin();
   }
 }
