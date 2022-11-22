@@ -216,9 +216,11 @@ export class AdminController {
         case 'buy_crypto':
           this.insertEmptyCol(arrayData, 17, ['outputAsset']);
           this.insertEmptyCol(arrayData, 15, ['outputReferenceAsset']);
-          
+
+          this.moveCol(arrayData, 21, 'mailSendDate');
+
           break;
-          
+
         case 'bank_data':
           this.insertEmptyCol(arrayData, 2, ['location', 'country']);
 
@@ -227,6 +229,16 @@ export class AdminController {
     }
 
     return arrayData;
+  }
+
+  private moveCol(arrayData: { keys: string[]; values: unknown[][] }, targetColumn: number, key: string): void {
+    var index = arrayData.keys.findIndex((k) => k === key);
+
+    [arrayData.keys, ...arrayData.values].forEach((arr) => {
+      var element = arr[index];
+      arr.splice(index, 1);
+      arr.splice(targetColumn, 0, element);
+    });
   }
 
   private insertEmptyCol(
