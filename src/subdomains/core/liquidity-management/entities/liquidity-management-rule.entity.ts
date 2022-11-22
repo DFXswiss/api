@@ -93,6 +93,12 @@ export class LiquidityManagementRule extends IEntity {
     return this;
   }
 
+  pause(): this {
+    this.status = LiquidityManagementRuleStatus.PAUSED;
+
+    return this;
+  }
+
   reactivate(): this {
     this.status = LiquidityManagementRuleStatus.ACTIVE;
 

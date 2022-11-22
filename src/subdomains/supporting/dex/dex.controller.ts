@@ -4,7 +4,14 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LiquidityOrderContext } from './entities/liquidity-order.entity';
-import { CheckLiquidityResult, LiquidityRequest, PurchaseLiquidityResult, TransferRequest } from './interfaces';
+import {
+  CheckLiquidityRequest,
+  CheckLiquidityResult,
+  PurchaseLiquidityRequest,
+  LiquidityTransactionResult,
+  ReserveLiquidityRequest,
+  TransferRequest,
+} from './interfaces';
 import { DexService } from './services/dex.service';
 
 @ApiTags('dex')
@@ -16,7 +23,7 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async checkLiquidity(@Query() dto: LiquidityRequest): Promise<CheckLiquidityResult> {
+  async checkLiquidity(@Query() dto: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.checkLiquidity(dto);
     }
@@ -26,7 +33,7 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async reserveLiquidity(@Body() dto: LiquidityRequest): Promise<number> {
+  async reserveLiquidity(@Body() dto: ReserveLiquidityRequest): Promise<number> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.reserveLiquidity(dto);
     }
@@ -36,7 +43,7 @@ export class DexController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async purchaseLiquidity(@Body() dto: LiquidityRequest): Promise<void> {
+  async purchaseLiquidity(@Body() dto: PurchaseLiquidityRequest): Promise<void> {
     if (process.env.ENVIRONMENT === 'test') {
       return this.dexService.purchaseLiquidity(dto);
     }
@@ -69,9 +76,9 @@ export class DexController {
   async fetchTargetLiquidityAfterPurchase(
     @Query('context') context: LiquidityOrderContext,
     @Query('correlationId') correlationId: string,
-  ): Promise<PurchaseLiquidityResult> {
+  ): Promise<LiquidityTransactionResult> {
     if (process.env.ENVIRONMENT === 'test') {
-      return this.dexService.fetchLiquidityAfterPurchase(context, correlationId);
+      return this.dexService.fetchLiquidityTransactionResult(context, correlationId);
     }
   }
 

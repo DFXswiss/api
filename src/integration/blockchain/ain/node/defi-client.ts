@@ -154,6 +154,13 @@ export class DeFiClient extends NodeClient {
     );
   }
 
+  async toToken(address: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
+    return this.callNode(
+      (c) => c.account.utxosToAccount({ [address]: `${this.roundAmount(amount)}@DFI` }, utxos),
+      true,
+    );
+  }
+
   async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
     return this.callNode((c) => c.poolpair.removePoolLiquidity(address, amount, { utxos }), true);
   }

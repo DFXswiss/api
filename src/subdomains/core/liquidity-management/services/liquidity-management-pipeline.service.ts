@@ -217,15 +217,49 @@ export class LiquidityManagementPipelineService {
 
     await this.ruleRepo.save(rule);
 
-    console.log(
-      `Liquidity management pipeline complete. Pipeline ID: ${pipeline.id}. Rule ${pipeline.rule.id} optimized.`,
-    );
+    const [successMessage, mailRequest] = this.generateSuccessMessage(pipeline);
+
+    await this.notificationService.sendMail(mailRequest);
+
+    console.log(successMessage);
   }
 
   private async handlePipelineFail(pipeline: LiquidityManagementPipeline): Promise<void> {
-    const errorMessage = `Liquidity management pipeline failed. Pipeline ID: ${pipeline.id}`;
+    const rule = pipeline.rule.pause();
+
+    await this.ruleRepo.save(rule);
+
+    const [errorMessage, mailRequest] = this.generateFailMessage(pipeline);
 
     console.log(errorMessage);
+
+    await this.notificationService.sendMail(mailRequest);
+  }
+
+  private generateSuccessMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
+    const { type, targetAmount, rule } = pipeline;
+    const successMessage = `Successfully completed a ${type} pipeline for ${targetAmount} ${rule.target.name}. Pipeline ID: ${pipeline.id}. Rule ${pipeline.rule.id} optimized.`;
+
+    const mailRequest: MailRequest = {
+      type: MailType.ERROR_MONITORING,
+      input: {
+        subject: 'Liquidity management pipeline SUCCESS',
+        errors: [successMessage],
+      },
+      metadata: {
+        context: MailContext.LIQUIDITY_MANAGEMENT,
+        correlationId: `LiquidityManagementPipeline_${pipeline.id}`,
+      },
+      options: {
+        suppressRecurring: true,
+      },
+    };
+
+    return [successMessage, mailRequest];
+  }
+
+  private generateFailMessage(pipeline: LiquidityManagementPipeline): [string, MailRequest] {
+    const errorMessage = `Liquidity management pipeline failed. Rule ${pipeline.rule.id} is paused. Pipeline ID: ${pipeline.id}`;
 
     const mailRequest: MailRequest = {
       type: MailType.ERROR_MONITORING,
@@ -242,7 +276,7 @@ export class LiquidityManagementPipelineService {
       },
     };
 
-    await this.notificationService.sendMail(mailRequest);
+    return [errorMessage, mailRequest];
   }
 
   private logNewPipelines(newPipelines: LiquidityManagementPipeline[]): void {

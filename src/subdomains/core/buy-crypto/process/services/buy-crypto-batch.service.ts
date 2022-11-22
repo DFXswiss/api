@@ -11,7 +11,7 @@ import { BuyCryptoPricingService } from './buy-crypto-pricing.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Price } from 'src/integration/exchange/dto/price.dto';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { CheckLiquidityResult, LiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import { CheckLiquidityRequest, CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeResult, FeeRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -247,7 +247,7 @@ export class BuyCryptoBatchService {
     }
   }
 
-  private async createReadonlyLiquidityRequest(batch: BuyCryptoBatch): Promise<LiquidityRequest> {
+  private async createReadonlyLiquidityRequest(batch: BuyCryptoBatch): Promise<CheckLiquidityRequest> {
     const { outputAsset: targetAsset, outputReferenceAsset: referenceAsset } = batch;
 
     return {

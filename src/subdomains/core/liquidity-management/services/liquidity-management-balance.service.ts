@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { LiquidityBalance } from '../entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from '../entities/liquidity-management-rule.entity';
+import { BalanceNotCertainException } from '../exceptions/balance-not-certain.exception';
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
 
@@ -14,15 +15,24 @@ export class LiquidityManagementBalanceService {
   //*** PUBLIC API ***//
 
   async refreshBalances(rules: LiquidityManagementRule[]): Promise<LiquidityBalance[]> {
-    const balanceRequests = rules
-      .map((rule) => {
-        const integration = this.balanceIntegrationFactory.getIntegration(rule);
+    const balanceRequests = await Promise.all(
+      rules.map(async (rule) => {
+        try {
+          const integration = this.balanceIntegrationFactory.getIntegration(rule);
 
-        if (!integration) return null;
+          if (!integration) return null;
 
-        return integration.getBalance(rule.target);
-      })
-      .filter((i) => i);
+          return await integration.getBalance(rule.target);
+        } catch (e) {
+          if (e instanceof BalanceNotCertainException) {
+            console.warn(e.message);
+            return null;
+          }
+
+          throw e;
+        }
+      }),
+    ).then((r) => r.filter((i) => i));
 
     const balances = await Promise.allSettled(balanceRequests).then((values) =>
       values.filter(this.filterFulfilledBalanceCalls).map((b) => b.value),
@@ -66,7 +76,7 @@ export class LiquidityManagementBalanceService {
           existingBalance.updateBalance(balance.amount);
           await this.balanceRepo.save(existingBalance);
 
-          return;
+          continue;
         }
 
         await this.balanceRepo.save(balance);

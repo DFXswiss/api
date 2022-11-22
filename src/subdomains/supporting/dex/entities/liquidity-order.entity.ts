@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Column, Entity, ManyToOne } from 'typeorm';
-import { PurchaseLiquidityResult } from '../interfaces';
+import { LiquidityTransactionResult } from '../interfaces';
 
 export enum LiquidityOrderContext {
   BUY_CRYPTO = 'BuyCrypto',
@@ -15,6 +15,7 @@ export enum LiquidityOrderContext {
 export enum LiquidityOrderType {
   PURCHASE = 'Purchase',
   RESERVATION = 'Reservation',
+  SELL = 'Sell',
 }
 
 export type ChainSwapId = string;
@@ -59,19 +60,19 @@ export class LiquidityOrder extends IEntity {
   swapAmount?: number;
 
   @Column({ length: 256, nullable: true })
-  purchaseStrategy?: string;
+  strategy?: string;
 
   @Column({ length: 256, nullable: true })
-  purchaseTxId?: string;
+  txId?: string;
 
   @Column({ type: 'float', nullable: true })
   purchasedAmount?: number;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  purchaseFeeAsset?: Asset;
+  feeAsset?: Asset;
 
   @Column({ type: 'float', nullable: true })
-  purchaseFeeAmount?: number;
+  feeAmount?: number;
 
   reserved(targetAmount: number): this {
     this.setTargetAmount(targetAmount);
@@ -80,10 +81,17 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
-  addPurchaseMetadata(purchaseTxId: string, swapAsset?: Asset, swapAmount?: number): this {
-    this.purchaseTxId = purchaseTxId;
+  addBlockchainTransactionMetadata(txId: string, swapAsset?: Asset, swapAmount?: number): this {
+    this.txId = txId;
     this.swapAsset = swapAsset;
     this.swapAmount = swapAmount;
+
+    return this;
+  }
+
+  sold(receivedAmount: number): this {
+    this.targetAmount = receivedAmount;
+    this.isReady = true;
 
     return this;
   }
@@ -97,17 +105,18 @@ export class LiquidityOrder extends IEntity {
     return this;
   }
 
-  recordPurchaseFee(purchaseFeeAsset: Asset, purchaseFeeAmount: number): this {
-    this.purchaseFeeAsset = purchaseFeeAsset;
-    this.purchaseFeeAmount = purchaseFeeAmount;
+  recordFee(feeAsset: Asset, feeAmount: number): this {
+    this.feeAsset = feeAsset;
+    this.feeAmount = feeAmount;
 
     return this;
   }
 
-  getPurchaseLiquidityResult(): PurchaseLiquidityResult {
+  getLiquidityTransactionResult(): LiquidityTransactionResult {
     return {
+      type: this.type,
       target: { asset: this.targetAsset, amount: this.targetAmount },
-      purchaseFee: { asset: this.purchaseFeeAsset, amount: this.purchaseFeeAmount },
+      fee: { asset: this.feeAsset, amount: this.feeAmount },
     };
   }
 

@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrderContext } from '../../../../subdomains/supporting/dex/entities/liquidity-order.entity';
-import { LiquidityRequest } from '../../../../subdomains/supporting/dex/interfaces';
+import { CheckLiquidityRequest } from '../../../../subdomains/supporting/dex/interfaces';
 import { DexService } from '../../../../subdomains/supporting/dex/services/dex.service';
 import { Price } from '../../../../integration/exchange/dto/price.dto';
 import { PriceProvider } from '../interfaces';
@@ -31,7 +31,7 @@ export class DfiPricingDexService implements PriceProvider {
       type: AssetType.TOKEN,
     });
 
-    const liquidityRequest: LiquidityRequest = {
+    const liquidityRequest: CheckLiquidityRequest = {
       context: LiquidityOrderContext.PRICING,
       correlationId: uuid(),
       referenceAsset: fromAsset,

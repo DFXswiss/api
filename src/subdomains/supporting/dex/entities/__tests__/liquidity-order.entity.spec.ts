@@ -45,21 +45,21 @@ describe('LiquidityOrder', () => {
     });
   });
 
-  describe('#addPurchaseMetadata(...)', () => {
-    it('sets purchaseTxId, allows swap data to remain undefined', () => {
+  describe('#addBlockchainTransactionMetadata(...)', () => {
+    it('sets txId, allows swap data to remain undefined', () => {
       const entity = createCustomLiquidityOrder({
-        purchaseTxId: undefined,
+        txId: undefined,
         swapAsset: undefined,
         swapAmount: undefined,
       });
 
-      expect(entity.purchaseTxId).toBeUndefined();
+      expect(entity.txId).toBeUndefined();
       expect(entity.swapAsset).toBeUndefined();
       expect(entity.swapAmount).toBeUndefined();
 
-      entity.addPurchaseMetadata('PID_01');
+      entity.addBlockchainTransactionMetadata('PID_01');
 
-      expect(entity.purchaseTxId).toBe('PID_01');
+      expect(entity.txId).toBe('PID_01');
       expect(entity.swapAsset).toBeUndefined();
       expect(entity.swapAmount).toBeUndefined();
     });
@@ -73,7 +73,7 @@ describe('LiquidityOrder', () => {
       expect(entity.swapAsset).toBeUndefined();
       expect(entity.swapAmount).toBeUndefined();
 
-      entity.addPurchaseMetadata('PID_01', createCustomAsset({ dexName: 'DFI' }), 20);
+      entity.addBlockchainTransactionMetadata('PID_01', createCustomAsset({ dexName: 'DFI' }), 20);
 
       expect(entity.swapAsset.dexName).toBe('DFI');
       expect(entity.swapAmount).toBe(20);

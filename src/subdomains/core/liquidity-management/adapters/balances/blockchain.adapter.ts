@@ -10,6 +10,8 @@ import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { Util } from 'src/shared/utils/util';
+import { BalanceNotCertainException } from '../../exceptions/balance-not-certain.exception';
+import { Config } from 'src/config/config';
 
 type AssetHash = string;
 interface Balance {
@@ -35,6 +37,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       throw new Error(`BlockchainAdapter supports only Assets.`);
     }
 
+    await this.checkOngoingOrders(asset);
+
     if (
       asset.blockchain === Blockchain.ETHEREUM ||
       asset.blockchain === Blockchain.BINANCE_SMART_CHAIN ||
@@ -53,6 +57,17 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   //*** HELPER METHODS ***//
+
+  private async checkOngoingOrders(asset: Asset): Promise<void> {
+    const ongoingOrders = await this.dexService.getPendingOrdersCount(asset);
+
+    if (ongoingOrders) {
+      const { dexName, type, blockchain } = asset;
+      throw new BalanceNotCertainException(
+        `Cannot safely get balance of ${blockchain} ${dexName} ${type}. There is/are ${ongoingOrders} ongoing DEX order(s).`,
+      );
+    }
+  }
 
   private async getForNonDeFiChain(asset: Asset): Promise<number> {
     const request = {
@@ -112,6 +127,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private aggregateBalances(tokens: AccountResult<string, string>[], coinAmount: number): Balance[] {
     return tokens
+      .filter((t) => t.owner === Config.blockchain.default.dexWalletAddress)
       .map((t) => {
         const { asset, amount } = this.dexClient.parseAmount(t.amount);
 

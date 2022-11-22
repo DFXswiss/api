@@ -1,10 +1,10 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
-import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
+import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
 
 export class CheckLiquidityUtil {
   static createNonPurchasableCheckLiquidityResult(
-    request: LiquidityRequest,
+    request: CheckLiquidityRequest,
     targetAmount: number,
     availableAmount: number,
     feeAsset: Asset,

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrder, LiquidityOrderType } from '../entities/liquidity-order.entity';
-import { LiquidityRequest } from '../interfaces';
+import { PurchaseLiquidityRequest, ReserveLiquidityRequest, SellLiquidityRequest } from '../interfaces';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
 @Injectable()
@@ -11,24 +11,44 @@ export class LiquidityOrderFactory {
 
   // *** PUBLIC API *** //
 
-  createPurchaseOrder(
-    request: LiquidityRequest,
-    chain: Blockchain,
-    purchaseAssetCategory: AssetCategory,
-  ): LiquidityOrder {
-    const order = this.createOrder(request, chain, LiquidityOrderType.PURCHASE);
-    order.purchaseStrategy = purchaseAssetCategory;
+  createPurchaseOrder(request: PurchaseLiquidityRequest, chain: Blockchain, strategy: string): LiquidityOrder {
+    const order = this.createGetLiquidityOrder(request, chain, LiquidityOrderType.PURCHASE);
+    order.strategy = strategy;
 
     return order;
   }
 
-  createReservationOrder(request: LiquidityRequest, chain: Blockchain): LiquidityOrder {
-    return this.createOrder(request, chain, LiquidityOrderType.RESERVATION);
+  createReservationOrder(request: ReserveLiquidityRequest, chain: Blockchain): LiquidityOrder {
+    return this.createGetLiquidityOrder(request, chain, LiquidityOrderType.RESERVATION);
+  }
+
+  createSellOrder(
+    request: SellLiquidityRequest,
+    chain: Blockchain,
+    strategy: string,
+    targetAsset: Asset,
+  ): LiquidityOrder {
+    const { context, correlationId, sellAsset, sellAmount } = request;
+
+    return this.liquidityOrderRepo.create({
+      type: LiquidityOrderType.SELL,
+      context,
+      correlationId,
+      chain,
+      referenceAsset: sellAsset,
+      referenceAmount: sellAmount,
+      targetAsset,
+      strategy,
+    });
   }
 
   // *** HELPER METHODS *** //
 
-  private createOrder(request: LiquidityRequest, chain: Blockchain, type: LiquidityOrderType): LiquidityOrder {
+  private createGetLiquidityOrder(
+    request: PurchaseLiquidityRequest | ReserveLiquidityRequest,
+    chain: Blockchain,
+    type: LiquidityOrderType,
+  ): LiquidityOrder {
     const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = request;
 
     return this.liquidityOrderRepo.create({

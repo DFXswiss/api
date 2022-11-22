@@ -6,9 +6,8 @@ import { PayoutDeFiChainService } from '../../../services/payout-defichain.servi
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { FeeResult } from '../../../interfaces';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class DeFiChainCoinStrategy extends JellyfishStrategy {
@@ -52,11 +51,7 @@ export class DeFiChainCoinStrategy extends JellyfishStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.COIN,
-    });
+    return this.assetService.getDfiCoin();
   }
 
   private async sendDFI(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
