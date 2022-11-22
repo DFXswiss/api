@@ -217,7 +217,7 @@ export class AdminController {
           this.insertEmptyCol(arrayData, 17, ['outputAsset']);
           this.insertEmptyCol(arrayData, 15, ['outputReferenceAsset']);
 
-          this.moveCol(arrayData, 21, 'mailSendDate');
+          this.moveCol(arrayData, 19, 'mailSendDate');
 
           break;
 
