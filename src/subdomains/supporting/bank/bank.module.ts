@@ -54,6 +54,6 @@ import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controll
     FrickService,
     BankService,
   ],
-  exports: [BankTxService, BankAccountService, OlkypayService, FrickService, BankService],
+  exports: [BankTxService, BankAccountService, OlkypayService, FrickService, BankService, BankTxRepeatService],
 })
 export class BankModule {}
