@@ -232,10 +232,10 @@ export class AdminController {
   }
 
   private moveCol(arrayData: { keys: string[]; values: unknown[][] }, targetColumn: number, key: string): void {
-    var index = arrayData.keys.findIndex((k) => k === key);
+    const index = arrayData.keys.findIndex((k) => k === key);
 
     [arrayData.keys, ...arrayData.values].forEach((arr) => {
-      var element = arr[index];
+      const element = arr[index];
       arr.splice(index, 1);
       arr.splice(targetColumn, 0, element);
     });
