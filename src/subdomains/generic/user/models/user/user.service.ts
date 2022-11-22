@@ -27,7 +27,7 @@ import { GeoLocationService } from 'src/integration/geolocation/geo-location.ser
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { VolumeQuery } from './dto/volume-query.dto';
-import { UserData } from '../user-data/user-data.entity';
+import { KycType, UserData } from '../user-data/user-data.entity';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
@@ -96,7 +96,7 @@ export class UserService {
     user.ref = await this.getNextRef();
     user.usedRef = await this.checkRef(user, dto.usedRef);
     user.origin = userOrigin;
-    user.userData = userData ?? (await this.userDataService.createUserData());
+    user.userData = userData ?? (await this.userDataService.createUserData(user.wallet.customKyc ?? KycType.DFX));
 
     user = await this.userRepo.save(user);
 
