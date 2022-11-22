@@ -25,6 +25,7 @@ export class DeFiChainUtil {
 
   async getAvailableTokenAmount(assetName: string, client: DeFiClient): Promise<number> {
     const tokens = await client.getToken();
+    // TODO -> filter by address DEX_WALLET_ADDRESS
     const token = tokens.map((t) => client.parseAmount(t.amount)).find((pt) => pt.asset === assetName);
 
     return token ? token.amount : 0;

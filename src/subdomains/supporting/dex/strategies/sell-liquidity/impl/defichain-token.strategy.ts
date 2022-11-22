@@ -67,6 +67,10 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
     }
   }
 
+  private getDefaultTargetAsset(sellAsset: Asset): string {
+    return sellAsset.category === AssetCategory.CRYPTO ? 'DFI' : 'DUSD';
+  }
+
   private async bookLiquiditySell(order: LiquidityOrder): Promise<void> {
     const { referenceAsset, referenceAmount, targetAsset, maxPriceSlippage } = order;
 
@@ -82,9 +86,5 @@ export class DeFiChainTokenStrategy extends DeFiChainStrategy {
     );
 
     order.addBlockchainTransactionMetadata(txId);
-  }
-
-  private getDefaultTargetAsset(sellAsset: Asset): string {
-    return sellAsset.category === AssetCategory.CRYPTO ? 'DFI' : 'DUSD';
   }
 }

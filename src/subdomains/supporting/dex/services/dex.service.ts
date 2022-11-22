@@ -21,6 +21,7 @@ import {
 } from '../interfaces';
 import { PurchaseLiquidityStrategies } from '../strategies/purchase-liquidity/purchase-liquidity.facade';
 import { SellLiquidityStrategies } from '../strategies/sell-liquidity/sell-liquidity.facade';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class DexService {
@@ -195,6 +196,17 @@ export class DexService {
       order.complete();
       await this.liquidityOrderRepo.save(order);
     }
+  }
+
+  async getPendingOrdersCount(targetAsset: Asset): Promise<number> {
+    const pendingOrders = await this.liquidityOrderRepo.find({
+      where: [
+        { targetAsset, isComplete: false },
+        { targetAsset, isReady: false },
+      ],
+    });
+
+    return pendingOrders.length;
   }
 
   // *** SUPPLEMENTARY PUBLIC API *** //
