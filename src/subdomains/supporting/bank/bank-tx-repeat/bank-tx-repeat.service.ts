@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
+import { In } from 'typeorm';
 import { BankTx, BankTxType } from '../bank-tx/bank-tx.entity';
 import { BankTxRepository } from '../bank-tx/bank-tx.repository';
 import { BankTxRepeat } from './bank-tx-repeat.entity';
@@ -58,5 +59,12 @@ export class BankTxRepeatService {
     Util.removeNullFields(entity);
 
     return await this.bankTxRepeatRepo.save({ ...update, ...entity });
+  }
+
+  async getAllUserRepeats(userIds: number[]): Promise<BankTxRepeat[]> {
+    return await this.bankTxRepeatRepo.find({
+      where: { userId: In(userIds) },
+      relations: ['bankTx', 'sourceBankTx', 'chargebackBankTx'],
+    });
   }
 }
