@@ -39,12 +39,16 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
 
   @Interval(60000)
   async fetch(): Promise<NodePoolState[]> {
-    let poolStates = await this.getState();
-    poolStates = await this.handleErrors(poolStates);
+    try {
+      let poolStates = await this.getState();
+      poolStates = await this.handleErrors(poolStates);
 
-    this.emit(poolStates);
+      this.emit(poolStates);
 
-    return poolStates;
+      return poolStates;
+    } catch (e) {
+      console.error('Exception in node health observer:', e);
+    }
   }
 
   private async getState(): Promise<NodePoolState[]> {
