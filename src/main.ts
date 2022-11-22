@@ -25,13 +25,13 @@ async function bootstrap() {
   app.use('*', json({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 
-  app.setGlobalPrefix('v1', { exclude: ['', 'version', 'app'] });
+  app.setGlobalPrefix('v1', { exclude: ['', 'app'] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new AllExceptionFilter());
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
-    .setDescription('DFX API')
+    .setDescription(`DFX API (updated on ${new Date().toLocaleString()})`)
     .setVersion('v1')
     .addBearerAuth()
     .build();

@@ -1,0 +1,93 @@
+<style>
+  html, body, table {
+    background-color: #072440;
+    color: #ffffff;
+    font-family: Open Sans,Helvetica,Arial,sans-serif;
+  } 
+  
+  .logo {
+    height: 100px;
+    width: 156.25px;
+  }
+  
+  .salutation {
+    color: #f5516c;
+    font-weight: 800;
+    font-size: 24px;
+  }
+  
+  .social-link {
+    text-decoration: none;
+  }
+
+  .social {
+    height: 15px;
+  }
+  
+  .spacer-h {
+    height: 10px;
+  }
+  
+  .spacer-v {
+    width: 10px;
+  }
+</style>
+
+<html>
+
+  <body>
+    <table border='0' cellpadding='0' cellspacing='0' width='100%'>
+      <tr>
+        <td align='center'>
+          <img class='logo' src='https://dfx.swiss/wp-content/uploads/2022/07/02.03.2022_DFX_Logo_grund_dunkel_1.png' />
+        </td>
+      </tr>
+
+      <tr>
+        <td align='center' class='salutation'>{{salutation}}</td>
+      </tr>
+
+      <tr class='spacer-h'></tr>
+
+      <tr>
+        <td align='center'>{{{body}}}</td>
+      </tr>
+
+      <tr>
+        <td align='center'>
+
+          <table>
+            <tr class='spacer-h'></tr>
+            <tr>
+              <td>
+                <a class='social-link' href='{{twitterUrl}}'>
+                  <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/twitter.png' />
+                </a>
+              </td>
+              <td class='spacer-v'></td>
+              <td>
+                <a class='social-link' href='{{telegramUrl}}'>
+                  <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/telegram.png' />
+                </a>
+              </td>
+              <td class='spacer-v'></td>
+              <td>
+                <a class='social-link' href='{{instagramUrl}}'>
+                  <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/instagram.png' />
+                </a>
+              </td>
+              <td class='spacer-v'></td>
+              <td>
+                <a class='social-link' href='{{linkedinUrl}}'>
+                  <img class='social' src='https://dfx.swiss/wp-content/uploads/2022/07/linkedin.png' />
+                </a>
+              </td>
+            </tr>
+            <tr class='spacer-h'></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+
+</html>

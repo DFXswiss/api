@@ -5,18 +5,18 @@ import { Details, UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
 import { HttpService } from './shared/services/http.service';
 import { SettingService } from './shared/models/setting/setting.service';
-import { RefService } from './user/models/referral/ref.service';
-import { AnnouncementDto } from './dto/announcement.dto';
-import { FlagDto } from './dto/flag.dto';
-import { AdDto, AdSettings, AdvertisementDto } from './dto/advertisement.dto';
-import { Util } from './shared/util';
+import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
+import { Util } from './shared/utils/util';
+import { AnnouncementDto } from './shared/dto/announcement.dto';
+import { FlagDto } from './shared/dto/flag.dto';
+import { RefService } from './subdomains/core/referral/process/ref.service';
 
 @Controller('')
 export class AppController {
-  private readonly appVersion = new Date().toISOString();
   private readonly lightWalletUrl = 'https://wallet.defichain.com/api/v0';
   private readonly homepageUrl = 'https://dfx.swiss';
-  private readonly playStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details?id=com.defichain.app.dfx';
+  private readonly playStoreUrl =
+    'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details?id=com.defichain.app.dfx';
   private readonly appleStoreUrl = 'https://apps.apple.com/app/id1582633093';
 
   constructor(
@@ -30,12 +30,6 @@ export class AppController {
   @ApiExcludeEndpoint()
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
-  }
-
-  @Get('version')
-  @ApiExcludeEndpoint()
-  async getVersion(): Promise<string> {
-    return this.appVersion;
   }
 
   @Get('app')
@@ -74,10 +68,9 @@ export class AppController {
   @Get('app/settings/flags')
   @ApiExcludeEndpoint()
   async getFlags(): Promise<FlagDto[]> {
-    return Promise.all([
-      this.settingService.getObj<FlagDto[]>('flags', []),
-      this.getLightWalletFlags(),
-    ]).then((r) => r.reduce((prev, curr) => prev.concat(curr), []));
+    return Promise.all([this.settingService.getObj<FlagDto[]>('flags', []), this.getLightWalletFlags()]).then((r) =>
+      r.reduce((prev, curr) => prev.concat(curr), []),
+    );
   }
 
   @Get('app/advertisements')
@@ -114,7 +107,9 @@ export class AppController {
     const ignoredFlags = (await this.settingService.getObj<string[]>('ignoredFlags', [])).map((f) => f.split(':'));
     return this.http
       .get<FlagDto[]>(`${this.lightWalletUrl}/settings/flags`, { tryCount: 3 })
-      .then((r) => r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null))
+      .then((r) =>
+        r.filter((f) => ignoredFlags.find((i) => i.length === 2 && i[0] === f.id && i[1] === f.stage) == null),
+      )
       .catch(() => []);
   }
 

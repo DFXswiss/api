@@ -4,7 +4,7 @@ import { Exchange } from 'ccxt';
 import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { MailOptions } from 'src/shared/services/mail.service';
+import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -23,7 +23,9 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
+  defaultDailyTradingLimit = 1000; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
+  azureIpSubstring = '169.254';
 
   colors = {
     white: '#FFFFFF',
@@ -59,6 +61,11 @@ export class Configuration {
     },
   };
 
+  mydefichain = {
+    username: process.env.MYDEFICHAIN_USER,
+    password: process.env.MYDEFICHAIN_PASSWORD,
+  };
+
   auth = {
     jwt: {
       secret: process.env.JWT_SECRET,
@@ -66,10 +73,20 @@ export class Configuration {
         expiresIn: process.env.JWT_EXPIRES_IN ?? 172800,
       },
     },
+    company: {
+      signOptions: {
+        expiresIn: process.env.JWT_EXPIRES_IN_COMPANY ?? 30,
+      },
+    },
+    challenge: {
+      expiresIn: +process.env.CHALLENGE_EXPIRES_IN ?? 10,
+    },
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageWallet:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
+    signMessageGeneral:
+      'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
 
   kyc = {
@@ -97,9 +114,35 @@ export class Configuration {
     allowedWebhookIps: process.env.KYC_WEBHOOK_IPS?.split(','),
   };
 
+  support = {
+    limitRequest: {
+      mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
+      mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
+      mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
+    },
+  };
+
   letter = {
     auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
     url: process.env.LETTER_URL,
+  };
+
+  payment = {
+    url: process.env.PAYMENT_URL,
+  };
+
+  fixer = {
+    baseUrl: process.env.FIXER_BASE_URL,
+    apiKey: process.env.FIXER_API_KEY,
+  };
+
+  externalKycServices = {
+    'LOCK.space': {
+      apiKey: process.env.LOCK_API_KEY,
+    },
+    'LOCK.space STG': {
+      apiKey: process.env.LOCK_API_KEY,
+    },
   };
 
   mail: MailOptions = {
@@ -117,17 +160,18 @@ export class Configuration {
         },
       },
       template: {
-        dir: path.join(__dirname, '../shared/assets/mails'),
+        dir: path.join(__dirname, '../subdomains/supporting/notification/templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
         },
       },
     },
-    defaultMailTemplate: 'personal',
+    defaultMailTemplate: 'support',
     contact: {
       supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
+      liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
     },
   };
@@ -138,51 +182,83 @@ export class Configuration {
     url: 'https://ocean.defichain.com',
   };
 
-  node = {
-    user: process.env.NODE_USER,
-    password: process.env.NODE_PASSWORD,
-    inp: {
-      active: process.env.NODE_INP_URL_ACTIVE,
-      passive: process.env.NODE_INP_URL_PASSIVE,
-    },
-    dex: {
-      active: process.env.NODE_DEX_URL_ACTIVE,
-      passive: process.env.NODE_DEX_URL_PASSIVE,
-    },
-    out: {
-      active: process.env.NODE_OUT_URL_ACTIVE,
-      passive: process.env.NODE_OUT_URL_PASSIVE,
-    },
-    int: {
-      active: process.env.NODE_INT_URL_ACTIVE,
-      passive: process.env.NODE_INT_URL_PASSIVE,
-    },
-    ref: {
-      active: process.env.NODE_REF_URL_ACTIVE,
-      passive: process.env.NODE_REF_URL_PASSIVE,
-    },
-    btcInput: {
-      active: process.env.NODE_BTC_INP_URL_ACTIVE,
-      passive: process.env.NODE_BTC_INP_URL_PASSIVE,
-    },
-    walletPassword: process.env.NODE_WALLET_PASSWORD,
-    utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
-    dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
-    outWalletAddress: process.env.OUT_WALLET_ADDRESS,
-    stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
-    btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
-    minTxAmount: 0.00000297,
-    minDeposit: {
-      Fiat: {
-        USD: 1,
+  blockchain = {
+    default: {
+      user: process.env.NODE_USER,
+      password: process.env.NODE_PASSWORD,
+      inp: {
+        active: process.env.NODE_INP_URL_ACTIVE,
+        passive: process.env.NODE_INP_URL_PASSIVE,
       },
-      Bitcoin: {
-        BTC: 0.0005,
+      dex: {
+        active: process.env.NODE_DEX_URL_ACTIVE,
+        passive: process.env.NODE_DEX_URL_PASSIVE,
       },
-      DeFiChain: {
-        DFI: 0.01,
-        USD: 1,
+      out: {
+        active: process.env.NODE_OUT_URL_ACTIVE,
+        passive: process.env.NODE_OUT_URL_PASSIVE,
       },
+      int: {
+        active: process.env.NODE_INT_URL_ACTIVE,
+        passive: process.env.NODE_INT_URL_PASSIVE,
+      },
+      ref: {
+        active: process.env.NODE_REF_URL_ACTIVE,
+        passive: process.env.NODE_REF_URL_PASSIVE,
+      },
+      btcInput: {
+        active: process.env.NODE_BTC_INP_URL_ACTIVE,
+        passive: process.env.NODE_BTC_INP_URL_PASSIVE,
+      },
+      btcOutput: {
+        active: process.env.NODE_BTC_OUT_URL_ACTIVE,
+        passive: process.env.NODE_BTC_OUT_URL_PASSIVE,
+      },
+      walletPassword: process.env.NODE_WALLET_PASSWORD,
+      utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
+      dexWalletAddress: process.env.DEX_WALLET_ADDRESS,
+      outWalletAddress: process.env.OUT_WALLET_ADDRESS,
+      intWalletAddress: process.env.INT_WALLET_ADDRESS,
+      stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
+      btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
+      btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
+      minTxAmount: 0.00000297,
+      minDeposit: {
+        Fiat: {
+          USD: 1,
+        },
+        Bitcoin: {
+          BTC: 0.0005,
+        },
+        DeFiChain: {
+          DFI: 0.01,
+          USD: 1,
+        },
+      },
+      minTransactionVolume: {
+        // outputAsset: { minTransactionAsset: minTransactionVolume }
+        USD: {
+          USD: 1000,
+        },
+        default: {
+          USD: 1,
+        },
+      },
+    },
+    ethereum: {
+      ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
+      ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
+      ethGatewayUrl: process.env.ETH_GATEWAY_URL,
+      ethApiKey: process.env.ETH_API_KEY,
+      uniswapV2Router02Address: process.env.ETH_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
+    },
+    bsc: {
+      bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
+      bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
+      bscGatewayUrl: process.env.BSC_GATEWAY_URL,
+      pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
   };
 
@@ -194,6 +270,10 @@ export class Configuration {
         moreThan5k: 2.65,
         moreThan50k: 2.4,
         moreThan100k: 2.3,
+      },
+      limits: {
+        configuredFeeLimit: this.configuredFeeLimit,
+        defaultFeeLimit: 0.005,
       },
     },
   };
@@ -236,12 +316,29 @@ export class Configuration {
   };
 
   bank = {
+    dfxBankInfo: {
+      name: 'DFX AG',
+      street: 'Bahnhofstrasse',
+      number: '7',
+      zip: '6300',
+      city: 'Zug',
+      country: 'Schweiz',
+    },
     olkypay: {
-      iban: 'LU116060002000005040',
-      clientId: process.env.OLKY_CLIENT,
-      username: process.env.OLKY_USERNAME,
-      password: process.env.OLKY_PASSWORD,
-      clientSecret: process.env.OLKY_CLIENT_SECRET,
+      credentials: {
+        clientId: process.env.OLKY_CLIENT,
+        username: process.env.OLKY_USERNAME,
+        password: process.env.OLKY_PASSWORD,
+        clientSecret: process.env.OLKY_CLIENT_SECRET,
+      },
+    },
+    frick: {
+      credentials: {
+        url: process.env.FRICK_URL,
+        key: process.env.FRICK_KEY,
+        password: process.env.FRICK_PASSWORD,
+        privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
+      },
     },
   };
 
@@ -267,7 +364,19 @@ export class Configuration {
   }
 
   get addressFormat(): RegExp {
-    return this.environment === 'prd' ? /^(8\w{33}|d\w{33}|d\w{41})$/ : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41})$/;
+    return this.environment === 'prd'
+      ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
+      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/;
+  }
+
+  get signatureFormat(): RegExp {
+    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132})$/;
+  }
+
+  get configuredFeeLimit(): number | null {
+    const limit = Number.parseFloat(process.env.BUY_CRYPTO_FEE_LIMIT);
+
+    return Number.isNaN(limit) ? null : limit;
   }
 }
 

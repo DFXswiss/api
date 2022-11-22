@@ -8,12 +8,9 @@
     "method": "GET",
     "sortNum": 10000,
     "created": "2022-01-15T13:17:03.626Z",
-    "modified": "2022-01-15T13:40:00.275Z",
+    "modified": "2022-09-23T22:58:23.069Z",
     "headers": [],
     "params": [],
-    "auth": {
-      "type": "inherit"
-    },
     "tests": []
   },
   {
@@ -121,7 +118,7 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-07-21T12:06:07.059Z",
+    "modified": "2022-10-14T09:57:53.958Z",
     "headers": [],
     "params": [],
     "body": {
@@ -201,42 +198,14 @@
     "method": "PUT",
     "sortNum": 120000,
     "created": "2022-01-15T13:47:31.522Z",
-    "modified": "2022-07-15T10:00:33.475Z",
+    "modified": "2022-09-23T08:24:58.331Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"NA\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null\n}",
+      "raw": "{\n  \"depositLimit\": 60000,\n  \"kycStatus\": \"Manual\",\n  \"kycState\": \"NA\",\n  \"mainBankDataId\": 1,\n  \"countryId\": 4,\n  \"highRisk\": false,\n  \"complexOrgStructure\": null,\n  \"nationality\":{\n    \"id\": 2\n  },\n  \"birthday\":\"2000-08-18T10:00:20.100\"\n}",
       "form": []
     },
-    "tests": []
-  },
-  {
-    "_id": "d0f8196e-3949-4b9f-b5d2-264e215ce31a",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Update Ref Volumes",
-    "url": "{{url}}/v1/cryptoBuy/refVolumes",
-    "method": "PUT",
-    "sortNum": 130000,
-    "created": "2022-01-15T13:53:12.691Z",
-    "modified": "2022-01-15T14:00:12.127Z",
-    "headers": [],
-    "params": [],
-    "tests": []
-  },
-  {
-    "_id": "f72e06bf-c00d-4353-8ec4-cde1cf460fd3",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Update Volumes",
-    "url": "{{url}}/v1/cryptoBuy/volumes",
-    "method": "PUT",
-    "sortNum": 65000,
-    "created": "2022-01-15T13:59:41.347Z",
-    "modified": "2022-01-15T14:00:31.637Z",
-    "headers": [],
-    "params": [],
     "tests": []
   },
   {
@@ -544,63 +513,6 @@
     "modified": "2022-02-03T00:14:20.674Z",
     "headers": [],
     "params": [],
-    "tests": []
-  },
-  {
-    "_id": "cbf54e66-34ec-45ef-a970-fc050601ec08",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Create",
-    "url": "{{url}}/v1/cryptoBuy",
-    "method": "POST",
-    "sortNum": 32500,
-    "created": "2022-02-07T01:02:59.725Z",
-    "modified": "2022-02-07T01:19:00.830Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"bankTxId\": 36,\n    \"buyId\": 42,\n    \"amlCheck\": \"Pass\"\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
-    "_id": "601b39c4-6586-4566-b9cd-c85bede66892",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "3005ef10-1b09-4ae8-b612-963e793e1ca8",
-    "name": "Update",
-    "url": "{{url}}/v1/cryptoBuy/31",
-    "method": "PUT",
-    "sortNum": 48750,
-    "created": "2022-02-07T01:19:48.434Z",
-    "modified": "2022-02-07T01:21:18.419Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"bankTxId\": 36,\n    \"buyId\": 42,\n    \"amlCheck\": \"Pass\"\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
-    "_id": "c8e1cdfc-ecc8-4009-ae9e-0e605ec124f8",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "39c67052-c784-4068-b744-5971d536436f",
-    "name": "Create",
-    "url": "{{url}}/v1/cryptoSell",
-    "method": "POST",
-    "sortNum": 210000,
-    "created": "2022-02-07T01:30:53.307Z",
-    "modified": "2022-02-07T01:33:52.436Z",
-    "headers": [],
-    "params": [],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"cryptoInputId\": 22,\n    \"amlCheck\": \"Pass\"\n}",
-      "form": []
-    },
     "tests": []
   },
   {
@@ -1038,12 +950,12 @@
     "method": "POST",
     "sortNum": 390000,
     "created": "2022-06-21T21:40:20.592Z",
-    "modified": "2022-06-21T21:43:57.467Z",
+    "modified": "2022-08-22T13:54:19.857Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\r\n\"iban\": \"DE9237 0502 9913 2003 89722\",\r\n\"asset\": {\r\n        \"buyable\": true,\r\n        \"id\": 1,\r\n        \"name\": \"DFI\",\r\n        \"sellable\": true,\r\n        \"type\": \"Coin\"\r\n    },\r\n    \"type\":\"Wallet\"\r\n    \r\n}",
+      "raw": "{\n\"iban\": \"DE9237 0502 9913 2003 89722\",\n\"asset\": {\n        \"buyable\": true,\n        \"id\": 1,\n        \"name\": \"DFI\",\n        \"sellable\": true,\n        \"type\": \"Coin\"\n    },\n    \"type\":\"Wallet\"\n    \n}",
       "form": []
     },
     "tests": []
@@ -1057,12 +969,12 @@
     "method": "POST",
     "sortNum": 400000,
     "created": "2022-06-21T21:40:27.307Z",
-    "modified": "2022-06-21T21:41:49.650Z",
+    "modified": "2022-08-25T14:14:11.223Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\r\n    \"iban\": \"DE123467891245699\",\r\n    \"fiat\": {\r\n        \"id\": 3,\r\n        \"name\": \"USD\",\r\n        \"enable\": 1\r\n    }\r\n}",
+      "raw": "{\n    \"iban\": \"DE123467891245699\",\n    \"fiat\": {\n        \"id\": 3,\n        \"name\": \"USD\",\n        \"enable\": 1\n    }\n}",
       "form": []
     },
     "tests": []
@@ -1279,12 +1191,12 @@
     "method": "POST",
     "sortNum": 420000,
     "created": "2022-07-08T16:29:53.792Z",
-    "modified": "2022-07-08T16:49:16.378Z",
+    "modified": "2022-08-30T08:59:21.556Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"buyType\": \"Wallet\",\n  \"blockchain\": \"Bitcoin\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
+      "raw": "{\n  \"type\": \"Wallet\",\n  \"blockchain\": \"Bitcoin\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
       "form": []
     },
     "tests": []
@@ -1646,6 +1558,408 @@
     "modified": "2022-08-02T15:22:45.519Z",
     "headers": [],
     "params": [],
+    "tests": []
+  },
+  {
+    "_id": "fa56fa09-5885-4546-af2c-811cf8f34023",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "8ac64d00-b99f-4b15-bc4b-98d06a3d3bff",
+    "name": "Get Link Address",
+    "url": "{{url}}/v1/link/07CD20CE-5B1D-ED11-BD6E-281878153E35",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-08-16T13:21:36.513Z",
+    "modified": "2022-08-16T13:21:39.645Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "0b962c9a-0902-4513-be3b-31cf599371f0",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "8ac64d00-b99f-4b15-bc4b-98d06a3d3bff",
+    "name": "Execute Link Address",
+    "url": "{{url}}/v1/link/07CD20CE-5B1D-ED11-BD6E-281878153E35",
+    "method": "POST",
+    "sortNum": 650000,
+    "created": "2022-08-16T13:22:28.410Z",
+    "modified": "2022-08-16T13:22:34.517Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "9805e163-d163-45b4-8ed9-ff7a68756572",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Get My Bank Accounts",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-08-17T00:42:27.836Z",
+    "modified": "2022-08-25T15:50:47.599Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "226ff795-9e8b-4b19-918a-afe00e87b1dc",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Create Bank Account",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "POST",
+    "sortNum": 650000,
+    "created": "2022-08-17T00:43:02.099Z",
+    "modified": "2022-08-17T10:33:43.925Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"preferredCurrency\": {\n    \"id\": 1\n  },\n  \"iban\": \"DE12345678910113\",\n  \"label\": \"Testlabel\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "ebc7e465-342c-4939-b6e2-f56e2d560de4",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "ece042c8-5d43-422a-bca8-7c94c971fde4",
+    "name": "Update Bank Account",
+    "url": "{{url}}/v1/bankAccount",
+    "method": "PUT",
+    "sortNum": 660000,
+    "created": "2022-08-17T00:43:19.673Z",
+    "modified": "2022-08-17T10:33:23.896Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\":\"DE1234567891011\",\n  \"label\":\"Test98765432\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "0d85860c-d4e6-448a-98b0-e1903fbd1cc2",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Update CT API Filter",
+    "url": "{{url}}/v1/user/apiFilter/CT?lm&staking&buy",
+    "method": "PUT",
+    "sortNum": 315000,
+    "created": "2022-08-18T14:14:09.032Z",
+    "modified": "2022-08-19T13:47:17.419Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "lm",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "staking",
+        "value": "",
+        "isPath": false
+      },
+      {
+        "name": "buy",
+        "value": "",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "2be46b02-7d04-4f16-8939-1ef1a6badbb9",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
+    "name": "Get History CT",
+    "url": "{{url}}/v1/history/CT",
+    "method": "GET",
+    "sortNum": 160000,
+    "created": "2022-08-18T15:08:15.494Z",
+    "modified": "2022-08-18T15:09:47.169Z",
+    "headers": [
+      {
+        "name": "DFX-ACCESS-KEY",
+        "value": "CF505D58F7B8319C4491FE2EB25D8D20"
+      },
+      {
+        "name": "DFX-ACCESS-SIGN",
+        "value": "ee6783abbe9b5beb9053cbdabf914cd2c4145bedef9fa32db0e380d73e9d093f"
+      },
+      {
+        "name": "DFX-ACCESS-TIMESTAMP",
+        "value": "2022-08-18T10:00:20.100"
+      }
+    ],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "2be46b02-7d04-4f16-8939-1ef1a6badbb9",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "f378a918-ebc2-424e-9cd5-f1b49ffa4348",
+    "name": "Get History CT",
+    "url": "{{url}}/v1/history/CT",
+    "method": "GET",
+    "sortNum": 160000,
+    "created": "2022-08-18T15:08:15.494Z",
+    "modified": "2022-08-18T15:09:47.169Z",
+    "headers": [
+      {
+        "name": "DFX-ACCESS-KEY",
+        "value": "CF505D58F7B8319C4491FE2EB25D8D20"
+      },
+      {
+        "name": "DFX-ACCESS-SIGN",
+        "value": "ee6783abbe9b5beb9053cbdabf914cd2c4145bedef9fa32db0e380d73e9d093f"
+      },
+      {
+        "name": "DFX-ACCESS-TIMESTAMP",
+        "value": "2022-08-18T10:00:20.100"
+      }
+    ],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "46ce06f0-29c6-4f46-b307-c413881b5ee8",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b37c199-5952-4d91-9455-d1a4151c735f",
+    "name": "Buy PaymentInfo",
+    "url": "{{url}}/v1/buy/paymentInfos",
+    "method": "PUT",
+    "sortNum": 490000,
+    "created": "2022-08-22T14:03:51.375Z",
+    "modified": "2022-08-25T15:51:46.899Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\": \"DE9237 0502 9913 2003 89722\",\n  \"asset\": {\n    \"id\": 1\n  },\n  \"amount\": 1234,\n  \"currency\": {\n    \"id\": 1\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "3f652740-526d-42b1-8492-0f559e58de4c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "38bcdb18-5406-4bc8-8ab4-ce673fea5977",
+    "name": "Sell PaymentInfo",
+    "url": "{{url}}/v1/sell/paymentInfos",
+    "method": "PUT",
+    "sortNum": 505000,
+    "created": "2022-08-23T10:43:40.957Z",
+    "modified": "2022-08-25T15:51:59.670Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"iban\": \"DE123467891245699\",\n  \"currency\": {\n    \"id\": 4\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "5fb2f654-a733-421b-8efd-4e12a409e141",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0dfedb35-f836-48a1-b010-04736f083788",
+    "name": "Crypto Route Payment Infos",
+    "url": "{{url}}/v1/cryptoRoute/paymentInfos",
+    "method": "PUT",
+    "sortNum": 525000,
+    "created": "2022-08-30T08:38:53.799Z",
+    "modified": "2022-08-30T08:58:59.278Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"blockchain\": \"DeFiChain\",\n  \"asset\": {\n      \"id\": 2\n  }\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "9d2242df-361f-49a2-8163-22fdf366cff3",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "Change User",
+    "url": "{{url}}/v1/user/change",
+    "method": "POST",
+    "sortNum": 670000,
+    "created": "2022-09-05T13:56:40.244Z",
+    "modified": "2022-09-05T13:57:12.899Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"address\": \"ChangeMe\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "54dd649c-0923-4ea4-9b26-ac6c18cf9e38",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "1b2f83ce-15e2-4d1c-ba1f-c7e361840254",
+    "name": "User Detail",
+    "url": "{{url}}/v1/user/detail",
+    "method": "GET",
+    "sortNum": 680000,
+    "created": "2022-09-05T13:57:22.582Z",
+    "modified": "2022-09-05T13:57:29.479Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "4490ca89-50f9-4295-ac6a-eaeeb31a407c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "c160f624-eaf3-49e3-bf5c-c24d7c339c0a",
+    "name": "All Assets",
+    "url": "{{url}}/v1/asset",
+    "method": "GET",
+    "sortNum": 690000,
+    "created": "2022-09-05T14:01:22.883Z",
+    "modified": "2022-09-05T14:01:58.289Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "b134c2b2-8537-4d0c-9e68-7ffaa37435dc",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
+    "name": "KYC Data Transfer",
+    "url": "{{url}}/v1/kyc/transfer",
+    "method": "PUT",
+    "sortNum": 700000,
+    "created": "2022-09-20T23:34:03.919Z",
+    "modified": "2022-10-05T20:44:02.945Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"walletName\": \"LOCK.space\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "0b2d6ff0-b99d-435b-a649-d82b497fa884",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "96a4f40c-c189-4f63-8144-d564ce4a6a07",
+    "name": "Update LimitRequest",
+    "url": "{{url}}/v1/limitRequest/3",
+    "method": "PUT",
+    "sortNum": 120000,
+    "created": "2022-09-23T14:03:55.910Z",
+    "modified": "2022-09-23T14:10:06.943Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"decision\": \"Rejected\",\n  \"clerk\": \"CT\",\n  \"edited\":\"2000-08-18T10:00:20.100\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "a0a206f0-13eb-493a-9b07-3a140b0eeedf",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Company Challenge",
+    "url": "{{url}}/v1/auth/company/challenge?address=8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
+    "method": "POST",
+    "sortNum": 85000,
+    "created": "2022-10-14T13:12:37.193Z",
+    "modified": "2022-10-20T10:15:12.521Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "address",
+        "value": "8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4",
+        "isPath": false
+      }
+    ],
+    "auth": {
+      "type": "none"
+    },
+    "tests": []
+  },
+  {
+    "_id": "8384887d-f0e7-43a4-9a28-1859576d0c1c",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "0bbfaa5e-1c48-4a6b-9dd3-bb28b78af825",
+    "name": "Company SignIn",
+    "url": "{{url}}/v1/auth/company/signin",
+    "method": "POST",
+    "sortNum": 82500,
+    "created": "2022-10-14T13:12:39.907Z",
+    "modified": "2022-10-20T10:28:14.156Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n    \"address\": \"8an2Mi4dCV8GfiqbF2i2pJwDetq87AhFa4\",\n    \"signature\": \"HzRZfDlmtAp4ywy7MuGpwCEEGoemH6rB82VNJUaKM7P1PCmiBRo2MyuuYfIBKE/nakafSymO8ep+84AGIzeEm/I=\"\n}",
+      "form": []
+    },
+    "auth": {
+      "type": "none"
+    },
+    "tests": []
+  },
+  {
+    "_id": "14441e24-4e57-4e7c-88cc-dff408c5837e",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "9baf5a17-7886-4959-ab65-eea8e3dae524",
+    "name": "KycData",
+    "url": "{{url}}/v1/wallet/kycData",
+    "method": "GET",
+    "sortNum": 640000,
+    "created": "2022-10-14T16:15:32.185Z",
+    "modified": "2022-10-14T16:16:42.670Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },{
+    "_id": "fb9bc645-856b-46a8-98c3-445abc95a2c4",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "d74943e9-e28b-4c36-9df3-b6093cf39800",
+    "name": "Update BankTx",
+    "url": "{{url}}/v1/bankTx/15",
+    "method": "PUT",
+    "sortNum": 710000,
+    "created": "2022-10-11T10:09:31.913Z",
+    "modified": "2022-10-12T08:27:53.333Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"type\":\"BankTxReturn\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "3fb4c1f6-1038-4288-b6c3-252c6892875b",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "af415d12-0498-48a6-a81d-4d3ef4497cdf",
+    "name": "Update BankTxReturn",
+    "url": "{{url}}/v1/bankTxReturn/16",
+    "method": "PUT",
+    "sortNum": 710000,
+    "created": "2022-10-12T08:33:46.230Z",
+    "modified": "2022-10-14T09:57:14.180Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"info\":\"BankTxReturn123\",\n  \"chargebackBankTxId\": 14,\n  \"amountInEur\": 100,\n  \"amountInUsd\": 100,\n  \"amountInChf\": 100\n}",
+      "form": []
+    },
     "tests": []
   }
 ]

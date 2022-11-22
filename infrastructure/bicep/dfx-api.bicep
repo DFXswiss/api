@@ -34,9 +34,29 @@ param nodePassword string
 param nodeWalletPassword string
 param dexWalletAddress string
 param outWalletAddress string
+param intWalletAddress string
 param stakingWalletAddress string
 param utxoSpenderAddress string
 param btcCollectorAddress string
+param btcOutWalletAddress string
+
+param ethWalletAddress string
+@secure()
+param ethWalletPrivateKey string
+param ethGatewayUrl string
+@secure()
+param ethApiKey string
+param ethSwapContractAddress string
+param ethSwapTokenAddress string
+
+param bscWalletAddress string
+@secure()
+param bscWalletPrivateKey string
+param bscGatewayUrl string
+param bscSwapContractAddress string
+param bscSwapTokenAddress string
+
+param buyCryptoFeeLimit string
 
 param nodeServicePlanSkuName string
 param nodeServicePlanSkuTier string
@@ -63,10 +83,22 @@ param olkyUser string
 @secure()
 param olkyPassword string
 
+param frickUrl string
+@secure()
+param frickKey string
+@secure()
+param frickPassword string
+@secure()
+param frickPrivateKey string
+
 param letterUrl string
 param letterUser string
 @secure()
 param letterAuth string
+
+param fixerUrl string
+@secure()
+param fixerApiKey string
 
 param sepaToolsUser string
 @secure()
@@ -79,6 +111,18 @@ param btcVmPassword string
 @secure()
 param chainalysisApiKey string
 
+param myDeFiChainUser string
+@secure()
+param myDeFiChainPassword string
+
+param paymentUrl string
+
+@secure()
+param lockApiKey string
+
+param limitRequestSupportBanner string
+param limitRequestSupportMail string
+param limitRequestSupportName string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -88,19 +132,10 @@ var nodeName = 'node'
 var virtualNetName = 'vnet-${compName}-${apiName}-${env}'
 var subNetName = 'snet-${compName}-${apiName}-${env}'
 var vmSubNetName = 'snet-${compName}-vm-${env}'
+var vmNsgName = 'nsg-${compName}-vm-${env}'
 
 var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
 var dbBackupContainerName = 'db-bak'
-var nodeInpFileShareNameA = 'node-inp-data-a'
-var nodeInpFileShareNameB = 'node-inp-data-b'
-var nodeDexFileShareNameA = 'node-dex-data-a'
-var nodeDexFileShareNameB = 'node-dex-data-b'
-var nodeOutFileShareNameA = 'node-out-data-a'
-var nodeOutFileShareNameB = 'node-out-data-b'
-var nodeIntFileShareNameA = 'node-int-data-a'
-var nodeIntFileShareNameB = 'node-int-data-b'
-var nodeRefFileShareNameA = 'node-ref-data-a'
-var nodeRefFileShareNameB = 'node-ref-data-b'
 
 var sqlServerName = 'sql-${compName}-${apiName}-${env}'
 var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
@@ -109,59 +144,58 @@ var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
 var apiAppName = 'app-${compName}-${apiName}-${env}'
 var appInsightsName = 'appi-${compName}-${apiName}-${env}'
 
-var nodeInpServicePlanName = 'plan-${compName}-${nodeName}-inp-${env}'
-var nodeInpAppName = 'app-${compName}-${nodeName}-inp-${env}'
-var nodeDexServicePlanName = 'plan-${compName}-${nodeName}-dex-${env}'
-var nodeDexAppName = 'app-${compName}-${nodeName}-dex-${env}'
-var nodeOutServicePlanName = 'plan-${compName}-${nodeName}-out-${env}'
-var nodeOutAppName = 'app-${compName}-${nodeName}-out-${env}'
-var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
-var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
-var nodeRefServicePlanName = 'plan-${compName}-${nodeName}-ref-${env}'
-var nodeRefAppName = 'app-${compName}-${nodeName}-ref-${env}'
-
-var btcVmName = 'vm-${compName}-btc-inp-${env}'
-var btcVmDiskName = 'osdisk-${compName}-btc-inp-${env}'
-var btcNicName = 'nic-${compName}-btc-inp-${env}'
-var btcPipName = 'ip-${compName}-btc-inp-${env}'
-var btcNsgName = 'nsg-${compName}-btc-inp-${env}'
-
-
 var nodeProps = [
   {
     name: 'nodes-input-${env}'
-    servicePlanName: nodeInpServicePlanName
-    appName: nodeInpAppName
-    fileShareNameA: nodeInpFileShareNameA
-    fileShareNameB: nodeInpFileShareNameB
+    servicePlanName: 'plan-${compName}-${nodeName}-inp-${env}'
+    appName: 'app-${compName}-${nodeName}-inp-${env}'
+    fileShareNameA: 'node-inp-data-a'
+    fileShareNameB: 'node-inp-data-b'
   }
   {
     name: 'nodes-dex-${env}'
-    servicePlanName: nodeDexServicePlanName
-    appName: nodeDexAppName
-    fileShareNameA: nodeDexFileShareNameA
-    fileShareNameB: nodeDexFileShareNameB
+    servicePlanName: 'plan-${compName}-${nodeName}-dex-${env}'
+    appName: 'app-${compName}-${nodeName}-dex-${env}'
+    fileShareNameA: 'node-dex-data-a'
+    fileShareNameB: 'node-dex-data-b'
   }
   {
     name: 'nodes-output-${env}'
-    servicePlanName: nodeOutServicePlanName
-    appName: nodeOutAppName
-    fileShareNameA: nodeOutFileShareNameA
-    fileShareNameB: nodeOutFileShareNameB
+    servicePlanName: 'plan-${compName}-${nodeName}-out-${env}'
+    appName: 'app-${compName}-${nodeName}-out-${env}'
+    fileShareNameA: 'node-out-data-a'
+    fileShareNameB: 'node-out-data-b'
   }
   {
     name: 'nodes-int-${env}'
-    servicePlanName: nodeIntServicePlanName
-    appName: nodeIntAppName
-    fileShareNameA: nodeIntFileShareNameA
-    fileShareNameB: nodeIntFileShareNameB
+    servicePlanName: 'plan-${compName}-${nodeName}-int-${env}'
+    appName: 'app-${compName}-${nodeName}-int-${env}'
+    fileShareNameA: 'node-int-data-a'
+    fileShareNameB: 'node-int-data-b'
   }
   {
     name: 'nodes-ref-${env}'
-    servicePlanName: nodeRefServicePlanName
-    appName: nodeRefAppName
-    fileShareNameA: nodeRefFileShareNameA
-    fileShareNameB: nodeRefFileShareNameB
+    servicePlanName: 'plan-${compName}-${nodeName}-ref-${env}'
+    appName: 'app-${compName}-${nodeName}-ref-${env}'
+    fileShareNameA: 'node-ref-data-a'
+    fileShareNameB: 'node-ref-data-b'
+  }
+]
+
+var btcNodeProps = [
+  {
+    name: 'btc-node-input-${env}'
+    pipName: 'ip-${compName}-btc-inp-${env}'
+    vmName: 'vm-${compName}-btc-inp-${env}'
+    vmDiskName: 'osdisk-${compName}-btc-inp-${env}'
+    nicName: 'nic-${compName}-btc-inp-${env}'
+  }
+  {
+    name: 'btc-node-output-${env}'
+    pipName: 'ip-${compName}-btc-out-${env}'
+    vmName: 'vm-${compName}-btc-out-${env}'
+    vmDiskName: 'osdisk-${compName}-btc-out-${env}'
+    nicName: 'nic-${compName}-btc-out-${env}'
   }
 ]
 
@@ -212,12 +246,14 @@ resource virtualNet 'Microsoft.Network/virtualNetworks@2020-11-01' = {
         name: vmSubNetName
         properties: {
           addressPrefix: '10.0.1.0/24'
+          networkSecurityGroup: {
+            id: vmNsg.id
+          }
         }
       }
     ]
   }
 }
-
 
 // Storage Account
 resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
@@ -239,47 +275,6 @@ resource dbBackupContainer 'Microsoft.Storage/storageAccounts/blobServices/conta
   name: '${storageAccount.name}/default/${dbBackupContainerName}'
 }
 
-resource nodeInpFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeInpFileShareNameA}'
-}
-
-resource nodeInpFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeInpFileShareNameB}'
-}
-
-resource nodeDexFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeDexFileShareNameA}'
-}
-
-resource nodeDexFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeDexFileShareNameB}'
-}
-
-resource nodeOutFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeOutFileShareNameA}'
-}
-
-resource nodeOutFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeOutFileShareNameB}'
-}
-
-resource nodeIntFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeIntFileShareNameA}'
-}
-
-resource nodeIntFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeIntFileShareNameB}'
-}
-
-resource nodeRefFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeRefFileShareNameA}'
-}
-
-resource nodeRefFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
-  name: '${storageAccount.name}/default/${nodeRefFileShareNameB}'
-}
-
-
 // SQL Database
 resource sqlServer 'Microsoft.Sql/servers@2021-02-01-preview' = {
   name: sqlServerName
@@ -291,11 +286,11 @@ resource sqlServer 'Microsoft.Sql/servers@2021-02-01-preview' = {
 }
 
 resource sqlVNetRule 'Microsoft.Sql/servers/virtualNetworkRules@2021-02-01-preview' = {
- parent: sqlServer
- name: 'apiVNetRule'
- properties: {
-   virtualNetworkSubnetId: virtualNet.properties.subnets[0].id
- }
+  parent: sqlServer
+  name: 'apiVNetRule'
+  properties: {
+    virtualNetworkSubnetId: virtualNet.properties.subnets[0].id
+  }
 }
 
 resource sqlAllRule 'Microsoft.Sql/servers/firewallRules@2021-02-01-preview' = if (dbAllowAllIps) {
@@ -338,14 +333,13 @@ resource sqlDbLtrPolicy 'Microsoft.Sql/servers/databases/backupLongTermRetention
   }
 }
 
-
 // API App Service
 resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
   name: apiServicePlanName
   location: location
   kind: 'linux'
   properties: {
-      reserved: true
+    reserved: true
   }
   sku: {
     name: 'P1v2'
@@ -362,7 +356,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
     serverFarmId: appServicePlan.id
     httpsOnly: true
     virtualNetworkSubnetId: virtualNet.properties.subnets[0].id
-    
+
     siteConfig: {
       alwaysOn: true
       linuxFxVersion: 'NODE|14-lts'
@@ -371,7 +365,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
       logsDirectorySizeLimit: 100
       vnetRouteAllEnabled: true
       scmIpSecurityRestrictionsUseMain: true
-      
+
       appSettings: [
         {
           name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
@@ -504,7 +498,11 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'NODE_BTC_INP_URL_ACTIVE'
-          value: 'http://${btcNic.properties.ipConfigurations[0].properties.privateIPAddress}:8332'
+          value: btcNodes[0].outputs.url
+        }
+        {
+          name: 'NODE_BTC_OUT_URL_ACTIVE'
+          value: btcNodes[1].outputs.url
         }
         {
           name: 'DEX_WALLET_ADDRESS'
@@ -515,6 +513,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: outWalletAddress
         }
         {
+          name: 'INT_WALLET_ADDRESS'
+          value: intWalletAddress
+        }
+        {
           name: 'STAKING_WALLET_ADDRESS'
           value: stakingWalletAddress
         }
@@ -523,8 +525,60 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: utxoSpenderAddress
         }
         {
+          name: 'ETH_WALLET_ADDRESS'
+          value: ethWalletAddress
+        }
+        {
+          name: 'ETH_WALLET_PRIVATE_KEY'
+          value: ethWalletPrivateKey
+        }
+        {
+          name: 'ETH_GATEWAY_URL'
+          value: ethGatewayUrl
+        }
+        {
+          name: 'ETH_API_KEY'
+          value: ethApiKey
+        }
+        {
+          name: 'ETH_SWAP_CONTRACT_ADDRESS'
+          value: ethSwapContractAddress
+        }
+        {
+          name: 'ETH_SWAP_TOKEN_ADDRESS'
+          value: ethSwapTokenAddress
+        }
+        {
+          name: 'BSC_WALLET_ADDRESS'
+          value: bscWalletAddress
+        }
+        {
+          name: 'BSC_WALLET_PRIVATE_KEY'
+          value: bscWalletPrivateKey
+        }
+        {
+          name: 'BSC_GATEWAY_URL'
+          value: bscGatewayUrl
+        }
+        {
+          name: 'BSC_SWAP_CONTRACT_ADDRESS'
+          value: bscSwapContractAddress
+        }
+        {
+          name: 'BSC_SWAP_TOKEN_ADDRESS'
+          value: bscSwapTokenAddress
+        }
+        {
           name: 'BTC_COLLECTOR_ADDRESS'
           value: btcCollectorAddress
+        }
+        {
+          name: 'BTC_OUT_WALLET_ADDRESS'
+          value: btcOutWalletAddress
+        }
+        {
+          name: 'BUY_CRYPTO_FEE_LIMIT'
+          value: buyCryptoFeeLimit
         }
         {
           name: 'FTP_HOST'
@@ -571,6 +625,14 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: letterAuth
         }
         {
+          name: 'FIXER_BASE_URL'
+          value: fixerUrl
+        }
+        {
+          name: 'FIXER_API_KEY'
+          value: fixerApiKey
+        }
+        {
           name: 'SEPA_TOOLS_USER'
           value: sepaToolsUser
         }
@@ -595,8 +657,52 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: olkyPassword
         }
         {
+          name: 'FRICK_URL'
+          value: frickUrl
+        }
+        {
+          name: 'FRICK_KEY'
+          value: frickKey
+        }
+        {
+          name: 'FRICK_PASSWORD'
+          value: frickPassword
+        }
+        {
+          name: 'FRICK_PRIVATE_KEY'
+          value: frickPrivateKey
+        }
+        {
           name: 'CHAINALYSIS_API_KEY'
           value: chainalysisApiKey
+        }
+        {
+          name: 'MYDEFICHAIN_USER'
+          value: myDeFiChainUser
+        }
+        {
+          name: 'MYDEFICHAIN_PASSWORD'
+          value: myDeFiChainPassword
+        }
+        {
+          name: 'PAYMENT_URL'
+          value: paymentUrl
+        }
+        {
+          name: 'LOCK_API_KEY'
+          value: lockApiKey
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_BANNER'
+          value: limitRequestSupportBanner
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_MAIL'
+          value: limitRequestSupportMail
+        }
+        {
+          name: 'LIMIT_REQUEST_SUPPORT_NAME'
+          value: limitRequestSupportName
         }
       ]
     }
@@ -614,7 +720,6 @@ resource appInsights 'microsoft.insights/components@2020-02-02-preview' = {
     publicNetworkAccessForQuery: 'Enabled'
   }
 }
-
 
 // DeFi Nodes
 module nodes 'defi-node.bicep' = [for node in nodeProps: {
@@ -635,24 +740,9 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
   }
 }]
 
-
 // BTC Node
-resource btcPip 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
-  name: btcPipName
-  location: location
-  sku: {
-    name: 'Standard'
-  }
-  properties: {
-    publicIPAllocationMethod: 'Static'
-    dnsSettings: {
-      domainNameLabel: btcVmName
-    }
-  }
-}
-
-resource btcNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
-  name: btcNsgName
+resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
+  name: vmNsgName
   location: location
   properties: {
     securityRules: [
@@ -674,7 +764,7 @@ resource btcNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
 }
 
 resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
-  parent: btcNsg
+  parent: vmNsg
   name: 'RPC'
   properties: {
     protocol: 'TCP'
@@ -688,70 +778,16 @@ resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-
   }
 }
 
-resource btcNic 'Microsoft.Network/networkInterfaces@2020-11-01' = {
-  name: btcNicName
-  location: location
-  properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconfig1'
-        properties: {
-          privateIPAllocationMethod: 'Dynamic'
-          publicIPAddress: {
-            id: btcPip.id
-          }
-          subnet: {
-            id: virtualNet.properties.subnets[1].id
-          }
-        }
-      }
-    ]
-    networkSecurityGroup: {
-      id: btcNsg.id
-    }
+module btcNodes 'btc-node.bicep' = [for node in btcNodeProps: {
+  name: node.name
+  params: {
+    location: location
+    pipName: node.pipName
+    vmName: node.vmName
+    vmDiskName: node.vmDiskName
+    nicName: node.nicName
+    vmUser: btcVmUser
+    vmPassword: btcVmPassword
+    subnetId: virtualNet.properties.subnets[1].id
   }
-}
-
-resource btcVm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
-  name: btcVmName
-  location: location
-  properties: {
-    hardwareProfile: {
-      vmSize: 'Standard_B2s'
-    }
-    storageProfile: {
-      imageReference: {
-        publisher: 'canonical'
-        offer: '0001-com-ubuntu-server-focal'
-        sku: '20_04-lts-gen2'
-        version: 'latest'
-      }
-      osDisk: {
-        name: btcVmDiskName
-        createOption: 'FromImage'
-        caching: 'ReadWrite'
-        managedDisk: {
-          storageAccountType: 'StandardSSD_LRS'
-        }
-        diskSizeGB: 1023
-      }
-    }
-    osProfile: {
-      computerName: btcVmName
-      adminUsername: btcVmUser
-      adminPassword: btcVmPassword
-    }
-    networkProfile: {
-      networkInterfaces: [
-        {
-          id: btcNic.id
-        }
-      ]
-    }
-    diagnosticsProfile: {
-      bootDiagnostics: {
-        enabled: true
-      }
-    }
-  }
-}
+}]

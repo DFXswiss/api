@@ -65,14 +65,56 @@
     "outWalletAddress": {
       "value": "xxx"
     },
+    "intWalletAddress": {
+      "value": "xxx"
+    },
     "stakingWalletAddress": {
       "value": "xxx"
     },
     "utxoSpenderAddress": {
       "value": "xxx"
     },
+    "ethWalletAddress": {
+      "value": "xxx"
+    },
+    "ethWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "ethGatewayUrl": {
+      "value": "https://mainnet.infura.io/v3"
+    },
+    "ethApiKey": {
+      "value": "xxx"
+    },
+    "ethSwapContractAddress": {
+      "value": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+    },
+    "ethSwapTokenAddress": {
+      "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    },
+    "bscWalletAddress": {
+      "value": "xxx"
+    },
+    "bscWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "bscGatewayUrl": {
+      "value": "https://bsc-dataseed.binance.org"
+    },
+    "bscSwapContractAddress": {
+      "value": "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+    },
+    "bscSwapTokenAddress": {
+      "value": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+    },
     "btcCollectorAddress": {
       "value": "xxx"
+    },
+    "btcOutWalletAddress": {
+      "value": "xxx"
+    },
+    "buyCryptoFeeLimit": {
+      "value": "0.001"
     },
     "nodeServicePlanSkuName": {
       "value": "P2v2"
@@ -113,6 +155,18 @@
     "olkyPassword": {
       "value": "xxx"
     },
+    "frickUrl": {
+      "value": "https://olb.bankfrick.li/webapi/v2"
+    },
+    "frickKey": {
+      "value": "xxx"
+    },
+    "frickPassword": {
+      "value": "xxx"
+    },
+    "frickPrivateKey": {
+      "value": "xxx"
+    },
     "letterUrl": {
       "value": "https://api.letterxpress.de/v1"
     },
@@ -120,6 +174,12 @@
       "value": "xxx"
     },
     "letterAuth": {
+      "value": "xxx"
+    },
+    "fixerUrl": {
+      "value": "https://api.apilayer.com/fixer"
+    },
+    "fixerApiKey": {
       "value": "xxx"
     },
     "sepaToolsUser": {
@@ -135,6 +195,27 @@
       "value": "xxx"
     },
     "chainalysisApiKey": {
+      "value": "xxx"
+    },
+    "myDeFiChainUser": {
+      "value": "xxx"
+    },
+    "myDeFiChainPassword": {
+      "value": "xxx"
+    },
+    "paymentUrl": {
+      "value": "https://payment.dfx.swiss"
+    },
+    "lockApiKey": {
+      "value": "xxx"
+    },
+    "limitRequestSupportBanner":{
+      "value": "xxx"
+    },
+    "limitRequestSupportMail":{
+      "value": "xxx"
+    },
+    "limitRequestSupportName":{
       "value": "xxx"
     }
   }

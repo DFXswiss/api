@@ -2,7 +2,7 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "assets": ["shared/assets/mails/**/*.hbs","shared/i18n/**/*"],
+    "assets": ["subdomains/supporting/notification/templates/**/*.hbs", "shared/i18n/**/*"],
     "watchAssets": true
   }
 }
