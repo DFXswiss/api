@@ -26,8 +26,8 @@ export class CryptoStaking extends IEntity {
   @Column({ nullable: false })
   inputAsset: string;
 
-  @Column({ type: 'float', nullable: true })
-  inputMailSendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  inputMailSendDate: Date;
 
   @Column({ type: 'float', nullable: true })
   outputAmountInChf: number;
@@ -41,8 +41,8 @@ export class CryptoStaking extends IEntity {
   @Column({ nullable: true })
   outputAsset: string;
 
-  @Column({ type: 'float', nullable: true })
-  outputMailSendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  outputMailSendDate: Date;
 
   @Column({ type: 'datetime2', nullable: false })
   outputDate: Date;
