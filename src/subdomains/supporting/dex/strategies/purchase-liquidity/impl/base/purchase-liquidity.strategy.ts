@@ -5,22 +5,26 @@ import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../../../exceptions/price-slippage.exception';
-import { LiquidityRequest } from '../../../../interfaces';
+import { PurchaseLiquidityRequest } from '../../../../interfaces';
+import { PurchaseLiquidityStrategyAlias } from '../../purchase-liquidity.facade';
 
 export abstract class PurchaseLiquidityStrategy {
+  private _name: PurchaseLiquidityStrategyAlias;
   private _feeAsset: Asset;
 
-  constructor(protected readonly notificationService: NotificationService) {}
+  constructor(protected readonly notificationService: NotificationService, name: PurchaseLiquidityStrategyAlias) {
+    this._name = name;
+  }
 
   async feeAsset(): Promise<Asset> {
     return (this._feeAsset ??= await this.getFeeAsset());
   }
 
-  abstract purchaseLiquidity(request: LiquidityRequest): Promise<void>;
+  abstract purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void>;
   abstract addPurchaseData(order: LiquidityOrder): Promise<void>;
   protected abstract getFeeAsset(): Promise<Asset>;
 
-  protected async handlePurchaseLiquidityError(e: Error, request: LiquidityRequest): Promise<void> {
+  protected async handlePurchaseLiquidityError(e: Error, request: PurchaseLiquidityRequest): Promise<void> {
     const errorMessage = `Correlation ID: ${request.correlationId}. Context: ${request.context}. ${e.message}`;
 
     if (e instanceof NotEnoughLiquidityException) {
@@ -39,7 +43,7 @@ export abstract class PurchaseLiquidityStrategy {
 
   //*** HELPER METHODS ***//
 
-  private createMailRequest(liquidityRequest: LiquidityRequest, errorMessage: string): MailRequest {
+  private createMailRequest(liquidityRequest: PurchaseLiquidityRequest, errorMessage: string): MailRequest {
     const correlationId = `PurchaseLiquidity&${liquidityRequest.context}&${liquidityRequest.correlationId}`;
 
     return {
@@ -51,5 +55,11 @@ export abstract class PurchaseLiquidityStrategy {
       },
       options: { suppressRecurring: true },
     };
+  }
+
+  //*** GETTERS ***//
+
+  get name(): string {
+    return this._name;
   }
 }

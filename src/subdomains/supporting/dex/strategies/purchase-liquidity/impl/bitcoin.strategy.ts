@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
-import { LiquidityRequest } from '../../../interfaces';
+import { PurchaseLiquidityRequest } from '../../../interfaces';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
 
 @Injectable()
 export class BitcoinStrategy extends PurchaseLiquidityStrategy {
@@ -14,10 +14,10 @@ export class BitcoinStrategy extends PurchaseLiquidityStrategy {
     notificationService: NotificationService,
     private readonly dexBtcService: DexBitcoinService,
   ) {
-    super(notificationService);
+    super(notificationService, PurchaseLiquidityStrategyAlias.BITCOIN);
   }
 
-  async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
+  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
     const { referenceAsset, referenceAmount, context, correlationId } = request;
     try {
       // should always throw, even if there is amount, additional check is done for API consistency and sending mail
@@ -39,6 +39,6 @@ export class BitcoinStrategy extends PurchaseLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({ dexName: 'BTC', blockchain: Blockchain.BITCOIN, type: AssetType.COIN });
+    return this.assetService.getBtcCoin();
   }
 }

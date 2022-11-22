@@ -41,6 +41,9 @@ import { UploadFileDto } from './dto/upload-file.dto';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { UserData } from '../user/models/user-data/user-data.entity';
+import { BankTxRepeat } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxRepeatService } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.service';
 
 @Controller('admin')
 export class AdminController {
@@ -57,6 +60,7 @@ export class AdminController {
     private readonly stakingRewardService: StakingRewardService,
     private readonly stakingRefRewardService: StakingRefRewardService,
     private readonly cryptoInputService: CryptoInputService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
 
   @Post('mail')
@@ -216,9 +220,11 @@ export class AdminController {
         case 'buy_crypto':
           this.insertEmptyCol(arrayData, 17, ['outputAsset']);
           this.insertEmptyCol(arrayData, 15, ['outputReferenceAsset']);
-          
+
+          this.moveCol(arrayData, 19, 'mailSendDate');
+
           break;
-          
+
         case 'bank_data':
           this.insertEmptyCol(arrayData, 2, ['location', 'country']);
 
@@ -227,6 +233,16 @@ export class AdminController {
     }
 
     return arrayData;
+  }
+
+  private moveCol(arrayData: { keys: string[]; values: unknown[][] }, targetColumn: number, key: string): void {
+    const index = arrayData.keys.findIndex((k) => k === key);
+
+    [arrayData.keys, ...arrayData.values].forEach((arr) => {
+      const element = arr[index];
+      arr.splice(index, 1);
+      arr.splice(targetColumn, 0, element);
+    });
   }
 
   private insertEmptyCol(
@@ -316,7 +332,8 @@ export class AdminController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getSupportData(@Query('id') id: string): Promise<{
-    buy: BuyCrypto[];
+    userData: UserData;
+    buyCrypto: BuyCrypto[];
     buyFiat: BuyFiat[];
     ref: BuyCrypto[];
     refReward: RefReward[];
@@ -324,6 +341,7 @@ export class AdminController {
     stakingReward: StakingReward[];
     stakingRefReward: StakingRefReward[];
     cryptoInput: CryptoInput[];
+    bankTxRepeat: BankTxRepeat[];
   }> {
     const userData = await this.userDataService.getUserData(+id);
     if (!userData) throw new NotFoundException('User data not found');
@@ -332,7 +350,8 @@ export class AdminController {
     const refCodes = userData.users.map((u) => u.ref);
 
     return {
-      buy: await this.buyCryptoService.getAllUserTransactions(userIds),
+      userData: userData,
+      buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
       refReward: await this.refRewardService.getAllUserRewards(userIds),
@@ -340,6 +359,7 @@ export class AdminController {
       stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
       stakingRefReward: await this.stakingRefRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.cryptoInputService.getAllUserTransactions(userIds),
+      bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
     };
   }
 }

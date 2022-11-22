@@ -1,12 +1,12 @@
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import { LiquidityRequest } from '..';
+import { GetLiquidityRequest } from '..';
 import { LiquidityOrderContext } from '../../entities/liquidity-order.entity';
 
-export function createDefaultLiquidityRequest(): LiquidityRequest {
-  return createCustomLiquidityRequest({});
+export function createDefaultGetLiquidityRequest(): GetLiquidityRequest {
+  return createCustomGetLiquidityRequest({});
 }
 
-export function createCustomLiquidityRequest(customValues: Partial<LiquidityRequest>): LiquidityRequest {
+export function createCustomGetLiquidityRequest(customValues: Partial<GetLiquidityRequest>): GetLiquidityRequest {
   const { context, correlationId, referenceAsset, referenceAmount, targetAsset } = customValues;
 
   const keys = Object.keys(customValues);

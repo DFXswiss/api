@@ -21,6 +21,7 @@ import { BankController } from './bank/bank.controller';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
 import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
+import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controller';
 
 @Module({
   imports: [
@@ -37,7 +38,13 @@ import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.m
     NotificationModule,
     forwardRef(() => BuyCryptoModule),
   ],
-  controllers: [BankTxController, BankAccountController, BankTxReturnController, BankController],
+  controllers: [
+    BankTxController,
+    BankAccountController,
+    BankTxReturnController,
+    BankTxRepeatController,
+    BankController,
+  ],
   providers: [
     BankTxService,
     BankTxReturnService,
@@ -47,6 +54,6 @@ import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.m
     FrickService,
     BankService,
   ],
-  exports: [BankTxService, BankAccountService, OlkypayService, FrickService, BankService],
+  exports: [BankTxService, BankAccountService, OlkypayService, FrickService, BankService, BankTxRepeatService],
 })
 export class BankModule {}

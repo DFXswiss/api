@@ -1,4 +1,4 @@
-import { CheckLiquidityResult, LiquidityRequest } from '../../../../interfaces';
+import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../../interfaces';
 import { DexEvmService } from '../../../../services/dex-evm.service';
 import { CheckLiquidityUtil } from '../../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './check-liquidity.strategy';
@@ -8,7 +8,7 @@ export abstract class EvmCoinStrategy extends CheckLiquidityStrategy {
     super();
   }
 
-  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
+  async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount: nativeCoinAmount, context, correlationId } = request;
 
     if (referenceAsset.dexName === this.dexEvmService._nativeCoin) {

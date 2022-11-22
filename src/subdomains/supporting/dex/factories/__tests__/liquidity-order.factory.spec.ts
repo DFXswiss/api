@@ -5,8 +5,8 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../../entities/liquidity-order.entity';
 import { createDefaultLiquidityOrder } from '../../entities/__mocks__/liquidity-order.entity.mock';
 import {
-  createCustomLiquidityRequest,
-  createDefaultLiquidityRequest,
+  createCustomGetLiquidityRequest,
+  createDefaultGetLiquidityRequest,
 } from '../../interfaces/__mocks__/liquidity-request.mock';
 import { LiquidityOrderRepository } from '../../repositories/liquidity-order.repository';
 import { LiquidityOrderFactory } from '../liquidity-order.factory';
@@ -34,17 +34,17 @@ describe('LiquidityOrderFactory', () => {
   describe('#createPurchaseOrder(...)', () => {
     it('sets purchaseStrategy to AssetCategory', () => {
       const entity = factory.createPurchaseOrder(
-        createDefaultLiquidityRequest(),
+        createDefaultGetLiquidityRequest(),
         Blockchain.DEFICHAIN,
         AssetCategory.CRYPTO,
       );
 
-      expect(entity.purchaseStrategy).toBe(AssetCategory.CRYPTO);
+      expect(entity.strategy).toBe(AssetCategory.CRYPTO);
     });
 
     it('calls repo create(...) with correct parameters', () => {
       factory.createPurchaseOrder(
-        createCustomLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'TSLA' }) }),
+        createCustomGetLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'TSLA' }) }),
         Blockchain.DEFICHAIN,
         AssetCategory.CRYPTO,
       );
@@ -71,7 +71,7 @@ describe('LiquidityOrderFactory', () => {
   describe('#createReservationOrder(...)', () => {
     it('calls repo create(...) with correct parameters', () => {
       factory.createReservationOrder(
-        createCustomLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'TSLA' }) }),
+        createCustomGetLiquidityRequest({ targetAsset: createCustomAsset({ dexName: 'TSLA' }) }),
         Blockchain.DEFICHAIN,
       );
 

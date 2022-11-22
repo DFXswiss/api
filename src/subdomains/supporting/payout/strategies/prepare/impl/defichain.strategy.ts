@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
@@ -67,10 +66,6 @@ export class DeFiChainStrategy extends PrepareStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.COIN,
-    });
+    return this.assetService.getDfiCoin();
   }
 }

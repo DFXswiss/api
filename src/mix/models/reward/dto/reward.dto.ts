@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsNumber, IsDate } from 'class-validator';
 
 export abstract class RewardDto {
   @ApiPropertyOptional()
@@ -49,8 +50,9 @@ export abstract class RewardDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
-  mailSendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  mailSendDate: Date;
 
   @ApiPropertyOptional()
   @IsOptional()

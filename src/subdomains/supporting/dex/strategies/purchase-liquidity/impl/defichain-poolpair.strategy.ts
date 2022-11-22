@@ -1,8 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Not } from 'typeorm';
-
-import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { Lock } from 'src/shared/utils/lock';
@@ -12,13 +11,14 @@ import { LiquidityOrderContext, LiquidityOrder } from '../../../entities/liquidi
 import { NotEnoughLiquidityException } from '../../../exceptions/not-enough-liquidity.exception';
 import { PriceSlippageException } from '../../../exceptions/price-slippage.exception';
 import { LiquidityOrderFactory } from '../../../factories/liquidity-order.factory';
-import { LiquidityRequest } from '../../../interfaces';
+import { PurchaseLiquidityRequest } from '../../../interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { LiquidityOrderRepository } from '../../../repositories/liquidity-order.repository';
 import { DexService } from '../../../services/dex.service';
 import { PurchaseLiquidityStrategy } from './base/purchase-liquidity.strategy';
 import { DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DexUtil } from '../../../utils/dex.util';
+import { PurchaseLiquidityStrategyAlias } from '../purchase-liquidity.facade';
 
 @Injectable()
 export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
@@ -34,17 +34,13 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
     private readonly dexService: DexService,
     private readonly dexDeFiChainService: DexDeFiChainService,
   ) {
-    super(notificationService);
+    super(notificationService, PurchaseLiquidityStrategyAlias.DEFICHAIN_POOL_PAIR);
   }
 
-  async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
+  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
     if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
 
-    const order = this.liquidityOrderFactory.createPurchaseOrder(
-      request,
-      Blockchain.DEFICHAIN,
-      AssetCategory.POOL_PAIR,
-    );
+    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
 
     try {
       const parentOrder = await this.liquidityOrderRepo.save(order);
@@ -59,10 +55,10 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   async addPurchaseData(order: LiquidityOrder): Promise<void> {
-    const amount = await this.dexDeFiChainService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
+    const amount = await this.dexDeFiChainService.getSwapAmount(order.txId, order.targetAsset.dexName);
 
     order.purchased(amount);
-    order.recordPurchaseFee(await this.feeAsset(), 0);
+    order.recordFee(await this.feeAsset(), 0);
     await this.liquidityOrderRepo.save(order);
   }
 
@@ -99,11 +95,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.COIN,
-    });
+    return this.assetService.getDfiCoin();
   }
 
   private async getAssetPair(asset: Asset): Promise<[Asset, Asset]> {
@@ -197,7 +189,7 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
     const txId = await this.dexDeFiChainService.addPoolLiquidity(poolPair);
 
-    order.addPurchaseMetadata(txId);
+    order.addBlockchainTransactionMetadata(txId);
 
     console.info(
       `Booked poolpair purchase of ${leftAmount} ${leftAssetName} and ${rightAmount} ${rightAssetName} . Context: ${order.context}. CorrelationId: ${order.correlationId}.`,

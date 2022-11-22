@@ -1,3 +1,4 @@
+import { KycType } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Entity, Column } from 'typeorm';
 import { IEntity } from '../entity';
 
@@ -10,11 +11,24 @@ export class Country extends IEntity {
   name: string;
 
   @Column({ default: true })
-  enable: boolean;
+  dfxEnable: boolean;
+
+  @Column({ default: true })
+  lockEnable: boolean;
 
   @Column({ default: true })
   ipEnable: boolean;
 
   @Column({ default: false })
   maerkiBaumannEnable: boolean;
+
+  isEnabled(kycType: KycType): boolean {
+    switch (kycType) {
+      case KycType.DFX:
+        return this.dfxEnable;
+
+      case KycType.LOCK:
+        return this.lockEnable;
+    }
+  }
 }

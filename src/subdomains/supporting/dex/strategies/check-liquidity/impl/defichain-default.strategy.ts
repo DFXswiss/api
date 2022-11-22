@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../../../entities/liquidity-order.entity';
-import { CheckLiquidityResult, LiquidityRequest } from '../../../interfaces';
+import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
 import { DexDeFiChainLiquidityResult, DexDeFiChainService } from '../../../services/dex-defichain.service';
 import { DeFiChainNonPoolPairStrategy } from '../../purchase-liquidity/impl/base/defichain-non-poolpair.strategy';
 import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
@@ -20,7 +19,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
     super();
   }
 
-  async checkLiquidity(request: LiquidityRequest): Promise<CheckLiquidityResult> {
+  async checkLiquidity(request: CheckLiquidityRequest): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, targetAsset } = request;
 
     const prioritySwapAssets = await this.getPrioritySwapAssets(targetAsset);
@@ -37,11 +36,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      dexName: 'DFI',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.COIN,
-    });
+    return this.assetService.getDfiCoin();
   }
 
   //*** HELPER METHODS ***/
@@ -66,7 +61,7 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
   }
 
   private async createCheckLiquidityResult(
-    request: LiquidityRequest,
+    request: CheckLiquidityRequest,
     liquidity: DexDeFiChainLiquidityResult,
   ): Promise<CheckLiquidityResult> {
     const { referenceAsset, referenceAmount, targetAsset } = request;

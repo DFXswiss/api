@@ -18,6 +18,7 @@ export enum BankTxType {
   GSHEET = 'GSheet',
   KRAKEN = 'Kraken',
   BANK_ACCOUNT_FEE = 'BankAccountFee',
+  EXTRAORDINARY_EXPENSES = 'ExtraordinaryExpenses',
   PENDING = 'Pending',
   UNKNOWN = 'Unknown',
 }
