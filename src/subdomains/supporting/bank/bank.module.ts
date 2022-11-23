@@ -25,6 +25,7 @@ import { FiatOutputRepository } from './fiat-output/fiat-output.repository';
 import { FiatOutputService } from './fiat-output/fiat-output.service';
 import { FiatOutputController } from './fiat-output/fiat-output.controller';
 import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controller';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.repository';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controll
       BankTxRepeatRepository,
       BankRepository,
       FiatOutputRepository,
+      BuyFiatRepository,
     ]),
     SharedModule,
     BankIntegrationModule,

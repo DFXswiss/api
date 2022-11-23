@@ -13,7 +13,6 @@ import { SellHistoryDto } from '../sell/dto/sell-history.dto';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-output.service';
-import { CreateFiatOutputDto } from '../../../supporting/bank/fiat-output/dto/create-fiat-output.dto';
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
@@ -43,9 +42,9 @@ export class BuyFiatService {
 
       for (const buyFiat of buyFiatsWithoutOutput) {
         await this.fiatOutputService.create({
-          buyFiat: buyFiat,
-          reason: 'BuyFiat',
-        } as CreateFiatOutputDto);
+          buyFiatId: buyFiat.id,
+          type: 'BuyFiat',
+        });
       }
     } catch (e) {
       console.error('Exception during adding fiat outputs:', e);
