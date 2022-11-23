@@ -21,7 +21,11 @@ import { BankController } from './bank/bank.controller';
 import { BankRepository } from './bank/bank.repository';
 import { BankService } from './bank/bank.service';
 import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.module';
+import { FiatOutputRepository } from './fiat-output/fiat-output.repository';
+import { FiatOutputService } from './fiat-output/fiat-output.service';
+import { FiatOutputController } from './fiat-output/fiat-output.controller';
 import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controller';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.repository';
 
 @Module({
   imports: [
@@ -32,18 +36,22 @@ import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controll
       BankTxReturnRepository,
       BankTxRepeatRepository,
       BankRepository,
+      FiatOutputRepository,
+      BuyFiatRepository,
     ]),
     SharedModule,
     BankIntegrationModule,
     NotificationModule,
     forwardRef(() => BuyCryptoModule),
   ],
+
   controllers: [
     BankTxController,
     BankAccountController,
     BankTxReturnController,
     BankTxRepeatController,
     BankController,
+    FiatOutputController,
   ],
   providers: [
     BankTxService,
@@ -53,7 +61,16 @@ import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controll
     OlkypayService,
     FrickService,
     BankService,
+    FiatOutputService,
   ],
-  exports: [BankTxService, BankAccountService, OlkypayService, FrickService, BankService, BankTxRepeatService],
+  exports: [
+    BankTxService,
+    BankAccountService,
+    OlkypayService,
+    FrickService,
+    BankService,
+    BankTxRepeatService,
+    FiatOutputService,
+  ],
 })
 export class BankModule {}
