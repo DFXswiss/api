@@ -29,7 +29,7 @@ export class DeFiChainCoinStrategy extends DeFiChainStrategy {
       await this.bookLiquiditySell(order);
       await this.liquidityOrderRepo.save(order);
     } catch (e) {
-      this.handleSellLiquidityError(request, e);
+      await this.handleSellLiquidityError(request, e);
     }
   }
 
