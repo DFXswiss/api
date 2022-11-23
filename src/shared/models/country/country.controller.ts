@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { CountryDto } from './country.dto';
 import { Country } from './country.entity';
 import { CountryService } from './country.service';
 
@@ -9,7 +10,17 @@ export class CountryController {
   constructor(private readonly countryService: CountryService) {}
 
   @Get()
-  async getAllCountry(): Promise<Country[]> {
-    return this.countryService.getAllCountry();
+  @ApiOkResponse({ type: CountryDto, isArray: true })
+  async getAllCountry(): Promise<CountryDto[]> {
+    return this.countryService.getAllCountry().then((c) => c.map(this.entityToDto));
+  }
+
+  private entityToDto(country: Country): CountryDto {
+    return {
+      id: country.id,
+      symbol: country.symbol,
+      name: country.name,
+      enable: country.dfxEnable,
+    };
   }
 }
