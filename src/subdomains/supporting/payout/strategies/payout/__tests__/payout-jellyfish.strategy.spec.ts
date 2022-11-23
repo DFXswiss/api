@@ -184,14 +184,14 @@ describe('PayoutJellyfishStrategy', () => {
   });
 
   describe('#designatePayout(...)', () => {
-    it('sets every order a PAYOUT_DESIGNATED status', () => {
+    it('sets every order a PAYOUT_DESIGNATED status', async () => {
       const orders = [
         createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
         createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
         createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
       ];
 
-      strategy.designatePayoutWrapper(orders);
+      await strategy.designatePayoutWrapper(orders);
 
       expect(orders.every((order) => order.status === PayoutOrderStatus.PAYOUT_DESIGNATED));
     });
@@ -210,14 +210,14 @@ describe('PayoutJellyfishStrategy', () => {
   });
 
   describe('#rollbackPayoutDesignation(...)', () => {
-    it('rolls back every order to a PREPARATION_CONFIRMED status', () => {
+    it('rolls back every order to a PREPARATION_CONFIRMED status', async () => {
       const orders = [
         createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_DESIGNATED }),
         createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_DESIGNATED }),
         createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_DESIGNATED }),
       ];
 
-      strategy.rollbackPayoutDesignationWrapper(orders);
+      await strategy.rollbackPayoutDesignationWrapper(orders);
 
       expect(orders.every((order) => order.status === PayoutOrderStatus.PREPARATION_CONFIRMED));
     });

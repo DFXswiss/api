@@ -41,7 +41,7 @@ export class CryptoRouteService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    this.cryptoRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+    await this.cryptoRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
   async updateVolume(cryptoId: number, volume: number, annualVolume: number): Promise<void> {
@@ -113,7 +113,7 @@ export class CryptoRouteService {
       if (!existing.active) {
         // reactivate deleted route
         existing.active = true;
-        this.cryptoRepo.save(existing);
+        await this.cryptoRepo.save(existing);
       }
 
       return existing;

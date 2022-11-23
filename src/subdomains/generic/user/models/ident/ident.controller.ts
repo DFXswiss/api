@@ -14,14 +14,14 @@ export class IdentController {
   @ApiExcludeEndpoint()
   async onlineIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
-    this.identService.identUpdate(data);
+    await this.identService.identUpdate(data);
   }
 
   @Post('video')
   @ApiExcludeEndpoint()
   async videoIdWebhook(@RealIP() ip: string, @Body() data: IdentResultDto) {
     this.checkWebhookIp(ip, data);
-    this.identService.identUpdate(data);
+    await this.identService.identUpdate(data);
   }
 
   private checkWebhookIp(ip: string, data: IdentResultDto) {
