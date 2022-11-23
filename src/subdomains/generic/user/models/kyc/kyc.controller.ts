@@ -13,6 +13,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycInfo } from './dto/kyc-info.dto';
+import { Country } from 'src/shared/models/country/country.entity';
 
 @ApiTags('kyc')
 @Controller('kyc')
@@ -34,6 +35,14 @@ export class KycController {
   @ApiResponse({ status: 201, type: KycInfo })
   async requestKyc(@GetJwt() jwt: JwtPayload): Promise<KycInfo> {
     return await this.kycService.requestKyc('', jwt.id);
+  }
+
+  @Get('countries')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiResponse({ status: 200, type: Country, isArray: true })
+  async getKycCountries(@GetJwt() jwt: JwtPayload): Promise<Country[]> {
+    return await this.kycService.getKycCountries('', jwt.id);
   }
 
   @Post('data')
@@ -74,6 +83,12 @@ export class KycController {
   @ApiResponse({ status: 201, type: KycInfo })
   async requestKycByCode(@Param('code') code: string): Promise<KycInfo> {
     return await this.kycService.requestKyc(code);
+  }
+
+  @Get(':code/countries')
+  @ApiResponse({ status: 200, type: Country, isArray: true })
+  async getKycCountriesByCode(@Param('code') code: string): Promise<Country[]> {
+    return await this.kycService.getKycCountries(code);
   }
 
   @Put(':code/data')

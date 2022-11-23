@@ -1,14 +1,15 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityOrder } from '../../../../entities/liquidity-order.entity';
 import { NotEnoughLiquidityException } from '../../../../exceptions/not-enough-liquidity.exception';
 import { LiquidityOrderFactory } from '../../../../factories/liquidity-order.factory';
-import { LiquidityRequest } from '../../../../interfaces';
+import { PurchaseLiquidityRequest } from '../../../../interfaces';
 import { LiquidityOrderRepository } from '../../../../repositories/liquidity-order.repository';
 import { DexDeFiChainService } from '../../../../services/dex-defichain.service';
 import { PurchaseLiquidityStrategy } from './purchase-liquidity.strategy';
+import { PurchaseLiquidityStrategyAlias } from '../../purchase-liquidity.facade';
 
 export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStrategy {
   private prioritySwapAssetDescriptors: { name: string; type: AssetType }[] = [];
@@ -21,15 +22,16 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
     protected readonly liquidityOrderRepo: LiquidityOrderRepository,
     protected readonly liquidityOrderFactory: LiquidityOrderFactory,
     prioritySwapAssetDescriptors: { name: string; type: AssetType }[],
+    name: PurchaseLiquidityStrategyAlias,
   ) {
-    super(notificationService);
+    super(notificationService, name);
     this.prioritySwapAssetDescriptors = prioritySwapAssetDescriptors;
   }
 
   //*** PUBLIC API ***//
 
-  async purchaseLiquidity(request: LiquidityRequest): Promise<void> {
-    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, AssetCategory.STOCK);
+  async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
+    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
 
     try {
       await this.bookLiquiditySwap(order);
@@ -40,10 +42,10 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
   }
 
   async addPurchaseData(order: LiquidityOrder): Promise<void> {
-    const amount = await this.dexDeFiChainService.getPurchasedAmount(order.purchaseTxId, order.targetAsset.dexName);
+    const amount = await this.dexDeFiChainService.getSwapAmount(order.txId, order.targetAsset.dexName);
 
     order.purchased(amount);
-    order.recordPurchaseFee(await this.feeAsset(), 0);
+    order.recordFee(await this.feeAsset(), 0);
     await this.liquidityOrderRepo.save(order);
   }
 
@@ -71,13 +73,13 @@ export abstract class DeFiChainNonPoolPairStrategy extends PurchaseLiquidityStra
       targetAsset,
     );
 
-    const txId = await this.dexDeFiChainService.purchaseLiquidity(swapAsset, swapAmount, targetAsset, maxPriceSlippage);
+    const txId = await this.dexDeFiChainService.swapLiquidity(swapAsset, swapAmount, targetAsset, maxPriceSlippage);
 
     console.info(
       `Booked purchase of ${swapAmount} ${swapAsset.dexName} worth liquidity for asset ${order.targetAsset.dexName}. Context: ${order.context}. CorrelationId: ${order.correlationId}.`,
     );
 
-    order.addPurchaseMetadata(txId, swapAsset, swapAmount);
+    order.addBlockchainTransactionMetadata(txId, swapAsset, swapAmount);
   }
 
   private async getSuitableSwapAssetName(

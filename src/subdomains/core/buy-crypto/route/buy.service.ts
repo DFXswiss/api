@@ -15,8 +15,6 @@ import { Util } from 'src/shared/utils/util';
 import { BuyType } from './dto/buy-type.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Config } from 'src/config/config';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyRepository } from './buy.repository';
@@ -78,11 +76,8 @@ export class BuyService {
     const asset =
       dto.type === BuyType.WALLET
         ? await this.assetService.getAssetById(dto.asset.id)
-        : await this.assetService.getAssetByQuery({
-            dexName: 'DFI',
-            blockchain: Blockchain.DEFICHAIN,
-            type: AssetType.COIN,
-          });
+        : await this.assetService.getDfiCoin();
+
     if (!asset) throw new BadRequestException('Asset not found');
 
     // check staking

@@ -26,4 +26,46 @@ export class AssetService {
   async getAssetByQuery(query: AssetQuery): Promise<Asset> {
     return this.assetRepo.findOne({ where: query });
   }
+
+  //*** UTILITY METHODS ***//
+
+  async getDfiCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'DFI',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getDfiToken(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'DFI',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
+  }
+
+  async getEthCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'ETH',
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getBnbCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'BNB',
+      blockchain: Blockchain.BINANCE_SMART_CHAIN,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getBtcCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.BITCOIN,
+      type: AssetType.COIN,
+    });
+  }
 }

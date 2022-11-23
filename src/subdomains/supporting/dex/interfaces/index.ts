@@ -1,12 +1,23 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { LiquidityOrderContext } from '../entities/liquidity-order.entity';
+import { LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
 
-export interface LiquidityRequest {
+export type PurchaseLiquidityRequest = GetLiquidityRequest;
+export type ReserveLiquidityRequest = GetLiquidityRequest;
+export type CheckLiquidityRequest = GetLiquidityRequest;
+
+export interface GetLiquidityRequest {
   context: LiquidityOrderContext;
   correlationId: string;
   referenceAsset: Asset;
   referenceAmount: number;
   targetAsset: Asset;
+}
+
+export interface SellLiquidityRequest {
+  context: LiquidityOrderContext;
+  correlationId: string;
+  sellAsset: Asset;
+  sellAmount: number;
 }
 
 export interface LiquidityRequestOptions {
@@ -52,12 +63,13 @@ export interface ReserveLiquidityResult {
   };
 }
 
-export interface PurchaseLiquidityResult {
+export interface LiquidityTransactionResult {
+  type: LiquidityOrderType;
   target: {
     asset: Asset;
     amount: number;
   };
-  purchaseFee: {
+  fee: {
     asset: Asset;
     amount: number;
   };

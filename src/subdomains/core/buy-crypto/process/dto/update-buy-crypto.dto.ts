@@ -90,8 +90,9 @@ export class UpdateBuyCryptoDto {
   recipientMail: string;
 
   @IsOptional()
-  @IsNumber()
-  mailSendDate: number;
+  @IsDate()
+  @Type(() => Date)
+  mailSendDate: Date;
 
   @IsOptional()
   @IsString()

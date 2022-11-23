@@ -124,7 +124,7 @@ export class StakingRefRewardService {
       reward.stakingRefType === StakingRefType.REFERRED ? reward.staking.deposit.address : reward.user.address;
     const txId = await this.client.sendUtxoToMany([{ addressTo: address, amount: rewardInDfi }]);
 
-    const update = {
+    const update: Partial<StakingRefReward> = {
       outputReferenceAmount: rewardInBtc,
       outputReferenceAsset: 'BTC',
       outputAmount: rewardInDfi,
@@ -164,8 +164,8 @@ export class StakingRefRewardService {
             console.error(`Failed to send staking ref reward mail ${reward.id}: user has no email`);
           }
 
-          const update = {
-            mailSendDate: new Date().getTime(),
+          const update: Partial<StakingRefReward> = {
+            mailSendDate: new Date(),
             recipientMail: reward.user.userData.mail,
           };
           await this.stakingRefRewardRepo.update(reward.id, update);

@@ -65,7 +65,7 @@ export class DexDeFiChainService {
     };
   }
 
-  async purchaseLiquidity(
+  async swapLiquidity(
     swapAsset: Asset,
     swapAmount: number,
     targetAsset: Asset,
@@ -94,6 +94,10 @@ export class DexDeFiChainService {
     }
   }
 
+  async sellDfiCoin(amount: number): Promise<string> {
+    return this.#dexClient.toToken(Config.blockchain.default.dexWalletAddress, amount);
+  }
+
   async addPoolLiquidity(poolPair: [string, string]): Promise<string> {
     return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
   }
@@ -117,7 +121,7 @@ export class DexDeFiChainService {
     return transaction && transaction.blockhash && transaction.confirmations > 0;
   }
 
-  async getPurchasedAmount(txId: string, asset: string): Promise<number> {
+  async getSwapAmount(txId: string, asset: string): Promise<number> {
     const historyEntry = await this.deFiChainUtil.getHistoryEntryForTx(txId, this.#dexClient);
 
     if (!historyEntry) {

@@ -12,7 +12,7 @@ import { Staking } from './staking.entity';
 import { StakingRepository } from './staking.repository';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -167,13 +167,7 @@ export class StakingService {
 
   private async getAsset(assetId?: number): Promise<Asset | null> {
     const asset: Asset = await this.assetService.getAssetById(assetId);
-    return asset && asset.buyable
-      ? asset
-      : await this.assetService.getAssetByQuery({
-          dexName: 'DFI',
-          blockchain: Blockchain.DEFICHAIN,
-          type: AssetType.COIN,
-        });
+    return asset && asset.buyable ? asset : await this.assetService.getDfiCoin();
   }
 
   // --- BALANCE --- //

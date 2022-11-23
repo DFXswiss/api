@@ -188,7 +188,7 @@ export class BuyCryptoNotificationService {
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
-                returnTransactionLink: entity.chargebackRemittanceInfo,
+                returnTransactionLink: entity.chargebackRemittanceInfo?.split(' Zahlung')[0],
                 returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.user.userData.language?.symbol.toLowerCase(),
                 }),

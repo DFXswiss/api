@@ -502,7 +502,7 @@ describe('BuyCrypto', () => {
       entity.confirmSentMail();
 
       expect(entity.mailSendDate).toBeTruthy();
-      expect(typeof entity.mailSendDate).toBe('number');
+      expect(entity.mailSendDate).toBeInstanceOf(Date);
     });
 
     it('returns instance of BuyCrypto', () => {

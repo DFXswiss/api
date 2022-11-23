@@ -41,6 +41,6 @@ export class Reward extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail: string;
 
-  @Column({ type: 'float', nullable: true })
-  mailSendDate: number;
+  @Column({ type: 'datetime2', nullable: true })
+  mailSendDate: Date;
 }

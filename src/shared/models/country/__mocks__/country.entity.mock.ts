@@ -4,7 +4,7 @@ const defaultCountry: Partial<Country> = {
   id: 1,
   symbol: 'DE',
   name: 'Germany',
-  enable: true,
+  dfxEnable: true,
   ipEnable: true,
   maerkiBaumannEnable: true,
   updated: undefined,

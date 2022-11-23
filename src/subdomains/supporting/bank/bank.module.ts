@@ -24,6 +24,7 @@ import { BankModule as BankIntegrationModule } from 'src/integration/bank/bank.m
 import { FiatOutputRepository } from './fiat-output/fiat-output.repository';
 import { FiatOutputService } from './fiat-output/fiat-output.service';
 import { FiatOutputController } from './fiat-output/fiat-output.controller';
+import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controller';
 
 @Module({
   imports: [
@@ -41,7 +42,15 @@ import { FiatOutputController } from './fiat-output/fiat-output.controller';
     NotificationModule,
     forwardRef(() => BuyCryptoModule),
   ],
-  controllers: [BankTxController, BankAccountController, BankTxReturnController, BankController, FiatOutputController],
+
+  controllers: [
+    BankTxController,
+    BankAccountController,
+    BankTxReturnController,
+    BankTxRepeatController,
+    BankController,
+    FiatOutputController,
+  ],
   providers: [
     BankTxService,
     BankTxReturnService,
@@ -52,6 +61,14 @@ import { FiatOutputController } from './fiat-output/fiat-output.controller';
     BankService,
     FiatOutputService,
   ],
-  exports: [BankTxService, BankAccountService, OlkypayService, FrickService, BankService, FiatOutputService],
+  exports: [
+    BankTxService,
+    BankAccountService,
+    OlkypayService,
+    FrickService,
+    BankService,
+    BankTxRepeatService,
+    FiatOutputService,
+  ],
 })
 export class BankModule {}
