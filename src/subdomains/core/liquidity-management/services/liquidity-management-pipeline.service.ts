@@ -165,7 +165,6 @@ export class LiquidityManagementPipelineService {
         if (e instanceof OrderNotProcessableException) {
           order.fail();
           await this.orderRepo.save(order);
-          continue;
         }
 
         console.error(`Error in starting new liquidity order. Order ID: ${order.id}`, e);
