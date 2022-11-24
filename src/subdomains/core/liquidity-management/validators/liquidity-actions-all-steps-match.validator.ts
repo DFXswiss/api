@@ -3,7 +3,9 @@ import { LiquidityManagementActionDto } from '../dto/input/liquidity-management-
 
 @ValidatorConstraint({ name: 'LiquidityActionsAllStepsMatchValidator', async: false })
 export class LiquidityActionsAllStepsMatchValidator implements ValidatorConstraintInterface {
-  validate(actions: LiquidityManagementActionDto[] = []) {
+  validate(actions: LiquidityManagementActionDto[]) {
+    if (!actions) return true;
+
     return actions.every(
       (a) =>
         (a.stepNumberOnSuccess ? !!actions.find((_a) => _a.stepNumber === a.stepNumberOnSuccess) : true) &&

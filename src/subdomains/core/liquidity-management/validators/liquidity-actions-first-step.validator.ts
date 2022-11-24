@@ -3,7 +3,9 @@ import { LiquidityManagementActionDto } from '../dto/input/liquidity-management-
 
 @ValidatorConstraint({ name: 'LiquidityActionsFirstStepValidator', async: false })
 export class LiquidityActionsFirstStepValidator implements ValidatorConstraintInterface {
-  validate(actions: LiquidityManagementActionDto[] = []) {
+  validate(actions: LiquidityManagementActionDto[]) {
+    if (!actions) return true;
+
     return actions[0] ? actions[0].stepNumber === 1 : false;
   }
 

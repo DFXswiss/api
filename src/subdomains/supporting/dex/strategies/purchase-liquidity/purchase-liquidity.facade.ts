@@ -10,6 +10,7 @@ import { DeFiChainStockStrategy } from './impl/defichain-stock.strategy';
 import { BscTokenStrategy } from './impl/bsc-token.strategy';
 import { BitcoinStrategy } from './impl/bitcoin.strategy';
 import { EthereumTokenStrategy } from './impl/ethereum-token.strategy';
+import { DeFiChainDfiStrategy } from './impl/defichain-dfi.strategy';
 
 enum Alias {
   BITCOIN = 'Bitcoin',
@@ -18,6 +19,7 @@ enum Alias {
   DEFICHAIN_POOL_PAIR = 'DeFiChainPoolPair',
   DEFICHAIN_STOCK = 'DeFiChainStock',
   DEFICHAIN_CRYPTO = 'DeFiChainCrypto',
+  DEFICHAIN_DFI = 'DeFiChainDfi',
   ETHEREUM_COIN = 'EthereumCoin',
   ETHEREUM_TOKEN = 'EthereumToken',
 }
@@ -32,6 +34,7 @@ export class PurchaseLiquidityStrategies {
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
+    deFiChainDfi: DeFiChainDfiStrategy,
     deFiChainCrypto: DeFiChainCryptoStrategy,
     @Inject(forwardRef(() => DeFiChainPoolPairStrategy))
     deFiChainPoolPair: DeFiChainPoolPairStrategy,
@@ -42,9 +45,10 @@ export class PurchaseLiquidityStrategies {
     this.strategies.set(Alias.BITCOIN, bitcoin);
     this.strategies.set(Alias.BSC_COIN, bscCoin);
     this.strategies.set(Alias.BSC_TOKEN, bscToken);
+    this.strategies.set(Alias.DEFICHAIN_DFI, deFiChainDfi);
+    this.strategies.set(Alias.DEFICHAIN_CRYPTO, deFiChainCrypto);
     this.strategies.set(Alias.DEFICHAIN_POOL_PAIR, deFiChainPoolPair);
     this.strategies.set(Alias.DEFICHAIN_STOCK, deFiChainStock);
-    this.strategies.set(Alias.DEFICHAIN_CRYPTO, deFiChainCrypto);
     this.strategies.set(Alias.ETHEREUM_COIN, ethereumCoin);
     this.strategies.set(Alias.ETHEREUM_TOKEN, ethereumToken);
   }
@@ -70,7 +74,7 @@ export class PurchaseLiquidityStrategies {
   }
 
   private getAlias(asset: Asset): Alias {
-    const { blockchain, category: assetCategory, type: assetType } = asset;
+    const { dexName, blockchain, category: assetCategory, type: assetType } = asset;
 
     if (blockchain === Blockchain.BITCOIN) return Alias.BITCOIN;
 
@@ -79,9 +83,10 @@ export class PurchaseLiquidityStrategies {
     }
 
     if (blockchain === Blockchain.DEFICHAIN) {
+      if (assetCategory === AssetCategory.CRYPTO && dexName === 'DFI') return Alias.DEFICHAIN_DFI;
+      if (assetCategory === AssetCategory.CRYPTO) return Alias.DEFICHAIN_CRYPTO;
       if (assetCategory === AssetCategory.POOL_PAIR) return Alias.DEFICHAIN_POOL_PAIR;
       if (assetCategory === AssetCategory.STOCK) return Alias.DEFICHAIN_STOCK;
-      if (assetCategory === AssetCategory.CRYPTO) return Alias.DEFICHAIN_CRYPTO;
     }
 
     if (blockchain === Blockchain.ETHEREUM) {
