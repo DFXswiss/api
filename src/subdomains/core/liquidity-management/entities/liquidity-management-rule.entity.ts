@@ -18,11 +18,11 @@ export class LiquidityManagementRule extends IEntity {
   status: LiquidityManagementRuleStatus;
 
   @ManyToOne(() => Asset, { eager: true, nullable: true })
-  @Index({ unique: true })
+  @Index({ unique: true, where: 'targetAssetId IS NOT NULL' })
   targetAsset: Asset;
 
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
-  @Index({ unique: true })
+  @Index({ unique: true, where: 'targetFiatId IS NOT NULL' })
   targetFiat: Fiat;
 
   @Column({ type: 'float', nullable: true })

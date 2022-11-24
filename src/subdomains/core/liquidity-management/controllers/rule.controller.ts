@@ -13,17 +13,17 @@ export class LiquidityManagementRuleController {
   constructor(private readonly service: LiquidityManagementRuleService) {}
 
   @Post()
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  // @ApiBearerAuth()
+  // @ApiExcludeEndpoint()
+  // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async createRule(@Body() dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRuleOutputDto> {
     return this.service.createRule(dto);
   }
 
   @Put(':id')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  // @ApiBearerAuth()
+  // @ApiExcludeEndpoint()
+  // @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async updateRule(
     @Param('id') id: number,
     @Body() dto: LiquidityManagementRuleCreationDto,
