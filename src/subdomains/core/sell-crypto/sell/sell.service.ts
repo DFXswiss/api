@@ -75,7 +75,7 @@ export class SellService {
       if (!existing.active) {
         // reactivate deleted route
         existing.active = true;
-        this.sellRepo.save(existing);
+        await this.sellRepo.save(existing);
       }
 
       return existing;
@@ -105,7 +105,7 @@ export class SellService {
   // --- VOLUMES --- //
   @Cron(CronExpression.EVERY_YEAR)
   async resetAnnualVolumes(): Promise<void> {
-    this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
+    await this.sellRepo.update({ annualVolume: Not(0) }, { annualVolume: 0 });
   }
 
   async updateVolume(sellId: number, volume: number, annualVolume: number): Promise<void> {

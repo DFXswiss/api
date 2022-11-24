@@ -44,4 +44,4 @@ async function bootstrap() {
   console.log(`Server listening on: ${await app.getUrl()}`);
 }
 
-bootstrap();
+void bootstrap();

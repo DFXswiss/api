@@ -62,7 +62,7 @@ export class LimitRequestService {
     const update = this.limitRequestRepo.create(dto);
 
     if (LimitRequestAccepted(dto.decision) && dto.decision !== entity.decision)
-      this.kycWebhookService.kycChanged(entity.userData);
+      await this.kycWebhookService.kycChanged(entity.userData);
 
     Util.removeNullFields(entity);
 

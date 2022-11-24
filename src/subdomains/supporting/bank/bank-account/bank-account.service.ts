@@ -98,7 +98,7 @@ export class BankAccountService {
 
   private async reloadBankAccount(bankAccount: BankAccount): Promise<void> {
     const bankDetails = await this.ibanService.getIbanInfos(bankAccount.iban);
-    this.bankAccountRepo.save({ ...bankAccount, ...this.parseBankDetails(bankDetails) });
+    await this.bankAccountRepo.save({ ...bankAccount, ...this.parseBankDetails(bankDetails) });
   }
 
   private parseBankDetails(bankDetails: IbanDetailsDto): BankAccountInfos {

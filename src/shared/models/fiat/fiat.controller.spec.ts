@@ -26,11 +26,11 @@ describe('FiatController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('should return fiat list', () => {
+  it('should return fiat list', async () => {
     const fiatList = [{ id: 1 }, { id: 2 }] as Fiat[];
 
     jest.spyOn(fiatService, 'getAllFiat').mockResolvedValueOnce(fiatList);
 
-    expect(controller.getAllFiat()).resolves.toEqual(fiatList);
+    await expect(controller.getAllFiat()).resolves.toEqual(fiatList);
   });
 });

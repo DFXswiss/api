@@ -29,6 +29,7 @@ describe('CfpService', () => {
     }).compile();
 
     service = module.get<CfpService>(CfpService);
+    await service.onModuleInit();
   });
 
   it('should be defined', () => {
