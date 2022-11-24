@@ -198,11 +198,13 @@ export class DexService {
     }
   }
 
-  async getPendingOrdersCount(targetAsset: Asset): Promise<number> {
+  async getPendingOrdersCount(asset: Asset): Promise<number> {
     const pendingOrders = await this.liquidityOrderRepo.find({
       where: [
-        { targetAsset, isComplete: false },
-        { targetAsset, isReady: false },
+        { targetAsset: asset, isComplete: false },
+        { targetAsset: asset, isReady: false },
+        { swapAsset: asset, isComplete: false },
+        { swapAsset: asset, isReady: false },
       ],
     });
 

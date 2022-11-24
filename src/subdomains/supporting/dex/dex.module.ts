@@ -20,6 +20,7 @@ import { EthereumTokenStrategy as EthereumTokenStrategyCL } from './strategies/c
 import { BitcoinStrategy as BitcoinStrategyPL } from './strategies/purchase-liquidity/impl/bitcoin.strategy';
 import { BscCoinStrategy as BscCryptoStrategyPL } from './strategies/purchase-liquidity/impl/bsc-coin.strategy';
 import { BscTokenStrategy as BscTokenStrategyPL } from './strategies/purchase-liquidity/impl/bsc-token.strategy';
+import { DeFiChainDfiStrategy as DeFiChainDfiStrategyPL } from './strategies/purchase-liquidity/impl/defichain-dfi.strategy';
 import { DeFiChainCryptoStrategy as DeFiChainCryptoStrategyPL } from './strategies/purchase-liquidity/impl/defichain-crypto.strategy';
 import { DeFiChainPoolPairStrategy as DeFiChainPoolPairStrategyPL } from './strategies/purchase-liquidity/impl/defichain-poolpair.strategy';
 import { DeFiChainStockStrategy as DeFiChainStockStrategyPL } from './strategies/purchase-liquidity/impl/defichain-stock.strategy';
@@ -57,6 +58,7 @@ import { SellLiquidityStrategies } from './strategies/sell-liquidity/sell-liquid
     BitcoinStrategyCL,
     BscTokenStrategyCL,
     EthereumTokenStrategyCL,
+    DeFiChainDfiStrategyPL,
     DeFiChainCryptoStrategyPL,
     DeFiChainPoolPairStrategyPL,
     DeFiChainStockStrategyPL,

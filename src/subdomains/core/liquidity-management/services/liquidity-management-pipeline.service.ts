@@ -10,7 +10,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 import { LiquidityManagementRuleRepository } from '../repositories/liquidity-management-rule.repository';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 
 @Injectable()
@@ -246,13 +246,6 @@ export class LiquidityManagementPipelineService {
         subject: 'Liquidity management pipeline SUCCESS',
         errors: [successMessage],
       },
-      metadata: {
-        context: MailContext.LIQUIDITY_MANAGEMENT,
-        correlationId: `LiquidityManagementPipeline_${pipeline.id}`,
-      },
-      options: {
-        suppressRecurring: true,
-      },
     };
 
     return [successMessage, mailRequest];
@@ -266,13 +259,6 @@ export class LiquidityManagementPipelineService {
       input: {
         subject: 'Liquidity management pipeline failed',
         errors: [errorMessage],
-      },
-      metadata: {
-        context: MailContext.LIQUIDITY_MANAGEMENT,
-        correlationId: `LiquidityManagementPipeline_${pipeline.id}`,
-      },
-      options: {
-        suppressRecurring: true,
       },
     };
 
