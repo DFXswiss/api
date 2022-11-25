@@ -13,6 +13,7 @@ import { LiquidityManagementRuleOutputDto } from '../dto/output/liquidity-manage
 import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/liquidity-management-rule-output-dto.mapper';
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
+import { LiquidityManagementRuleStatus } from '../enums';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -41,7 +42,10 @@ export class LiquidityManagementRuleService {
   async updateRule(id: number, dto: LiquidityManagementRuleCreationDto): Promise<LiquidityManagementRuleOutputDto> {
     const existingRule = await this.ruleRepo.findOne({ id });
 
-    if (!existingRule) throw new BadRequestException(`Rule with ID: ${id} was not found.`);
+    if (!existingRule) throw new NotFoundException(`Rule with ID: ${id} was not found.`);
+    if (existingRule.status === LiquidityManagementRuleStatus.PROCESSING) {
+      throw new BadRequestException('Rule is currently processing and cannot be updated');
+    }
 
     const rule = await this.checkAndCreateInstance(dto);
     const updatedRule = await this.ruleRepo.save({ ...existingRule, ...rule });

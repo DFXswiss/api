@@ -26,17 +26,15 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
 
   @Interval(900000)
   async fetch(): Promise<StakingData> {
-    let data: StakingData;
-
     try {
-      data = await this.getStaking();
+      const data = await this.getStaking();
+
+      this.emit(data);
+
+      return data;
     } catch (e) {
-      data = this.getDefaultData();
+      console.error('Exception during monitoring staking balance:', e);
     }
-
-    this.emit(data);
-
-    return data;
   }
 
   // *** HELPER METHODS *** //
@@ -87,13 +85,5 @@ export class StakingBalanceObserver extends MetricObserver<StakingData> {
     // calculate difference
     const difference = Util.round(actual - should, Config.defaultVolumeDecimal);
     return { actual, should, difference };
-  }
-
-  private getDefaultData(): StakingData {
-    return {
-      stakingBalance: { actual: 0, should: 0, difference: 0 },
-      freeOperator: 0,
-      unmatchedStaking: 0,
-    };
   }
 }

@@ -5,6 +5,7 @@ import { Entity, OneToOne, JoinColumn, ManyToOne, Column } from 'typeorm';
 import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.entity';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
+import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
 import { Sell } from '../sell/sell.entity';
 
 @Entity()
@@ -12,6 +13,10 @@ export class BuyFiat extends IEntity {
   @OneToOne(() => CryptoInput, { nullable: false })
   @JoinColumn()
   cryptoInput: CryptoInput;
+
+  @OneToOne(() => FiatOutput, { nullable: true })
+  @JoinColumn()
+  fiatOutput: FiatOutput;
 
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;

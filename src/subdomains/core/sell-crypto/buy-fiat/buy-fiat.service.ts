@@ -3,7 +3,7 @@ import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.entity';
 import { Sell } from '../sell/sell.entity';
-import { Between, In } from 'typeorm';
+import { Between, In, IsNull } from 'typeorm';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -12,6 +12,9 @@ import { SellService } from '../sell/sell.service';
 import { SellHistoryDto } from '../sell/dto/sell-history.dto';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-output.service';
+import { Lock } from 'src/shared/utils/lock';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class BuyFiatService {
@@ -21,7 +24,34 @@ export class BuyFiatService {
     private readonly sellRepo: SellRepository,
     private readonly sellService: SellService,
     private readonly bankTxService: BankTxService,
+    private readonly fiatOutputService: FiatOutputService,
   ) {}
+
+  private readonly lock = new Lock(7200);
+
+  // --- CHECK BUY FIAT --- //
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async addFiatOutputs(): Promise<void> {
+    if (!this.lock.acquire()) return;
+
+    try {
+      const buyFiatsWithoutOutput = await this.buyFiatRepo.find({
+        relations: ['fiatOutput'],
+        where: { amlCheck: AmlCheck.PASS, fiatOutput: IsNull() },
+      });
+
+      for (const buyFiat of buyFiatsWithoutOutput) {
+        await this.fiatOutputService.create({
+          buyFiatId: buyFiat.id,
+          type: 'BuyFiat',
+        });
+      }
+    } catch (e) {
+      console.error('Exception during adding fiat outputs:', e);
+    } finally {
+      this.lock.release();
+    }
+  }
 
   async create(cryptoInput: CryptoInput): Promise<BuyFiat> {
     const entity = this.buyFiatRepo.create();

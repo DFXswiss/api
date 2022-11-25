@@ -183,7 +183,7 @@ export class StakingService {
     if (staking.user.stakingStart == null && balance >= Config.staking.minInvestment) {
       const isNewUser = await this.userService.activateStaking(staking.user.id);
       if (isNewUser) {
-        this.stakingRefRewardService.create(staking);
+        await this.stakingRefRewardService.create(staking);
       }
     }
   }

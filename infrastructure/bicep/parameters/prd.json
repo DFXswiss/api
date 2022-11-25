@@ -209,13 +209,25 @@
     "lockApiKey": {
       "value": "xxx"
     },
-    "limitRequestSupportBanner":{
+    "limitRequestSupportBanner": {
       "value": "xxx"
     },
-    "limitRequestSupportMail":{
+    "limitRequestSupportMail": {
       "value": "xxx"
     },
-    "limitRequestSupportName":{
+    "limitRequestSupportName": {
+      "value": "xxx"
+    },
+    "azureSubscriptionId": {
+      "value": "xxx"
+    },
+    "azureTenantId": {
+      "value": "xxx"
+    },
+    "azureClientId": {
+      "value": "xxx"
+    },
+    "azureClientSecret": {
       "value": "xxx"
     }
   }

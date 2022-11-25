@@ -3,7 +3,9 @@ import { LiquidityManagementActionDto } from '../dto/input/liquidity-management-
 
 @ValidatorConstraint({ name: 'LiquidityActionsNoDuplicateStepsValidator', async: false })
 export class LiquidityActionsNoDuplicateStepsValidator implements ValidatorConstraintInterface {
-  validate(actions: LiquidityManagementActionDto[] = []) {
+  validate(actions: LiquidityManagementActionDto[]) {
+    if (!actions) return true;
+
     const isDuplicatedSteps = actions.some(
       (a, index) => actions.findIndex((_a) => a.stepNumber === _a.stepNumber) !== index,
     );

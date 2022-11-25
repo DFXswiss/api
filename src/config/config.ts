@@ -346,6 +346,13 @@ export class Configuration {
     apiKey: process.env.CHAINALYSIS_API_KEY,
   };
 
+  azure = {
+    subscriptionId: process.env.AZURE_SUBSCRIPTION_ID,
+    tenantId: process.env.AZURE_TENANT_ID,
+    clientId: process.env.AZURE_CLIENT_ID,
+    clientSecret: process.env.AZURE_CLIENT_SECRET,
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {

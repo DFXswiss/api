@@ -7,7 +7,7 @@ class QueueItem<T> {
   private readonly promise: Promise<T>;
 
   private resolve: (value: T | PromiseLike<T>) => void;
-  private reject: () => void;
+  private reject: (e: Error) => void;
 
   constructor(private readonly action: () => Promise<T>, timeout?: number) {
     this.promise = new Promise((resolve, reject) => {
@@ -17,7 +17,7 @@ class QueueItem<T> {
       };
       this.reject = reject;
     });
-    if (timeout) this.timeout = setTimeout(this.reject, timeout);
+    if (timeout) this.timeout = setTimeout(() => this.reject(new Error('Queue timeout')), timeout);
   }
 
   public wait(): Promise<T> {

@@ -60,6 +60,10 @@ export class Util {
     return ((to?.getTime() ?? 0) - (from?.getTime() ?? 0)) / 1000;
   }
 
+  static minutesDiff(from?: Date, to?: Date): number {
+    return this.secondsDiff(from, to) / 60;
+  }
+
   static daysDiff(from?: Date, to?: Date): number {
     return this.secondsDiff(from, to) / (3600 * 24);
   }

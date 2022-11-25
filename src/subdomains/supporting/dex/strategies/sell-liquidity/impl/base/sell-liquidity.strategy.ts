@@ -22,7 +22,10 @@ export abstract class SellLiquidityStrategy {
   protected async handleSellLiquidityError(request: SellLiquidityRequest, e: Error): Promise<void> {
     const { dexName, blockchain, type } = request.sellAsset;
 
-    console.error(`Error while trying to sell liquidity of ${dexName} ${blockchain} ${type}`, e);
+    const errorMessage = `Error while trying to sell liquidity of ${dexName} ${blockchain} ${type}`;
+    console.error(errorMessage, e);
+
+    throw new Error(errorMessage);
   }
 
   //*** GETTERS ***//

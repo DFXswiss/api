@@ -121,7 +121,10 @@ export class CfpService {
     ) as MasterNode[];
     this.masterNodeCount = validMasterNodes.length;
     this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
-    this.doUpdate().then();
+  }
+
+  async onModuleInit() {
+    await this.doUpdate();
   }
 
   @Interval(600000)

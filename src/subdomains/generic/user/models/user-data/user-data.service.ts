@@ -263,7 +263,7 @@ export class UserDataService {
     });
 
     if (txList.length != 0)
-      getRepository(BankTx).update(
+      await getRepository(BankTx).update(
         txList.map((tx) => tx.id),
         { updated: new Date() },
       );
