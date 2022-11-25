@@ -30,7 +30,7 @@ export class LimitRequestService {
     if (!KycCompleted(user?.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity
-    const entity = this.limitRequestRepo.create(dto);
+    let entity = this.limitRequestRepo.create(dto);
     entity.userData = user;
 
     // upload document proof
@@ -54,6 +54,9 @@ export class LimitRequestService {
       );
     }
 
+    // save
+    entity = await this.limitRequestRepo.save(entity);
+
     await this.notificationService
       .sendMail({
         type: MailType.INTERNAL,
@@ -61,13 +64,10 @@ export class LimitRequestService {
           to: 'liq@dfx.swiss',
           subject: 'LimitRequest',
           salutation: 'New LimitRequest',
-          body: `<p>Limit: ${entity.limit} EUR</p>Investment date: ${entity.investmentDate}<p>Fund origin: ${entity.fundOrigin}</p>`,
+          body: `<p>Limit: ${entity.limit} EUR</p>Investment date: ${entity.investmentDate}<p>Fund origin: ${entity.fundOrigin}</p><p>UserData id: ${entity.userData.id}</p>`,
         },
       })
-      .catch((error) => console.error(`Failed to send limitRequest created mail:`, error));
-
-    // save
-    await this.limitRequestRepo.save(entity);
+      .catch((error) => console.error(`Failed to send limitRequest ${entity.id} created mail:`, error));
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {
