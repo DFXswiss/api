@@ -15,7 +15,7 @@ export class LogController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT))
   async create(@Body() dto: CreateLogDto): Promise<Log> {
     return this.logService.create(dto);
   }
