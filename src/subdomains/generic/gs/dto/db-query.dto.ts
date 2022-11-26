@@ -7,7 +7,7 @@ export class dbQueryDto {
 
   @IsOptional()
   @IsNumber()
-  min: number = 1;
+  min = 1;
 
   @IsOptional()
   @IsNumber()
@@ -19,11 +19,11 @@ export class dbQueryDto {
 
   @IsOptional()
   @IsBoolean()
-  extended: boolean = false;
+  extended = false;
 
   @IsOptional()
   @IsBoolean()
-  oldGsLogic: boolean = true;
+  oldGsLogic = true;
 
   @IsOptional()
   @IsString()
