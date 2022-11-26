@@ -39,5 +39,5 @@ export class dbQueryDto {
 
   // Comma separated where clauses
   @IsOptional()
-  where?: [string, {}][] = [];
+  where?: [string, any][] = [];
 }
