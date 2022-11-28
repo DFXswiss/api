@@ -1,11 +1,11 @@
 import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
-export class dbQueryDto {
+export class DbQueryDto {
   @IsNotEmpty()
   @IsString()
   table: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsNumber()
   min = 1;
 
@@ -13,19 +13,15 @@ export class dbQueryDto {
   @IsNumber()
   maxLine: number;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsDate()
   updatedSince: Date = new Date(0);
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsBoolean()
   extended = false;
 
-  @IsOptional()
-  @IsBoolean()
-  oldGsLogic = true;
-
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   sorting: 'ASC' | 'DESC' = 'ASC';
 
@@ -34,10 +30,10 @@ export class dbQueryDto {
   select?: string[];
 
   // Comma separated join names
-  @IsOptional()
+  @IsNotEmpty()
   join?: [string, string][] = [];
 
   // Comma separated where clauses
-  @IsOptional()
-  where?: [string, any][] = [];
+  @IsNotEmpty()
+  where?: [string, { [key: string]: string }][] = [];
 }

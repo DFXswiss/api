@@ -9,7 +9,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fia
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { getConnection } from 'typeorm';
 import { UserDataService } from '../user/models/user-data/user-data.service';
-import { dbQueryDto } from './dto/db-query.dto';
+import { DbQueryDto } from './dto/db-query.dto';
 import { SupportReturnData } from './dto/support-return-data.dto';
 
 @Injectable()
@@ -25,7 +25,7 @@ export class GsService {
     private readonly refRewardService: RefRewardService,
   ) {}
 
-  async getRawData(query: dbQueryDto): Promise<any> {
+  async getRawData(query: DbQueryDto): Promise<any> {
     let data: any[];
 
     if (query.extended) {
@@ -69,67 +69,6 @@ export class GsService {
           }
         : undefined;
 
-    // workarounds for GS's
-    if (arrayData && query.oldGsLogic) {
-      switch (query.table) {
-        case 'buy':
-          const userTable = await getConnection().createQueryBuilder().from('user', 'user').getRawMany();
-
-          const userIdIndex = arrayData.keys.findIndex((k) => k === 'userId');
-
-          // insert user address at position 2
-          arrayData.keys.splice(1, 0, 'address');
-          for (const buy of arrayData.values) {
-            buy.splice(1, 0, userTable.find((u) => u.id === buy[userIdIndex]).address);
-          }
-          break;
-
-        case 'user':
-          this.insertEmptyCol(arrayData, 5, [
-            'mail (deactivated)',
-            'firstname (deactivated)',
-            'surname (deactivated)',
-            'street (deactivated)',
-            'houseNumber (deactivated)',
-            'location (deactivated)',
-            'zip (deactivated)',
-            'phone (deactivated)',
-          ]);
-
-          this.insertEmptyCol(arrayData, 19, ['country (deactivated)', 'language (deactivated)']);
-
-          this.insertEmptyCol(arrayData, 22, ['currencyId (deactivated)']);
-
-          this.insertEmptyCol(arrayData, 24, [
-            'accountType (deactivated)',
-            'organizationName (deactivated)',
-            'organizationStreet (deactivated)',
-            'organizationHouseNumber (deactivated)',
-            'organizationLocation (deactivated)',
-            'organizationZip (deactivated)',
-            'organizationCountryId (deactivated)',
-          ]);
-
-          break;
-
-        case 'user_data':
-          this.insertEmptyCol(arrayData, 8, ['isMigrated (deactivated)']);
-
-          break;
-
-        case 'buy_crypto':
-          this.insertEmptyCol(arrayData, 17, ['outputAsset']);
-          this.insertEmptyCol(arrayData, 15, ['outputReferenceAsset']);
-
-          break;
-
-        case 'bank_data':
-          this.insertEmptyCol(arrayData, 2, ['location', 'country']);
-
-          break;
-      }
-    }
-
     return arrayData;
   }
 
@@ -154,23 +93,14 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
-  private insertEmptyCol(
-    arrayData: { keys: string[]; values: unknown[][] },
-    colNumber: number,
-    colNames: string[],
-  ): void {
-    arrayData.keys.splice(colNumber, 0, ...colNames);
-    arrayData.values.forEach((v) => v.splice(colNumber, 0, ...Array(colNames.length).fill('')));
-  }
-
-  private async getExtendedData(query: dbQueryDto): Promise<any[]> {
+  private async getExtendedData(query: DbQueryDto): Promise<any[]> {
     switch (query.table) {
       case 'bank_tx':
         return this.getExtendedBankTxData(query);
     }
   }
 
-  private async getExtendedBankTxData(dbQuery: dbQueryDto): Promise<any[]> {
+  private async getExtendedBankTxData(dbQuery: DbQueryDto): Promise<any[]> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;
 
     const buyCryptoData = await getConnection()
