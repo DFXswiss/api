@@ -9,6 +9,8 @@ import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from './limit-request.entity';
 import { Util } from 'src/shared/utils/util';
 import { KycWebhookService } from '../kyc/kyc-webhook.service';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
 
 @Injectable()
 export class LimitRequestService {
@@ -17,6 +19,7 @@ export class LimitRequestService {
     private readonly userDataService: UserDataService,
     private readonly spiderService: SpiderService,
     private readonly kycWebhookService: KycWebhookService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async increaseLimit(dto: LimitRequestDto, kycHash: string, userId?: number): Promise<void> {
@@ -27,7 +30,7 @@ export class LimitRequestService {
     if (!KycCompleted(user?.kycStatus)) throw new BadRequestException('KYC not yet completed');
 
     // create entity
-    const entity = this.limitRequestRepo.create(dto);
+    let entity = this.limitRequestRepo.create(dto);
     entity.userData = user;
 
     // upload document proof
@@ -52,7 +55,19 @@ export class LimitRequestService {
     }
 
     // save
-    await this.limitRequestRepo.save(entity);
+    entity = await this.limitRequestRepo.save(entity);
+
+    await this.notificationService
+      .sendMail({
+        type: MailType.INTERNAL,
+        input: {
+          to: 'liq@dfx.swiss',
+          subject: 'LimitRequest',
+          salutation: 'New LimitRequest',
+          body: `<p>Limit: ${entity.limit} EUR</p>Investment date: ${entity.investmentDate}<p>Fund origin: ${entity.fundOrigin}</p><p>UserData id: ${entity.userData.id}</p>`,
+        },
+      })
+      .catch((error) => console.error(`Failed to send limitRequest ${entity.id} created mail:`, error));
   }
 
   async updateLimitRequest(id: number, dto: UpdateLimitRequestDto): Promise<LimitRequest> {

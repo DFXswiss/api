@@ -8,6 +8,7 @@ export enum MailType {
   ERROR_MONITORING = 'ErrorMonitoring',
   USER = 'User',
   PERSONAL = 'Personal',
+  INTERNAL = 'Internal',
 }
 
 export enum MailContext {
