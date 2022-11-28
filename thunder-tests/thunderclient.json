@@ -118,12 +118,12 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-10-14T09:57:53.958Z",
+    "modified": "2022-11-28T10:19:52.128Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n    \"address\": \"address\",\n    \"signature\": \"signature\"\n}",
+      "raw": "{\n    \"address\": \"df1qgkech2ha26r34mylm523c42d63er9pt5gyvq43\",\n    \"signature\": \"IEASE8bIcQLE7vjnDBvlMvvUWb4pdaiJnvd+qjhPRuzbXiWC1yZF9O7KPDiPz+lK+Tr8/tKASo2P15ly4VBBfZY=\"\n}",
       "form": []
     },
     "auth": {
@@ -1823,9 +1823,16 @@
     "method": "GET",
     "sortNum": 690000,
     "created": "2022-09-05T14:01:22.883Z",
-    "modified": "2022-09-05T14:01:58.289Z",
+    "modified": "2022-11-28T10:40:26.582Z",
     "headers": [],
-    "params": [],
+    "params": [
+      {
+        "name": "blockchains",
+        "value": "Ethereum,BinanceSmartChain",
+        "isDisabled": true,
+        "isPath": false
+      }
+    ],
     "tests": []
   },
   {

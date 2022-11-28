@@ -1,10 +1,9 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { RoleGuard } from 'src/shared/auth/role.guard';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { Asset } from './asset.entity';
 import { AssetService } from './asset.service';
 
@@ -15,8 +14,9 @@ export class AssetController {
 
   @Get()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllAsset(@GetJwt() jwt: JwtPayload): Promise<Asset[]> {
-    return this.assetService.getAllAsset(jwt.blockchains);
+  @UseGuards(OptionalJwtAuthGuard)
+  async getAllAsset(@GetJwt() jwt?: JwtPayload, @Query('blockchains') blockchains?: string): Promise<Asset[]> {
+    const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
+    return this.assetService.getAllAsset(queryBlockchains ?? jwt?.blockchains ?? []);
   }
 }
