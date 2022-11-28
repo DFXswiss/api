@@ -201,6 +201,8 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   }
 
   private async cleanupOrders(parentOrder: LiquidityOrder): Promise<void> {
+    console.log(`Pool pair liquidity order failed. Cleaning up parent order ID: ${parentOrder.id}.`);
+
     await this.liquidityOrderRepo.delete({
       context: LiquidityOrderContext.CREATE_POOL_PAIR,
       correlationId: parentOrder.id.toString(),
