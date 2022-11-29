@@ -13,6 +13,7 @@ import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 
 enum MockBuyData {
   DEFAULT,
@@ -31,6 +32,7 @@ describe('BuyFiatService', () => {
   let bankTxRepo: BankTxRepository;
   let bankTxService: BankTxService;
   let fiatOutputService: FiatOutputService;
+  let buyCryptoService: BuyCryptoService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -40,6 +42,7 @@ describe('BuyFiatService', () => {
     bankTxRepo = createMock<BankTxRepository>();
     bankTxService = createMock<BankTxService>();
     fiatOutputService = createMock<FiatOutputService>();
+    buyCryptoService = createMock<BuyCryptoService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -52,6 +55,7 @@ describe('BuyFiatService', () => {
         { provide: BankTxRepository, useValue: bankTxRepo },
         { provide: BankTxService, useValue: bankTxService },
         { provide: FiatOutputService, useValue: fiatOutputService },
+        { provide: BuyCryptoService, useValue: buyCryptoService },
       ],
     }).compile();
 

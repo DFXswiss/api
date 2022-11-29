@@ -8,6 +8,7 @@ import { createCustomCryptoHistory } from 'src/mix/models/crypto-route/dto/__moc
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
@@ -48,6 +49,7 @@ describe('BuyCryptoService', () => {
   let buyCryptoDexService: BuyCryptoDexService;
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let userService: UserService;
+  let buyFiatService: BuyFiatService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -63,6 +65,7 @@ describe('BuyCryptoService', () => {
     buyCryptoDexService = createMock<BuyCryptoDexService>();
     buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
     userService = createMock<UserService>();
+    buyFiatService = createMock<BuyFiatService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -81,6 +84,7 @@ describe('BuyCryptoService', () => {
         { provide: BuyCryptoDexService, useValue: buyCryptoDexService },
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: UserService, useValue: userService },
+        { provide: BuyFiatService, useValue: buyFiatService },
       ],
     }).compile();
 
