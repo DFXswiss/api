@@ -5,6 +5,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
+import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { BuyFiatNotificationService } from './buy-fiat/buy-fiat-notification.service';
 import { BuyFiatController } from './buy-fiat/buy-fiat.controller';
 import { BuyFiatRepository } from './buy-fiat/buy-fiat.repository';
@@ -21,6 +22,7 @@ import { SellService } from './sell/sell.service';
     UserModule,
     NotificationModule,
     BankModule,
+    forwardRef(() => BuyCryptoModule),
   ],
   controllers: [BuyFiatController, SellController],
   providers: [SellController, BuyFiatNotificationService, BuyFiatService, SellService],
