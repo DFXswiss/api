@@ -118,12 +118,12 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-11-28T10:19:52.128Z",
+    "modified": "2022-11-29T08:55:32.281Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n    \"address\": \"df1qgkech2ha26r34mylm523c42d63er9pt5gyvq43\",\n    \"signature\": \"IEASE8bIcQLE7vjnDBvlMvvUWb4pdaiJnvd+qjhPRuzbXiWC1yZF9O7KPDiPz+lK+Tr8/tKASo2P15ly4VBBfZY=\"\n}",
+      "raw": "{\n    \"address\": \"address\",\n    \"signature\": \"signature\"\n}",
       "form": []
     },
     "auth": {
