@@ -73,7 +73,7 @@ export class LiquidityManagementBalanceService {
         });
 
         if (existingBalance) {
-          existingBalance.updateBalance(balance.amount);
+          existingBalance.updateBalance(balance.amount ?? 0);
           await this.balanceRepo.save(existingBalance);
 
           continue;

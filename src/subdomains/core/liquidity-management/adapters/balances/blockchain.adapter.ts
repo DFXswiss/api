@@ -137,6 +137,11 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   private setCache(balances: Balance[]): void {
+    /**
+     * cleanup cache to remove tokens which balances went to 0
+     */
+    this.defiChainCache = new Map();
+
     for (const balance of balances) {
       const { name, type, amount } = balance;
 
