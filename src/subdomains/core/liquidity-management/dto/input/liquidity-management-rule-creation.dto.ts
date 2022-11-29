@@ -6,6 +6,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsNumber,
+  Min,
   Validate,
   ValidateIf,
   ValidateNested,
@@ -34,14 +35,17 @@ export class LiquidityManagementRuleCreationDto {
 
   @ValidateIf((dto) => dto.minimal != null || dto.maximal == null || dto.deficitActions)
   @IsNumber()
+  @Min(0)
   minimal: number;
 
   @IsNotEmpty()
   @IsNumber()
+  @Min(0)
   optimal: number;
 
   @ValidateIf((dto) => dto.maximal != null || dto.minimal == null || dto.redundancyActions)
   @IsNumber()
+  @Min(0)
   maximal: number;
 
   @ValidateIf((dto) => dto.minimal)
