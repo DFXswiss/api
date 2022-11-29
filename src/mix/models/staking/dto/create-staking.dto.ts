@@ -9,7 +9,7 @@ import { PayoutType } from '../../staking-reward/staking-reward.entity';
 export class CreateStakingDto {
   @ApiProperty()
   @IsNotEmpty()
-  @IsEnum(PayoutType)
+  @IsEnum([PayoutType.WALLET])
   rewardType: PayoutType;
 
   @ApiPropertyOptional()
@@ -28,7 +28,7 @@ export class CreateStakingDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsEnum(PayoutType)
+  @IsEnum([PayoutType.WALLET])
   paybackType: PayoutType;
 
   @ApiPropertyOptional()

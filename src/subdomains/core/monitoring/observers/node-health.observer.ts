@@ -142,9 +142,7 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
 
     // check for required restarts
     if (!node.restarted && node.downSince && Util.minutesDiff(node.downSince, new Date()) > 30) {
-      const message = `ALERT! Restarting node ${node.type} ${node.mode} (down since ${node.downSince})`;
-      messages.push(message);
-      console.log(message);
+      messages.push(`ALERT! Restarting node ${node.type} ${node.mode} (down since ${node.downSince})`);
 
       node.restarted = true;
 
