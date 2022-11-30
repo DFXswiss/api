@@ -1,6 +1,6 @@
-import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
-export class DbQueryDto {
+export class DbQueryBaseDto {
   @IsNotEmpty()
   @IsString()
   table: string;
@@ -18,22 +18,17 @@ export class DbQueryDto {
   updatedSince: Date = new Date(0);
 
   @IsNotEmpty()
-  @IsBoolean()
-  extended = false;
-
-  @IsNotEmpty()
   @IsString()
   sorting: 'ASC' | 'DESC' = 'ASC';
+}
 
-  // Comma separated column names
+export class DbQueryDto extends DbQueryBaseDto {
   @IsOptional()
   select?: string[];
 
-  // Comma separated join names
   @IsNotEmpty()
   join?: [string, string][] = [];
 
-  // Comma separated where clauses
   @IsNotEmpty()
   where?: [string, { [key: string]: string }][] = [];
 }

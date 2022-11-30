@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { DbQueryDto } from './dto/db-query.dto';
+import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
 import { SupportReturnData } from './dto/support-return-data.dto';
 import { GsService } from './gs.service';
 
@@ -17,6 +17,14 @@ export class GsController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
   async getRawData(@Body() query: DbQueryDto): Promise<any> {
     return await this.gsService.getRawData(query);
+  }
+
+  @Post('db/bankTx')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
+  async getBankTxExtendedData(@Body() query: DbQueryBaseDto): Promise<any> {
+    return await this.gsService.getExtendedData(query);
   }
 
   @Get('support')

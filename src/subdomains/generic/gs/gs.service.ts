@@ -9,7 +9,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fia
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { getConnection } from 'typeorm';
 import { UserDataService } from '../user/models/user-data/user-data.service';
-import { DbQueryDto } from './dto/db-query.dto';
+import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
 import { SupportReturnData } from './dto/support-return-data.dto';
 
 @Injectable()
@@ -26,50 +26,45 @@ export class GsService {
   ) {}
 
   async getRawData(query: DbQueryDto): Promise<any> {
-    let data: any[];
+    const request = getConnection()
+      .createQueryBuilder()
+      .from(query.table, query.table)
+      .orderBy(`${query.table}.id`, query.sorting)
+      .take(query.maxLine)
+      .where(`${query.table}.id >= :id`, { id: query.min })
+      .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
 
-    if (query.extended) {
-      data = await this.getExtendedData(query);
-    } else {
-      const request = getConnection()
-        .createQueryBuilder()
-        .from(query.table, query.table)
-        .orderBy(`${query.table}.id`, query.sorting)
-        .take(query.maxLine)
-        .where(`${query.table}.id >= :id`, { id: query.min })
-        .andWhere(`${query.table}.updated >= :updated`, { updated: query.updatedSince });
+    if (query.select) request.select(query.select);
 
-      if (query.select) request.select(query.select);
-
-      for (const where of query?.where) {
-        request.andWhere(where[0], where[1]);
-      }
-
-      for (const join of query?.join) {
-        request.leftJoin(join[0], join[1]);
-      }
-
-      data = await request.getRawMany().catch((e: Error) => {
-        throw new BadRequestException(e.message);
-      });
+    for (const where of query.where) {
+      request.andWhere(where[0], where[1]);
     }
+
+    for (const join of query.join) {
+      request.leftJoin(join[0], join[1]);
+    }
+
+    const data = await request.getRawMany().catch((e: Error) => {
+      throw new BadRequestException(e.message);
+    });
 
     // transform to array
     const arrayData =
       data.length > 0
         ? {
-            keys: Object.keys(data[0]).map((e) =>
-              e.split('_').length > 1
-                ? e
-                    .replace(`${query.table}_`, '')
-                    .replace('_' + e.split('_')[1].split('')[0], e.split('_')[1].split('')[0].toLocaleUpperCase())
-                : e,
-            ),
+            keys: this.renameDbKeys(Object.keys(data[0]), query.table),
             values: data.map((e) => Object.values(e)),
           }
         : undefined;
 
     return arrayData;
+  }
+
+  async getExtendedData(query: DbQueryBaseDto): Promise<any[]> {
+    switch (query.table) {
+      case 'bank_tx':
+        return this.getExtendedBankTxData(query);
+    }
   }
 
   async getSupportData(userDataId: number): Promise<SupportReturnData> {
@@ -93,11 +88,14 @@ export class GsService {
 
   //*** HELPER METHODS ***//
 
-  private async getExtendedData(query: DbQueryDto): Promise<any[]> {
-    switch (query.table) {
-      case 'bank_tx':
-        return this.getExtendedBankTxData(query);
-    }
+  private renameDbKeys(keys: string[], table: string): string[] {
+    return keys.map((e) =>
+      e.split('_').length > 1
+        ? e
+            .replace(`${table}_`, '')
+            .replace('_' + e.split('_')[1].split('')[0], e.split('_')[1].split('')[0].toLocaleUpperCase())
+        : e,
+    );
   }
 
   private async getExtendedBankTxData(dbQuery: DbQueryDto): Promise<any[]> {
