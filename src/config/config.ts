@@ -266,12 +266,14 @@ export class Configuration {
   buy = {
     fee: {
       organization: {
+        [FeeTier.TIER0]: 0,
         [FeeTier.TIER1]: 0.0149,
         [FeeTier.TIER2]: 0.0199,
         [FeeTier.TIER3]: 0.0275,
         [FeeTier.TIER4]: 0.0349,
       },
       private: {
+        [FeeTier.TIER0]: 0,
         [FeeTier.TIER1]: 0.0099,
         [FeeTier.TIER2]: 0.0149,
         [FeeTier.TIER3]: 0.0225,
@@ -287,12 +289,14 @@ export class Configuration {
   sell = {
     fee: {
       organization: {
+        [FeeTier.TIER0]: 0,
         [FeeTier.TIER1]: 0.0199,
         [FeeTier.TIER2]: 0.0249,
         [FeeTier.TIER3]: 0.0325,
         [FeeTier.TIER4]: 0.0399,
       },
       private: {
+        [FeeTier.TIER0]: 0,
         [FeeTier.TIER1]: 0.0149,
         [FeeTier.TIER2]: 0.0199,
         [FeeTier.TIER3]: 0.0275,

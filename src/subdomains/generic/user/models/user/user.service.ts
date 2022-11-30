@@ -225,16 +225,13 @@ export class UserService {
       where: { id: userId },
       relations: ['userData'],
     });
-
-    if (asset.category === AssetCategory.STOCK) return { fee: 0 };
-
     const defaultFee =
       userData.accountType === AccountType.PERSONAL
         ? Config.buy.fee.private[asset.feeTier]
         : Config.buy.fee.organization[asset.feeTier];
 
     return {
-      fee: Util.round((buyFee ?? defaultFee) * 100, Config.defaultPercentageDecimal),
+      fee: Util.round((buyFee ? Math.min(buyFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal),
     };
   }
 
@@ -244,16 +241,13 @@ export class UserService {
       where: { id: userId },
       relations: ['userData'],
     });
-
-    if (asset.category === AssetCategory.STOCK) return { fee: 0 };
-
     const defaultFee =
       userData.accountType === AccountType.PERSONAL
         ? Config.sell.fee.private[asset.feeTier]
         : Config.sell.fee.organization[asset.feeTier];
 
     return {
-      fee: Util.round((sellFee ?? defaultFee) * 100, Config.defaultPercentageDecimal),
+      fee: Util.round((sellFee ? Math.min(sellFee, defaultFee) : defaultFee) * 100, Config.defaultPercentageDecimal),
     };
   }
 

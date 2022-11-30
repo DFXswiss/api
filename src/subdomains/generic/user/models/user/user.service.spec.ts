@@ -76,6 +76,20 @@ describe('UserService', () => {
     expect(service).toBeDefined();
   });
 
+  // tier 0 buy
+  it('should return personal tier0 buy fee', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserBuyFee(1, { feeTier: FeeTier.TIER0 } as Asset)).resolves.toStrictEqual({ fee: 0 });
+  });
+
+  // tier 0 sell
+  it('should return personal tier0 sell fee', async () => {
+    setup(AccountType.PERSONAL);
+
+    await expect(service.getUserSellFee(1, { feeTier: FeeTier.TIER0 } as Asset)).resolves.toStrictEqual({ fee: 0 });
+  });
+
   // tier 1 buy
   it('should return personal tier1 buy fee', async () => {
     setup(AccountType.PERSONAL);

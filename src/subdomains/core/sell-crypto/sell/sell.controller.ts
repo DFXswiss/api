@@ -18,6 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { MinDeposit } from '../../../../mix/models/deposit/dto/min-deposit.dto';
+import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @ApiTags('sell')
@@ -92,7 +93,7 @@ export class SellController {
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
     return {
-      ...(await this.userService.getUserSellFee(userId, dto.asset)),
+      ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposits: this.getMinDeposit(sell.fiat.name),
@@ -100,6 +101,12 @@ export class SellController {
   }
 
   // --- HELPER-METHODS --- //
+  async getFee(userId: number, asset?: Asset): Promise<{ fee: number }> {
+    if (asset) {
+      asset = await this.assetService.getAssetById(asset.id);
+    }
+    return this.userService.getUserSellFee(userId, asset);
+  }
 
   private getMinDeposit(outputAsset: string): MinDeposit[] {
     const minVolume = Object.entries(Config.blockchain.default.minTransactionVolume)
