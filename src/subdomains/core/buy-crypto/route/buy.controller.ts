@@ -25,7 +25,6 @@ import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { Staking } from 'src/mix/models/staking/staking.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BuyCryptoService } from '../process/services/buy-crypto.service';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -89,7 +88,7 @@ export class BuyController {
   }
 
   private async toDto(userId: number, buy: Buy, stakingRoutes?: Staking[]): Promise<BuyDto> {
-    const fee = await this.getFees(userId, buy.asset);
+    const fee = await this.userService.getUserBuyFee(userId, buy.asset);
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
@@ -103,7 +102,7 @@ export class BuyController {
     return {
       ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
-      ...(await this.getFees(userId, buy.asset)),
+      ...(await this.userService.getUserBuyFee(userId, buy.asset)),
       minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
     };
   }
@@ -122,12 +121,6 @@ export class BuyController {
         ? stakingRoutes.find((s) => s.deposit.id === deposit.id)
         : await this.stakingService.getStakingRepo().findOne({ where: { deposit: deposit.id } }),
     );
-  }
-
-  async getFees(userId: number, asset: Asset): Promise<{ fee: number }> {
-    if (asset?.category === AssetCategory.STOCK) return { fee: 0 };
-
-    return await this.userService.getUserBuyFee(userId, asset);
   }
 
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {

@@ -34,7 +34,7 @@ import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class UserService {
@@ -226,14 +226,15 @@ export class UserService {
       relations: ['userData'],
     });
 
+    if (asset.category === AssetCategory.STOCK) return { fee: 0 };
+
+    const defaultFee =
+      userData.accountType === AccountType.PERSONAL
+        ? Config.buy.fee.private[asset.feeTier]
+        : Config.buy.fee.organization[asset.feeTier];
+
     return {
-      fee: Util.round(
-        (buyFee ??
-          (userData.accountType === AccountType.PERSONAL
-            ? Config.buy.fee.private[asset.feeTier]
-            : Config.buy.fee.organization[asset.feeTier])) * 100,
-        Config.defaultPercentageDecimal,
-      ),
+      fee: Util.round((buyFee ?? defaultFee) * 100, Config.defaultPercentageDecimal),
     };
   }
 
@@ -244,14 +245,15 @@ export class UserService {
       relations: ['userData'],
     });
 
+    if (asset.category === AssetCategory.STOCK) return { fee: 0 };
+
+    const defaultFee =
+      userData.accountType === AccountType.PERSONAL
+        ? Config.sell.fee.private[asset.feeTier]
+        : Config.sell.fee.organization[asset.feeTier];
+
     return {
-      fee: Util.round(
-        (sellFee ??
-          (userData.accountType === AccountType.PERSONAL
-            ? Config.sell.fee.private[asset.feeTier]
-            : Config.sell.fee.organization[asset.feeTier])) * 100,
-        Config.defaultPercentageDecimal,
-      ),
+      fee: Util.round((sellFee ?? defaultFee) * 100, Config.defaultPercentageDecimal),
     };
   }
 

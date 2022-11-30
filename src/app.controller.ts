@@ -1,7 +1,6 @@
 import { Controller, Get, Query, Res, Redirect } from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
-import { Request, Response } from 'express';
-import { Details, UserAgent } from 'express-useragent';
+import { Response } from 'express';
 import { RealIP } from 'nestjs-real-ip';
 import { HttpService } from './shared/services/http.service';
 import { SettingService } from './shared/models/setting/setting.service';
@@ -39,10 +38,6 @@ export class AppController {
   ): Promise<void> {
     if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
     res.redirect(307, this.homepageUrl);
-  }
-
-  private getAgentDetails(req: Request): Details {
-    return new UserAgent().parse(req.headers['user-agent'] ?? '');
   }
 
   @Get('app/announcements')

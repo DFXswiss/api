@@ -18,7 +18,6 @@ import { Util } from 'src/shared/utils/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { MinDeposit } from '../../../../mix/models/deposit/dto/min-deposit.dto';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @ApiTags('sell')
@@ -75,23 +74,16 @@ export class SellController {
   // --- DTO --- //
   private async toDtoList(userId: number, sell: Sell[]): Promise<SellDto[]> {
     const sellDepositsInUse = await this.sellService.getUserSellDepositsInUse(userId);
-    const fee = await this.getFee(userId);
 
-    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse, fee)));
+    return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse)));
   }
 
-  private async toDto(
-    userId: number,
-    sell: Sell,
-    sellDepositsInUse?: number[],
-    fee?: { fee: number },
-  ): Promise<SellDto> {
+  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[]): Promise<SellDto> {
     sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
-    fee ??= await this.getFee(userId);
 
     return {
       ...sell,
-      ...fee,
+      fee: undefined,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
       minDeposits: this.getMinDeposit(sell.fiat.name),
@@ -100,7 +92,7 @@ export class SellController {
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
     return {
-      ...(await this.getFee(userId, dto.asset)),
+      ...(await this.userService.getUserSellFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposits: this.getMinDeposit(sell.fiat.name),
@@ -108,13 +100,6 @@ export class SellController {
   }
 
   // --- HELPER-METHODS --- //
-  async getFee(userId: number, asset?: Asset): Promise<{ fee: number }> {
-    if (asset) {
-      asset = await this.assetService.getAssetById(asset.id);
-      if (asset?.category === AssetCategory.STOCK) return { fee: 0 };
-    }
-    return this.userService.getUserSellFee(userId, asset);
-  }
 
   private getMinDeposit(outputAsset: string): MinDeposit[] {
     const minVolume = Object.entries(Config.blockchain.default.minTransactionVolume)
