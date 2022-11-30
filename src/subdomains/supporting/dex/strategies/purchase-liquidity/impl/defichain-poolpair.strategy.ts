@@ -40,16 +40,16 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
   async purchaseLiquidity(request: PurchaseLiquidityRequest): Promise<void> {
     if ((await this.settingService.get('purchase-poolpair-liquidity')) !== 'on') return;
 
-    const order = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
+    const newParentOrder = this.liquidityOrderFactory.createPurchaseOrder(request, Blockchain.DEFICHAIN, this.name);
+    const savedParentOrder = await this.liquidityOrderRepo.save(newParentOrder);
 
     try {
-      const parentOrder = await this.liquidityOrderRepo.save(order);
-
       const [leftAsset, rightAsset] = await this.getAssetPair(request.targetAsset);
 
-      await this.secureLiquidityForPairAsset(parentOrder, leftAsset);
-      await this.secureLiquidityForPairAsset(parentOrder, rightAsset);
+      await this.secureLiquidityForPairAsset(savedParentOrder, leftAsset);
+      await this.secureLiquidityForPairAsset(savedParentOrder, rightAsset);
     } catch (e) {
+      await this.cleanupOrders(savedParentOrder);
       await this.handlePurchaseLiquidityError(e, request);
     }
   }
@@ -198,5 +198,15 @@ export class DeFiChainPoolPairStrategy extends PurchaseLiquidityStrategy {
 
   private isPoolPairSlippageError(e: Error): boolean {
     return e.message && e.message.includes('Exceeds max ratio slippage protection');
+  }
+
+  private async cleanupOrders(parentOrder: LiquidityOrder): Promise<void> {
+    console.log(`Pool pair liquidity order failed. Cleaning up parent order ID: ${parentOrder.id}.`);
+
+    await this.liquidityOrderRepo.delete({
+      context: LiquidityOrderContext.CREATE_POOL_PAIR,
+      correlationId: parentOrder.id.toString(),
+    });
+    await this.liquidityOrderRepo.delete({ id: parentOrder.id });
   }
 }

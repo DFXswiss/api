@@ -15,8 +15,9 @@ export class AssetService {
   constructor(private assetRepo: AssetRepository) {}
 
   async getAllAsset(blockchains: Blockchain[]): Promise<Asset[]> {
-    blockchains ??= [Blockchain.DEFICHAIN];
-    return this.assetRepo.find({ where: { blockchain: In(blockchains) } });
+    return blockchains.length > 0
+      ? this.assetRepo.find({ where: { blockchain: In(blockchains) } })
+      : this.assetRepo.find();
   }
 
   async getAssetById(id: number): Promise<Asset> {

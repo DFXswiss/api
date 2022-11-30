@@ -35,6 +35,10 @@ export class MailFactory {
         return this.createPersonalMail(request);
       }
 
+      case MailType.INTERNAL: {
+        return this.createInternalMail(request);
+      }
+
       default: {
         throw new Error(`Unsupported mail type: ${request.type}`);
       }
@@ -58,6 +62,21 @@ export class MailFactory {
     const mailParams: MailParams = {
       ...input,
       templateParams: { ...defaultParams, ...input },
+      metadata,
+      options,
+    };
+
+    return new Mail(mailParams);
+  }
+
+  private createInternalMail(request: MailRequest): ErrorMonitoringMail {
+    const input = request.input as MailRequestGenericInput;
+    const { metadata, options } = request;
+
+    const mailParams: MailParams = {
+      ...input,
+      template: 'support',
+      templateParams: { date: new Date().getFullYear(), ...input },
       metadata,
       options,
     };
