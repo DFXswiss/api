@@ -221,7 +221,7 @@ export class UserService {
   // --- FEES --- //
   async getUserBuyFee(userId: number, asset: Asset): Promise<{ fee: number }> {
     const { buyFee, userData } = await this.userRepo.findOne({
-      select: ['id', 'usedRef', 'buyFee', 'userData'],
+      select: ['id', 'buyFee', 'userData'],
       where: { id: userId },
       relations: ['userData'],
     });
@@ -239,7 +239,7 @@ export class UserService {
 
   async getUserSellFee(userId: number, asset: Asset): Promise<{ fee: number }> {
     const { sellFee, userData } = await this.userRepo.findOne({
-      select: ['id', 'usedRef', 'sellFee', 'userData'],
+      select: ['id', 'sellFee', 'userData'],
       where: { id: userId },
       relations: ['userData'],
     });
