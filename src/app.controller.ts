@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, Res, Redirect } from '@nestjs/common';
+import { Controller, Get, Query, Res, Redirect } from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Details, UserAgent } from 'express-useragent';
@@ -15,9 +15,6 @@ import { RefService } from './subdomains/core/referral/process/ref.service';
 export class AppController {
   private readonly lightWalletUrl = 'https://wallet.defichain.com/api/v0';
   private readonly homepageUrl = 'https://dfx.swiss';
-  private readonly playStoreUrl =
-    'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details?id=com.defichain.app.dfx';
-  private readonly appleStoreUrl = 'https://apps.apple.com/app/id1582633093';
 
   constructor(
     private readonly http: HttpService,
@@ -38,18 +35,10 @@ export class AppController {
     @RealIP() ip: string,
     @Query('code') ref: string,
     @Query('orig') origin: string,
-    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
-
-    // redirect user depending on platform
-    let url = this.homepageUrl;
-    const agent = this.getAgentDetails(req);
-    if (agent.isAndroid) url = this.playStoreUrl;
-    if (agent.isiPhone) url = this.appleStoreUrl;
-
-    res.redirect(307, url);
+    res.redirect(307, this.homepageUrl);
   }
 
   private getAgentDetails(req: Request): Details {

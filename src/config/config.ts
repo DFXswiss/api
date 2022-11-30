@@ -264,13 +264,8 @@ export class Configuration {
 
   buy = {
     fee: {
-      organization: 2.9,
-      private: {
-        base: 2.9,
-        moreThan5k: 2.65,
-        moreThan50k: 2.4,
-        moreThan100k: 2.3,
-      },
+      organization: { tier1: 1.49, tier2: 1.99, tier3: 2.75, tier4: 3.49 },
+      private: { tier1: 0.99, tier2: 1.49, tier3: 2.25, tier4: 2.99 },
       limits: {
         configuredFeeLimit: this.configuredFeeLimit,
         defaultFeeLimit: 0.005,
@@ -279,7 +274,10 @@ export class Configuration {
   };
 
   sell = {
-    fee: 0.029,
+    fee: {
+      organization: { tier1: 0.0199, tier2: 0.0249, tier3: 0.0325, tier4: 0.0399 },
+      private: { tier1: 0.0149, tier2: 0.0199, tier3: 0.0275, tier4: 0.0349 },
+    },
   };
 
   staking = {

@@ -34,6 +34,7 @@ import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class UserService {
@@ -112,9 +113,6 @@ export class UserService {
 
     // check used ref
     dto.usedRef = await this.checkRef(user, dto.usedRef);
-
-    // check ref provision
-    if (user.refFeePercent < dto.refFeePercent) throw new BadRequestException('Ref provision can only be decreased');
 
     // update
     user = await this.userRepo.save({ ...user, ...dto });
@@ -221,37 +219,35 @@ export class UserService {
   }
 
   // --- FEES --- //
-  async getUserBuyFee(userId: number, annualVolume: number): Promise<{ fee: number; refBonus: number }> {
-    const { usedRef, buyFee, userData } = await this.userRepo.findOne({
+  async getUserBuyFee(userId: number, asset: Asset): Promise<{ fee: number }> {
+    const { buyFee, userData } = await this.userRepo.findOne({
       select: ['id', 'usedRef', 'buyFee', 'userData'],
       where: { id: userId },
       relations: ['userData'],
     });
 
-    if (buyFee != null) return { fee: buyFee * 100, refBonus: 0 };
-
-    const baseFee =
-      userData.accountType === AccountType.PERSONAL
-        ? // personal
-          annualVolume < 5000
-          ? Config.buy.fee.private.base
-          : annualVolume < 50000
-          ? Config.buy.fee.private.moreThan5k
-          : annualVolume < 100000
-          ? Config.buy.fee.private.moreThan50k
-          : Config.buy.fee.private.moreThan100k
-        : // organization
-          Config.buy.fee.organization;
-
-    const refFee = await this.userRepo
-      .findOne({ select: ['id', 'ref', 'refFeePercent'], where: { ref: usedRef } })
-      .then((u) => u?.refFeePercent);
-
-    const refBonus = 1 - (refFee ?? 1);
+    if (buyFee != null) return { fee: buyFee * 100 };
 
     return {
-      fee: Util.round(baseFee - refBonus, Config.defaultPercentageDecimal),
-      refBonus: Util.round(refBonus, Config.defaultPercentageDecimal),
+      fee: Util.round(
+        this.getFeeTier(userData.accountType, asset.feeTier, Config.buy.fee),
+        Config.defaultPercentageDecimal,
+      ),
+    };
+  }
+
+  async getUserSellFee(userId: number, asset: Asset): Promise<{ fee: number }> {
+    const { sellFee, userData } = await this.userRepo.findOne({
+      select: ['id', 'usedRef', 'sellFee', 'userData'],
+      where: { id: userId },
+      relations: ['userData'],
+    });
+
+    return {
+      fee: Util.round(
+        (sellFee ?? this.getFeeTier(userData.accountType, asset.feeTier, Config.sell.fee)) * 100,
+        Config.defaultPercentageDecimal,
+      ),
     };
   }
 
@@ -274,15 +270,6 @@ export class UserService {
     return { fee, refBonus };
   }
 
-  async getUserSellFee(userId: number): Promise<number> {
-    const user = await this.userRepo.findOne({
-      select: ['id', 'sellFee'],
-      where: { id: userId },
-    });
-
-    return Util.round((user?.sellFee ?? Config.sell.fee) * 100, Config.defaultPercentageDecimal);
-  }
-
   async getUserStakingFee(userId: number): Promise<number> {
     const user = await this.userRepo.findOne({
       select: ['id', 'stakingFee', 'stakingStart'],
@@ -297,15 +284,36 @@ export class UserService {
     );
   }
 
-  // --- REF --- //
-  async updateRefProvision(userId: number, provision: number): Promise<number> {
-    const user = await this.userRepo.findOne(userId);
-    if (!user) throw new NotFoundException('User not found');
+  private getFeeTier(
+    accountType: AccountType,
+    tierFee: number,
+    feeConfig: {
+      private: { tier1: number; tier2: number; tier3: number; tier4: number };
+      organization: { tier1: number; tier2: number; tier3: number; tier4: number };
+    },
+  ): number {
+    const fee =
+      accountType === AccountType.PERSONAL
+        ? // personal
+          feeConfig.private
+        : // organization
+          feeConfig.organization;
 
-    if (user.refFeePercent < provision) throw new BadRequestException('Ref provision can only be decreased');
-    await this.userRepo.update({ id: userId }, { refFeePercent: provision });
-    return provision;
+    switch (tierFee) {
+      case 1:
+        return fee.tier1;
+      case 2:
+        return fee.tier2;
+      case 3:
+        return fee.tier3;
+      case 4:
+        return fee.tier4;
+      default:
+        break;
+    }
   }
+
+  // --- REF --- //
 
   async getRefInfo(query: RefInfoQuery): Promise<{ activeUser: number; fiatVolume?: number; cryptoVolume?: number }> {
     // get ref users

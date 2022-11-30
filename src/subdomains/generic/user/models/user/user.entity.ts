@@ -113,7 +113,7 @@ export class User extends IEntity {
   @Column({ length: 256, unique: true })
   ref: string;
 
-  @Column({ type: 'float', default: 0.5 })
+  @Column({ type: 'float', default: 0.25 })
   refFeePercent: number;
 
   @Column({ type: 'float', default: 0 })

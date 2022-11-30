@@ -14,11 +14,6 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsNumber()
-  refFeePercent?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
   @IsEmail()
   mail?: string;
 

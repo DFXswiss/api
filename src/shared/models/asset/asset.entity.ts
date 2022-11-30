@@ -44,4 +44,7 @@ export class Asset extends IEntity {
 
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
   blockchain: Blockchain;
+
+  @Column({ length: 256, nullable: true }) //TODO change to nullable: false
+  feeTier: number;
 }

@@ -80,13 +80,18 @@ export class SellController {
     return Promise.all(sell.map((s) => this.toDto(userId, s, sellDepositsInUse, fee)));
   }
 
-  private async toDto(userId: number, sell: Sell, sellDepositsInUse?: number[], fee?: number): Promise<SellDto> {
+  private async toDto(
+    userId: number,
+    sell: Sell,
+    sellDepositsInUse?: number[],
+    fee?: { fee: number },
+  ): Promise<SellDto> {
     sellDepositsInUse ??= await this.sellService.getUserSellDepositsInUse(userId);
     fee ??= await this.getFee(userId);
 
     return {
       ...sell,
-      fee,
+      ...fee,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
       minDeposits: this.getMinDeposit(sell.fiat.name),
@@ -95,7 +100,7 @@ export class SellController {
 
   private async toPaymentInfoDto(userId: number, sell: Sell, dto: GetSellPaymentInfoDto): Promise<SellPaymentInfoDto> {
     return {
-      fee: await this.getFee(userId, dto.asset),
+      ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
       minDeposits: this.getMinDeposit(sell.fiat.name),
@@ -103,12 +108,12 @@ export class SellController {
   }
 
   // --- HELPER-METHODS --- //
-  async getFee(userId: number, asset?: Asset): Promise<number> {
+  async getFee(userId: number, asset?: Asset): Promise<{ fee: number }> {
     if (asset) {
       asset = await this.assetService.getAssetById(asset.id);
-      if (asset?.category === AssetCategory.STOCK) return 0;
+      if (asset?.category === AssetCategory.STOCK) return { fee: 0 };
     }
-    return this.userService.getUserSellFee(userId);
+    return this.userService.getUserSellFee(userId, asset);
   }
 
   private getMinDeposit(outputAsset: string): MinDeposit[] {

@@ -124,11 +124,10 @@ export class BuyController {
     );
   }
 
-  async getFees(userId: number, asset: Asset): Promise<{ fee: number; refBonus: number }> {
-    if (asset?.category === AssetCategory.STOCK) return { fee: 0, refBonus: 0 };
+  async getFees(userId: number, asset: Asset): Promise<{ fee: number }> {
+    if (asset?.category === AssetCategory.STOCK) return { fee: 0 };
 
-    const { annualVolume } = await this.buyService.getUserVolume(userId);
-    return await this.userService.getUserBuyFee(userId, annualVolume);
+    return await this.userService.getUserBuyFee(userId, asset);
   }
 
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
