@@ -26,6 +26,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
+import { KycWebhookService } from './kyc-webhook.service';
 import { KycService } from './kyc.service';
 
 describe('KycService', () => {
@@ -42,6 +43,7 @@ describe('KycService', () => {
   let walletRepo: WalletRepository;
   let httpService: HttpService;
   let walletService: WalletService;
+  let kycWebhookService: KycWebhookService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -138,6 +140,7 @@ describe('KycService', () => {
     walletRepo = createMock<WalletRepository>();
     httpService = createMock<HttpService>();
     walletService = createMock<WalletService>();
+    kycWebhookService = createMock<KycWebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -153,6 +156,7 @@ describe('KycService', () => {
         { provide: WalletRepository, useValue: walletRepo },
         { provide: HttpService, useValue: httpService },
         { provide: WalletService, useValue: walletService },
+        { provide: KycWebhookService, useValue: kycWebhookService },
         TestUtil.provideConfig(),
       ],
     }).compile();

@@ -14,6 +14,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { KycWebhookTriggerDto } from './dto/kyc-webhook-trigger.dto';
 
 @ApiTags('kyc')
 @Controller('kyc')
@@ -118,5 +119,12 @@ export class KycController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async transferKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
     await this.kycService.transferKycData(jwt.id, data);
+  }
+
+  @Post('webhook')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async triggerWebhook(@Body() dto: KycWebhookTriggerDto): Promise<void> {
+    await this.kycService.triggerWebhook(dto.userDataId, dto.reason);
   }
 }
