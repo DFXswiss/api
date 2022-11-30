@@ -161,6 +161,8 @@ export class KycService {
 
   async triggerWebhook(userDataId: number, reason?: string): Promise<void> {
     const user = await this.userDataService.getUserData(userDataId);
+    if (!user) throw new NotFoundException('User not found');
+
     if (user.kycState === KycState.FAILED) {
       await this.webhookService.kycFailed(user, reason ?? 'KYC failed');
     } else {

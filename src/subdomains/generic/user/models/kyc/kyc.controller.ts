@@ -21,6 +21,21 @@ import { KycWebhookTriggerDto } from './dto/kyc-webhook-trigger.dto';
 export class KycController {
   constructor(private readonly kycService: KycService, private readonly limitRequestService: LimitRequestService) {}
 
+  // --- TRANSFER --- //
+  @Put('transfer')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  async transferKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
+    await this.kycService.transferKycData(jwt.id, data);
+  }
+
+  @Post('webhook')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async triggerWebhook(@Body() dto: KycWebhookTriggerDto): Promise<void> {
+    await this.kycService.triggerWebhook(dto.userDataId, dto.reason);
+  }
+
   // --- JWT Calls --- //
   @Get()
   @ApiBearerAuth()
@@ -111,20 +126,5 @@ export class KycController {
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<boolean> {
     return this.kycService.uploadDocument(code, files[0], KycDocument.INCORPORATION_CERTIFICATE);
-  }
-
-  // --- TRANSFER --- //
-  @Put('transfer')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async transferKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycDataTransferDto): Promise<void> {
-    await this.kycService.transferKycData(jwt.id, data);
-  }
-
-  @Post('webhook')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async triggerWebhook(@Body() dto: KycWebhookTriggerDto): Promise<void> {
-    await this.kycService.triggerWebhook(dto.userDataId, dto.reason);
   }
 }
