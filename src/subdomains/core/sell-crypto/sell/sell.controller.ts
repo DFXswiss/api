@@ -18,7 +18,7 @@ import { Util } from 'src/shared/utils/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { MinDeposit } from '../../../../mix/models/deposit/dto/min-deposit.dto';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @ApiTags('sell')
@@ -101,10 +101,8 @@ export class SellController {
   }
 
   // --- HELPER-METHODS --- //
-  async getFee(userId: number, asset?: Asset): Promise<{ fee: number }> {
-    if (asset) {
-      asset = await this.assetService.getAssetById(asset.id);
-    }
+  async getFee(userId: number, asset: Asset): Promise<{ fee: number }> {
+    asset = await this.assetService.getAssetById(asset.id);
     return this.userService.getUserSellFee(userId, asset);
   }
 
