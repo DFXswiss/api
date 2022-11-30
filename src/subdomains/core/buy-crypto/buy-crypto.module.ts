@@ -8,6 +8,7 @@ import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayoutModule } from 'src/subdomains/supporting/payout/payout.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
+import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { BuyCryptoController } from './process/buy-crypto.controller';
 import { BuyCryptoBatchRepository } from './process/repositories/buy-crypto-batch.repository';
 import { BuyCryptoRepository } from './process/repositories/buy-crypto.repository';
@@ -32,6 +33,7 @@ import { BuyService } from './route/buy.service';
     UserModule,
     BankModule,
     forwardRef(() => MixModule),
+    forwardRef(() => SellCryptoModule),
   ],
   controllers: [BuyCryptoController, BuyController],
   providers: [

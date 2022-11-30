@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.entity';
@@ -15,11 +15,14 @@ import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.se
 import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-output.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 
 @Injectable()
 export class BuyFiatService {
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
+    @Inject(forwardRef(() => BuyCryptoService))
+    private readonly buyCryptoService: BuyCryptoService,
     private readonly userService: UserService,
     private readonly sellRepo: SellRepository,
     private readonly sellService: SellService,
@@ -67,6 +70,7 @@ export class BuyFiatService {
     if (!entity) throw new NotFoundException('Buy fiat not found');
 
     const sellIdBefore = entity.sell?.id;
+    const usedRefBefore = entity.usedRef;
 
     const update = this.buyFiatRepo.create(dto);
 
@@ -94,6 +98,7 @@ export class BuyFiatService {
     }
 
     await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
+    await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
   }
@@ -101,6 +106,15 @@ export class BuyFiatService {
   async updateVolumes(): Promise<void> {
     const sellIds = await this.sellRepo.find().then((l) => l.map((b) => b.id));
     await this.updateSellVolume(sellIds);
+  }
+
+  async updateRefVolumes(): Promise<void> {
+    const refs = await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('usedRef')
+      .groupBy('usedRef')
+      .getRawMany<{ usedRef: string }>();
+    await this.updateRefVolume(refs.map((r) => r.usedRef));
   }
 
   async getUserTransactions(
@@ -177,6 +191,29 @@ export class BuyFiatService {
 
       await this.sellService.updateVolume(id, volume ?? 0, annualVolume ?? 0);
     }
+  }
+
+  private async updateRefVolume(refs: string[]): Promise<void> {
+    refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
+
+    for (const ref of refs) {
+      const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.getRefVolume(ref);
+      const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.buyCryptoService.getRefVolume(ref);
+
+      await this.userService.updateRefVolume(ref, buyFiatVolume + buyCryptoVolume, buyFiatCredit + buyCryptoCredit);
+    }
+  }
+
+  async getRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('SUM(amountInEur * refFactor)', 'volume')
+      .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
+      .where('usedRef = :ref', { ref })
+      .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
   }
 
   // Statistics

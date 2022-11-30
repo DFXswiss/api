@@ -147,4 +147,16 @@ export class UpdateBuyFiatDto {
   @IsOptional()
   @IsBoolean()
   isComplete: boolean;
+
+  @IsOptional()
+  @IsString()
+  usedRef: string;
+
+  @IsOptional()
+  @IsNumber()
+  refProvision: number;
+
+  @IsOptional()
+  @IsNumber()
+  refFactor: number;
 }
