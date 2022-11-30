@@ -20,12 +20,13 @@ export class DbQueryBaseDto {
   @IsNotEmpty()
   @IsString()
   sorting: 'ASC' | 'DESC' = 'ASC';
+
+  // Comma separated column names
+  @IsOptional()
+  select?: string[];
 }
 
 export class DbQueryDto extends DbQueryBaseDto {
-  @IsOptional()
-  select?: string[];
-
   @IsNotEmpty()
   join?: [string, string][] = [];
 

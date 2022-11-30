@@ -98,7 +98,7 @@ export class GsService {
     );
   }
 
-  private async getExtendedBankTxData(dbQuery: DbQueryDto): Promise<any[]> {
+  private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<any[]> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;
 
     const buyCryptoData = await getConnection()
