@@ -226,11 +226,12 @@ export class UserService {
       relations: ['userData'],
     });
 
-    if (buyFee != null) return { fee: buyFee * 100 };
-
     return {
       fee: Util.round(
-        this.getFeeTier(userData.accountType, asset.feeTier, Config.buy.fee),
+        (buyFee ??
+          (userData.accountType === AccountType.PERSONAL
+            ? Config.buy.fee.private[asset.feeTier]
+            : Config.buy.fee.organization[asset.feeTier])) * 100,
         Config.defaultPercentageDecimal,
       ),
     };
@@ -245,7 +246,10 @@ export class UserService {
 
     return {
       fee: Util.round(
-        (sellFee ?? this.getFeeTier(userData.accountType, asset.feeTier, Config.sell.fee)) * 100,
+        (sellFee ??
+          (userData.accountType === AccountType.PERSONAL
+            ? Config.sell.fee.private[asset.feeTier]
+            : Config.sell.fee.organization[asset.feeTier])) * 100,
         Config.defaultPercentageDecimal,
       ),
     };
@@ -282,35 +286,6 @@ export class UserService {
       (user?.stakingFee ?? (hasFreeStaking ? 0 : Config.staking.fee)) * 100,
       Config.defaultPercentageDecimal,
     );
-  }
-
-  private getFeeTier(
-    accountType: AccountType,
-    tierFee: number,
-    feeConfig: {
-      private: { tier1: number; tier2: number; tier3: number; tier4: number };
-      organization: { tier1: number; tier2: number; tier3: number; tier4: number };
-    },
-  ): number {
-    const fee =
-      accountType === AccountType.PERSONAL
-        ? // personal
-          feeConfig.private
-        : // organization
-          feeConfig.organization;
-
-    switch (tierFee) {
-      case 1:
-        return fee.tier1;
-      case 2:
-        return fee.tier2;
-      case 3:
-        return fee.tier3;
-      case 4:
-        return fee.tier4;
-      default:
-        break;
-    }
   }
 
   // --- REF --- //
