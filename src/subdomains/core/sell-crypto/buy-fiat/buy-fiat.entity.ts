@@ -57,6 +57,16 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInEur: number;
 
+  // Ref
+  @Column({ length: 256, nullable: true })
+  usedRef: string;
+
+  @Column({ type: 'float', nullable: true })
+  refProvision: number;
+
+  @Column({ type: 'float', nullable: true })
+  refFactor: number;
+
   //Check
   @Column({ length: 256, nullable: true })
   amlCheck: AmlCheck;

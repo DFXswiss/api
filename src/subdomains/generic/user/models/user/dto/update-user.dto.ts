@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, IsNumber, Matches, IsObject, ValidateNested } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, IsObject, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
@@ -11,11 +11,6 @@ export class UpdateUserDto {
   @IsString()
   @Matches(/^(\w{1,3}-\w{1,3})$/)
   usedRef?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  refFeePercent?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

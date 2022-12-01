@@ -5,6 +5,7 @@ import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { FeeTier } from 'src/shared/models/asset/asset.entity';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -264,12 +265,19 @@ export class Configuration {
 
   buy = {
     fee: {
-      organization: 2.9,
+      organization: {
+        [FeeTier.TIER0]: 0,
+        [FeeTier.TIER1]: 0.0149,
+        [FeeTier.TIER2]: 0.0199,
+        [FeeTier.TIER3]: 0.0275,
+        [FeeTier.TIER4]: 0.0349,
+      },
       private: {
-        base: 2.9,
-        moreThan5k: 2.65,
-        moreThan50k: 2.4,
-        moreThan100k: 2.3,
+        [FeeTier.TIER0]: 0,
+        [FeeTier.TIER1]: 0.0099,
+        [FeeTier.TIER2]: 0.0149,
+        [FeeTier.TIER3]: 0.0225,
+        [FeeTier.TIER4]: 0.0299,
       },
       limits: {
         configuredFeeLimit: this.configuredFeeLimit,
@@ -279,7 +287,22 @@ export class Configuration {
   };
 
   sell = {
-    fee: 0.029,
+    fee: {
+      organization: {
+        [FeeTier.TIER0]: 0,
+        [FeeTier.TIER1]: 0.0199,
+        [FeeTier.TIER2]: 0.0249,
+        [FeeTier.TIER3]: 0.0325,
+        [FeeTier.TIER4]: 0.0399,
+      },
+      private: {
+        [FeeTier.TIER0]: 0,
+        [FeeTier.TIER1]: 0.0149,
+        [FeeTier.TIER2]: 0.0199,
+        [FeeTier.TIER3]: 0.0275,
+        [FeeTier.TIER4]: 0.0349,
+      },
+    },
   };
 
   staking = {

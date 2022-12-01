@@ -10,6 +10,7 @@ import {
   BlankType,
   KycCompleted,
   KycInProgress,
+  KycState,
   KycStatus,
   KycType,
   UserData,
@@ -32,6 +33,7 @@ import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
+import { KycWebhookService } from './kyc-webhook.service';
 
 @Injectable()
 export class KycService {
@@ -47,6 +49,7 @@ export class KycService {
     private readonly kycProcess: KycProcessService,
     private readonly linkService: LinkService,
     private readonly http: HttpService,
+    private readonly webhookService: KycWebhookService,
   ) {}
 
   // --- ADMIN/SUPPORT --- //
@@ -154,6 +157,17 @@ export class KycService {
     if (dfxUser.userData.id == externalUser.userData.id) throw new ConflictException('User already merged');
 
     await this.userDataService.mergeUserData(dfxUser.userData.id, externalUser.userData.id);
+  }
+
+  async triggerWebhook(userDataId: number, reason?: string): Promise<void> {
+    const user = await this.userDataService.getUserData(userDataId);
+    if (!user) throw new NotFoundException('User not found');
+
+    if (user.kycState === KycState.FAILED) {
+      await this.webhookService.kycFailed(user, reason ?? 'KYC failed');
+    } else {
+      await this.webhookService.kycChanged(user);
+    }
   }
 
   async userDataComplete(userId: number): Promise<boolean> {

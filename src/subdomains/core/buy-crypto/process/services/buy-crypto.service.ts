@@ -30,6 +30,7 @@ import { BuyRepository } from '../../route/buy.repository';
 import { BuyService } from '../../route/buy.service';
 import { BuyHistoryDto } from '../../route/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -38,6 +39,8 @@ export class BuyCryptoService {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
+    @Inject(forwardRef(() => BuyFiatService))
+    private readonly buyFiatService: BuyFiatService,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly settingService: SettingService,
@@ -288,16 +291,23 @@ export class BuyCryptoService {
     refs = refs.filter((u, j) => refs.indexOf(u) === j).filter((i) => i); // distinct, not null
 
     for (const ref of refs) {
-      const { volume, credit } = await this.buyCryptoRepo
-        .createQueryBuilder('buyCrypto')
-        .select('SUM(amountInEur * refFactor)', 'volume')
-        .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
-        .where('usedRef = :ref', { ref })
-        .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
-        .getRawOne<{ volume: number; credit: number }>();
+      const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.getRefVolume(ref);
+      const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.buyFiatService.getRefVolume(ref);
 
-      await this.userService.updateRefVolume(ref, volume ?? 0, credit ?? 0);
+      await this.userService.updateRefVolume(ref, buyCryptoVolume + buyFiatVolume, buyCryptoCredit + buyFiatCredit);
     }
+  }
+
+  async getRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(amountInEur * refFactor)', 'volume')
+      .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
+      .where('usedRef = :ref', { ref })
+      .andWhere('amlCheck = :check', { check: AmlCheck.PASS })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
   }
 
   // Admin Support Tool methods
