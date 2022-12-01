@@ -70,7 +70,7 @@ export class BuyCryptoNotificationService {
                   buyInputAmount: tx.inputAmount,
                   buyInputAsset: tx.inputAsset,
                   buyOutputAmount: tx.outputAmount,
-                  buyOutputAsset: tx.outputAsset.dexName,
+                  buyOutputAsset: tx.outputAsset.name,
                   buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                   exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
                   buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
