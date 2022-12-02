@@ -125,7 +125,7 @@ export class SellController {
         ? Object.entries(blockchainVolumes[0])
             .filter(([key, _]) => key === outputFiat.name)
             .map(([_, value]) => value)
-        : undefined;
+        : [];
 
     return Util.transformToMinDeposit(minAssetVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
   }
