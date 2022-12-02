@@ -113,7 +113,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       const tokensResult = this.aggregateBalances(tokens, +coinAmount);
 
       this.setCache(tokensResult);
-    } catch {
+    } catch (e) {
+      console.error('Error while updating liquidity management balance cache. Invalidating the cache.', e);
       this.invalidateCache();
     } finally {
       this.resetCacheUpdateCall();
