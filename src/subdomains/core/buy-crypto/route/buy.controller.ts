@@ -25,6 +25,8 @@ import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { Staking } from 'src/mix/models/staking/staking.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BuyCryptoService } from '../process/services/buy-crypto.service';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -94,7 +96,7 @@ export class BuyController {
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fee,
-      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
+      minDeposits: this.getTransactionVolume(buy.asset),
     };
   }
 
@@ -103,7 +105,7 @@ export class BuyController {
       ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
-      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Fiat),
+      minDeposits: this.getTransactionVolume(buy.asset),
     };
   }
 
@@ -136,5 +138,20 @@ export class BuyController {
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic };
+  }
+
+  private getTransactionVolume(outputAsset: Asset): MinDeposit[] {
+    const blockchainVolumes = Object.entries(Config.blockchain.default.minTransactionVolume)
+      .filter(([key, _]) => key === outputAsset.blockchain)
+      .map(([_, value]) => value);
+
+    const minAssetVolume =
+      blockchainVolumes.length != 0
+        ? Object.entries(blockchainVolumes[0])
+            .filter(([key, _]) => key === outputAsset.name)
+            .map(([_, value]) => value)
+        : undefined;
+
+    return Util.transformToMinDeposit(minAssetVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
   }
 }

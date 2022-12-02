@@ -225,21 +225,25 @@ export class Configuration {
       btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
       minDeposit: {
-        Fiat: {
-          USD: 1,
-        },
         Bitcoin: {
           BTC: 0.0005,
         },
         DeFiChain: {
           DFI: 0.01,
-          USD: 1,
+          USD: 1, // token value in usdt
         },
       },
       minTransactionVolume: {
-        // outputAsset: { minTransactionAsset: minTransactionVolume }
-        USD: {
-          USD: 1000,
+        // blockchain: { outputAsset: { minTransactionAsset: minTransactionVolume }}
+        Fiat: {
+          USD: {
+            USD: 1000,
+          },
+        },
+        Bitcoin: {
+          BTC: {
+            USD: 10,
+          },
         },
         default: {
           USD: 1,
