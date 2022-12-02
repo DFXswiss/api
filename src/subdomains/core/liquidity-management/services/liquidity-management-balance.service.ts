@@ -26,10 +26,9 @@ export class LiquidityManagementBalanceService {
         } catch (e) {
           if (e instanceof BalanceNotCertainException) {
             console.warn(e.message);
-            return null;
           }
 
-          throw e;
+          return null;
         }
       }),
     ).then((r) => r.filter((i) => i));
