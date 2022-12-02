@@ -5,6 +5,8 @@ import { UserRepository } from '../user/user.repository';
 import { SpiderDataRepository } from '../spider-data/spider-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { TradingLimit } from '../user/dto/user.dto';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 
 export enum KycWebhookStatus {
   NA = 'NA',
@@ -46,6 +48,7 @@ export class KycWebhookService {
     private readonly walletService: WalletService,
     private readonly userRepo: UserRepository,
     private readonly spiderRepo: SpiderDataRepository,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async kycChanged(userData: UserData): Promise<void> {
@@ -89,9 +92,17 @@ export class KycWebhookService {
 
         await this.http.post(`${user.wallet.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': apiKey },
+          timeout: 5000,
+          tryCount: 3,
         });
       } catch (error) {
-        console.error(`Exception during KYC webhook (${result}) for user ${userData.id}:`, error);
+        await this.notificationService.sendMail({
+          type: MailType.ERROR_MONITORING,
+          input: {
+            subject: 'Webhook failed',
+            errors: [`Exception during KYC webhook (${result}) for user ${userData.id}:`, error],
+          },
+        });
       }
     }
   }
