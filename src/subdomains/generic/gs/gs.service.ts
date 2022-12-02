@@ -49,21 +49,18 @@ export class GsService {
     });
 
     // transform to array
-    const arrayData =
-      data.length > 0
-        ? {
-            keys: this.renameDbKeys(Object.keys(data[0]), query.table),
-            values: data.map((e) => Object.values(e)),
-          }
-        : undefined;
+    const arrayData = this.transformResultArray(data, query.table);
 
     return arrayData;
   }
 
-  async getExtendedData(query: DbQueryBaseDto): Promise<any[]> {
+  async getExtendedData(query: DbQueryBaseDto): Promise<{
+    keys: string[];
+    values: any;
+  }> {
     switch (query.table) {
       case 'bank_tx':
-        return this.getExtendedBankTxData(query);
+        return this.transformResultArray(await this.getExtendedBankTxData(query), query.table);
     }
   }
 
@@ -87,16 +84,6 @@ export class GsService {
   }
 
   //*** HELPER METHODS ***//
-
-  private renameDbKeys(keys: string[], table: string): string[] {
-    return keys.map((e) =>
-      e.split('_').length > 1
-        ? e
-            .replace(`${table}_`, '')
-            .replace('_' + e.split('_')[1].split('')[0], e.split('_')[1].split('')[0].toLocaleUpperCase())
-        : e,
-    );
-  }
 
   private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<any[]> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;
@@ -164,5 +151,32 @@ export class GsService {
     return buyCryptoData
       .concat(buyFiatData, bankTxRestData)
       .sort((a, b) => (dbQuery.sorting == 'ASC' ? a.bank_tx_id - b.bank_tx_id : b.bank_tx_id - a.bank_tx_id));
+  }
+
+  private transformResultArray(
+    data: any[],
+    table: string,
+  ): {
+    keys: string[];
+    values: any;
+  } {
+    // transform to array
+    return data.length > 0
+      ? {
+          keys: this.renameDbKeys(table, Object.keys(data[0])),
+          values: data.map((e) => Object.values(e)),
+        }
+      : undefined;
+  }
+
+  private renameDbKeys(table: string, keys: string[]): string[] {
+    return keys.map((k) => k.replace(`${table}_`, '')).map((k) => (k.includes('_') ? this.toCapitalCase(k) : k));
+  }
+
+  private toCapitalCase(str: string): string {
+    return str
+      .split('_')
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join('');
   }
 }

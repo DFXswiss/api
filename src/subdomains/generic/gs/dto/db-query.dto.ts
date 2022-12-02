@@ -21,7 +21,6 @@ export class DbQueryBaseDto {
   @IsString()
   sorting: 'ASC' | 'DESC' = 'ASC';
 
-  // Comma separated column names
   @IsOptional()
   select?: string[];
 }

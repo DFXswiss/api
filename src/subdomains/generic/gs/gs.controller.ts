@@ -15,15 +15,21 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
-  async getRawData(@Body() query: DbQueryDto): Promise<any> {
+  async getRawData(@Body() query: DbQueryDto): Promise<{
+    keys: string[];
+    values: any;
+  }> {
     return await this.gsService.getRawData(query);
   }
 
-  @Post('db/bankTx')
+  @Post('db/custom')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
-  async getBankTxExtendedData(@Body() query: DbQueryBaseDto): Promise<any> {
+  async getBankTxExtendedData(@Body() query: DbQueryBaseDto): Promise<{
+    keys: string[];
+    values: any;
+  }> {
     return await this.gsService.getExtendedData(query);
   }
 
