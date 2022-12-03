@@ -183,6 +183,25 @@ export class Configuration {
     url: 'https://ocean.defichain.com',
   };
 
+  transaction = {
+    minTransactionVolume: {
+      // blockchain: { outputAsset: { minTransactionAsset: minTransactionVolume }}
+      Fiat: {
+        USD: {
+          USD: 1000,
+        },
+      },
+      Bitcoin: {
+        BTC: {
+          USD: 10,
+        },
+      },
+      default: {
+        USD: 1,
+      },
+    },
+  };
+
   blockchain = {
     default: {
       user: process.env.NODE_USER,
@@ -231,22 +250,6 @@ export class Configuration {
         DeFiChain: {
           DFI: 0.01,
           USD: 1, // token value in usdt
-        },
-      },
-      minTransactionVolume: {
-        // blockchain: { outputAsset: { minTransactionAsset: minTransactionVolume }}
-        Fiat: {
-          USD: {
-            USD: 1000,
-          },
-        },
-        Bitcoin: {
-          BTC: {
-            USD: 10,
-          },
-        },
-        default: {
-          USD: 1,
         },
       },
     },

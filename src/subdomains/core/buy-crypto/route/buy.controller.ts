@@ -141,17 +141,8 @@ export class BuyController {
   }
 
   private getTransactionVolume(outputAsset: Asset): MinDeposit[] {
-    const blockchainVolumes = Object.entries(Config.blockchain.default.minTransactionVolume)
-      .filter(([key, _]) => key === outputAsset.blockchain)
-      .map(([_, value]) => value);
+    const minAssetVolume = Config.transaction.minTransactionVolume[outputAsset.blockchain]?.[outputAsset.name];
 
-    const minAssetVolume =
-      blockchainVolumes.length != 0
-        ? Object.entries(blockchainVolumes[0])
-            .filter(([key, _]) => key === outputAsset.name)
-            .map(([_, value]) => value)
-        : [];
-
-    return Util.transformToMinDeposit(minAssetVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
+    return Util.transformToMinDeposit(minAssetVolume ?? Config.transaction.minTransactionVolume.default);
   }
 }

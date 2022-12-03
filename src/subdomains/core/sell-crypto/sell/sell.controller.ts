@@ -107,26 +107,9 @@ export class SellController {
     return this.userService.getUserSellFee(userId, asset);
   }
 
-  private getMinDeposit(outputAsset: string): MinDeposit[] {
-    const minVolume = Object.entries(Config.blockchain.default.minTransactionVolume)
-      .filter(([key, _]) => key === outputAsset)
-      .map(([_, value]) => value);
-
-    return Util.transformToMinDeposit(Config.blockchain.default.minTransactionVolume.default);
-  }
-
   private getTransactionVolume(outputFiat: Fiat): MinDeposit[] {
-    const blockchainVolumes = Object.entries(Config.blockchain.default.minTransactionVolume)
-      .filter(([key, _]) => key === 'Fiat')
-      .map(([_, value]) => value);
+    const minAssetVolume = Config.transaction.minTransactionVolume['Fiat']?.[outputFiat.name];
 
-    const minAssetVolume =
-      blockchainVolumes.length != 0
-        ? Object.entries(blockchainVolumes[0])
-            .filter(([key, _]) => key === outputFiat.name)
-            .map(([_, value]) => value)
-        : [];
-
-    return Util.transformToMinDeposit(minAssetVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
+    return Util.transformToMinDeposit(minAssetVolume ?? Config.transaction.minTransactionVolume.default);
   }
 }
