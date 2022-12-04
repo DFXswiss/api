@@ -20,6 +20,7 @@ import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { MinDeposit } from '../../../../mix/models/deposit/dto/min-deposit.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -87,7 +88,7 @@ export class SellController {
       fee: undefined,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: this.getMinDeposit(sell.fiat.name),
+      minDeposits: this.getTransactionVolume(sell.fiat),
     };
   }
 
@@ -96,7 +97,7 @@ export class SellController {
       ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
-      minDeposits: this.getMinDeposit(sell.fiat.name),
+      minDeposits: this.getTransactionVolume(sell.fiat),
     };
   }
 
@@ -106,11 +107,9 @@ export class SellController {
     return this.userService.getUserSellFee(userId, asset);
   }
 
-  private getMinDeposit(outputAsset: string): MinDeposit[] {
-    const minVolume = Object.entries(Config.blockchain.default.minTransactionVolume)
-      .filter(([key, _]) => key === outputAsset)
-      .map(([_, value]) => value);
+  private getTransactionVolume(outputFiat: Fiat): MinDeposit[] {
+    const minAssetVolume = Config.transaction.minTransactionVolume['Fiat']?.[outputFiat.name];
 
-    return Util.transformToMinDeposit(minVolume[0] ?? Config.blockchain.default.minTransactionVolume.default);
+    return Util.transformToMinDeposit(minAssetVolume ?? Config.transaction.minTransactionVolume.default);
   }
 }

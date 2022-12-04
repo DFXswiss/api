@@ -1757,7 +1757,7 @@
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n  \"iban\": \"DE123467891245699\",\n  \"currency\": {\n    \"id\": 4\n  }\n}",
+      "raw": "{\n  \"iban\": \"DE123467891245699\",\n  \"currency\": {\n    \"id\": 4\n  },\n  \"asset\": {\n    \"id\": 5\n  }\n}",
       "form": []
     },
     "tests": []
