@@ -24,9 +24,9 @@ interface Balance {
 export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private dexClient: DeFiClient;
 
-  private defiChainCache: Map<AssetHash, number> = new Map();
+  private defiChainCache: Map<AssetHash, number> | null = null;
   private defiChainCacheTimestamp = 0;
-  private defiChainCacheUpdateCall: Promise<Map<AssetHash, number>> | null = null;
+  private defiChainCacheUpdateCall: Promise<void> | null = null;
 
   constructor(private readonly dexService: DexService, readonly nodeService: NodeService) {
     nodeService.getConnectedNode(NodeType.DEX).subscribe((client) => (this.dexClient = client));
@@ -84,43 +84,49 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   }
 
   private async getForDeFiChain(asset: Asset): Promise<number> {
-    if (!this.defiChainCacheUpdateCall && Util.secondsDiff(new Date(this.defiChainCacheTimestamp), new Date()) > 30) {
-      return this.updateCache().then(() => this.getFromCache(asset));
-    }
-
-    if (!this.defiChainCacheUpdateCall && Util.secondsDiff(new Date(this.defiChainCacheTimestamp), new Date()) <= 30) {
-      return this.getFromCache(asset);
+    if (!this.defiChainCacheUpdateCall) {
+      return Util.secondsDiff(new Date(this.defiChainCacheTimestamp), new Date()) > 30
+        ? this.updateCache().then(() => this.getFromCache(asset))
+        : this.getFromCache(asset);
     }
 
     return this.defiChainCacheUpdateCall.then(() => this.getFromCache(asset));
   }
 
-  private async updateCache(): Promise<Map<AssetHash, number>> {
+  private async updateCache(): Promise<void> {
     if (this.defiChainCacheUpdateCall) return this.defiChainCacheUpdateCall;
 
     /**
      * @note
      * Should assign promise, not the result of the promise
      */
-    this.defiChainCacheUpdateCall = this.getNewBalances();
+    this.defiChainCacheUpdateCall = this.cacheNewBalances();
 
     return this.defiChainCacheUpdateCall;
   }
 
-  private async getNewBalances(): Promise<Map<AssetHash, number>> {
-    const tokens = await this.dexClient.getToken();
-    const coinAmount = await this.dexClient.getBalance();
+  private async cacheNewBalances(): Promise<void> {
+    try {
+      const tokens = await this.dexClient.getToken();
+      const coinAmount = await this.dexClient.getBalance();
 
-    const tokensResult = this.aggregateBalances(tokens, +coinAmount);
+      const tokensResult = this.aggregateBalances(tokens, +coinAmount);
 
-    this.setCache(tokensResult);
-    this.resetCacheUpdateCall();
-
-    return this.defiChainCache;
+      this.setCache(tokensResult);
+    } catch (e) {
+      console.error('Error while updating liquidity management balance cache. Invalidating the cache.', e);
+      this.invalidateCache();
+    } finally {
+      this.resetCacheUpdateCall();
+    }
   }
 
   private getFromCache(asset: Asset): number {
     const { dexName: name, type } = asset;
+
+    if (!this.defiChainCache) {
+      throw new Error('Cannot get balance, cache was invalidated due to error while getting new balances');
+    }
 
     return this.defiChainCache.get(`${name}_${type}`);
   }
@@ -138,6 +144,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private setCache(balances: Balance[]): void {
     /**
+     * @note
      * cleanup cache to remove tokens which balances went to 0
      */
     this.defiChainCache = new Map();
@@ -147,6 +154,15 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
       this.defiChainCache.set(`${name}_${type}`, amount);
     }
+  }
+
+  private invalidateCache(): void {
+    /**
+     * @note
+     * invalidating cache means removing it altogether and not being able to access it
+     * just cleaning up the cache with `new Map()` could also mean 0 balances for tokens
+     */
+    this.defiChainCache = null;
   }
 
   private resetCacheUpdateCall(): void {
