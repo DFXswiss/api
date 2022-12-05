@@ -5,7 +5,9 @@ import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
+import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -184,7 +186,7 @@ export class Configuration {
   };
 
   transaction = {
-    minTransactionVolume: {
+    minVolume: {
       // blockchain: { outputAsset: { minTransactionAsset: minTransactionVolume }}
       Fiat: {
         USD: {
@@ -198,6 +200,14 @@ export class Configuration {
       },
       default: {
         USD: 1,
+      },
+
+      get: (target: Asset | Fiat) => {
+        const system = 'blockchain' in target ? target.blockchain : 'Fiat';
+        const asset = target.name;
+
+        const minAssetVolume = this.transaction.minVolume[system]?.[asset];
+        return this.transformToMinDeposit(minAssetVolume ?? this.transaction.minVolume.default);
       },
     },
   };
@@ -415,6 +425,12 @@ export class Configuration {
 
     return Number.isNaN(limit) ? null : limit;
   }
+
+  // --- HELPERS --- //
+  transformToMinDeposit = (deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] =>
+    Object.entries(deposit)
+      .filter(([key, _]) => filter?.includes(key) ?? true)
+      .map(([key, value]) => ({ amount: value, asset: key }));
 }
 
 @Injectable()

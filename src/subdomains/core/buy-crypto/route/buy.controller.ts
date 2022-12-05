@@ -6,7 +6,6 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { In } from 'typeorm';
 import { BuyHistoryDto } from './dto/buy-history.dto';
@@ -25,8 +24,6 @@ import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { Staking } from 'src/mix/models/staking/staking.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BuyCryptoService } from '../process/services/buy-crypto.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 
 @ApiTags('buy')
 @Controller('buy')
@@ -96,7 +93,7 @@ export class BuyController {
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fee,
-      minDeposits: this.getTransactionVolume(buy.asset),
+      minDeposits: Config.transaction.minVolume.get(buy.asset),
     };
   }
 
@@ -105,7 +102,7 @@ export class BuyController {
       ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
-      minDeposits: this.getTransactionVolume(buy.asset),
+      minDeposits: Config.transaction.minVolume.get(buy.asset),
     };
   }
 
@@ -138,11 +135,5 @@ export class BuyController {
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
     return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic };
-  }
-
-  private getTransactionVolume(outputAsset: Asset): MinDeposit[] {
-    const minAssetVolume = Config.transaction.minTransactionVolume[outputAsset.blockchain]?.[outputAsset.name];
-
-    return Util.transformToMinDeposit(minAssetVolume ?? Config.transaction.minTransactionVolume.default);
   }
 }
