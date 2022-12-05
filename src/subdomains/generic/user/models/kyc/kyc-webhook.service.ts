@@ -92,15 +92,17 @@ export class KycWebhookService {
 
         await this.http.post(`${user.wallet.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': apiKey },
-          timeout: 5000,
+          delay: 5000,
           tryCount: 3,
         });
       } catch (error) {
+        console.error(`Exception during KYC webhook (${result}) for user ${user.id} & userData ${userData.id}:`, error);
+
         await this.notificationService.sendMail({
           type: MailType.ERROR_MONITORING,
           input: {
             subject: 'Webhook failed',
-            errors: [`Exception during KYC webhook (${result}) for user ${userData.id}:`, error],
+            errors: [`Exception during KYC webhook (${result}) for user ${user.id} & userData ${userData.id}:`, error],
           },
         });
       }
