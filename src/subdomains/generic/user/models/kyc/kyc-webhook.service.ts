@@ -92,7 +92,7 @@ export class KycWebhookService {
 
         await this.http.post(`${user.wallet.apiUrl}/kyc/update`, data, {
           headers: { 'x-api-key': apiKey },
-          delay: 5000,
+          retryDelay: 5000,
           tryCount: 3,
         });
       } catch (error) {
