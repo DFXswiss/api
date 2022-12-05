@@ -49,9 +49,7 @@ export class GsService {
     });
 
     // transform to array
-    const arrayData = this.transformResultArray(data, query.table);
-
-    return arrayData;
+    return this.transformResultArray(data, query.table);
   }
 
   async getExtendedData(query: DbQueryBaseDto): Promise<{
