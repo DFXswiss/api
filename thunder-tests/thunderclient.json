@@ -2035,5 +2035,24 @@
     "headers": [],
     "params": [],
     "tests": []
+  },
+  {
+    "_id": "214c6c88-14ae-4213-95c1-cf09916470d7",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
+    "name": "KYC Webhook",
+    "url": "{{url}}/v1/kyc/webhook",
+    "method": "POST",
+    "sortNum": 710000,
+    "created": "2022-11-30T23:46:32.050Z",
+    "modified": "2022-12-01T00:38:09.373Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"userDataId\": 7465,\n  \"x-reason\": \"My Test Reason\"\n}",
+      "form": []
+    },
+    "tests": []
   }
 ]
