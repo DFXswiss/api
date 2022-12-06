@@ -33,9 +33,6 @@ export class UserDto {
   @ApiProperty({ enum: UserStatus })
   status: UserStatus;
 
-  @ApiProperty()
-  usedRef: string;
-
   @ApiProperty({ type: Fiat })
   currency: Fiat;
 
