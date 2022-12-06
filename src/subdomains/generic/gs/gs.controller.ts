@@ -26,7 +26,7 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
-  async getBankTxExtendedData(@Body() query: DbQueryBaseDto): Promise<{
+  async getExtendedData(@Body() query: DbQueryBaseDto): Promise<{
     keys: string[];
     values: any;
   }> {
