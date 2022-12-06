@@ -212,7 +212,7 @@ export class BuyCryptoService {
       inputAsset: buyCrypto.inputAsset,
       amlCheck: buyCrypto.amlCheck,
       outputAmount: buyCrypto.outputAmount,
-      outputAsset: buyCrypto.outputAsset.dexName,
+      outputAsset: buyCrypto.outputAsset?.dexName,
       txId: buyCrypto.txId,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,
