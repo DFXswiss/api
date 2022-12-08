@@ -1,3 +1,4 @@
+import { IsOptional } from 'class-validator';
 import { CryptoInput } from 'src/mix/models/crypto-input/crypto-input.entity';
 import { CryptoStaking } from 'src/mix/models/crypto-staking/crypto-staking.entity';
 import { StakingRefReward } from 'src/mix/models/staking-ref-reward/staking-ref-reward.entity';
@@ -15,4 +16,24 @@ export class SupportReturnData {
   stakingReward: StakingReward[];
   stakingRefReward: StakingRefReward[];
   cryptoInput: CryptoInput[];
+}
+
+export class SupportDataQuery {
+  @IsOptional()
+  userDataId: string;
+
+  @IsOptional()
+  userAddress: string;
+
+  @IsOptional()
+  depositAddress: string;
+
+  @IsOptional()
+  iban: string;
+
+  @IsOptional()
+  ref: string;
+
+  @IsOptional()
+  bankUsage: string;
 }

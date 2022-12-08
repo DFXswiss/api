@@ -158,4 +158,11 @@ export class SellService {
   getSellRepo(): Repository<Sell> {
     return this.sellRepo;
   }
+
+  async getSellByDepositAddress(depositAddress: string): Promise<Sell> {
+    return await this.sellRepo.findOne({
+      where: { deposit: { address: depositAddress } },
+      relations: ['user', 'user.userData', 'user.userData.users', 'deposit'],
+    });
+  }
 }
