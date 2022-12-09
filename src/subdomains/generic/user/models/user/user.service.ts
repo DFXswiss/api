@@ -63,10 +63,6 @@ export class UserService {
     return await this.userRepo.findOne({ where: { address }, relations: ['userData', 'userData.users'] });
   }
 
-  async getUserByRef(ref: string): Promise<User> {
-    return await this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
-  }
-
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
@@ -93,7 +89,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return await this.userRepo.findOne({ where: { ref }, relations: ['userData'] });
+    return await this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {

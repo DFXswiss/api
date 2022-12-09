@@ -43,6 +43,7 @@ export class SellService {
       .leftJoinAndSelect('sell.deposit', 'deposit')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
       .where('deposit.address = :addr', { addr: depositAddress })
       .getOne();
   }
@@ -157,12 +158,5 @@ export class SellService {
 
   getSellRepo(): Repository<Sell> {
     return this.sellRepo;
-  }
-
-  async getSellByDepositAddress(depositAddress: string): Promise<Sell> {
-    return await this.sellRepo.findOne({
-      where: { deposit: { address: depositAddress } },
-      relations: ['user', 'user.userData', 'user.userData.users', 'deposit'],
-    });
   }
 }

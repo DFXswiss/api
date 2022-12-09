@@ -96,30 +96,15 @@ export class GsService {
     if (query.userDataId) {
       return await this.userDataService.getUserData(+query.userDataId);
     } else if (query.userAddress) {
-      const user = await this.userService.getUserByAddress(query.userAddress);
-      if (!user) throw new NotFoundException('User not found');
-
-      return user.userData;
+      return await this.userService.getUserByAddress(query.userAddress).then((user) => user?.userData);
     } else if (query.depositAddress) {
-      const sell = await this.sellService.getSellByDepositAddress(query.depositAddress);
-      if (!sell) throw new NotFoundException('Sell not found');
-
-      return sell.user.userData;
+      return await this.sellService.getSellByAddress(query.depositAddress).then((sell) => sell?.user.userData);
     } else if (query.iban) {
-      const bankAccount = await this.bankAccountService.getBankAccountByIban(query.iban);
-      if (!bankAccount) throw new NotFoundException('BankAccount not found');
-
-      return bankAccount.user.userData;
+      return await this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.user.userData);
     } else if (query.ref) {
-      const user = await this.userService.getUserByRef(query.ref);
-      if (!user) throw new NotFoundException('User not found');
-
-      return user.userData;
+      return await this.userService.getRefUser(query.ref).then((user) => user?.userData);
     } else if (query.bankUsage) {
-      const buy = await this.buyService.getBuyByBankUsage(query.bankUsage);
-      if (!buy) throw new NotFoundException('Buy not found');
-
-      return buy.user.userData;
+      return await this.buyService.getBuyByBankUsage(query.bankUsage).then((buy) => buy?.user.userData);
     }
   }
 
