@@ -31,6 +31,7 @@ import { BuyService } from '../../route/buy.service';
 import { BuyHistoryDto } from '../../route/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { PaymentWebhookState, WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -51,6 +52,7 @@ export class BuyCryptoService {
     private readonly buyCryptoDexService: BuyCryptoDexService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -80,7 +82,7 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user', 'bankTx'],
+      relations: ['buy', 'buy.user', 'buy.user.userData', 'cryptoRoute', 'cryptoRoute.user', 'bankTx'],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -121,6 +123,14 @@ export class BuyCryptoService {
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {
       await this.userService.activateUser(entity.buy?.user);
+    }
+
+    // payment webhook
+    if (dto.inputAmount && dto.inputAsset) {
+      await this.webhookService.paymentUpdate(entity.buy.user.userData, entity, PaymentWebhookState.CREATED);
+    }
+    if (dto.outputAmount && dto.outputAssetId) {
+      await this.webhookService.paymentUpdate(entity.buy.user.userData, entity, PaymentWebhookState.COMPLETED);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
@@ -221,7 +231,7 @@ export class BuyCryptoService {
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
-    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user'] });
+    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user', 'user.userData'] });
     if (!buy) throw new BadRequestException('Buy route not found');
 
     return buy;

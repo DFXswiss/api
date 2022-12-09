@@ -16,6 +16,7 @@ import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-out
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
+import { PaymentWebhookState, WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 
 @Injectable()
 export class BuyFiatService {
@@ -28,6 +29,7 @@ export class BuyFiatService {
     private readonly sellService: SellService,
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   private readonly lock = new Lock(7200);
@@ -66,7 +68,7 @@ export class BuyFiatService {
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
-    let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user'] });
+    let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user', 'sell.user.userData'] });
     if (!entity) throw new NotFoundException('Buy fiat not found');
 
     const sellIdBefore = entity.sell?.id;
@@ -95,6 +97,14 @@ export class BuyFiatService {
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {
       await this.userService.activateUser(entity.sell?.user);
+    }
+
+    // payment webhook
+    if (dto.inputAmount && dto.inputAsset) {
+      await this.webhookService.paymentUpdate(entity.sell.user.userData, entity, PaymentWebhookState.CREATED);
+    }
+    if (dto.outputAmount && dto.outputAsset) {
+      await this.webhookService.paymentUpdate(entity.sell.user.userData, entity, PaymentWebhookState.COMPLETED);
     }
 
     await this.updateSellVolume([sellIdBefore, entity.sell?.id]);
@@ -162,7 +172,7 @@ export class BuyFiatService {
 
   private async getSell(sellId: number): Promise<Sell> {
     // sell
-    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['user'] });
+    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['user', 'user.userData'] });
     if (!sell) throw new BadRequestException('Sell route not found');
 
     return sell;

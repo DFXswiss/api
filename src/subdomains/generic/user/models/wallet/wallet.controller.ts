@@ -10,17 +10,12 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { User } from '../user/user.entity';
 import { KycDataDto } from './dto/kyc-data.dto';
-import { KycWebhookService } from '../kyc/kyc-webhook.service';
-import { SpiderDataRepository } from '../spider-data/spider-data.repository';
+import { WebhookService } from '../../services/webhook/webhook.service';
 
 @ApiTags('wallet')
 @Controller('wallet')
 export class WalletController {
-  constructor(
-    private readonly walletService: WalletService,
-    private readonly spiderRepo: SpiderDataRepository,
-    private readonly kycWebhookService: KycWebhookService,
-  ) {}
+  constructor(private readonly walletService: WalletService, private readonly webhookService: WebhookService) {}
 
   @Get()
   @ApiBearerAuth()
@@ -48,7 +43,7 @@ export class WalletController {
   private async toKycDataDto(user: User): Promise<KycDataDto> {
     return {
       address: user.address,
-      kycStatus: this.kycWebhookService.getKycWebhookStatus(
+      kycStatus: this.webhookService.getKycWebhookStatus(
         user.userData.kycStatus,
         user.userData.spiderData?.chatbotResult,
       ),

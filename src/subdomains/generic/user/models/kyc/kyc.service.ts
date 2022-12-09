@@ -33,7 +33,7 @@ import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
-import { KycWebhookService } from './kyc-webhook.service';
+import { WebhookService } from '../../services/webhook/webhook.service';
 
 @Injectable()
 export class KycService {
@@ -49,7 +49,7 @@ export class KycService {
     private readonly kycProcess: KycProcessService,
     private readonly linkService: LinkService,
     private readonly http: HttpService,
-    private readonly webhookService: KycWebhookService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   // --- ADMIN/SUPPORT --- //

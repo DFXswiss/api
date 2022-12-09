@@ -1,4 +1,4 @@
-import { KycWebhookStatus } from '../../kyc/kyc-webhook.service';
+import { KycWebhookStatus } from '../../../services/webhook/webhook.service';
 
 export class KycDataDto {
   address: string;

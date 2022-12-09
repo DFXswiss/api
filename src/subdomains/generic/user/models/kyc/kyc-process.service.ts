@@ -16,7 +16,7 @@ import { UserRepository } from '../user/user.repository';
 import { Config } from 'src/config/config';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
-import { KycWebhookService } from './kyc-webhook.service';
+import { WebhookService } from '../../services/webhook/webhook.service';
 
 @Injectable()
 export class KycProcessService {
@@ -25,7 +25,7 @@ export class KycProcessService {
     private readonly spiderService: SpiderService,
     private readonly notificationService: NotificationService,
     private readonly userRepo: UserRepository,
-    private readonly kycWebhookService: KycWebhookService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   // --- GENERAL METHODS --- //
@@ -75,7 +75,7 @@ export class KycProcessService {
 
     userData = this.updateKycStatus(userData, status);
 
-    await this.kycWebhookService.kycChanged(userData);
+    await this.webhookService.kycChanged(userData);
 
     return userData;
   }
@@ -123,7 +123,7 @@ export class KycProcessService {
     await this.notificationService.sendMail({ type: MailType.KYC_SUPPORT, input: { userData } });
 
     //kyc Webhook external Services
-    await this.kycWebhookService.kycFailed(userData, 'Kyc step failed');
+    await this.webhookService.kycFailed(userData, 'Kyc step failed');
     return this.updateKycState(userData, KycState.FAILED);
   }
 
