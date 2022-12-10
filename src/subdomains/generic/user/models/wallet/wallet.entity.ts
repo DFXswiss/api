@@ -21,7 +21,10 @@ export class Wallet extends IEntity {
   isKycClient: boolean;
 
   @Column({ length: 256, nullable: true })
-  apiUrl: string;
+  kycUrl: string;
+
+  @Column({ length: 256, nullable: true })
+  paymentUrl: string;
 
   @Column({ nullable: true })
   customKyc: KycType;

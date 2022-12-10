@@ -32,11 +32,6 @@ export enum PaymentWebhookState {
   COMPLETED = 'Completed',
 }
 
-enum WebhookRoute {
-  KYC = 'kyc/update',
-  PAYMENT = 'payment/update',
-}
-
 export class KycWebhookDataDto {
   mail: string;
   firstName: string;
@@ -80,32 +75,20 @@ export class WebhookService {
   ) {}
 
   async kycChanged(userData: UserData): Promise<void> {
-    await this.triggerWebhook(
-      userData,
-      WebhookRoute.KYC,
-      await this.getKycWebhookData(userData, KycWebhookResult.STATUS_CHANGED),
-    );
+    await this.triggerWebhook(userData, await this.getKycWebhookData(userData, KycWebhookResult.STATUS_CHANGED));
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
-    await this.triggerWebhook(
-      userData,
-      WebhookRoute.KYC,
-      await this.getKycWebhookData(userData, KycWebhookResult.FAILED, reason),
-    );
+    await this.triggerWebhook(userData, await this.getKycWebhookData(userData, KycWebhookResult.FAILED, reason));
   }
 
   async paymentUpdate(userData: UserData, payment: BuyFiat | BuyCrypto, state: PaymentWebhookState): Promise<void> {
-    await this.triggerWebhook(userData, WebhookRoute.PAYMENT, this.getPaymentWebhookData(payment, state));
+    await this.triggerWebhook(userData, this.getPaymentWebhookData(payment, state));
   }
 
   // --- HELPER METHODS --- //
 
-  private async triggerWebhook(
-    userData: UserData,
-    route: WebhookRoute,
-    data: PaymentWebhookDto | KycWebhookDto,
-  ): Promise<void> {
+  private async triggerWebhook(userData: UserData, data: PaymentWebhookDto | KycWebhookDto): Promise<void> {
     userData.users = await this.userRepo.find({
       where: { userData: { id: userData.id } },
       relations: ['wallet', 'userData'],
@@ -113,20 +96,22 @@ export class WebhookService {
 
     for (const user of userData.users) {
       try {
-        if (!user.wallet.isKycClient || !user.wallet.apiUrl) continue;
+        const currentUrl = data instanceof KycWebhookDto ? user.wallet.kycUrl : user.wallet.paymentUrl;
+
+        if (!user.wallet.isKycClient || !currentUrl) continue;
 
         const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
         if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
         data.id = user.address;
 
-        await this.http.post(`${user.wallet.apiUrl}/${route}`, data, {
+        await this.http.post(currentUrl, data, {
           headers: { 'x-api-key': apiKey },
           retryDelay: 5000,
           tryCount: 3,
         });
       } catch (error) {
-        const errMessage = `Exception during ${route === WebhookRoute.KYC ? 'KYC' : 'Payment'} webhook for user ${
+        const errMessage = `Exception during ${data instanceof KycWebhookDto ? 'KYC' : 'Payment'} webhook for user ${
           user.id
         } & userData ${userData.id}:`;
 
@@ -135,7 +120,7 @@ export class WebhookService {
         await this.notificationService.sendMail({
           type: MailType.ERROR_MONITORING,
           input: {
-            subject: 'KYC Webhook failed',
+            subject: `${data instanceof KycWebhookDto ? 'KYC' : 'Payment'} Webhook failed`,
             errors: [errMessage, error],
           },
         });

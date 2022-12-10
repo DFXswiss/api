@@ -82,7 +82,15 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: ['buy', 'buy.user', 'buy.user.userData', 'cryptoRoute', 'cryptoRoute.user', 'bankTx'],
+      relations: [
+        'buy',
+        'buy.user',
+        'buy.user.userData',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.user.userData',
+        'bankTx',
+      ],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -127,10 +135,11 @@ export class BuyCryptoService {
 
     // payment webhook
     if (dto.inputAmount && dto.inputAsset) {
-      await this.webhookService.paymentUpdate(entity.buy.user.userData, entity, PaymentWebhookState.CREATED);
-    }
-    if (dto.outputAmount && dto.outputAssetId) {
-      await this.webhookService.paymentUpdate(entity.buy.user.userData, entity, PaymentWebhookState.COMPLETED);
+      await this.webhookService.paymentUpdate(
+        entity.buy ? entity.buy.user.userData : entity.cryptoRoute.user.userData,
+        entity,
+        PaymentWebhookState.CREATED,
+      );
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
@@ -241,7 +250,7 @@ export class BuyCryptoService {
     // cryptoRoute
     const cryptoRoute = await this.cryptoRouteService
       .getCryptoRouteRepo()
-      .findOne({ where: { id: cryptoRouteId }, relations: ['user'] });
+      .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'userData'] });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
     return cryptoRoute;
