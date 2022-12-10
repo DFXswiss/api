@@ -168,13 +168,10 @@ export class GsService {
   }
 
   private renameDbKeys(table: string, keys: string[]): string[] {
-    return keys.map((k) => k.replace(`${table}_`, '')).map((k) => (k.includes('_') ? this.toCapitalCase(k) : k));
+    return keys.map((k) => k.replace(`${table}_`, '')).map((k) => (k.includes('_') ? this.toLowerCase(k) : k));
   }
 
-  private toCapitalCase(str: string): string {
-    return str
-      .split('_')
-      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-      .join('');
+  private toLowerCase(str: string): string {
+    return str.split('')[0].toLowerCase() + str.slice(1).split('_').join('.');
   }
 }
