@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.repository';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
+import { UpdateFiatOutputDto } from './dto/update-fiat-output.dto';
 import { FiatOutput } from './fiat-output.entity';
 import { FiatOutputRepository } from './fiat-output.repository';
 
@@ -17,5 +18,12 @@ export class FiatOutputService {
     }
 
     return await this.fiatOutputRepo.save(entity);
+  }
+
+  async update(id: number, dto: UpdateFiatOutputDto): Promise<FiatOutput> {
+    const entity = await this.fiatOutputRepo.findOne(id);
+    if (!entity) throw new NotFoundException('FiatOutput not found');
+
+    return await this.buyFiatRepo.save({ ...entity, ...dto });
   }
 }

@@ -99,7 +99,7 @@ enum TransactionDirection {
   RETURN = 'return',
 }
 
-enum TransactionCharge {
+export enum TransactionCharge {
   BEN = 'BEN',
   OUR = 'OUR',
   SHA = 'SHA',
