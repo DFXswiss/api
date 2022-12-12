@@ -49,7 +49,10 @@ export class LimitRequestNotificationService {
               translationKey: 'mail.limitRequest.manualApproved',
               translationParams: {
                 firstname: entity.userData.firstname,
-                limitAmount: entity.limit,
+                limitAmount:
+                  entity.userData.language.symbol === 'DE'
+                    ? entity.limit.toLocaleString('de-DE')
+                    : entity.limit.toLocaleString('en-US'),
               },
               from: Config.support.limitRequest.mailAddress,
               displayName: Config.support.limitRequest.mailName,
