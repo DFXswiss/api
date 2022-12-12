@@ -4,18 +4,27 @@ import { CryptoStakingService } from 'src/mix/models/crypto-staking/crypto-staki
 import { StakingRefRewardService } from 'src/mix/models/staking-ref-reward/staking-ref-reward.service';
 import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyService } from 'src/subdomains/core/buy-crypto/route/buy.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
+import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { getConnection } from 'typeorm';
+import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
+import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
-import { SupportReturnData } from './dto/support-return-data.dto';
+import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 @Injectable()
 export class GsService {
   constructor(
     private readonly userDataService: UserDataService,
+    private readonly userService: UserService,
+    private readonly buyService: BuyService,
+    private readonly sellService: SellService,
+    private readonly bankAccountService: BankAccountService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly stakingRewardService: StakingRewardService,
@@ -62,8 +71,8 @@ export class GsService {
     }
   }
 
-  async getSupportData(userDataId: number): Promise<SupportReturnData> {
-    const userData = await this.userDataService.getUserData(userDataId);
+  async getSupportData(query: SupportDataQuery): Promise<SupportReturnData> {
+    const userData = await this.getUserData(query);
     if (!userData) throw new NotFoundException('User data not found');
 
     const userIds = userData.users.map((u) => u.id);
@@ -82,6 +91,22 @@ export class GsService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async getUserData(query: SupportDataQuery): Promise<UserData> {
+    if (query.userDataId) {
+      return await this.userDataService.getUserData(+query.userDataId);
+    } else if (query.userAddress) {
+      return await this.userService.getUserByAddress(query.userAddress).then((user) => user?.userData);
+    } else if (query.depositAddress) {
+      return await this.sellService.getSellByAddress(query.depositAddress).then((sell) => sell?.user.userData);
+    } else if (query.iban) {
+      return await this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.user.userData);
+    } else if (query.ref) {
+      return await this.userService.getRefUser(query.ref).then((user) => user?.userData);
+    } else if (query.bankUsage) {
+      return await this.buyService.getBuyByBankUsage(query.bankUsage).then((buy) => buy?.user.userData);
+    }
+  }
 
   private async getExtendedBankTxData(dbQuery: DbQueryBaseDto): Promise<any[]> {
     const select = dbQuery.select ? dbQuery.select.map((e) => dbQuery.table + '.' + e).join(',') : dbQuery.table;

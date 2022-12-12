@@ -16,7 +16,6 @@ export enum KycStatus {
   ONLINE_ID = 'OnlineId',
   VIDEO_ID = 'VideoId',
   CHECK = 'Check',
-  MANUAL = 'Manual',
   COMPLETED = 'Completed',
   REJECTED = 'Rejected',
 }
@@ -211,7 +210,7 @@ export class UserData extends IEntity {
 
 export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
 export const IdentInProgressStates = [KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
-export const KycCompletedStates = [KycStatus.MANUAL, KycStatus.COMPLETED];
+export const KycCompletedStates = [KycStatus.COMPLETED];
 export const IdentCompletedStates = [KycStatus.CHECK, ...KycCompletedStates];
 
 export function KycInProgress(kycStatus?: KycStatus): boolean {
