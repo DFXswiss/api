@@ -111,9 +111,6 @@ export class UserService {
     let user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
 
-    // check used ref
-    dto.usedRef = await this.checkRef(user, dto.usedRef);
-
     // update
     user = await this.userRepo.save({ ...user, ...dto });
     user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
@@ -443,7 +440,6 @@ export class UserService {
       accountType: user.userData?.accountType,
       address: user.address,
       status: user.status,
-      usedRef: user.usedRef === '000-000' ? undefined : user.usedRef,
       mail: user.userData?.mail,
       phone: user.userData?.phone,
       language: user.userData?.language,
