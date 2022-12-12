@@ -33,9 +33,8 @@ export class AppController {
         'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details?id=com.defichain.app.dfx',
     },
     [App.BTC]: {
-      // TODO
-      [Manufacturer.APPLE]: undefined,
-      [Manufacturer.GOOGLE]: undefined,
+      [Manufacturer.APPLE]: 'https://apps.apple.com/us/app/dfx-bitcoin-wallet/id6443845399',
+      [Manufacturer.GOOGLE]: undefined, // TODO
     },
     [App.EXCHANGE]: 'https://exchange.dfx.swiss',
   };
