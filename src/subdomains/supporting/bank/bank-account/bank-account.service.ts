@@ -22,6 +22,13 @@ export class BankAccountService {
     return this.bankAccountRepo.find({ user: { id: userId } });
   }
 
+  async getBankAccountByIban(iban: string): Promise<BankAccount> {
+    return await this.bankAccountRepo.findOne({
+      where: { iban },
+      relations: ['user', 'user.userData', 'user.userData.users'],
+    });
+  }
+
   async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
     const existing = await this.bankAccountRepo.findOne({
       where: { iban: dto.iban, user: { id: userId } },

@@ -130,6 +130,13 @@ export class BuyService {
     return this.buyRepo.find({ user: { id: userId } });
   }
 
+  async getBuyByBankUsage(bankUsage: string): Promise<Buy> {
+    return this.buyRepo.findOne({
+      where: { bankUsage },
+      relations: ['user', 'user.userData', 'user.userData.users'],
+    });
+  }
+
   async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {
     const buy = await this.buyRepo.findOne({ id: buyId, user: { id: userId } });
     if (!buy) throw new NotFoundException('Buy route not found');

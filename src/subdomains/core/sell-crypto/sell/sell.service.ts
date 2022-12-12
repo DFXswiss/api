@@ -43,6 +43,7 @@ export class SellService {
       .leftJoinAndSelect('sell.deposit', 'deposit')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
       .where('deposit.address = :addr', { addr: depositAddress })
       .getOne();
   }
