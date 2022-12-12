@@ -2054,6 +2054,8 @@
       "form": []
     },
     "tests": []
+  },
+  {
     "url": "{{url}}/v1/gs/support?bankUsage=E96D-A2B3-97B8",
     "method": "GET",
     "sortNum": 10000,
@@ -2097,6 +2099,25 @@
         "isPath": false
       }
     ],
+    "tests": []
+  },
+  {
+    "_id": "4eee9f34-6c9b-47ad-9785-556b1d69bb1b",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "7d065ba7-fa86-4ae0-9323-1584970716f8",
+    "name": "Create Log",
+    "url": "{{url}}/v1/log",
+    "method": "POST",
+    "sortNum": 760000,
+    "created": "2022-12-12T14:16:02.249Z",
+    "modified": "2022-12-12T21:05:39.085Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"system\": \"Test\",\n  \"subsystem\": \"Test\",\n  \"severity\": \"Info\",\n  \"message\": \"Test message\"\n}",
+      "form": []
+    },
     "tests": []
   }
 ]

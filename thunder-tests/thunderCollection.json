@@ -217,10 +217,17 @@
       },
       {
         "_id": "4b2a9dd6-361d-4bee-9c80-1b59c149e59f",
-        "name": "Gs",
+        "name": "Google Sheet",
         "containerId": "",
         "created": "2022-12-08T15:04:36.348Z",
         "sortNum": 320000
+      },
+      {
+        "_id": "7d065ba7-fa86-4ae0-9323-1584970716f8",
+        "name": "Log",
+        "containerId": "",
+        "created": "2022-12-12T14:15:48.918Z",
+        "sortNum": 330000
       }
     ],
     "settings": {
