@@ -1,11 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  OnModuleInit,
-  Optional,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { HttpService } from '../../../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
@@ -112,8 +105,10 @@ export class CfpService implements OnModuleInit {
 
   private settings: CfpSettings;
   private cfpResults: CfpResult[];
+
+  private readonly masternodeCount: number;
+  private readonly masternodes: Map<string, MasterNode>;
   private dfxMasternodes: Masternode[];
-  private _masternodes: { count: number; list: { [address: string]: MasterNode } };
 
   constructor(
     private readonly http: HttpService,
@@ -122,7 +117,12 @@ export class CfpService implements OnModuleInit {
     private readonly masterNodeService: MasternodeService,
     @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
   ) {
-    if (validMasterNodes) this.setMasternodes(validMasterNodes);
+    validMasterNodes ??= Object.values(MasterNodes).filter(
+      (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
+    ) as MasterNode[];
+
+    this.masternodeCount = validMasterNodes.length;
+    this.masternodes = Util.toMap(validMasterNodes, 'ownerAuthAddress');
   }
 
   onModuleInit() {
@@ -150,7 +150,6 @@ export class CfpService implements OnModuleInit {
       }
     } catch (e) {
       console.error('Exception during CFP update:', e);
-      throw new ServiceUnavailableException('Failed to update');
     }
   }
 
@@ -179,25 +178,6 @@ export class CfpService implements OnModuleInit {
     return results;
   }
 
-  // --- MASTERNODES --- //
-  private get masternodes() {
-    if (!this._masternodes) {
-      const validMasterNodes = Object.values(MasterNodes).filter(
-        (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
-      ) as MasterNode[];
-      this.setMasternodes(validMasterNodes);
-    }
-
-    return this._masternodes;
-  }
-
-  private setMasternodes(masternodes: MasterNode[]) {
-    this._masternodes = {
-      count: masternodes.length,
-      list: masternodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {}),
-    };
-  }
-
   // --- HELPER METHODS --- //
   private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
     const batchSize = 100;
@@ -215,13 +195,12 @@ export class CfpService implements OnModuleInit {
   private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
     const type = cfp.labels.map((a) => a.name).includes(VotingType.CFP) ? VotingType.CFP : VotingType.DFIP;
 
-    const validVotes: { [address: string]: Vote } = comments
+    const validVotes = comments
       .map((c) => this.getCommentVotes(type, c))
       .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((v) => this.verifyVote(cfp, v))
-      .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
+      .filter((v) => this.verifyVote(cfp, v));
 
-    const votes = Object.values(validVotes);
+    const votes = Array.from(Util.toMap(validVotes, 'address').values()); // remove duplicate votes
     const yesVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
     const noVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('no'));
     const neutralVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
@@ -254,8 +233,8 @@ export class CfpService implements OnModuleInit {
       currentResult: currentResult,
       totalVotes: {
         total: votes.length,
-        possible: this.masternodes.count,
-        turnout: Util.round((votes.length / this.masternodes.count) * 100, Config.defaultPercentageDecimal),
+        possible: this.masternodeCount,
+        turnout: Util.round((votes.length / this.masternodeCount) * 100, Config.defaultPercentageDecimal),
         yes: yesVotes.length,
         neutral: neutralVotes.length,
         no: noVotes.length,
@@ -312,7 +291,7 @@ export class CfpService implements OnModuleInit {
 
   private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
     return (
-      this.masternodes.list[vote.address] &&
+      this.masternodes.get(vote.address) &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
       new Date(vote.createdAt) < new Date(this.settings.endDate) &&
       this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)

@@ -31,6 +31,12 @@ export class Util {
     return this.sum(list) / list.length;
   }
 
+  static toMap<T>(list: T[], key: KeyType<T, string>): Map<string, T> {
+    const map = new Map<string, T>();
+    list.forEach((item) => map.set(item[key] as unknown as string, item));
+    return map;
+  }
+
   static aggregate<T>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
     return list.reduce((prev, curr) => {
       const keyValue = curr[key] as unknown as string;
