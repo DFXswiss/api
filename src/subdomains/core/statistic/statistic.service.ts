@@ -24,8 +24,8 @@ export class StatisticService implements OnModuleInit {
     private userService: UserService,
   ) {}
 
-  async onModuleInit() {
-    await this.doUpdate();
+  onModuleInit() {
+    void this.doUpdate();
   }
 
   @Interval(3600000)

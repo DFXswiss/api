@@ -1,4 +1,11 @@
-import { Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { HttpService } from '../../../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
@@ -100,14 +107,13 @@ export interface CfpResult {
 }
 
 @Injectable()
-export class CfpService {
+export class CfpService implements OnModuleInit {
   private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
 
   private settings: CfpSettings;
-  private masterNodeCount: number;
-  private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
   private dfxMasternodes: Masternode[];
+  private _masternodes: { count: number; list: { [address: string]: MasterNode } };
 
   constructor(
     private readonly http: HttpService,
@@ -116,15 +122,11 @@ export class CfpService {
     private readonly masterNodeService: MasternodeService,
     @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
   ) {
-    validMasterNodes ??= Object.values(MasterNodes).filter(
-      (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
-    ) as MasterNode[];
-    this.masterNodeCount = validMasterNodes.length;
-    this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
+    if (validMasterNodes) this.setMasternodes(validMasterNodes);
   }
 
-  async onModuleInit() {
-    await this.doUpdate();
+  onModuleInit() {
+    void this.doUpdate();
   }
 
   @Interval(600000)
@@ -175,6 +177,25 @@ export class CfpService {
     if (!results) throw new NotFoundException('CFP not found');
 
     return results;
+  }
+
+  // --- MASTERNODES --- //
+  private get masternodes() {
+    if (!this._masternodes) {
+      const validMasterNodes = Object.values(MasterNodes).filter(
+        (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
+      ) as MasterNode[];
+      this.setMasternodes(validMasterNodes);
+    }
+
+    return this._masternodes;
+  }
+
+  private setMasternodes(masternodes: MasterNode[]) {
+    this._masternodes = {
+      count: masternodes.length,
+      list: masternodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {}),
+    };
   }
 
   // --- HELPER METHODS --- //
@@ -233,8 +254,8 @@ export class CfpService {
       currentResult: currentResult,
       totalVotes: {
         total: votes.length,
-        possible: this.masterNodeCount,
-        turnout: Util.round((votes.length / this.masterNodeCount) * 100, Config.defaultPercentageDecimal),
+        possible: this.masternodes.count,
+        turnout: Util.round((votes.length / this.masternodes.count) * 100, Config.defaultPercentageDecimal),
         yes: yesVotes.length,
         neutral: neutralVotes.length,
         no: noVotes.length,
@@ -291,7 +312,7 @@ export class CfpService {
 
   private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
     return (
-      this.masterNodes[vote.address] &&
+      this.masternodes.list[vote.address] &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
       new Date(vote.createdAt) < new Date(this.settings.endDate) &&
       this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
