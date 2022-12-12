@@ -24,6 +24,6 @@ export class FiatOutputService {
     const entity = await this.fiatOutputRepo.findOne(id);
     if (!entity) throw new NotFoundException('FiatOutput not found');
 
-    return await this.buyFiatRepo.save({ ...entity, ...dto });
+    return await this.fiatOutputRepo.save({ ...entity, ...dto });
   }
 }
