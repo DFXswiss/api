@@ -1,6 +1,7 @@
-import { Controller, Get, Query, Res, Redirect } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, Redirect, Param } from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
+import { UserAgent } from 'express-useragent';
 import { RealIP } from 'nestjs-real-ip';
 import { HttpService } from './shared/services/http.service';
 import { SettingService } from './shared/models/setting/setting.service';
@@ -10,10 +11,34 @@ import { AnnouncementDto } from './shared/dto/announcement.dto';
 import { FlagDto } from './shared/dto/flag.dto';
 import { RefService } from './subdomains/core/referral/process/ref.service';
 
+enum App {
+  DFI = 'dfi',
+  BTC = 'btc',
+  EXCHANGE = 'exchange',
+}
+
+enum Manufacturer {
+  APPLE = 'Apple',
+  GOOGLE = 'Google',
+}
+
 @Controller('')
 export class AppController {
   private readonly lightWalletUrl = 'https://wallet.defichain.com/api/v0';
   private readonly homepageUrl = 'https://dfx.swiss';
+  private readonly appUrls = {
+    [App.DFI]: {
+      [Manufacturer.APPLE]: 'https://apps.apple.com/app/id1582633093',
+      [Manufacturer.GOOGLE]:
+        'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details?id=com.defichain.app.dfx',
+    },
+    [App.BTC]: {
+      // TODO
+      [Manufacturer.APPLE]: undefined,
+      [Manufacturer.GOOGLE]: undefined,
+    },
+    [App.EXCHANGE]: 'https://exchange.dfx.swiss',
+  };
 
   constructor(
     private readonly http: HttpService,
@@ -26,18 +51,6 @@ export class AppController {
   @ApiExcludeEndpoint()
   async home(): Promise<any> {
     // nothing to do (redirect to Swagger UI)
-  }
-
-  @Get('app')
-  @ApiExcludeEndpoint()
-  async createRef(
-    @RealIP() ip: string,
-    @Query('code') ref: string,
-    @Query('orig') origin: string,
-    @Res() res: Response,
-  ): Promise<void> {
-    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
-    res.redirect(307, this.homepageUrl);
   }
 
   @Get('app/announcements')
@@ -76,6 +89,57 @@ export class AppController {
       url: nextAd.url.replace('{{lang}}', this.getAdLanguage(lang)),
       displayTime: adSettings.displayTime,
     };
+  }
+
+  // --- REFERRAL --- //
+  // TODO: remove (use v1 endpoint)
+  @Get('app')
+  @ApiExcludeEndpoint()
+  async createRef(
+    @RealIP() ip: string,
+    @Query('code') ref: string,
+    @Query('orig') origin: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
+    res.redirect(307, this.homepageUrl);
+  }
+
+  @Get('v1/app')
+  @ApiExcludeEndpoint()
+  async createRefNew(
+    @RealIP() ip: string,
+    @Query('code') ref: string,
+    @Query('orig') origin: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
+    res.redirect(307, this.homepageUrl);
+  }
+
+  @Get('app/:app')
+  @ApiExcludeEndpoint()
+  async redirectToStore(
+    @RealIP() ip: string,
+    @Param('app') app: App,
+    @Query('code') refKey: string,
+    @Query('orig') origin: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const keys = await this.settingService.getObj('ref-keys', {});
+    const ref = keys[refKey];
+    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
+
+    // redirect user depending on app and platform
+    let url: string;
+    if (app === App.EXCHANGE) {
+      url = this.appUrls[app];
+    } else {
+      url = this.appUrls[app]?.[this.getDeviceManufacturer(req)];
+    }
+
+    res.redirect(307, url ?? this.homepageUrl);
   }
 
   // --- HELPER METHODS --- //
@@ -119,6 +183,15 @@ export class AppController {
         return 'IT';
       default:
         return 'EN';
+    }
+  }
+
+  private getDeviceManufacturer(req: Request): Manufacturer | undefined {
+    const agent = new UserAgent().parse(req.headers['user-agent'] ?? '');
+    if (agent.isAndroid) {
+      return Manufacturer.GOOGLE;
+    } else if (agent.isiPhone || agent.isiPad || agent.isiPod || agent.isMac) {
+      return Manufacturer.APPLE;
     }
   }
 }
