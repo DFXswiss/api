@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class DbQueryBaseDto {
@@ -15,6 +16,7 @@ export class DbQueryBaseDto {
 
   @IsNotEmpty()
   @IsDate()
+  @Type(() => Date)
   updatedSince: Date = new Date(0);
 
   @IsNotEmpty()
