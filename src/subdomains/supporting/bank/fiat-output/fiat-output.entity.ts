@@ -12,7 +12,7 @@ export class FiatOutput extends IEntity {
   type: string;
 
   @Column({ type: 'integer', nullable: true })
-  typeId?: number;
+  originEntityId?: number;
 
   @Column({ length: 256, nullable: true })
   accountIban?: string;
@@ -51,7 +51,7 @@ export class FiatOutput extends IEntity {
   address?: string;
 
   @Column({ length: 256, nullable: true })
-  postalCode?: string;
+  zip?: string;
 
   @Column({ length: 256, nullable: true })
   city?: string;

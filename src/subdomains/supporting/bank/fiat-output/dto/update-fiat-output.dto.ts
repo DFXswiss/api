@@ -4,7 +4,7 @@ import { TransactionCharge } from '../../bank-tx/frick.service';
 export class UpdateFiatOutputDto {
   @IsOptional()
   @IsNumber()
-  typeId?: number;
+  originEntityId?: number;
 
   @IsOptional()
   @IsString()
@@ -56,7 +56,7 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsString()
-  postalCode?: string;
+  zip?: string;
 
   @IsOptional()
   @IsString()
