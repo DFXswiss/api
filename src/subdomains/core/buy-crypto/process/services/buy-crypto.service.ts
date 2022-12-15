@@ -126,7 +126,7 @@ export class BuyCryptoService {
       entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined;
-    entity = await this.buyCryptoRepo.save({ ...update, ...entity, ...amlUpdate });
+    entity = await this.buyCryptoRepo.save(Object.assign(new BuyCrypto(), { ...update, ...entity, ...amlUpdate }));
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {
@@ -135,11 +135,9 @@ export class BuyCryptoService {
 
     // payment webhook
     if (dto.inputAmount && dto.inputAsset) {
-      await this.webhookService.paymentUpdate(
-        entity.buy ? entity.buy.user.userData : entity.cryptoRoute.user.userData,
-        entity,
-        PaymentWebhookState.CREATED,
-      );
+      entity.buy
+        ? await this.webhookService.fiatCryptoUpdate(entity.user.userData, entity, PaymentWebhookState.CREATED)
+        : await this.webhookService.cryptoCryptoUpdate(entity.user.userData, entity, PaymentWebhookState.CREATED);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);

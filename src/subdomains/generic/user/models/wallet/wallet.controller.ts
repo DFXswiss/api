@@ -45,7 +45,7 @@ export class WalletController {
       address: user.address,
       kycStatus: this.webhookService.getKycWebhookStatus(
         user.userData.kycStatus,
-        user.userData.spiderData?.chatbotResult,
+        user.userData.kycType,
       ),
       kycHash: user.userData.kycHash,
     };

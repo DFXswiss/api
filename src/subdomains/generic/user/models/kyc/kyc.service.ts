@@ -133,7 +133,7 @@ export class KycService {
     let result: { kycId: string };
 
     const wallet = await this.walletRepo.findOne({ where: { name: dto.walletName } });
-    if (!wallet || !wallet.isKycClient || !wallet.kycUrl) throw new NotFoundException('Wallet not found');
+    if (!wallet || !wallet.isKycClient || !wallet.apiUrl) throw new NotFoundException('Wallet not found');
 
     const dfxUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData'] });
     if (!dfxUser) throw new NotFoundException('DFX user not found');
@@ -143,7 +143,7 @@ export class KycService {
     if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
-      result = await this.http.get<{ kycId: string }>(`${wallet.kycUrl}/kyc/check`, {
+      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/check`, {
         headers: { 'x-api-key': apiKey },
 
         params: { address: dfxUser.address },

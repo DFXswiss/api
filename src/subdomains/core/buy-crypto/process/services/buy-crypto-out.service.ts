@@ -126,7 +126,7 @@ export class BuyCryptoOutService {
           await this.buyCryptoRepo.save(tx);
 
           // payment webhook
-          await this.webhookService.paymentUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED);
+          tx.buy ? await this.webhookService.fiatCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED) : await this.webhookService.cryptoCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED);
         }
       } catch (e) {
         console.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
