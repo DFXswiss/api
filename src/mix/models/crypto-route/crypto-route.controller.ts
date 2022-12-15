@@ -19,7 +19,6 @@ import { StakingService } from '../staking/staking.service';
 import { In } from 'typeorm';
 import { CryptoHistoryDto } from './dto/crypto-history.dto';
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
 import { MinDeposit } from '../deposit/dto/min-deposit.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
@@ -136,9 +135,9 @@ export class CryptoRouteController {
   private getMinDeposits(blockchain: Blockchain): MinDeposit[] {
     switch (blockchain) {
       case Blockchain.BITCOIN:
-        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
+        return Config.transformToMinDeposit(Config.blockchain.default.minDeposit.Bitcoin);
       case Blockchain.DEFICHAIN:
-        return Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'USD');
+        return Config.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'USD');
     }
   }
 
