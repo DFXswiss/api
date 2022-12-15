@@ -93,7 +93,7 @@ export class BuyController {
       ...buy,
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fee,
-      minDeposits: Config.transaction.minVolume.get(buy.asset),
+      minDeposits: Config.transaction.minVolume.getMany(buy.asset),
     };
   }
 
@@ -102,7 +102,7 @@ export class BuyController {
       ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
-      minDeposits: Config.transaction.minVolume.get(buy.asset, dto.currency.name),
+      minDeposit: Config.transaction.minVolume.get(buy.asset, dto.currency.name),
     };
   }
 

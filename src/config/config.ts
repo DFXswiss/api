@@ -220,7 +220,12 @@ export class Configuration {
         EUR: 1,
       },
 
-      get: (target: Asset | Fiat, referenceCurrency?: string) => {
+      get: (target: Asset | Fiat, referenceCurrency: string): MinDeposit => {
+        const minDeposits = this.transaction.minVolume.getMany(target);
+        return minDeposits.find((d) => d.asset === referenceCurrency) ?? minDeposits.find((d) => d.asset === 'USD');
+      },
+
+      getMany: (target: Asset | Fiat): MinDeposit[] => {
         const system = 'blockchain' in target ? target.blockchain : 'Fiat';
         const asset = target.name;
 
@@ -229,10 +234,7 @@ export class Configuration {
           this.transaction.minVolume[system]?.default ??
           this.transaction.minVolume.default;
 
-        return this.transformToMinDeposit(
-          minVolume,
-          Object.keys(minVolume).includes(referenceCurrency) ? referenceCurrency : 'USD',
-        );
+        return this.transformToMinDeposit(minVolume);
       },
     },
   };

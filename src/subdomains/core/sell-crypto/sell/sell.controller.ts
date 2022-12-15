@@ -85,7 +85,7 @@ export class SellController {
       fee: undefined,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Config.transaction.minVolume.get(sell.fiat, sell.fiat.name),
+      minDeposits: Config.transaction.minVolume.getMany(sell.fiat),
     };
   }
 
@@ -94,7 +94,7 @@ export class SellController {
       ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
-      minDeposits: Config.transaction.minVolume.get(sell.fiat, sell.fiat.name),
+      minDeposit: Config.transaction.minVolume.get(sell.fiat, sell.fiat.name),
     };
   }
 
