@@ -68,7 +68,5 @@ module.exports = class ExpandFiatOutputTable1671119109834 {
         await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "batchId"`);
         await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "accountIban"`);
         await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "originEntityId"`);
-        await queryRunner.query(`ALTER TABLE "bank" ADD "sctInst" bit NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "bank" ADD CONSTRAINT "DF_4a2bcad5d01e25259e297a79f83" DEFAULT 0 FOR "sctInst"`);
     }
 }
