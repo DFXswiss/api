@@ -200,7 +200,7 @@ export class Configuration {
           EUR: 10,
         },
       },
-      Bsc: {
+      BinanceSmartChain: {
         default: {
           USD: 10,
           CHF: 10,
