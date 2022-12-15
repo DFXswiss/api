@@ -1,5 +1,5 @@
 import { cloneDeep, isEqual } from 'lodash';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { BehaviorSubject, debounceTime, pairwise } from 'rxjs';
 import { MetricObserver } from './metric.observer';
 import { Metric, MetricName, SubsystemName, SubsystemState, SystemState } from './system-state-snapshot.entity';
@@ -10,7 +10,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 type SubsystemObservers = Map<MetricName, MetricObserver<unknown>>;
 
 @Injectable()
-export class MonitoringService {
+export class MonitoringService implements OnModuleInit {
   #$state: BehaviorSubject<SystemState> = new BehaviorSubject({});
   #observers: Map<SubsystemName, SubsystemObservers> = new Map();
 
@@ -19,8 +19,8 @@ export class MonitoringService {
     readonly notificationService: NotificationService,
   ) {}
 
-  async onModuleInit() {
-    await this.initState();
+  onModuleInit() {
+    void this.initState();
   }
 
   // *** PUBLIC API *** //

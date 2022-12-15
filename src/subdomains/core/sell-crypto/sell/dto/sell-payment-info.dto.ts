@@ -12,6 +12,6 @@ export class SellPaymentInfoDto {
   @ApiProperty()
   blockchain: Blockchain;
 
-  @ApiProperty({ type: MinDeposit, isArray: true })
-  minDeposits: MinDeposit[];
+  @ApiProperty({ type: MinDeposit })
+  minDeposit: MinDeposit;
 }

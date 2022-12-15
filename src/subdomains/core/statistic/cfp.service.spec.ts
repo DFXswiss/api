@@ -29,7 +29,7 @@ describe('CfpService', () => {
     }).compile();
 
     service = module.get<CfpService>(CfpService);
-    await service.onModuleInit();
+    await service.doUpdate();
   });
 
   it('should be defined', () => {

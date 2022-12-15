@@ -491,14 +491,20 @@
     "_id": "ae412440-58fa-4623-9601-58249b354157",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
     "containerId": "abff3bcc-baef-471c-bd79-bd812dd74e47",
-    "name": "Get Flags",
-    "url": "{{url}}/v1/app/settings/flags",
+    "name": "To Store",
+    "url": "{{url}}/v1/app/exchange?code=landing",
     "method": "GET",
-    "sortNum": 200000,
+    "sortNum": 230000,
     "created": "2022-02-02T15:05:56.308Z",
-    "modified": "2022-02-02T15:06:53.954Z",
+    "modified": "2022-12-12T22:12:51.937Z",
     "headers": [],
-    "params": [],
+    "params": [
+      {
+        "name": "code",
+        "value": "landing",
+        "isPath": false
+      }
+    ],
     "tests": []
   },
   {
@@ -2054,6 +2060,8 @@
       "form": []
     },
     "tests": []
+  },
+  {
     "url": "{{url}}/v1/gs/support?bankUsage=E96D-A2B3-97B8",
     "method": "GET",
     "sortNum": 10000,
@@ -2094,6 +2102,64 @@
       {
         "name": "bankUsage",
         "value": "E96D-A2B3-97B8",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "4eee9f34-6c9b-47ad-9785-556b1d69bb1b",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "7d065ba7-fa86-4ae0-9323-1584970716f8",
+    "name": "Create Log",
+    "url": "{{url}}/v1/log",
+    "method": "POST",
+    "sortNum": 760000,
+    "created": "2022-12-12T14:16:02.249Z",
+    "modified": "2022-12-12T21:05:39.085Z",
+    "headers": [],
+    "params": [],
+    "body": {
+      "type": "json",
+      "raw": "{\n  \"system\": \"Test\",\n  \"subsystem\": \"Test\",\n  \"severity\": \"Info\",\n  \"message\": \"Test message\"\n}",
+      "form": []
+    },
+    "tests": []
+  },
+  {
+    "_id": "5062a5e1-af96-44fe-9284-cfdb9b362014",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "abff3bcc-baef-471c-bd79-bd812dd74e47",
+    "name": "Get Flags",
+    "url": "{{url}}/v1/app/settings/flags",
+    "method": "GET",
+    "sortNum": 205000,
+    "created": "2022-12-12T21:58:05.592Z",
+    "modified": "2022-12-12T21:58:05.592Z",
+    "headers": [],
+    "params": [],
+    "tests": []
+  },
+  {
+    "_id": "1297469d-4151-411c-82a7-297966fdea7d",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "abff3bcc-baef-471c-bd79-bd812dd74e47",
+    "name": "Save Ref",
+    "url": "{{url}}/v1/app?code=000-007&orig=DFX4EVER",
+    "method": "GET",
+    "sortNum": 225000,
+    "created": "2022-12-12T22:00:24.419Z",
+    "modified": "2022-12-12T22:19:08.548Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "code",
+        "value": "000-007",
+        "isPath": false
+      },
+      {
+        "name": "orig",
+        "value": "DFX4EVER",
         "isPath": false
       }
     ],
