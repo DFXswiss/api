@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Put, UseGuards, Post, Param, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Put,
+  UseGuards,
+  Post,
+  Param,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -124,6 +134,7 @@ export class BuyController {
 
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
+    if (!dto.currency) throw new NotFoundException('Currency not found');
 
     const bank = await this.bankService.getBank({
       amount: dto.amount,
