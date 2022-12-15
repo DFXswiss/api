@@ -102,7 +102,7 @@ export class BuyController {
       ...(await this.getBankInfo(buy, dto)),
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
-      minDeposits: Config.transaction.minVolume.get(buy.asset),
+      minDeposits: Config.transaction.minVolume.get(buy.asset, dto.currency.name),
     };
   }
 

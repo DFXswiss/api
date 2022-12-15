@@ -196,24 +196,31 @@ export class Configuration {
       Bitcoin: {
         BTC: {
           USD: 10,
+          CHF: 10,
+          EUR: 10,
         },
       },
       Bsc: {
         default: {
           USD: 10,
+          CHF: 10,
+          EUR: 10,
         },
       },
       Ethereum: {
         default: {
           USD: 1000,
           CHF: 1000,
+          EUR: 1000,
         },
       },
       default: {
         USD: 1,
+        CHF: 1,
+        EUR: 1,
       },
 
-      get: (currency: string, target: Asset | Fiat) => {
+      get: (target: Asset | Fiat, referenceCurrency?: string) => {
         const system = 'blockchain' in target ? target.blockchain : 'Fiat';
         const asset = target.name;
 
@@ -222,7 +229,10 @@ export class Configuration {
           this.transaction.minVolume[system]?.default ??
           this.transaction.minVolume.default;
 
-        return this.transformToMinDeposit(minVolume, currency) ?? this.transformToMinDeposit(minVolume, 'USD');
+        return this.transformToMinDeposit(
+          minVolume,
+          Object.keys(minVolume).includes(referenceCurrency) ? referenceCurrency : 'USD',
+        );
       },
     },
   };
