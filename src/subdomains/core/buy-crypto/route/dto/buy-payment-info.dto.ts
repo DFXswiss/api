@@ -25,6 +25,9 @@ export class BankInfoDto {
 
   @ApiProperty()
   bic: string;
+
+  @ApiProperty()
+  sepaInstant: boolean;
 }
 
 export class BuyPaymentInfoDto extends BankInfoDto {

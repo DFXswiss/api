@@ -101,8 +101,11 @@ export class BuyController {
   }
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
+    const bankInfo = await this.getBankInfo(buy, dto);
+
     return {
-      ...(await this.getBankInfo(buy, dto)),
+      ...bankInfo,
+      sepaInstant: bankInfo.sepaInstant && buy.bankAccount.sctInst,
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
       minDeposits: this.getTransactionVolume(buy.asset),
@@ -137,7 +140,7 @@ export class BuyController {
 
     if (!bank) throw new BadRequestException('No Bank for the given amount/currency');
 
-    return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic };
+    return { ...Config.bank.dfxBankInfo, iban: bank.iban, bic: bank.bic, sepaInstant: bank.sctInst };
   }
 
   private getTransactionVolume(outputAsset: Asset): MinDeposit[] {
