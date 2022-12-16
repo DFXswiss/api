@@ -137,7 +137,7 @@ export class BuyFiatNotificationService {
               translationParams: {
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
-                bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
+                bankAccountTrimmed: Util.blankIban(entity.sell.iban),
                 remittanceInfo: entity.remittanceInfo,
               },
             },
@@ -185,7 +185,7 @@ export class BuyFiatNotificationService {
                 returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),
-                userAddressTrimmed: Util.trimBlockchainAddress(entity.sell.user.address),
+                userAddressTrimmed: Util.blankBlockchainAddress(entity.sell.user.address),
               },
             },
           });

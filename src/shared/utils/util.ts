@@ -1,3 +1,4 @@
+import { TransformFnParams } from 'class-transformer';
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
@@ -176,11 +177,15 @@ export class Util {
     return new XMLParser({ ignoreAttributes: false }).parse(file);
   }
 
-  static trimBlockchainAddress(address: string): string {
+  static blankBlockchainAddress(address: string): string {
     return '***' + address.slice(address.length - 6);
   }
 
-  static trimIBAN(iban: string): string {
+  static blankIban(iban: string): string {
     return '***' + iban.slice(iban.length - 4);
+  }
+
+  static trimIban({ value }: TransformFnParams): string {
+    return value.split(' ').join('');
   }
 }
