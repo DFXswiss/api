@@ -91,20 +91,7 @@ export class AppController {
   }
 
   // --- REFERRAL --- //
-  // TODO: remove (use v1 endpoint)
   @Get('app')
-  @ApiExcludeEndpoint()
-  async createRef(
-    @RealIP() ip: string,
-    @Query('code') ref: string,
-    @Query('orig') origin: string,
-    @Res() res: Response,
-  ): Promise<void> {
-    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
-    res.redirect(307, this.homepageUrl);
-  }
-
-  @Get('v1/app')
   @ApiExcludeEndpoint()
   async createRefNew(
     @RealIP() ip: string,

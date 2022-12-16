@@ -35,20 +35,45 @@ describe('Config', () => {
     ]);
   });
 
-  it('should return default transaction minVolume EUR', () => {
+  it('should return correct min volume for fiat and EUR', () => {
     expect(Config.transaction.minVolume.get(createDefaultFiat(), 'EUR')).toStrictEqual({ amount: 1, asset: 'EUR' });
   });
 
-  it('should return Fiat transaction minVolume USD', () => {
+  it('should return correct min volume for fiat and USD', () => {
     expect(Config.transaction.minVolume.get(createCustomFiat({ name: 'USD' }), 'USD')).toStrictEqual({
       amount: 1000,
       asset: 'USD',
     });
   });
 
-  it('should return Ethereum transaction minVolume CHF', () => {
+  it('should return correct min volume for ethereum and CHF', () => {
     expect(
       Config.transaction.minVolume.get(createCustomAsset({ name: 'ETH', blockchain: Blockchain.ETHEREUM }), 'CHF'),
     ).toStrictEqual({ amount: 1000, asset: 'CHF' });
+  });
+
+  it('should return correct min volume for BSC and USD', () => {
+    expect(
+      Config.transaction.minVolume.get(
+        createCustomAsset({ name: 'BNB', blockchain: Blockchain.BINANCE_SMART_CHAIN }),
+        'USD',
+      ),
+    ).toStrictEqual({ amount: 10, asset: 'USD' });
+  });
+
+  it('should fallback to USD on unknown currency', () => {
+    expect(
+      Config.transaction.minVolume.get(createCustomAsset({ name: 'DFI', blockchain: Blockchain.DEFICHAIN }), 'AED'),
+    ).toStrictEqual({ amount: 1, asset: 'USD' });
+  });
+
+  it('should return all deposits, if currency not specified', () => {
+    expect(
+      Config.transaction.minVolume.getMany(createCustomAsset({ name: 'DFI', blockchain: Blockchain.DEFICHAIN })),
+    ).toStrictEqual([
+      { amount: 1, asset: 'USD' },
+      { amount: 1, asset: 'CHF' },
+      { amount: 1, asset: 'EUR' },
+    ]);
   });
 });
