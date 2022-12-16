@@ -10,6 +10,7 @@ import { StakingRefReward } from 'src/mix/models/staking-ref-reward/staking-ref-
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/route/buy.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export enum UserStatus {
   NA = 'NA',
@@ -17,9 +18,13 @@ export enum UserStatus {
 }
 
 @Entity()
+@Index('blockchainAddress', (user: User) => [user.address, user.blockchain], { unique: true })
 export class User extends IEntity {
-  @Column({ length: 256, unique: true })
+  @Column({ length: 256 })
   address: string;
+
+  @Column({ length: 256, nullable: true })
+  blockchain: Blockchain;
 
   @Column({ length: 256 })
   signature: string;

@@ -54,7 +54,9 @@ export class AuthService {
 
   // --- AUTH METHODS --- //
   async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
-    const existingUser = await this.userRepo.getByAddress(dto.address);
+    if (!dto.blockchain) dto.blockchain = this.cryptoService.getBlockchainsBasedOn(dto.address);
+
+    const existingUser = await this.userRepo.getByAddress(dto.address, dto.blockchain);
     if (existingUser) {
       throw new ConflictException('User already exists');
     }
@@ -73,8 +75,10 @@ export class AuthService {
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async signIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    const user = await this.userRepo.getByAddress(address);
+  async signIn({ address, signature, blockchain }: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    if (!blockchain) blockchain = this.cryptoService.getBlockchainsBasedOn(address);
+
+    const user = await this.userRepo.getByAddress(address, blockchain);
     if (!user) throw new NotFoundException('User not found');
 
     const { message } = this.getSignMessage(address);
@@ -111,7 +115,8 @@ export class AuthService {
   }
 
   async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
-    const user = await this.getLinkedUser(id, changeUser.address);
+    if (!changeUser.blockchain) changeUser.blockchain = this.cryptoService.getBlockchainsBasedOn(changeUser.address);
+    const user = await this.getLinkedUser(id, changeUser.address, changeUser.blockchain);
     if (!user) throw new NotFoundException('User not found');
     if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
     return { accessToken: this.generateUserToken(user) };
@@ -119,23 +124,23 @@ export class AuthService {
 
   // --- HELPER METHODS --- //
 
-  getSignMessage(address: string): { message: string; blockchains: Blockchain[] } {
-    const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
+  getSignMessage(address: string): { message: string; blockchain: Blockchain } {
+    const blockchain = this.cryptoService.getBlockchainsBasedOn(address);
     return {
       message: Config.auth.signMessageGeneral + address,
-      blockchains,
+      blockchain,
     };
   }
 
-  getCompanySignMessage(address: string): { message: string; blockchains: Blockchain[] } {
-    const blockchains = this.cryptoService.getBlockchainsBasedOn(address);
+  getCompanySignMessage(address: string): { message: string; blockchain: Blockchain } {
+    const blockchain = this.cryptoService.getBlockchainsBasedOn(address);
     return {
       message: Config.auth.signMessageWallet + address,
-      blockchains,
+      blockchain,
     };
   }
 
-  private async getLinkedUser(id: number, address: string): Promise<User> {
+  private async getLinkedUser(id: number, address: string, blockchain: Blockchain): Promise<User> {
     return this.userRepo
       .createQueryBuilder('user')
       .select('linkedUser.*')
@@ -143,6 +148,7 @@ export class AuthService {
       .leftJoin('userData.users', 'linkedUser')
       .where('user.id = :id', { id })
       .andWhere('linkedUser.address = :address', { address })
+      .andWhere('linkedUser.blockchain = :blockchain', { blockchain })
       .getRawOne<User>();
   }
 
@@ -163,7 +169,7 @@ export class AuthService {
       id: user.id,
       address: user.address,
       role: user.role,
-      blockchains: this.cryptoService.getBlockchainsBasedOn(user.address),
+      blockchain: this.cryptoService.getBlockchainsBasedOn(user.address),
     };
     return this.jwtService.sign(payload);
   }

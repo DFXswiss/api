@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { Blank, BlankType, UserData } from '../user-data/user-data.entity';
@@ -16,6 +17,7 @@ export class LinkService {
     private readonly userRepo: UserRepository,
     private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async getLinkAddress(authentication: string): Promise<LinkAddress> {
@@ -55,10 +57,18 @@ export class LinkService {
     if (linkAddress.isExpired()) throw new BadRequestException('Link address request is expired');
     if (linkAddress.isCompleted) throw new ConflictException('Link address request is already completed');
 
-    const existingUser = await this.userRepo.getByAddress(linkAddress.existingAddress, true);
+    const existingUser = await this.userRepo.getByAddress(
+      linkAddress.existingAddress,
+      this.cryptoService.getBlockchainsBasedOn(linkAddress.existingAddress),
+      true,
+    );
     if (!existingUser) throw new NotFoundException('User not found');
 
-    const userToBeLinked = await this.userRepo.getByAddress(linkAddress.newAddress, true);
+    const userToBeLinked = await this.userRepo.getByAddress(
+      linkAddress.newAddress,
+      this.cryptoService.getBlockchainsBasedOn(linkAddress.newAddress),
+      true,
+    );
     if (!userToBeLinked) throw new NotFoundException('User not found');
 
     await this.userDataService.mergeUserData(existingUser.userData.id, userToBeLinked.userData.id);

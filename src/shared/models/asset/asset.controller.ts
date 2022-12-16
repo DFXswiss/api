@@ -15,8 +15,7 @@ export class AssetController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
-  async getAllAsset(@GetJwt() jwt?: JwtPayload, @Query('blockchains') blockchains?: string): Promise<Asset[]> {
-    const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
-    return this.assetService.getAllAsset(queryBlockchains ?? jwt?.blockchains ?? []);
+  async getAllAsset(@GetJwt() jwt?: JwtPayload, @Query('blockchain') blockchain?: string): Promise<Asset[]> {
+    return this.assetService.getAllAsset(blockchain ? (blockchain as Blockchain) : jwt?.blockchain);
   }
 }

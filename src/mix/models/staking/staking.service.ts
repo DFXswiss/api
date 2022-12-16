@@ -62,11 +62,11 @@ export class StakingService {
   }
 
   async getStakingByUserAddresses(addresses: string[]): Promise<Staking[]> {
-    return await this.stakingRepo.find({ where: { user: { address: In(addresses) } }, relations: ['user'] });
+    return await this.stakingRepo.find({ where: { user: { address: In(addresses), blockchain: Blockchain.DEFICHAIN } }, relations: ['user'] });
   }
 
   async getStakingByDepositAddresses(addresses: string[]): Promise<Staking[]> {
-    return await this.stakingRepo.find({ where: { deposit: { address: In(addresses) } }, relations: ['deposit'] });
+    return await this.stakingRepo.find({ where: { deposit: { address: In(addresses), blockchain: Blockchain.DEFICHAIN } }, relations: ['deposit'] });
   }
 
   async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {

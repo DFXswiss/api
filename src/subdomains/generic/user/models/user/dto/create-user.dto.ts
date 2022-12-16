@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 import { GetConfig } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export class CreateUserDto {
   @ApiProperty()
@@ -25,4 +26,9 @@ export class CreateUserDto {
   @IsOptional()
   @IsInt()
   walletId: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(Blockchain)
+  blockchain: Blockchain;
 }

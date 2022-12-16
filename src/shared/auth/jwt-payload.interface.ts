@@ -8,5 +8,5 @@ export interface JwtPayloadBase {
 }
 
 export interface JwtPayload extends JwtPayloadBase {
-  blockchains: Blockchain[];
+  blockchain: Blockchain;
 }

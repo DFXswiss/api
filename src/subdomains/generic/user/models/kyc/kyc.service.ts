@@ -34,6 +34,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { KycWebhookService } from './kyc-webhook.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @Injectable()
 export class KycService {
@@ -145,14 +146,16 @@ export class KycService {
     try {
       result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
         headers: { 'x-api-key': apiKey },
-
         params: { address: dfxUser.address },
       });
     } catch (error) {
       throw new ServiceUnavailableException(error);
     }
 
-    const externalUser = await this.userRepo.findOne({ where: { address: result.kycId }, relations: ['userData'] });
+    const externalUser = await this.userRepo.findOne({
+      where: { address: result.kycId, blockchain: Blockchain.DEFICHAIN },
+      relations: ['userData'],
+    });
     if (!externalUser) throw new NotFoundException('KYC user not found');
     if (dfxUser.userData.id == externalUser.userData.id) throw new ConflictException('User already merged');
 

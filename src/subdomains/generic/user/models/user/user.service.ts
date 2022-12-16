@@ -14,7 +14,7 @@ import { CfpVotes } from './dto/cfp-votes.dto';
 import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
-import { Between, Like, Not } from 'typeorm';
+import { Between, IsNull, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
 import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -49,7 +49,22 @@ export class UserService {
     private readonly geoLocationService: GeoLocationService,
     private readonly countryService: CountryService,
     private readonly cryptoService: CryptoService,
-  ) {}
+  ) {
+    this.setAllUserBlockchain();
+  }
+
+  async setAllUserBlockchain(): Promise<void> {
+    const users = await this.userRepo.find({ where: { blockchain: IsNull() } });
+    for (const user of users) {
+      user.blockchain = this.cryptoService.getBlockchainsBasedOn(user.address);
+
+      try {
+        await this.userRepo.update(user.id, { blockchain: user.blockchain });
+      } catch (e) {
+        console.error(`Error updating initial user blockchain for user id: ${user.id}`, e);
+      }
+    }
+  }
 
   async getAllUser(): Promise<User[]> {
     return await this.userRepo.find();
@@ -79,7 +94,7 @@ export class UserService {
       .getRawMany<LinkedUserOutDto>()
       .then((linkedUsers) => {
         return linkedUsers.map((u) => {
-          return { ...u, blockchains: this.cryptoService.getBlockchainsBasedOn(u.address) };
+          return { ...u, blockchain: this.cryptoService.getBlockchainsBasedOn(u.address) };
         });
       });
   }
