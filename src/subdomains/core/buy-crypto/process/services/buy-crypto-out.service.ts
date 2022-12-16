@@ -11,7 +11,8 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { DuplicatedEntryException } from 'src/subdomains/supporting/payout/exceptions/duplicated-entry.exception';
 import { PayoutRequest, FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PaymentWebhookState, WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 
 @Injectable()
 export class BuyCryptoOutService {
@@ -126,7 +127,9 @@ export class BuyCryptoOutService {
           await this.buyCryptoRepo.save(tx);
 
           // payment webhook
-          tx.buy ? await this.webhookService.fiatCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED) : await this.webhookService.cryptoCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED);
+          tx.buy
+            ? await this.webhookService.fiatCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED)
+            : await this.webhookService.cryptoCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED);
         }
       } catch (e) {
         console.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);

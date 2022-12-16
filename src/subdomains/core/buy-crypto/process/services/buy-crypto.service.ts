@@ -31,7 +31,8 @@ import { BuyService } from '../../route/buy.service';
 import { BuyHistoryDto } from '../../route/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
-import { PaymentWebhookState, WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 
 @Injectable()
 export class BuyCryptoService {

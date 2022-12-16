@@ -16,7 +16,8 @@ import { FiatOutputService } from '../../../supporting/bank/fiat-output/fiat-out
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
-import { PaymentWebhookState, WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 
 @Injectable()
 export class BuyFiatService {

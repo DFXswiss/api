@@ -4,73 +4,12 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { TradingLimit } from '../../models/user/dto/user.dto';
 import { WalletService } from '../../models/wallet/wallet.service';
 import { UserRepository } from '../../models/user/user.repository';
 import { KycCompleted, KycStatus, KycType, UserData } from '../../models/user-data/user-data.entity';
-
-export enum WebhookType {
-  PAYMENT = 'Payment',
-  KYC_CHANGED = 'KycChanged',
-  KYC_FAILED = 'KycFailed',
-}
-
-export class WebhookDto<T> {
-  id: string;
-  type: WebhookType;
-  data: T;
-  reason: string;
-}
-
-// Kyc Webhook
-export enum KycWebhookStatus {
-  NA = 'NA',
-  LIGHT = 'Light',
-  FULL = 'Full',
-  REJECTED = 'Rejected',
-}
-
-export class KycWebhookData {
-  mail: string;
-  firstName: string;
-  lastName: string;
-  street: string;
-  houseNumber: string;
-  city: string;
-  zip: string;
-  phone: string;
-  kycStatus: KycWebhookStatus;
-  kycHash: string;
-  tradingLimit: TradingLimit;
-}
-
-export class KycWebhookDto extends WebhookDto<KycWebhookData> {}
-
-// Payment Webhook
-export enum PaymentWebhookType {
-  FIAT_CRYPTO = 'FiatCrypto',
-  CRYPTO_CRYPTO = 'CryptoCrypto',
-  CRYPTO_FIAT = 'CryptoFiat',
-  FIAT_FIAT = 'FiatFiat',
-}
-
-export enum PaymentWebhookState {
-  CREATED = 'Created',
-  COMPLETED = 'Completed',
-}
-
-export class PaymentWebhookData {
-  type: PaymentWebhookType;
-  state: PaymentWebhookState;
-  inputAmount: number;
-  inputAsset: string;
-  outputAmount: number;
-  outputAsset: string;
-  paymentReference: string;
-  dfxReference: number;
-}
-
-export class PaymentWebhookDto extends WebhookDto<PaymentWebhookData> {}
+import { KycWebhookData, KycWebhookStatus } from './dto/kyc-webhook.dto';
+import { PaymentWebhookState, PaymentWebhookData, PaymentWebhookType } from './dto/payment-webhook.dto';
+import { WebhookType, WebhookDto } from './dto/webhook.dto';
 
 @Injectable()
 export class WebhookService {
