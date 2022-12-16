@@ -46,9 +46,9 @@ export class WebhookService {
 
   // --- HELPER METHODS --- //
 
-  private async triggerWebhook(
+  private async triggerWebhook<T extends PaymentWebhookData | KycWebhookData>(
     userData: UserData,
-    data: PaymentWebhookData | KycWebhookData,
+    data: T,
     type: WebhookType,
     reason?: string,
   ): Promise<void> {
@@ -64,7 +64,7 @@ export class WebhookService {
         const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
         if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
-        const webhookDto: WebhookDto<typeof data> = {
+        const webhookDto: WebhookDto<T> = {
           id: user.address,
           type: type,
           data: data,
@@ -77,14 +77,14 @@ export class WebhookService {
           tryCount: 3,
         });
       } catch (error) {
-        const errMessage = `Exception during ${type} webhook for user ${user.id} & userData ${userData.id}:`;
+        const errMessage = `Exception during ${type} webhook for user ${user.id} & user data ${userData.id}:`;
 
         console.error(errMessage, error);
 
         await this.notificationService.sendMail({
           type: MailType.ERROR_MONITORING,
           input: {
-            subject: `${type} Webhook failed`,
+            subject: `${type} webhook failed`,
             errors: [errMessage, error],
           },
         });
