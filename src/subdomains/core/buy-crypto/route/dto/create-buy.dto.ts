@@ -4,13 +4,14 @@ import { IsEnum, IsNotEmpty, IsNotEmptyObject, ValidateIf, ValidateNested } from
 import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/utils/util';
 import { BuyType } from './buy-type.enum';
 
 export class CreateBuyDto {
   @ApiProperty()
   @IsNotEmpty()
   // @IsIBAN()
-  @Transform(({ value }) => value.split(' ').join(''))
+  @Transform(Util.trimIban)
   iban: string;
 
   @ApiProperty()
