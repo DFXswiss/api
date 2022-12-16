@@ -100,7 +100,7 @@ export class GsService {
     } else if (query.depositAddress) {
       return await this.sellService.getSellByAddress(query.depositAddress).then((sell) => sell?.user.userData);
     } else if (query.iban) {
-      return await this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.user.userData);
+      return await this.bankAccountService.getBankAccountByIban(query.iban).then((bankAcc) => bankAcc?.userData);
     } else if (query.ref) {
       return await this.userService.getRefUser(query.ref).then((user) => user?.userData);
     } else if (query.bankUsage) {

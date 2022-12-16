@@ -1,6 +1,6 @@
 import { Entity, Column, Index, ManyToOne, OneToMany } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
-import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Sell } from '../../../core/sell-crypto/sell/sell.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/route/buy.entity';
@@ -31,9 +31,7 @@ export interface BankAccountInfos {
 }
 
 @Entity()
-@Index('ibanUser', (bankAccount: BankAccount) => [bankAccount.iban, bankAccount.user], {
-  unique: true,
-})
+@Index((account: BankAccount) => [account.iban, account.userData], { unique: true })
 export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256 })
   iban: string;
@@ -41,8 +39,8 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256, nullable: true })
   label: string;
 
-  @ManyToOne(() => User, (user) => user.bankAccounts, { nullable: false })
-  user: User;
+  @ManyToOne(() => UserData, (user) => user.bankAccounts, { nullable: false })
+  userData: UserData;
 
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
   preferredCurrency: Fiat;
