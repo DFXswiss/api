@@ -44,7 +44,7 @@ export class BankAccountService {
     });
     if (existing) throw new ConflictException('BankAccount already exists');
 
-    const bankAccount = await this.getOrCreateBankAccount(dto.iban, userId);
+    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId);
 
     const update = await this.updateEntity(dto, bankAccount);
     return this.bankAccountRepo.save(update);
@@ -75,16 +75,7 @@ export class BankAccountService {
 
   async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
     const { id: userDataId } = await this.userDataService.getUserDataByUser(userId);
-
-    const bankAccounts = await this.bankAccountRepo.find({
-      where: { iban },
-      relations: ['userData'],
-    });
-
-    return (
-      bankAccounts.find((b) => b.userData.id === userDataId) ??
-      (await this.createBankAccountInternal(iban, userDataId, bankAccounts[0]))
-    );
+    return await this.getOrCreateBankAccountInternal(iban, userDataId);
   }
 
   // --- HELPER METHODS --- //
@@ -101,6 +92,18 @@ export class BankAccountService {
     bankAccount.label = dto.label;
 
     return bankAccount;
+  }
+
+  async getOrCreateBankAccountInternal(iban: string, userDataId: number): Promise<BankAccount> {
+    const bankAccounts = await this.bankAccountRepo.find({
+      where: { iban },
+      relations: ['userData'],
+    });
+
+    return (
+      bankAccounts.find((b) => b.userData.id === userDataId) ??
+      (await this.createBankAccountInternal(iban, userDataId, bankAccounts[0]))
+    );
   }
 
   private async createBankAccountInternal(
