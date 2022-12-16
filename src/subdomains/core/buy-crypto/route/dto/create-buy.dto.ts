@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsNotEmptyObject, ValidateIf, ValidateNested } from 'class-validator';
 import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { EntityDto } from 'src/shared/dto/entity.dto';
@@ -10,6 +10,7 @@ export class CreateBuyDto {
   @ApiProperty()
   @IsNotEmpty()
   // @IsIBAN()
+  @Transform(({ value }) => value.split(' ').join(''))
   iban: string;
 
   @ApiProperty()

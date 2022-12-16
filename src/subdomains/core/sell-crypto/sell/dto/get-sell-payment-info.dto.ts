@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsNotEmptyObject, IsString, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EntityDto } from 'src/shared/dto/entity.dto';
@@ -10,6 +10,7 @@ export class GetSellPaymentInfoDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
+  @Transform(({ value }) => value.split(' ').join(''))
   iban: string;
 
   @ApiProperty()

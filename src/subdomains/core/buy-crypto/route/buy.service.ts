@@ -84,9 +84,6 @@ export class BuyService {
     const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
     if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
-
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {

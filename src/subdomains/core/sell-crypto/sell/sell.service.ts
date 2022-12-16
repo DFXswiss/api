@@ -61,9 +61,6 @@ export class SellService {
     const fiat = await this.fiatService.getFiat(dto.fiat.id);
     if (!fiat) throw new BadRequestException('Fiat not found');
 
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
-
     // check if exists
     const existing = await this.sellRepo.findOne({
       relations: ['deposit'],
