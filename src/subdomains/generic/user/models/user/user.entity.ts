@@ -18,11 +18,12 @@ export enum UserStatus {
 }
 
 @Entity()
-@Index('blockchainAddress', (user: User) => [user.address, user.blockchain], { unique: true })
+@Index((user: User) => [user.address, user.blockchain], { unique: true })
 export class User extends IEntity {
   @Column({ length: 256 })
   address: string;
 
+  // TODO set nullable false
   @Column({ length: 256, nullable: true })
   blockchain: Blockchain;
 

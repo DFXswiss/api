@@ -50,13 +50,14 @@ export class UserService {
     private readonly countryService: CountryService,
     private readonly cryptoService: CryptoService,
   ) {
+    //TODO remove temp code
     this.setAllUserBlockchain();
   }
 
   async setAllUserBlockchain(): Promise<void> {
     const users = await this.userRepo.find({ where: { blockchain: IsNull() } });
     for (const user of users) {
-      user.blockchain = this.cryptoService.getBlockchainsBasedOn(user.address);
+      user.blockchain = this.cryptoService.getDefaultBlockchainBasedOn(user.address);
 
       try {
         await this.userRepo.update(user.id, { blockchain: user.blockchain });
@@ -94,7 +95,7 @@ export class UserService {
       .getRawMany<LinkedUserOutDto>()
       .then((linkedUsers) => {
         return linkedUsers.map((u) => {
-          return { ...u, blockchain: this.cryptoService.getBlockchainsBasedOn(u.address) };
+          return { ...u, blockchain: u.blockchain };
         });
       });
   }

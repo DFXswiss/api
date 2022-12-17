@@ -36,7 +36,7 @@ function createJwt(): JwtPayload {
     id: 0,
     address: '',
     role: UserRole.USER,
-    blockchains: [Blockchain.DEFICHAIN],
+    blockchain: Blockchain.DEFICHAIN,
   };
 }
 

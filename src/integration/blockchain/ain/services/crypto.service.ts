@@ -10,10 +10,14 @@ export class CryptoService {
   private readonly EthereumBasedChains = [Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN];
 
   // --- ADDRESSES --- //
-  public getBlockchainsBasedOn(address: string): Blockchain {
-    if (isEthereumAddress(address)) return Blockchain.ETHEREUM;
-    if (this.isBitcoinAddress(address)) return Blockchain.BITCOIN;
-    return Blockchain.DEFICHAIN;
+  public getBlockchainsBasedOn(address: string): Blockchain[] {
+    if (isEthereumAddress(address)) return [Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN];
+    if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
+    return [Blockchain.DEFICHAIN];
+  }
+
+  public getDefaultBlockchainBasedOn(address: string): Blockchain {
+    return this.getBlockchainsBasedOn(address)[0];
   }
 
   private isBitcoinAddress(address: string): boolean {
@@ -22,7 +26,7 @@ export class CryptoService {
 
   // --- SIGNATURE VERIFICATION --- //
   public verifySignature(address: string, signature: string, message: string, fallbackMessage?: string): boolean {
-    const blockchain = this.getBlockchainsBasedOn(address);
+    const blockchain = this.getDefaultBlockchainBasedOn(address);
 
     let isValid = this.verify(blockchain, address, signature, message);
 

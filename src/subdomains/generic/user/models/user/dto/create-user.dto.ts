@@ -27,7 +27,7 @@ export class CreateUserDto {
   @IsInt()
   walletId: number;
 
-  @ApiPropertyOptional()
+  @ApiProperty()
   @IsOptional()
   @IsEnum(Blockchain)
   blockchain: Blockchain;

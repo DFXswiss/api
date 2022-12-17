@@ -55,7 +55,7 @@ export class AuthService {
   // --- AUTH METHODS --- //
 
   async signUp(dto: CreateUserDto, userIp: string): Promise<{ accessToken: string }> {
-    if (!dto.blockchain) dto.blockchain = this.cryptoService.getBlockchainsBasedOn(dto.address);
+    dto.blockchain ??= this.cryptoService.getDefaultBlockchainBasedOn(dto.address);
 
     const existingUser = await this.userRepo.getByAddress(dto.address, dto.blockchain);
     if (existingUser) throw new ConflictException('User already exists');
@@ -72,7 +72,7 @@ export class AuthService {
   }
 
   async signIn({ address, signature, blockchain }: AuthCredentialsDto): Promise<{ accessToken: string }> {
-    if (!blockchain) blockchain = this.cryptoService.getBlockchainsBasedOn(address);
+    blockchain ??= this.cryptoService.getDefaultBlockchainBasedOn(address);
 
     const user = await this.userRepo.getByAddress(address, blockchain);
     if (!user) throw new NotFoundException('User not found');
@@ -109,7 +109,6 @@ export class AuthService {
   }
 
   async changeUser(id: number, changeUser: LinkedUserInDto): Promise<{ accessToken: string }> {
-    if (!changeUser.blockchain) changeUser.blockchain = this.cryptoService.getBlockchainsBasedOn(changeUser.address);
     const user = await this.getLinkedUser(id, changeUser.address, changeUser.blockchain);
     if (!user) throw new NotFoundException('User not found');
     if (user.stakingBalance > 0) throw new ForbiddenException('Change user not allowed');
@@ -118,17 +117,17 @@ export class AuthService {
 
   // --- SIGN MESSAGES --- //
 
-  getSignInfo(address: string): { message: string; blockchain: Blockchain } {
+  getSignInfo(address: string): { message: string; blockchains: Blockchain[] } {
     return {
       message: this.getSignMessages(address).defaultMessage,
-      blockchain: this.cryptoService.getBlockchainsBasedOn(address),
+      blockchains: this.cryptoService.getBlockchainsBasedOn(address),
     };
   }
 
-  getCompanySignInfo(address: string): { message: string; blockchain: Blockchain } {
+  getCompanySignInfo(address: string): { message: string; blockchains: Blockchain[] } {
     return {
       message: Config.auth.signMessageWallet + address,
-      blockchain: this.cryptoService.getBlockchainsBasedOn(address),
+      blockchains: this.cryptoService.getBlockchainsBasedOn(address),
     };
   }
 
@@ -171,7 +170,7 @@ export class AuthService {
       id: user.id,
       address: user.address,
       role: user.role,
-      blockchain: this.cryptoService.getBlockchainsBasedOn(user.address),
+      blockchain: user.blockchain,
     };
     return this.jwtService.sign(payload);
   }
