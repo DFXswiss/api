@@ -4,24 +4,13 @@ import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Config } from 'src/config/config';
 
 @Injectable()
 export class CryptoService {
-  public verifySignature(message: string, address: string, signature: string): boolean {
-    const blockchain = this.getBlockchainsBasedOn(address);
+  private readonly EthereumBasedChains = [Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN];
+  private readonly BitcoinBasedChains = [Blockchain.BITCOIN, Blockchain.DEFICHAIN];
 
-    let isValid = false;
-    try {
-      isValid = this.verify(message, address, signature, blockchain);
-    } catch (e) {}
-
-    if (!isValid && !blockchain.includes(Blockchain.ETHEREUM)) {
-      isValid = this.fallbackVerify(message, address, signature, blockchain);
-    }
-    return isValid;
-  }
-
+  // --- ADDRESSES --- //
   public getBlockchainsBasedOn(address: string): Blockchain {
     if (isEthereumAddress(address)) return Blockchain.ETHEREUM;
     if (this.isBitcoinAddress(address)) return Blockchain.BITCOIN;
@@ -32,8 +21,42 @@ export class CryptoService {
     return address.match(/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/)?.length > 1 ?? false;
   }
 
-  private fallbackVerify(message: string, address: string, signature: string, blockchain: Blockchain) {
+  // --- SIGNATURE VERIFICATION --- //
+  public verifySignature(address: string, signature: string, message: string, fallbackMessage?: string): boolean {
+    const blockchain = this.getBlockchainsBasedOn(address);
+
+    let isValid = this.doVerify(blockchain, address, signature, message);
+
+    if (!isValid && fallbackMessage) {
+      isValid = this.doVerify(blockchain, address, signature, fallbackMessage);
+    }
+
+    return isValid;
+  }
+
+  private doVerify(blockchain: Blockchain, address: string, signature: string, message: string): boolean {
+    let isValid = this.verify(message, address, signature, blockchain);
+
+    if (!isValid && this.BitcoinBasedChains.includes(blockchain)) {
+      isValid = this.fallbackVerify(message, address, signature, blockchain);
+    }
+
+    return isValid;
+  }
+
+  private verify(message: string, address: string, signature: string, blockchain: Blockchain): boolean {
+    try {
+      if (this.EthereumBasedChains.includes(blockchain)) return this.verifyEthereum(message, address, signature);
+      if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoin(message, address, signature);
+      if (blockchain === Blockchain.DEFICHAIN) return this.verifyDefichain(message, address, signature);
+    } catch {
+      return false;
+    }
+  }
+
+  private fallbackVerify(message: string, address: string, signature: string, blockchain: Blockchain): boolean {
     let isValid = false;
+
     const flags = [...Array(12).keys()].map((i) => i + 31);
     for (const flag of flags) {
       const flagByte = Buffer.alloc(1);
@@ -41,18 +64,12 @@ export class CryptoService {
       let sigBuffer = Buffer.from(signature, 'base64').slice(1);
       sigBuffer = Buffer.concat([flagByte, sigBuffer]);
       const candidateSig = sigBuffer.toString('base64');
-      try {
-        isValid = this.verify(message, address, candidateSig, blockchain);
-        if (isValid) break;
-      } catch (e) {}
-    }
-    return isValid;
-  }
 
-  private verify(message: string, address: string, signature: string, blockchain: Blockchain): boolean {
-    if (blockchain === Blockchain.ETHEREUM) return this.verifyEthereum(message, address, signature);
-    if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoin(message, address, signature);
-    return this.verifyDefichain(message, address, signature);
+      isValid = this.verify(message, address, candidateSig, blockchain);
+      if (isValid) break;
+    }
+
+    return isValid;
   }
 
   private verifyEthereum(message: string, address: string, signature: string): boolean {
@@ -76,11 +93,6 @@ export class CryptoService {
   }
 
   private verifyDefichain(message: string, address: string, signature: string): boolean {
-    let isValid = verify(message, address, signature, MainNet.messagePrefix);
-    if (!isValid) {
-      const fallbackMessage = Config.auth.signMessage + address;
-      isValid = verify(fallbackMessage, address, signature, MainNet.messagePrefix);
-    }
-    return isValid;
+    return verify(message, address, signature, MainNet.messagePrefix);
   }
 }
