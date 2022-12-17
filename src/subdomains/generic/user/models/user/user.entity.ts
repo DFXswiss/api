@@ -7,7 +7,6 @@ import { Staking } from '../../../../../mix/models/staking/staking.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { StakingRefReward } from 'src/mix/models/staking-ref-reward/staking-ref-reward.entity';
-import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/route/buy.entity';
 
