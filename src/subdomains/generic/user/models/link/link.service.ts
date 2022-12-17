@@ -59,14 +59,14 @@ export class LinkService {
 
     const existingUser = await this.userRepo.getByAddress(
       linkAddress.existingAddress,
-      this.cryptoService.getBlockchainsBasedOn(linkAddress.existingAddress),
+      this.cryptoService.getDefaultBlockchainBasedOn(linkAddress.existingAddress),
       true,
     );
     if (!existingUser) throw new NotFoundException('User not found');
 
     const userToBeLinked = await this.userRepo.getByAddress(
       linkAddress.newAddress,
-      this.cryptoService.getBlockchainsBasedOn(linkAddress.newAddress),
+      this.cryptoService.getDefaultBlockchainBasedOn(linkAddress.newAddress),
       true,
     );
     if (!userToBeLinked) throw new NotFoundException('User not found');
