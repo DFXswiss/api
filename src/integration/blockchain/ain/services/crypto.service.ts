@@ -25,9 +25,13 @@ export class CryptoService {
   }
 
   // --- SIGNATURE VERIFICATION --- //
-  public verifySignature(address: string, signature: string, message: string, fallbackMessage?: string): boolean {
-    const blockchain = this.getDefaultBlockchainBasedOn(address);
-
+  public verifySignature(
+    address: string,
+    signature: string,
+    blockchain: Blockchain,
+    message: string,
+    fallbackMessage?: string,
+  ): boolean {
     let isValid = this.verify(blockchain, address, signature, message);
 
     if (!isValid && fallbackMessage) {

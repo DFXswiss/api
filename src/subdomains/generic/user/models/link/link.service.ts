@@ -28,10 +28,12 @@ export class LinkService {
 
   async createNewLinkAddress(user: UserData, completedUser: UserData): Promise<void> {
     const oldestToNewestUser = this.sortOldToNew(completedUser.users);
-    const existingAddress = oldestToNewestUser[0].address;
-    const newAddress = user.users[0].address;
+    const existingUser = oldestToNewestUser[0];
+    const newUser = user.users[0];
 
-    const linkAddress = await this.linkAddressRepo.save(LinkAddress.create(existingAddress, newAddress));
+    const linkAddress = await this.linkAddressRepo.save(
+      LinkAddress.create(existingUser.address, existingUser.blockchain, newUser.address, newUser.blockchain),
+    );
 
     await this.notificationService.sendMail({
       type: MailType.USER,
@@ -42,8 +44,8 @@ export class LinkService {
           firstname: completedUser.firstname,
           surname: completedUser.surname,
           organizationName: completedUser.organizationName ?? '',
-          existingAddress: Blank(existingAddress, BlankType.WALLET_ADDRESS),
-          newAddress: Blank(newAddress, BlankType.WALLET_ADDRESS),
+          existingAddress: Blank(existingUser.address, BlankType.WALLET_ADDRESS),
+          newAddress: Blank(newUser.address, BlankType.WALLET_ADDRESS),
           url: this.buildLinkUrl(linkAddress.authentication),
         },
       },
@@ -59,16 +61,12 @@ export class LinkService {
 
     const existingUser = await this.userRepo.getByAddress(
       linkAddress.existingAddress,
-      this.cryptoService.getDefaultBlockchainBasedOn(linkAddress.existingAddress),
+      linkAddress.existingBlockchain,
       true,
     );
     if (!existingUser) throw new NotFoundException('User not found');
 
-    const userToBeLinked = await this.userRepo.getByAddress(
-      linkAddress.newAddress,
-      this.cryptoService.getDefaultBlockchainBasedOn(linkAddress.newAddress),
-      true,
-    );
+    const userToBeLinked = await this.userRepo.getByAddress(linkAddress.newAddress, linkAddress.newBlockchain, true);
     if (!userToBeLinked) throw new NotFoundException('User not found');
 
     await this.userDataService.mergeUserData(existingUser.userData.id, userToBeLinked.userData.id);

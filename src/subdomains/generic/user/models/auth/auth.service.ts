@@ -60,7 +60,8 @@ export class AuthService {
     const existingUser = await this.userRepo.getByAddress(dto.address, dto.blockchain);
     if (existingUser) throw new ConflictException('User already exists');
 
-    if (!this.verifySignature(dto.address, dto.signature)) throw new BadRequestException('Invalid signature');
+    if (!this.verifySignature(dto.address, dto.signature, dto.blockchain))
+      throw new BadRequestException('Invalid signature');
 
     const ref = await this.refService.get(userIp);
     if (ref) {
@@ -77,7 +78,7 @@ export class AuthService {
     const user = await this.userRepo.getByAddress(address, blockchain);
     if (!user) throw new NotFoundException('User not found');
 
-    if (!this.verifySignature(address, signature)) throw new UnauthorizedException('Invalid credentials');
+    if (!this.verifySignature(address, signature, blockchain)) throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
     if (user.signature.length !== 88) {
@@ -88,10 +89,12 @@ export class AuthService {
   }
 
   async companySignIn(dto: AuthCredentialsDto): Promise<{ accessToken: string }> {
+    dto.blockchain ??= this.cryptoService.getDefaultBlockchainBasedOn(dto.address);
+
     const wallet = await this.walletRepo.findOne({ where: { address: dto.address } });
     if (!wallet || !wallet.isKycClient) throw new NotFoundException('Wallet not found');
 
-    if (!this.verifyCompanySignature(dto.address, dto.signature))
+    if (!this.verifyCompanySignature(dto.address, dto.signature, dto.blockchain))
       throw new UnauthorizedException('Invalid credentials');
 
     return { accessToken: this.generateCompanyToken(wallet) };
@@ -152,17 +155,17 @@ export class AuthService {
       .getRawOne<User>();
   }
 
-  private verifySignature(address: string, signature: string): boolean {
+  private verifySignature(address: string, signature: string, blockchain: Blockchain): boolean {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
-    return this.cryptoService.verifySignature(address, signature, defaultMessage, fallbackMessage);
+    return this.cryptoService.verifySignature(address, signature, blockchain, defaultMessage, fallbackMessage);
   }
 
-  private verifyCompanySignature(address: string, signature: string): boolean {
+  private verifyCompanySignature(address: string, signature: string, blockchain: Blockchain): boolean {
     const challengeData = this.challengeList.get(address);
     if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(address);
 
-    return this.cryptoService.verifySignature(address, signature, challengeData.challenge);
+    return this.cryptoService.verifySignature(address, signature, blockchain, challengeData.challenge);
   }
 
   private generateUserToken(user: User): string {

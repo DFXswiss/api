@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { Column, Entity, Generated, Index } from 'typeorm';
@@ -8,7 +9,13 @@ export class LinkAddress extends IEntity {
   existingAddress: string;
 
   @Column({ length: 256 })
+  existingBlockchain: Blockchain;
+
+  @Column({ length: 256 })
   newAddress: string;
+
+  @Column({ length: 256 })
+  newBlockchain: Blockchain;
 
   @Column()
   @Generated('uuid')
@@ -21,10 +28,17 @@ export class LinkAddress extends IEntity {
   @Column({ type: 'datetime2' })
   expiration: Date;
 
-  static create(existingAddress: string, newAddress: string): LinkAddress {
+  static create(
+    existingAddress: string,
+    existingBlockchain: Blockchain,
+    newAddress: string,
+    newBlockchain: Blockchain,
+  ): LinkAddress {
     const linkAddress = new LinkAddress();
     linkAddress.existingAddress = existingAddress;
+    linkAddress.existingBlockchain = existingBlockchain;
     linkAddress.newAddress = newAddress;
+    linkAddress.newBlockchain = newBlockchain;
 
     const tomorrow = Util.daysAfter(1);
     linkAddress.expiration = tomorrow;

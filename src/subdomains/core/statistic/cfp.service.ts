@@ -10,6 +10,7 @@ import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
 import { Masternode } from 'src/mix/models/masternode/masternode.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export interface CfpSettings {
   inProgress: boolean;
@@ -294,7 +295,7 @@ export class CfpService {
       this.masterNodes[vote.address] &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
       new Date(vote.createdAt) < new Date(this.settings.endDate) &&
-      this.cryptoService.verifySignature(vote.address, vote.signature, vote.vote)
+      this.cryptoService.verifySignature(vote.address, vote.signature, Blockchain.DEFICHAIN, vote.vote)
     );
   }
 

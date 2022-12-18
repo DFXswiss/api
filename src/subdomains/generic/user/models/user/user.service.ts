@@ -55,9 +55,23 @@ export class UserService {
   }
 
   async setAllUserBlockchain(): Promise<void> {
-    const users = await this.userRepo.find({ where: { blockchain: IsNull() } });
+    const users = await this.userRepo.find({ where: { blockchain: IsNull() }, relations: ['buys'] });
     for (const user of users) {
       user.blockchain = this.cryptoService.getDefaultBlockchainBasedOn(user.address);
+
+      if (user.blockchain === Blockchain.ETHEREUM) {
+        const result = { ethereum: false, bsc: false };
+        user.buys.forEach((e) =>
+          e.asset.blockchain === Blockchain.ETHEREUM
+            ? (result.ethereum = true)
+            : e.asset.blockchain === Blockchain.BINANCE_SMART_CHAIN
+            ? (result.bsc = true)
+            : null,
+        );
+
+        if (result.ethereum && result.bsc) continue;
+        if (result.bsc) user.blockchain = Blockchain.BINANCE_SMART_CHAIN;
+      }
 
       try {
         await this.userRepo.update(user.id, { blockchain: user.blockchain });
