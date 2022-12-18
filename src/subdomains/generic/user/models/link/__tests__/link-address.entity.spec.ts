@@ -1,3 +1,4 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { LinkAddress } from '../link-address.entity';
 import { createCustomLinkAddress } from './mock/link-address.entity.mock';
@@ -6,7 +7,12 @@ describe('LinkAddress', () => {
   it('should set existing, new address and expiration date to tomorrow on create', () => {
     const tomorrow = Util.daysAfter(1);
 
-    const linkAddress = LinkAddress.create('existing-address', 'new-address');
+    const linkAddress = LinkAddress.create(
+      'existing-address',
+      Blockchain.DEFICHAIN,
+      'new-address',
+      Blockchain.DEFICHAIN,
+    );
     expect(linkAddress.existingAddress).toStrictEqual('existing-address');
     expect(linkAddress.newAddress).toStrictEqual('new-address');
     expect(linkAddress.expiration.getTime()).toBeGreaterThan(Date.now());
@@ -18,7 +24,12 @@ describe('LinkAddress', () => {
   });
 
   it('should return false if date is not expired', () => {
-    const linkAddress = LinkAddress.create('existing-address', 'new-address');
+    const linkAddress = LinkAddress.create(
+      'existing-address',
+      Blockchain.DEFICHAIN,
+      'new-address',
+      Blockchain.DEFICHAIN,
+    );
     expect(linkAddress.isExpired()).toBeFalsy();
   });
 
