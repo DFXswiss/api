@@ -294,7 +294,7 @@ export class CfpService implements OnModuleInit {
       this.masternodes.get(vote.address) &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
       new Date(vote.createdAt) < new Date(this.settings.endDate) &&
-      this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
+      this.cryptoService.verifySignature(vote.address, vote.signature, vote.vote)
     );
   }
 
