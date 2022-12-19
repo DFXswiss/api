@@ -102,14 +102,13 @@ export class BuyFiatService {
 
     // payment webhook
     // TODO add fiatFiatUpdate here
-    if (dto.inputAmount && dto.inputAsset) {
-      entity.sell
-        ? await this.webhookService.cryptoFiatUpdate(entity.sell.user.userData, entity, PaymentWebhookState.CREATED)
-        : null;
-    }
     if (dto.outputAmount && dto.outputAsset) {
       entity.sell
         ? await this.webhookService.cryptoFiatUpdate(entity.sell.user.userData, entity, PaymentWebhookState.COMPLETED)
+        : null;
+    } else if (dto.inputAmount && dto.inputAsset) {
+      entity.sell
+        ? await this.webhookService.cryptoFiatUpdate(entity.sell.user.userData, entity, PaymentWebhookState.CREATED)
         : null;
     }
 
