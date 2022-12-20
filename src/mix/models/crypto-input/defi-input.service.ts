@@ -190,7 +190,7 @@ export class DeFiInputService extends CryptoInputService {
                     translationParams: {
                       inputAmount: input.amount,
                       inputAsset: input.asset.name,
-                      userAddressTrimmed: Util.trimBlockchainAddress(input.route.user.address),
+                      userAddressTrimmed: Util.blankBlockchainAddress(input.route.user.address),
                       transactionLink: input.inTxId,
                     },
                   },
