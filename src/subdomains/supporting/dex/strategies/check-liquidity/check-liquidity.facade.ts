@@ -11,6 +11,8 @@ import { EthereumCoinStrategy } from './impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from './impl/ethereum-token.strategy';
 
 enum Alias {
+  ARBITRUM_COIN = 'ArbitrumCoin',
+  ARBITRUM_TOKEN = 'ArbitrumToken',
   BITCOIN = 'Bitcoin',
   BSC_COIN = 'BscCoin',
   BSC_TOKEN = 'BscToken',
@@ -18,6 +20,8 @@ enum Alias {
   DEFICHAIN_DEFAULT = 'DeFiChainDefault',
   ETHEREUM_COIN = 'EthereumCoin',
   ETHEREUM_TOKEN = 'EthereumToken',
+  OPTIMISM_COIN = 'OptimismCoin',
+  OPTIMISM_TOKEN = 'OptimismToken',
 }
 
 export { Alias as CheckLiquidityAlias };

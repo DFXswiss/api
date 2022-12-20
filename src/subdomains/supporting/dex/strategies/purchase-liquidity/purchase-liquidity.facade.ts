@@ -13,6 +13,8 @@ import { EthereumTokenStrategy } from './impl/ethereum-token.strategy';
 import { DeFiChainDfiStrategy } from './impl/defichain-dfi.strategy';
 
 enum Alias {
+  ARBITRUM_COIN = 'ArbitrumCoin',
+  ARBITRUM_TOKEN = 'ArbitrumToken',
   BITCOIN = 'Bitcoin',
   BSC_COIN = 'BscCoin',
   BSC_TOKEN = 'BscToken',
@@ -22,6 +24,8 @@ enum Alias {
   DEFICHAIN_DFI = 'DeFiChainDfi',
   ETHEREUM_COIN = 'EthereumCoin',
   ETHEREUM_TOKEN = 'EthereumToken',
+  OPTIMISM_COIN = 'OptimismCoin',
+  OPTIMISM_TOKEN = 'OptimismToken',
 }
 
 export { Alias as PurchaseLiquidityStrategyAlias };
