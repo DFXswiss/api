@@ -73,7 +73,7 @@ export class BuyCryptoNotificationService {
                   buyOutputAsset: tx.outputAsset.name,
                   buyFeePercentage: Util.round(tx.percentFee * 100, 2),
                   exchangeRate: Util.round(tx.inputAmount / tx.outputAmount, 2),
-                  buyWalletAddress: Util.trimBlockchainAddress(tx.target.address),
+                  buyWalletAddress: Util.blankBlockchainAddress(tx.target.address),
                   buyTxId: tx.txId,
                   buyTransactionLink: `${BlockchainExplorerUrls[tx.target.asset.blockchain]}/${tx.txId}`,
                 },

@@ -26,6 +26,7 @@ import { FiatOutputService } from './fiat-output/fiat-output.service';
 import { FiatOutputController } from './fiat-output/fiat-output.controller';
 import { BankTxRepeatController } from './bank-tx-repeat/bank-tx-repeat.controller';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.repository';
+import { UserModule } from 'src/subdomains/generic/user/user.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-
     SharedModule,
     BankIntegrationModule,
     NotificationModule,
+    UserModule,
     forwardRef(() => BuyCryptoModule),
   ],
 

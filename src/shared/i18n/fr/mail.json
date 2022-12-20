@@ -2,12 +2,12 @@
   "kyc": {
     "reminder": {
       "salutation": "Terminez votre vérification",
-      "body": "<p>Nous avons remarqué que vous n'avez pas terminé votre vérification. ({status})</p><p>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton Staking dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
+      "body": "<p>Nous avons remarqué que vous n'avez pas terminé votre vérification. ({status})</p><p>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
       "title": "Terminez votre vérification"
     },
     "chatbot": {
       "salutation": "Chatbot terminé - prochaine étape pour votre vérification",
-      "body": "<p>Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton Staking dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
+      "body": "<p>Pour commencer l'identification en ligne, cliquez sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
       "title": "Chatbot terminé"
     },
     "ident": {
@@ -17,7 +17,7 @@
     },
     "failed": {
       "salutation": "Votre identification en ligne a échoué",
-      "body": "<p>Nous avons remarqué que votre identification en ligne a échoué. Nous avons cependant déjà débloqué l'identification vidéo pour vous.<br>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton Staking dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
+      "body": "<p>Nous avons remarqué que votre identification en ligne a échoué. Nous avons cependant déjà débloqué l'identification vidéo pour vous.<br>Veuillez continuer en cliquant sur le bouton d'actualisation dans la section Limites de la page de paiement (via le bouton \"My DFX\" dans l'appli) ou <a href=\"{url}\" style=\"color:#FFFFFF\">ici</a>.</p><p>Franchissez le dernier pas et développez votre liberté financière dès aujourd'hui</p><p>Votre équipe DFX<br>Bitcoiners de coeur ♥</p>",
       "title": "Votre identification en ligne a échoué"
     },
     "success": {
@@ -54,7 +54,7 @@
       },
       "annualLimit": {
         "salutation": "Vous avez dépassé votre volume annuel",
-        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Veuillez demander une nouvelle limite annuelle.</td></tr><tr><td colspan=\"3\" align=\"center\">Nous traiterons votre transaction après<br> l'augmentation de votre limite.</td></tr><tr><td colspan=\"3\" align=\"center\">Augmenter la limite ?</td></tr><tr><td colspan=\"3\" align=\"center\">Ouvrez la page de paiement via le bouton \"Staking\" dans l'appli DFX.</td></tr><tr><td colspan=\"3\" align=\"center\">Rendez-vous sur la flèche rouge sous \"Votre limite\" et<br> demandez une nouvelle limite.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
+        "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Veuillez demander une nouvelle limite annuelle.</td></tr><tr><td colspan=\"3\" align=\"center\">Nous traiterons votre transaction après<br> l'augmentation de votre limite.</td></tr><tr><td colspan=\"3\" align=\"center\">Augmenter la limite ?</td></tr><tr><td colspan=\"3\" align=\"center\">Ouvrez la page de paiement via le bouton \"My DFX\" dans l'appli DFX.</td></tr><tr><td colspan=\"3\" align=\"center\">Rendez-vous sur la flèche rouge sous \"Votre limite\" et<br> demandez une nouvelle limite.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\">Si vous avez des questions, nous sommes ravis de vous aider sur <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Merci beaucoup pour votre confiance</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Votre équipe DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
         "title": "Limite annuelle dépassée"
       },
       "olkyNoKyc": {
@@ -106,7 +106,7 @@
   "limitRequest": {
     "manualApproved": {
       "salutation": "Your transaction volume has been approved",
-      "body": "<p>Hi {firstname},</p><p>Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you</p><p>Thank you very much for your trust.</p><p>Please do not hesitate to contact me if you have any questions.</p><p>Kind regards,<br>Theresia</p><p>Assistance CEO",
+      "body": "<p>Hi {firstname},</p><p>Your request of {limitAmount} EUR transaction volume has been approved and is now freely available to you</p><p>Thank you for your trust in DFX.</p><p>Please do not hesitate to contact me if you have any questions.</p><p>Kind regards,<br>Theresia</p><p>Assistance CEO",
       "title": "Transaction volume approved"
     }
   },

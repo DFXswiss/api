@@ -34,22 +34,15 @@ export class ExchangeService implements PriceProvider {
   }
 
   async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
-    const orderPrice = await Util.retry(() => this.fetchOrderPrice(fromCurrency, toCurrency), 3);
+    const orderPrice = await Util.retry(() => this.fetchLastOrderPrice(fromCurrency, toCurrency), 3);
 
-    const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
-    const [left, right] = pair.split('/');
+    const { direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
 
-    return direction === OrderSide.BUY
-      ? {
-          source: right,
-          target: left,
-          price: orderPrice,
-        }
-      : {
-          source: left,
-          target: right,
-          price: 1 / orderPrice,
-        };
+    return {
+      source: fromCurrency,
+      target: toCurrency,
+      price: direction === OrderSide.BUY ? orderPrice : 1 / orderPrice,
+    };
   }
 
   async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<TradeResponse> {
@@ -114,7 +107,15 @@ export class ExchangeService implements PriceProvider {
 
     return { pair: selectedPair, direction: selectedDirection };
   }
-  private async fetchOrderPrice(from: string, to: string): Promise<number> {
+
+  private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
+    const { pair } = await this.getCurrencyPair(from, to);
+
+    const trades = await this.exchange.fetchTrades(pair);
+    return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
+  }
+
+  private async fetchCurrentOrderPrice(from: string, to: string): Promise<number> {
     const { pair, direction } = await this.getCurrencyPair(from, to);
 
     /* 
@@ -142,7 +143,7 @@ export class ExchangeService implements PriceProvider {
 
     do {
       // create a new order with the remaining amount, if order undefined or price changed
-      const price = await this.fetchOrderPrice(from, to);
+      const price = await this.fetchCurrentOrderPrice(from, to);
       if (price !== order?.price) {
         remainingAmount = amount - Util.sumObj(Object.values(orders), 'fromAmount');
 

@@ -25,7 +25,7 @@ async function bootstrap() {
   app.use('*', json({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 
-  app.setGlobalPrefix('v1', { exclude: ['', 'app'] });
+  app.setGlobalPrefix('v1', { exclude: [''] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new AllExceptionFilter());
 

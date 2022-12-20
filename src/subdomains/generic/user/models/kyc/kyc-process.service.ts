@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { SpiderDataRepository } from 'src/subdomains/generic/user/models/spider-data/spider-data.repository';
 import {
+  KycCompleted,
   KycInProgress,
   KycState,
   KycStatus,
@@ -62,7 +63,7 @@ export class KycProcessService {
       userData.spiderData = await this.updateSpiderData(userData, initiateData);
     }
 
-    if (status === KycStatus.MANUAL && userData.isDfxUser) {
+    if (KycCompleted(status) && userData.isDfxUser) {
       if (userData.mail) {
         await this.notificationService.sendMail({
           type: MailType.USER,
