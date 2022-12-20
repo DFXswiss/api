@@ -197,22 +197,36 @@ export class UserDataService {
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {
     const [master, slave] = await Promise.all([
-      this.userDataRepo.findOne({ where: { id: masterId }, relations: ['users', 'users.wallet', 'bankDatas'] }),
+      this.userDataRepo.findOne({
+        where: { id: masterId },
+        relations: ['users', 'users.wallet', 'bankDatas', 'bankAccounts'],
+      }),
       this.userDataRepo.findOne({
         where: { id: slaveId },
-        relations: ['users', 'users.wallet', 'bankDatas'],
+        relations: ['users', 'users.wallet', 'bankDatas', 'bankAccounts'],
       }),
     ]);
-    if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KycType`);
+    if (!master.isDfxUser) throw new BadRequestException(`Master ${master.id} not allowed to merge. Wrong KYC type`);
+
+    const bankAccountsToReassign = slave.bankAccounts.filter(
+      (sba) => !master.bankAccounts.some((mba) => sba.iban === mba.iban),
+    );
+
     console.log(
-      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning bank datas ${slave.bankDatas
-        .map((b) => b.id)
-        .join(', ')} and users ${slave.users.map((u) => u.id).join(', ')}`,
+      `Merging user ${master.id} (master) and ${slave.id} (slave): reassigning `,
+      [
+        bankAccountsToReassign.length > 0 && `bank accounts ${bankAccountsToReassign.map((ba) => ba.id).join(', ')}`,
+        slave.bankDatas.length > 0 && `bank datas ${slave.bankDatas.map((b) => b.id).join(', ')}`,
+        slave.users.length > 0 && `users ${slave.users.map((u) => u.id).join(', ')}`,
+      ]
+        .filter((i) => i)
+        .join(' and '),
     );
 
     await this.updateBankTxTime(slave.id);
 
-    // reassign bank datas and users
+    // reassign bank accounts, datas and users
+    master.bankAccounts = master.bankAccounts.concat(bankAccountsToReassign);
     master.bankDatas = master.bankDatas.concat(slave.bankDatas);
     master.users = master.users.concat(slave.users);
     await this.userDataRepo.save(master);
