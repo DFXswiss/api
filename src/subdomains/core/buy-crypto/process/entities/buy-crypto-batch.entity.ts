@@ -91,14 +91,17 @@ export class BuyCryptoBatch extends IEntity {
     return [true, false];
   }
 
-  checkAndRecordFeesEstimations(purchaseFeeAmount: number, payoutFeeAmount: number): this {
-    this.checkFees(purchaseFeeAmount, payoutFeeAmount);
-    this.recordFees(purchaseFeeAmount, payoutFeeAmount);
+  checkAndRecordFeesEstimations(
+    estimatePurchaseFeeAmount: number | null,
+    estimatePayoutFeeAmount: number | null,
+  ): this {
+    this.checkFees(estimatePurchaseFeeAmount, estimatePayoutFeeAmount);
+    this.recordFees(estimatePurchaseFeeAmount, estimatePayoutFeeAmount);
 
     return this;
   }
 
-  secure(liquidity: number, purchaseFee = 0): this {
+  secure(liquidity: number, purchaseFee: number | null): this {
     this.outputAmount = liquidity;
     this.status = BuyCryptoBatchStatus.SECURED;
 
@@ -209,7 +212,7 @@ export class BuyCryptoBatch extends IEntity {
     this.outputReferenceAmount = 0;
   }
 
-  private checkFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
+  private checkFees(purchaseFeeAmount: number | null, payoutFeeAmount: number | null): void {
     const feeRatio = Util.round((purchaseFeeAmount + payoutFeeAmount) / this.outputReferenceAmount, 8);
     const { configuredFeeLimit, defaultFeeLimit } = Config.buy.fee.limits;
 
@@ -223,11 +226,11 @@ export class BuyCryptoBatch extends IEntity {
     }
   }
 
-  private recordFees(purchaseFeeAmount: number, payoutFeeAmount: number): void {
+  private recordFees(estimatePurchaseFeeAmount: number | null, estimatePayoutFeeAmount: number | null): void {
     this.transactions.forEach((tx) => {
       const fee = BuyCryptoFee.create(
-        this.calculateFeeShare(tx, purchaseFeeAmount),
-        this.calculateFeeShare(tx, payoutFeeAmount),
+        estimatePurchaseFeeAmount != null ? this.calculateFeeShare(tx, estimatePurchaseFeeAmount) : null,
+        estimatePayoutFeeAmount != null ? this.calculateFeeShare(tx, estimatePayoutFeeAmount) : null,
         tx,
       );
 
@@ -235,8 +238,8 @@ export class BuyCryptoBatch extends IEntity {
     });
   }
 
-  private addActualPurchaseFee(purchaseFeeAmount: number, tx: BuyCrypto): void {
-    const txPurchaseFee = this.calculateFeeShare(tx, purchaseFeeAmount);
+  private addActualPurchaseFee(purchaseFeeAmount: number | null, tx: BuyCrypto): void {
+    const txPurchaseFee = purchaseFeeAmount != null ? this.calculateFeeShare(tx, purchaseFeeAmount) : null;
     tx.fee.addActualPurchaseFee(txPurchaseFee, tx);
   }
 

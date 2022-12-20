@@ -22,7 +22,7 @@ export class BuyCryptoPricingService {
     nativeFee: FeeResult,
     priceRequestCorrelationId: string,
     errorMessage: string,
-  ): Promise<number> {
+  ): Promise<number | null> {
     try {
       return nativeFee.amount
         ? await this.convertToTargetAsset(
@@ -43,7 +43,7 @@ export class BuyCryptoPricingService {
         priceRequestCorrelationId,
       );
 
-      return 0;
+      return null;
     }
   }
 

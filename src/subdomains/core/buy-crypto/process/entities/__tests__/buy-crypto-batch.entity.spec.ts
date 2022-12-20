@@ -237,7 +237,7 @@ describe('BuyCryptoBatch', () => {
 
       expect(entity.outputAmount).toBeUndefined();
 
-      entity.secure(100);
+      entity.secure(100, 0);
 
       expect(entity.outputAmount).toBe(100);
     });
@@ -251,7 +251,7 @@ describe('BuyCryptoBatch', () => {
 
       expect(entity.status).toBeUndefined();
 
-      entity.secure(100);
+      entity.secure(100, 0);
 
       expect(entity.status).toBe(BuyCryptoBatchStatus.SECURED);
     });
@@ -267,7 +267,7 @@ describe('BuyCryptoBatch', () => {
       expect(transactionA.outputAmount).toBeUndefined();
       expect(transactionB.outputAmount).toBeUndefined();
 
-      entity.secure(90);
+      entity.secure(90, 0);
 
       expect(transactionA.outputAmount).toBe(30);
       expect(transactionB.outputAmount).toBe(60);
@@ -282,7 +282,7 @@ describe('BuyCryptoBatch', () => {
         outputReferenceAmount: 3,
       });
 
-      entity.secure(1);
+      entity.secure(1, 0);
 
       expect(transactionA.outputAmount).toBe(0.33333334);
       expect(transactionB.outputAmount).toBe(0.33333333);
@@ -307,7 +307,7 @@ describe('BuyCryptoBatch', () => {
 
       expect(entity.transactions.length).toBe(200);
 
-      entity.secure(0.00001105);
+      entity.secure(0.00001105, 0);
 
       expect(entity.transactions[0].outputAmount).toBe(0.00000005);
       expect(entity.transactions[1].outputAmount).toBe(0.00000005);
@@ -331,7 +331,7 @@ describe('BuyCryptoBatch', () => {
         outputAsset: createCustomAsset({ dexName: 'BTC' }),
       });
 
-      const testCall = () => entity.secure(30);
+      const testCall = () => entity.secure(30, 0);
 
       expect(testCall).toThrow();
       expect(testCall).toThrowError('Output amount mismatch is too high. Mismatch: 10 BTC');
@@ -340,7 +340,7 @@ describe('BuyCryptoBatch', () => {
     it('returns instance of BuyCryptoBatch', () => {
       const entity = createCustomBuyCryptoBatch({ transactions: [] });
 
-      const updatedEntity = entity.secure(0);
+      const updatedEntity = entity.secure(0, 0);
 
       expect(updatedEntity).toBeInstanceOf(BuyCryptoBatch);
     });

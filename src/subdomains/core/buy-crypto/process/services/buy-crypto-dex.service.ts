@@ -69,7 +69,7 @@ export class BuyCryptoDexService {
         const liquidity = await this.checkLiquidity(batch);
 
         if (liquidity !== 0) {
-          batch.secure(liquidity);
+          batch.secure(liquidity, 0);
           await this.buyCryptoBatchRepo.save(batch);
 
           console.info(`Secured liquidity for batch. Batch ID: ${batch.id}.`);
