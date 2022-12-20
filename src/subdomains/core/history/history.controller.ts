@@ -3,7 +3,7 @@ import {
   UseGuards,
   Get,
   StreamableFile,
-  Response,
+  Res,
   Post,
   Query,
   NotFoundException,
@@ -24,6 +24,7 @@ import { HistoryQuery } from './dto/history-query.dto';
 import { CoinTrackingHistoryDto } from './dto/coin-tracking-history.dto';
 import { HistoryService } from './history.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
+import { Response } from 'express';
 
 @ApiTags('history')
 @Controller('history')
@@ -82,7 +83,7 @@ export class HistoryController {
 
   @Get('csv')
   @ApiBearerAuth()
-  async getCsv(@Query('key') key: string, @Response({ passthrough: true }) res): Promise<StreamableFile> {
+  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
     const csvFile = this.files[+key];
     if (!csvFile) throw new NotFoundException('File not found');
     delete this.files[+key];

@@ -1,7 +1,14 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { UserDataRepository } from './user-data.repository';
-import { KycInProgress, KycState, KycType, UserData } from './user-data.entity';
+import { KycCompleted, KycInProgress, KycState, KycType, UserData } from './user-data.entity';
 import { BankDataRepository } from 'src/subdomains/generic/user/models/bank-data/bank-data.repository';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { getRepository, MoreThan, Not } from 'typeorm';
@@ -17,6 +24,9 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
 import { KycWebhookService } from '../kyc/kyc-webhook.service';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { AccountType } from './account-type.enum';
+import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
+import { LinkService } from '../link/link.service';
 
 @Injectable()
 export class UserDataService {
@@ -31,6 +41,7 @@ export class UserDataService {
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
     private readonly kycWebhookService: KycWebhookService,
+    @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -122,7 +133,32 @@ export class UserDataService {
     return await this.userDataRepo.save({ ...userData, ...dto });
   }
 
-  async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<UserData> {
+  async updateKycData(user: UserData, data: KycUserDataDto): Promise<UserData> {
+    const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
+
+    // check countries
+    const [country, organizationCountry] = await Promise.all([
+      this.countryService.getCountry(data.country?.id ?? user.country?.id),
+      this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
+    ]);
+    if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
+    if (!country.isEnabled(user.kycType)) throw new BadRequestException(`Country not allowed for ${user.kycType}`);
+
+    if (isPersonalAccount) {
+      data.organizationName = null;
+      data.organizationStreet = null;
+      data.organizationHouseNumber = null;
+      data.organizationLocation = null;
+      data.organizationZip = null;
+      data.organizationCountry = null;
+    }
+
+    user = await this.updateSpiderIfNeeded(user, data);
+
+    return await this.userDataRepo.save(Object.assign(user, data));
+  }
+
+  async updateUserSettings(user: UserData, dto: UpdateUserDto): Promise<{ user: UserData; isKnownUser: boolean }> {
     // check language
     if (dto.language) {
       dto.language = await this.languageService.getLanguage(dto.language.id);
@@ -135,13 +171,18 @@ export class UserDataService {
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
+    const mailChanged = dto.mail && dto.mail !== user.mail;
+
     // update spider
     user = await this.updateSpiderIfNeeded(user, dto);
 
-    return this.userDataRepo.save(Object.assign(user, dto));
+    user = await this.userDataRepo.save(Object.assign(user, dto));
+
+    const isKnownUser = mailChanged && (await this.isKnownKycUser(user));
+    return { user, isKnownUser };
   }
 
-  async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
+  private async updateSpiderIfNeeded(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     if ((dto.phone && dto.phone != userData.phone) || (dto.mail && dto.mail != userData.mail)) {
       await this.spiderService.updateCustomer(userData.id, {
         telephones: dto.phone ? [dto.phone.replace('+', '').split(' ').join('')] : undefined,
@@ -193,6 +234,20 @@ export class UserDataService {
       annualCryptoVolume: Util.round(volumes.annualCryptoVolume, Config.defaultVolumeDecimal),
       stakingBalance: Util.round(volumes.stakingBalance, Config.defaultVolumeDecimal),
     });
+  }
+
+  async isKnownKycUser(user: UserData): Promise<boolean> {
+    if (user.isDfxUser) {
+      const users = await this.getUsersByMail(user.mail);
+      const completedUser = users.find((u) => u.id !== user.id && KycCompleted(u.kycStatus) && u.isDfxUser);
+      if (completedUser) {
+        // send an address link request
+        await this.linkService.createNewLinkAddress(user, completedUser);
+        return true;
+      }
+    }
+
+    return false;
   }
 
   async mergeUserData(masterId: number, slaveId: number): Promise<void> {

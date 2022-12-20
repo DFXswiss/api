@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -14,8 +21,8 @@ export class LinkService {
   constructor(
     private readonly linkAddressRepo: LinkAddressRepository,
     private readonly userRepo: UserRepository,
-    private readonly userDataService: UserDataService,
     private readonly notificationService: NotificationService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
   async getLinkAddress(authentication: string): Promise<LinkAddress> {
