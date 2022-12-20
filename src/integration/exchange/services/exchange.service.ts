@@ -124,6 +124,8 @@ export class ExchangeService implements PriceProvider {
     const pair = await this.getPair(from, to);
 
     const trades = await this.exchange.fetchTrades(pair);
+    if (trades.length === 0) throw new Error(`No trades found for ${pair}`);
+
     return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
   }
 
