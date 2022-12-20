@@ -22,9 +22,9 @@ import { BuyFiatService } from '../../../subdomains/core/sell-crypto/buy-fiat/bu
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { RouteType } from '../route/deposit-route.entity';
+import { Util } from 'src/shared/utils/util';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { Util } from 'src/shared/utils/util';
 
 interface HistoryAmount {
   amount: number;
@@ -191,7 +191,7 @@ export class DeFiInputService extends CryptoInputService {
                       inputAmount: input.amount,
                       inputAsset: input.asset.name,
                       userAddressTrimmed: Util.trimBlockchainAddress(input.route.user.address),
-                      transactionLink: input.outTxId,
+                      transactionLink: input.inTxId,
                     },
                   },
                 });
