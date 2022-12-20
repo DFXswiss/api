@@ -2133,5 +2133,57 @@
       }
     ],
     "tests": []
+  },
+  {
+    "_id": "f8d7019c-70b9-4e8e-be98-fda1bd185cbd",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Trades",
+    "url": "{{url}}/v1/exchange/kraken/trade?from=EUR&to=BTC",
+    "method": "GET",
+    "sortNum": 22500,
+    "created": "2022-12-20T14:59:28.818Z",
+    "modified": "2022-12-20T15:47:28.199Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "from",
+        "value": "EUR",
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "BTC",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "8c923c2c-8b77-4759-8ae5-59d2f75c8d5b",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Trade History",
+    "url": "{{url}}/v1/exchange/kraken/trade/history",
+    "method": "GET",
+    "sortNum": 23750,
+    "created": "2022-12-20T15:44:40.743Z",
+    "modified": "2022-12-20T15:47:09.368Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "from",
+        "value": "EUR",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "BTC",
+        "isDisabled": true,
+        "isPath": false
+      }
+    ],
+    "tests": []
   }
 ]
