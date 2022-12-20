@@ -18,8 +18,16 @@ import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../payout.facade';
+import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
+import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
+import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
+import { PayoutArbitrumService } from '../../../services/payout-arbitrum.service';
+import { PayoutOptimismService } from '../../../services/payout-optimism.service';
 
 describe('PayoutStrategiesFacade', () => {
+  let arbitrumCoin: ArbitrumCoinStrategy;
+  let arbitrumToken: ArbitrumTokenStrategy;
   let bitcoin: BitcoinStrategy;
   let deFiChainCoin: DeFiChainCoinStrategy;
   let deFiChainToken: DeFiChainTokenStrategy;
@@ -27,10 +35,22 @@ describe('PayoutStrategiesFacade', () => {
   let ethereumToken: EthereumTokenStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
+  let optimismCoin: OptimismCoinStrategy;
+  let optimismToken: OptimismTokenStrategy;
 
   let facade: PayoutStrategiesFacadeWrapper;
 
   beforeEach(() => {
+    arbitrumCoin = new ArbitrumCoinStrategy(
+      mock<PayoutArbitrumService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    arbitrumToken = new ArbitrumTokenStrategy(
+      mock<PayoutArbitrumService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
     bitcoin = new BitcoinStrategy(
       mock<NotificationService>(),
       mock<PayoutBitcoinService>(),
@@ -62,8 +82,20 @@ describe('PayoutStrategiesFacade', () => {
     );
     bscCoin = new BscCoinStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
     bscToken = new BscTokenStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
+    optimismCoin = new OptimismCoinStrategy(
+      mock<PayoutOptimismService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    optimismToken = new OptimismTokenStrategy(
+      mock<PayoutOptimismService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
 
     facade = new PayoutStrategiesFacadeWrapper(
+      arbitrumCoin,
+      arbitrumToken,
       bitcoin,
       bscCoin,
       bscToken,
@@ -71,6 +103,8 @@ describe('PayoutStrategiesFacade', () => {
       deFiChainToken,
       ethereumCoin,
       ethereumToken,
+      optimismCoin,
+      optimismToken,
     );
   });
 
@@ -226,6 +260,8 @@ describe('PayoutStrategiesFacade', () => {
 
 class PayoutStrategiesFacadeWrapper extends PayoutStrategiesFacade {
   constructor(
+    arbitrumCoin: ArbitrumCoinStrategy,
+    arbitrunToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
@@ -233,8 +269,22 @@ class PayoutStrategiesFacadeWrapper extends PayoutStrategiesFacade {
     deFiChainToken: DeFiChainTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
+    optimismCoin: OptimismCoinStrategy,
+    optimismToken: OptimismTokenStrategy,
   ) {
-    super(bitcoin, bscCoin, bscToken, deFiChainCoin, deFiChainToken, ethereumCoin, ethereumToken);
+    super(
+      arbitrumCoin,
+      arbitrunToken,
+      bitcoin,
+      bscCoin,
+      bscToken,
+      deFiChainCoin,
+      deFiChainToken,
+      ethereumCoin,
+      ethereumToken,
+      optimismCoin,
+      optimismToken,
+    );
   }
 
   getStrategies() {

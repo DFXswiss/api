@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { ArbitrumCoinStrategy } from './impl/arbitrum-coin.strategy';
+import { ArbitrumTokenStrategy } from './impl/arbitrum-token.strategy';
 import { CheckLiquidityStrategy } from './impl/base/check-liquidity.strategy';
 import { BitcoinStrategy } from './impl/bitcoin.strategy';
 import { BscCoinStrategy } from './impl/bsc-coin.strategy';
@@ -9,6 +11,8 @@ import { DeFiChainDefaultStrategy } from './impl/defichain-default.strategy';
 import { DeFiChainPoolPairStrategy } from './impl/defichain-poolpair.strategy';
 import { EthereumCoinStrategy } from './impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from './impl/ethereum-token.strategy';
+import { OptimismCoinStrategy } from './impl/optimism-coin.strategy';
+import { OptimismTokenStrategy } from './impl/optimism-token.strategy';
 
 enum Alias {
   ARBITRUM_COIN = 'ArbitrumCoin',
@@ -31,6 +35,8 @@ export class CheckLiquidityStrategies {
   protected readonly strategies = new Map<Alias, CheckLiquidityStrategy>();
 
   constructor(
+    arbitrumCoin: ArbitrumCoinStrategy,
+    arbitrumToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
@@ -38,7 +44,11 @@ export class CheckLiquidityStrategies {
     deFiChainPoolPair: DeFiChainPoolPairStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
+    optimismCoin: OptimismCoinStrategy,
+    optimismToken: OptimismTokenStrategy,
   ) {
+    this.strategies.set(Alias.ARBITRUM_COIN, arbitrumCoin);
+    this.strategies.set(Alias.ARBITRUM_TOKEN, arbitrumToken);
     this.strategies.set(Alias.BITCOIN, bitcoin);
     this.strategies.set(Alias.BSC_COIN, bscCoin);
     this.strategies.set(Alias.BSC_TOKEN, bscToken);
@@ -46,6 +56,8 @@ export class CheckLiquidityStrategies {
     this.strategies.set(Alias.DEFICHAIN_DEFAULT, deFiChainDefault);
     this.strategies.set(Alias.ETHEREUM_COIN, ethereumCoin);
     this.strategies.set(Alias.ETHEREUM_TOKEN, ethereumToken);
+    this.strategies.set(Alias.OPTIMISM_COIN, optimismCoin);
+    this.strategies.set(Alias.OPTIMISM_TOKEN, optimismToken);
   }
 
   getCheckLiquidityStrategy(criteria: Asset | Alias): CheckLiquidityStrategy {
@@ -84,6 +96,14 @@ export class CheckLiquidityStrategies {
 
     if (blockchain === Blockchain.ETHEREUM) {
       return assetType === AssetType.COIN ? Alias.ETHEREUM_COIN : Alias.ETHEREUM_TOKEN;
+    }
+
+    if (blockchain === Blockchain.ARBITRUM) {
+      return assetType === AssetType.COIN ? Alias.ARBITRUM_COIN : Alias.ARBITRUM_TOKEN;
+    }
+
+    if (blockchain === Blockchain.OPTIMISM) {
+      return assetType === AssetType.COIN ? Alias.OPTIMISM_COIN : Alias.OPTIMISM_TOKEN;
     }
   }
 }

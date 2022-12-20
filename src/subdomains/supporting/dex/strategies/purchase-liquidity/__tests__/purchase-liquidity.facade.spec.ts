@@ -21,8 +21,16 @@ import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { PurchaseLiquidityStrategyAlias, PurchaseLiquidityStrategies } from '../purchase-liquidity.facade';
 import { DeFiChainDfiStrategy } from '../impl/defichain-dfi.strategy';
+import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
+import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
+import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
+import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
+import { DexOptimismService } from '../../../services/dex-optimism.service';
 
 describe('PurchaseLiquidityStrategies', () => {
+  let arbitrumCoin: ArbitrumCoinStrategy;
+  let arbitrumToken: ArbitrumTokenStrategy;
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
@@ -32,10 +40,22 @@ describe('PurchaseLiquidityStrategies', () => {
   let deFiChainDfi: DeFiChainDfiStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
+  let optimismCoin: OptimismCoinStrategy;
+  let optimismToken: OptimismTokenStrategy;
 
   let facade: PurchaseLiquidityStrategiesWrapper;
 
   beforeEach(() => {
+    arbitrumCoin = new ArbitrumCoinStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexArbitrumService>(),
+    );
+    arbitrumToken = new ArbitrumTokenStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexArbitrumService>(),
+    );
     bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBitcoinService>());
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
@@ -73,8 +93,20 @@ describe('PurchaseLiquidityStrategies', () => {
     );
     ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
     ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
+    optimismCoin = new OptimismCoinStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexOptimismService>(),
+    );
+    optimismToken = new OptimismTokenStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexOptimismService>(),
+    );
 
     facade = new PurchaseLiquidityStrategiesWrapper(
+      arbitrumCoin,
+      arbitrumToken,
       bitcoin,
       bscCoin,
       bscToken,
@@ -84,6 +116,8 @@ describe('PurchaseLiquidityStrategies', () => {
       deFiChainStock,
       ethereumCoin,
       ethereumToken,
+      optimismCoin,
+      optimismToken,
     );
   });
 
@@ -284,6 +318,8 @@ describe('PurchaseLiquidityStrategies', () => {
 
 class PurchaseLiquidityStrategiesWrapper extends PurchaseLiquidityStrategies {
   constructor(
+    arbitrumCoin: ArbitrumCoinStrategy,
+    arbitrumToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
@@ -293,8 +329,12 @@ class PurchaseLiquidityStrategiesWrapper extends PurchaseLiquidityStrategies {
     deFiChainStock: DeFiChainStockStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
+    optimismCoin: OptimismCoinStrategy,
+    optimismToken: OptimismTokenStrategy,
   ) {
     super(
+      arbitrumCoin,
+      arbitrumToken,
       bitcoin,
       bscCoin,
       bscToken,
@@ -304,6 +344,8 @@ class PurchaseLiquidityStrategiesWrapper extends PurchaseLiquidityStrategies {
       deFiChainStock,
       ethereumCoin,
       ethereumToken,
+      optimismCoin,
+      optimismToken,
     );
   }
 

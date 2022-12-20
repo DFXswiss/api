@@ -18,10 +18,18 @@ import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PurchaseLiquidityStrategies } from '../../purchase-liquidity/purchase-liquidity.facade';
+import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
+import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
+import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
+import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
+import { DexOptimismService } from '../../../services/dex-optimism.service';
 
 describe('CheckLiquidityStrategies', () => {
   let nodeService: NodeService;
 
+  let arbitrumCoin: ArbitrumCoinStrategy;
+  let arbitrumToken: ArbitrumTokenStrategy;
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
@@ -29,6 +37,8 @@ describe('CheckLiquidityStrategies', () => {
   let deFiChainDefault: DeFiChainDefaultStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
+  let optimismCoin: OptimismCoinStrategy;
+  let optimismToken: OptimismTokenStrategy;
 
   let facade: CheckLiquidityStrategiesWrapper;
 
@@ -36,6 +46,8 @@ describe('CheckLiquidityStrategies', () => {
     nodeService = mock<NodeService>();
     jest.spyOn(nodeService, 'getConnectedNode').mockImplementation(() => new BehaviorSubject(null));
 
+    arbitrumCoin = new ArbitrumCoinStrategy(mock<AssetService>(), mock<DexArbitrumService>());
+    arbitrumToken = new ArbitrumTokenStrategy(mock<AssetService>(), mock<DexArbitrumService>());
     bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<DexBitcoinService>());
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<AssetService>(), mock<DexBscService>());
@@ -47,8 +59,12 @@ describe('CheckLiquidityStrategies', () => {
     );
     ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<DexEthereumService>());
     ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<DexEthereumService>());
+    optimismCoin = new OptimismCoinStrategy(mock<AssetService>(), mock<DexOptimismService>());
+    optimismToken = new OptimismTokenStrategy(mock<AssetService>(), mock<DexOptimismService>());
 
     facade = new CheckLiquidityStrategiesWrapper(
+      arbitrumCoin,
+      arbitrumToken,
       bitcoin,
       bscCoin,
       bscToken,
@@ -56,6 +72,8 @@ describe('CheckLiquidityStrategies', () => {
       deFiChainPoolPair,
       ethereumCoin,
       ethereumToken,
+      optimismCoin,
+      optimismToken,
     );
   });
 
@@ -222,6 +240,8 @@ describe('CheckLiquidityStrategies', () => {
 
 class CheckLiquidityStrategiesWrapper extends CheckLiquidityStrategies {
   constructor(
+    arbitrumCoin: ArbitrumCoinStrategy,
+    arbitrumToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
@@ -229,8 +249,22 @@ class CheckLiquidityStrategiesWrapper extends CheckLiquidityStrategies {
     deFiChainPoolPair: DeFiChainPoolPairStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
+    optimismCoin: OptimismCoinStrategy,
+    optimismToken: OptimismTokenStrategy,
   ) {
-    super(bitcoin, bscCoin, bscToken, deFiChainDefault, deFiChainPoolPair, ethereumCoin, ethereumToken);
+    super(
+      arbitrumCoin,
+      arbitrumToken,
+      bitcoin,
+      bscCoin,
+      bscToken,
+      deFiChainDefault,
+      deFiChainPoolPair,
+      ethereumCoin,
+      ethereumToken,
+      optimismCoin,
+      optimismToken,
+    );
   }
 
   getStrategies() {
