@@ -85,14 +85,15 @@ describe('KycService', () => {
     jest.spyOn(countryService, 'getCountry').mockImplementation(() => {
       return Promise.resolve(defaultCountry);
     });
-    jest.spyOn(userDataService, 'updateSpiderIfNeeded').mockImplementation((userData, dto) => {
+    jest.spyOn(userDataService, 'isKnownKycUser').mockResolvedValue(false);
+    jest.spyOn(userDataService, 'updateKycData').mockImplementation((userData, dto) => {
       if (
         userData.kycStatus !== KycStatus.NA &&
         ((dto.phone && userData.phone !== dto.phone) || (dto.mail && userData.mail !== dto.mail))
       ) {
         userData.kycState = KycState.FAILED;
       }
-      return Promise.resolve(userData);
+      return Promise.resolve(Object.assign(userData, dto));
     });
     jest.spyOn(kycProcess, 'checkKycProcess').mockImplementation((userData) => {
       return Promise.resolve(userData);
