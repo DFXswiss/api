@@ -39,3 +39,6 @@ ormconfig.json
 .env
 placeholder.env
 placeholder.env
+
+# Custom
+thunder-tests/env
