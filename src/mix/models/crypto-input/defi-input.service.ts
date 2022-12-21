@@ -13,7 +13,6 @@ import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { Lock } from 'src/shared/utils/lock';
 import { IsNull, Not } from 'typeorm';
-import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/integration/blockchain/ain/exceptions/node-not-accessible.exception';
 import { CryptoInputService } from './crypto-input.service';
@@ -23,6 +22,9 @@ import { BuyFiatService } from '../../../subdomains/core/sell-crypto/buy-fiat/bu
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { RouteType } from '../route/deposit-route.entity';
+import { Util } from 'src/shared/utils/util';
+import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 
 interface HistoryAmount {
   amount: number;
@@ -44,7 +46,7 @@ export class DeFiInputService extends CryptoInputService {
     private readonly assetService: AssetService,
     private readonly sellService: SellService,
     private readonly stakingService: StakingService,
-    private readonly cryptoStakingService: CryptoStakingService,
+    private readonly notificationService: NotificationService,
     private readonly buyFiatService: BuyFiatService,
   ) {
     super(cryptoInputRepo);
@@ -175,9 +177,28 @@ export class DeFiInputService extends CryptoInputService {
         case CryptoInputType.BUY_FIAT:
           await this.buyFiatService.create(input);
           break;
-        case CryptoInputType.CRYPTO_STAKING:
+        case CryptoInputType.CRYPTO_STAKING_INVALID:
           if (input.amlCheck === AmlCheck.PASS) {
-            await this.cryptoStakingService.create(input);
+            //send back
+            try {
+              if (input.route.user.userData.mail) {
+                await this.notificationService.sendMail({
+                  type: MailType.USER,
+                  input: {
+                    userData: input.route.user.userData,
+                    translationKey: 'mail.staking.return',
+                    translationParams: {
+                      inputAmount: input.amount,
+                      inputAsset: input.asset.name,
+                      userAddressTrimmed: Util.blankBlockchainAddress(input.route.user.address),
+                      transactionLink: input.inTxId,
+                    },
+                  },
+                });
+              }
+            } catch (e) {
+              console.error(`Failed to send staking return mail ${input.id}:`, e);
+            }
           }
           break;
       }
@@ -273,7 +294,7 @@ export class DeFiInputService extends CryptoInputService {
             ? CryptoInputType.CRYPTO_CRYPTO
             : CryptoInputType.BUY_FIAT
           : route.type === RouteType.STAKING
-          ? CryptoInputType.CRYPTO_STAKING
+          ? CryptoInputType.CRYPTO_STAKING_INVALID
           : CryptoInputType.UNKNOWN,
     });
   }
@@ -337,15 +358,13 @@ export class DeFiInputService extends CryptoInputService {
         amlCheck: AmlCheck.PASS,
         route: { deposit: { blockchain: Blockchain.DEFICHAIN } },
       },
-      relations: ['route'],
+      relations: ['route', 'route.user'],
     });
 
     for (const input of inputs) {
       try {
         const targetAddress =
-          input.route.type === RouteType.SELL
-            ? Config.blockchain.default.dexWalletAddress
-            : Config.blockchain.default.stakingWalletAddress;
+          input.route.type === RouteType.SELL ? Config.blockchain.default.dexWalletAddress : input.route.user.address;
 
         input.asset.type === AssetType.COIN
           ? await this.forwardUtxo(input, targetAddress)
