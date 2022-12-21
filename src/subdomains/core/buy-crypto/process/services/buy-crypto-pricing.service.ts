@@ -68,7 +68,7 @@ export class BuyCryptoPricingService {
       );
     }
 
-    return Util.round(sourceAmount * result.price.price, 8);
+    return result.price.price ? Util.round(sourceAmount / result.price.price, 8) : 0;
   }
 
   private async handleFeeConversionError(

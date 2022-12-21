@@ -29,6 +29,7 @@ export enum PricingPathAlias {
   NON_MATCHING_USD_STABLE_COIN_TO_USD_STABLE_COIN = 'NonMatchingUSDStableCoinToUSDStableCoin',
   FIAT_TO_DFI = 'FiatToDfi',
   DFI_TO_NON_FIAT = 'DfiToNonFiat',
+  NON_FIAT_TO_DFI = 'NonFiatToDfi',
   ALTCOIN_TO_USD_STABLE_COIN = 'AltcoinToUSDStableCoin',
 }
 
@@ -233,6 +234,17 @@ export class PricingService {
     );
 
     this.addPath(
+      new PricePath(PricingPathAlias.NON_FIAT_TO_DFI, [
+        new PriceStep({
+          providers: {
+            primary: [this.dfiDexService],
+            reference: [],
+          },
+        }),
+      ]),
+    );
+
+    this.addPath(
       new PricePath(PricingPathAlias.ALTCOIN_TO_USD_STABLE_COIN, [
         new PriceStep({
           providers: {
@@ -295,6 +307,8 @@ export class PricingService {
 
     if (from === 'DFI' && !PricingUtil.isFiat(to)) return PricingPathAlias.DFI_TO_NON_FIAT;
 
+    if (!PricingUtil.isFiat(from) && to === 'DFI') return PricingPathAlias.NON_FIAT_TO_DFI;
+
     if (PricingUtil.isAltcoin(from) && PricingUtil.isUSDStablecoin(to))
       return PricingPathAlias.ALTCOIN_TO_USD_STABLE_COIN;
 
@@ -308,9 +322,9 @@ export class PricingService {
       path,
     } = result;
 
-    const mainMessage = `Calculated Price for request from: ${from} to: ${to}. Final price: ${resTo}/${resFrom} ${price}. Alias: ${pathAlias}`;
+    const mainMessage = `Calculated Price for request from: ${from} to: ${to}. Final price: ${resFrom}/${resTo} ${price}. Alias: ${pathAlias}`;
     const pathMessage =
-      'Path: ' + path.map((p) => ` ${p.provider} -> ${p.price.target}/${p.price.source} ${p.price.price}`);
+      'Path: ' + path.map((p) => ` ${p.provider} -> ${p.price.source}/${p.price.target} ${p.price.price}`);
 
     console.info(mainMessage + pathMessage);
   }
