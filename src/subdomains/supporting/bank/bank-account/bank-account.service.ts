@@ -24,7 +24,7 @@ export class BankAccountService {
       .createQueryBuilder('bankAccount')
       .innerJoin('bankAccount.userData', 'userData')
       .innerJoin('userData.users', 'user')
-      .innerJoinAndSelect('bankAccount.preferredCurrency', 'preferredCurrency')
+      .leftJoinAndSelect('bankAccount.preferredCurrency', 'preferredCurrency')
       .where('user.id = :id', { id: userId })
       .getMany();
   }
