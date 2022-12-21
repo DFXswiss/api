@@ -110,7 +110,7 @@ describe('PayoutStrategiesFacade', () => {
 
   describe('#constructor(...)', () => {
     it('adds all payoutStrategies to a map', () => {
-      expect([...facade.getStrategies().entries()].length).toBe(7);
+      expect([...facade.getStrategies().entries()].length).toBe(11);
     });
 
     it('assigns strategies to all aliases', () => {
@@ -120,6 +120,8 @@ describe('PayoutStrategiesFacade', () => {
     it('sets all required payoutStrategies aliases', () => {
       const aliases = [...facade.getStrategies().keys()];
 
+      expect(aliases.includes(PayoutStrategyAlias.ARBITRUM_COIN)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.ARBITRUM_TOKEN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.BITCOIN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.BSC_TOKEN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.BSC_COIN)).toBe(true);
@@ -127,9 +129,13 @@ describe('PayoutStrategiesFacade', () => {
       expect(aliases.includes(PayoutStrategyAlias.DEFICHAIN_TOKEN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.ETHEREUM_COIN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.ETHEREUM_TOKEN)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.OPTIMISM_COIN)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.OPTIMISM_TOKEN)).toBe(true);
     });
 
     it('assigns proper payoutStrategies to aliases', () => {
+      expect(facade.getStrategies().get(PayoutStrategyAlias.ARBITRUM_COIN)).toBeInstanceOf(ArbitrumCoinStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.ARBITRUM_TOKEN)).toBeInstanceOf(ArbitrumTokenStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.BITCOIN)).toBeInstanceOf(BitcoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.BSC_COIN)).toBeInstanceOf(BscCoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.BSC_TOKEN)).toBeInstanceOf(BscTokenStrategy);
@@ -137,6 +143,8 @@ describe('PayoutStrategiesFacade', () => {
       expect(facade.getStrategies().get(PayoutStrategyAlias.DEFICHAIN_TOKEN)).toBeInstanceOf(DeFiChainTokenStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.ETHEREUM_COIN)).toBeInstanceOf(EthereumCoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.ETHEREUM_TOKEN)).toBeInstanceOf(EthereumTokenStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.OPTIMISM_COIN)).toBeInstanceOf(OptimismCoinStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.OPTIMISM_TOKEN)).toBeInstanceOf(OptimismTokenStrategy);
     });
   });
 
@@ -146,6 +154,22 @@ describe('PayoutStrategiesFacade', () => {
         const strategy = facade.getPayoutStrategy(createCustomAsset({ blockchain: Blockchain.BITCOIN }));
 
         expect(strategy).toBeInstanceOf(BitcoinStrategy);
+      });
+
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
       });
 
       it('gets BSC_COIN strategy', () => {
@@ -196,6 +220,22 @@ describe('PayoutStrategiesFacade', () => {
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           facade.getPayoutStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -210,6 +250,18 @@ describe('PayoutStrategiesFacade', () => {
         const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.BITCOIN);
 
         expect(strategyCrypto).toBeInstanceOf(BitcoinStrategy);
+      });
+
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.ARBITRUM_COIN);
+
+        expect(strategyCrypto).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.ARBITRUM_TOKEN);
+
+        expect(strategyCrypto).toBeInstanceOf(ArbitrumTokenStrategy);
       });
 
       it('gets BSC_COIN strategy', () => {
@@ -246,6 +298,18 @@ describe('PayoutStrategiesFacade', () => {
         const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.ETHEREUM_TOKEN);
 
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
+      });
+
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.OPTIMISM_COIN);
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.OPTIMISM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
       });
 
       it('fails to get strategy for non-supported Alias', () => {

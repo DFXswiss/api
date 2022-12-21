@@ -123,7 +123,7 @@ describe('PurchaseLiquidityStrategies', () => {
 
   describe('#constructor(...)', () => {
     it('adds all purchaseLiquidityStrategies to a map', () => {
-      expect([...facade.getStrategies().entries()].length).toBe(9);
+      expect([...facade.getStrategies().entries()].length).toBe(13);
     });
 
     it('assigns strategies to all aliases', () => {
@@ -133,6 +133,8 @@ describe('PurchaseLiquidityStrategies', () => {
     it('sets all required purchaseLiquidityStrategies aliases', () => {
       const aliases = [...facade.getStrategies().keys()];
 
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.ARBITRUM_COIN)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.ARBITRUM_TOKEN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.BITCOIN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.BSC_COIN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.BSC_TOKEN)).toBe(true);
@@ -141,9 +143,17 @@ describe('PurchaseLiquidityStrategies', () => {
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.ETHEREUM_COIN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.OPTIMISM_COIN)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.OPTIMISM_TOKEN)).toBe(true);
     });
 
     it('assigns proper purchaseLiquidityStrategies to aliases', () => {
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ARBITRUM_COIN)).toBeInstanceOf(
+        ArbitrumCoinStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ARBITRUM_TOKEN)).toBeInstanceOf(
+        ArbitrumTokenStrategy,
+      );
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BITCOIN)).toBeInstanceOf(BitcoinStrategy);
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BSC_COIN)).toBeInstanceOf(BscCoinStrategy);
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BSC_TOKEN)).toBeInstanceOf(BscTokenStrategy);
@@ -162,11 +172,33 @@ describe('PurchaseLiquidityStrategies', () => {
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN)).toBeInstanceOf(
         EthereumTokenStrategy,
       );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.OPTIMISM_COIN)).toBeInstanceOf(
+        OptimismCoinStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.OPTIMISM_TOKEN)).toBeInstanceOf(
+        OptimismTokenStrategy,
+      );
     });
   });
 
   describe('#getPurchaseLiquidityStrategy(...)', () => {
     describe('getting strategy by Asset', () => {
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
+      });
+
       it('gets BITCOIN strategy for BITCOIN Crypto', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.BITCOIN }));
 
@@ -237,6 +269,22 @@ describe('PurchaseLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           facade.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -257,6 +305,18 @@ describe('PurchaseLiquidityStrategies', () => {
     });
 
     describe('getting strategy by Alias', () => {
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ARBITRUM_COIN);
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ARBITRUM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
+      });
+
       it('gets BITCOIN strategy', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.BITCOIN);
 
@@ -303,6 +363,18 @@ describe('PurchaseLiquidityStrategies', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN);
 
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
+      });
+
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.OPTIMISM_COIN);
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.OPTIMISM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
       });
 
       it('fails to get strategy for non-supported Alias', () => {

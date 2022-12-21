@@ -79,7 +79,7 @@ describe('CheckLiquidityStrategies', () => {
 
   describe('#constructor(...)', () => {
     it('adds all checkLiquidityStrategies to a map', () => {
-      expect([...facade.getStrategies().entries()].length).toBe(7);
+      expect([...facade.getStrategies().entries()].length).toBe(11);
     });
 
     it('assigns strategies to all aliases', () => {
@@ -89,6 +89,8 @@ describe('CheckLiquidityStrategies', () => {
     it('sets all required checkLiquidityStrategies aliases', () => {
       const aliases = [...facade.getStrategies().keys()];
 
+      expect(aliases.includes(CheckLiquidityAlias.ARBITRUM_COIN)).toBe(true);
+      expect(aliases.includes(CheckLiquidityAlias.ARBITRUM_TOKEN)).toBe(true);
       expect(aliases.includes(CheckLiquidityAlias.BITCOIN)).toBe(true);
       expect(aliases.includes(CheckLiquidityAlias.BSC_COIN)).toBe(true);
       expect(aliases.includes(CheckLiquidityAlias.BSC_TOKEN)).toBe(true);
@@ -96,9 +98,13 @@ describe('CheckLiquidityStrategies', () => {
       expect(aliases.includes(CheckLiquidityAlias.DEFICHAIN_DEFAULT)).toBe(true);
       expect(aliases.includes(CheckLiquidityAlias.ETHEREUM_COIN)).toBe(true);
       expect(aliases.includes(CheckLiquidityAlias.ETHEREUM_TOKEN)).toBe(true);
+      expect(aliases.includes(CheckLiquidityAlias.OPTIMISM_COIN)).toBe(true);
+      expect(aliases.includes(CheckLiquidityAlias.OPTIMISM_TOKEN)).toBe(true);
     });
 
     it('assigns proper checkLiquidityStrategies to aliases', () => {
+      expect(facade.getStrategies().get(CheckLiquidityAlias.ARBITRUM_COIN)).toBeInstanceOf(ArbitrumCoinStrategy);
+      expect(facade.getStrategies().get(CheckLiquidityAlias.ARBITRUM_TOKEN)).toBeInstanceOf(ArbitrumTokenStrategy);
       expect(facade.getStrategies().get(CheckLiquidityAlias.BITCOIN)).toBeInstanceOf(BitcoinStrategy);
       expect(facade.getStrategies().get(CheckLiquidityAlias.BSC_COIN)).toBeInstanceOf(BscCoinStrategy);
       expect(facade.getStrategies().get(CheckLiquidityAlias.BSC_TOKEN)).toBeInstanceOf(BscTokenStrategy);
@@ -110,11 +116,29 @@ describe('CheckLiquidityStrategies', () => {
       );
       expect(facade.getStrategies().get(CheckLiquidityAlias.ETHEREUM_COIN)).toBeInstanceOf(EthereumCoinStrategy);
       expect(facade.getStrategies().get(CheckLiquidityAlias.ETHEREUM_TOKEN)).toBeInstanceOf(EthereumTokenStrategy);
+      expect(facade.getStrategies().get(CheckLiquidityAlias.OPTIMISM_COIN)).toBeInstanceOf(OptimismCoinStrategy);
+      expect(facade.getStrategies().get(CheckLiquidityAlias.OPTIMISM_TOKEN)).toBeInstanceOf(OptimismTokenStrategy);
     });
   });
 
   describe('#getCheckLiquidityStrategy(...)', () => {
     describe('getting strategy by Asset', () => {
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
+      });
+
       it('gets BITCOIN strategy for BITCOIN', () => {
         const strategy = facade.getCheckLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.BITCOIN }));
 
@@ -175,6 +199,22 @@ describe('CheckLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           facade.getCheckLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -185,6 +225,18 @@ describe('CheckLiquidityStrategies', () => {
     });
 
     describe('getting strategy by CheckLiquidityAlias', () => {
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(CheckLiquidityAlias.ARBITRUM_COIN);
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(CheckLiquidityAlias.ARBITRUM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
+      });
+
       it('gets BITCOIN strategy', () => {
         const strategy = facade.getCheckLiquidityStrategy(CheckLiquidityAlias.BITCOIN);
 
@@ -225,6 +277,18 @@ describe('CheckLiquidityStrategies', () => {
         const strategy = facade.getCheckLiquidityStrategy(CheckLiquidityAlias.ETHEREUM_TOKEN);
 
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
+      });
+
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(CheckLiquidityAlias.OPTIMISM_COIN);
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getCheckLiquidityStrategy(CheckLiquidityAlias.OPTIMISM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
       });
 
       it('fails to get strategy for non-supported CheckLiquidityAlias', () => {
