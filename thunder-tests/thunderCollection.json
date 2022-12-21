@@ -160,13 +160,6 @@
         "sortNum": 250000
       },
       {
-        "_id": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
-        "name": "deprecated",
-        "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
-        "created": "2022-07-27T13:15:53.346Z",
-        "sortNum": 260000
-      },
-      {
         "_id": "8ac64d00-b99f-4b15-bc4b-98d06a3d3bff",
         "name": "Link",
         "containerId": "",
