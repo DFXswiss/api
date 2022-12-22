@@ -19,6 +19,7 @@ import { DeFiInputService } from './defi-input.service';
 import { HttpService } from '@nestjs/axios';
 import { BuyFiatService } from '../../../subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 
 describe('DeFiInputService', () => {
   let service: DeFiInputService;
@@ -32,6 +33,7 @@ describe('DeFiInputService', () => {
   let stakingService: StakingService;
   let http: HttpService;
   let buyFiatService: BuyFiatService;
+  let notificationService: NotificationService;
 
   function setup(headers: number, blocks: number, lastBlocks: number, addresses: string[]) {
     const utxo = addresses.map((a) => ({ amount: new BigNumber(1), address: a } as unknown as UTXO));
@@ -53,6 +55,7 @@ describe('DeFiInputService', () => {
     cryptoStakingService = createMock<CryptoStakingService>();
     http = createMock<HttpService>();
     buyFiatService = createMock<BuyFiatService>();
+    notificationService = createMock<NotificationService>();
 
     jest
       .spyOn(nodeService, 'getConnectedNode')
@@ -74,6 +77,7 @@ describe('DeFiInputService', () => {
         { provide: CryptoStakingService, useValue: cryptoStakingService },
         { provide: HttpService, useValue: http },
         { provide: BuyFiatService, useValue: buyFiatService },
+        { provide: NotificationService, useValue: notificationService },
         TestUtil.provideConfig({
           blockchain: { default: { utxoSpenderAddress: 'addr2', minDeposit: { DeFiChain: { DFI: 0.01 } } } },
         }),
