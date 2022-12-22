@@ -92,6 +92,42 @@
     "ethSwapTokenAddress": {
       "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
     },
+    "optimismWalletAddress": {
+      "value": "xxx"
+    },
+    "optimismWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "optimismGatewayUrl": {
+      "value": "https://optimism-mainnet.infura.io/v3"
+    },
+    "optimismApiKey": {
+      "value": "xxx"
+    },
+    "optimismSwapContractAddress": {
+      "value": ""
+    },
+    "optimismSwapTokenAddress": {
+      "value": ""
+    },
+    "arbitrumWalletAddress": {
+      "value": "xxx"
+    },
+    "arbitrumWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "arbitrumGatewayUrl": {
+      "value": "https://arbitrum-mainnet.infura.io/v3"
+    },
+    "arbitrumApiKey": {
+      "value": "xxx"
+    },
+    "arbitrumSwapContractAddress": {
+      "value": ""
+    },
+    "arbitrumSwapTokenAddress": {
+      "value": ""
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },
