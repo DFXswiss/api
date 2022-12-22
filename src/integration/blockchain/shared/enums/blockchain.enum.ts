@@ -5,6 +5,7 @@ export enum Blockchain {
   BINANCE_SMART_CHAIN = 'BinanceSmartChain',
   OPTIMISM = 'Optimism',
   ARBITRUM = 'Arbitrum',
+  POLYGON = 'Polygon',
 }
 
 export const BlockchainExplorerUrls = {
