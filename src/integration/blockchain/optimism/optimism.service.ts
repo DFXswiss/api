@@ -8,6 +8,7 @@ export class OptimismService extends EvmService {
   constructor() {
     const {
       optimismGatewayUrl,
+      optimismApiKey,
       optimismWalletAddress,
       optimismWalletPrivateKey,
       pancakeRouterAddress,
@@ -16,7 +17,7 @@ export class OptimismService extends EvmService {
 
     super(
       optimismGatewayUrl,
-      '',
+      optimismApiKey,
       optimismWalletAddress,
       optimismWalletPrivateKey,
       pancakeRouterAddress,

@@ -8,6 +8,7 @@ export class ArbitrumService extends EvmService {
   constructor() {
     const {
       arbitrumGatewayUrl,
+      arbitrumApiKey,
       arbitrumWalletAddress,
       arbitrumWalletPrivateKey,
       pancakeRouterAddress,
@@ -16,7 +17,7 @@ export class ArbitrumService extends EvmService {
 
     super(
       arbitrumGatewayUrl,
-      '',
+      arbitrumApiKey,
       arbitrumWalletAddress,
       arbitrumWalletPrivateKey,
       pancakeRouterAddress,
