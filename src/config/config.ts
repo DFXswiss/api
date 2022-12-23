@@ -305,6 +305,22 @@ export class Configuration {
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
+    optimism: {
+      optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
+      optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
+      optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
+      optimismApiKey: process.env.OPTIMISM_API_KEY,
+      pancakeRouterAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
+    },
+    arbitrum: {
+      arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
+      arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
+      arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
+      arbitrumApiKey: process.env.ARBITRUM_API_KEY,
+      pancakeRouterAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.ARBITRUM_SWAP_TOKEN_ADDRESS,
+    },
   };
 
   buy = {

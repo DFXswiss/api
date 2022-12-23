@@ -23,7 +23,9 @@ export class CryptoService {
   }
 
   public getBlockchainsBasedOn(address: string): Blockchain[] {
-    if (isEthereumAddress(address)) return [Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN];
+    if (isEthereumAddress(address)) {
+      return [Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN, Blockchain.ARBITRUM, Blockchain.OPTIMISM];
+    }
     if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     return [Blockchain.DEFICHAIN];
   }

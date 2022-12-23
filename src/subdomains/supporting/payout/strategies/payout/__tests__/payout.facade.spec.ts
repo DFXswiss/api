@@ -18,8 +18,16 @@ import { DeFiChainTokenStrategy } from '../impl/defichain-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { PayoutStrategiesFacade, PayoutStrategyAlias } from '../payout.facade';
+import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
+import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
+import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
+import { PayoutArbitrumService } from '../../../services/payout-arbitrum.service';
+import { PayoutOptimismService } from '../../../services/payout-optimism.service';
 
 describe('PayoutStrategiesFacade', () => {
+  let arbitrumCoin: ArbitrumCoinStrategy;
+  let arbitrumToken: ArbitrumTokenStrategy;
   let bitcoin: BitcoinStrategy;
   let deFiChainCoin: DeFiChainCoinStrategy;
   let deFiChainToken: DeFiChainTokenStrategy;
@@ -27,10 +35,22 @@ describe('PayoutStrategiesFacade', () => {
   let ethereumToken: EthereumTokenStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
+  let optimismCoin: OptimismCoinStrategy;
+  let optimismToken: OptimismTokenStrategy;
 
   let facade: PayoutStrategiesFacadeWrapper;
 
   beforeEach(() => {
+    arbitrumCoin = new ArbitrumCoinStrategy(
+      mock<PayoutArbitrumService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    arbitrumToken = new ArbitrumTokenStrategy(
+      mock<PayoutArbitrumService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
     bitcoin = new BitcoinStrategy(
       mock<NotificationService>(),
       mock<PayoutBitcoinService>(),
@@ -62,8 +82,20 @@ describe('PayoutStrategiesFacade', () => {
     );
     bscCoin = new BscCoinStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
     bscToken = new BscTokenStrategy(mock<PayoutBscService>(), mock<AssetService>(), mock<PayoutOrderRepository>());
+    optimismCoin = new OptimismCoinStrategy(
+      mock<PayoutOptimismService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
+    optimismToken = new OptimismTokenStrategy(
+      mock<PayoutOptimismService>(),
+      mock<AssetService>(),
+      mock<PayoutOrderRepository>(),
+    );
 
     facade = new PayoutStrategiesFacadeWrapper(
+      arbitrumCoin,
+      arbitrumToken,
       bitcoin,
       bscCoin,
       bscToken,
@@ -71,12 +103,14 @@ describe('PayoutStrategiesFacade', () => {
       deFiChainToken,
       ethereumCoin,
       ethereumToken,
+      optimismCoin,
+      optimismToken,
     );
   });
 
   describe('#constructor(...)', () => {
     it('adds all payoutStrategies to a map', () => {
-      expect([...facade.getStrategies().entries()].length).toBe(7);
+      expect([...facade.getStrategies().entries()].length).toBe(11);
     });
 
     it('assigns strategies to all aliases', () => {
@@ -86,6 +120,8 @@ describe('PayoutStrategiesFacade', () => {
     it('sets all required payoutStrategies aliases', () => {
       const aliases = [...facade.getStrategies().keys()];
 
+      expect(aliases.includes(PayoutStrategyAlias.ARBITRUM_COIN)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.ARBITRUM_TOKEN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.BITCOIN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.BSC_TOKEN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.BSC_COIN)).toBe(true);
@@ -93,9 +129,13 @@ describe('PayoutStrategiesFacade', () => {
       expect(aliases.includes(PayoutStrategyAlias.DEFICHAIN_TOKEN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.ETHEREUM_COIN)).toBe(true);
       expect(aliases.includes(PayoutStrategyAlias.ETHEREUM_TOKEN)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.OPTIMISM_COIN)).toBe(true);
+      expect(aliases.includes(PayoutStrategyAlias.OPTIMISM_TOKEN)).toBe(true);
     });
 
     it('assigns proper payoutStrategies to aliases', () => {
+      expect(facade.getStrategies().get(PayoutStrategyAlias.ARBITRUM_COIN)).toBeInstanceOf(ArbitrumCoinStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.ARBITRUM_TOKEN)).toBeInstanceOf(ArbitrumTokenStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.BITCOIN)).toBeInstanceOf(BitcoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.BSC_COIN)).toBeInstanceOf(BscCoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.BSC_TOKEN)).toBeInstanceOf(BscTokenStrategy);
@@ -103,6 +143,8 @@ describe('PayoutStrategiesFacade', () => {
       expect(facade.getStrategies().get(PayoutStrategyAlias.DEFICHAIN_TOKEN)).toBeInstanceOf(DeFiChainTokenStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.ETHEREUM_COIN)).toBeInstanceOf(EthereumCoinStrategy);
       expect(facade.getStrategies().get(PayoutStrategyAlias.ETHEREUM_TOKEN)).toBeInstanceOf(EthereumTokenStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.OPTIMISM_COIN)).toBeInstanceOf(OptimismCoinStrategy);
+      expect(facade.getStrategies().get(PayoutStrategyAlias.OPTIMISM_TOKEN)).toBeInstanceOf(OptimismTokenStrategy);
     });
   });
 
@@ -112,6 +154,22 @@ describe('PayoutStrategiesFacade', () => {
         const strategy = facade.getPayoutStrategy(createCustomAsset({ blockchain: Blockchain.BITCOIN }));
 
         expect(strategy).toBeInstanceOf(BitcoinStrategy);
+      });
+
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
       });
 
       it('gets BSC_COIN strategy', () => {
@@ -162,6 +220,22 @@ describe('PayoutStrategiesFacade', () => {
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPayoutStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           facade.getPayoutStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -176,6 +250,18 @@ describe('PayoutStrategiesFacade', () => {
         const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.BITCOIN);
 
         expect(strategyCrypto).toBeInstanceOf(BitcoinStrategy);
+      });
+
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.ARBITRUM_COIN);
+
+        expect(strategyCrypto).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategyCrypto = facade.getPayoutStrategy(PayoutStrategyAlias.ARBITRUM_TOKEN);
+
+        expect(strategyCrypto).toBeInstanceOf(ArbitrumTokenStrategy);
       });
 
       it('gets BSC_COIN strategy', () => {
@@ -214,6 +300,18 @@ describe('PayoutStrategiesFacade', () => {
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.OPTIMISM_COIN);
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPayoutStrategy(PayoutStrategyAlias.OPTIMISM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Alias', () => {
         const testCall = () => facade.getPayoutStrategy('NonExistingAlias' as PayoutStrategyAlias);
 
@@ -226,6 +324,8 @@ describe('PayoutStrategiesFacade', () => {
 
 class PayoutStrategiesFacadeWrapper extends PayoutStrategiesFacade {
   constructor(
+    arbitrumCoin: ArbitrumCoinStrategy,
+    arbitrunToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
@@ -233,8 +333,22 @@ class PayoutStrategiesFacadeWrapper extends PayoutStrategiesFacade {
     deFiChainToken: DeFiChainTokenStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
+    optimismCoin: OptimismCoinStrategy,
+    optimismToken: OptimismTokenStrategy,
   ) {
-    super(bitcoin, bscCoin, bscToken, deFiChainCoin, deFiChainToken, ethereumCoin, ethereumToken);
+    super(
+      arbitrumCoin,
+      arbitrunToken,
+      bitcoin,
+      bscCoin,
+      bscToken,
+      deFiChainCoin,
+      deFiChainToken,
+      ethereumCoin,
+      ethereumToken,
+      optimismCoin,
+      optimismToken,
+    );
   }
 
   getStrategies() {

@@ -150,6 +150,8 @@ export class BuyCrypto extends IEntity {
 
     switch (this.target.asset.blockchain) {
       case Blockchain.ETHEREUM:
+      case Blockchain.ARBITRUM:
+      case Blockchain.OPTIMISM:
         if (this.outputAsset.dexName === 'DFI') {
           this.outputReferenceAsset = this.outputAsset;
 
