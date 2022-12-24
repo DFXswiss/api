@@ -79,6 +79,7 @@ export class GsService {
     const refCodes = userData.users.map((u) => u.ref);
 
     return {
+      userData,
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
