@@ -41,6 +41,8 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
     if (
       asset.blockchain === Blockchain.ETHEREUM ||
+      asset.blockchain === Blockchain.ARBITRUM ||
+      asset.blockchain === Blockchain.OPTIMISM ||
       asset.blockchain === Blockchain.BINANCE_SMART_CHAIN ||
       asset.blockchain === Blockchain.BITCOIN
     ) {

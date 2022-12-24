@@ -21,7 +21,7 @@ export abstract class EvmService {
     },
   ) {
     this.client = new client(
-      `${gatewayUrl}/${apiKey}`,
+      `${gatewayUrl}/${apiKey ?? ''}`,
       walletPrivateKey,
       walletAddress,
       swapContractAddress,

@@ -62,6 +62,22 @@ export class AssetService {
     });
   }
 
+  async getArbitrumCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'ETH',
+      blockchain: Blockchain.ARBITRUM,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getOptimismCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      dexName: 'ETH',
+      blockchain: Blockchain.OPTIMISM,
+      type: AssetType.COIN,
+    });
+  }
+
   async getBtcCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       dexName: 'BTC',
