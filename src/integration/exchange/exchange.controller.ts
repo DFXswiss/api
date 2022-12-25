@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
-import { Balances, Transaction, WithdrawalResponse } from 'ccxt';
+import { Balances, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { TradeOrder } from './dto/trade-order.dto';
@@ -86,6 +86,30 @@ export class ExchangeController {
       });
 
     return tradeId;
+  }
+
+  @Get(':exchange/trade')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getTrades(
+    @Param('exchange') exchange: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ): Promise<Order[]> {
+    return await this.getExchange(exchange).getOpenTrades(from.toUpperCase(), to.toUpperCase());
+  }
+
+  @Get(':exchange/trade/history')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getTradeHistory(
+    @Param('exchange') exchange: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ): Promise<Trade[]> {
+    return await this.getExchange(exchange).getTrades(from.toUpperCase(), to.toUpperCase());
   }
 
   @Get('trade/:id')

@@ -38,6 +38,13 @@
       "title": "La recompensa por referidos se ha pagado"
     }
   },
+  "staking": {
+    "return": {
+      "salutation": "El servicio de Staking DFX finalizará el 31 de Diciembre del 2022 - los nuevos depósitos serán reembolsados",
+      "body": "<table style=\"font-family:Open Sans,Helvetica,Arial,sans-serif;width:60%;padding:8px;font-size:85%\" align=\"center\"><tr><td colspan=\"3\" align=\"center\">Reembolsamos tu último depósito en DFX a tu billetera</td></tr><tr><td colspan=\"3\" align=\"center\">No se pueden depositar más en el servicio de Staking.</td></tr><tr><td align=\"right\">Reimbursed</td><td style=\"width:2%;\"></td><td align=\"left\">{inputAmount} {inputAsset}</td></tr><tr><td align=\"right\">Dirección de la billetera</td><td style=\"width:2%;\"></td><td align=\"left\">***{userAddressTrimmed}</td></tr><tr><td colspan=\"3\" align=\"center\">Aquí puedes encontrar el identificador de la transacción: <a style=\"color:white\" href=\"{transactionLink}\">Link</a></td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Si tienes alguna pregunta, nos encantaría ayudarte en <a href=\"mailto:support@dfx.swiss\">support@dfx.swiss</a>.</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Muchas gracias por tu confianza</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"font-family:Open Sans,Helvetica,Arial,sans-serif\"><td colspan=\"3\" align=\"center\">Tu Equipo DFX</td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr style=\"padding:1px\"><td colspan=\"3\"> </td></tr><tr><td colspan=\"3\" align=\"center\"><span style=\"font-family:Zapfino\">Bitcoiners by heart ♥️</span></td></tr></table>",
+      "title": "Hemos reembolsado tu depósito de Staking en DFX"
+    }
+  },
   "payment": {
     "pending": {
       "dailyLimit": {

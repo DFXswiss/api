@@ -44,7 +44,7 @@ export class DfiPricingDexService implements PriceProvider {
     return Price.create(
       from,
       to,
-      Util.round(target.amount / this.getMinimalPriceReferenceAmount(fromAsset.dexName), 8),
+      Util.round(this.getMinimalPriceReferenceAmount(fromAsset.dexName) / target.amount, 8),
     );
   }
 

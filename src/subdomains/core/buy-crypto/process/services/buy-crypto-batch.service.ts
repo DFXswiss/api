@@ -318,8 +318,8 @@ export class BuyCryptoBatchService {
   private async optimizeBatch(
     batch: BuyCryptoBatch,
     liquidity: CheckLiquidityResult,
-    purchaseFee: number,
-    payoutFee: number,
+    purchaseFee: number | null,
+    payoutFee: number | null,
   ): Promise<void> {
     try {
       const inputBatchLength = batch.transactions.length;

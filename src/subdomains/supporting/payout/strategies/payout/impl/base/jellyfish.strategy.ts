@@ -112,6 +112,8 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
       if (e.message.includes('timeout')) throw e;
 
       await this.rollbackPayoutDesignation(orders);
+
+      return;
     }
 
     for (const order of orders) {

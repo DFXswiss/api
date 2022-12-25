@@ -118,18 +118,25 @@
     "method": "POST",
     "sortNum": 80000,
     "created": "2022-01-15T13:41:33.269Z",
-    "modified": "2022-11-29T08:55:32.281Z",
+    "modified": "2022-12-20T10:43:33.699Z",
     "headers": [],
     "params": [],
     "body": {
       "type": "json",
-      "raw": "{\n    \"address\": \"address\",\n    \"signature\": \"signature\"\n}",
+      "raw": "{\n    \"address\": \"{{address}}\",\n    \"signature\": \"{{signature}}\"\n}",
       "form": []
     },
     "auth": {
       "type": "none"
     },
-    "tests": []
+    "tests": [
+      {
+        "type": "set-env-var",
+        "custom": "json.accessToken",
+        "action": "setto",
+        "value": "{{token}}"
+      }
+    ]
   },
   {
     "_id": "2d6d21c3-7818-4db9-b338-d419451c3261",
@@ -1330,7 +1337,7 @@
       "files": [
         {
           "name": "files",
-          "value": "kyc-incorp-cert/test.json"
+          "value": "test-files/test.json"
         }
       ]
     },
@@ -1394,35 +1401,15 @@
     "tests": []
   },
   {
-    "_id": "7c25cd13-4068-489e-a1c0-eaffefdac268",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
-    "name": "Deprecated KYC Progress",
-    "url": "{{url}}/v1/kyc?code={{kycCode}}",
-    "method": "GET",
-    "sortNum": 10000,
-    "created": "2022-07-27T13:15:18.678Z",
-    "modified": "2022-07-27T13:15:56.164Z",
-    "headers": [],
-    "params": [
-      {
-        "name": "code",
-        "value": "{{kycCode}}",
-        "isPath": false
-      }
-    ],
-    "tests": []
-  },
-  {
     "_id": "72561741-9c5b-4988-9c6d-53be9f3ce92d",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
-    "name": "Deprecated Request KYC",
+    "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
+    "name": "Request KYC (JWT)",
     "url": "{{url}}/v1/kyc",
     "method": "POST",
-    "sortNum": 540000,
+    "sortNum": 455000,
     "created": "2022-07-27T13:16:06.494Z",
-    "modified": "2022-07-29T06:21:23.523Z",
+    "modified": "2022-12-20T10:40:48.297Z",
     "headers": [],
     "params": [],
     "tests": []
@@ -1430,13 +1417,13 @@
   {
     "_id": "ec4cf48e-c737-406d-be1b-94ad43684917",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
-    "name": "Deprecated Update KYC Data",
+    "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
+    "name": "Update KYC Data (JWT)",
     "url": "{{url}}/v1/kyc/data",
     "method": "POST",
-    "sortNum": 550000,
+    "sortNum": 465000,
     "created": "2022-07-27T14:06:29.406Z",
-    "modified": "2022-07-29T06:21:40.661Z",
+    "modified": "2022-12-20T10:40:52.250Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1447,40 +1434,15 @@
     "tests": []
   },
   {
-    "_id": "266d849b-3590-402b-8c26-91cf4462c7c0",
-    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
-    "name": "Deprecated Increase Limit",
-    "url": "{{url}}/v1/kyc/limit?code={{kycCode}}",
-    "method": "POST",
-    "sortNum": 560000,
-    "created": "2022-07-27T14:09:58.512Z",
-    "modified": "2022-07-27T14:12:59.878Z",
-    "headers": [],
-    "params": [
-      {
-        "name": "code",
-        "value": "{{kycCode}}",
-        "isPath": false
-      }
-    ],
-    "body": {
-      "type": "json",
-      "raw": "{\n    \"limit\": 500000,\n    \"investmentDate\": \"Now\",\n    \"fundOrigin\": \"Savings\"\n}",
-      "form": []
-    },
-    "tests": []
-  },
-  {
     "_id": "ace26c49-e460-450b-b407-85308cf74796",
     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
-    "containerId": "f75b3511-e5d8-4a85-8970-9d96afe6e2ed",
-    "name": "Deprecated Incorporation Certificate",
+    "containerId": "4294c334-1994-4bbf-accf-1f9a38a162c3",
+    "name": "Upload Incorporation Certificate (JWT)",
     "url": "{{url}}/v1/kyc/incorporationCertificate",
     "method": "POST",
-    "sortNum": 570000,
+    "sortNum": 600000,
     "created": "2022-07-27T14:13:15.317Z",
-    "modified": "2022-07-29T06:21:50.347Z",
+    "modified": "2022-12-20T10:40:55.470Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1490,7 +1452,7 @@
       "files": [
         {
           "name": "files",
-          "value": "kyc-incorp-cert/test.json"
+          "value": "test-files/test.json"
         }
       ]
     },
@@ -1926,7 +1888,7 @@
     "method": "POST",
     "sortNum": 85000,
     "created": "2022-10-14T13:12:37.193Z",
-    "modified": "2022-10-20T10:15:12.521Z",
+    "modified": "2022-12-20T10:46:13.401Z",
     "headers": [],
     "params": [
       {
@@ -1949,7 +1911,7 @@
     "method": "POST",
     "sortNum": 82500,
     "created": "2022-10-14T13:12:39.907Z",
-    "modified": "2022-10-20T10:28:14.156Z",
+    "modified": "2022-12-20T10:46:31.743Z",
     "headers": [],
     "params": [],
     "body": {
@@ -1960,7 +1922,14 @@
     "auth": {
       "type": "none"
     },
-    "tests": []
+    "tests": [
+      {
+        "type": "set-env-var",
+        "custom": "json.accessToken",
+        "action": "setto",
+        "value": "{{token}}"
+      }
+    ]
   },
   {
     "_id": "14441e24-4e57-4e7c-88cc-dff408c5837e",
@@ -2160,6 +2129,58 @@
       {
         "name": "orig",
         "value": "DFX4EVER",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "f8d7019c-70b9-4e8e-be98-fda1bd185cbd",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Trades",
+    "url": "{{url}}/v1/exchange/kraken/trade?from=EUR&to=BTC",
+    "method": "GET",
+    "sortNum": 22500,
+    "created": "2022-12-20T14:59:28.818Z",
+    "modified": "2022-12-20T15:47:28.199Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "from",
+        "value": "EUR",
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "BTC",
+        "isPath": false
+      }
+    ],
+    "tests": []
+  },
+  {
+    "_id": "8c923c2c-8b77-4759-8ae5-59d2f75c8d5b",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "4cf6f864-809c-44c4-9d41-d8d7ab9c61e5",
+    "name": "Kraken Trade History",
+    "url": "{{url}}/v1/exchange/kraken/trade/history",
+    "method": "GET",
+    "sortNum": 23750,
+    "created": "2022-12-20T15:44:40.743Z",
+    "modified": "2022-12-20T15:47:09.368Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "from",
+        "value": "EUR",
+        "isDisabled": true,
+        "isPath": false
+      },
+      {
+        "name": "to",
+        "value": "BTC",
+        "isDisabled": true,
         "isPath": false
       }
     ],

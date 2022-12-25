@@ -49,6 +49,24 @@ param ethApiKey string
 param ethSwapContractAddress string
 param ethSwapTokenAddress string
 
+param optimismWalletAddress string
+@secure()
+param optimismWalletPrivateKey string
+param optimismGatewayUrl string
+@secure()
+param optimismApiKey string
+param optimismSwapContractAddress string
+param optimismSwapTokenAddress string
+
+param arbitrumWalletAddress string
+@secure()
+param arbitrumWalletPrivateKey string
+param arbitrumGatewayUrl string
+@secure()
+param arbitrumApiKey string
+param arbitrumSwapContractAddress string
+param arbitrumSwapTokenAddress string
+
 param bscWalletAddress string
 @secure()
 param bscWalletPrivateKey string
@@ -553,6 +571,54 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'ETH_SWAP_TOKEN_ADDRESS'
           value: ethSwapTokenAddress
+        }
+        {
+          name: 'OPTIMISM_WALLET_ADDRESS'
+          value: optimismWalletAddress
+        }
+        {
+          name: 'OPTIMISM_WALLET_PRIVATE_KEY'
+          value: optimismWalletPrivateKey
+        }
+        {
+          name: 'OPTIMISM_GATEWAY_URL'
+          value: optimismGatewayUrl
+        }
+        {
+          name: 'OPTIMISM_API_KEY'
+          value: optimismApiKey
+        }
+        {
+          name: 'OPTIMISM_SWAP_CONTRACT_ADDRESS'
+          value: optimismSwapContractAddress
+        }
+        {
+          name: 'OPTIMISM_SWAP_TOKEN_ADDRESS'
+          value: optimismSwapTokenAddress
+        }
+        {
+          name: 'ARBITRUM_WALLET_ADDRESS'
+          value: arbitrumWalletAddress
+        }
+        {
+          name: 'ARBITRUM_WALLET_PRIVATE_KEY'
+          value: arbitrumWalletPrivateKey
+        }
+        {
+          name: 'ARBITRUM_GATEWAY_URL'
+          value: arbitrumGatewayUrl
+        }
+        {
+          name: 'ARBITRUM_API_KEY'
+          value: arbitrumApiKey
+        }
+        {
+          name: 'ARBITRUM_SWAP_CONTRACT_ADDRESS'
+          value: arbitrumSwapContractAddress
+        }
+        {
+          name: 'ARBITRUM_SWAP_TOKEN_ADDRESS'
+          value: arbitrumSwapTokenAddress
         }
         {
           name: 'BSC_WALLET_ADDRESS'

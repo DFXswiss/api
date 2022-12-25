@@ -22,7 +22,7 @@ export class BuyCryptoPricingService {
     nativeFee: FeeResult,
     priceRequestCorrelationId: string,
     errorMessage: string,
-  ): Promise<number> {
+  ): Promise<number | null> {
     try {
       return nativeFee.amount
         ? await this.convertToTargetAsset(
@@ -43,7 +43,7 @@ export class BuyCryptoPricingService {
         priceRequestCorrelationId,
       );
 
-      return 0;
+      return null;
     }
   }
 
@@ -68,7 +68,7 @@ export class BuyCryptoPricingService {
       );
     }
 
-    return Util.round(sourceAmount * result.price.price, 8);
+    return result.price.price ? Util.round(sourceAmount / result.price.price, 8) : 0;
   }
 
   private async handleFeeConversionError(

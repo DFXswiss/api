@@ -11,8 +11,14 @@ import { BscTokenStrategy } from './impl/bsc-token.strategy';
 import { BitcoinStrategy } from './impl/bitcoin.strategy';
 import { EthereumTokenStrategy } from './impl/ethereum-token.strategy';
 import { DeFiChainDfiStrategy } from './impl/defichain-dfi.strategy';
+import { ArbitrumCoinStrategy } from './impl/arbitrum-coin.strategy';
+import { ArbitrumTokenStrategy } from './impl/arbitrum-token.strategy';
+import { OptimismCoinStrategy } from './impl/optimism-coin.strategy';
+import { OptimismTokenStrategy } from './impl/optimism-token.strategy';
 
 enum Alias {
+  ARBITRUM_COIN = 'ArbitrumCoin',
+  ARBITRUM_TOKEN = 'ArbitrumToken',
   BITCOIN = 'Bitcoin',
   BSC_COIN = 'BscCoin',
   BSC_TOKEN = 'BscToken',
@@ -22,6 +28,8 @@ enum Alias {
   DEFICHAIN_DFI = 'DeFiChainDfi',
   ETHEREUM_COIN = 'EthereumCoin',
   ETHEREUM_TOKEN = 'EthereumToken',
+  OPTIMISM_COIN = 'OptimismCoin',
+  OPTIMISM_TOKEN = 'OptimismToken',
 }
 
 export { Alias as PurchaseLiquidityStrategyAlias };
@@ -31,6 +39,8 @@ export class PurchaseLiquidityStrategies {
   protected readonly strategies = new Map<Alias, PurchaseLiquidityStrategy>();
 
   constructor(
+    arbitrumCoin: ArbitrumCoinStrategy,
+    arbitrumToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
@@ -41,7 +51,11 @@ export class PurchaseLiquidityStrategies {
     deFiChainStock: DeFiChainStockStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
+    optimismCoin: OptimismCoinStrategy,
+    optimismToken: OptimismTokenStrategy,
   ) {
+    this.strategies.set(Alias.ARBITRUM_COIN, arbitrumCoin);
+    this.strategies.set(Alias.ARBITRUM_TOKEN, arbitrumToken);
     this.strategies.set(Alias.BITCOIN, bitcoin);
     this.strategies.set(Alias.BSC_COIN, bscCoin);
     this.strategies.set(Alias.BSC_TOKEN, bscToken);
@@ -51,6 +65,8 @@ export class PurchaseLiquidityStrategies {
     this.strategies.set(Alias.DEFICHAIN_STOCK, deFiChainStock);
     this.strategies.set(Alias.ETHEREUM_COIN, ethereumCoin);
     this.strategies.set(Alias.ETHEREUM_TOKEN, ethereumToken);
+    this.strategies.set(Alias.OPTIMISM_COIN, optimismCoin);
+    this.strategies.set(Alias.OPTIMISM_TOKEN, optimismToken);
   }
 
   getPurchaseLiquidityStrategy(criteria: Asset | Alias): PurchaseLiquidityStrategy {
@@ -91,6 +107,14 @@ export class PurchaseLiquidityStrategies {
 
     if (blockchain === Blockchain.ETHEREUM) {
       return assetType === AssetType.COIN ? Alias.ETHEREUM_COIN : Alias.ETHEREUM_TOKEN;
+    }
+
+    if (blockchain === Blockchain.ARBITRUM) {
+      return assetType === AssetType.COIN ? Alias.ARBITRUM_COIN : Alias.ARBITRUM_TOKEN;
+    }
+
+    if (blockchain === Blockchain.OPTIMISM) {
+      return assetType === AssetType.COIN ? Alias.OPTIMISM_COIN : Alias.OPTIMISM_TOKEN;
     }
   }
 }
