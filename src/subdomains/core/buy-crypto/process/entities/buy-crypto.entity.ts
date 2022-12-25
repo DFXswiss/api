@@ -252,9 +252,22 @@ export class BuyCrypto extends IEntity {
         ? 'mail.payment.deposit.buyCryptoCrypto'
         : 'mail.payment.deposit.buyCryptoFiat';
     } else if (this.amlCheck === AmlCheck.PENDING) {
-      if (this.amlReason === AmlReason.DAILY_LIMIT) return 'mail.payment.pending.dailyLimit';
-      if (this.amlReason === AmlReason.ANNUAL_LIMIT) return 'mail.payment.pending.annualLimit';
-      if (this.amlReason === AmlReason.OLKY_NO_KYC) return 'mail.payment.pending.olkyNoKyc';
+      switch (this.amlReason) {
+        case AmlReason.DAILY_LIMIT:
+          return 'mail.payment.pending.dailyLimit';
+
+        case AmlReason.ANNUAL_LIMIT:
+          return 'mail.payment.pending.annualLimit';
+
+        case AmlReason.ANNUAL_LIMIT_WITHOUT_KYC:
+          return 'mail.payment.pending.annualLimitWithoutKyc';
+
+        case AmlReason.OLKY_NO_KYC:
+          return 'mail.payment.pending.olkyNoKyc';
+
+        case AmlReason.NAME_CHECK_WITHOUT_KYC:
+          return 'mail.payment.pending.nameCheckWithoutKyc';
+      }
     } else if (this.amlCheck === AmlCheck.FAIL) {
       return 'mail.payment.deposit.paybackInitiated';
     }
@@ -299,3 +312,11 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 }
+
+export const BuyCryptoAmlReasonPendingStates = [
+  AmlReason.DAILY_LIMIT,
+  AmlReason.ANNUAL_LIMIT,
+  AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
+  AmlReason.OLKY_NO_KYC,
+  AmlReason.NAME_CHECK_WITHOUT_KYC,
+];
