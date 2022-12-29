@@ -10,7 +10,6 @@ import { Util } from 'src/shared/utils/util';
 import { IsNull, Not, In } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
-import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
 
 @Injectable()
