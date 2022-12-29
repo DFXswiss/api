@@ -8,8 +8,8 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from '../enums/aml-check.enum';
 import { I18nService } from 'nestjs-i18n';
-import { AmlReason } from '../enums/aml-reason.enum';
 import { Config } from 'src/config/config';
+import { BuyCryptoAmlReasonPendingStates } from '../entities/buy-crypto.entity';
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -212,7 +212,7 @@ export class BuyCryptoNotificationService {
         outputAmount: IsNull(),
         chargebackDate: IsNull(),
         chargebackBankTx: IsNull(),
-        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT, AmlReason.OLKY_NO_KYC]),
+        amlReason: In(BuyCryptoAmlReasonPendingStates),
         amlCheck: AmlCheck.PENDING,
       },
       relations: [

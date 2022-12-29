@@ -5,7 +5,9 @@ export enum AmlReason {
   USER_DATA_MISMATCH = 'UserDataMismatch',
   IBAN_CHECK = 'IbanCheck',
   KYC_REJECTED = 'KycRejected',
-  NAME_CHECK = 'NameCheck',
   OLKY_NO_KYC = 'OlkyNoKyc',
   MIN_DEPOSIT_NOT_REACHED = 'MinDepositNotReached',
+  NAME_CHECK_WITHOUT_KYC = 'NameCheckWithoutKYC',
+  ANNUAL_LIMIT_WITHOUT_KYC = 'AnnualLimitWithoutKYC',
+  ASSET_CURRENTLY_NOT_AVAILABLE = 'AssetCurrentlyNotAvailable',
 }
