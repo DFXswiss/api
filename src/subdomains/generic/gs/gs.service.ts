@@ -9,6 +9,7 @@ import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { BankTxRepeatService } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { getConnection } from 'typeorm';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -32,6 +33,7 @@ export class GsService {
     private readonly cryptoInputService: CryptoInputService,
     private readonly buyFiatService: BuyFiatService,
     private readonly refRewardService: RefRewardService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
 
   async getRawData(query: DbQueryDto): Promise<any> {
@@ -88,6 +90,7 @@ export class GsService {
       stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
       stakingRefReward: await this.stakingRefRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.cryptoInputService.getAllUserTransactions(userIds),
+      bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
     };
   }
 
