@@ -469,7 +469,7 @@ export class DeFiInputService extends CryptoInputService {
     return [...new Set(utxoAddresses.concat(tokenAddresses))];
   }
 
-  private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
+  private readonly utxoTxTypes = ['receive', 'AccountToUtxos', 'blockReward'];
   private readonly tokenTxTypes = [
     'AccountToAccount',
     'AnyAccountsToAccounts',

@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { IsBoolean, IsDate, IsNumber, IsOptional, IsString } from 'class-validator';
 import { TransactionCharge } from '../../bank-tx/frick.service';
 
@@ -28,6 +29,7 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsDate()
+  @Type(() => Date)
   valutaDate?: Date;
 
   @IsOptional()
@@ -96,18 +98,22 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsDate()
+  @Type(() => Date)
   isReadyDate?: Date;
 
   @IsOptional()
   @IsDate()
+  @Type(() => Date)
   isTransmittedDate?: Date;
 
   @IsOptional()
   @IsDate()
+  @Type(() => Date)
   isConfirmedDate?: Date;
 
   @IsOptional()
   @IsDate()
+  @Type(() => Date)
   isApprovedDate?: Date;
 
   @IsOptional()
@@ -116,6 +122,7 @@ export class UpdateFiatOutputDto {
 
   @IsOptional()
   @IsDate()
+  @Type(() => Date)
   outputDate?: Date;
 
   @IsOptional()
