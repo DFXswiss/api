@@ -77,8 +77,6 @@ export class BankTxService {
     // TODO später auskommentieren
     // if (bankTx.type && bankTx.type != BankTxType.UNKNOWN) throw new ConflictException('BankTx Type already set');
 
-    bankTx.type = dto.type;
-
     switch (bankTx.type) {
       case BankTxType.BUY_CRYPTO:
         await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
@@ -91,7 +89,7 @@ export class BankTxService {
         break;
     }
 
-    return await this.bankTxRepo.save(bankTx);
+    return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
   // --- HELPER METHODS --- //

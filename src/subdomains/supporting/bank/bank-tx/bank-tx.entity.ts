@@ -88,6 +88,18 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   chargeCurrency: string;
 
+  @Column({ type: 'float', nullable: true })
+  accountingAmountBeforeFee?: number;
+
+  @Column({ type: 'float', nullable: true })
+  accountingFeeAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  accountingFeePercent?: number;
+
+  @Column({ type: 'float', nullable: true })
+  accountingAmountAfterFee?: number;
+
   // related party info
   @Column({ length: 256, nullable: true })
   name?: string;
