@@ -77,7 +77,7 @@ export class BankTxService {
     if (dto.type && dto.type != bankTx.type) {
       if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
-      switch (bankTx.type) {
+      switch (dto.type) {
         case BankTxType.BUY_CRYPTO:
           await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
           break;
