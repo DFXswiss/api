@@ -5,7 +5,7 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType } from './bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
 import { Interval } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FrickService } from './frick.service';
@@ -74,10 +74,7 @@ export class BankTxService {
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
     const bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
-    // TODO später auskommentieren
-    // if (bankTx.type && bankTx.type != BankTxType.UNKNOWN) throw new ConflictException('BankTx Type already set');
-
-    bankTx.type = dto.type;
+    if (dto.type && BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
     switch (bankTx.type) {
       case BankTxType.BUY_CRYPTO:
@@ -91,7 +88,7 @@ export class BankTxService {
         break;
     }
 
-    return await this.bankTxRepo.save(bankTx);
+    return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
   // --- HELPER METHODS --- //
