@@ -15,7 +15,6 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class BankTxService {
