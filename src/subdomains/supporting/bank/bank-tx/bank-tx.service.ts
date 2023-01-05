@@ -89,9 +89,7 @@ export class BankTxService {
         break;
     }
 
-    Util.removeNullFields(bankTx);
-
-    return await this.bankTxRepo.save({ ...dto, ...bankTx });
+    return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
   // --- HELPER METHODS --- //
