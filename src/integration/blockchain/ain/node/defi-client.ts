@@ -13,16 +13,18 @@ export class DeFiClient extends NodeClient {
   async getHistories(addresses: string[], fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
     let results = [];
     for (const address of addresses) {
-      results = results.concat(await this.getHistory(address, fromBlock, toBlock));
+      results = results.concat(await this.getHistory(fromBlock, toBlock, address));
     }
     return results;
   }
 
-  private async getHistory(address: string, fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
+  async getHistory(fromBlock: number, toBlock: number, address?: string): Promise<AccountHistory[]> {
     return this.callNode((c) =>
       c.account.listAccountHistory(address, {
         depth: toBlock - fromBlock,
         maxBlockHeight: toBlock,
+        no_rewards: true,
+        limit: 1000000,
       }),
     );
   }

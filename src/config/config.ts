@@ -9,6 +9,10 @@ import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
 import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
+export enum Process {
+  PAY_IN = 'PayIn',
+}
+
 export function GetConfig(): Configuration {
   return new Configuration();
 }
@@ -365,6 +369,15 @@ export class Configuration {
     },
   };
 
+  payIn = {
+    min: {
+      DeFiChain: {
+        DFI: 0.0001,
+        DUSD: 0.0001,
+      },
+    },
+  };
+
   staking = {
     fee: 0.125,
     period: 28, // days
@@ -474,6 +487,8 @@ export class Configuration {
     Object.entries(deposit)
       .filter(([key, _]) => filter?.includes(key) ?? true)
       .map(([key, value]) => ({ amount: value, asset: key }));
+
+  processDisabled = (processName: Process) => (process.env.DISABLED_PROCESSES?.split(',') ?? []).includes(processName);
 }
 
 @Injectable()

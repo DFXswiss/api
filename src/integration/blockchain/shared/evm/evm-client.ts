@@ -29,14 +29,22 @@ export class EvmClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    const balance = await this.#provider.getBalance(this.#dfxAddress);
+    return this.getNativeCoinBalanceOfAddress(this.#dfxAddress);
+  }
+
+  async getTokenBalance(token: Asset): Promise<number> {
+    return this.getTokenBalanceOfAddress(this.#dfxAddress, token);
+  }
+
+  async getNativeCoinBalanceOfAddress(address: string): Promise<number> {
+    const balance = await this.#provider.getBalance(address);
 
     return this.convertToEthLikeDenomination(balance);
   }
 
-  async getTokenBalance(token: Asset): Promise<number> {
+  async getTokenBalanceOfAddress(address: string, token: Asset): Promise<number> {
     const contract = this.getERC20Contract(token.chainId);
-    const balance = await contract.balanceOf(this.#dfxAddress);
+    const balance = await contract.balanceOf(address);
     const decimals = await contract.decimals();
 
     return this.convertToEthLikeDenomination(balance, decimals);
