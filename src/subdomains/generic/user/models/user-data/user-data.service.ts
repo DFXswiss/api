@@ -41,7 +41,6 @@ export class UserDataService {
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
     private readonly webhookService: WebhookService,
-    private readonly kycWebhookService: KycWebhookService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
