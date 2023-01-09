@@ -448,6 +448,7 @@ export class Configuration {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
+      nonce: () => Date.now(),
       ...this.exchange,
     };
   }
