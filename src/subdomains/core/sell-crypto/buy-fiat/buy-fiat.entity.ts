@@ -177,4 +177,37 @@ export class BuyFiat extends IEntity {
   get percentFeeString(): string {
     return `${Util.round(this.percentFee * 100, 2)}%`;
   }
+
+  get translationKey(): string {
+    if (this.amlCheck === AmlCheck.PASS) {
+      if (!this.mail1SendDate) return 'mail.payment.withdrawal.offRampInitiated';
+      if (!this.mail2SendDate) return 'mail.payment.withdrawal.cryptoExchangedToFiat';
+      return 'mail.payment.withdrawal.fiatToBankTransferInitiated';
+    } else if (this.amlCheck === AmlCheck.PENDING) {
+      switch (this.amlReason) {
+        case AmlReason.DAILY_LIMIT:
+          return 'mail.payment.pending.dailyLimit';
+
+        case AmlReason.ANNUAL_LIMIT:
+          return 'mail.payment.pending.annualLimit';
+
+        case AmlReason.ANNUAL_LIMIT_WITHOUT_KYC:
+          return 'mail.payment.pending.annualLimitWithoutKyc';
+
+        case AmlReason.NAME_CHECK_WITHOUT_KYC:
+          return 'mail.payment.pending.nameCheckWithoutKyc';
+      }
+    } else if (this.amlCheck === AmlCheck.FAIL) {
+      return 'mail.payment.withdrawal.paybackToAddressInitiated';
+    }
+
+    throw new Error(`Tried to send a mail for BuyFiat ${this.id} in invalid state`);
+  }
 }
+
+export const BuyFiatAmlReasonPendingStates = [
+  AmlReason.DAILY_LIMIT,
+  AmlReason.ANNUAL_LIMIT,
+  AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
+  AmlReason.NAME_CHECK_WITHOUT_KYC,
+];

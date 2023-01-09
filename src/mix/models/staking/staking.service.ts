@@ -288,7 +288,7 @@ export class StakingService {
       fee: fee,
       period: Config.staking.period,
       minInvestment: Config.staking.minInvestment,
-      minDeposits: Util.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'DFI'),
+      minDeposits: Config.transformToMinDeposit(Config.blockchain.default.minDeposit.DeFiChain, 'DFI'),
     };
   }
 

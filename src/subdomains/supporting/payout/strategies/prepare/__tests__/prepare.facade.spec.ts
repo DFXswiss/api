@@ -10,12 +10,16 @@ import { BscStrategy } from '../impl/bsc.strategy';
 import { DeFiChainStrategy } from '../impl/defichain.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { PrepareStrategiesFacade, PrepareStrategyAlias } from '../prepare.facade';
+import { ArbitrumStrategy } from '../impl/arbitrum.strategy';
+import { OptimismStrategy } from '../impl/optimism.strategy';
 
 describe('PrepareStrategiesFacade', () => {
   let bitcoin: BitcoinStrategy;
   let defichain: DeFiChainStrategy;
   let ethereum: EthereumStrategy;
   let bsc: BscStrategy;
+  let arbitrumStrategy: ArbitrumStrategy;
+  let optimismStrategy: OptimismStrategy;
 
   let facade: PrepareStrategiesFacadeWrapper;
 
@@ -29,13 +33,15 @@ describe('PrepareStrategiesFacade', () => {
     );
     ethereum = new EthereumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     bsc = new BscStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    arbitrumStrategy = new ArbitrumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    optimismStrategy = new OptimismStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
-    facade = new PrepareStrategiesFacadeWrapper(bitcoin, defichain, ethereum, bsc);
+    facade = new PrepareStrategiesFacadeWrapper(bitcoin, defichain, ethereum, bsc, arbitrumStrategy, optimismStrategy);
   });
 
   describe('#constructor(...)', () => {
     it('adds all prepareStrategies to a map', () => {
-      expect([...facade.getStrategies().entries()].length).toBe(4);
+      expect([...facade.getStrategies().entries()].length).toBe(6);
     });
 
     it('assigns strategies to all aliases', () => {
@@ -49,6 +55,8 @@ describe('PrepareStrategiesFacade', () => {
       expect(aliases.includes(PrepareStrategyAlias.DEFICHAIN)).toBe(true);
       expect(aliases.includes(PrepareStrategyAlias.ETHEREUM)).toBe(true);
       expect(aliases.includes(PrepareStrategyAlias.BSC)).toBe(true);
+      expect(aliases.includes(PrepareStrategyAlias.ARBITRUM)).toBe(true);
+      expect(aliases.includes(PrepareStrategyAlias.OPTIMISM)).toBe(true);
     });
 
     it('assigns proper prepareStrategies to aliases', () => {
@@ -59,6 +67,10 @@ describe('PrepareStrategiesFacade', () => {
       expect(facade.getStrategies().get(PrepareStrategyAlias.ETHEREUM)).toBeInstanceOf(EthereumStrategy);
 
       expect(facade.getStrategies().get(PrepareStrategyAlias.BSC)).toBeInstanceOf(BscStrategy);
+
+      expect(facade.getStrategies().get(PrepareStrategyAlias.ARBITRUM)).toBeInstanceOf(ArbitrumStrategy);
+
+      expect(facade.getStrategies().get(PrepareStrategyAlias.OPTIMISM)).toBeInstanceOf(OptimismStrategy);
     });
   });
 
@@ -86,6 +98,18 @@ describe('PrepareStrategiesFacade', () => {
         const strategy = facade.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.DEFICHAIN }));
 
         expect(strategy).toBeInstanceOf(DeFiChainStrategy);
+      });
+
+      it('gets ARBITRUM strategy for ARBITRUM', () => {
+        const strategy = facade.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.ARBITRUM }));
+
+        expect(strategy).toBeInstanceOf(ArbitrumStrategy);
+      });
+
+      it('gets OPTIMISM strategy for OPTIMISM', () => {
+        const strategy = facade.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.OPTIMISM }));
+
+        expect(strategy).toBeInstanceOf(OptimismStrategy);
       });
 
       it('fails to get strategy for non-supported Blockchain', () => {
@@ -122,6 +146,18 @@ describe('PrepareStrategiesFacade', () => {
         expect(strategyCrypto).toBeInstanceOf(BscStrategy);
       });
 
+      it('gets ARBITRUM strategy', () => {
+        const strategyCrypto = facade.getPrepareStrategy(PrepareStrategyAlias.ARBITRUM);
+
+        expect(strategyCrypto).toBeInstanceOf(ArbitrumStrategy);
+      });
+
+      it('gets OPTIMISM strategy', () => {
+        const strategyCrypto = facade.getPrepareStrategy(PrepareStrategyAlias.OPTIMISM);
+
+        expect(strategyCrypto).toBeInstanceOf(OptimismStrategy);
+      });
+
       it('fails to get strategy for non-supported Alias', () => {
         const testCall = () => facade.getPrepareStrategy('NonExistingAlias' as PrepareStrategyAlias);
 
@@ -133,8 +169,15 @@ describe('PrepareStrategiesFacade', () => {
 });
 
 class PrepareStrategiesFacadeWrapper extends PrepareStrategiesFacade {
-  constructor(bitcoin: BitcoinStrategy, defichain: DeFiChainStrategy, ethereum: EthereumStrategy, bsc: BscStrategy) {
-    super(bitcoin, defichain, ethereum, bsc);
+  constructor(
+    bitcoin: BitcoinStrategy,
+    defichain: DeFiChainStrategy,
+    ethereum: EthereumStrategy,
+    bsc: BscStrategy,
+    arbitrumStrategy: ArbitrumStrategy,
+    optimismStrategy: OptimismStrategy,
+  ) {
+    super(bitcoin, defichain, ethereum, bsc, arbitrumStrategy, optimismStrategy);
   }
 
   getStrategies() {

@@ -59,6 +59,10 @@ export class UserService {
     return await this.userRepo.findOne(userId, { relations: loadUserData ? ['userData'] : [] });
   }
 
+  async getUserByAddress(address: string): Promise<User> {
+    return await this.userRepo.findOne({ where: { address }, relations: ['userData', 'userData.users'] });
+  }
+
   async getUserDto(userId: number, detailed = false): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne(userId, { relations: ['userData'] });
     if (!user) throw new NotFoundException('User not found');
@@ -85,7 +89,7 @@ export class UserService {
   }
 
   async getRefUser(ref: string): Promise<User> {
-    return await this.userRepo.findOne({ where: { ref }, relations: ['userData'] });
+    return await this.userRepo.findOne({ where: { ref }, relations: ['userData', 'userData.users'] });
   }
 
   async createUser(dto: CreateUserDto, userIp: string, userOrigin?: string, userData?: UserData): Promise<User> {
@@ -107,18 +111,16 @@ export class UserService {
     return user;
   }
 
-  async updateUser(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
+  async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (!user) throw new NotFoundException('User not found');
-
-    // check used ref
-    dto.usedRef = await this.checkRef(user, dto.usedRef);
 
     // update
     user = await this.userRepo.save({ ...user, ...dto });
-    user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
+    user.userData = update;
 
-    return await this.toDto(user, true);
+    return { user: await this.toDto(user, true), isKnownUser };
   }
 
   async updateUserInternal(id: number, update: Partial<User>): Promise<User> {
@@ -443,7 +445,6 @@ export class UserService {
       accountType: user.userData?.accountType,
       address: user.address,
       status: user.status,
-      usedRef: user.usedRef === '000-000' ? undefined : user.usedRef,
       mail: user.userData?.mail,
       phone: user.userData?.phone,
       language: user.userData?.language,

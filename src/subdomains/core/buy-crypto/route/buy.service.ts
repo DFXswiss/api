@@ -84,9 +84,6 @@ export class BuyService {
     const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
     if (dto.type === BuyType.STAKING && !staking) throw new BadRequestException('Staking route not found');
 
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
-
     // check if exists
     const existing = await this.buyRepo.findOne({
       where: {
@@ -128,6 +125,13 @@ export class BuyService {
 
   async getUserBuys(userId: number): Promise<Buy[]> {
     return this.buyRepo.find({ user: { id: userId } });
+  }
+
+  async getBuyByBankUsage(bankUsage: string): Promise<Buy> {
+    return this.buyRepo.findOne({
+      where: { bankUsage },
+      relations: ['user', 'user.userData', 'user.userData.users'],
+    });
   }
 
   async updateBuy(userId: number, buyId: number, dto: UpdateBuyDto): Promise<Buy> {

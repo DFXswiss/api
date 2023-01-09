@@ -10,7 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { IsNull, Not, In } from 'typeorm';
 import { BuyFiatRepository } from './buy-fiat.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
-import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
+import { BuyFiatAmlReasonPendingStates } from './buy-fiat.entity';
 
 @Injectable()
 export class BuyFiatNotificationService {
@@ -52,7 +52,7 @@ export class BuyFiatNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: 'mail.payment.withdrawal.offRampInitiated',
+              translationKey: entity.translationKey,
               translationParams: {
                 inputAmount: entity.cryptoInput.amount,
                 inputAsset: entity.cryptoInput.asset.dexName,
@@ -93,7 +93,7 @@ export class BuyFiatNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
+              translationKey: entity.translationKey,
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
@@ -133,11 +133,11 @@ export class BuyFiatNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
+              translationKey: entity.translationKey,
               translationParams: {
                 outputAmount: entity.outputAmount,
                 outputAsset: entity.outputAsset,
-                bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
+                bankAccountTrimmed: Util.blankIban(entity.sell.iban),
                 remittanceInfo: entity.remittanceInfo,
               },
             },
@@ -175,7 +175,7 @@ export class BuyFiatNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey: 'mail.payment.withdrawal.paybackToAddressInitiated',
+              translationKey: entity.translationKey,
               translationParams: {
                 inputAmount: entity.inputAmount,
                 inputAsset: entity.inputAsset,
@@ -185,7 +185,7 @@ export class BuyFiatNotificationService {
                 returnReason: await this.i18nService.translate(`mail.amlReasonMailText.${entity.amlReason}`, {
                   lang: entity.sell.user.userData.language?.symbol.toLowerCase(),
                 }),
-                userAddressTrimmed: Util.trimBlockchainAddress(entity.sell.user.address),
+                userAddressTrimmed: Util.blankBlockchainAddress(entity.sell.user.address),
               },
             },
           });
@@ -198,12 +198,12 @@ export class BuyFiatNotificationService {
     }
   }
 
-  async pendingBuyFiat(): Promise<void> {
+  private async pendingBuyFiat(): Promise<void> {
     const entities = await this.buyFiatRepo.find({
       where: {
         mail2SendDate: IsNull(),
         outputAmount: IsNull(),
-        amlReason: In([AmlReason.DAILY_LIMIT, AmlReason.ANNUAL_LIMIT]),
+        amlReason: In(BuyFiatAmlReasonPendingStates),
         amlCheck: AmlCheck.PENDING,
       },
       relations: ['sell', 'sell.user', 'sell.user.userData'],
@@ -218,10 +218,7 @@ export class BuyFiatNotificationService {
             type: MailType.USER,
             input: {
               userData: entity.sell.user.userData,
-              translationKey:
-                entity.amlReason === AmlReason.DAILY_LIMIT
-                  ? 'mail.payment.pending.dailyLimit'
-                  : 'mail.payment.pending.annualLimit',
+              translationKey: entity.translationKey,
               translationParams: {
                 hashLink: `${Config.payment.url}/kyc?code=${entity.sell.user.userData.kycHash}`,
               },

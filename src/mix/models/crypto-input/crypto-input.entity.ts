@@ -13,6 +13,7 @@ import { DepositRoute } from '../route/deposit-route.entity';
 export enum CryptoInputType {
   RETURN = 'Return',
   CRYPTO_STAKING = 'CryptoStaking',
+  CRYPTO_STAKING_INVALID = 'CryptoStakingInvalid',
   BUY_FIAT = 'BuyFiat',
   BUY_CRYPTO = 'BuyCrypto',
   CRYPTO_CRYPTO = 'CryptoCrypto',

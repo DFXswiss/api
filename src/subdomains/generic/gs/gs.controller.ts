@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
-import { SupportReturnData } from './dto/support-return-data.dto';
+import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
 @Controller('gs')
@@ -37,7 +37,7 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.SUPPORT))
-  async getSupportData(@Query('id') id: string): Promise<SupportReturnData> {
-    return await this.gsService.getSupportData(+id);
+  async getSupportData(@Query() query: SupportDataQuery): Promise<SupportReturnData> {
+    return await this.gsService.getSupportData(query);
   }
 }

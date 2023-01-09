@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { HttpService } from '../../../shared/services/http.service';
 import * as MasterNodes from './assets/master-nodes.json';
@@ -100,13 +100,14 @@ export interface CfpResult {
 }
 
 @Injectable()
-export class CfpService {
+export class CfpService implements OnModuleInit {
   private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
 
   private settings: CfpSettings;
-  private masterNodeCount: number;
-  private masterNodes: { [address: string]: MasterNode };
   private cfpResults: CfpResult[];
+
+  private readonly masternodeCount: number;
+  private readonly masternodes: Map<string, MasterNode>;
   private dfxMasternodes: Masternode[];
 
   constructor(
@@ -119,12 +120,13 @@ export class CfpService {
     validMasterNodes ??= Object.values(MasterNodes).filter(
       (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
     ) as MasterNode[];
-    this.masterNodeCount = validMasterNodes.length;
-    this.masterNodes = validMasterNodes.reduce((prev, curr) => ({ ...prev, [curr.ownerAuthAddress]: curr }), {});
+
+    this.masternodeCount = validMasterNodes.length;
+    this.masternodes = Util.toMap(validMasterNodes, 'ownerAuthAddress');
   }
 
-  async onModuleInit() {
-    await this.doUpdate();
+  onModuleInit() {
+    void this.doUpdate();
   }
 
   @Interval(600000)
@@ -148,7 +150,6 @@ export class CfpService {
       }
     } catch (e) {
       console.error('Exception during CFP update:', e);
-      throw new ServiceUnavailableException('Failed to update');
     }
   }
 
@@ -194,13 +195,12 @@ export class CfpService {
   private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
     const type = cfp.labels.map((a) => a.name).includes(VotingType.CFP) ? VotingType.CFP : VotingType.DFIP;
 
-    const validVotes: { [address: string]: Vote } = comments
+    const validVotes = comments
       .map((c) => this.getCommentVotes(type, c))
       .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((v) => this.verifyVote(cfp, v))
-      .reduce((prev, curr) => ({ ...prev, [curr.address]: curr }), {}); // remove duplicate votes
+      .filter((v) => this.verifyVote(cfp, v));
 
-    const votes = Object.values(validVotes);
+    const votes = Array.from(Util.toMap(validVotes, 'address').values()); // remove duplicate votes
     const yesVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
     const noVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('no'));
     const neutralVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
@@ -233,8 +233,8 @@ export class CfpService {
       currentResult: currentResult,
       totalVotes: {
         total: votes.length,
-        possible: this.masterNodeCount,
-        turnout: Util.round((votes.length / this.masterNodeCount) * 100, Config.defaultPercentageDecimal),
+        possible: this.masternodeCount,
+        turnout: Util.round((votes.length / this.masternodeCount) * 100, Config.defaultPercentageDecimal),
         yes: yesVotes.length,
         neutral: neutralVotes.length,
         no: noVotes.length,
@@ -291,7 +291,7 @@ export class CfpService {
 
   private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
     return (
-      this.masterNodes[vote.address] &&
+      this.masternodes.get(vote.address) &&
       cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
       new Date(vote.createdAt) < new Date(this.settings.endDate) &&
       this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)

@@ -21,8 +21,16 @@ import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { PurchaseLiquidityStrategyAlias, PurchaseLiquidityStrategies } from '../purchase-liquidity.facade';
 import { DeFiChainDfiStrategy } from '../impl/defichain-dfi.strategy';
+import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
+import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
+import { OptimismCoinStrategy } from '../impl/optimism-coin.strategy';
+import { OptimismTokenStrategy } from '../impl/optimism-token.strategy';
+import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
+import { DexOptimismService } from '../../../services/dex-optimism.service';
 
 describe('PurchaseLiquidityStrategies', () => {
+  let arbitrumCoin: ArbitrumCoinStrategy;
+  let arbitrumToken: ArbitrumTokenStrategy;
   let bitcoin: BitcoinStrategy;
   let bscCoin: BscCoinStrategy;
   let bscToken: BscTokenStrategy;
@@ -32,10 +40,22 @@ describe('PurchaseLiquidityStrategies', () => {
   let deFiChainDfi: DeFiChainDfiStrategy;
   let ethereumCoin: EthereumCoinStrategy;
   let ethereumToken: EthereumTokenStrategy;
+  let optimismCoin: OptimismCoinStrategy;
+  let optimismToken: OptimismTokenStrategy;
 
   let facade: PurchaseLiquidityStrategiesWrapper;
 
   beforeEach(() => {
+    arbitrumCoin = new ArbitrumCoinStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexArbitrumService>(),
+    );
+    arbitrumToken = new ArbitrumTokenStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexArbitrumService>(),
+    );
     bitcoin = new BitcoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBitcoinService>());
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
     bscToken = new BscTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
@@ -73,8 +93,20 @@ describe('PurchaseLiquidityStrategies', () => {
     );
     ethereumCoin = new EthereumCoinStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
     ethereumToken = new EthereumTokenStrategy(mock<AssetService>(), mock<NotificationService>(), mock<DexBscService>());
+    optimismCoin = new OptimismCoinStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexOptimismService>(),
+    );
+    optimismToken = new OptimismTokenStrategy(
+      mock<AssetService>(),
+      mock<NotificationService>(),
+      mock<DexOptimismService>(),
+    );
 
     facade = new PurchaseLiquidityStrategiesWrapper(
+      arbitrumCoin,
+      arbitrumToken,
       bitcoin,
       bscCoin,
       bscToken,
@@ -84,12 +116,14 @@ describe('PurchaseLiquidityStrategies', () => {
       deFiChainStock,
       ethereumCoin,
       ethereumToken,
+      optimismCoin,
+      optimismToken,
     );
   });
 
   describe('#constructor(...)', () => {
     it('adds all purchaseLiquidityStrategies to a map', () => {
-      expect([...facade.getStrategies().entries()].length).toBe(9);
+      expect([...facade.getStrategies().entries()].length).toBe(13);
     });
 
     it('assigns strategies to all aliases', () => {
@@ -99,6 +133,8 @@ describe('PurchaseLiquidityStrategies', () => {
     it('sets all required purchaseLiquidityStrategies aliases', () => {
       const aliases = [...facade.getStrategies().keys()];
 
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.ARBITRUM_COIN)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.ARBITRUM_TOKEN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.BITCOIN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.BSC_COIN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.BSC_TOKEN)).toBe(true);
@@ -107,9 +143,17 @@ describe('PurchaseLiquidityStrategies', () => {
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.DEFICHAIN_CRYPTO)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.ETHEREUM_COIN)).toBe(true);
       expect(aliases.includes(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.OPTIMISM_COIN)).toBe(true);
+      expect(aliases.includes(PurchaseLiquidityStrategyAlias.OPTIMISM_TOKEN)).toBe(true);
     });
 
     it('assigns proper purchaseLiquidityStrategies to aliases', () => {
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ARBITRUM_COIN)).toBeInstanceOf(
+        ArbitrumCoinStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ARBITRUM_TOKEN)).toBeInstanceOf(
+        ArbitrumTokenStrategy,
+      );
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BITCOIN)).toBeInstanceOf(BitcoinStrategy);
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BSC_COIN)).toBeInstanceOf(BscCoinStrategy);
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.BSC_TOKEN)).toBeInstanceOf(BscTokenStrategy);
@@ -128,11 +172,33 @@ describe('PurchaseLiquidityStrategies', () => {
       expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.ETHEREUM_TOKEN)).toBeInstanceOf(
         EthereumTokenStrategy,
       );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.OPTIMISM_COIN)).toBeInstanceOf(
+        OptimismCoinStrategy,
+      );
+      expect(facade.getStrategies().get(PurchaseLiquidityStrategyAlias.OPTIMISM_TOKEN)).toBeInstanceOf(
+        OptimismTokenStrategy,
+      );
     });
   });
 
   describe('#getPurchaseLiquidityStrategy(...)', () => {
     describe('getting strategy by Asset', () => {
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.ARBITRUM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
+      });
+
       it('gets BITCOIN strategy for BITCOIN Crypto', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.BITCOIN }));
 
@@ -203,6 +269,22 @@ describe('PurchaseLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.OPTIMISM, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           facade.getPurchaseLiquidityStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -223,6 +305,18 @@ describe('PurchaseLiquidityStrategies', () => {
     });
 
     describe('getting strategy by Alias', () => {
+      it('gets ARBITRUM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ARBITRUM_COIN);
+
+        expect(strategy).toBeInstanceOf(ArbitrumCoinStrategy);
+      });
+
+      it('gets ARBITRUM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.ARBITRUM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(ArbitrumTokenStrategy);
+      });
+
       it('gets BITCOIN strategy', () => {
         const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.BITCOIN);
 
@@ -271,6 +365,18 @@ describe('PurchaseLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(EthereumTokenStrategy);
       });
 
+      it('gets OPTIMISM_COIN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.OPTIMISM_COIN);
+
+        expect(strategy).toBeInstanceOf(OptimismCoinStrategy);
+      });
+
+      it('gets OPTIMISM_TOKEN strategy', () => {
+        const strategy = facade.getPurchaseLiquidityStrategy(PurchaseLiquidityStrategyAlias.OPTIMISM_TOKEN);
+
+        expect(strategy).toBeInstanceOf(OptimismTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Alias', () => {
         const testCall = () =>
           facade.getPurchaseLiquidityStrategy('NonExistingAlias' as PurchaseLiquidityStrategyAlias);
@@ -284,6 +390,8 @@ describe('PurchaseLiquidityStrategies', () => {
 
 class PurchaseLiquidityStrategiesWrapper extends PurchaseLiquidityStrategies {
   constructor(
+    arbitrumCoin: ArbitrumCoinStrategy,
+    arbitrumToken: ArbitrumTokenStrategy,
     bitcoin: BitcoinStrategy,
     bscCoin: BscCoinStrategy,
     bscToken: BscTokenStrategy,
@@ -293,8 +401,12 @@ class PurchaseLiquidityStrategiesWrapper extends PurchaseLiquidityStrategies {
     deFiChainStock: DeFiChainStockStrategy,
     ethereumCoin: EthereumCoinStrategy,
     ethereumToken: EthereumTokenStrategy,
+    optimismCoin: OptimismCoinStrategy,
+    optimismToken: OptimismTokenStrategy,
   ) {
     super(
+      arbitrumCoin,
+      arbitrumToken,
       bitcoin,
       bscCoin,
       bscToken,
@@ -304,6 +416,8 @@ class PurchaseLiquidityStrategiesWrapper extends PurchaseLiquidityStrategies {
       deFiChainStock,
       ethereumCoin,
       ethereumToken,
+      optimismCoin,
+      optimismToken,
     );
   }
 

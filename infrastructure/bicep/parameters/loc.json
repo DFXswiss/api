@@ -92,6 +92,42 @@
     "ethSwapTokenAddress": {
       "value": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6"
     },
+    "optimismWalletAddress": {
+      "value": "xxx"
+    },
+    "optimismWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "optimismGatewayUrl": {
+      "value": "https://goerli.optimism.io"
+    },
+    "optimismApiKey": {
+      "value": "xxx"
+    },
+    "optimismSwapContractAddress": {
+      "value": ""
+    },
+    "optimismSwapTokenAddress": {
+      "value": ""
+    },
+    "arbitrumWalletAddress": {
+      "value": "xxx"
+    },
+    "arbitrumWalletPrivateKey": {
+      "value": "xxx"
+    },
+    "arbitrumGatewayUrl": {
+      "value": "https://goerli-rollup.arbitrum.io/rpc"
+    },
+    "arbitrumApiKey": {
+      "value": "xxx"
+    },
+    "arbitrumSwapContractAddress": {
+      "value": ""
+    },
+    "arbitrumSwapTokenAddress": {
+      "value": ""
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },

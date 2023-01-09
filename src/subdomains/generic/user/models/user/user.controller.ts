@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards, Res, HttpStatus } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -17,6 +17,7 @@ import { VolumeQuery } from './dto/volume-query.dto';
 import { LinkedUserInDto } from './dto/linked-user.dto';
 import { AuthService } from '../auth/auth.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
+import { Response } from 'express';
 
 @ApiTags('user')
 @Controller('user')
@@ -43,8 +44,15 @@ export class UserController {
   @Put()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async updateUser(@GetJwt() jwt: JwtPayload, @Body() newUser: UpdateUserDto): Promise<UserDetailDto> {
-    return this.userService.updateUser(jwt.id, newUser);
+  async updateUser(
+    @GetJwt() jwt: JwtPayload,
+    @Body() newUser: UpdateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserDetailDto> {
+    const { user, isKnownUser } = await this.userService.updateUser(jwt.id, newUser);
+    if (isKnownUser) res.status(HttpStatus.ACCEPTED);
+
+    return user;
   }
 
   @Post('change')

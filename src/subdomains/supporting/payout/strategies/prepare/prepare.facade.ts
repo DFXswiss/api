@@ -1,17 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { ArbitrumStrategy } from './impl/arbitrum.strategy';
 import { PrepareStrategy } from './impl/base/prepare.strategy';
 import { BitcoinStrategy } from './impl/bitcoin.strategy';
 import { BscStrategy } from './impl/bsc.strategy';
 import { DeFiChainStrategy } from './impl/defichain.strategy';
 import { EthereumStrategy } from './impl/ethereum.strategy';
+import { OptimismStrategy } from './impl/optimism.strategy';
 
 enum Alias {
   BITCOIN = 'Bitcoin',
   DEFICHAIN = 'DeFiChain',
   ETHEREUM = 'Ethereum',
   BSC = 'Bsc',
+  ARBITRUM = 'Arbitrum',
+  OPTIMISM = 'Optimism',
 }
 
 export { Alias as PrepareStrategyAlias };
@@ -25,11 +29,15 @@ export class PrepareStrategiesFacade {
     deFiChainStrategy: DeFiChainStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
+    arbitrumStrategy: ArbitrumStrategy,
+    optimismStrategy: OptimismStrategy,
   ) {
     this.strategies.set(Alias.BITCOIN, bitcoin);
     this.strategies.set(Alias.DEFICHAIN, deFiChainStrategy);
     this.strategies.set(Alias.ETHEREUM, ethereumStrategy);
     this.strategies.set(Alias.BSC, bscStrategy);
+    this.strategies.set(Alias.ARBITRUM, arbitrumStrategy);
+    this.strategies.set(Alias.OPTIMISM, optimismStrategy);
   }
 
   getPrepareStrategy(criteria: Asset | Alias): PrepareStrategy {
@@ -58,6 +66,8 @@ export class PrepareStrategiesFacade {
     if (blockchain === Blockchain.BITCOIN) return Alias.BITCOIN;
     if (blockchain === Blockchain.ETHEREUM) return Alias.ETHEREUM;
     if (blockchain === Blockchain.BINANCE_SMART_CHAIN) return Alias.BSC;
+    if (blockchain === Blockchain.ARBITRUM) return Alias.ARBITRUM;
+    if (blockchain === Blockchain.OPTIMISM) return Alias.OPTIMISM;
     if (blockchain === Blockchain.DEFICHAIN) return Alias.DEFICHAIN;
   }
 }

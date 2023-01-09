@@ -1,7 +1,7 @@
+import { TransformFnParams } from 'class-transformer';
 import { BinaryLike, createHash, createSign, KeyLike } from 'crypto';
 import { XMLValidator, XMLParser } from 'fast-xml-parser';
 import { readFile } from 'fs';
-import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 
 type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
@@ -29,6 +29,12 @@ export class Util {
 
   static avg(list: number[]): number {
     return this.sum(list) / list.length;
+  }
+
+  static toMap<T>(list: T[], key: KeyType<T, string>): Map<string, T> {
+    const map = new Map<string, T>();
+    list.forEach((item) => map.set(item[key] as unknown as string, item));
+    return map;
   }
 
   static aggregate<T>(list: T[], key: KeyType<T, string>, value: KeyType<T, number>): { [field: string]: number } {
@@ -171,17 +177,15 @@ export class Util {
     return new XMLParser({ ignoreAttributes: false }).parse(file);
   }
 
-  static trimBlockchainAddress(address: string): string {
+  static blankBlockchainAddress(address: string): string {
     return '***' + address.slice(address.length - 6);
   }
 
-  static trimIBAN(iban: string): string {
+  static blankIban(iban: string): string {
     return '***' + iban.slice(iban.length - 4);
   }
 
-  static transformToMinDeposit(deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] {
-    return Object.entries(deposit)
-      .filter(([key, _]) => filter?.includes(key) ?? true)
-      .map(([key, value]) => ({ amount: value, asset: key }));
+  static trimIban({ value }: TransformFnParams): string {
+    return value.split(' ').join('');
   }
 }

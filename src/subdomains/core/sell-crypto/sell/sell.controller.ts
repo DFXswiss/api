@@ -14,13 +14,10 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
 import { SellHistoryDto } from './dto/sell-history.dto';
 import { Config } from 'src/config/config';
-import { Util } from 'src/shared/utils/util';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
-import { MinDeposit } from '../../../../mix/models/deposit/dto/min-deposit.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -88,7 +85,7 @@ export class SellController {
       fee: undefined,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: this.getTransactionVolume(sell.fiat),
+      minDeposits: Config.transaction.minVolume.getMany(sell.fiat),
     };
   }
 
@@ -97,7 +94,7 @@ export class SellController {
       ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
-      minDeposits: this.getTransactionVolume(sell.fiat),
+      minDeposit: Config.transaction.minVolume.get(sell.fiat, sell.fiat.name),
     };
   }
 
@@ -105,11 +102,5 @@ export class SellController {
   async getFee(userId: number, asset: Asset): Promise<{ fee: number }> {
     asset = await this.assetService.getAssetById(asset.id);
     return this.userService.getUserSellFee(userId, asset);
-  }
-
-  private getTransactionVolume(outputFiat: Fiat): MinDeposit[] {
-    const minAssetVolume = Config.transaction.minTransactionVolume['Fiat']?.[outputFiat.name];
-
-    return Util.transformToMinDeposit(minAssetVolume ?? Config.transaction.minTransactionVolume.default);
   }
 }

@@ -27,4 +27,7 @@ export class Bank extends IEntity {
 
   @Column({ default: true })
   send: boolean;
+
+  @Column({ default: false })
+  sctInst: boolean;
 }

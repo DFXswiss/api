@@ -88,6 +88,18 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   chargeCurrency: string;
 
+  @Column({ type: 'float', nullable: true })
+  accountingAmountBeforeFee?: number;
+
+  @Column({ type: 'float', nullable: true })
+  accountingFeeAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  accountingFeePercent?: number;
+
+  @Column({ type: 'float', nullable: true })
+  accountingAmountAfterFee?: number;
+
   // related party info
   @Column({ length: 256, nullable: true })
   name?: string;
@@ -154,4 +166,10 @@ export class BankTx extends IEntity {
 
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.bankTx, { nullable: true })
   buyFiat?: BuyFiat;
+}
+
+export const BankTxCompletedTypes = [BankTxType.BUY_CRYPTO, BankTxType.BANK_TX_REPEAT, BankTxType.BANK_TX_RETURN];
+
+export function BankTxTypeCompleted(bankTxType?: BankTxType): boolean {
+  return BankTxCompletedTypes.includes(bankTxType);
 }

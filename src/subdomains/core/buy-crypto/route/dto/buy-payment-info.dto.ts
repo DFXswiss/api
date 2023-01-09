@@ -25,6 +25,9 @@ export class BankInfoDto {
 
   @ApiProperty()
   bic: string;
+
+  @ApiProperty()
+  sepaInstant: boolean;
 }
 
 export class BuyPaymentInfoDto extends BankInfoDto {
@@ -34,6 +37,6 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty()
   remittanceInfo: string;
 
-  @ApiProperty({ type: MinDeposit, isArray: true })
-  minDeposits: MinDeposit[];
+  @ApiProperty({ type: MinDeposit })
+  minDeposit: MinDeposit;
 }

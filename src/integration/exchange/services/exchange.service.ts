@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { Exchange, ExchangeError, Market, Order, Transaction, WithdrawalResponse } from 'ccxt';
+import { Exchange, ExchangeError, Market, Order, Trade, Transaction, WithdrawalResponse } from 'ccxt';
 import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../dto/price.dto';
 import { Util } from 'src/shared/utils/util';
@@ -33,26 +33,29 @@ export class ExchangeService implements PriceProvider {
     return this.getBalances().then((b) => b.total[currency]);
   }
 
-  async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
-    const orderPrice = await Util.retry(() => this.fetchOrderPrice(fromCurrency, toCurrency), 3);
+  async getPrice(from: string, to: string): Promise<Price> {
+    const orderPrice = await Util.retry(() => this.fetchLastOrderPrice(from, to), 3);
 
-    const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
-    const [left, right] = pair.split('/');
+    const { direction } = await this.getTradePair(from, to);
 
-    return direction === OrderSide.BUY
-      ? {
-          source: right,
-          target: left,
-          price: orderPrice,
-        }
-      : {
-          source: left,
-          target: right,
-          price: 1 / orderPrice,
-        };
+    return {
+      source: from,
+      target: to,
+      price: direction === OrderSide.BUY ? orderPrice : 1 / orderPrice,
+    };
   }
 
-  async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<TradeResponse> {
+  async getTrades(from?: string, to?: string): Promise<Trade[]> {
+    const pair = from && to && (await this.getPair(from, to));
+    return this.exchange.fetchMyTrades(pair);
+  }
+
+  async getOpenTrades(from?: string, to?: string): Promise<Order[]> {
+    const pair = from && to && (await this.getPair(from, to));
+    return this.exchange.fetchOpenOrders(pair);
+  }
+
+  async trade(from: string, to: string, amount: number): Promise<TradeResponse> {
     /*
       The following logic is applied
 
@@ -64,15 +67,15 @@ export class ExchangeService implements PriceProvider {
     */
 
     // check balance
-    const balance = await this.getBalance(fromCurrency);
+    const balance = await this.getBalance(from);
     if (amount > balance) {
       throw new BadRequestException(
-        `There is not enough balance for token ${fromCurrency}. Current balance: ${balance} requested balance: ${amount}`,
+        `There is not enough balance for token ${from}. Current balance: ${balance} requested balance: ${amount}`,
       );
     }
 
     // place the order
-    return this.tryToOrder(fromCurrency, toCurrency, amount, 'limit');
+    return this.tryToOrder(from, to, amount, 'limit');
   }
 
   async withdrawFunds(
@@ -103,19 +106,31 @@ export class ExchangeService implements PriceProvider {
     return this.markets;
   }
 
-  async getCurrencyPair(fromCurrency: string, toCurrency: string): Promise<{ pair: string; direction: OrderSide }> {
-    const currencyPairs = await this.getMarkets().then((m) => m.map((m) => m.symbol));
-    const selectedPair = currencyPairs.find(
-      (p) => p === `${fromCurrency}/${toCurrency}` || p === `${toCurrency}/${fromCurrency}`,
-    );
-    if (!selectedPair) throw new BadRequestException(`Pair with ${fromCurrency} and ${toCurrency} not supported`);
+  async getPair(from: string, to: string): Promise<string> {
+    return this.getTradePair(from, to).then((p) => p.pair);
+  }
 
-    const selectedDirection = selectedPair.startsWith(toCurrency) ? OrderSide.BUY : OrderSide.SELL;
+  async getTradePair(from: string, to: string): Promise<{ pair: string; direction: OrderSide }> {
+    const currencyPairs = await this.getMarkets().then((m) => m.map((m) => m.symbol));
+    const selectedPair = currencyPairs.find((p) => p === `${from}/${to}` || p === `${to}/${from}`);
+    if (!selectedPair) throw new BadRequestException(`Pair with ${from} and ${to} not supported`);
+
+    const selectedDirection = selectedPair.startsWith(to) ? OrderSide.BUY : OrderSide.SELL;
 
     return { pair: selectedPair, direction: selectedDirection };
   }
-  private async fetchOrderPrice(from: string, to: string): Promise<number> {
-    const { pair, direction } = await this.getCurrencyPair(from, to);
+
+  private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
+    const pair = await this.getPair(from, to);
+
+    const trades = await this.exchange.fetchTrades(pair);
+    if (trades.length === 0) throw new Error(`No trades found for ${pair}`);
+
+    return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
+  }
+
+  private async fetchCurrentOrderPrice(from: string, to: string): Promise<number> {
+    const { pair, direction } = await this.getTradePair(from, to);
 
     /* 
         If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
@@ -142,7 +157,7 @@ export class ExchangeService implements PriceProvider {
 
     do {
       // create a new order with the remaining amount, if order undefined or price changed
-      const price = await this.fetchOrderPrice(from, to);
+      const price = await this.fetchCurrentOrderPrice(from, to);
       if (price !== order?.price) {
         remainingAmount = amount - Util.sumObj(Object.values(orders), 'fromAmount');
 
@@ -208,7 +223,7 @@ export class ExchangeService implements PriceProvider {
       await this.cancelOrder(order);
     }
 
-    const { pair, direction } = await this.getCurrencyPair(from, to);
+    const { pair, direction } = await this.getTradePair(from, to);
     const orderAmount = direction === OrderSide.BUY ? amount / price : amount;
 
     // check for min amount

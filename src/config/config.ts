@@ -5,7 +5,9 @@ import { I18nJsonParser, I18nOptions } from 'nestjs-i18n';
 import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { FeeTier } from 'src/shared/models/asset/asset.entity';
+import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
+import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export function GetConfig(): Configuration {
   return new Configuration();
@@ -184,7 +186,7 @@ export class Configuration {
   };
 
   transaction = {
-    minTransactionVolume: {
+    minVolume: {
       // blockchain: { outputAsset: { minTransactionAsset: minTransactionVolume }}
       Fiat: {
         USD: {
@@ -194,10 +196,45 @@ export class Configuration {
       Bitcoin: {
         BTC: {
           USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
+      BinanceSmartChain: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
+      Ethereum: {
+        default: {
+          USD: 1000,
+          CHF: 1000,
+          EUR: 1000,
         },
       },
       default: {
         USD: 1,
+        CHF: 1,
+        EUR: 1,
+      },
+
+      get: (target: Asset | Fiat, referenceCurrency: string): MinDeposit => {
+        const minDeposits = this.transaction.minVolume.getMany(target);
+        return minDeposits.find((d) => d.asset === referenceCurrency) ?? minDeposits.find((d) => d.asset === 'USD');
+      },
+
+      getMany: (target: Asset | Fiat): MinDeposit[] => {
+        const system = 'blockchain' in target ? target.blockchain : 'Fiat';
+        const asset = target.name;
+
+        const minVolume =
+          this.transaction.minVolume[system]?.[asset] ??
+          this.transaction.minVolume[system]?.default ??
+          this.transaction.minVolume.default;
+
+        return this.transformToMinDeposit(minVolume);
       },
     },
   };
@@ -267,6 +304,22 @@ export class Configuration {
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
+    },
+    optimism: {
+      optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
+      optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
+      optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
+      optimismApiKey: process.env.OPTIMISM_API_KEY,
+      pancakeRouterAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
+    },
+    arbitrum: {
+      arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
+      arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
+      arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
+      arbitrumApiKey: process.env.ARBITRUM_API_KEY,
+      pancakeRouterAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.ARBITRUM_SWAP_TOKEN_ADDRESS,
     },
   };
 
@@ -415,6 +468,12 @@ export class Configuration {
 
     return Number.isNaN(limit) ? null : limit;
   }
+
+  // --- HELPERS --- //
+  transformToMinDeposit = (deposit: { [asset: string]: number }, filter?: string[] | string): MinDeposit[] =>
+    Object.entries(deposit)
+      .filter(([key, _]) => filter?.includes(key) ?? true)
+      .map(([key, value]) => ({ amount: value, asset: key }));
 }
 
 @Injectable()

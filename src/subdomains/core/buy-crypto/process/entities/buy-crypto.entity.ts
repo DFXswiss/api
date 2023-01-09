@@ -150,6 +150,8 @@ export class BuyCrypto extends IEntity {
 
     switch (this.target.asset.blockchain) {
       case Blockchain.ETHEREUM:
+      case Blockchain.ARBITRUM:
+      case Blockchain.OPTIMISM:
         if (this.outputAsset.dexName === 'DFI') {
           this.outputReferenceAsset = this.outputAsset;
 
@@ -229,7 +231,7 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 
-  complete(payoutTxId: string, payoutFee: number): this {
+  complete(payoutTxId: string, payoutFee: number | null): this {
     this.txId = payoutTxId;
     this.outputDate = new Date();
     this.isComplete = true;
@@ -252,9 +254,22 @@ export class BuyCrypto extends IEntity {
         ? 'mail.payment.deposit.buyCryptoCrypto'
         : 'mail.payment.deposit.buyCryptoFiat';
     } else if (this.amlCheck === AmlCheck.PENDING) {
-      if (this.amlReason === AmlReason.DAILY_LIMIT) return 'mail.payment.pending.dailyLimit';
-      if (this.amlReason === AmlReason.ANNUAL_LIMIT) return 'mail.payment.pending.annualLimit';
-      if (this.amlReason === AmlReason.OLKY_NO_KYC) return 'mail.payment.pending.olkyNoKyc';
+      switch (this.amlReason) {
+        case AmlReason.DAILY_LIMIT:
+          return 'mail.payment.pending.dailyLimit';
+
+        case AmlReason.ANNUAL_LIMIT:
+          return 'mail.payment.pending.annualLimit';
+
+        case AmlReason.ANNUAL_LIMIT_WITHOUT_KYC:
+          return 'mail.payment.pending.annualLimitWithoutKyc';
+
+        case AmlReason.OLKY_NO_KYC:
+          return 'mail.payment.pending.olkyNoKyc';
+
+        case AmlReason.NAME_CHECK_WITHOUT_KYC:
+          return 'mail.payment.pending.nameCheckWithoutKyc';
+      }
     } else if (this.amlCheck === AmlCheck.FAIL) {
       return 'mail.payment.deposit.paybackInitiated';
     }
@@ -271,13 +286,13 @@ export class BuyCrypto extends IEntity {
       ? {
           address: this.buy.deposit?.address ?? this.buy.user.address,
           asset: this.buy.asset,
-          trimmedReturnAddress: this.buy?.iban ? Util.trimIBAN(this.buy.iban) : null,
+          trimmedReturnAddress: this.buy?.iban ? Util.blankIban(this.buy.iban) : null,
         }
       : {
           address: this.cryptoRoute.targetDeposit?.address ?? this.cryptoRoute.user.address,
           asset: this.cryptoRoute.asset,
           trimmedReturnAddress: this.cryptoRoute?.user?.address
-            ? Util.trimBlockchainAddress(this.cryptoRoute.user.address)
+            ? Util.blankBlockchainAddress(this.cryptoRoute.user.address)
             : null,
         };
   }
@@ -299,3 +314,11 @@ export class BuyCrypto extends IEntity {
     return this;
   }
 }
+
+export const BuyCryptoAmlReasonPendingStates = [
+  AmlReason.DAILY_LIMIT,
+  AmlReason.ANNUAL_LIMIT,
+  AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
+  AmlReason.OLKY_NO_KYC,
+  AmlReason.NAME_CHECK_WITHOUT_KYC,
+];

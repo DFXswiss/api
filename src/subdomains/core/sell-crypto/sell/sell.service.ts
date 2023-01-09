@@ -43,6 +43,7 @@ export class SellService {
       .leftJoinAndSelect('sell.deposit', 'deposit')
       .leftJoinAndSelect('sell.user', 'user')
       .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
       .where('deposit.address = :addr', { addr: depositAddress })
       .getOne();
   }
@@ -59,9 +60,6 @@ export class SellService {
     // check fiat
     const fiat = await this.fiatService.getFiat(dto.fiat.id);
     if (!fiat) throw new BadRequestException('Fiat not found');
-
-    // remove spaces in IBAN
-    dto.iban = dto.iban.split(' ').join('');
 
     // check if exists
     const existing = await this.sellRepo.findOne({
