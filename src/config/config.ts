@@ -207,6 +207,20 @@ export class Configuration {
           EUR: 10,
         },
       },
+      Arbitrum: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
+      Optimism: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
       Ethereum: {
         default: {
           USD: 1000,
@@ -441,6 +455,7 @@ export class Configuration {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
+      nonce: () => Date.now(),
       ...this.exchange,
     };
   }

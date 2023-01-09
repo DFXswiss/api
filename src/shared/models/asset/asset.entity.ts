@@ -32,6 +32,12 @@ export class Asset extends IEntity {
   @Column({ length: 256 })
   name: string;
 
+  @Column({ length: 256, nullable: true })
+  uniqueName: string;
+
+  @Column({ length: 256, nullable: true })
+  description: string;
+
   @Column({ length: 256 })
   type: AssetType;
 
@@ -55,4 +61,7 @@ export class Asset extends IEntity {
 
   @Column({ length: 256, nullable: false, default: FeeTier.TIER2 })
   feeTier: FeeTier;
+
+  @Column({ default: false })
+  comingSoon: boolean;
 }
