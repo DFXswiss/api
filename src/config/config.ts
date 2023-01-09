@@ -207,6 +207,13 @@ export class Configuration {
           EUR: 10,
         },
       },
+      Arbitrum: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
       Ethereum: {
         default: {
           USD: 1000,
