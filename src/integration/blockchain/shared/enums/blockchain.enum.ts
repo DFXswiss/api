@@ -8,7 +8,7 @@ export enum Blockchain {
   POLYGON = 'Polygon',
 }
 
-export const BlockchainExplorerUrls = {
+export const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live/transactions',
   [Blockchain.BITCOIN]: 'https://blockstream.info/tx',
   [Blockchain.ETHEREUM]: 'https://etherscan.io/tx',
