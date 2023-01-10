@@ -35,6 +35,7 @@ describe('CryptoService', () => {
       Blockchain.BINANCE_SMART_CHAIN,
       Blockchain.ARBITRUM,
       Blockchain.OPTIMISM,
+      Blockchain.POLYGON,
     ]);
   });
 
