@@ -4,7 +4,6 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
 import { BtcClient } from './btc-client';
 import { DeFiClient } from './defi-client';
 import { NodeClient, NodeMode } from './node-client';
