@@ -8,6 +8,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { WebhookService } from '../../services/webhook/webhook.service';
 import { LinkService } from '../link/link.service';
 import { AccountType } from '../user-data/account-type.enum';
 import { KycState, KycStatus, LimitPeriod, UserData } from '../user-data/user-data.entity';
@@ -26,7 +27,6 @@ import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { KycProcessService } from './kyc-process.service';
-import { KycWebhookService } from './kyc-webhook.service';
 import { KycService } from './kyc.service';
 
 describe('KycService', () => {
@@ -43,7 +43,7 @@ describe('KycService', () => {
   let walletRepo: WalletRepository;
   let httpService: HttpService;
   let walletService: WalletService;
-  let kycWebhookService: KycWebhookService;
+  let webhookService: WebhookService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -141,7 +141,7 @@ describe('KycService', () => {
     walletRepo = createMock<WalletRepository>();
     httpService = createMock<HttpService>();
     walletService = createMock<WalletService>();
-    kycWebhookService = createMock<KycWebhookService>();
+    webhookService = createMock<WebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -157,7 +157,7 @@ describe('KycService', () => {
         { provide: WalletRepository, useValue: walletRepo },
         { provide: HttpService, useValue: httpService },
         { provide: WalletService, useValue: walletService },
-        { provide: KycWebhookService, useValue: kycWebhookService },
+        { provide: WebhookService, useValue: webhookService },
         TestUtil.provideConfig(),
       ],
     }).compile();

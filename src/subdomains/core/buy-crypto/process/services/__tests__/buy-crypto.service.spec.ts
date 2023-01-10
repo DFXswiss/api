@@ -10,6 +10,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyRepository } from '../../../route/buy.repository';
@@ -50,6 +51,7 @@ describe('BuyCryptoService', () => {
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
+  let webhookService: WebhookService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -66,6 +68,7 @@ describe('BuyCryptoService', () => {
     buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
+    webhookService = createMock<WebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -85,6 +88,7 @@ describe('BuyCryptoService', () => {
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
+        { provide: WebhookService, useValue: webhookService },
       ],
     }).compile();
 

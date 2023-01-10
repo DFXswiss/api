@@ -14,6 +14,7 @@ import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 
 enum MockBuyData {
   DEFAULT,
@@ -33,6 +34,7 @@ describe('BuyFiatService', () => {
   let bankTxService: BankTxService;
   let fiatOutputService: FiatOutputService;
   let buyCryptoService: BuyCryptoService;
+  let webhookService: WebhookService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -43,6 +45,7 @@ describe('BuyFiatService', () => {
     bankTxService = createMock<BankTxService>();
     fiatOutputService = createMock<FiatOutputService>();
     buyCryptoService = createMock<BuyCryptoService>();
+    webhookService = createMock<WebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -56,6 +59,7 @@ describe('BuyFiatService', () => {
         { provide: BankTxService, useValue: bankTxService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
+        { provide: WebhookService, useValue: webhookService },
       ],
     }).compile();
 

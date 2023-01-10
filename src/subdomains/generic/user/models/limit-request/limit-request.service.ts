@@ -8,9 +8,9 @@ import { SpiderService } from 'src/subdomains/generic/user/services/spider/spide
 import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
 import { LimitRequest, LimitRequestAccepted } from './limit-request.entity';
 import { Util } from 'src/shared/utils/util';
-import { KycWebhookService } from '../kyc/kyc-webhook.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
+import { WebhookService } from '../../services/webhook/webhook.service';
 
 @Injectable()
 export class LimitRequestService {
@@ -18,7 +18,7 @@ export class LimitRequestService {
     private readonly limitRequestRepo: LimitRequestRepository,
     private readonly userDataService: UserDataService,
     private readonly spiderService: SpiderService,
-    private readonly kycWebhookService: KycWebhookService,
+    private readonly webhookService: WebhookService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -77,7 +77,7 @@ export class LimitRequestService {
     const update = this.limitRequestRepo.create(dto);
 
     if (LimitRequestAccepted(dto.decision) && dto.decision !== entity.decision)
-      await this.kycWebhookService.kycChanged(entity.userData);
+      await this.webhookService.kycChanged(entity.userData);
 
     Util.removeNullFields(entity);
 
