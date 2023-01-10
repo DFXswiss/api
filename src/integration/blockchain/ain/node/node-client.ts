@@ -124,8 +124,17 @@ export class NodeClient {
     );
   }
 
-  private call<T>(call: (client: ApiClient) => Promise<T>): Promise<T> {
-    return this.queue.handle(() => call(this.client));
+  private async call<T>(call: (client: ApiClient) => Promise<T>, tryCount = 3): Promise<T> {
+    try {
+      return await this.queue.handle(() => call(this.client));
+    } catch (e) {
+      if (e instanceof SyntaxError && tryCount > 1) {
+        console.log('Retrying node call ...');
+        return this.call<T>(call, tryCount - 1);
+      }
+
+      throw e;
+    }
   }
 
   private createJellyfishClient(): ApiClient {
