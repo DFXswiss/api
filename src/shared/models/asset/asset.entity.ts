@@ -64,4 +64,7 @@ export class Asset extends IEntity {
 
   @Column({ default: false })
   comingSoon: boolean;
+
+  @Column({ nullable: true })
+  sortOrder: number;
 }
