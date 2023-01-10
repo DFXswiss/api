@@ -161,7 +161,8 @@ export class NodeService {
       return { errors: [], info: undefined };
     }
 
-    return Util.retry(() => client.getInfo(), 4, 1000)
+    return client
+      .getInfo()
       .then((info) => this.handleNodeCheckSuccess(info, type, mode))
       .catch(() => this.handleNodeCheckError(type, mode));
   }
