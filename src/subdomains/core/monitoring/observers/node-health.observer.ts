@@ -8,6 +8,7 @@ import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { Lock } from 'src/shared/utils/lock';
 
 type MailMessage = string;
 
@@ -28,6 +29,8 @@ interface NodeState {
 // --------- //
 @Injectable()
 export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
+  private readonly lock = new Lock(360);
+
   constructor(
     readonly monitoringService: MonitoringService,
     private readonly nodeService: NodeService,
@@ -39,6 +42,8 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
 
   @Interval(60000)
   async fetch(): Promise<NodePoolState[]> {
+    if (!this.lock.acquire()) return;
+
     try {
       let poolStates = await this.getState();
       poolStates = await this.handleErrors(poolStates);
@@ -48,6 +53,8 @@ export class NodeHealthObserver extends MetricObserver<NodePoolState[]> {
       return poolStates;
     } catch (e) {
       console.error('Exception in node health observer:', e);
+    } finally {
+      this.lock.release();
     }
   }
 

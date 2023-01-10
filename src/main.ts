@@ -8,6 +8,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionFilter } from './shared/filters/exception.filter';
 import { json, text } from 'express';
+import { KycChangedWebhookDto, KycFailedWebhookDto } from './subdomains/generic/user/services/webhook/dto/kyc-webhook.dto';
+import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -36,7 +38,9 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
 
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerOptions);
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerOptions, {
+    extraModels: [KycChangedWebhookDto, KycFailedWebhookDto, PaymentWebhookDto],
+  });
   SwaggerModule.setup('/swagger', app, swaggerDocument);
 
   await app.listen(process.env.PORT || 3000);

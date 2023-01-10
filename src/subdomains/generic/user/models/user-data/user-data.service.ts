@@ -22,8 +22,8 @@ import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/sp
 import { Util } from 'src/shared/utils/util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { KycProcessService } from '../kyc/kyc-process.service';
-import { KycWebhookService } from '../kyc/kyc-webhook.service';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
+import { WebhookService } from '../../services/webhook/webhook.service';
 import { AccountType } from './account-type.enum';
 import { KycUserDataDto } from '../kyc/dto/kyc-user-data.dto';
 import { LinkService } from '../link/link.service';
@@ -40,7 +40,7 @@ export class UserDataService {
     private readonly spiderService: SpiderService,
     private readonly spiderApiService: SpiderApiService,
     private readonly kycProcessService: KycProcessService,
-    private readonly kycWebhookService: KycWebhookService,
+    private readonly webhookService: WebhookService,
     @Inject(forwardRef(() => LinkService)) private readonly linkService: LinkService,
   ) {}
 
@@ -287,7 +287,7 @@ export class UserDataService {
     await this.userDataRepo.save(master);
 
     // KYC change Webhook
-    await this.kycWebhookService.kycChanged(master);
+    await this.webhookService.kycChanged(master);
 
     // update volumes
     await this.updateVolumes(masterId);

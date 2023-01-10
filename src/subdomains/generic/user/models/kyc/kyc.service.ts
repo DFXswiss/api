@@ -32,7 +32,7 @@ import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
-import { KycWebhookService } from './kyc-webhook.service';
+import { WebhookService } from '../../services/webhook/webhook.service';
 
 @Injectable()
 export class KycService {
@@ -47,7 +47,7 @@ export class KycService {
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
     private readonly http: HttpService,
-    private readonly webhookService: KycWebhookService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   // --- ADMIN/SUPPORT --- //
@@ -119,7 +119,7 @@ export class KycService {
     if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
-      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
+      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/check`, {
         headers: { 'x-api-key': apiKey },
 
         params: { address: dfxUser.address },
