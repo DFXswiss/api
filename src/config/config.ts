@@ -295,6 +295,8 @@ export class Configuration {
       },
     },
     ethereum: {
+      ethScanApiUrl: process.env.ETH_SCAN_API_URL,
+      ethScanApiKey: process.env.ETH_SCAN_API_KEY,
       ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
       ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
       ethGatewayUrl: process.env.ETH_GATEWAY_URL,
@@ -303,6 +305,8 @@ export class Configuration {
       swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
     },
     bsc: {
+      bscScanApiUrl: process.env.BSC_SCAN_API_URL,
+      bscScanApiKey: process.env.BSC_SCAN_API_KEY,
       bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
       bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
@@ -310,6 +314,8 @@ export class Configuration {
       swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
     },
     optimism: {
+      optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
+      optimismScanApiKey: process.env.OPTIMISM_SCAN_API_KEY,
       optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
       optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
       optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
@@ -318,6 +324,8 @@ export class Configuration {
       swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
     },
     arbitrum: {
+      arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
+      arbitrumScanApiKey: process.env.ARBITRUM_SCAN_API_KEY,
       arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
       arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
       arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,

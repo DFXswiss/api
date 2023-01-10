@@ -7,6 +7,8 @@ import { EvmService } from '../shared/evm/evm.service';
 export class OptimismService extends EvmService {
   constructor() {
     const {
+      optimismScanApiUrl,
+      optimismScanApiKey,
       optimismGatewayUrl,
       optimismApiKey,
       optimismWalletAddress,
@@ -16,6 +18,8 @@ export class OptimismService extends EvmService {
     } = GetConfig().blockchain.optimism;
 
     super(
+      optimismScanApiUrl,
+      optimismScanApiKey,
       optimismGatewayUrl,
       optimismApiKey,
       optimismWalletAddress,

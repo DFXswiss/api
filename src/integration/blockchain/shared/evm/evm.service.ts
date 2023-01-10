@@ -4,6 +4,8 @@ export abstract class EvmService {
   protected readonly client: EvmClient;
 
   constructor(
+    scanApiUrl: string,
+    scanApiKey: string,
     gatewayUrl: string,
     apiKey: string,
     walletAddress: string,
@@ -12,6 +14,8 @@ export abstract class EvmService {
     swapTokenAddress: string,
     client: {
       new (
+        scanApiUrl: string,
+        scanApiKey: string,
         gatewayUrl: string,
         privateKey: string,
         dfxAddress: string,
@@ -21,6 +25,8 @@ export abstract class EvmService {
     },
   ) {
     this.client = new client(
+      scanApiUrl,
+      scanApiKey,
       `${gatewayUrl}/${apiKey ?? ''}`,
       walletPrivateKey,
       walletAddress,

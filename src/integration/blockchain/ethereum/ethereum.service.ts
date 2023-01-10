@@ -7,6 +7,8 @@ import { EvmService } from '../shared/evm/evm.service';
 export class EthereumService extends EvmService {
   constructor() {
     const {
+      ethScanApiUrl,
+      ethScanApiKey,
       ethGatewayUrl,
       ethApiKey,
       ethWalletAddress,
@@ -16,6 +18,8 @@ export class EthereumService extends EvmService {
     } = GetConfig().blockchain.ethereum;
 
     super(
+      ethScanApiUrl,
+      ethScanApiKey,
       ethGatewayUrl,
       ethApiKey,
       ethWalletAddress,

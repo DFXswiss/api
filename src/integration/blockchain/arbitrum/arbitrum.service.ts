@@ -7,6 +7,8 @@ import { EvmService } from '../shared/evm/evm.service';
 export class ArbitrumService extends EvmService {
   constructor() {
     const {
+      arbitrumScanApiUrl,
+      arbitrumScanApiKey,
       arbitrumGatewayUrl,
       arbitrumApiKey,
       arbitrumWalletAddress,
@@ -16,6 +18,8 @@ export class ArbitrumService extends EvmService {
     } = GetConfig().blockchain.arbitrum;
 
     super(
+      arbitrumScanApiUrl,
+      arbitrumScanApiKey,
       arbitrumGatewayUrl,
       arbitrumApiKey,
       arbitrumWalletAddress,

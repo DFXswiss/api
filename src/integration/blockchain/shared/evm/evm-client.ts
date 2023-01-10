@@ -2,8 +2,12 @@ import { BigNumber, Contract, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import * as ERC20_ABI from './abi/erc20.abi.json';
 import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
+import { EvmTransaction } from './interfaces';
 
-export class EvmClient {
+export abstract class EvmClient {
+  protected scanApiUrl: string;
+  protected scanApiKey: string;
+
   #dfxAddress: string;
   #provider: ethers.providers.JsonRpcProvider;
   #wallet: ethers.Wallet;
@@ -15,17 +19,36 @@ export class EvmClient {
   #randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
 
   constructor(
+    scanApiUrl: string,
+    scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
     dfxAddress: string,
     swapContractAddress: string,
     swapTokenAddress: string,
   ) {
+    this.scanApiUrl = scanApiUrl;
+    this.scanApiKey = scanApiKey;
+
     this.#provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.#wallet = new ethers.Wallet(privateKey, this.#provider);
     this.#dfxAddress = dfxAddress;
     this.#swapTokenAddress = swapTokenAddress;
     this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.#wallet);
+  }
+
+  //*** PUBLIC API ***//
+
+  async getNativeCoinTransactions(fromBlock: number, walletAddress: string): Promise<EvmTransaction[]> {
+    return [];
+  }
+
+  async getERC20Transactions(
+    fromBlock: number,
+    walletAddress: string,
+    tokenAddress: string,
+  ): Promise<EvmTransaction[]> {
+    return [];
   }
 
   async getNativeCoinBalance(): Promise<number> {
