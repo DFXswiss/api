@@ -15,6 +15,12 @@ export class CreateUserDto {
   @Matches(GetConfig().signatureFormat)
   signature: string;
 
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  @Matches(GetConfig().keyFormat)
+  key?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

@@ -60,7 +60,7 @@ export class AuthService {
     }
 
     const { message } = this.getSignMessage(dto.address);
-    if (!this.verifySignature(message, dto.address, dto.signature)) {
+    if (!this.verifySignature(message, dto.address, dto.signature, dto.key)) {
       throw new BadRequestException('Invalid signature');
     }
 
@@ -69,20 +69,22 @@ export class AuthService {
       dto.usedRef ??= ref.ref;
     }
 
+    if (dto.key) dto.signature = [dto.signature, dto.key].join(';');
+
     const user = await this.userService.createUser(dto, userIp, ref?.origin);
     return { accessToken: this.generateUserToken(user) };
   }
 
-  async signIn({ address, signature }: AuthCredentialsDto): Promise<{ accessToken: string }> {
+  async signIn({ address, signature, key }: AuthCredentialsDto): Promise<{ accessToken: string }> {
     const user = await this.userRepo.getByAddress(address);
     if (!user) throw new NotFoundException('User not found');
 
     const { message } = this.getSignMessage(address);
-    const credentialsValid = this.verifySignature(message, address, signature);
+    const credentialsValid = this.verifySignature(message, address, signature, key);
     if (!credentialsValid) throw new UnauthorizedException('Invalid credentials');
 
     // TODO: temporary code to update old wallet signatures
-    if (user.signature.length !== 88) {
+    if (user.signature.length !== 88 && key === undefined) {
       await this.userRepo.update({ id: user.id }, { signature: signature });
     }
 
@@ -146,8 +148,8 @@ export class AuthService {
       .getRawOne<User>();
   }
 
-  private verifySignature(message: string, address: string, signature: string): boolean {
-    return this.cryptoService.verifySignature(message, address, signature);
+  private verifySignature(message: string, address: string, signature: string, key?: string): boolean {
+    return this.cryptoService.verifySignature(message, address, signature, key);
   }
 
   private verifyCompanySignature(dto: AuthCredentialsDto): boolean {
@@ -155,7 +157,7 @@ export class AuthService {
     if (!this.isChallengeValid(challengeData)) throw new UnauthorizedException('Challenge invalid');
     this.challengeList.delete(dto.address);
 
-    return this.verifySignature(challengeData.challenge, dto.address, dto.signature);
+    return this.verifySignature(challengeData.challenge, dto.address, dto.signature, dto.key);
   }
 
   private generateUserToken(user: User): string {

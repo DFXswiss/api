@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 
 export class AuthCredentialsDto {
@@ -14,4 +14,10 @@ export class AuthCredentialsDto {
   @IsString()
   @Matches(GetConfig().signatureFormat)
   signature: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  @Matches(GetConfig().keyFormat)
+  key?: string;
 }
