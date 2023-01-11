@@ -85,11 +85,9 @@ export class BuyCryptoOutService {
         'transactions',
         'transactions.buy',
         'transactions.buy.user',
-        'transactions.buy.user.userData',
         'transactions.buy.asset',
         'transactions.cryptoRoute',
         'transactions.cryptoRoute.user',
-        'transactions.cryptoRoute.user.userData',
         'transactions.cryptoRoute.asset',
       ],
     });
@@ -128,8 +126,8 @@ export class BuyCryptoOutService {
 
           // payment webhook
           tx.buy
-            ? await this.webhookService.fiatCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED)
-            : await this.webhookService.cryptoCryptoUpdate(tx.user.userData, tx, PaymentWebhookState.COMPLETED);
+            ? await this.webhookService.fiatCryptoUpdate(tx.user, tx, PaymentWebhookState.COMPLETED)
+            : await this.webhookService.cryptoCryptoUpdate(tx.user, tx, PaymentWebhookState.COMPLETED);
         }
       } catch (e) {
         console.error(`Error on validating transaction completion. ID: ${tx.id}.`, e);
