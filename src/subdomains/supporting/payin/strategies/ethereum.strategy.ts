@@ -4,13 +4,16 @@ import { Lock } from 'src/shared/utils/lock';
 import { PayInEthereumService } from '../services/payin-ethereum.service';
 import { Config, Process } from 'src/config/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PayInRepository } from '../repositories/payin.repository';
+import { PayInFactory } from '../factories/payin.factory';
 
 @Injectable()
 export class EthereumStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
-  constructor(ethereumService: PayInEthereumService) {
-    super(ethereumService);
+  constructor(ethereumService: PayInEthereumService, payInFactory: PayInFactory, payInRepository: PayInRepository) {
+    super(Blockchain.ETHEREUM, ethereumService, payInFactory, payInRepository);
   }
 
   //*** JOBS ***//

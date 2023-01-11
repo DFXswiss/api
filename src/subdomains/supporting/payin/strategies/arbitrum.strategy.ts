@@ -4,13 +4,16 @@ import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { PayInArbitrumService } from '../services/payin-arbitrum.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PayInRepository } from '../repositories/payin.repository';
+import { PayInFactory } from '../factories/payin.factory';
 
 @Injectable()
 export class ArbitrumStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
-  constructor(arbitrumService: PayInArbitrumService) {
-    super(arbitrumService);
+  constructor(arbitrumService: PayInArbitrumService, payInFactory: PayInFactory, payInRepository: PayInRepository) {
+    super(Blockchain.ARBITRUM, arbitrumService, payInFactory, payInRepository);
   }
 
   //*** JOBS ***//

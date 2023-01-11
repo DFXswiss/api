@@ -2,10 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
 import { BscClient } from './bsc-client';
 import { EvmService } from '../shared/evm/evm.service';
+import { HttpService } from 'src/shared/services/http.service';
 
 @Injectable()
 export class BscService extends EvmService {
-  constructor() {
+  constructor(http: HttpService) {
     const {
       bscScanApiUrl,
       bscScanApiKey,
@@ -17,6 +18,7 @@ export class BscService extends EvmService {
     } = GetConfig().blockchain.bsc;
 
     super(
+      http,
       bscScanApiUrl,
       bscScanApiKey,
       bscGatewayUrl,

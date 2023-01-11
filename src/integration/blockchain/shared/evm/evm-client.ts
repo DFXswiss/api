@@ -1,13 +1,11 @@
 import { BigNumber, Contract, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
 import * as ERC20_ABI from './abi/erc20.abi.json';
 import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
-import { EvmTransaction } from './interfaces';
+import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
 export abstract class EvmClient {
-  protected scanApiUrl: string;
-  protected scanApiKey: string;
-
   #dfxAddress: string;
   #provider: ethers.providers.JsonRpcProvider;
   #wallet: ethers.Wallet;
@@ -19,17 +17,15 @@ export abstract class EvmClient {
   #randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
 
   constructor(
-    scanApiUrl: string,
-    scanApiKey: string,
+    protected http: HttpService,
+    protected scanApiUrl: string,
+    protected scanApiKey: string,
     gatewayUrl: string,
     privateKey: string,
     dfxAddress: string,
     swapContractAddress: string,
     swapTokenAddress: string,
   ) {
-    this.scanApiUrl = scanApiUrl;
-    this.scanApiKey = scanApiKey;
-
     this.#provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
     this.#wallet = new ethers.Wallet(privateKey, this.#provider);
     this.#dfxAddress = dfxAddress;
@@ -39,16 +35,22 @@ export abstract class EvmClient {
 
   //*** PUBLIC API ***//
 
-  async getNativeCoinTransactions(fromBlock: number, walletAddress: string): Promise<EvmTransaction[]> {
-    return [];
+  async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
+    const params = {
+      ...this.getTransactionHistoryCommonParams(walletAddress, fromBlock),
+      action: 'txlist',
+    };
+
+    return this.http.get(this.scanApiUrl, { params });
   }
 
-  async getERC20Transactions(
-    fromBlock: number,
-    walletAddress: string,
-    tokenAddress: string,
-  ): Promise<EvmTransaction[]> {
-    return [];
+  async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
+    const params = {
+      ...this.getTransactionHistoryCommonParams(walletAddress, fromBlock),
+      action: 'tokentx',
+    };
+
+    return this.http.get(this.scanApiUrl, { params });
   }
 
   async getNativeCoinBalance(): Promise<number> {
@@ -153,6 +155,16 @@ export abstract class EvmClient {
   }
 
   //*** PRIVATE HELPER METHODS ***//
+
+  private getTransactionHistoryCommonParams(walletAddress: string, fromBlock: number) {
+    return {
+      module: 'account',
+      address: walletAddress,
+      startblock: fromBlock,
+      apikey: this.scanApiKey,
+      sort: 'asc',
+    };
+  }
 
   private getERC20Contract(tokenAddress: string): Contract {
     let tokenContract = this.#erc20Tokens.get(tokenAddress);
