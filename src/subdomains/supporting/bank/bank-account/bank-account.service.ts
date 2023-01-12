@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { IbanService, IbanDetailsDto } from 'src/integration/bank/services/iban.service';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycType, UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankAccountRepository } from './bank-account.repository';
 import { BankAccount, BankAccountInfos } from './bank-account.entity';
 import { IEntity } from 'src/shared/models/entity';
@@ -9,6 +9,7 @@ import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { CountryService } from 'src/shared/models/country/country.service';
 
 @Injectable()
 export class BankAccountService {
@@ -17,6 +18,7 @@ export class BankAccountService {
     private readonly userDataService: UserDataService,
     private readonly ibanService: IbanService,
     private readonly fiatService: FiatService,
+    private readonly countryService: CountryService,
   ) {}
 
   async getUserBankAccounts(userId: number): Promise<BankAccount[]> {
@@ -37,7 +39,7 @@ export class BankAccountService {
   }
 
   async createBankAccount(userId: number, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const { id: userDataId } = await this.userDataService.getUserDataByUser(userId);
+    const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
 
     const existing = await this.bankAccountRepo.findOne({
       where: { iban: dto.iban, userData: { id: userDataId } },
@@ -45,7 +47,7 @@ export class BankAccountService {
     });
     if (existing) throw new ConflictException('BankAccount already exists');
 
-    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId);
+    const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId, kycType);
 
     const update = await this.updateEntity(dto, bankAccount);
     return this.bankAccountRepo.save(update);
@@ -75,8 +77,8 @@ export class BankAccountService {
   }
 
   async getOrCreateBankAccount(iban: string, userId: number): Promise<BankAccount> {
-    const { id: userDataId } = await this.userDataService.getUserDataByUser(userId);
-    return await this.getOrCreateBankAccountInternal(iban, userDataId);
+    const { id: userDataId, kycType: kycType } = await this.userDataService.getUserDataByUser(userId);
+    return await this.getOrCreateBankAccountInternal(iban, userDataId, kycType);
   }
 
   // --- HELPER METHODS --- //
@@ -95,7 +97,7 @@ export class BankAccountService {
     return bankAccount;
   }
 
-  async getOrCreateBankAccountInternal(iban: string, userDataId: number): Promise<BankAccount> {
+  async getOrCreateBankAccountInternal(iban: string, userDataId: number, kycType: KycType): Promise<BankAccount> {
     const bankAccounts = await this.bankAccountRepo.find({
       where: { iban },
       relations: ['userData'],
@@ -103,19 +105,29 @@ export class BankAccountService {
 
     return (
       bankAccounts.find((b) => b.userData.id === userDataId) ??
-      (await this.createBankAccountInternal(iban, userDataId, bankAccounts[0]))
+      (await this.createBankAccountInternal(iban, userDataId, kycType, bankAccounts[0]))
     );
   }
 
   private async createBankAccountInternal(
     iban: string,
     userDataId: number,
+    kycType: KycType,
     copyFrom?: BankAccount,
   ): Promise<BankAccount> {
+    if (!this.isValidIbanCountry(iban, kycType))
+      throw new BadRequestException('Iban country is currently not supported');
+
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
     bankAccount.userData = { id: userDataId } as UserData;
 
     return this.bankAccountRepo.save(bankAccount);
+  }
+
+  private async isValidIbanCountry(iban: string, kycType: KycType): Promise<boolean> {
+    const ibanCountry = await this.countryService.getCountryWithSymbol(iban.substring(0, 2));
+
+    return ibanCountry.isEnabled(kycType);
   }
 
   private async initBankAccount(iban: string): Promise<BankAccount> {
