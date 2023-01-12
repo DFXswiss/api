@@ -30,7 +30,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  // @Cron(CronExpression.EVERY_30_SECONDS)
   async checkPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
     if (!this.lock.acquire()) return;
@@ -73,11 +73,12 @@ export class BitcoinStrategy extends JellyfishStrategy {
         continue;
       }
 
-      const existingInput = await this.payInRepository.findOne({
-        txId: utxo.txid,
-        vout: utxo.vout,
-        asset: assetEntity,
-      });
+      const existingInput = true;
+      // const existingInput = await this.payInRepository.findOne({
+      //   txId: utxo.txid,
+      //   vout: utxo.vout,
+      //   asset: assetEntity,
+      // });
 
       if (existingInput) continue;
 
@@ -94,14 +95,15 @@ export class BitcoinStrategy extends JellyfishStrategy {
   }
 
   private mapUtxosToEntries(utxos: UTXO[]): PayInEntry[] {
-    return utxos.map((u) => ({
-      address: BlockchainAddress.create(u.owner, Blockchain.BITCOIN),
-      type: u.type,
-      txId: u.txid,
-      blockHeight: u.blockHeight,
-      amount: u.amount,
-      asset: u.asset,
-      assetType: u.assetType,
-    }));
+    return [];
+    // return utxos.map((u) => ({
+    //   address: BlockchainAddress.create(u.owner, Blockchain.BITCOIN),
+    //   type: u.type,
+    //   txId: u.txid,
+    //   blockHeight: u.blockHeight,
+    //   amount: u.amount,
+    //   asset: u.asset,
+    //   assetType: u.assetType,
+    // }));
   }
 }

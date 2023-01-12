@@ -7,13 +7,19 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PayInRepository } from '../repositories/payin.repository';
 import { PayInFactory } from '../factories/payin.factory';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 @Injectable()
 export class EthereumStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
-  constructor(ethereumService: PayInEthereumService, payInFactory: PayInFactory, payInRepository: PayInRepository) {
-    super(Blockchain.ETHEREUM, ethereumService, payInFactory, payInRepository);
+  constructor(
+    ethereumService: PayInEthereumService,
+    payInFactory: PayInFactory,
+    payInRepository: PayInRepository,
+    assetService: AssetService,
+  ) {
+    super(Blockchain.ETHEREUM, 'ETH', ethereumService, payInFactory, payInRepository, assetService);
   }
 
   //*** JOBS ***//

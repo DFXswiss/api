@@ -30,6 +30,10 @@ export class AssetService {
 
   //*** UTILITY METHODS ***//
 
+  getByNameSync(assets: Asset[], dexName: string, blockchain: Blockchain): Asset | undefined {
+    return assets.find((a) => a.dexName === dexName && a.blockchain === blockchain);
+  }
+
   async getDfiCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       dexName: 'DFI',

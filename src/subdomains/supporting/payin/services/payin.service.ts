@@ -45,7 +45,7 @@ export class PayInService {
 
     for (const tx of newTransactions) {
       try {
-        payIns.push(await this.createNewPayIn(tx));
+        // payIns.push(await this.createNewPayIn(tx));
       } catch {
         continue;
       }
@@ -63,20 +63,20 @@ export class PayInService {
 
   //*** HELPER METHODS ***//
 
-  private async createNewPayIn(tx: PayInEntry): Promise<PayIn> {
-    const assetEntity = await this.assetService.getAssetByQuery({
-      dexName: tx.asset,
-      blockchain: Blockchain.DEFICHAIN,
-      type: tx.assetType,
-    });
+  // private async createNewPayIn(tx: PayInEntry): Promise<PayIn> {
+  //   const assetEntity = await this.assetService.getAssetByQuery({
+  //     dexName: tx.asset,
+  //     blockchain: Blockchain.DEFICHAIN,
+  //     type: tx.assetType,
+  //   });
 
-    if (!assetEntity) {
-      const message = `Failed to process pay in. No asset ${tx.asset} found. PayInEntry:`;
-      console.error(message, tx);
+  //   if (!assetEntity) {
+  //     const message = `Failed to process pay in. No asset ${tx.asset} found. PayInEntry:`;
+  //     console.error(message, tx);
 
-      throw new Error(message);
-    }
+  //     throw new Error(message);
+  //   }
 
-    return this.factory.createFromTransaction(tx, assetEntity);
-  }
+  //   return this.factory.createFromTransaction(tx, assetEntity);
+  // }
 }

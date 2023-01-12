@@ -34,7 +34,7 @@ export class PayIn extends IEntity {
   @Column({ nullable: false, type: 'float' })
   amount: number;
 
-  @ManyToOne(() => Asset, { nullable: false, eager: true })
+  @ManyToOne(() => Asset, { nullable: true, eager: true })
   asset: Asset;
 
   @Column({ nullable: true })

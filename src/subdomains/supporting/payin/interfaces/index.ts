@@ -6,5 +6,5 @@ export interface PayInEntry {
   txId: string;
   blockHeight: number;
   amount: number;
-  asset: Asset;
+  asset: Asset | null;
 }

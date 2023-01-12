@@ -45,7 +45,7 @@ export class DeFiChainStrategy extends PayInStrategy {
 
   //*** JOBS ***//
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  // @Cron(CronExpression.EVERY_30_SECONDS)
   async checkPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
     if (!this.lock.acquire()) return;
@@ -119,15 +119,16 @@ export class DeFiChainStrategy extends PayInStrategy {
   }
 
   private mapHistoriesToTransactions(histories: AccountHistory[]): PayInEntry[] {
-    return histories.map((h) => ({
-      address: BlockchainAddress.create(h.owner, Blockchain.DEFICHAIN),
-      type: h.type,
-      txId: h.txid,
-      blockHeight: h.blockHeight,
-      amount: h.amount,
-      asset: h.asset,
-      assetType: h.assetType,
-    }));
+    return [];
+    // return histories.map((h) => ({
+    //   address: BlockchainAddress.create(h.owner, Blockchain.DEFICHAIN),
+    //   type: h.type,
+    //   txId: h.txid,
+    //   blockHeight: h.blockHeight,
+    //   amount: h.amount,
+    //   asset: h.asset,
+    //   assetType: h.assetType,
+    // }));
   }
 
   private parseAmount(amount: string): HistoryAmount {
