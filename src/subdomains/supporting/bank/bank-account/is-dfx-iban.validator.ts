@@ -15,8 +15,6 @@ export const REQUEST_CONTEXT = '_requestContext';
 export class IsDfxIbanValidator implements ValidatorConstraintInterface {
   private blockedIbans = ['LT..37800000', 'AT..14200200', 'AT..20602099', 'LT..60378000'];
 
-  constructor() {}
-
   async validate(iban: string) {
     try {
       iban = iban.split(' ').join('');
@@ -35,7 +33,7 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     return true;
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage() {
     return `IBAN not valid`;
   }
 }
