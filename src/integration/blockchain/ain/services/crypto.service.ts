@@ -5,7 +5,7 @@ import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
-import { checkSignature } from '@meshsdk/core';
+import verifySignature from '@cardano-foundation/cardano-verify-datasignature';
 
 @Injectable()
 export class CryptoService {
@@ -17,7 +17,7 @@ export class CryptoService {
       isValid = this.verify(message, address, signature, blockchains, key);
     } catch (e) {}
 
-    if (!isValid && !blockchains.includes(Blockchain.ETHEREUM)) {
+    if (!isValid && !blockchains.includes(Blockchain.ETHEREUM) && !blockchains.includes(Blockchain.CARDANO)) {
       isValid = this.fallbackVerify(message, address, signature, blockchains);
     }
     return isValid;
@@ -34,7 +34,7 @@ export class CryptoService {
       ];
     }
     if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
-    if (this.isCardanoAddress(address)) return [Blockchain.CARDANO];
+    if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
     return [Blockchain.DEFICHAIN];
   }
 
@@ -42,7 +42,7 @@ export class CryptoService {
     return /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/.test(address);
   }
 
-  private isCardanoAddress(address: string): boolean {
+  public static isCardanoAddress(address: string): boolean {
     return /^stake([a-z0-9]{54})$/.test(address);
   }
 
@@ -97,7 +97,7 @@ export class CryptoService {
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
-    return checkSignature(message, address, { signature, key });
+    return verifySignature(signature, key, message, address);
   }
 
   private verifyDefichain(message: string, address: string, signature: string): boolean {
