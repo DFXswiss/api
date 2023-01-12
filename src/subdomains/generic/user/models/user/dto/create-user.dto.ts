@@ -17,6 +17,7 @@ export class CreateUserDto {
   signature: string;
 
   @ApiPropertyOptional()
+  @IsNotEmpty()
   @IsString()
   @Matches(GetConfig().keyFormat)
   @ValidateIf((dto: CreateUserDto) => CryptoService.isCardanoAddress(dto.address))
