@@ -41,7 +41,7 @@ export abstract class EvmClient {
       action: 'txlist',
     };
 
-    return this.http.get(this.scanApiUrl, { params });
+    return this.http.get<{ result: EvmCoinHistoryEntry[] }>(this.scanApiUrl, { params }).then((r) => r.result);
   }
 
   async getERC20Transactions(walletAddress: string, fromBlock: number): Promise<EvmTokenHistoryEntry[]> {
@@ -50,7 +50,7 @@ export abstract class EvmClient {
       action: 'tokentx',
     };
 
-    return this.http.get(this.scanApiUrl, { params });
+    return this.http.get<{ result: EvmTokenHistoryEntry[] }>(this.scanApiUrl, { params }).then((r) => r.result);
   }
 
   async getNativeCoinBalance(): Promise<number> {

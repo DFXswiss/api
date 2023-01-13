@@ -1,13 +1,9 @@
-import { Injectable } from '@nestjs/common';
 import { BigNumber } from 'ethers';
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PayInEntry } from '../interfaces';
 
-@Injectable()
-export class PayInEvmService {
+export abstract class PayInEvmService {
   #client: EvmClient;
 
   constructor(protected readonly service: EvmService) {
@@ -22,6 +18,6 @@ export class PayInEvmService {
   }
 
   convertToEthLikeDenomination(value: number, decimals?: number): number {
-    return this.#client.convertToEthLikeDenomination(BigNumber.from(value), decimals);
+    return this.#client.convertToEthLikeDenomination(BigNumber.from(value.toString()), decimals);
   }
 }
