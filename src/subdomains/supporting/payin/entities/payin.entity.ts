@@ -22,6 +22,9 @@ export class PayIn extends IEntity {
   @Column({ nullable: true })
   txId: string;
 
+  @Column({ type: 'integer', nullable: true })
+  txSequence: number;
+
   @Column(() => BlockchainAddress)
   address: BlockchainAddress;
 
@@ -39,6 +42,12 @@ export class PayIn extends IEntity {
 
   @Column({ nullable: true })
   purpose: PayInPurpose;
+
+  @Column({ type: 'float', nullable: true })
+  btcAmount?: number;
+
+  @Column({ type: 'float', nullable: true })
+  usdtAmount?: number;
 
   //*** FACTORY METHODS ***//
 

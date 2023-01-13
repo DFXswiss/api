@@ -4,7 +4,7 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 export interface PayInEntry {
   address: BlockchainAddress;
   txId: string;
-  blockHeight: number;
+  blockHeight: number | null;
   amount: number;
   asset: Asset | null;
 }

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config, Process } from 'src/config/config';
 import { AccountHistory as JellyAccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
@@ -12,6 +12,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Lock } from 'src/shared/utils/lock';
 import { PayInService } from '../services/payin.service';
 import { PayInRepository } from '../repositories/payin.repository';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 
 interface HistoryAmount {
   amount: number;
@@ -37,6 +38,7 @@ export class DeFiChainStrategy extends PayInStrategy {
   constructor(
     private readonly payInService: PayInService,
     private readonly payInRepository: PayInRepository,
+    private readonly assetService: AssetService,
     nodeService: NodeService,
   ) {
     super();
@@ -45,7 +47,7 @@ export class DeFiChainStrategy extends PayInStrategy {
 
   //*** JOBS ***//
 
-  // @Cron(CronExpression.EVERY_30_SECONDS)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async checkPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
     if (!this.lock.acquire()) return;
@@ -75,9 +77,10 @@ export class DeFiChainStrategy extends PayInStrategy {
   }
 
   private async getNewEntriesSince(lastHeight: number): Promise<PayInEntry[]> {
+    const supportedAssets = await this.assetService.getAllAsset([Blockchain.DEFICHAIN]);
     const histories = await this.getNewTransactionsHistorySince(lastHeight);
 
-    return this.mapHistoriesToTransactions(histories);
+    return this.mapHistoriesToEntries(histories, supportedAssets);
   }
 
   private async getNewTransactionsHistorySince(lastHeight: number): Promise<AccountHistory[]> {
@@ -118,17 +121,14 @@ export class DeFiChainStrategy extends PayInStrategy {
     );
   }
 
-  private mapHistoriesToTransactions(histories: AccountHistory[]): PayInEntry[] {
-    return [];
-    // return histories.map((h) => ({
-    //   address: BlockchainAddress.create(h.owner, Blockchain.DEFICHAIN),
-    //   type: h.type,
-    //   txId: h.txid,
-    //   blockHeight: h.blockHeight,
-    //   amount: h.amount,
-    //   asset: h.asset,
-    //   assetType: h.assetType,
-    // }));
+  private mapHistoriesToEntries(histories: AccountHistory[], supportedAssets: Asset[]): PayInEntry[] {
+    return histories.map((h) => ({
+      address: BlockchainAddress.create(h.owner, Blockchain.DEFICHAIN),
+      txId: h.txid,
+      blockHeight: h.blockHeight,
+      amount: h.amount,
+      asset: this.assetService.getByNameSync(supportedAssets, h.asset, Blockchain.DEFICHAIN) ?? null,
+    }));
   }
 
   private parseAmount(amount: string): HistoryAmount {
