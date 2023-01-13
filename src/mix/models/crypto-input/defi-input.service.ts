@@ -163,9 +163,7 @@ export class DeFiInputService extends CryptoInputService {
       .then((i) => i.filter((h) => h.blockHeight > lastHeight))
       // map to entities
       .then((i) => this.createEntities(i))
-      .then((i) => i.filter((h) => h != null))
-      // check required balance
-      .then((i) => i.filter((h) => this.hasMatchingBalance(h, utxos, tokens)));
+      .then((i) => i.filter((h) => h != null));
 
     newInputs.length > 0 && console.log(`New DeFiChain inputs (${newInputs.length}):`, newInputs);
 
@@ -281,6 +279,7 @@ export class DeFiInputService extends CryptoInputService {
     return this.cryptoInputRepo.create({
       inTxId: history.txid,
       blockHeight: history.blockHeight,
+      txType: history.type,
       amount: amount,
       asset: assetEntity,
       route: route,
@@ -350,7 +349,7 @@ export class DeFiInputService extends CryptoInputService {
   }
 
   private async forwardInputs(): Promise<void> {
-    await this.checkNodeInSync(this.client);
+    const { blocks: currentHeight } = await this.checkNodeInSync(this.client);
 
     const inputs = await this.cryptoInputRepo.find({
       where: {
@@ -363,6 +362,9 @@ export class DeFiInputService extends CryptoInputService {
 
     for (const input of inputs) {
       try {
+        // only forward block rewards, which are older than 100 blocks
+        if (input.txType === 'blockReward' && currentHeight <= input.blockHeight + 100) continue;
+
         const targetAddress =
           input.route.type === RouteType.SELL ? Config.blockchain.default.dexWalletAddress : input.route.user.address;
 
@@ -532,19 +534,5 @@ export class DeFiInputService extends CryptoInputService {
       address,
       Config.blockchain.default.minDeposit.DeFiChain.DFI / 2,
     );
-  }
-
-  private hasMatchingBalance(input: CryptoInput, utxo: UTXO[], token: AccountResult<string, string>[]): boolean {
-    const fund =
-      input.asset.type === AssetType.COIN
-        ? utxo.find((u) => u.address === input.route.deposit.address && u.amount.toNumber() >= input.amount)
-        : token.find(
-            (t) => t.owner === input.route.deposit.address && this.client.parseAmount(t.amount).amount >= input.amount,
-          );
-    if (!fund) {
-      console.error('Ignoring DeFiChain input due to too low balance:', input);
-    }
-
-    return fund != null;
   }
 }
