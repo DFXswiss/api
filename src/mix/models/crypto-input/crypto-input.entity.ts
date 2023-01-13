@@ -40,6 +40,9 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'integer', nullable: true })
   blockHeight: number;
 
+  @Column({ length: 256, nullable: true })
+  txType: string;
+
   @Column({ type: 'float' })
   amount: number;
 
