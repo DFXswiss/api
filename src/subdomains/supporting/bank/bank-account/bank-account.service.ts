@@ -115,7 +115,7 @@ export class BankAccountService {
     kycType: KycType,
     copyFrom?: BankAccount,
   ): Promise<BankAccount> {
-    if (!this.isValidIbanCountry(iban, kycType))
+    if (!(await this.isValidIbanCountry(iban, kycType)))
       throw new BadRequestException('Iban country is currently not supported');
 
     const bankAccount = copyFrom ? IEntity.copy(copyFrom) : await this.initBankAccount(iban);
