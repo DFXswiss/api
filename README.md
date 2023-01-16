@@ -85,7 +85,6 @@ If a user wants to get notified about ongoing transactions, he can register his 
 KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increase the transaction volume, the user needs to be verified with a KYC process, which can be done on the DFX KYC page.
 
 1. Get the user's KYC hash from [user endpoint](https://api.dfx.swiss/swagger/#/user/UserController_getUser)
-
 2. Open then link to the KYC page: `https://payment.dfx.swiss/kyc?code=<kyc-hash>`
 
 ### Buy Crypto
@@ -114,6 +113,7 @@ KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increa
 - A call to the buy or sell payment info endpoints will automatically create a bank account for the provided IBAN
 - This can be used to improve UX and show the previously used IBANs to the user
 - Bank accounts (label, preferred currency) can be updated with the [update endpoint](https://api.dfx.swiss/swagger/#/bankAccount/BankAccountController_updateBankAccount)
+- Bank accounts can be created directly with the [create endpoint](https://api.dfx.swiss/swagger/#/bankAccount/BankAccountController_createBankAccount)
 
 ### Integration Example
 
