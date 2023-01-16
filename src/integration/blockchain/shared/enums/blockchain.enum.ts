@@ -6,6 +6,7 @@ export enum Blockchain {
   OPTIMISM = 'Optimism',
   ARBITRUM = 'Arbitrum',
   POLYGON = 'Polygon',
+  CARDANO = 'Cardano',
 }
 
 export const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
@@ -16,4 +17,5 @@ export const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.OPTIMISM]: 'https://optimistic.etherscan.io/tx',
   [Blockchain.ARBITRUM]: 'https://arbiscan.io/tx',
   [Blockchain.POLYGON]: 'https://polygonscan.com/tx',
+  [Blockchain.CARDANO]: 'https://cardanoscan.io/transaction',
 };
