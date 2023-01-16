@@ -85,9 +85,11 @@ export class BuyCryptoOutService {
         'transactions',
         'transactions.buy',
         'transactions.buy.user',
+        'transactions.buy.user.wallet',
         'transactions.buy.asset',
         'transactions.cryptoRoute',
         'transactions.cryptoRoute.user',
+        'transactions.cryptoRoute.user.wallet',
         'transactions.cryptoRoute.asset',
       ],
     });

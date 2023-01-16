@@ -83,7 +83,7 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user', 'bankTx'],
+      relations: ['buy', 'buy.user', 'buy.user.wallet', 'cryptoRoute', 'cryptoRoute.user', 'cryptoRoute.user.wallet', 'bankTx'],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -231,7 +231,7 @@ export class BuyCryptoService {
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
-    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user'] });
+    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user', 'user.wallet'] });
     if (!buy) throw new BadRequestException('Buy route not found');
 
     return buy;
@@ -241,7 +241,7 @@ export class BuyCryptoService {
     // cryptoRoute
     const cryptoRoute = await this.cryptoRouteService
       .getCryptoRouteRepo()
-      .findOne({ where: { id: cryptoRouteId }, relations: ['user'] });
+      .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'user.wallet'] });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
     return cryptoRoute;

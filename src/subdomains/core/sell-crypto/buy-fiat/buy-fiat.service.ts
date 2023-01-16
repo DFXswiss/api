@@ -69,7 +69,7 @@ export class BuyFiatService {
   }
 
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
-    let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user', 'sell.user'] });
+    let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user', 'sell.user.wallet'] });
     if (!entity) throw new NotFoundException('Buy fiat not found');
 
     const sellIdBefore = entity.sell?.id;
@@ -177,7 +177,7 @@ export class BuyFiatService {
 
   private async getSell(sellId: number): Promise<Sell> {
     // sell
-    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['user'] });
+    const sell = await this.sellRepo.findOne({ where: { id: sellId }, relations: ['user', 'user.wallet'] });
     if (!sell) throw new BadRequestException('Sell route not found');
 
     return sell;
