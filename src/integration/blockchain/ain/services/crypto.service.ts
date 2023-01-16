@@ -5,18 +5,19 @@ import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
+import * as verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 
 @Injectable()
 export class CryptoService {
-  public verifySignature(message: string, address: string, signature: string): boolean {
+  public verifySignature(message: string, address: string, signature: string, key?: string): boolean {
     const blockchains = this.getBlockchainsBasedOn(address);
 
     let isValid = false;
     try {
-      isValid = this.verify(message, address, signature, blockchains);
+      isValid = this.verify(message, address, signature, blockchains, key);
     } catch (e) {}
 
-    if (!isValid && !blockchains.includes(Blockchain.ETHEREUM)) {
+    if (!isValid && !blockchains.includes(Blockchain.ETHEREUM) && !blockchains.includes(Blockchain.CARDANO)) {
       isValid = this.fallbackVerify(message, address, signature, blockchains);
     }
     return isValid;
@@ -24,14 +25,25 @@ export class CryptoService {
 
   public getBlockchainsBasedOn(address: string): Blockchain[] {
     if (isEthereumAddress(address)) {
-      return [Blockchain.ETHEREUM, Blockchain.BINANCE_SMART_CHAIN, Blockchain.ARBITRUM, Blockchain.OPTIMISM, Blockchain.POLYGON];
+      return [
+        Blockchain.ETHEREUM,
+        Blockchain.BINANCE_SMART_CHAIN,
+        Blockchain.ARBITRUM,
+        Blockchain.OPTIMISM,
+        Blockchain.POLYGON,
+      ];
     }
     if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
+    if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
     return [Blockchain.DEFICHAIN];
   }
 
   private isBitcoinAddress(address: string): boolean {
-    return address.match(/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/)?.length > 1 ?? false;
+    return /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/.test(address);
+  }
+
+  public static isCardanoAddress(address: string): boolean {
+    return /^stake([a-z0-9]{54})$/.test(address);
   }
 
   private fallbackVerify(message: string, address: string, signature: string, blockchains: Blockchain[]) {
@@ -51,9 +63,16 @@ export class CryptoService {
     return isValid;
   }
 
-  private verify(message: string, address: string, signature: string, blockchains: Blockchain[]): boolean {
+  private verify(
+    message: string,
+    address: string,
+    signature: string,
+    blockchains: Blockchain[],
+    key?: string,
+  ): boolean {
     if (blockchains.includes(Blockchain.ETHEREUM)) return this.verifyEthereum(message, address, signature);
     if (blockchains.includes(Blockchain.BITCOIN)) return this.verifyBitcoin(message, address, signature);
+    if (blockchains.includes(Blockchain.CARDANO)) return this.verifyCardano(message, address, signature, key);
     return this.verifyDefichain(message, address, signature);
   }
 
@@ -75,6 +94,15 @@ export class CryptoService {
       }
       throw e;
     }
+  }
+
+  private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
+    return (verifyCardanoSignature as unknown as (a: string, b: string, c: string, d: string) => boolean)(
+      signature,
+      key,
+      message,
+      address,
+    );
   }
 
   private verifyDefichain(message: string, address: string, signature: string): boolean {

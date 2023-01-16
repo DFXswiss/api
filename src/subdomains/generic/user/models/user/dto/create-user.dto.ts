@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 import { GetConfig } from 'src/config/config';
+import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 
 export class CreateUserDto {
   @ApiProperty()
@@ -14,6 +15,13 @@ export class CreateUserDto {
   @IsString()
   @Matches(GetConfig().signatureFormat)
   signature: string;
+
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @IsString()
+  @Matches(GetConfig().keyFormat)
+  @ValidateIf((dto: CreateUserDto) => CryptoService.isCardanoAddress(dto.address))
+  key?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
