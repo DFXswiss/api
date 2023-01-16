@@ -20,7 +20,7 @@ export class FiatOutput extends IEntity {
   @Column({ type: 'integer', nullable: true })
   batchId?: number;
 
-  @Column({ type: 'integer', nullable: true })
+  @Column({ type: 'float', nullable: true })
   batchAmount?: number;
 
   @Column({ length: 256, nullable: true })
@@ -91,6 +91,9 @@ export class FiatOutput extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   isApprovedDate?: Date;
+
+  @Column({ default: false })
+  isComplete?: boolean;
 
   @Column({ length: 256, nullable: true })
   info?: string;
