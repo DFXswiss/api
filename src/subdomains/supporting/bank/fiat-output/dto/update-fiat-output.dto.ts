@@ -97,6 +97,10 @@ export class UpdateFiatOutputDto {
   endToEndId?: string;
 
   @IsOptional()
+  @IsBoolean()
+  isComplete?: boolean;
+
+  @IsOptional()
   @IsDate()
   @Type(() => Date)
   isReadyDate?: Date;
