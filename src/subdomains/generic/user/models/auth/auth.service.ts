@@ -122,13 +122,6 @@ export class AuthService {
     };
   }
 
-  getCompanySignInfo(address: string): { message: string; blockchains: Blockchain[] } {
-    return {
-      message: Config.auth.signMessageWallet + address,
-      blockchains: this.cryptoService.getBlockchainsBasedOn(address),
-    };
-  }
-
   private getSignMessages(address: string): { defaultMessage: string; fallbackMessage: string } {
     return {
       defaultMessage: Config.auth.signMessageGeneral + address,
