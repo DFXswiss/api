@@ -61,20 +61,14 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .where('route.id IS NULL')
         .getCount(),
       unhandledCryptoInputs: await getCustomRepository(CryptoInputRepository).count({
-        where: [
-          {
-            type: Not(In([CryptoInputType.CRYPTO_CRYPTO, CryptoInputType.CRYPTO_STAKING])),
-            buyFiat: { id: IsNull() },
-            cryptoStaking: { id: IsNull() },
-            buyCrypto: { id: IsNull() },
-          },
-          // ignore staking deposits with failed AML check
-          {
-            type: CryptoInputType.CRYPTO_STAKING,
-            cryptoStaking: { id: IsNull() },
-            amlCheck: AmlCheck.PASS,
-          },
-        ],
+        where: {
+          type: Not(
+            In([CryptoInputType.CRYPTO_CRYPTO, CryptoInputType.CRYPTO_STAKING, CryptoInputType.CRYPTO_STAKING_INVALID]),
+          ),
+          buyFiat: { id: IsNull() },
+          cryptoStaking: { id: IsNull() },
+          buyCrypto: { id: IsNull() },
+        },
         relations: ['buyFiat', 'cryptoStaking', 'buyCrypto'],
       }),
     };
