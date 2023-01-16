@@ -6,8 +6,8 @@ import { StakingRewardService } from 'src/mix/models/staking-reward/staking-rewa
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/route/buy.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
-import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';

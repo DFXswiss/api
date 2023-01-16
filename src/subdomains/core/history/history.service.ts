@@ -11,7 +11,7 @@ import { CryptoStaking } from '../../../mix/models/crypto-staking/crypto-staking
 import { StakingRefRewardService } from '../../../mix/models/staking-ref-reward/staking-ref-reward.service';
 import { RefReward } from '../referral/reward/ref-reward.entity';
 import { StakingRefReward, StakingRefType } from '../../../mix/models/staking-ref-reward/staking-ref-reward.entity';
-import { BuyFiatService } from '../sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from '../sell-crypto/process/buy-fiat.service';
 import { CoinTrackingHistory } from './dto/coin-tracking-history.dto';
 import { BuyCrypto } from '../buy-crypto/process/entities/buy-crypto.entity';
 import { AmlCheck } from '../buy-crypto/process/enums/aml-check.enum';

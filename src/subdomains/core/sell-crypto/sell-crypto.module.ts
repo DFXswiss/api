@@ -6,13 +6,14 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
-import { BuyFiatNotificationService } from './buy-fiat/buy-fiat-notification.service';
-import { BuyFiatController } from './buy-fiat/buy-fiat.controller';
-import { BuyFiatRepository } from './buy-fiat/buy-fiat.repository';
-import { BuyFiatService } from './buy-fiat/buy-fiat.service';
-import { SellController } from './sell/sell.controller';
-import { SellRepository } from './sell/sell.repository';
-import { SellService } from './sell/sell.service';
+import { BuyFiatNotificationService } from './process/buy-fiat-notification.service';
+import { BuyFiatRegistrationService } from './process/buy-fiat-registration.service';
+import { BuyFiatController } from './process/buy-fiat.controller';
+import { BuyFiatRepository } from './process/buy-fiat.repository';
+import { BuyFiatService } from './process/buy-fiat.service';
+import { SellController } from './route/sell.controller';
+import { SellRepository } from './route/sell.repository';
+import { SellService } from './route/sell.service';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { SellService } from './sell/sell.service';
     forwardRef(() => BuyCryptoModule),
   ],
   controllers: [BuyFiatController, SellController],
-  providers: [SellController, BuyFiatNotificationService, BuyFiatService, SellService],
+  providers: [SellController, BuyFiatNotificationService, BuyFiatRegistrationService, BuyFiatService, SellService],
   exports: [SellController, BuyFiatService, SellService],
 })
 export class SellCryptoModule {}

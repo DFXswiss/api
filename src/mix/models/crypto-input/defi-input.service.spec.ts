@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService } from 'src/integration/blockchain/ain/node/node.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { CryptoInputRepository } from './crypto-input.repository';
 import { createMock } from '@golevelup/ts-jest';
 import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
@@ -17,7 +17,7 @@ import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { BehaviorSubject } from 'rxjs';
 import { DeFiInputService } from './defi-input.service';
 import { HttpService } from '@nestjs/axios';
-import { BuyFiatService } from '../../../subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from '../../../subdomains/core/sell-crypto/process/buy-fiat.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 

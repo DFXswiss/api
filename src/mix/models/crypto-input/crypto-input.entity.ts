@@ -1,11 +1,11 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Sell } from 'src/subdomains/core/sell-crypto/sell/sell.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/mix/models/staking/staking.entity';
 import { Entity, Column, ManyToOne, Index, OneToOne } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
 import { CryptoRoute } from '../crypto-route/crypto-route.entity';
-import { BuyFiat } from '../../../subdomains/core/sell-crypto/buy-fiat/buy-fiat.entity';
+import { BuyFiat } from '../../../subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { DepositRoute } from '../route/deposit-route.entity';

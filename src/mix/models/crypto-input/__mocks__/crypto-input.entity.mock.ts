@@ -1,4 +1,4 @@
-import { createDefaultSell } from 'src/subdomains/core/sell-crypto/sell/__mocks__/sell.entity.mock';
+import { createDefaultSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { CryptoInput, CryptoInputType } from '../crypto-input.entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
-import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.repository';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { CryptoInputType } from 'src/mix/models/crypto-input/crypto-input.entity';
 import { CryptoInputRepository } from 'src/mix/models/crypto-input/crypto-input.repository';
 import { DepositRepository } from 'src/mix/models/deposit/deposit.repository';

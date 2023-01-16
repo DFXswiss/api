@@ -1,5 +1,5 @@
 import { EntityRepository, Repository } from 'typeorm';
-import { PayIn } from '../entities/payin.entity';
+import { CryptoInput } from '../entities/crypto-input.entity';
 
-@EntityRepository(PayIn)
-export class PayInRepository extends Repository<PayIn> {}
+@EntityRepository(CryptoInput)
+export class PayInRepository extends Repository<CryptoInput> {}

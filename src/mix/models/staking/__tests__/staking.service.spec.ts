@@ -7,14 +7,14 @@ import { UserService } from 'src/subdomains/generic/user/models/user/user.servic
 import { CryptoStakingRepository } from '../../crypto-staking/crypto-staking.repository';
 import { DepositService } from '../../deposit/deposit.service';
 import { createDefaultDeposit } from '../../deposit/__mocks__/deposit.entity.mock';
-import { SellRepository } from '../../../../subdomains/core/sell-crypto/sell/sell.repository';
+import { SellRepository } from '../../../../subdomains/core/sell-crypto/route/sell.repository';
 import { StakingRefRewardService } from '../../staking-ref-reward/staking-ref-reward.service';
 import { StakingRepository } from '../staking.repository';
 import { StakingService } from '../staking.service';
 import { createCustomStaking } from '../__mocks__/staking.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyRepository } from 'src/subdomains/core/buy-crypto/route/buy.repository';
-import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/route/buy.service';
 
 describe('StakingService', () => {

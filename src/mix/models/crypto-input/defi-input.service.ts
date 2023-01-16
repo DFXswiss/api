@@ -7,7 +7,7 @@ import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.
 import { Config } from 'src/config/config';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { CryptoInput, CryptoInputType } from './crypto-input.entity';
 import { CryptoInputRepository } from './crypto-input.repository';
@@ -16,9 +16,9 @@ import { IsNull, Not } from 'typeorm';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { NodeNotAccessibleError } from 'src/integration/blockchain/ain/exceptions/node-not-accessible.exception';
 import { CryptoInputService } from './crypto-input.service';
-import { Sell } from '../../../subdomains/core/sell-crypto/sell/sell.entity';
+import { Sell } from '../../../subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from '../staking/staking.entity';
-import { BuyFiatService } from '../../../subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from '../../../subdomains/core/sell-crypto/process/buy-fiat.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { RouteType } from '../route/deposit-route.entity';
@@ -34,6 +34,7 @@ interface HistoryAmount {
 
 @Injectable()
 export class DeFiInputService extends CryptoInputService {
+  // this can be removed
   private readonly cryptoCryptoRouteId = 933; // TODO: fix with CryptoCrypto table
   private readonly inputLock = new Lock(43200);
   private readonly forwardingLock = new Lock(43200);

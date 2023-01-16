@@ -2,7 +2,7 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException 
 import { In, Raw } from 'typeorm';
 import { Deposit } from '../deposit/deposit.entity';
 import { DepositService } from '../deposit/deposit.service';
-import { Sell } from '../../../subdomains/core/sell-crypto/sell/sell.entity';
+import { Sell } from '../../../subdomains/core/sell-crypto/route/sell.entity';
 import { KycCompleted } from '../../../subdomains/generic/user/models/user-data/user-data.entity';
 import { CreateStakingDto } from './dto/create-staking.dto';
 import { PayoutType } from '../staking-reward/staking-reward.entity';
@@ -21,7 +21,7 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity'
 import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BuyService } from 'src/subdomains/core/buy-crypto/route/buy.service';
-import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 
 @Injectable()
 export class StakingService {

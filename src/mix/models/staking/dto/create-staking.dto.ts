@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsNotEmptyObject, ValidateIf, ValidateNested } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Sell } from '../../../../subdomains/core/sell-crypto/sell/sell.entity';
+import { Sell } from '../../../../subdomains/core/sell-crypto/route/sell.entity';
 import { PayoutType } from '../../staking-reward/staking-reward.entity';
 
 export class CreateStakingDto {

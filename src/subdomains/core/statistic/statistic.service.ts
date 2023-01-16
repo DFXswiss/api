@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
-import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';

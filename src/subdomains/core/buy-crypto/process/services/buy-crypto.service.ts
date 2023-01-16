@@ -13,7 +13,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
-import { Interval } from '@nestjs/schedule';
+import { Cron, CronExpression, Interval } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
@@ -30,11 +30,13 @@ import { BuyRepository } from '../../route/buy.repository';
 import { BuyService } from '../../route/buy.service';
 import { BuyHistoryDto } from '../../route/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
+import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
 
 @Injectable()
 export class BuyCryptoService {
-  private readonly lock = new Lock(1800);
+  private readonly registerLock = new Lock(1800);
+  private readonly processLock = new Lock(1800);
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -49,6 +51,7 @@ export class BuyCryptoService {
     private readonly buyCryptoBatchService: BuyCryptoBatchService,
     private readonly buyCryptoOutService: BuyCryptoOutService,
     private readonly buyCryptoDexService: BuyCryptoDexService,
+    private readonly buyCryptoRegistrationService: BuyCryptoRegistrationService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
   ) {}
@@ -69,14 +72,14 @@ export class BuyCryptoService {
     return await this.buyCryptoRepo.save(entity);
   }
 
-  async createFromCrypto(cryptoInput: CryptoInput): Promise<BuyCrypto> {
-    const entity = this.buyCryptoRepo.create();
+  // async createFromCrypto(cryptoInput: CryptoInput): Promise<BuyCrypto> {
+  //   const entity = this.buyCryptoRepo.create();
 
-    entity.cryptoInput = cryptoInput;
-    entity.cryptoRoute = cryptoInput.route as CryptoRoute;
+  //   entity.cryptoInput = cryptoInput;
+  //   entity.cryptoRoute = cryptoInput.route as CryptoRoute;
 
-    return await this.buyCryptoRepo.save(entity);
-  }
+  //   return await this.buyCryptoRepo.save(entity);
+  // }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
@@ -130,17 +133,31 @@ export class BuyCryptoService {
     return entity;
   }
 
-  @Interval(60000)
+  @Cron(CronExpression.EVERY_MINUTE)
+  async checkCryptoPayIn() {
+    if ((await this.settingService.get('crypto-crypto')) !== 'on') return;
+    if (!this.registerLock.acquire()) return;
+
+    try {
+      await this.buyCryptoRegistrationService.registerCryptoPayIn();
+    } catch (e) {
+      console.error('Error during buy-crypto pay-in registration', e);
+    } finally {
+      this.registerLock.release();
+    }
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
   async process() {
     if ((await this.settingService.get('buy-process')) !== 'on') return;
-    if (!this.lock.acquire()) return;
+    if (!this.processLock.acquire()) return;
 
     await this.buyCryptoBatchService.batchTransactionsByAssets();
     await this.buyCryptoDexService.secureLiquidity();
     await this.buyCryptoOutService.payoutTransactions();
     await this.buyCryptoNotificationService.sendNotificationMails();
 
-    this.lock.release();
+    this.processLock.release();
   }
 
   async updateVolumes(): Promise<void> {

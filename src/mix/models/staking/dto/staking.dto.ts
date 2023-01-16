@@ -1,7 +1,7 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Deposit } from '../../deposit/deposit.entity';
 import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
-import { Sell } from '../../../../subdomains/core/sell-crypto/sell/sell.entity';
+import { Sell } from '../../../../subdomains/core/sell-crypto/route/sell.entity';
 import { PayoutType } from '../../staking-reward/staking-reward.entity';
 
 export class StakingDto {

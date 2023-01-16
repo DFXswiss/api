@@ -1,7 +1,7 @@
 import { Entity, Column, Index, ManyToOne, OneToMany } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Sell } from '../../../core/sell-crypto/sell/sell.entity';
+import { Sell } from '../../../core/sell-crypto/route/sell.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/route/buy.entity';
 

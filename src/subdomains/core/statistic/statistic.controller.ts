@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';

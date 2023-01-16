@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Entity, Column, ManyToOne, OneToOne } from 'typeorm';
 import { BankTxBatch } from './bank-tx-batch.entity';
 

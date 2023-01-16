@@ -1,4 +1,4 @@
-import { Sell } from 'src/subdomains/core/sell-crypto/sell/sell.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Entity, Column, OneToMany, ManyToOne, Index } from 'typeorm';
