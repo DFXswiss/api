@@ -5,7 +5,7 @@ import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Config } from 'src/config/config';
-import verifySignature from '@cardano-foundation/cardano-verify-datasignature';
+import * as verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 
 @Injectable()
 export class CryptoService {
@@ -97,7 +97,12 @@ export class CryptoService {
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
-    return verifySignature(signature, key, message, address);
+    return (verifyCardanoSignature as unknown as (a: string, b: string, c: string, d: string) => boolean)(
+      signature,
+      key,
+      message,
+      address,
+    );
   }
 
   private verifyDefichain(message: string, address: string, signature: string): boolean {
