@@ -99,6 +99,8 @@ export class PayoutOrder extends IEntity {
   }
 
   pendingPayout(payoutTxId: string) {
+    if (!payoutTxId) throw new Error('No payoutTxId provided to PayoutOrder #pendingPayout(...)');
+
     this.payoutTxId = payoutTxId;
     this.status = PayoutOrderStatus.PAYOUT_PENDING;
 

@@ -13,6 +13,7 @@ import { DepositRoute } from '../route/deposit-route.entity';
 export enum CryptoInputType {
   RETURN = 'Return',
   CRYPTO_STAKING = 'CryptoStaking',
+  CRYPTO_STAKING_INVALID = 'CryptoStakingInvalid',
   BUY_FIAT = 'BuyFiat',
   BUY_CRYPTO = 'BuyCrypto',
   CRYPTO_CRYPTO = 'CryptoCrypto',
@@ -38,6 +39,9 @@ export class CryptoInput extends IEntity {
 
   @Column({ type: 'integer', nullable: true })
   blockHeight: number;
+
+  @Column({ length: 256, nullable: true })
+  txType: string;
 
   @Column({ type: 'float' })
   amount: number;

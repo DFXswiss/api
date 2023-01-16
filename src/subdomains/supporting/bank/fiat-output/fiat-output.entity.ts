@@ -35,7 +35,7 @@ export class FiatOutput extends IEntity {
   @Column({ nullable: true })
   currency?: string;
 
-  @Column({ type: 'integer', nullable: true })
+  @Column({ type: 'float', nullable: true })
   amount?: number;
 
   @Column({ length: 256, nullable: true })

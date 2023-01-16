@@ -111,15 +111,16 @@ export class UserService {
     return user;
   }
 
-  async updateUser(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
-    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData'] });
+  async updateUser(id: number, dto: UpdateUserDto): Promise<{ user: UserDetailDto; isKnownUser: boolean }> {
+    let user = await this.userRepo.findOne({ where: { id }, relations: ['userData', 'userData.users'] });
     if (!user) throw new NotFoundException('User not found');
 
     // update
     user = await this.userRepo.save({ ...user, ...dto });
-    user.userData = await this.userDataService.updateUserSettings(user.userData, dto);
+    const { user: update, isKnownUser } = await this.userDataService.updateUserSettings(user.userData, dto);
+    user.userData = update;
 
-    return await this.toDto(user, true);
+    return { user: await this.toDto(user, true), isKnownUser };
   }
 
   async updateUserInternal(id: number, update: Partial<User>): Promise<User> {

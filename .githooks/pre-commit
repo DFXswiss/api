@@ -2,20 +2,18 @@
 
 const fs = require('fs');
 
-// verify that no addresses/signatures are commited
-const thunderFile = fs.readFileSync('thunder-tests/thunderclient.json');
-const thunderRequests = JSON.parse(thunderFile.toString());
+// verify that no addresses/signatures are committed
+const thunderFile = fs.readFileSync('thunder-tests/thunderEnvironment.json');
+const thunderEnvironments = JSON.parse(thunderFile.toString());
 
-const authRequests = thunderRequests.filter((r) => ['Sign In', 'Sign Up'].includes(r.name));
-if (authRequests.length != 2) {
-  console.error('Not all auth requests (Sign In, Sign Up) found!');
-  process.exit(1);
-}
+const prodEnvironments = thunderEnvironments.filter((r) => r.name.includes('prd'));
+for (const env of prodEnvironments) {
+  const addressField = env.data.find((d) => d.name === 'address');
+  const signatureField = env.data.find((d) => d.name === 'signature');
+  const tokenField = env.data.find((d) => d.name === 'token');
 
-for (const r of authRequests) {
-  const body = JSON.parse(r.body.raw);
-  if (body.address !== 'address' || body.signature !== 'signature') {
-    console.error('Non-dummy value found in auth request:', r);
+  if (!addressField || addressField.value || !signatureField || signatureField.value || tokenField?.value) {
+    console.error(`Address, signature or token found in ${env.name} environment:`, env);
     process.exit(1);
   }
 }

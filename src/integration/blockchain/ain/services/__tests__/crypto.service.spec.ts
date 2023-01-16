@@ -33,6 +33,9 @@ describe('CryptoService', () => {
     expect(service.getBlockchainsBasedOn('0x2d84553B3A4753009A314106d58F0CC21f441234')).toEqual([
       Blockchain.ETHEREUM,
       Blockchain.BINANCE_SMART_CHAIN,
+      Blockchain.ARBITRUM,
+      Blockchain.OPTIMISM,
+      Blockchain.POLYGON,
     ]);
   });
 

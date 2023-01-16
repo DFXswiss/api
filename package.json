@@ -24,6 +24,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",
     "@defichain/jellyfish-api-core": "^2.18.3",
     "@defichain/jellyfish-api-jsonrpc": "^2.18.3",
     "@defichain/jellyfish-network": "^2.18.3",
@@ -61,7 +62,7 @@
     "nestjs-i18n": "^8.2.2",
     "nestjs-real-ip": "^2.0.0",
     "nodemailer": "^6.7.2",
-    "passport": "^0.5.2",
+    "passport": "^0.6.0",
     "passport-jwt": "^4.0.0",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",

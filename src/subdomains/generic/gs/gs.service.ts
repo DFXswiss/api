@@ -9,6 +9,7 @@ import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/sell/sell.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
+import { BankTxRepeatService } from 'src/subdomains/supporting/bank/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { getConnection } from 'typeorm';
 import { UserData } from '../user/models/user-data/user-data.entity';
@@ -32,6 +33,7 @@ export class GsService {
     private readonly cryptoInputService: CryptoInputService,
     private readonly buyFiatService: BuyFiatService,
     private readonly refRewardService: RefRewardService,
+    private readonly bankTxRepeatService: BankTxRepeatService,
   ) {}
 
   async getRawData(query: DbQueryDto): Promise<any> {
@@ -79,6 +81,7 @@ export class GsService {
     const refCodes = userData.users.map((u) => u.ref);
 
     return {
+      userData,
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
       ref: await this.buyCryptoService.getAllRefTransactions(refCodes),
@@ -87,6 +90,7 @@ export class GsService {
       stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
       stakingRefReward: await this.stakingRefRewardService.getAllUserRewards(userIds),
       cryptoInput: await this.cryptoInputService.getAllUserTransactions(userIds),
+      bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
     };
   }
 
@@ -173,7 +177,15 @@ export class GsService {
 
     return buyCryptoData
       .concat(buyFiatData, bankTxRestData)
-      .sort((a, b) => (dbQuery.sorting == 'ASC' ? a.bank_tx_id - b.bank_tx_id : b.bank_tx_id - a.bank_tx_id));
+      .sort((a, b) =>
+        dbQuery.sorting == 'ASC'
+          ? dbQuery.select
+            ? a.id - b.id
+            : a.bank_tx_id - b.bank_tx_id
+          : dbQuery.select
+          ? b.id - a.id
+          : b.bank_tx_id - a.bank_tx_id,
+      );
   }
 
   private transformResultArray(

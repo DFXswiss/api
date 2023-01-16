@@ -53,15 +53,10 @@ export class EvmClient {
   }
 
   async sendNativeCoin(address: string, amount: number): Promise<string> {
-    const gasPrice = await this.getGasPrice();
-
     const tx = await this.#wallet.sendTransaction({
       from: this.#dfxAddress,
       to: address,
       value: this.convertToWeiLikeDenomination(amount, 'ether'),
-      gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
     });
 
     return tx.hash;

@@ -14,11 +14,11 @@ describe('ExchangeService', () => {
   });
 
   it('should return BTC/EUR and buy', async () => {
-    await expect(service.getCurrencyPair('EUR', 'BTC')).resolves.toEqual({ pair: 'BTC/EUR', direction: OrderSide.BUY });
+    await expect(service.getTradePair('EUR', 'BTC')).resolves.toEqual({ pair: 'BTC/EUR', direction: OrderSide.BUY });
   });
 
   it('should return BTC/EUR and sell', async () => {
-    await expect(service.getCurrencyPair('BTC', 'EUR')).resolves.toEqual({
+    await expect(service.getTradePair('BTC', 'EUR')).resolves.toEqual({
       pair: 'BTC/EUR',
       direction: OrderSide.SELL,
     });

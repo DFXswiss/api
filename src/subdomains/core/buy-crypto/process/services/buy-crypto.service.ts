@@ -31,6 +31,8 @@ import { BuyService } from '../../route/buy.service';
 import { BuyHistoryDto } from '../../route/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -51,6 +53,7 @@ export class BuyCryptoService {
     private readonly buyCryptoDexService: BuyCryptoDexService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly userService: UserService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   async createFromFiat(bankTxId: number, buyId: number): Promise<BuyCrypto> {
@@ -80,7 +83,15 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: ['buy', 'buy.user', 'cryptoRoute', 'cryptoRoute.user', 'bankTx'],
+      relations: [
+        'buy',
+        'buy.user',
+        'buy.user.userData',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.user.userData',
+        'bankTx',
+      ],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -116,11 +127,18 @@ export class BuyCryptoService {
       entity.amlCheck === AmlCheck.PENDING && update.amlCheck && update.amlCheck !== AmlCheck.PENDING
         ? { amlCheck: update.amlCheck, mailSendDate: null }
         : undefined;
-    entity = await this.buyCryptoRepo.save({ ...update, ...entity, ...amlUpdate });
+    entity = await this.buyCryptoRepo.save(Object.assign(new BuyCrypto(), { ...update, ...entity, ...amlUpdate }));
 
     // activate user
     if (entity.amlCheck === AmlCheck.PASS) {
       await this.userService.activateUser(entity.buy?.user);
+    }
+
+    // payment webhook
+    if (dto.inputAmount && dto.inputAsset) {
+      entity.buy
+        ? await this.webhookService.fiatCryptoUpdate(entity.user.userData, entity, PaymentWebhookState.CREATED)
+        : await this.webhookService.cryptoCryptoUpdate(entity.user.userData, entity, PaymentWebhookState.CREATED);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
@@ -221,7 +239,7 @@ export class BuyCryptoService {
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
-    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user'] });
+    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user', 'user.userData'] });
     if (!buy) throw new BadRequestException('Buy route not found');
 
     return buy;
@@ -231,7 +249,7 @@ export class BuyCryptoService {
     // cryptoRoute
     const cryptoRoute = await this.cryptoRouteService
       .getCryptoRouteRepo()
-      .findOne({ where: { id: cryptoRouteId }, relations: ['user'] });
+      .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'userData'] });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
     return cryptoRoute;

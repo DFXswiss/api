@@ -24,7 +24,6 @@ import { KycUserDataDto } from './dto/kyc-user-data.dto';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
 import { KycProcessService } from './kyc-process.service';
-import { LinkService } from '../link/link.service';
 import { UpdateKycStatusDto } from '../user-data/dto/update-kyc-status.dto';
 import { KycDataTransferDto } from './dto/kyc-data-transfer.dto';
 import { WalletRepository } from '../wallet/wallet.repository';
@@ -33,7 +32,7 @@ import { UserRepository } from '../user/user.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
-import { KycWebhookService } from './kyc-webhook.service';
+import { WebhookService } from '../../services/webhook/webhook.service';
 
 @Injectable()
 export class KycService {
@@ -47,9 +46,8 @@ export class KycService {
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
-    private readonly linkService: LinkService,
     private readonly http: HttpService,
-    private readonly webhookService: KycWebhookService,
+    private readonly webhookService: WebhookService,
   ) {}
 
   // --- ADMIN/SUPPORT --- //
@@ -100,32 +98,10 @@ export class KycService {
   }
 
   async updateKycData(code: string, data: KycUserDataDto, userId?: number): Promise<KycInfo> {
-    let user = await this.getUser(code, userId);
+    const user = await this.getUser(code, userId);
     if (user.kycStatus !== KycStatus.NA) throw new BadRequestException('KYC already started');
 
-    const isPersonalAccount = (data.accountType ?? user.accountType) === AccountType.PERSONAL;
-
-    // check countries
-    const [country, organizationCountry] = await Promise.all([
-      this.countryService.getCountry(data.country?.id ?? user.country?.id),
-      this.countryService.getCountry(data.organizationCountry?.id ?? user.organizationCountry?.id),
-    ]);
-    if (!country || (!isPersonalAccount && !organizationCountry)) throw new BadRequestException('Country not found');
-    if (!country.isEnabled(user.kycType)) throw new BadRequestException(`Country not allowed for ${user.kycType}`);
-
-    if (isPersonalAccount) {
-      data.organizationName = null;
-      data.organizationStreet = null;
-      data.organizationHouseNumber = null;
-      data.organizationLocation = null;
-      data.organizationZip = null;
-      data.organizationCountry = null;
-    }
-
-    user = await this.userDataService.updateSpiderIfNeeded(user, data);
-
-    const updatedUser = await this.userDataRepo.save(Object.assign(user, data));
-
+    const updatedUser = await this.userDataService.updateKycData(user, data);
     return this.createKycInfoBasedOn(updatedUser);
   }
 
@@ -143,7 +119,7 @@ export class KycService {
     if (!apiKey) throw new Error(`ApiKey for wallet ${wallet.name} not available`);
 
     try {
-      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/kyc/check`, {
+      result = await this.http.get<{ kycId: string }>(`${wallet.apiUrl}/check`, {
         headers: { 'x-api-key': apiKey },
 
         params: { address: dfxUser.address },
@@ -235,14 +211,9 @@ export class KycService {
     const dataComplete = this.isDataComplete(user);
     if (!dataComplete) throw new BadRequestException('Ident data incomplete');
 
-    if (user.isDfxUser) {
-      const users = await this.userDataService.getUsersByMail(user.mail);
-      const completedUser = users.find((data) => KycCompleted(data.kycStatus) && data.isDfxUser);
-      if (completedUser) {
-        await this.linkService.createNewLinkAddress(user, completedUser);
-        throw new ConflictException('User already has completed Kyc');
-      }
-    }
+    // check if user already has KYC
+    const hasKyc = await this.userDataService.isKnownKycUser(user);
+    if (hasKyc) throw new ConflictException('User already has completed KYC');
 
     // update
     user = await this.startKyc(user);

@@ -31,11 +31,11 @@ import { LinkService } from './models/link/link.service';
 import { LinkAddressRepository } from './models/link/link-address.repository';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { LimitRequestController } from './models/limit-request/limit-request.controller';
-import { KycWebhookService } from './models/kyc/kyc-webhook.service';
 import { WalletController } from './models/wallet/wallet.controller';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { GeoLocationModule } from 'src/integration/geolocation/geo-location.module';
 import { LimitRequestNotificationService } from './models/limit-request/limit-request-notification.service';
+import { WebhookService } from './services/webhook/webhook.service';
 
 @Module({
   imports: [
@@ -79,9 +79,9 @@ import { LimitRequestNotificationService } from './models/limit-request/limit-re
     LimitRequestService,
     IdentService,
     LinkService,
-    KycWebhookService,
+    WebhookService,
     LimitRequestNotificationService,
   ],
-  exports: [UserService, UserDataService, KycService, SpiderService, SpiderApiService, LinkService, KycWebhookService],
+  exports: [UserService, UserDataService, KycService, SpiderService, SpiderApiService, LinkService, WebhookService],
 })
 export class UserModule {}

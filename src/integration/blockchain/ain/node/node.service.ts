@@ -4,7 +4,6 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
 import { BtcClient } from './btc-client';
 import { DeFiClient } from './defi-client';
 import { NodeClient, NodeMode } from './node-client';
@@ -161,7 +160,8 @@ export class NodeService {
       return { errors: [], info: undefined };
     }
 
-    return Util.retry(() => client.getInfo(), 4, 1000)
+    return client
+      .getInfo()
       .then((info) => this.handleNodeCheckSuccess(info, type, mode))
       .catch(() => this.handleNodeCheckError(type, mode));
   }

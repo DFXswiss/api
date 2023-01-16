@@ -8,7 +8,8 @@ export class RoleGuard implements CanActivate {
     [UserRole.USER]: [UserRole.VIP, UserRole.BETA, UserRole.ADMIN],
     [UserRole.VIP]: [UserRole.ADMIN],
     [UserRole.BETA]: [UserRole.ADMIN],
-    [UserRole.SUPPORT]: [UserRole.ADMIN],
+    [UserRole.SUPPORT]: [UserRole.COMPLIANCE, UserRole.ADMIN],
+    [UserRole.COMPLIANCE]: [UserRole.ADMIN],
   };
 
   constructor(private readonly entryRole: UserRole) {}

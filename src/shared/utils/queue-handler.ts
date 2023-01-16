@@ -30,7 +30,7 @@ class QueueItem<T> {
 }
 
 export class QueueHandler {
-  private readonly lock = new Lock(5);
+  private readonly lock = new Lock(1200);
   private readonly queue: QueueItem<any>[] = [];
 
   constructor(scheduler: SchedulerRegistry, private readonly timeout?: number) {

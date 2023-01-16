@@ -207,6 +207,20 @@ export class Configuration {
           EUR: 10,
         },
       },
+      Arbitrum: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
+      Optimism: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
       Ethereum: {
         default: {
           USD: 1000,
@@ -304,6 +318,22 @@ export class Configuration {
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
+    },
+    optimism: {
+      optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
+      optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
+      optimismGatewayUrl: process.env.OPTIMISM_GATEWAY_URL,
+      optimismApiKey: process.env.OPTIMISM_API_KEY,
+      pancakeRouterAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
+    },
+    arbitrum: {
+      arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
+      arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
+      arbitrumGatewayUrl: process.env.ARBITRUM_GATEWAY_URL,
+      arbitrumApiKey: process.env.ARBITRUM_API_KEY,
+      pancakeRouterAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
+      swapTokenAddress: process.env.ARBITRUM_SWAP_TOKEN_ADDRESS,
     },
   };
 
@@ -425,6 +455,7 @@ export class Configuration {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
+      nonce: () => Date.now(),
       ...this.exchange,
     };
   }
@@ -440,11 +471,15 @@ export class Configuration {
   get addressFormat(): RegExp {
     return this.environment === 'prd'
       ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
-      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/;
+      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54})$/;
   }
 
   get signatureFormat(): RegExp {
-    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132})$/;
+    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582})$/;
+  }
+
+  get keyFormat(): RegExp {
+    return /^[a-f0-9]{84}$/;
   }
 
   get configuredFeeLimit(): number | null {
