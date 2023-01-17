@@ -22,6 +22,14 @@ export class UpdateBankTxDto {
   @IsNumber()
   accountingAmountAfterFee: number;
 
+  @IsOptional()
+  @IsNumber()
+  accountingAmountBeforeFeeCHF: number;
+
+  @IsOptional()
+  @IsNumber()
+  accountingAmountAfterFeeCHF: number;
+
   @IsNotEmpty()
   @IsInt()
   @ValidateIf((p) => p.type === BankTxType.BUY_CRYPTO)
