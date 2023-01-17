@@ -1,4 +1,4 @@
-import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression, Interval } from '@nestjs/schedule';
@@ -152,15 +152,12 @@ export class DeFiInputService extends CryptoInputService {
       .findOne({ order: { blockHeight: 'DESC' } })
       .then((input) => input?.blockHeight ?? 0);
 
-    const utxos = await this.client.getUtxo();
-    const tokens = await this.client.getToken();
-
-    const newInputs = await this.getAddressesWithFunds(utxos, tokens)
-      .then((i) => i.filter((e) => e != Config.blockchain.default.utxoSpenderAddress))
+    const newInputs = await this.client
       // get receive history
-      .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
+      .getHistory(lastHeight + 1, currentHeight)
       .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
       .then((i) => i.filter((h) => h.blockHeight > lastHeight))
+      .then((i) => i.filter((h) => h.owner != Config.blockchain.default.utxoSpenderAddress))
       // map to entities
       .then((i) => this.createEntities(i))
       .then((i) => i.filter((h) => h != null));
@@ -461,15 +458,6 @@ export class DeFiInputService extends CryptoInputService {
   }
 
   // --- HELPER METHODS --- //
-
-  async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
-    const utxoAddresses = utxo
-      .filter((u) => u.amount.toNumber() >= Config.blockchain.default.minDeposit.DeFiChain.DFI)
-      .map((u) => u.address);
-    const tokenAddresses = token.map((t) => t.owner);
-
-    return [...new Set(utxoAddresses.concat(tokenAddresses))];
-  }
 
   private readonly utxoTxTypes = ['receive', 'AccountToUtxos', 'blockReward'];
   private readonly tokenTxTypes = [
