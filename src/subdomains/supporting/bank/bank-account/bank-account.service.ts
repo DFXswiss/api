@@ -43,7 +43,17 @@ export class BankAccountService {
       where: { iban: dto.iban, userData: { id: userDataId } },
       relations: ['userData'],
     });
-    if (existing) throw new ConflictException('BankAccount already exists');
+    if (existing) {
+      if (existing.active) throw new ConflictException('BankAccount already exists');
+
+      if (!existing.active) {
+        // reactivate deleted bank account
+        existing.active = true;
+        await this.bankAccountRepo.save(existing);
+      }
+
+      return existing;
+    }
 
     const bankAccount = await this.getOrCreateBankAccountInternal(dto.iban, userDataId);
 
@@ -91,6 +101,7 @@ export class BankAccountService {
     }
 
     bankAccount.label = dto.label;
+    bankAccount.active = dto.active;
 
     return bankAccount;
   }
