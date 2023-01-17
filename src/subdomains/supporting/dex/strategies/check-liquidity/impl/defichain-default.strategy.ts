@@ -51,9 +51,8 @@ export class DeFiChainDefaultStrategy extends CheckLiquidityStrategy {
 
       return purchaseStrategy.getPrioritySwapAssets();
     } catch (e) {
-      const { dexName, type, blockchain } = targetAsset;
       console.warn(
-        `Error while getting priority assets from purchase liquidity strategy. Target asset: ${dexName} ${type} ${blockchain}`,
+        `Error while getting priority assets from purchase liquidity strategy. Target asset: ${targetAsset.uniqueName}`,
       );
 
       return [];
