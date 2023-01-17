@@ -10,6 +10,7 @@ import { KycCompleted, KycStatus, KycType, UserData } from '../../models/user-da
 import { KycWebhookData, KycWebhookStatus } from './dto/kyc-webhook.dto';
 import { PaymentWebhookState, PaymentWebhookData, PaymentWebhookType } from './dto/payment-webhook.dto';
 import { WebhookType, WebhookDto } from './dto/webhook.dto';
+import { User } from '../../models/user/user.entity';
 
 @Injectable()
 export class WebhookService {
@@ -21,32 +22,32 @@ export class WebhookService {
   ) {}
 
   async kycChanged(userData: UserData): Promise<void> {
-    await this.triggerWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_CHANGED);
+    await this.triggerUserDataWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_CHANGED);
   }
 
   async kycFailed(userData: UserData, reason: string): Promise<void> {
-    await this.triggerWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_FAILED, reason);
+    await this.triggerUserDataWebhook(userData, this.getKycWebhookData(userData), WebhookType.KYC_FAILED, reason);
   }
 
-  async fiatCryptoUpdate(userData: UserData, payment: BuyCrypto, state: PaymentWebhookState): Promise<void> {
-    await this.triggerWebhook(userData, this.getFiatCryptoData(payment, state), WebhookType.PAYMENT);
+  async fiatCryptoUpdate(user: User, payment: BuyCrypto, state: PaymentWebhookState): Promise<void> {
+    await this.triggerUserWebhook(user, this.getFiatCryptoData(payment, state), WebhookType.PAYMENT);
   }
 
-  async cryptoCryptoUpdate(userData: UserData, payment: BuyCrypto, state: PaymentWebhookState): Promise<void> {
-    await this.triggerWebhook(userData, this.getCryptoCryptoData(payment, state), WebhookType.PAYMENT);
+  async cryptoCryptoUpdate(user: User, payment: BuyCrypto, state: PaymentWebhookState): Promise<void> {
+    await this.triggerUserWebhook(user, this.getCryptoCryptoData(payment, state), WebhookType.PAYMENT);
   }
 
-  async cryptoFiatUpdate(userData: UserData, payment: BuyFiat, state: PaymentWebhookState): Promise<void> {
-    await this.triggerWebhook(userData, this.getCryptoFiatData(payment, state), WebhookType.PAYMENT);
+  async cryptoFiatUpdate(user: User, payment: BuyFiat, state: PaymentWebhookState): Promise<void> {
+    await this.triggerUserWebhook(user, this.getCryptoFiatData(payment, state), WebhookType.PAYMENT);
   }
 
-  async fiatFiatUpdate(userData: UserData, payment: BuyFiat, state: PaymentWebhookState): Promise<void> {
-    await this.triggerWebhook(userData, this.getFiatFiatData(payment, state), WebhookType.PAYMENT);
+  async fiatFiatUpdate(user: User, payment: BuyFiat, state: PaymentWebhookState): Promise<void> {
+    await this.triggerUserWebhook(user, this.getFiatFiatData(payment, state), WebhookType.PAYMENT);
   }
 
   // --- HELPER METHODS --- //
 
-  private async triggerWebhook<T extends PaymentWebhookData | KycWebhookData>(
+  private async triggerUserDataWebhook<T extends PaymentWebhookData | KycWebhookData>(
     userData: UserData,
     data: T,
     type: WebhookType,
@@ -58,37 +59,46 @@ export class WebhookService {
     });
 
     for (const user of userData.users) {
-      try {
-        if (!user.wallet.isKycClient || !user.wallet.apiUrl) continue;
+      await this.triggerUserWebhook(user, data, type, reason);
+    }
+  }
 
-        const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
-        if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
+  private async triggerUserWebhook<T extends PaymentWebhookData | KycWebhookData>(
+    user: User,
+    data: T,
+    type: WebhookType,
+    reason?: string,
+  ): Promise<void> {
+    try {
+      if (!user.wallet.isKycClient || !user.wallet.apiUrl) return;
 
-        const webhookDto: WebhookDto<T> = {
-          id: user.address,
-          type: type,
-          data: data,
-          reason: reason,
-        };
+      const apiKey = this.walletService.getApiKeyInternal(user.wallet.name);
+      if (!apiKey) throw new Error(`ApiKey for wallet ${user.wallet.name} not available`);
 
-        await this.http.post(user.wallet.apiUrl, webhookDto, {
-          headers: { 'x-api-key': apiKey },
-          retryDelay: 5000,
-          tryCount: 3,
-        });
-      } catch (error) {
-        const errMessage = `Exception during ${type} webhook for user ${user.id} & user data ${userData.id}:`;
+      const webhookDto: WebhookDto<T> = {
+        id: user.address,
+        type: type,
+        data: data,
+        reason: reason,
+      };
 
-        console.error(errMessage, error);
+      await this.http.post(user.wallet.apiUrl, webhookDto, {
+        headers: { 'x-api-key': apiKey },
+        retryDelay: 5000,
+        tryCount: 3,
+      });
+    } catch (error) {
+      const errMessage = `Exception during ${type} webhook for user ${user.id}:`;
 
-        await this.notificationService.sendMail({
-          type: MailType.ERROR_MONITORING,
-          input: {
-            subject: `${type} webhook failed`,
-            errors: [errMessage, error],
-          },
-        });
-      }
+      console.error(errMessage, error);
+
+      await this.notificationService.sendMail({
+        type: MailType.ERROR_MONITORING,
+        input: {
+          subject: `${type} webhook failed`,
+          errors: [errMessage, error],
+        },
+      });
     }
   }
 

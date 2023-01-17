@@ -83,15 +83,7 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: [
-        'buy',
-        'buy.user',
-        'buy.user.userData',
-        'cryptoRoute',
-        'cryptoRoute.user',
-        'cryptoRoute.user.userData',
-        'bankTx',
-      ],
+      relations: ['buy', 'buy.user', 'buy.user.wallet', 'cryptoRoute', 'cryptoRoute.user', 'cryptoRoute.user.wallet', 'bankTx'],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -137,8 +129,8 @@ export class BuyCryptoService {
     // payment webhook
     if (dto.inputAmount && dto.inputAsset) {
       entity.buy
-        ? await this.webhookService.fiatCryptoUpdate(entity.user.userData, entity, PaymentWebhookState.CREATED)
-        : await this.webhookService.cryptoCryptoUpdate(entity.user.userData, entity, PaymentWebhookState.CREATED);
+        ? await this.webhookService.fiatCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED)
+        : await this.webhookService.cryptoCryptoUpdate(entity.user, entity, PaymentWebhookState.CREATED);
     }
 
     await this.updateBuyVolume([buyIdBefore, entity.buy?.id]);
@@ -239,7 +231,7 @@ export class BuyCryptoService {
 
   private async getBuy(buyId: number): Promise<Buy> {
     // buy
-    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user', 'user.userData'] });
+    const buy = await this.buyRepo.findOne({ where: { id: buyId }, relations: ['user', 'user.wallet'] });
     if (!buy) throw new BadRequestException('Buy route not found');
 
     return buy;
@@ -249,7 +241,7 @@ export class BuyCryptoService {
     // cryptoRoute
     const cryptoRoute = await this.cryptoRouteService
       .getCryptoRouteRepo()
-      .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'userData'] });
+      .findOne({ where: { id: cryptoRouteId }, relations: ['user', 'user.wallet'] });
     if (!cryptoRoute) throw new BadRequestException('Crypto route not found');
 
     return cryptoRoute;

@@ -59,6 +59,7 @@ export class BankAccountController {
       label: bankAccount.label,
       preferredCurrency: bankAccount.preferredCurrency,
       sepaInstant: bankAccount.sctInst ?? false,
+      active: bankAccount.active,
     };
   }
 }

@@ -4,38 +4,28 @@ import { MainNet } from '@defichain/jellyfish-network';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Config } from 'src/config/config';
 import * as verifyCardanoSignature from '@cardano-foundation/cardano-verify-datasignature';
 
 @Injectable()
 export class CryptoService {
-  public verifySignature(message: string, address: string, signature: string, key?: string): boolean {
-    const blockchains = this.getBlockchainsBasedOn(address);
+  private readonly EthereumBasedChains = [
+    Blockchain.ETHEREUM,
+    Blockchain.BINANCE_SMART_CHAIN,
+    Blockchain.ARBITRUM,
+    Blockchain.OPTIMISM,
+    Blockchain.POLYGON,
+  ];
 
-    let isValid = false;
-    try {
-      isValid = this.verify(message, address, signature, blockchains, key);
-    } catch (e) {}
-
-    if (!isValid && !blockchains.includes(Blockchain.ETHEREUM) && !blockchains.includes(Blockchain.CARDANO)) {
-      isValid = this.fallbackVerify(message, address, signature, blockchains);
-    }
-    return isValid;
-  }
-
+  // --- ADDRESSES --- //
   public getBlockchainsBasedOn(address: string): Blockchain[] {
-    if (isEthereumAddress(address)) {
-      return [
-        Blockchain.ETHEREUM,
-        Blockchain.BINANCE_SMART_CHAIN,
-        Blockchain.ARBITRUM,
-        Blockchain.OPTIMISM,
-        Blockchain.POLYGON,
-      ];
-    }
+    if (isEthereumAddress(address)) return this.EthereumBasedChains;
     if (this.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
     return [Blockchain.DEFICHAIN];
+  }
+
+  public getDefaultBlockchainBasedOn(address: string): Blockchain {
+    return this.getBlockchainsBasedOn(address)[0];
   }
 
   private isBitcoinAddress(address: string): boolean {
@@ -46,54 +36,36 @@ export class CryptoService {
     return /^stake([a-z0-9]{54})$/.test(address);
   }
 
-  private fallbackVerify(message: string, address: string, signature: string, blockchains: Blockchain[]) {
-    let isValid = false;
-    const flags = [...Array(12).keys()].map((i) => i + 31);
-    for (const flag of flags) {
-      const flagByte = Buffer.alloc(1);
-      flagByte.writeInt8(flag);
-      let sigBuffer = Buffer.from(signature, 'base64').slice(1);
-      sigBuffer = Buffer.concat([flagByte, sigBuffer]);
-      const candidateSig = sigBuffer.toString('base64');
-      try {
-        isValid = this.verify(message, address, candidateSig, blockchains);
-        if (isValid) break;
-      } catch (e) {}
-    }
-    return isValid;
+  // --- SIGNATURE VERIFICATION --- //
+  public verifySignature(message: string, address: string, signature: string, key?: string): boolean {
+    const blockchain = this.getDefaultBlockchainBasedOn(address);
+
+    try {
+      if (this.EthereumBasedChains.includes(blockchain)) return this.verifyEthereumBased(message, address, signature);
+      if (blockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
+      if (blockchain === Blockchain.DEFICHAIN)
+        return this.verifyBitcoinBased(message, address, signature, MainNet.messagePrefix);
+      if (blockchain === Blockchain.CARDANO) return this.verifyCardano(message, address, signature, key);
+    } catch {}
+
+    return false;
   }
 
-  private verify(
-    message: string,
-    address: string,
-    signature: string,
-    blockchains: Blockchain[],
-    key?: string,
-  ): boolean {
-    if (blockchains.includes(Blockchain.ETHEREUM)) return this.verifyEthereum(message, address, signature);
-    if (blockchains.includes(Blockchain.BITCOIN)) return this.verifyBitcoin(message, address, signature);
-    if (blockchains.includes(Blockchain.CARDANO)) return this.verifyCardano(message, address, signature, key);
-    return this.verifyDefichain(message, address, signature);
-  }
-
-  private verifyEthereum(message: string, address: string, signature: string): boolean {
-    // there are ETH signings out there, which do not have '0x' in the beginning, but for verification this is needed
+  private verifyEthereumBased(message: string, address: string, signature: string): boolean {
+    // there are signatures out there, which do not have '0x' in the beginning, but for verification this is needed
     const signatureToUse = signature.startsWith('0x') ? signature : '0x' + signature;
     return verifyMessage(message, signatureToUse) === address;
   }
 
-  private verifyBitcoin(message: string, address: string, signature: string): boolean {
+  private verifyBitcoinBased(message: string, address: string, signature: string, prefix: string | null): boolean {
+    let isValid = false;
     try {
-      return verify(message, address, signature, null, true);
-    } catch (e) {
-      if (e.message === 'checkSegwitAlways can only be used with a compressed pubkey signature flagbyte') {
-        // If message created with uncompressed private key, it will throw this error
-        // in this case we should re-try with checkSegwitAlways flag off
-        // node_modules/bitcoinjs-message/index.js:187
-        return verify(message, address, signature);
-      }
-      throw e;
-    }
+      isValid = verify(message, address, signature, prefix, true);
+    } catch {}
+
+    if (!isValid) isValid = verify(message, address, signature, prefix);
+
+    return isValid;
   }
 
   private verifyCardano(message: string, address: string, signature: string, key?: string): boolean {
@@ -103,14 +75,5 @@ export class CryptoService {
       message,
       address,
     );
-  }
-
-  private verifyDefichain(message: string, address: string, signature: string): boolean {
-    let isValid = verify(message, address, signature, MainNet.messagePrefix);
-    if (!isValid) {
-      const fallbackMessage = Config.auth.signMessage + address;
-      isValid = verify(fallbackMessage, address, signature, MainNet.messagePrefix);
-    }
-    return isValid;
   }
 }

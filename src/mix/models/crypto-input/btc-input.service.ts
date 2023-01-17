@@ -107,7 +107,6 @@ export class BtcInputService extends CryptoInputService {
 
     // min. deposit
     if (utxo.amount.toNumber() < Config.blockchain.default.minDeposit.Bitcoin.BTC) {
-      console.log(`Ignoring too small Bitcoin input (${utxo.amount.toNumber()} 'BTC'. UTXO:`, utxo);
       return null;
     }
 

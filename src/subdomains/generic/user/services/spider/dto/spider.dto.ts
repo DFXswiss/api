@@ -223,3 +223,16 @@ export interface IdentificationLog {
   transactionId: string;
   identificationId: string;
 }
+
+export interface DocumentInfo {
+  document: KycDocument;
+  version: string;
+  part: string;
+  state: KycDocumentState;
+  creationTime: Date;
+  modificationTime: Date;
+  label: string;
+  fileName: string;
+  contentType: KycContentType;
+  url: string;
+}

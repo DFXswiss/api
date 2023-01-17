@@ -262,7 +262,7 @@ export class SpiderService {
     version: string,
     part: string = this.defaultDocumentPart,
   ): string {
-    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/${part}`;
+    return this.spiderApi.getDocumentUrl(kycCustomerId, document, version, part);
   }
 
   getOnlineIdUrl(identificationId: string): string {
