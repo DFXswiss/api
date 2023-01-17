@@ -101,10 +101,10 @@ export class BankTx extends IEntity {
   accountingAmountAfterFee?: number;
 
   @Column({ type: 'float', nullable: true })
-  accountingAmountBeforeFeeCHF?: number;
+  accountingAmountBeforeFeeChf?: number;
 
   @Column({ type: 'float', nullable: true })
-  accountingAmountAfterFeeCHF?: number;
+  accountingAmountAfterFeeChf?: number;
 
   // related party info
   @Column({ length: 256, nullable: true })

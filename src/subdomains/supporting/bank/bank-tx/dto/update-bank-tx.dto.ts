@@ -24,11 +24,11 @@ export class UpdateBankTxDto {
 
   @IsOptional()
   @IsNumber()
-  accountingAmountBeforeFeeCHF: number;
+  accountingAmountBeforeFeeChf: number;
 
   @IsOptional()
   @IsNumber()
-  accountingAmountAfterFeeCHF: number;
+  accountingAmountAfterFeeChf: number;
 
   @IsNotEmpty()
   @IsInt()
