@@ -1,9 +1,9 @@
 import { Inject, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { HttpService } from '../../../shared/services/http.service';
-import * as MasterNodes from './assets/master-nodes.json';
-import * as CakeMasterNodes from './assets/cake-mn.json';
-import * as CfpResults from './assets/cfp-results.json';
+import MasterNodes from './assets/master-nodes.json';
+import CakeMasterNodes from './assets/cake-mn.json';
+import CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
