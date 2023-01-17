@@ -144,6 +144,9 @@ export class Configuration {
     'LOCK.space STG': {
       apiKey: process.env.LOCK_API_KEY,
     },
+    Talium: {
+      apiKey: process.env.TALIUM_API_KEY,
+    },
   };
 
   mail: MailOptions = {

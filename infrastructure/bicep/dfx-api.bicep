@@ -148,6 +148,9 @@ param azureClientId string
 @secure()
 param azureClientSecret string
 
+@secure()
+param taliumApiKey string
+
 // --- VARIABLES --- //
 var compName = 'dfx'
 var apiName = 'api'
@@ -791,6 +794,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'AZURE_CLIENT_SECRET'
           value: azureClientSecret
+        }
+        {
+          name: 'TALIUM_API_KEY'
+          value: taliumApiKey
         }
       ]
     }
