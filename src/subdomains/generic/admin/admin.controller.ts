@@ -29,7 +29,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { LetterService } from 'src/integration/letter/letter.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Customer } from 'src/subdomains/generic/user/services/spider/dto/spider.dto';
+import { Customer, DocumentInfo } from 'src/subdomains/generic/user/services/spider/dto/spider.dto';
 import { SpiderApiService } from 'src/subdomains/generic/user/services/spider/spider-api.service';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
 import { getConnection } from 'typeorm';
@@ -96,6 +96,17 @@ export class AdminController {
       customerList.push(await this.spiderApiService.getCustomer(id));
     }
     return customerList;
+  }
+
+  @Get('documents')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async getDocumentInfos(
+    @Query('id') userDataId: string,
+    @Query('isOrganization') isOrganization = 'false',
+  ): Promise<DocumentInfo[]> {
+    return await this.spiderApiService.getDocumentInfos(+userDataId, isOrganization === 'true');
   }
 
   @Post('upload')
