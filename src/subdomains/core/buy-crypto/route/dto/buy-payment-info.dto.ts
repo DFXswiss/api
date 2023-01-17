@@ -39,4 +39,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiProperty({ type: MinDeposit })
   minDeposit: MinDeposit;
+
+  @ApiProperty()
+  giroCode?: string;
 }

@@ -109,6 +109,7 @@ export class BuyController {
 
   private async toPaymentInfoDto(userId: number, buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BuyPaymentInfoDto> {
     const bankInfo = await this.getBankInfo(buy, dto);
+    const giroCode = this.generateGiroCode(buy, bankInfo, dto);
 
     return {
       ...bankInfo,
@@ -116,7 +117,25 @@ export class BuyController {
       remittanceInfo: buy.bankUsage,
       ...(await this.userService.getUserBuyFee(userId, buy.asset)),
       minDeposit: Config.transaction.minVolume.get(buy.asset, dto.currency.name),
+      giroCode,
     };
+  }
+
+  private generateGiroCode(buy: Buy, bankInfo: BankInfoDto, dto: GetBuyPaymentInfoDto): string | undefined {
+    if (Config.giroCode.disabledCountries.includes(buy.iban.slice(0, 2))) return undefined;
+    return `
+    ${Config.giroCode.service}
+    ${Config.giroCode.version}
+    ${Config.giroCode.encoding}
+    ${Config.giroCode.transfer}
+    ${bankInfo.bic}
+    DFX AG
+    ${bankInfo.iban}
+    ${dto.currency?.name}${dto.amount}
+    ${Config.giroCode.char}
+    ${Config.giroCode.ref}
+    ${buy.bankUsage}
+    `.trim();
   }
 
   // --- HELPER-METHODS --- //

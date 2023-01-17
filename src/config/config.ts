@@ -450,6 +450,16 @@ export class Configuration {
     clientSecret: process.env.AZURE_CLIENT_SECRET,
   };
 
+  giroCode = {
+    disabledCountries: ['CH'],
+    service: 'BCD',
+    version: '001',
+    encoding: '2',
+    transfer: 'SCT',
+    char: '',
+    ref: '',
+  };
+
   // --- GETTERS --- //
   get kraken(): Partial<Exchange> {
     return {
