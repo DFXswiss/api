@@ -265,6 +265,9 @@
     },
     "azureClientSecret": {
       "value": "xxx"
+    },
+    "taliumApiKey": {
+      "value": "xxx"
     }
   }
 }
