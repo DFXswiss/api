@@ -3,11 +3,11 @@ import { EvmStrategy } from './base/evm.strategy';
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { PayInArbitrumService } from '../services/payin-arbitrum.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { PayInRepository } from '../repositories/payin.repository';
-import { PayInFactory } from '../factories/payin.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PayInFactory } from '../../../factories/payin.factory';
+import { PayInRepository } from '../../../repositories/payin.repository';
+import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 
 @Injectable()
 export class ArbitrumStrategy extends EvmStrategy {

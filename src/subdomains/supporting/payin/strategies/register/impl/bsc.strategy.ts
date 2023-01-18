@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { PayInBscService } from '../services/payin-bsc.service';
-import { EvmStrategy } from './impl/base/evm.strategy';
 import { Lock } from 'src/shared/utils/lock';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { PayInRepository } from '../repositories/payin.repository';
-import { PayInFactory } from '../factories/payin.factory';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { PayInFactory } from '../../../factories/payin.factory';
+import { PayInRepository } from '../../../repositories/payin.repository';
+import { PayInBscService } from '../../../services/payin-bsc.service';
+import { EvmStrategy } from './base/evm.strategy';
 
 @Injectable()
 export class BscStrategy extends EvmStrategy {

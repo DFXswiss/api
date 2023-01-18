@@ -16,6 +16,7 @@ export enum PayInStatus {
   FAILED = 'Failed',
   TO_RETURN = 'ToReturn',
   RETURNED = 'Returned',
+  FORWARDING = 'Forwarding',
   FORWARDED = 'Forwarded',
 }
 
@@ -94,6 +95,13 @@ export class CryptoInput extends IEntity {
     return payIn;
   }
 
+  //*** UTILITY METHODS ***//
+
+  static verifyEstimatedFee(estimatedFeeInPayInAsset: number, totalAmount: number): void {
+    if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
+    if (estimatedFeeInPayInAsset / totalAmount > 0.005) throw new Error('Forward fee is too hight');
+  }
+
   acknowledge(purpose: PayInPurpose): this {
     this.purpose = purpose;
     this.status = PayInStatus.ACKNOWLEDGED;
@@ -112,6 +120,19 @@ export class CryptoInput extends IEntity {
   designateReturn(purpose: PayInPurpose): this {
     this.purpose = purpose;
     this.status = PayInStatus.TO_RETURN;
+
+    return this;
+  }
+
+  designateForward(): this {
+    this.status = PayInStatus.FORWARDING;
+
+    return this;
+  }
+
+  forward(outTxId: string, forwardFeeAmount: number = null): this {
+    this.outTxId = outTxId;
+    this.forwardFeeAmount = forwardFeeAmount;
 
     return this;
   }

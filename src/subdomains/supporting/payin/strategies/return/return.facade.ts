@@ -31,7 +31,7 @@ enum Alias {
 export { Alias as ReturnStrategyAlias };
 
 @Injectable()
-export class ReturnFacade {
+export class ReturnStrategiesFacade {
   protected readonly strategies: Map<Alias, ReturnStrategy> = new Map();
 
   constructor(
@@ -60,11 +60,11 @@ export class ReturnFacade {
     this.strategies.set(Alias.OPTIMISM_TOKEN, optimismToken);
   }
 
-  getPayoutStrategy(criteria: Asset | Alias): ReturnStrategy {
+  getReturnStrategy(criteria: Asset | Alias): ReturnStrategy {
     return criteria instanceof Asset ? this.getByAsset(criteria) : this.getByAlias(criteria);
   }
 
-  getPayoutStrategyAlias(asset: Asset): Alias {
+  getReturnStrategyAlias(asset: Asset): Alias {
     const { blockchain, type: assetType } = asset;
 
     if (blockchain === Blockchain.BITCOIN) return Alias.BITCOIN;
@@ -101,7 +101,7 @@ export class ReturnFacade {
   }
 
   private getByAsset(asset: Asset): ReturnStrategy {
-    const alias = this.getPayoutStrategyAlias(asset);
+    const alias = this.getReturnStrategyAlias(asset);
 
     return this.getByAlias(alias);
   }

@@ -1,31 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
-import { JellyfishStrategy } from './impl/base/jellyfish.strategy';
 import { Lock } from 'src/shared/utils/lock';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Config, Process } from 'src/config/config';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { PayInEntry } from '../interfaces';
-import { PayInRepository } from '../repositories/payin.repository';
-import { PayInService } from '../services/payin.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PayInEntry } from '../../../interfaces';
+import { PayInRepository } from '../../../repositories/payin.repository';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { PayInFactory } from '../../../factories/payin.factory';
+import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
   private readonly lock = new Lock(7200);
-  private client: BtcClient;
 
   constructor(
     private readonly assetService: AssetService,
-    private readonly payInService: PayInService,
-    private readonly payInRepository: PayInRepository,
-    nodeService: NodeService,
+    private readonly bitcoinService: PayInBitcoinService,
+    protected readonly payInFactory: PayInFactory,
+    protected readonly payInRepository: PayInRepository,
   ) {
-    super();
-    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.client = client));
+    super(payInFactory, payInRepository);
   }
 
   //*** JOBS ***//
@@ -47,16 +46,19 @@ export class BitcoinStrategy extends JellyfishStrategy {
   //*** HELPER METHODS ***//
 
   private async processNewPayInEntries(): Promise<void> {
+    const log = this.createNewLogObject();
     const newEntries = await this.getNewEntries();
-    const newPayIns = await this.payInService.createNewPayIns(newEntries);
 
-    newPayIns.length > 0 && console.log(`New Bitcoin pay-ins (${newPayIns.length}):`, newPayIns);
+    for (const tx of newEntries) {
+      await this.createPayInAndSave(tx);
+      log.newRecords.push({ address: tx.address.address, txId: tx.txId });
+    }
 
-    await this.payInService.persistPayIns(newPayIns);
+    this.printInputLog(log, 'omitted', Blockchain.BITCOIN);
   }
 
   private async getNewEntries(): Promise<PayInEntry[]> {
-    const allUtxos = await this.getUTXO();
+    const allUtxos = await this.bitcoinService.getUTXO();
     const newUtxos = await this.filterOutExistingUtxos(allUtxos);
 
     return this.mapUtxosToEntries(newUtxos);
@@ -87,18 +89,13 @@ export class BitcoinStrategy extends JellyfishStrategy {
     return inputs;
   }
 
-  private async getUTXO(): Promise<UTXO[]> {
-    await this.client.checkSync();
-
-    return this.client.getUtxo();
-  }
-
   private async mapUtxosToEntries(utxos: UTXO[]): Promise<PayInEntry[]> {
     const asset = await this.assetService.getBtcCoin();
 
     return utxos.map((u) => ({
       address: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
       txId: u.txid,
+      txType: null,
       blockHeight: null,
       amount: u.amount.toNumber(),
       asset,
