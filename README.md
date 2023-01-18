@@ -17,6 +17,8 @@ API for DFX.swiss crypto exchange
 2. Create an address on selected blockchain (e.g. DeFiChain), see [example](#login-example) below
 3. Get the sign message from [sign-message endpoint](https://api.dfx.swiss/swagger/#/auth/AuthController_getSignMessage) and sign it with the corresponding private key
 4. Register the user with the [sign-up endpoint](https://api.dfx.swiss/swagger/#/auth/AuthController_signUp)
+    - Use the `walletId` from step 1
+    - See [below](#referral-program) for more information on the referral program (`usedRef`)
 5. Now you can get your JWT access token (with address & signature) with the [sign-in endpoint](https://api.dfx.swiss/swagger/#/auth/AuthController_signIn)
 
 #### Login Example
@@ -114,6 +116,11 @@ KYC is not required for a daily transaction volume up to 1000 EUR/CHF. To increa
 - This can be used to improve UX and show the previously used IBANs to the user
 - Bank accounts (label, preferred currency) can be updated with the [update endpoint](https://api.dfx.swiss/swagger/#/bankAccount/BankAccountController_updateBankAccount)
 - Bank accounts can be created directly with the [create endpoint](https://api.dfx.swiss/swagger/#/bankAccount/BankAccountController_createBankAccount)
+
+### Referral Program
+- Basic information about the referral program can be found in the FAQ on our [homepage](https://dfx.swiss/defichain/)
+- A referral code can only be set once during [user registration](#registration) (`usedRef` parameter)
+- Every user will receive his own referral code after the first successful transaction. It can be get from the [user detail endpoint](https://api.dfx.swiss/swagger/#/user/UserController_getUserDetail).
 
 ### Integration Example
 
