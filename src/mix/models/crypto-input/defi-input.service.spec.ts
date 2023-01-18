@@ -42,7 +42,7 @@ describe('DeFiInputService', () => {
     jest.spyOn(cryptoInputRepo, 'findOne').mockResolvedValueOnce({ blockHeight: lastBlocks } as CryptoInput);
     jest.spyOn(nodeClient, 'getUtxo').mockResolvedValueOnce(utxo);
     jest.spyOn(nodeClient, 'getToken').mockResolvedValueOnce([]);
-    jest.spyOn(nodeClient, 'getHistories').mockResolvedValueOnce([]);
+    jest.spyOn(nodeClient, 'getHistory').mockResolvedValueOnce([]);
   }
 
   beforeEach(async () => {
@@ -112,8 +112,8 @@ describe('DeFiInputService', () => {
 
     await service.checkInputs();
 
-    expect(nodeClient.getHistories).toHaveBeenCalledTimes(1);
-    expect(nodeClient.getHistories).toHaveBeenCalledWith(['addr1', 'addr3'], lastBlocks + 1, blocks);
+    expect(nodeClient.getHistory).toHaveBeenCalledTimes(1);
+    expect(nodeClient.getHistory).toHaveBeenCalledWith(lastBlocks + 1, blocks);
   });
 
   // --- AMOUNTS --- //
