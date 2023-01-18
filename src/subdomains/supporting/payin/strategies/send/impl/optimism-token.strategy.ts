@@ -1,13 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
-import { EvmStrategy, SendGroup } from './base/evm.strategy';
+import { EvmStrategy } from './base/evm.strategy';
+import { SendGroup } from './base/send.strategy';
 
 @Injectable()
-export class OptimismCoinStrategy extends EvmStrategy {
+export class OptimismTokenStrategy extends EvmStrategy {
   constructor(
     protected readonly pricingService: PricingService,
     protected readonly payoutService: PayoutService,
@@ -18,6 +21,18 @@ export class OptimismCoinStrategy extends EvmStrategy {
   }
 
   protected dispatchSend(payInGroup: SendGroup): Promise<string> {
-    return this.optimismService.sendNativeCoin(payInGroup.destinationAddress, this.getTotalGroupAmount(payInGroup));
+    const { sourceAddress, privateKey, destinationAddress, asset } = payInGroup;
+
+    return this.optimismService.sendToken(
+      sourceAddress,
+      privateKey,
+      destinationAddress,
+      asset,
+      this.getTotalGroupAmount(payInGroup),
+    );
+  }
+
+  protected getForwardAddress(): BlockchainAddress {
+    return BlockchainAddress.create(Config.blockchain.optimism.optimismWalletAddress, Blockchain.OPTIMISM);
   }
 }

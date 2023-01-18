@@ -68,7 +68,7 @@ export abstract class EvmClient {
   }
 
   async getTokenBalanceOfAddress(address: string, token: Asset): Promise<number> {
-    const contract = this.getERC20Contract(token.chainId);
+    const contract = this.getERC20ContractForDex(token.chainId);
     const balance = await contract.balanceOf(address);
     const decimals = await contract.decimals();
 
@@ -80,32 +80,53 @@ export abstract class EvmClient {
   }
 
   async getTokenGasLimit(token: Asset): Promise<BigNumber> {
-    const contract = this.getERC20Contract(token.chainId);
+    const contract = this.getERC20ContractForDex(token.chainId);
 
     return contract.estimateGas.transfer(this.#randomReceiverAddress, 1);
   }
 
-  async sendNativeCoin(address: string, amount: number): Promise<string> {
-    const gasPrice = await this.getGasPrice();
+  async sendNativeCoinFromAddress(
+    fromAddress: string,
+    privateKey: string,
+    toAddress: string,
+    amount: number,
+  ): Promise<string> {
+    const wallet = new ethers.Wallet(privateKey, this.#provider);
 
-    const tx = await this.#wallet.sendTransaction({
-      from: this.#dfxAddress,
-      to: address,
-      value: this.convertToWeiLikeDenomination(amount, 'ether'),
-      gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
-    });
-
-    return tx.hash;
+    return this.sendNativeCoin(wallet, fromAddress, toAddress, amount);
   }
 
-  async sendToken(address: string, token: Asset, amount: number): Promise<string> {
-    const contract = this.getERC20Contract(token.chainId);
+  async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
+    return this.sendNativeCoin(this.#wallet, this.#dfxAddress, toAddress, amount);
+  }
+
+  async sendTokenFromAddress(
+    _: string,
+    privateKey: string,
+    toAddress: string,
+    token: Asset,
+    amount: number,
+  ): Promise<string> {
+    /**
+     * @note
+     * source address is derived from private key, thus not used directly
+     */
+    const contract = this.getERC20ContractForAddress(privateKey, token.chainId);
+
+    return this.sendToken(contract, toAddress, amount);
+  }
+
+  async sendTokenFromDex(toAddress: string, token: Asset, amount: number): Promise<string> {
+    const contract = this.getERC20ContractForDex(token.chainId);
+
+    return this.sendToken(contract, toAddress, amount);
+  }
+
+  private async sendToken(contract: Contract, toAddress: string, amount: number): Promise<string> {
     const decimals = await contract.decimals();
     const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
 
-    const tx = await contract.transfer(address, targetAmount);
+    const tx = await contract.transfer(toAddress, targetAmount);
 
     return tx.hash;
   }
@@ -156,6 +177,26 @@ export abstract class EvmClient {
 
   //*** PRIVATE HELPER METHODS ***//
 
+  private async sendNativeCoin(
+    wallet: ethers.Wallet,
+    fromAddress: string,
+    toAddress: string,
+    amount: number,
+  ): Promise<string> {
+    const gasPrice = await this.getGasPrice();
+
+    const tx = await wallet.sendTransaction({
+      from: fromAddress,
+      to: toAddress,
+      value: this.convertToWeiLikeDenomination(amount, 'ether'),
+      gasPrice,
+      // has to be provided as a number for BSC
+      gasLimit: this.#sendCoinGasLimit,
+    });
+
+    return tx.hash;
+  }
+
   private getTransactionHistoryCommonParams(walletAddress: string, fromBlock: number) {
     return {
       module: 'account',
@@ -166,7 +207,13 @@ export abstract class EvmClient {
     };
   }
 
-  private getERC20Contract(tokenAddress: string): Contract {
+  private getERC20ContractForAddress(privateKey: string, tokenAddress: string): Contract {
+    const wallet = new ethers.Wallet(privateKey, this.#provider);
+
+    return new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
+  }
+
+  private getERC20ContractForDex(tokenAddress: string): Contract {
     let tokenContract = this.#erc20Tokens.get(tokenAddress);
 
     if (!tokenContract) {

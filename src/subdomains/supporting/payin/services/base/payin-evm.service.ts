@@ -11,12 +11,23 @@ export abstract class PayInEvmService {
     this.#client = service.getDefaultClient();
   }
 
-  async sendNativeCoin(address: string, amount: number): Promise<string> {
-    return this.#client.sendNativeCoin(address, amount);
+  async sendNativeCoin(
+    addressFrom: string,
+    withPrivateKey: string,
+    addressTo: string,
+    amount: number,
+  ): Promise<string> {
+    return this.#client.sendNativeCoinFromAddress(addressFrom, withPrivateKey, addressTo, amount);
   }
 
-  async sendToken(address: string, tokenName: Asset, amount: number): Promise<string> {
-    return this.#client.sendToken(address, tokenName, amount);
+  async sendToken(
+    addressFrom: string,
+    withPrivateKey: string,
+    addressTo: string,
+    tokenName: Asset,
+    amount: number,
+  ): Promise<string> {
+    return this.#client.sendTokenFromAddress(addressFrom, withPrivateKey, addressTo, tokenName, amount);
   }
 
   async getHistory(address: string, fromBlock: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {

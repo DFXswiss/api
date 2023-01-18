@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
@@ -21,7 +22,10 @@ export class StakingReturnService {
   //*** HELPER METHODS ***//
 
   private async filterStakingPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Staking][]> {
-    const stakings = await this.stakingRepository.find({ where: { deposit: Not(IsNull()) }, relations: ['deposit'] });
+    const stakings = await this.stakingRepository.find({
+      where: { deposit: Not(IsNull()) },
+      relations: ['deposit', 'user'],
+    });
 
     return this.pairRoutesWithPayIns(stakings, allPayIns);
   }
@@ -41,8 +45,12 @@ export class StakingReturnService {
   }
 
   private async returnPayIns(payInsPairs: [CryptoInput, Staking][]): Promise<void> {
-    for (const [payIn, _] of payInsPairs) {
-      await this.payInService.returnPayIn(payIn, PayInPurpose.STAKING);
+    for (const [payIn, staking] of payInsPairs) {
+      await this.payInService.returnPayIn(
+        payIn,
+        PayInPurpose.STAKING,
+        BlockchainAddress.create(staking.user.address, staking.deposit.blockchain),
+      );
     }
   }
 }

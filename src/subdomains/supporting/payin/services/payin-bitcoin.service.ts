@@ -26,9 +26,9 @@ export class PayInBitcoinService extends PayInJellyfishService {
     return this.client.getUtxo();
   }
 
-  async forwardUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+  async sendUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
     return this.client.send(
-      Config.blockchain.default.btcCollectorAddress,
+      input.destinationAddress.address,
       input.inTxId,
       input.amount,
       input.txSequence,

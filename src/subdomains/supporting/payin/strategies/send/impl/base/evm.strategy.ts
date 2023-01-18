@@ -1,6 +1,6 @@
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
-import { ForwardStrategy } from './forward.strategy';
+import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
@@ -11,12 +11,7 @@ import { Util } from 'src/shared/utils/util';
 import { PriceRequest, PriceResult } from 'src/subdomains/supporting/pricing/interfaces';
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
 
-export interface SendGroup {
-  destinationAddress: string;
-  asset: Asset;
-  payIns: CryptoInput[];
-}
-export abstract class EvmStrategy extends ForwardStrategy {
+export abstract class EvmStrategy extends SendStrategy {
   constructor(
     protected readonly pricingService: PricingService,
     protected readonly payoutService: PayoutService,
@@ -29,8 +24,8 @@ export abstract class EvmStrategy extends ForwardStrategy {
 
   protected abstract dispatchSend(payInGroup: SendGroup): Promise<string>;
 
-  async doForward(payIns: CryptoInput[]): Promise<void> {
-    const groups = this.groupPayInsByAddressAndAsset(payIns);
+  async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
+    const groups = this.groupPayInsByAddressAndAsset(payIns, type);
 
     for (const payInGroup of [...groups.values()]) {
       try {
@@ -41,28 +36,37 @@ export abstract class EvmStrategy extends ForwardStrategy {
 
         const outTxId = await this.dispatchSend(payInGroup);
 
-        const updatedPayIns = this.updatePayInsWithForwardData(payInGroup, outTxId);
+        const updatedPayIns = this.updatePayInsWithSendData(payInGroup, outTxId, type);
 
         await this.saveUpdatedPayIns(updatedPayIns);
       } catch (e) {
-        console.error(`Failed to forward ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)}:`, e);
+        console.error(
+          `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}`,
+          e,
+        );
       }
     }
   }
 
   //*** HELPER METHODS ***//
 
-  private groupPayInsByAddressAndAsset(payIns: CryptoInput[]): Map<string, SendGroup> {
-    const groups = new Map<string, SendGroup>();
+  private groupPayInsByAddressAndAsset(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
+    const groups = new Map<SendGroupKey, SendGroup>();
 
     for (const payIn of payIns) {
-      const { address, asset } = payIn;
+      this.designateSend(payIn, type);
+
+      const { address, destinationAddress, asset } = payIn;
+
+      // TODO - get private key here
 
       const group = groups.get(this.getPayInGroupKey(payIn));
 
       if (!group) {
         groups.set(this.getPayInGroupKey(payIn), {
-          destinationAddress: address.address,
+          sourceAddress: address.address,
+          privateKey: 'TBD',
+          destinationAddress: destinationAddress.address,
           asset: asset,
           payIns: [payIn],
         });
@@ -76,8 +80,8 @@ export abstract class EvmStrategy extends ForwardStrategy {
     return groups;
   }
 
-  private getPayInGroupKey(payIn: CryptoInput): string {
-    return `${payIn.address.address}&${payIn.asset.dexName}&${payIn.asset.type}`;
+  private getPayInGroupKey(payIn: CryptoInput): SendGroupKey {
+    return `${payIn.address.address}&${payIn.destinationAddress.address}&&${payIn.asset.dexName}&${payIn.asset.type}`;
   }
 
   private async getEstimatedFee(payInGroup: SendGroup): Promise<number> {
@@ -153,8 +157,8 @@ export abstract class EvmStrategy extends ForwardStrategy {
     return Util.sumObj<CryptoInput>(payInGroup.payIns, 'amount');
   }
 
-  private updatePayInsWithForwardData(payInGroup: SendGroup, outTxId: string): CryptoInput[] {
-    return payInGroup.payIns.map((p) => p.forward(outTxId));
+  private updatePayInsWithSendData(payInGroup: SendGroup, outTxId: string, type: SendType): CryptoInput[] {
+    return payInGroup.payIns.map((p) => this.updatePayInWithSendData(p, type, outTxId)).filter((p) => !!p);
   }
 
   private async saveUpdatedPayIns(payIns: CryptoInput[]): Promise<void> {

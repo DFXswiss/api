@@ -3,7 +3,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { ArbitrumCoinStrategy } from './impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from './impl/arbitrum-token.strategy';
-import { ReturnStrategy } from './impl/base/return.strategy';
+import { SendStrategy } from './impl/base/send.strategy';
 import { BitcoinStrategy } from './impl/bitcoin.strategy';
 import { BscCoinStrategy } from './impl/bsc-coin.strategy';
 import { BscTokenStrategy } from './impl/bsc-token.strategy';
@@ -28,11 +28,11 @@ enum Alias {
   OPTIMISM_TOKEN = 'OptimismToken',
 }
 
-export { Alias as ReturnStrategyAlias };
+export { Alias as SendStrategyAlias };
 
 @Injectable()
-export class ReturnStrategiesFacade {
-  protected readonly strategies: Map<Alias, ReturnStrategy> = new Map();
+export class SendStrategiesFacade {
+  protected readonly strategies: Map<Alias, SendStrategy> = new Map();
 
   constructor(
     arbitrumCoin: ArbitrumCoinStrategy,
@@ -60,11 +60,11 @@ export class ReturnStrategiesFacade {
     this.strategies.set(Alias.OPTIMISM_TOKEN, optimismToken);
   }
 
-  getReturnStrategy(criteria: Asset | Alias): ReturnStrategy {
+  getSendStrategy(criteria: Asset | Alias): SendStrategy {
     return criteria instanceof Asset ? this.getByAsset(criteria) : this.getByAlias(criteria);
   }
 
-  getReturnStrategyAlias(asset: Asset): Alias {
+  getSendStrategyAlias(asset: Asset): Alias {
     const { blockchain, type: assetType } = asset;
 
     if (blockchain === Blockchain.BITCOIN) return Alias.BITCOIN;
@@ -92,16 +92,16 @@ export class ReturnStrategiesFacade {
 
   //*** HELPER METHODS ***//
 
-  private getByAlias(alias: Alias): ReturnStrategy {
+  private getByAlias(alias: Alias): SendStrategy {
     const strategy = this.strategies.get(alias);
 
-    if (!strategy) throw new Error(`No PayoutStrategy found. Alias: ${alias}`);
+    if (!strategy) throw new Error(`No SendStrategy found. Alias: ${alias}`);
 
     return strategy;
   }
 
-  private getByAsset(asset: Asset): ReturnStrategy {
-    const alias = this.getReturnStrategyAlias(asset);
+  private getByAsset(asset: Asset): SendStrategy {
+    const alias = this.getSendStrategyAlias(asset);
 
     return this.getByAlias(alias);
   }

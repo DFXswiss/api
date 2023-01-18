@@ -15,6 +15,7 @@ export enum PayInStatus {
   ACKNOWLEDGED = 'Acknowledged',
   FAILED = 'Failed',
   TO_RETURN = 'ToReturn',
+  RETURNING = 'Returning',
   RETURNED = 'Returned',
   FORWARDING = 'Forwarding',
   FORWARDED = 'Forwarded',
@@ -42,6 +43,9 @@ export class CryptoInput extends IEntity {
 
   @Column(() => BlockchainAddress)
   address: BlockchainAddress;
+
+  @Column(() => BlockchainAddress)
+  destinationAddress: BlockchainAddress;
 
   @Column({ nullable: true, type: 'integer' })
   blockHeight: number;
@@ -105,7 +109,6 @@ export class CryptoInput extends IEntity {
   acknowledge(purpose: PayInPurpose): this {
     this.purpose = purpose;
     this.status = PayInStatus.ACKNOWLEDGED;
-    this.isConfirmed = true;
 
     return this;
   }
@@ -117,15 +120,17 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  designateReturn(purpose: PayInPurpose): this {
+  triggerReturn(purpose: PayInPurpose, returnAddress: BlockchainAddress): this {
     this.purpose = purpose;
     this.status = PayInStatus.TO_RETURN;
+    this.destinationAddress = returnAddress;
 
     return this;
   }
 
-  designateForward(): this {
+  designateForward(forwardAddress: BlockchainAddress): this {
     this.status = PayInStatus.FORWARDING;
+    this.destinationAddress = forwardAddress;
 
     return this;
   }
@@ -133,6 +138,12 @@ export class CryptoInput extends IEntity {
   forward(outTxId: string, forwardFeeAmount: number = null): this {
     this.outTxId = outTxId;
     this.forwardFeeAmount = forwardFeeAmount;
+
+    return this;
+  }
+
+  designateReturn(): this {
+    this.status = PayInStatus.RETURNING;
 
     return this;
   }

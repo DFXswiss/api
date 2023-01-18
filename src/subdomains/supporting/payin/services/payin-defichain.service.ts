@@ -49,26 +49,22 @@ export class PayInDeFiChainService extends PayInJellyfishService {
       .then((i) => i.map((a) => ({ ...a, amount: Math.abs(a.amount) })));
   }
 
-  async forwardUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
-    return this.client.sendCompleteUtxo(
-      input.address.address,
-      Config.blockchain.default.dexWalletAddress,
-      input.amount,
-    );
+  async sendUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+    return this.client.sendCompleteUtxo(input.address.address, input.destinationAddress.address, input.amount);
   }
 
-  async forwardToken(input: CryptoInput): Promise<void> {
+  async sendToken(input: CryptoInput, action: (outTxId: string) => CryptoInput): Promise<void> {
     await this.doTokenTx(input.address.address, async (utxo) => {
       const outTxId = await this.client.sendToken(
         input.address.address,
-        Config.blockchain.default.dexWalletAddress,
+        input.destinationAddress.address,
         input.asset.dexName,
         input.amount,
         [utxo],
       );
 
-      input.forward(outTxId);
-      await this.payInRepo.save(input);
+      const updatedInput = action(outTxId);
+      await this.payInRepo.save(updatedInput);
 
       return outTxId;
     });

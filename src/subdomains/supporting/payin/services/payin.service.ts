@@ -3,13 +3,13 @@ import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../repositories/payin.repository';
 import { CryptoInput, PayInPurpose, PayInStatus } from '../entities/crypto-input.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ForwardStrategiesFacade } from '../strategies/forward/forward.facade';
-import { ReturnStrategiesFacade } from '../strategies/return/return.facade';
+import { SendStrategiesFacade, SendStrategyAlias } from '../strategies/send/send.facade';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IsNull } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { SendType } from '../strategies/send/impl/base/send.strategy';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 
 @Injectable()
 export class PayInService {
@@ -18,8 +18,7 @@ export class PayInService {
 
   constructor(
     private readonly payInRepository: PayInRepository,
-    private readonly forwardStrategies: ForwardStrategiesFacade,
-    private readonly returnStrategies: ReturnStrategiesFacade,
+    private readonly sendStrategies: SendStrategiesFacade,
   ) {}
 
   //*** PUBLIC API ***//
@@ -40,10 +39,10 @@ export class PayInService {
     await this.payInRepository.save(_payIn);
   }
 
-  async returnPayIn(payIn: CryptoInput, purpose: PayInPurpose): Promise<void> {
+  async returnPayIn(payIn: CryptoInput, purpose: PayInPurpose, returnAddress: BlockchainAddress): Promise<void> {
     const _payIn = await this.payInRepository.findOne(payIn.id);
 
-    _payIn.designateReturn(purpose);
+    _payIn.triggerReturn(purpose, returnAddress);
 
     await this.payInRepository.save(_payIn);
   }
@@ -98,12 +97,12 @@ export class PayInService {
       relations: ['route'],
     });
 
-    const groups = this.groupByPayInStrategies(payIns, this.forwardStrategies.getForwardStrategyAlias);
+    const groups = this.groupByPayInStrategies(payIns);
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.forwardStrategies.getForwardStrategy(group[0]);
-        await strategy.doForward(group[1]);
+        const strategy = this.sendStrategies.getSendStrategy(group[0]);
+        await strategy.doSend(group[1], SendType.FORWARD);
       } catch {
         continue;
       }
@@ -116,26 +115,26 @@ export class PayInService {
       relations: ['route'],
     });
 
-    const groups = this.groupByPayInStrategies(payIns, this.returnStrategies.getReturnStrategyAlias);
+    const groups = this.groupByPayInStrategies(payIns);
 
     for (const group of groups.entries()) {
       try {
-        const strategy = this.returnStrategies.getReturnStrategy(group[0]);
-        await strategy.doReturn(group[1]);
+        const strategy = this.sendStrategies.getSendStrategy(group[0]);
+        await strategy.doSend(group[1], SendType.RETURN);
       } catch {
         continue;
       }
     }
   }
 
-  private groupByPayInStrategies<T>(payIns: CryptoInput[], getter: (asset: Asset) => T): Map<T, CryptoInput[]> {
-    const groups = new Map<T, CryptoInput[]>();
+  private groupByPayInStrategies(payIns: CryptoInput[]): Map<SendStrategyAlias, CryptoInput[]> {
+    const groups = new Map<SendStrategyAlias, CryptoInput[]>();
 
     for (const payIn of payIns) {
-      const alias = getter(payIn.asset);
+      const alias = this.sendStrategies.getSendStrategyAlias(payIn.asset);
 
       if (!alias) {
-        console.warn(`No alias found by getter ${getter.name} for payIn ID ${payIn.id}. Ignoring the payIn`);
+        console.warn(`No SendStrategyAlias found for pay-in ID ${payIn.id}. Ignoring the pay-in`);
         continue;
       }
 
