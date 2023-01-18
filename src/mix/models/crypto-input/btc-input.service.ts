@@ -173,7 +173,7 @@ export class BtcInputService extends CryptoInputService {
 
     for (const input of inputs) {
       try {
-        await this.forwardUtxo(input, Config.blockchain.default.btcCollectorAddress);
+        await this.forwardUtxo(input, Config.blockchain.default.btcOutWalletAddress);
       } catch (e) {
         console.error(`Failed to forward Bitcoin input ${input.id}:`, e);
       }
