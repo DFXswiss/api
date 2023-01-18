@@ -139,7 +139,7 @@ export class BuyFiatService {
   ): Promise<BuyFiat[]> {
     return await this.buyFiatRepo.find({
       where: { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user'],
+      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput'],
     });
   }
 
@@ -156,7 +156,7 @@ export class BuyFiatService {
     return this.buyFiatRepo
       .find({
         where: { sell: where },
-        relations: ['sell', 'sell.user', 'cryptoInput'],
+        relations: ['sell', 'sell.user', 'cryptoInput', 'fiatOutput'],
       })
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
@@ -169,7 +169,7 @@ export class BuyFiatService {
       outputAmount: buyFiat.outputAmount,
       outputAsset: buyFiat.outputAsset,
       txId: buyFiat.cryptoInput.inTxId,
-      date: buyFiat.outputDate,
+      date: buyFiat.fiatOutput?.outputDate,
       amlCheck: buyFiat.amlCheck,
       isComplete: buyFiat.isComplete,
     };
