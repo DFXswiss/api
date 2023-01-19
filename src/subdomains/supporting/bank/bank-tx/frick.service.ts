@@ -146,20 +146,20 @@ export class FrickService {
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.frick.credentials.key) return [];
 
-    let transactions: { transactions: Transaction[] };
+    let transactions: Transaction[];
     try {
       transactions = await this.getTransactions(new Date(lastModificationTime));
-      if (!transactions.transactions) return [];
+      if (!transactions) return [];
 
       // get additional information (required for ABA transactions)
-      for (const transaction of transactions.transactions) {
+      for (const transaction of transactions) {
         if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
           const txDetail = await this.getTransaction(transaction.orderId);
           transaction.creditor = { ...transaction.creditor, ...txDetail?.creditor };
           transaction.debitor = { ...transaction.debitor, ...txDetail?.debitor };
         }
       }
-      return transactions.transactions.map((t) => this.parseTransaction(t));
+      return transactions.map((t) => this.parseTransaction(t));
     } catch (e) {
       console.error('Failed to get Bank Frick transactions:', e, transactions);
       return [];
@@ -171,14 +171,15 @@ export class FrickService {
     return accounts;
   }
 
-  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transactions> {
+  private async getTransactions(fromDate: Date, toDate: Date = new Date()): Promise<Transaction[]> {
     const params = {
       fromDate: Util.isoDate(fromDate),
       toDate: Util.isoDate(toDate),
       maxResults: 2500,
       status: TransactionState.BOOKED,
     };
-    return await this.callApi<Transactions>(`transactions`, 'GET', params);
+    const transactions = await this.callApi<Transactions>(`transactions`, 'GET', params);
+    return transactions?.transactions;
   }
 
   private async getTransaction(orderId: number): Promise<undefined | Transaction> {
