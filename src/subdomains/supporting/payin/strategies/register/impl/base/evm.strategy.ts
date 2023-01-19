@@ -10,17 +10,20 @@ import { PayInEntry } from '../../../../interfaces';
 import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, PayInStrategy } from './payin.strategy';
+import { Price } from 'src/integration/exchange/dto/price.dto';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 
 export abstract class EvmStrategy extends PayInStrategy {
   constructor(
     protected readonly blockchain: Blockchain,
     protected readonly nativeCoin: string,
+    protected readonly pricingService: PricingService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
   ) {
-    super(payInFactory, payInRepository);
+    super(pricingService, payInFactory, payInRepository);
   }
 
   protected async processNewPayInEntries(): Promise<void> {
@@ -55,8 +58,10 @@ export abstract class EvmStrategy extends PayInStrategy {
       const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, blockHeight);
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
 
-      await this.verifyLastBlockEntries(address, entries, blockHeight, log);
-      await this.processNewEntries(entries, blockHeight, log);
+      const referencePrices = await this.getReferencePrices(entries);
+
+      await this.verifyLastBlockEntries(address, entries, blockHeight, referencePrices, log);
+      await this.processNewEntries(entries, blockHeight, referencePrices, log);
     }
 
     this.printInputLog(log, blockHeight, this.blockchain);
@@ -110,19 +115,21 @@ export abstract class EvmStrategy extends PayInStrategy {
     address: string,
     allTransactions: PayInEntry[],
     blockHeight: number,
+    referencePrices: Price[],
     log: PayInInputLog,
   ) {
     const transactionsFromLastRecordedBlock = allTransactions.filter((t) => t.blockHeight === blockHeight);
 
     if (transactionsFromLastRecordedBlock.length === 0) return;
 
-    await this.checkIfAllEntriesRecorded(address, transactionsFromLastRecordedBlock, blockHeight, log);
+    await this.checkIfAllEntriesRecorded(address, transactionsFromLastRecordedBlock, blockHeight, referencePrices, log);
   }
 
   private async checkIfAllEntriesRecorded(
     address: string,
     transactions: PayInEntry[],
     blockHeight: number,
+    referencePrices: Price[],
     log: PayInInputLog,
   ): Promise<void> {
     const recordedLastBlockPayIns = await this.payInRepository.find({
@@ -132,17 +139,22 @@ export abstract class EvmStrategy extends PayInStrategy {
 
     for (const tx of transactions) {
       if (!recordedLastBlockPayIns.find((p) => p.inTxId === tx.txId)) {
-        await this.createPayInAndSave(tx);
+        await this.createPayInAndSave(tx, referencePrices);
         log.recoveredRecords.push({ address, txId: tx.txId });
       }
     }
   }
 
-  private async processNewEntries(allTransactions: PayInEntry[], blockHeight: number, log: PayInInputLog) {
+  private async processNewEntries(
+    allTransactions: PayInEntry[],
+    blockHeight: number,
+    referencePrices: Price[],
+    log: PayInInputLog,
+  ) {
     const newTransactions = allTransactions.filter((t) => t.blockHeight > blockHeight);
 
     for (const tx of newTransactions) {
-      await this.createPayInAndSave(tx);
+      await this.createPayInAndSave(tx, referencePrices);
       log.newRecords.push({ address: tx.address.address, txId: tx.txId });
     }
   }

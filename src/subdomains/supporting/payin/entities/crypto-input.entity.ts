@@ -1,3 +1,4 @@
+import { Price } from 'src/integration/exchange/dto/price.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
@@ -12,13 +13,14 @@ export enum PayInPurpose {
 
 export enum PayInStatus {
   CREATED = 'Created',
-  ACKNOWLEDGED = 'Acknowledged',
   FAILED = 'Failed',
   TO_RETURN = 'ToReturn',
   RETURNING = 'Returning',
   RETURNED = 'Returned',
+  ACKNOWLEDGED = 'Acknowledged',
   FORWARDING = 'Forwarding',
   FORWARDED = 'Forwarded',
+  WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
 @Entity()
@@ -85,6 +87,7 @@ export class CryptoInput extends IEntity {
     blockHeight: number,
     amount: number,
     asset: Asset,
+    referencePrices: Price[],
   ): CryptoInput {
     const payIn = new CryptoInput();
 
