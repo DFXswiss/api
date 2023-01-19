@@ -161,7 +161,7 @@ export class BuyCrypto extends IEntity {
         return { outputReferenceAssetName: 'ETH', type: AssetType.COIN };
 
       case Blockchain.BINANCE_SMART_CHAIN:
-        if (['DFI', 'BUSD', 'BTCB'].includes(this.outputAsset.dexName)) {
+        if (['DFI', 'BUSD', 'BTCB', 'ETH'].includes(this.outputAsset.dexName)) {
           this.outputReferenceAsset = this.outputAsset;
 
           return null;
