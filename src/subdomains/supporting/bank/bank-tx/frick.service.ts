@@ -243,7 +243,7 @@ export class FrickService {
     bic: string;
   } {
     const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
-
+    if (!account) return undefined;
     return {
       aba: account.aba,
       addressLine1: account.address,
