@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { Lock } from 'src/shared/utils/lock';
-import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Config, Process } from 'src/config/config';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -13,6 +11,7 @@ import { PayInRepository } from '../../../repositories/payin.repository';
 import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
+import { PayInService } from '../../../services/payin.service';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
@@ -21,6 +20,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
+    protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
   ) {
@@ -48,9 +48,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
   private async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
     const newEntries = await this.getNewEntries();
+    const referencePrices = await this.payInService.getReferencePrices(newEntries);
 
     for (const tx of newEntries) {
-      await this.createPayInAndSave(tx);
+      await this.createPayInAndSave(tx, referencePrices);
       log.newRecords.push({ address: tx.address.address, txId: tx.txId });
     }
 

@@ -11,14 +11,17 @@ import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInStrategy } from './base/payin.strategy';
 import { PayInFactory } from '../../../factories/payin.factory';
 import { AccountHistory, PayInDeFiChainService } from '../../../services/payin-defichain.service';
+import { PayInService } from '../../../services/payin.service';
 
 @Injectable()
 export class DeFiChainStrategy extends PayInStrategy {
-  private readonly lock = new Lock(7200);
+  private readonly checkEntriesLock = new Lock(7200);
+  private readonly convertTokensLock = new Lock(7200);
 
   constructor(
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
+    protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
   ) {
@@ -30,14 +33,28 @@ export class DeFiChainStrategy extends PayInStrategy {
   @Cron(CronExpression.EVERY_30_SECONDS)
   async checkPayInEntries(): Promise<void> {
     if (Config.processDisabled(Process.PAY_IN)) return;
-    if (!this.lock.acquire()) return;
+    if (!this.checkEntriesLock.acquire()) return;
 
     try {
       await this.processNewPayInEntries();
     } catch (e) {
       console.error('Exception during DeFiChain pay in checks:', e);
     } finally {
-      this.lock.release();
+      this.checkEntriesLock.release();
+    }
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async convertTokens(): Promise<void> {
+    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (!this.convertTokensLock.acquire()) return;
+
+    try {
+      await this.deFiChainService.convertTokens();
+    } catch (e) {
+      console.error('Exception during token conversion:', e);
+    } finally {
+      this.convertTokensLock.release();
     }
   }
 
@@ -50,9 +67,10 @@ export class DeFiChainStrategy extends PayInStrategy {
       .then((input) => input?.blockHeight ?? 0);
 
     const newEntries = await this.getNewEntriesSince(lastCheckedBlockHeight);
+    const referencePrices = await this.payInService.getReferencePrices(newEntries);
 
     for (const tx of newEntries) {
-      await this.createPayInAndSave(tx);
+      await this.createPayInAndSave(tx, referencePrices);
       log.newRecords.push({ address: tx.address.address, txId: tx.txId });
     }
 

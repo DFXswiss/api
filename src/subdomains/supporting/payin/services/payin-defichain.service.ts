@@ -4,7 +4,14 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { RouteType } from 'src/mix/models/route/deposit-route.entity';
+import { Staking } from 'src/mix/models/staking/staking.entity';
+import { StakingService } from 'src/mix/models/staking/staking.service';
+import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
@@ -29,7 +36,13 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     'RemovePoolLiquidity',
   ];
 
-  constructor(protected readonly payInRepo: PayInRepository, nodeService: NodeService) {
+  constructor(
+    private readonly assetService: AssetService,
+    private readonly sellService: SellService,
+    private readonly stakingService: StakingService,
+    protected readonly payInRepo: PayInRepository,
+    nodeService: NodeService,
+  ) {
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
     super();
   }
@@ -68,6 +81,81 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
       return outTxId;
     });
+  }
+
+  async convertTokens(): Promise<void> {
+    try {
+      await this.checkNodeInSync(this.client);
+
+      const tokens = await this.client.getToken();
+
+      for (const token of tokens) {
+        try {
+          const { amount, asset } = this.client.parseAmount(token.amount);
+          const assetEntity = await this.assetService.getAssetByQuery({
+            dexName: asset,
+            blockchain: Blockchain.DEFICHAIN,
+            type: AssetType.TOKEN,
+          });
+
+          if (assetEntity?.category === AssetCategory.POOL_PAIR) {
+            console.log('Removing pool liquidity:', token);
+
+            // remove pool liquidity
+            await this.doTokenTx(token.owner, (utxo) =>
+              this.client.removePoolLiquidity(token.owner, token.amount, [utxo]),
+            );
+
+            // send UTXO (for second token)
+            const additionalFeeUtxo = await this.getFeeUtxo(token.owner);
+            if (!additionalFeeUtxo) {
+              await this.sendFeeUtxo(token.owner);
+            }
+          } else {
+            // ignoring dust DFI transactions
+            if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
+              continue;
+            }
+
+            // check for min. deposit
+            // TODO: remove temporary DUSD pool fix
+            const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
+            if (usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USD * 0.4) {
+              console.log('Retrieving small token:', token);
+
+              await this.doTokenTx(
+                token.owner,
+                async (utxo) =>
+                  await this.client.sendToken(token.owner, Config.blockchain.default.dexWalletAddress, asset, amount, [
+                    utxo,
+                  ]),
+              );
+            } else {
+              const route = await this.getDepositRoute(token.owner);
+              if (route?.type === RouteType.STAKING) {
+                console.log('Doing token conversion:', token);
+
+                if (asset === 'DFI') {
+                  // to UTXO
+                  await this.doTokenTx(token.owner, async (utxo) =>
+                    this.client.toUtxo(token.owner, token.owner, amount, [utxo]),
+                  );
+                } else {
+                  // to DFI
+                  await this.doTokenTx(token.owner, async (utxo) =>
+                    this.client.compositeSwap(token.owner, asset, token.owner, 'DFI', amount, [utxo]),
+                  );
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to convert token (${token.amount} on ${token.owner}):`, e);
+        }
+      }
+    } catch (e) {
+      console.error('Exception during token conversion:', e);
+    }
   }
 
   //*** HELPER METHODS ***//
@@ -145,5 +233,11 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
   private parseAmount(amount: string): HistoryAmount {
     return { ...this.client.parseAmount(amount) };
+  }
+
+  private async getDepositRoute(address: string): Promise<Sell | Staking> {
+    return (
+      (await this.sellService.getSellByAddress(address)) ?? (await this.stakingService.getStakingByAddress(address))
+    );
   }
 }
