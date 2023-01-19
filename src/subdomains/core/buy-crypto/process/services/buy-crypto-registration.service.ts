@@ -51,14 +51,14 @@ export class BuyCryptoRegistrationService {
       const existingPayIn = await this.buyCryptoRepo.findOne({ cryptoInput: payIn });
 
       if (existingPayIn) {
-        await this.payInService.acknowledgePayIn(payIn, PayInPurpose.BUY_CRYPTO);
+        await this.payInService.acknowledgePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
         continue;
       }
 
       const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
 
       await this.buyCryptoRepo.save(newBuyCrypto);
-      await this.payInService.acknowledgePayIn(payIn, PayInPurpose.BUY_CRYPTO);
+      await this.payInService.acknowledgePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
     }
   }
 }

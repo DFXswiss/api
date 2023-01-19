@@ -1,4 +1,6 @@
 import { Price } from 'src/integration/exchange/dto/price.dto';
+import { Deposit } from 'src/mix/models/deposit/deposit.entity';
+import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
@@ -71,6 +73,9 @@ export class CryptoInput extends IEntity {
   @Column({ nullable: true })
   purpose: PayInPurpose;
 
+  @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
+  route: DepositRoute;
+
   @Column({ type: 'float', nullable: true })
   btcAmount?: number;
 
@@ -114,8 +119,9 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRoute): this {
     this.purpose = purpose;
+    this.route = route;
     this.status = PayInStatus.ACKNOWLEDGED;
 
     return this;
@@ -128,8 +134,9 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  triggerReturn(purpose: PayInPurpose, returnAddress: BlockchainAddress): this {
+  triggerReturn(purpose: PayInPurpose, returnAddress: BlockchainAddress, route: DepositRoute): this {
     this.purpose = purpose;
+    this.route = route;
     this.status = PayInStatus.TO_RETURN;
     this.destinationAddress = returnAddress;
 

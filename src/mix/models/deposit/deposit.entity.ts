@@ -14,4 +14,19 @@ export class Deposit extends IEntity {
 
   @Column({ length: 256, default: Blockchain.DEFICHAIN })
   blockchain: Blockchain;
+
+  @Column({ length: 256 })
+  key: string;
+
+  //*** FACTORY METHODS ***//
+
+  static create(address: string, key: string, blockchain: Blockchain): Deposit {
+    const entity = new Deposit();
+
+    entity.address = address;
+    entity.key = key;
+    entity.blockchain = blockchain;
+
+    return entity;
+  }
 }

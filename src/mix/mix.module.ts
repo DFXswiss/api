@@ -37,6 +37,7 @@ import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.mo
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { RouteController } from './models/route/route.controller';
 import { DepositRouteRepository } from './models/route/deposit-route.repository';
+import { DepositController } from './models/deposit/deposit.controller';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { DepositRouteRepository } from './models/route/deposit-route.repository'
     CryptoStakingController,
     CryptoInputController,
     CryptoRouteController,
+    DepositController,
   ],
   providers: [
     StakingController,

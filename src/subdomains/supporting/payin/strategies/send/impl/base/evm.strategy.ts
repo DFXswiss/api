@@ -10,6 +10,7 @@ import { PricingService } from 'src/subdomains/supporting/pricing/services/prici
 import { Util } from 'src/shared/utils/util';
 import { PriceRequest, PriceResult } from 'src/subdomains/supporting/pricing/interfaces';
 import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
+import { Config } from 'src/config/config';
 
 export abstract class EvmStrategy extends SendStrategy {
   constructor(
@@ -65,7 +66,7 @@ export abstract class EvmStrategy extends SendStrategy {
       if (!group) {
         groups.set(this.getPayInGroupKey(payIn), {
           sourceAddress: address.address,
-          privateKey: 'TBD',
+          privateKey: Util.decrypt(payIn.route.deposit.key, Config.blockchain.evm.encryptionKey),
           destinationAddress: destinationAddress.address,
           asset: asset,
           payIns: [payIn],

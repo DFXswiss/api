@@ -294,6 +294,9 @@ export class Configuration {
         },
       },
     },
+    evm: {
+      encryptionKey: process.env.EVM_ENCRYPTION_KEY,
+    },
     ethereum: {
       ethScanApiUrl: process.env.ETH_SCAN_API_URL,
       ethScanApiKey: process.env.ETH_SCAN_API_KEY,

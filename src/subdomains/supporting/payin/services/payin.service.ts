@@ -16,6 +16,7 @@ import { Price } from 'src/integration/exchange/dto/price.dto';
 import { PriceRequest, PriceResult } from '../../pricing/interfaces';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { PriceRequestContext } from '../../pricing/enums';
+import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
 
 @Injectable()
 export class PayInService {
@@ -39,18 +40,23 @@ export class PayInService {
     return this.payInRepository.find({ status: PayInStatus.CREATED, address: { blockchain } });
   }
 
-  async acknowledgePayIn(payIn: CryptoInput, purpose: PayInPurpose): Promise<void> {
+  async acknowledgePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
     const _payIn = await this.payInRepository.findOne(payIn.id);
 
-    _payIn.acknowledge(purpose);
+    _payIn.acknowledge(purpose, route);
 
     await this.payInRepository.save(_payIn);
   }
 
-  async returnPayIn(payIn: CryptoInput, purpose: PayInPurpose, returnAddress: BlockchainAddress): Promise<void> {
+  async returnPayIn(
+    payIn: CryptoInput,
+    purpose: PayInPurpose,
+    returnAddress: BlockchainAddress,
+    route: DepositRoute,
+  ): Promise<void> {
     const _payIn = await this.payInRepository.findOne(payIn.id);
 
-    _payIn.triggerReturn(purpose, returnAddress);
+    _payIn.triggerReturn(purpose, returnAddress, route);
 
     await this.payInRepository.save(_payIn);
   }
