@@ -104,6 +104,7 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.FIAT_TO_BTC, [
         new PriceStep({
+          fallbackPrimaryTo: 'BTC',
           providers: {
             primary: [this.krakenService],
             reference: [this.binanceService, this.bitstampService, this.bitpandaService],
