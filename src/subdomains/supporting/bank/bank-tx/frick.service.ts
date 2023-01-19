@@ -67,7 +67,7 @@ interface Account {
 
 interface TransactionAccount {
   accountNumber: string;
-  aba?: string;
+  aba: string;
   iban: string;
   name: string;
   address: string;
@@ -146,19 +146,24 @@ export class FrickService {
   async getFrickTransactions(lastModificationTime: string): Promise<Partial<BankTx>[]> {
     if (!Config.bank.frick.credentials.key) return [];
 
-    const { transactions } = await this.getTransactions(new Date(lastModificationTime));
-    if (!transactions) return [];
+    let transactions: { transactions: Transaction[] };
+    try {
+      transactions = await this.getTransactions(new Date(lastModificationTime));
+      if (!transactions.transactions) return [];
 
-    // get additional information (required for ABA transactions)
-    for (const transaction of transactions) {
-      if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
-        const txDetail = await this.getTransaction(transaction.orderId);
-        transaction.creditor = { ...transaction.creditor, ...txDetail?.creditor };
-        transaction.debitor = { ...transaction.debitor, ...txDetail?.debitor };
+      // get additional information (required for ABA transactions)
+      for (const transaction of transactions.transactions) {
+        if (transaction.serviceType == ServiceType.SWIFT && transaction.orderId) {
+          const txDetail = await this.getTransaction(transaction.orderId);
+          transaction.creditor = { ...transaction.creditor, ...txDetail?.creditor };
+          transaction.debitor = { ...transaction.debitor, ...txDetail?.debitor };
+        }
       }
+      return transactions.transactions.map((t) => this.parseTransaction(t));
+    } catch (e) {
+      console.error('Failed to get Bank Frick transactions:', e, transactions);
+      return [];
     }
-
-    return transactions.map((t) => this.parseTransaction(t));
   }
 
   async getBalance(): Promise<Account[]> {
@@ -229,7 +234,7 @@ export class FrickService {
     addressLine1?: string;
     creditDebitIndicator: BankTxIndicator;
     iban: string;
-    aba?: string;
+    aba: string;
     country: string;
     city: string;
     memberId: string;
@@ -239,7 +244,7 @@ export class FrickService {
     const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
 
     return {
-      aba: account?.aba,
+      aba: account.aba,
       addressLine1: account.address,
       bankName: account.creditInstitution,
       bic: account.bic,
