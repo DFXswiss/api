@@ -67,7 +67,7 @@ interface Account {
 
 interface TransactionAccount {
   accountNumber: string;
-  aba: string;
+  aba?: string;
   iban: string;
   name: string;
   address: string;
@@ -229,7 +229,7 @@ export class FrickService {
     addressLine1?: string;
     creditDebitIndicator: BankTxIndicator;
     iban: string;
-    aba: string;
+    aba?: string;
     country: string;
     city: string;
     memberId: string;
@@ -239,7 +239,7 @@ export class FrickService {
     const account = tx.direction == TransactionDirection.OUTGOING ? tx.creditor : tx.debitor;
 
     return {
-      aba: account.aba,
+      aba: account?.aba,
       addressLine1: account.address,
       bankName: account.creditInstitution,
       bic: account.bic,
