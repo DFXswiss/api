@@ -179,6 +179,8 @@ export class SpiderApiService {
 
   // --- DOCUMENTS --- //
   async getDocumentInfos(customerId: number, isOrganization: boolean): Promise<DocumentInfo[]> {
+    const { id: kycId } = await this.getCustomer(customerId);
+
     const documentList: DocumentInfo[] = [];
 
     const documents = (await this.getDocuments(customerId, isOrganization)) ?? [];
@@ -198,7 +200,7 @@ export class SpiderApiService {
             label: part.label,
             fileName: part.fileName,
             contentType: part.contentType,
-            url: this.getDocumentUrl(customerId, document, version.name, part.name),
+            url: this.getDocumentUrl(kycId, document, version.name, part.name),
           })),
         );
       }
@@ -349,8 +351,8 @@ export class SpiderApiService {
     return result === 'done';
   }
 
-  getDocumentUrl(customerId: number, document: KycDocument, version: string, part: string): string {
-    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${customerId}/doctype/${document}/version/${version}/part/${part}`;
+  getDocumentUrl(kycCustomerId: number, document: KycDocument, version: string, part: string): string {
+    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/${part}`;
   }
 
   // --- IDENTIFICATION --- //
