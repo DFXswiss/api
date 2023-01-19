@@ -292,7 +292,6 @@ export class Configuration {
       outWalletAddress: process.env.OUT_WALLET_ADDRESS,
       intWalletAddress: process.env.INT_WALLET_ADDRESS,
       stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
-      btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
       btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
       minDeposit: {
