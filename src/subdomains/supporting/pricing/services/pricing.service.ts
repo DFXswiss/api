@@ -284,15 +284,15 @@ export class PricingService {
 
     if (from === to) return PricingPathAlias.MATCHING_ASSETS;
 
-    if (PricingUtil.isFiat(from) && to === 'BTC') return PricingPathAlias.FIAT_TO_BTC;
+    if (PricingUtil.isFiat(from) && PricingUtil.isBTC(to)) return PricingPathAlias.FIAT_TO_BTC;
 
-    if (PricingUtil.isAltcoin(from) && to === 'BTC') return PricingPathAlias.ALTCOIN_TO_BTC;
+    if (PricingUtil.isAltcoin(from) && PricingUtil.isBTC(to)) return PricingPathAlias.ALTCOIN_TO_BTC;
 
     if (PricingUtil.isFiat(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.FIAT_TO_ALTCOIN;
 
     if (PricingUtil.isAltcoin(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.ALTCOIN_TO_ALTCOIN;
 
-    if (from === 'BTC' && PricingUtil.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
+    if (PricingUtil.isBTC(from) && PricingUtil.isAltcoin(to)) return PricingPathAlias.BTC_TO_ALTCOIN;
 
     if (from === 'USD' && PricingUtil.isUSDStablecoin(to)) return PricingPathAlias.MATCHING_FIAT_TO_USD_STABLE_COIN;
 
