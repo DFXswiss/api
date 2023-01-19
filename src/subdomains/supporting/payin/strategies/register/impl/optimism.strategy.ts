@@ -8,18 +8,20 @@ import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
 import { EvmStrategy } from './base/evm.strategy';
+import { PayInService } from '../../../services/payin.service';
 
 @Injectable()
 export class OptimismStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
   constructor(
+    payInService: PayInService,
     optimismService: PayInOptimismService,
     payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
   ) {
-    super(Blockchain.OPTIMISM, 'ETH', optimismService, payInFactory, payInRepository, assetService);
+    super(Blockchain.OPTIMISM, 'ETH', payInService, optimismService, payInFactory, payInRepository, assetService);
   }
 
   //*** JOBS ***//

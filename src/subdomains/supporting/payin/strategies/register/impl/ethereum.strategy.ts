@@ -8,18 +8,20 @@ import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmStrategy } from './base/evm.strategy';
+import { PayInService } from '../../../services/payin.service';
 
 @Injectable()
 export class EthereumStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
   constructor(
+    payInService: PayInService,
     ethereumService: PayInEthereumService,
     payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
   ) {
-    super(Blockchain.ETHEREUM, 'ETH', ethereumService, payInFactory, payInRepository, assetService);
+    super(Blockchain.ETHEREUM, 'ETH', payInService, ethereumService, payInFactory, payInRepository, assetService);
   }
 
   //*** JOBS ***//

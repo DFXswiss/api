@@ -11,19 +11,19 @@ import { PayInRepository } from '../../../../repositories/payin.repository';
 import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, PayInStrategy } from './payin.strategy';
 import { Price } from 'src/integration/exchange/dto/price.dto';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 
 export abstract class EvmStrategy extends PayInStrategy {
   constructor(
     protected readonly blockchain: Blockchain,
     protected readonly nativeCoin: string,
-    protected readonly pricingService: PricingService,
+    protected readonly payInService: PayInService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
     protected readonly assetService: AssetService,
   ) {
-    super(pricingService, payInFactory, payInRepository);
+    super(payInFactory, payInRepository);
   }
 
   protected async processNewPayInEntries(): Promise<void> {
@@ -58,7 +58,7 @@ export abstract class EvmStrategy extends PayInStrategy {
       const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, blockHeight);
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
 
-      const referencePrices = await this.getReferencePrices(entries);
+      const referencePrices = await this.payInService.getReferencePrices(entries);
 
       await this.verifyLastBlockEntries(address, entries, blockHeight, referencePrices, log);
       await this.processNewEntries(entries, blockHeight, referencePrices, log);

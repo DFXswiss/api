@@ -8,18 +8,20 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
+import { PayInService } from '../../../services/payin.service';
 
 @Injectable()
 export class ArbitrumStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
   constructor(
+    payInService: PayInService,
     arbitrumService: PayInArbitrumService,
     payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
   ) {
-    super(Blockchain.ARBITRUM, 'ETH', arbitrumService, payInFactory, payInRepository, assetService);
+    super(Blockchain.ARBITRUM, 'ETH', payInService, arbitrumService, payInFactory, payInRepository, assetService);
   }
 
   //*** JOBS ***//
