@@ -1,4 +1,7 @@
-import { AccountHistory as JellyAccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
+import {
+  AccountHistory as JellyAccountHistory,
+  AccountResult,
+} from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
@@ -54,12 +57,20 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   async getNewTransactionsHistorySince(lastHeight: number): Promise<AccountHistory[]> {
     const { blocks: currentHeight } = await this.client.checkSync();
 
-    return this.client
-      .getHistory(lastHeight + 1, currentHeight)
-      .then((i) => i.filter((h) => h.blockHeight > lastHeight))
-      .then((i) => this.splitHistories(i))
-      .then((i) => i.filter((a) => this.isDFI(a) || this.isDUSD(a)))
-      .then((i) => i.map((a) => ({ ...a, amount: Math.abs(a.amount) })));
+    const utxos = await this.client.getUtxo();
+    const tokens = await this.client.getToken();
+
+    return (
+      this.getAddressesWithFunds(utxos, tokens)
+        .then((i) => i.filter((e) => e != Config.blockchain.default.utxoSpenderAddress))
+        // get receive history
+        .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
+        .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
+        .then((i) => i.filter((h) => h.blockHeight > lastHeight))
+        .then((i) => this.splitHistories(i))
+        .then((i) => i.filter((a) => this.isDFI(a) || this.isDUSD(a)))
+        .then((i) => i.map((a) => ({ ...a, amount: Math.abs(a.amount) })))
+    );
   }
 
   async sendUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
@@ -160,6 +171,16 @@ export class PayInDeFiChainService extends PayInJellyfishService {
 
   //*** HELPER METHODS ***//
 
+  async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
+    const utxoAddresses = utxo
+      .filter((u) => u.amount.toNumber() >= Config.blockchain.default.minDeposit.DeFiChain.DFI)
+      .map((u) => u.address);
+    const tokenAddresses = token.map((t) => t.owner);
+
+    return [...new Set(utxoAddresses.concat(tokenAddresses))];
+  }
+
+  // TODO -> why do we need this?
   private splitHistories(histories: JellyAccountHistory[]): AccountHistory[] {
     return histories
       .map((h) => h.amounts.map((a) => ({ ...h, ...this.parseAmount(a), assetType: this.getAssetType(h) })))

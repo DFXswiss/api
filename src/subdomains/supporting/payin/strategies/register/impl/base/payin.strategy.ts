@@ -15,6 +15,7 @@ export abstract class PayInStrategy {
 
   protected async createPayInAndSave(transaction: PayInEntry, referencePrices: Price[]): Promise<void> {
     const payIn = this.payInFactory.createFromEntry(transaction, referencePrices);
+
     await this.payInRepository.save(payIn);
   }
 

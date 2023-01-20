@@ -7,7 +7,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { SendStrategiesFacade, SendStrategyAlias } from '../strategies/send/send.facade';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { IsNull } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -40,6 +40,15 @@ export class PayInService {
     return this.payInRepository.find({ status: PayInStatus.CREATED, address: { blockchain } });
   }
 
+  // TODO -> Question -> how buyFiat and cryptoStaking are used?
+  async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
+    return await this.payInRepository.find({
+      where: { route: { user: { id: In(userIds) } } },
+      relations: ['route', 'route.user'],
+      // relations: ['buyFiat', 'cryptoStaking', 'route', 'route.user'],
+    });
+  }
+
   async acknowledgePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
     const _payIn = await this.payInRepository.findOne(payIn.id);
 
@@ -65,6 +74,14 @@ export class PayInService {
     const _payIn = await this.payInRepository.findOne(payIn.id);
 
     _payIn.fail(purpose);
+
+    await this.payInRepository.save(_payIn);
+  }
+
+  async ignorePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
+    const _payIn = await this.payInRepository.findOne(payIn.id);
+
+    _payIn.ignore(purpose, route);
 
     await this.payInRepository.save(_payIn);
   }

@@ -138,9 +138,14 @@ export abstract class EvmStrategy extends PayInStrategy {
     });
 
     for (const tx of transactions) {
-      if (!recordedLastBlockPayIns.find((p) => p.inTxId === tx.txId)) {
-        await this.createPayInAndSave(tx, referencePrices);
-        log.recoveredRecords.push({ address, txId: tx.txId });
+      try {
+        if (!recordedLastBlockPayIns.find((p) => p.inTxId === tx.txId)) {
+          await this.createPayInAndSave(tx, referencePrices);
+          log.recoveredRecords.push({ address, txId: tx.txId });
+        }
+      } catch (e) {
+        console.error('Did not register pay-in: ', e);
+        continue;
       }
     }
   }
@@ -154,8 +159,13 @@ export abstract class EvmStrategy extends PayInStrategy {
     const newTransactions = allTransactions.filter((t) => t.blockHeight > blockHeight);
 
     for (const tx of newTransactions) {
-      await this.createPayInAndSave(tx, referencePrices);
-      log.newRecords.push({ address: tx.address.address, txId: tx.txId });
+      try {
+        await this.createPayInAndSave(tx, referencePrices);
+        log.newRecords.push({ address: tx.address.address, txId: tx.txId });
+      } catch (e) {
+        console.error('Did not register pay-in: ', e);
+        continue;
+      }
     }
   }
 }

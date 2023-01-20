@@ -1,5 +1,4 @@
 import { Price } from 'src/integration/exchange/dto/price.dto';
-import { Deposit } from 'src/mix/models/deposit/deposit.entity';
 import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -7,6 +6,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Column, Entity, ManyToOne } from 'typeorm';
+import { CryptoInputInitSpecification } from '../specifications/crypto-input-init.specification';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -17,6 +17,7 @@ export enum PayInPurpose {
 export enum PayInStatus {
   CREATED = 'Created',
   FAILED = 'Failed',
+  IGNORED = 'Ignored',
   TO_RETURN = 'ToReturn',
   RETURNING = 'Returning',
   RETURNED = 'Returned',
@@ -107,6 +108,8 @@ export class CryptoInput extends IEntity {
 
     payIn.addReferenceAmounts(referencePrices);
 
+    CryptoInputInitSpecification.isSatisfiedBy(payIn);
+
     return payIn;
   }
 
@@ -130,6 +133,14 @@ export class CryptoInput extends IEntity {
   fail(purpose: PayInPurpose): this {
     this.purpose = purpose;
     this.status = PayInStatus.FAILED;
+
+    return this;
+  }
+
+  ignore(purpose: PayInPurpose, route: DepositRoute): this {
+    this.purpose = purpose;
+    this.route = route;
+    this.status = PayInStatus.IGNORED;
 
     return this;
   }

@@ -9,6 +9,7 @@ import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
 export class CryptoInputService {
   constructor(readonly cryptoInputRepo: CryptoInputRepository) {}
 
+  // TODO -> do we need a return function for GS anymore?
   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
     const cryptoInput = await this.cryptoInputRepo.findOne(cryptoInputId);
     if (!cryptoInput) throw new NotFoundException('CryptoInput not found');
