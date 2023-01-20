@@ -4,7 +4,7 @@ import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../repositories/payin.repository';
 import { CryptoInput, PayInPurpose, PayInStatus } from '../entities/crypto-input.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { SendStrategiesFacade, SendStrategyAlias } from '../strategies/send/send.facade';
+import { SendStrategiesFacade } from '../strategies/send/send.facade';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
 import { In, IsNull } from 'typeorm';
@@ -17,6 +17,8 @@ import { PriceRequest, PriceResult } from '../../pricing/interfaces';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { PriceRequestContext } from '../../pricing/enums';
 import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
+import { RegisterStrategiesFacade } from '../strategies/register/register.facade';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class PayInService {
@@ -28,6 +30,7 @@ export class PayInService {
     private readonly pricingService: PricingService,
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategies: SendStrategiesFacade,
+    private readonly registerStrategies: RegisterStrategiesFacade,
   ) {}
 
   //*** PUBLIC API ***//
@@ -88,7 +91,7 @@ export class PayInService {
 
   //*** PUBLIC HELPER METHODS ***//
 
-  async getReferencePrices(entries: PayInEntry[] | CryptoInput[]): Promise<Price[]> {
+  async getReferencePricesLegacy(entries: PayInEntry[] | CryptoInput[]): Promise<Price[]> {
     const referenceAssetPairs = [
       ...new Set([...entries.map((p) => `${p.asset.dexName}/BTC`), ...entries.map((p) => `${p.asset.dexName}/USDT`)]),
     ].map((assets) => assets.split('/'));
@@ -163,7 +166,7 @@ export class PayInService {
       relations: ['route'],
     });
 
-    const groups = this.groupByPayInStrategies(payIns);
+    const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
 
     for (const group of groups.entries()) {
       try {
@@ -181,7 +184,7 @@ export class PayInService {
       relations: ['route'],
     });
 
-    const groups = this.groupByPayInStrategies(payIns);
+    const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
 
     for (const group of groups.entries()) {
       try {
@@ -193,14 +196,14 @@ export class PayInService {
     }
   }
 
-  private groupByPayInStrategies(payIns: CryptoInput[]): Map<SendStrategyAlias, CryptoInput[]> {
-    const groups = new Map<SendStrategyAlias, CryptoInput[]>();
+  private groupByStrategies<T>(payIns: CryptoInput[], getter: (asset: Asset) => T): Map<T, CryptoInput[]> {
+    const groups = new Map<T, CryptoInput[]>();
 
     for (const payIn of payIns) {
-      const alias = this.sendStrategies.getSendStrategyAlias(payIn.asset);
+      const alias = getter(payIn.asset);
 
       if (!alias) {
-        console.warn(`No SendStrategyAlias found for pay-in ID ${payIn.id}. Ignoring the pay-in`);
+        console.warn(`No alias found by getter ${getter.name} for payIn ID ${payIn.id}. Ignoring the payIn`);
         continue;
       }
 
@@ -219,12 +222,12 @@ export class PayInService {
       relations: ['route'],
     });
 
-    const referencePrices = await this.getReferencePrices(payIns);
+    const groups = this.groupByStrategies(payIns, this.registerStrategies.getRegisterStrategyAlias);
 
-    for (const payIn of payIns) {
+    for (const group of groups.entries()) {
       try {
-        payIn.addReferenceAmounts(referencePrices);
-        await this.payInRepository.save(payIn);
+        const strategy = this.registerStrategies.getRegisterStrategy(group[0]);
+        await strategy.addReferenceAmounts(group[1]);
       } catch {
         continue;
       }

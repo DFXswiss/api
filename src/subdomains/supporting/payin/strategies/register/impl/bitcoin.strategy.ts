@@ -12,6 +12,9 @@ import { JellyfishStrategy } from './base/jellyfish.strategy';
 import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInService } from '../../../services/payin.service';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
@@ -20,11 +23,46 @@ export class BitcoinStrategy extends JellyfishStrategy {
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
+    protected readonly dexService: DexService,
     protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
   ) {
-    super(payInFactory, payInRepository);
+    super(dexService, payInFactory, payInRepository);
+  }
+
+  //*** PUBLIC API ***//
+
+  /**
+   * @note
+   * accepting CryptoInput (PayIn) entities for retry mechanism (see PayInService -> #retryGettingReferencePrices())
+   */
+  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
+    const btc = await this.assetService.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
+
+    const usdt = await this.assetService.getAssetByQuery({
+      dexName: 'USDT',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
+
+    for (const entry of entries) {
+      try {
+        const btcAmount = entry.amount;
+
+        // TODO -> not sure if we should restrict this for Bitcoin (what if defichain node is OFF)
+        const usdtAmount = await this.getReferenceAmount(btc, entry.amount, usdt);
+
+        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
+      } catch (e) {
+        console.error('Could not set reference amounts for Bitcoin pay-in', e);
+        continue;
+      }
+    }
   }
 
   //*** JOBS ***//
@@ -48,11 +86,12 @@ export class BitcoinStrategy extends JellyfishStrategy {
   private async processNewPayInEntries(): Promise<void> {
     const log = this.createNewLogObject();
     const newEntries = await this.getNewEntries();
-    const referencePrices = await this.payInService.getReferencePrices(newEntries);
+
+    await this.addReferenceAmounts(newEntries);
 
     for (const tx of newEntries) {
       try {
-        await this.createPayInAndSave(tx, referencePrices);
+        await this.createPayInAndSave(tx);
         log.newRecords.push({ address: tx.address.address, txId: tx.txId });
       } catch (e) {
         console.error('Did not register pay-in: ', e);

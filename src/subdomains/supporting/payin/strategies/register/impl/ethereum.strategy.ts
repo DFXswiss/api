@@ -9,19 +9,61 @@ import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInEthereumService } from '../../../services/payin-ethereum.service';
 import { EvmStrategy } from './base/evm.strategy';
 import { PayInService } from '../../../services/payin.service';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { PayInEntry } from '../../../interfaces';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class EthereumStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
   constructor(
+    dexService: DexService,
     payInService: PayInService,
     ethereumService: PayInEthereumService,
     payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
   ) {
-    super(Blockchain.ETHEREUM, 'ETH', payInService, ethereumService, payInFactory, payInRepository, assetService);
+    super(
+      Blockchain.ETHEREUM,
+      'ETH',
+      dexService,
+      payInService,
+      ethereumService,
+      payInFactory,
+      payInRepository,
+      assetService,
+    );
+  }
+
+  //*** PUBLIC API ***//
+
+  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
+    const btc = await this.assetService.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.TOKEN,
+    });
+
+    const usdt = await this.assetService.getAssetByQuery({
+      dexName: 'USDT',
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.TOKEN,
+    });
+
+    for (const entry of entries) {
+      try {
+        const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
+        const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
+
+        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
+      } catch (e) {
+        console.error('Could not set reference amounts for Ethereum pay-in', e);
+        continue;
+      }
+    }
   }
 
   //*** JOBS ***//

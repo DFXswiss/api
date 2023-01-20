@@ -9,19 +9,61 @@ import { PayInFactory } from '../../../factories/payin.factory';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
 import { PayInService } from '../../../services/payin.service';
+import { PayInEntry } from '../../../interfaces';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class ArbitrumStrategy extends EvmStrategy {
   private readonly lock = new Lock(7200);
 
   constructor(
+    dexService: DexService,
     payInService: PayInService,
     arbitrumService: PayInArbitrumService,
     payInFactory: PayInFactory,
     payInRepository: PayInRepository,
     assetService: AssetService,
   ) {
-    super(Blockchain.ARBITRUM, 'ETH', payInService, arbitrumService, payInFactory, payInRepository, assetService);
+    super(
+      Blockchain.ARBITRUM,
+      'ETH',
+      dexService,
+      payInService,
+      arbitrumService,
+      payInFactory,
+      payInRepository,
+      assetService,
+    );
+  }
+
+  //*** PUBLIC API ***//
+
+  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
+    const btc = await this.assetService.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.TOKEN,
+    });
+
+    const usdt = await this.assetService.getAssetByQuery({
+      dexName: 'USDT',
+      blockchain: Blockchain.ETHEREUM,
+      type: AssetType.TOKEN,
+    });
+
+    for (const entry of entries) {
+      try {
+        const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
+        const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
+
+        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
+      } catch (e) {
+        console.error('Could not set reference amounts for Arbitrum pay-in', e);
+        continue;
+      }
+    }
   }
 
   //*** JOBS ***//

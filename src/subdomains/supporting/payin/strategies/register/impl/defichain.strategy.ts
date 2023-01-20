@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config, Process } from 'src/config/config';
-import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -8,24 +8,62 @@ import { Lock } from 'src/shared/utils/lock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
-import { PayInStrategy } from './base/payin.strategy';
+import { RegisterStrategy } from './base/register.strategy';
 import { PayInFactory } from '../../../factories/payin.factory';
 import { AccountHistory, PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInService } from '../../../services/payin.service';
+import { CryptoInput } from '../../../entities/crypto-input.entity';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 
 @Injectable()
-export class DeFiChainStrategy extends PayInStrategy {
+export class DeFiChainStrategy extends RegisterStrategy {
   private readonly checkEntriesLock = new Lock(7200);
   private readonly convertTokensLock = new Lock(7200);
 
   constructor(
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
+    protected readonly dexService: DexService,
     protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,
   ) {
-    super(payInFactory, payInRepository);
+    super(dexService, payInFactory, payInRepository);
+  }
+
+  //*** PUBLIC API ***//
+
+  /**
+   * @note
+   * accepting CryptoInput (PayIn) entities for retry mechanism (see PayInService -> #retryGettingReferencePrices())
+   */
+  async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
+    const btc = await this.assetService.getAssetByQuery({
+      dexName: 'BTC',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
+
+    const usdt = await this.assetService.getAssetByQuery({
+      dexName: 'USDT',
+      blockchain: Blockchain.DEFICHAIN,
+      type: AssetType.TOKEN,
+    });
+
+    for (const entry of entries) {
+      try {
+        const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
+        const usdtAmount =
+          entry.asset.dexName === 'DUSD'
+            ? entry.amount
+            : await this.getReferenceAmount(entry.asset, entry.amount, usdt);
+
+        await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
+      } catch (e) {
+        console.error('Could not set reference amounts for DeFiChain pay-in', e);
+        continue;
+      }
+    }
   }
 
   //*** JOBS ***//
@@ -67,13 +105,12 @@ export class DeFiChainStrategy extends PayInStrategy {
       .then((input) => input?.blockHeight ?? 0);
 
     const newEntries = await this.getNewEntriesSince(lastCheckedBlockHeight);
-    // get from DEX instead, or?
-    const referencePrices = await this.payInService.getReferencePrices(newEntries);
+    await this.addReferenceAmounts(newEntries);
 
-    for (const tx of newEntries) {
+    for (const entry of newEntries) {
       try {
-        await this.createPayInAndSave(tx, referencePrices);
-        log.newRecords.push({ address: tx.address.address, txId: tx.txId });
+        await this.createPayInAndSave(entry);
+        log.newRecords.push({ address: entry.address.address, txId: entry.txId });
       } catch (e) {
         console.error('Did not register pay-in: ', e);
         continue;

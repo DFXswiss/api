@@ -1,9 +1,7 @@
-import { Price } from 'src/integration/exchange/dto/price.dto';
 import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
-import { Util } from 'src/shared/utils/util';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Column, Entity, ManyToOne } from 'typeorm';
 import { CryptoInputInitSpecification } from '../specifications/crypto-input-init.specification';
@@ -94,7 +92,8 @@ export class CryptoInput extends IEntity {
     blockHeight: number,
     amount: number,
     asset: Asset,
-    referencePrices: Price[],
+    btcAmount: number,
+    usdtAmount: number,
   ): CryptoInput {
     const payIn = new CryptoInput();
 
@@ -106,7 +105,7 @@ export class CryptoInput extends IEntity {
     payIn.asset = asset;
     payIn.status = PayInStatus.CREATED;
 
-    payIn.addReferenceAmounts(referencePrices);
+    payIn.addReferenceAmounts(btcAmount, usdtAmount);
 
     CryptoInputInitSpecification.isSatisfiedBy(payIn);
 
@@ -181,30 +180,15 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  addReferenceAmounts(referencePrices: Price[]): this {
-    try {
-      this.btcAmount = this.getReferenceAmountOrThrow(referencePrices, 'BTC');
-      this.usdtAmount = this.getReferenceAmountOrThrow(referencePrices, 'USDT');
-    } catch (e) {
+  addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
+    if (btcAmount == null || usdtAmount == null) {
       this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
+      return this;
     }
+
+    this.btcAmount = btcAmount;
+    this.usdtAmount = usdtAmount;
 
     return this;
-  }
-
-  //*** HELPER METHODS ***//
-
-  private getReferenceAmountOrThrow(referencePrices: Price[], assetName: string): number {
-    const price = referencePrices.find((p) => p.source === this.asset.dexName && p.target === assetName);
-
-    if (!price) {
-      throw new Error(`Cannot calculate pay-in reference amount, ${this.asset.dexName}/${assetName} price is missing`);
-    }
-
-    if (!price.price) {
-      throw new Error('Cannot calculate pay-in reference amount, price value is 0');
-    }
-
-    return Util.round(this.amount / price.price, 8);
   }
 }
