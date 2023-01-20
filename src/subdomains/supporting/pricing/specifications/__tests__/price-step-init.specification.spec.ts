@@ -37,7 +37,11 @@ describe('PriceStepInitSpecification', () => {
     });
 
     it('refuse to create NON fixed price Step without primary providers', () => {
-      const step = createCustomPriceStep({ fixedPrice: undefined, providers: { primary: [], reference: [] } });
+      const step = createCustomPriceStep({
+        fixedPrice: undefined,
+        primary: { providers: [] },
+        reference: { providers: [] },
+      });
       const testCall = () => PriceStepInitSpecification.isSatisfiedBy(step);
 
       expect(testCall).toThrow(StepMisconfiguredException);
