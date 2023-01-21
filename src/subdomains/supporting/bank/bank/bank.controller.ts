@@ -1,12 +1,13 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BankService } from './bank.service';
-import { Bank } from './bank.entity';
+import { BankDto } from './dto/bank.dto';
+import { BankDtoMapper } from './dto/bank-dto.mapper';
 
-@ApiTags('bank')
+@ApiTags('Bank')
 @Controller('bank')
 export class BankController {
   constructor(private readonly bankService: BankService) {}
@@ -14,7 +15,8 @@ export class BankController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllBanks(): Promise<Bank[]> {
-    return this.bankService.getAllBanks();
+  @ApiOkResponse({ type: BankDto, isArray: true })
+  async getAllBanks(): Promise<BankDto[]> {
+    return BankDtoMapper.entitiesToDto(await this.bankService.getAllBanks());
   }
 }

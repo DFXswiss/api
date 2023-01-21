@@ -1,14 +1,14 @@
 import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
+import { CfpSettings } from 'src/subdomains/core/statistic/dto/cfp.dto';
 import { FrontendSettings } from './dto/frontend-settings.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
 
-@ApiTags('setting')
+@ApiTags('Setting')
 @Controller('setting')
 export class SettingController {
   constructor(private readonly settingService: SettingService) {}
@@ -16,6 +16,7 @@ export class SettingController {
   @Get('frontend')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: CfpSettings })
   async getFrontendSettings(): Promise<FrontendSettings> {
     const cfpSettings = await this.settingService.getObj<CfpSettings>('cfp');
 

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Query, Param } from '@nestjs/common';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -13,8 +13,9 @@ import { Util } from 'src/shared/utils/util';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { StakingBatchDto } from '../crypto-staking/dto/staking-batch.dto';
 
-@ApiTags('staking')
+@ApiTags('Staking')
 @Controller('staking')
+@ApiExcludeController()
 export class StakingController {
   constructor(
     private readonly stakingService: StakingService,

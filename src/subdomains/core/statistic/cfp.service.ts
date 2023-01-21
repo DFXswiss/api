@@ -10,94 +10,17 @@ import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
 import { Masternode } from 'src/mix/models/masternode/masternode.entity';
-
-export interface CfpSettings {
-  inProgress: boolean;
-  votingOpen: boolean;
-  currentRound: string;
-  startDate: string;
-  endDate: string;
-}
-
-interface CfpResponse {
-  number: number;
-  title: string;
-  html_url: string;
-  labels: { name: string }[];
-  comments: number;
-}
-
-interface CommentsResponse {
-  body: string;
-  created_at: string;
-}
-
-enum ResultStatus {
-  APPROVED = 'Approved',
-  NOT_APPROVED = 'Not approved',
-}
-
-enum State {
-  ENABLED = 'ENABLED',
-  PRE_ENABLED = 'PRE_ENABLED',
-}
-
-enum VotingType {
-  CFP = 'cfp',
-  DFIP = 'dfip',
-}
-
-interface Vote {
-  address: string;
-  signature: string;
-  cfpId: string;
-  vote: string;
-  createdAt: string;
-  isCake: boolean;
-  isDfx: boolean;
-}
-
-export interface MasterNode {
-  ownerAuthAddress: string;
-  mintedBlocks: number;
-  state: State;
-}
-
-export interface CfpResult {
-  number: number;
-  title: string;
-  type: VotingType;
-  dfiAmount: number;
-  htmlUrl: string;
-  currentResult: ResultStatus;
-  totalVotes: {
-    total: number;
-    possible: number;
-    turnout: number;
-    yes: number;
-    neutral: number;
-    no: number;
-  };
-  cakeVotes: {
-    total: number;
-    yes: number;
-    neutral: number;
-    no: number;
-  };
-  dfxVotes: {
-    total: number;
-    yes: number;
-    neutral: number;
-    no: number;
-  };
-  voteDetails: {
-    yes: Vote[];
-    neutral: Vote[];
-    no: Vote[];
-  };
-  startDate: string;
-  endDate: string;
-}
+import {
+  CfpResponse,
+  CfpResult,
+  CfpSettings,
+  CommentsResponse,
+  MasterNode,
+  ResultStatus,
+  State,
+  Vote,
+  VotingType,
+} from './dto/cfp.dto';
 
 @Injectable()
 export class CfpService implements OnModuleInit {

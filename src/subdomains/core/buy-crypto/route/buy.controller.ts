@@ -10,7 +10,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -35,7 +35,7 @@ import { Staking } from 'src/mix/models/staking/staking.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BuyCryptoService } from '../process/services/buy-crypto.service';
 
-@ApiTags('buy')
+@ApiTags('Buy')
 @Controller('buy')
 export class BuyController {
   constructor(
@@ -49,6 +49,7 @@ export class BuyController {
 
   @Get()
   @ApiBearerAuth()
+  @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   async getAllBuy(@GetJwt() jwt: JwtPayload): Promise<BuyDto[]> {
     return this.buyService.getUserBuys(jwt.id).then((l) => this.toDtoList(jwt.id, l));
@@ -57,6 +58,7 @@ export class BuyController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async createBuy(@GetJwt() jwt: JwtPayload, @Body() dto: CreateBuyDto): Promise<BuyDto> {
     return this.buyService.createBuy(jwt.id, jwt.address, dto).then((b) => this.toDto(jwt.id, b));
   }
@@ -64,7 +66,7 @@ export class BuyController {
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 200, type: BuyPaymentInfoDto })
+  @ApiOkResponse({ type: BuyPaymentInfoDto })
   async createBuyWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
@@ -77,6 +79,7 @@ export class BuyController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
     return this.buyService.updateBuy(jwt.id, +id, dto).then((b) => this.toDto(jwt.id, b));
   }
@@ -84,6 +87,7 @@ export class BuyController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyHistoryDto[]> {
     return this.buyCryptoService.getBuyHistory(jwt.id, +id);
   }

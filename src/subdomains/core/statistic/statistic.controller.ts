@@ -1,14 +1,15 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';
-import { CfpResult, CfpService } from 'src/subdomains/core/statistic/cfp.service';
+import { CfpService } from 'src/subdomains/core/statistic/cfp.service';
 import { StatisticService } from './statistic.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
+import { CfpResult } from './dto/cfp.dto';
 
-@ApiTags('statistic')
+@ApiTags('Statistic')
 @Controller('statistic')
 export class StatisticController {
   constructor(
@@ -22,16 +23,19 @@ export class StatisticController {
   ) {}
 
   @Get()
+  @ApiOkResponse()
   async getAll(): Promise<any> {
     return this.statisticService.getAll();
   }
 
   @Get('status')
+  @ApiOkResponse()
   async getStatus(): Promise<any> {
     return this.statisticService.getStatus();
   }
 
   @Get('transactions')
+  @ApiOkResponse()
   async getTransactions(@Query('dateFrom') dateFrom: Date, @Query('dateTo') dateTo: Date): Promise<any> {
     return {
       buy: await this.buyCryptoService.getTransactions(dateFrom, dateTo),
@@ -42,17 +46,20 @@ export class StatisticController {
   }
 
   @Get('masternodes')
+  @ApiOkResponse({ type: String, isArray: true })
   async getMasternodes(): Promise<string[]> {
     const masternodes = await this.masternodeService.getActive();
     return masternodes.map((a) => a.owner);
   }
 
   @Get('cfp')
+  @ApiOkResponse({ type: String, isArray: true })
   async getCfpList(): Promise<string[]> {
     return this.cfpService.getCfpList();
   }
 
   @Get('cfp/:id')
+  @ApiOkResponse({ type: CfpResult, isArray: true })
   async getCfpResults(@Param('id') cfpId: string): Promise<CfpResult[]> {
     return this.cfpService.getCfpResults(cfpId);
   }
