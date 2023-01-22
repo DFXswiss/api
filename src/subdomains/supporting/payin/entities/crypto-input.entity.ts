@@ -103,6 +103,7 @@ export class CryptoInput extends IEntity {
     payIn.blockHeight = blockHeight;
     payIn.amount = amount;
     payIn.asset = asset;
+
     payIn.status = PayInStatus.CREATED;
 
     payIn.addReferenceAmounts(btcAmount, usdtAmount);
@@ -121,9 +122,10 @@ export class CryptoInput extends IEntity {
 
   //*** PUBLIC API ***//
 
-  acknowledge(purpose: PayInPurpose, route: DepositRoute): this {
+  acknowledge(purpose: PayInPurpose, route: DepositRoute, amlCheck: AmlCheck): this {
     this.purpose = purpose;
     this.route = route;
+    this.amlCheck = amlCheck;
     this.status = PayInStatus.ACKNOWLEDGED;
 
     return this;

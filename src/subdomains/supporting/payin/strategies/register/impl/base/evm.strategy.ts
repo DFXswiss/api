@@ -12,6 +12,12 @@ import { PayInEvmService } from '../../../../services/base/payin-evm.service';
 import { PayInInputLog, RegisterStrategy } from './register.strategy';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
+import { Staking } from 'src/mix/models/staking/staking.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(
@@ -25,6 +31,10 @@ export abstract class EvmStrategy extends RegisterStrategy {
     protected readonly assetService: AssetService,
   ) {
     super(dexService, payInFactory, payInRepository);
+  }
+
+  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck {
+    return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
   }
 
   protected async processNewPayInEntries(): Promise<void> {

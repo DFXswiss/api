@@ -52,7 +52,7 @@ export class BuyFiatRegistrationService {
       const existingBuyFiat = await this.buyFiatRepo.findOne({ cryptoInput: payIn });
 
       if (existingBuyFiat) {
-        await this.payInService.acknowledgePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
+        await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
         continue;
       }
 
@@ -66,7 +66,7 @@ export class BuyFiatRegistrationService {
       const newBuyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
 
       await this.buyFiatRepo.save(newBuyFiat);
-      await this.payInService.acknowledgePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
+      await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
     }
   }
 }

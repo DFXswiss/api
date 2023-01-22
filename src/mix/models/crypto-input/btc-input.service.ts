@@ -13,7 +13,7 @@ import { NodeNotAccessibleError } from 'src/integration/blockchain/ain/exception
 import { CryptoInputService } from './crypto-input.service';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { CryptoRouteService } from '../crypto-route/crypto-route.service';
-import { ChainalysisService } from './chainalysis.service';
+import { ChainalysisService } from '../../../integration/chainalysis/services/chainalysis.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
 import { BuyFiatService } from '../../../subdomains/core/sell-crypto/process/buy-fiat.service';

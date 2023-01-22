@@ -15,6 +15,12 @@ import { PayInService } from '../../../services/payin.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
+import { Staking } from 'src/mix/models/staking/staking.entity';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
@@ -23,6 +29,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
   constructor(
     private readonly assetService: AssetService,
     private readonly bitcoinService: PayInBitcoinService,
+    private readonly chainalysisService: ChainalysisService,
     protected readonly dexService: DexService,
     protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
@@ -32,6 +39,20 @@ export class BitcoinStrategy extends JellyfishStrategy {
   }
 
   //*** PUBLIC API ***//
+
+  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
+    if (route.user.userData.kycStatus === KycStatus.REJECTED) return AmlCheck.FAIL;
+
+    // TODO just check chainalysis if amount in EUR > 10k or userData.highRisk
+    const highRisk = await this.chainalysisService.isHighRiskTx(
+      route.user.userData.id,
+      payIn.inTxId,
+      payIn.txSequence,
+      'BTC',
+      Blockchain.BITCOIN,
+    );
+    return highRisk ? AmlCheck.FAIL : AmlCheck.PASS;
+  }
 
   /**
    * @note

@@ -47,7 +47,7 @@ export class StakingReturnService {
   private async returnPayIns(payInsPairs: [CryptoInput, Staking][]): Promise<void> {
     for (const [payIn, staking] of payInsPairs) {
       await this.payInService.returnPayIn(
-        payIn,
+        payIn.id,
         PayInPurpose.STAKING,
         BlockchainAddress.create(staking.user.address, staking.deposit.blockchain),
         staking,

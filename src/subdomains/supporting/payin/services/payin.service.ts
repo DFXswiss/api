@@ -19,6 +19,9 @@ import { PriceRequestContext } from '../../pricing/enums';
 import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
 import { RegisterStrategiesFacade } from '../strategies/register/register.facade';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
+import { Staking } from 'src/mix/models/staking/staking.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 
 @Injectable()
 export class PayInService {
@@ -52,25 +55,26 @@ export class PayInService {
     });
   }
 
-  async acknowledgePayIn(payIn: CryptoInput, purpose: PayInPurpose, route: DepositRoute): Promise<void> {
-    const _payIn = await this.payInRepository.findOne(payIn.id);
+  async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | CryptoRoute): Promise<void> {
+    const payIn = await this.payInRepository.findOne(payInId);
+    const amlCheck = await this.doAmlCheck(payIn, route);
 
-    _payIn.acknowledge(purpose, route);
+    payIn.acknowledge(purpose, route, amlCheck);
 
-    await this.payInRepository.save(_payIn);
+    await this.payInRepository.save(payIn);
   }
 
   async returnPayIn(
-    payIn: CryptoInput,
+    payInId: number,
     purpose: PayInPurpose,
     returnAddress: BlockchainAddress,
     route: DepositRoute,
   ): Promise<void> {
-    const _payIn = await this.payInRepository.findOne(payIn.id);
+    const payIn = await this.payInRepository.findOne(payInId);
 
-    _payIn.triggerReturn(purpose, returnAddress, route);
+    payIn.triggerReturn(purpose, returnAddress, route);
 
-    await this.payInRepository.save(_payIn);
+    await this.payInRepository.save(payIn);
   }
 
   async failedPayIn(payIn: CryptoInput, purpose: PayInPurpose): Promise<void> {
@@ -155,6 +159,15 @@ export class PayInService {
   }
 
   //*** HELPER METHODS ***//
+
+  private async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
+    try {
+      const strategy = this.registerStrategies.getRegisterStrategy(payIn.asset);
+      return strategy.doAmlCheck(payIn, route);
+    } catch (e) {
+      console.error(`Error during AML check for pay-in ID: ${payIn.id}`, e);
+    }
+  }
 
   private async forwardPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({

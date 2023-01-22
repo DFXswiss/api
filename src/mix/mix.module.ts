@@ -28,7 +28,7 @@ import { CryptoRouteRepository } from './models/crypto-route/crypto-route.reposi
 import { BtcInputService } from './models/crypto-input/btc-input.service';
 import { DeFiInputService } from './models/crypto-input/defi-input.service';
 import { DexModule } from '../subdomains/supporting/dex/dex.module';
-import { ChainalysisService } from './models/crypto-input/chainalysis.service';
+import { ChainalysisService } from '../integration/chainalysis/services/chainalysis.service';
 import { PayoutModule } from '../subdomains/supporting/payout/payout.module';
 import { ExchangeModule } from '../integration/exchange/exchange.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';

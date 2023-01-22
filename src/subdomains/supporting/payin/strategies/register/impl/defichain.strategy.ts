@@ -14,6 +14,11 @@ import { AccountHistory, PayInDeFiChainService } from '../../../services/payin-d
 import { PayInService } from '../../../services/payin.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
+import { Staking } from 'src/mix/models/staking/staking.entity';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 
 @Injectable()
 export class DeFiChainStrategy extends RegisterStrategy {
@@ -32,6 +37,10 @@ export class DeFiChainStrategy extends RegisterStrategy {
   }
 
   //*** PUBLIC API ***//
+
+  doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck {
+    return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
+  }
 
   /**
    * @note

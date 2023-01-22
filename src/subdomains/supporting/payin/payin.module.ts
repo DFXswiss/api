@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { ChainalysisModule } from 'src/integration/chainalysis/chainalysis.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { PayInFactory } from './factories/payin.factory';
 import { PayInRepository } from './repositories/payin.repository';
@@ -13,7 +14,7 @@ import { PayInOptimismService } from './services/payin-optimism.service';
 import { PayInService } from './services/payin.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PayInRepository]), BlockchainModule, SharedModule],
+  imports: [TypeOrmModule.forFeature([PayInRepository]), BlockchainModule, SharedModule, ChainalysisModule],
   controllers: [],
   providers: [
     PayInService,

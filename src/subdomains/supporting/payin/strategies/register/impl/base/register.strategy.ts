@@ -8,6 +8,10 @@ import { PayInFactory } from 'src/subdomains/supporting/payin/factories/payin.fa
 import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
+import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
+import { Staking } from 'src/mix/models/staking/staking.entity';
+import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 
 export interface PayInInputLog {
   recoveredRecords: { address: string; txId: string }[];
@@ -22,6 +26,7 @@ export abstract class RegisterStrategy {
 
   abstract checkPayInEntries(): Promise<void>;
   abstract addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void>;
+  abstract doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> | AmlCheck;
 
   protected async createPayInAndSave(transaction: PayInEntry): Promise<void> {
     const payIn = this.payInFactory.createFromEntry(transaction);
