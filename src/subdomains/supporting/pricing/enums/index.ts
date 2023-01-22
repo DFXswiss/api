@@ -16,6 +16,11 @@ export enum USDStableCoin {
   BUSD = 'BUSD',
 }
 
+export enum Bitcoin {
+  BTC = 'BTC',
+  BTCB = 'BTCB',
+}
+
 export enum Altcoin {
   ETH = 'ETH',
   BNB = 'BNB',

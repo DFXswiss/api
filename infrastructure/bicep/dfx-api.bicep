@@ -37,7 +37,6 @@ param outWalletAddress string
 param intWalletAddress string
 param stakingWalletAddress string
 param utxoSpenderAddress string
-param btcCollectorAddress string
 param btcOutWalletAddress string
 
 param ethWalletAddress string
@@ -642,10 +641,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'BSC_SWAP_TOKEN_ADDRESS'
           value: bscSwapTokenAddress
-        }
-        {
-          name: 'BTC_COLLECTOR_ADDRESS'
-          value: btcCollectorAddress
         }
         {
           name: 'BTC_OUT_WALLET_ADDRESS'
