@@ -7,6 +7,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { ProposalStatus, ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
+import { HttpService } from 'src/shared/services/http.service';
 
 export interface CfpSettings {
   inProgress: boolean;
@@ -112,12 +113,22 @@ export interface CfpResult {
 
 @Injectable()
 export class CfpService implements OnModuleInit {
+  private readonly myDefichainUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
+  private readonly lockUrl = 'https://api.lock.space/v1/masternodes';
+  private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
+
   private client: DeFiClient;
   private settings: CfpSettings;
   private cfpResults: CfpResult[];
   private masternodeCount: number;
-
-  constructor(nodeService: NodeService, private readonly settingService: SettingService) {
+  private allMasternodes;
+  private lockMasternodes: { owner: string };
+  private cakeMasternodes: { owner: string };
+  constructor(
+    nodeService: NodeService,
+    private readonly settingService: SettingService,
+    private readonly http: HttpService,
+  ) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
@@ -130,7 +141,10 @@ export class CfpService implements OnModuleInit {
     try {
       // update settings
       this.settings = await this.settingService.getObj<CfpSettings>('cfp');
-
+      // update masternodes
+      this.allMasternodes = await this.callApi<any>(this.myDefichainUrl);
+      //this.lockMasternodes = await this.callApi<any>(this.lockUrl);
+      this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
       // update cfp results
       if (this.settings.inProgress) {
         const allProposal = await this.getCurrentProposals();
@@ -182,7 +196,9 @@ export class CfpService implements OnModuleInit {
   private async getVotes(proposalVote: ProposalVote[]): Promise<Vote[]> {
     return Promise.all(
       proposalVote.map(async (m) => ({
-        address: m.masternodeId,
+        address: this.allMasternodes[m.masternodeId]
+          ? this.allMasternodes[m.masternodeId]['ownerAuthAddress']
+          : m.masternodeId,
         cfpId: m.proposalId,
         vote: m.vote,
       })),
@@ -225,5 +241,9 @@ export class CfpService implements OnModuleInit {
       startDate: this.settings.startDate,
       endDate: this.settings.endDate,
     };
+  }
+
+  private async callApi<T>(url: string): Promise<T> {
+    return this.http.get<T>(`${url}`, { headers: { Authorization: `Bearer DFX` } });
   }
 }
