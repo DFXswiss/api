@@ -1,7 +1,10 @@
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
+import { MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
+import { MasternodeInfo } from '@defichain/jellyfish-api-core/dist/category/mining';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { HttpService } from 'src/shared/services/http.service';
+import { Proposal, ProposalVote } from 'src/subdomains/core/statistic/cfp.service';
 import { NodeClient, NodeCommand, NodeMode } from './node-client';
 
 export class DeFiClient extends NodeClient {
@@ -157,5 +160,23 @@ export class DeFiClient extends NodeClient {
 
   async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
     return this.callNode((c) => c.poolpair.removePoolLiquidity(address, amount, { utxos }), true);
+  }
+
+  //Voting
+
+  async getMasternode(masternodeId: string): Promise<any> {
+    return this.callNode((c) => c.call('getmasternode', [masternodeId], 'number'), true);
+  }
+
+  async listProposal(): Promise<Proposal[]> {
+    return this.callNode((c) => c.call('listgovproposals', ['all', 'voting'], 'number'), true);
+  }
+
+  async getProposal(proposalId: string): Promise<Proposal> {
+    return this.callNode((c) => c.call('getgovproposal', [proposalId], 'number'), true);
+  }
+
+  async listVotes(proposalId: string): Promise<ProposalVote[]> {
+    return this.callNode((c) => c.call('listgovproposalvotes', [proposalId, 'all', 0], 'number'), true);
   }
 }

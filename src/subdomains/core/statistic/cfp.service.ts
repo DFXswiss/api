@@ -1,15 +1,13 @@
-import { Inject, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { HttpService } from '../../../shared/services/http.service';
-import * as MasterNodes from './assets/master-nodes.json';
-import * as CakeMasterNodes from './assets/cake-mn.json';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
-import { Masternode } from 'src/mix/models/masternode/masternode.entity';
+import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
+import { ProposalStatus, ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
 
 export interface CfpSettings {
   inProgress: boolean;
@@ -19,27 +17,47 @@ export interface CfpSettings {
   endDate: string;
 }
 
-interface CfpResponse {
-  number: number;
+export interface Proposal {
+  proposalId: string;
   title: string;
-  html_url: string;
-  labels: { name: string }[];
-  comments: number;
+  context: string;
+  contextHash: string;
+  status: ProposalStatus;
+  type: ProposalType;
+  amount: number;
+  payoutAddress: string;
+  currentCycle: number;
+  totalCycles: number;
+  cycleEndHeight: number;
+  proposalEndHeight: number;
+  votingPeriod: number;
+  quorum: string;
+  votesPossible: number;
+  votesPresent: number;
+  votesPresentPct: string;
+  votesYes: number;
+  votesYesPct: string;
+  approvalThreshold: string;
+  fee: number;
+  proposalVotes: Vote[];
 }
 
-interface CommentsResponse {
-  body: string;
-  created_at: string;
+export interface ProposalVote {
+  proposalId: string;
+  masternodeId: string;
+  cycle: number;
+  vote: VoteResult;
+}
+
+enum VoteResult {
+  YES = 'YES',
+  NO = 'NO',
+  NEUTRAL = 'NEUTRAL',
 }
 
 enum ResultStatus {
   APPROVED = 'Approved',
   NOT_APPROVED = 'Not approved',
-}
-
-enum State {
-  ENABLED = 'ENABLED',
-  PRE_ENABLED = 'PRE_ENABLED',
 }
 
 enum VotingType {
@@ -49,22 +67,16 @@ enum VotingType {
 
 interface Vote {
   address: string;
-  signature: string;
   cfpId: string;
   vote: string;
-  createdAt: string;
-  isCake: boolean;
-  isDfx: boolean;
-}
-
-export interface MasterNode {
-  ownerAuthAddress: string;
-  mintedBlocks: number;
-  state: State;
+  signature?: string;
+  createdAt?: string;
+  isCake?: boolean;
+  isLock?: boolean;
 }
 
 export interface CfpResult {
-  number: number;
+  number?: number;
   title: string;
   type: VotingType;
   dfiAmount: number;
@@ -78,13 +90,13 @@ export interface CfpResult {
     neutral: number;
     no: number;
   };
-  cakeVotes: {
+  cakeVotes?: {
     total: number;
     yes: number;
     neutral: number;
     no: number;
   };
-  dfxVotes: {
+  lockVotes?: {
     total: number;
     yes: number;
     neutral: number;
@@ -101,28 +113,17 @@ export interface CfpResult {
 
 @Injectable()
 export class CfpService implements OnModuleInit {
-  private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
-
+  private client: DeFiClient;
   private settings: CfpSettings;
   private cfpResults: CfpResult[];
-
-  private readonly masternodeCount: number;
-  private readonly masternodes: Map<string, MasterNode>;
-  private dfxMasternodes: Masternode[];
+  private masternodeCount: number;
 
   constructor(
+    nodeService: NodeService,
     private readonly http: HttpService,
-    private readonly cryptoService: CryptoService,
     private readonly settingService: SettingService,
-    private readonly masterNodeService: MasternodeService,
-    @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
   ) {
-    validMasterNodes ??= Object.values(MasterNodes).filter(
-      (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
-    ) as MasterNode[];
-
-    this.masternodeCount = validMasterNodes.length;
-    this.masternodes = Util.toMap(validMasterNodes, 'ownerAuthAddress');
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
   onModuleInit() {
@@ -137,16 +138,8 @@ export class CfpService implements OnModuleInit {
 
       // update cfp results
       if (this.settings.inProgress) {
-        this.dfxMasternodes = await this.masterNodeService.get();
-
-        let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-        allCfp = allCfp.filter(
-          (cfp) =>
-            cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
-            cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
-        );
-
-        this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+        const allProposal = await this.getCurrentProposals();
+        this.cfpResults = await Promise.all(allProposal.map((cfp) => this.getCfpResult(cfp)));
       }
     } catch (e) {
       console.error('Exception during CFP update:', e);
@@ -159,6 +152,17 @@ export class CfpService implements OnModuleInit {
       cfpList.push(this.settings.currentRound);
 
     return cfpList.reverse();
+  }
+
+  async getCurrentProposals(): Promise<Proposal[]> {
+    const currentProposals = await this.client.listProposal();
+    this.masternodeCount = await this.client.getProposal(currentProposals[0].proposalId).then((p) => p.votesPossible);
+
+    for (const proposal of currentProposals) {
+      proposal.proposalVotes = await this.getVotes(await this.client.listVotes(proposal.proposalId));
+    }
+
+    return currentProposals;
   }
 
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
@@ -179,77 +183,44 @@ export class CfpService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
-    const batchSize = 100;
-    const batchCount = Math.ceil(cfp.comments / batchSize);
-    const commentBatches = await Promise.all(
-      [...Array(batchCount).keys()].map((_, i) =>
-        this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=${batchSize}&page=${i + 1}`),
-      ),
-    );
-    const comments = commentBatches.reduce((prev, curr) => prev.concat(curr), []);
 
-    return this.getCfpResult(cfp, comments);
+  private async getVotes(proposalVote: ProposalVote[]): Promise<Vote[]> {
+    return Promise.all(
+      proposalVote.map(async (m) => ({
+        address: m.masternodeId,
+        cfpId: m.proposalId,
+        vote: m.vote,
+      })),
+    );
   }
 
-  private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
-    const type = cfp.labels.map((a) => a.name).includes(VotingType.CFP) ? VotingType.CFP : VotingType.DFIP;
+  private async getCfpResult(proposal: Proposal): Promise<CfpResult> {
+    const yesVotes = proposal.proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
+    const noVotes = proposal.proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('no'));
+    const neutralVotes = proposal.proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
 
-    const validVotes = comments
-      .map((c) => this.getCommentVotes(type, c))
-      .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((v) => this.verifyVote(cfp, v));
-
-    const votes = Array.from(Util.toMap(validVotes, 'address').values()); // remove duplicate votes
-    const yesVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
-    const noVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('no'));
-    const neutralVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
-
-    const cakeVotes = votes.filter((v) => v.isCake);
-    const yesVotesCake = yesVotes.filter((v) => v.isCake);
-    const noVotesCake = noVotes.filter((v) => v.isCake);
-    const neutralVotesCake = neutralVotes.filter((v) => v.isCake);
-
-    const dfxVotes = votes.filter((v) => v.isDfx);
-    const yesVotesDfx = yesVotes.filter((v) => v.isDfx);
-    const noVotesDfx = noVotes.filter((v) => v.isDfx);
-    const neutralVotesDfx = neutralVotes.filter((v) => v.isDfx);
-
-    const requiredVotes = type === VotingType.CFP ? 1 / 2 : 2 / 3;
+    const requiredVotes = proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? 1 / 2 : 2 / 3;
     const currentResult =
       yesVotes.length / (yesVotes.length + noVotes.length) > requiredVotes
         ? ResultStatus.APPROVED
         : ResultStatus.NOT_APPROVED;
 
-    const amountMatches = /\(([\d,. ]*)DFI\)/g.exec(cfp.title);
-    const amount = amountMatches ? +amountMatches[1].replace(/[',. ]/g, '') : undefined;
-
     return {
-      title: cfp.title,
-      number: cfp.number,
-      type: type,
-      dfiAmount: amount,
-      htmlUrl: cfp.html_url,
+      title: proposal.title,
+      type: proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? VotingType.CFP : VotingType.DFIP,
+      dfiAmount: proposal.amount,
+      htmlUrl: proposal.contextHash,
       currentResult: currentResult,
       totalVotes: {
-        total: votes.length,
+        total: proposal.proposalVotes.length,
         possible: this.masternodeCount,
-        turnout: Util.round((votes.length / this.masternodeCount) * 100, Config.defaultPercentageDecimal),
+        turnout: Util.round(
+          (proposal.proposalVotes.length / this.masternodeCount) * 100,
+          Config.defaultPercentageDecimal,
+        ),
         yes: yesVotes.length,
         neutral: neutralVotes.length,
         no: noVotes.length,
-      },
-      cakeVotes: {
-        total: cakeVotes.length,
-        yes: yesVotesCake.length,
-        neutral: neutralVotesCake.length,
-        no: noVotesCake.length,
-      },
-      dfxVotes: {
-        total: dfxVotes.length,
-        yes: yesVotesDfx.length,
-        neutral: neutralVotesDfx.length,
-        no: noVotesDfx.length,
       },
       voteDetails: {
         yes: yesVotes,
@@ -259,43 +230,6 @@ export class CfpService implements OnModuleInit {
       startDate: this.settings.startDate,
       endDate: this.settings.endDate,
     };
-  }
-
-  private getCommentVotes(type: VotingType, commentResponse: CommentsResponse): Vote[] {
-    const matches = [];
-
-    let match;
-    const regExp = this.getRegExp(this.settings.currentRound, type);
-
-    while ((match = regExp.exec(commentResponse.body)) !== null) {
-      matches.push(match);
-    }
-
-    return matches.map((m) => ({
-      address: m[1],
-      signature: m[4],
-      cfpId: m[3],
-      vote: m[2],
-      createdAt: commentResponse.created_at,
-      isCake: Object.values(CakeMasterNodes).find((n) => n.address === m[1]) != null,
-      isDfx: this.dfxMasternodes.find((n) => n.owner === m[1]) != null,
-    }));
-  }
-
-  private getRegExp(votingRound: string, type: VotingType): RegExp {
-    return new RegExp(
-      `signmessage\\s"?(\\w*)"?\\s"?((?:${type}|${type.toUpperCase()})-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
-      'gm',
-    );
-  }
-
-  private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
-    return (
-      this.masternodes.get(vote.address) &&
-      cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
-      new Date(vote.createdAt) < new Date(this.settings.endDate) &&
-      this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
-    );
   }
 
   private async callApi<T>(baseUrl: string, url: string): Promise<T> {
