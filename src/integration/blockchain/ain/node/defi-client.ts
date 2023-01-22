@@ -1,6 +1,4 @@
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
-import { MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
-import { MasternodeInfo } from '@defichain/jellyfish-api-core/dist/category/mining';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { HttpService } from 'src/shared/services/http.service';
@@ -163,10 +161,6 @@ export class DeFiClient extends NodeClient {
   }
 
   //Voting
-
-  async getMasternode(masternodeId: string): Promise<any> {
-    return this.callNode((c) => c.call('getmasternode', [masternodeId], 'number'), true);
-  }
 
   async listProposal(): Promise<Proposal[]> {
     return this.callNode((c) => c.call('listgovproposals', ['all', 'voting'], 'number'), true);

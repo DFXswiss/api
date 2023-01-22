@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { HttpService } from '../../../shared/services/http.service';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
@@ -118,11 +117,7 @@ export class CfpService implements OnModuleInit {
   private cfpResults: CfpResult[];
   private masternodeCount: number;
 
-  constructor(
-    nodeService: NodeService,
-    private readonly http: HttpService,
-    private readonly settingService: SettingService,
-  ) {
+  constructor(nodeService: NodeService, private readonly settingService: SettingService) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
@@ -168,7 +163,7 @@ export class CfpService implements OnModuleInit {
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
     if (['latest', this.settings.currentRound].includes(cfpId)) {
       if (this.settings.inProgress) {
-        // return current data from GitHub
+        // return current data from node (on-chain)
         return this.cfpResults;
       }
 
@@ -230,9 +225,5 @@ export class CfpService implements OnModuleInit {
       startDate: this.settings.startDate,
       endDate: this.settings.endDate,
     };
-  }
-
-  private async callApi<T>(baseUrl: string, url: string): Promise<T> {
-    return this.http.get<T>(`${baseUrl}${url}`, { headers: { Authorization: `Bearer ${Config.githubToken}` } });
   }
 }
