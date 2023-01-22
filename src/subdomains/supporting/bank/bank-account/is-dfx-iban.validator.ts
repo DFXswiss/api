@@ -1,30 +1,28 @@
-import { Injectable } from '@nestjs/common';
 import {
   registerDecorator,
+  ValidationArguments,
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-import ibantools from 'ibantools';
+import * as ibantools from 'ibantools';
 
 @ValidatorConstraint({ name: 'IsDfxIban' })
 export class IsDfxIbanValidator implements ValidatorConstraintInterface {
-  private blockedIbans = ['LT..37800000', 'AT..14200200', 'AT..20602099', 'LT..60378000'];
+  private blockedIban = ['LT..37800000', 'AT..14200200', 'AT..20602099', 'LT..60378000'];
 
-  async validate(iban: string) {
-    //Iban Tools
-    const { valid } = ibantools.validateIBAN(iban);
-    if (!valid) return false;
-
-    // check blocked IBANs
-    const isBlocked = this.blockedIbans.some((i) => iban.toLowerCase().match(i.toLowerCase()) != null);
-    if (isBlocked) return false;
-
-    return true;
+  validate(_: string, args: ValidationArguments) {
+    return this.defaultMessage(args) == null;
   }
 
-  defaultMessage() {
-    return `IBAN not valid`;
+  defaultMessage(args: ValidationArguments): string | undefined {
+    //Iban Tools
+    const { valid } = ibantools.validateIBAN(args.value);
+    if (!valid) return 'IBAN not valid';
+
+    // check blocked IBANs
+    const isBlocked = this.blockedIban.some((i) => args.value.toLowerCase().match(i.toLowerCase()) != null);
+    if (isBlocked) return 'IBAN not allowed';
   }
 }
 
