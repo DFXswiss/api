@@ -21,7 +21,9 @@ export class IsDfxIbanValidator implements ValidatorConstraintInterface {
     if (!valid) return 'IBAN not valid';
 
     // check blocked IBANs
-    const isBlocked = this.blockedIban.some((i) => args.value.toLowerCase().match(i.toLowerCase()) != null);
+    const isBlocked = this.blockedIban.some(
+      (i) => args.value.substring(0, 2) === i.split('..')[0] && args.value.includes(i.split('..')[1]),
+    );
     if (isBlocked) return 'IBAN not allowed';
   }
 }
