@@ -38,6 +38,7 @@ describe('CfpService', () => {
 
   it('should return the CFP list', () => {
     expect(service.getCfpList()).toEqual([
+      '2301',
       '2211',
       '2208',
       '2207',

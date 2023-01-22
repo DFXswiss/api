@@ -114,7 +114,7 @@ export interface CfpResult {
 @Injectable()
 export class CfpService implements OnModuleInit {
   private readonly myDefichainUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
-  private readonly lockUrl = 'https://api.lock.space/v1/masternodes';
+  private readonly lockUrl = 'https://api.lock.space/v1/analytics/staking/masternodes';
   private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
 
   private client: DeFiClient;
@@ -122,8 +122,8 @@ export class CfpService implements OnModuleInit {
   private cfpResults: CfpResult[];
   private masternodeCount: number;
   private allMasternodes;
-  private lockMasternodes: { owner: string };
-  private cakeMasternodes: { owner: string };
+  private lockMasternodes: [{ owner: string }];
+  private cakeMasternodes: [{ address: string }];
   constructor(
     nodeService: NodeService,
     private readonly settingService: SettingService,
@@ -143,8 +143,12 @@ export class CfpService implements OnModuleInit {
       this.settings = await this.settingService.getObj<CfpSettings>('cfp');
       // update masternodes
       this.allMasternodes = await this.callApi<any>(this.myDefichainUrl);
-      //this.lockMasternodes = await this.callApi<any>(this.lockUrl);
-      this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
+      try {
+        this.lockMasternodes = await this.callApi<any>(this.lockUrl);
+        this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
+      } catch (e) {
+        console.error('Failed to get lock/cake masternodes', e);
+      }
       // update cfp results
       if (this.settings.inProgress) {
         const allProposal = await this.getCurrentProposals();
@@ -196,11 +200,15 @@ export class CfpService implements OnModuleInit {
   private async getVotes(proposalVote: ProposalVote[]): Promise<Vote[]> {
     return Promise.all(
       proposalVote.map(async (m) => ({
-        address: this.allMasternodes[m.masternodeId]
-          ? this.allMasternodes[m.masternodeId]['ownerAuthAddress']
-          : m.masternodeId,
+        address: this.allMasternodes[m.masternodeId]['ownerAuthAddress'],
         cfpId: m.proposalId,
         vote: m.vote,
+        isCake:
+          Object.values(this.cakeMasternodes).find(
+            (n) => n.address === this.allMasternodes[m.masternodeId]['ownerAuthAddress'],
+          ) != null,
+        isLock:
+          this.lockMasternodes.find((n) => n.owner === this.allMasternodes[m.masternodeId]['ownerAuthAddress']) != null,
       })),
     );
   }
