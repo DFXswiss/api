@@ -31,10 +31,10 @@ export class EthereumCoinStrategy extends EvmStrategy {
     );
   }
 
-  protected topUpCoin(payInGroup: SendGroup, amount: number): Promise<string> {
+  protected topUpCoinAndWait(payInGroup: SendGroup, amount: number): Promise<string> {
     const { sourceAddress } = payInGroup;
 
-    return this.ethereumService.sendNativeCoinFromDex(sourceAddress, amount);
+    return this.ethereumService.sendNativeCoinFromDexAndWait(sourceAddress, amount);
   }
 
   protected getForwardAddress(): BlockchainAddress {

@@ -32,10 +32,10 @@ export class BscTokenStrategy extends EvmStrategy {
     );
   }
 
-  protected topUpCoin(payInGroup: SendGroup, amount: number): Promise<string> {
+  protected topUpCoinAndWait(payInGroup: SendGroup, amount: number): Promise<string> {
     const { sourceAddress } = payInGroup;
 
-    return this.bscService.sendNativeCoinFromDex(sourceAddress, amount);
+    return this.bscService.sendNativeCoinFromDexAndWait(sourceAddress, amount);
   }
 
   protected getForwardAddress(): BlockchainAddress {

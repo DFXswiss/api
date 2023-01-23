@@ -24,8 +24,6 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   protected abstract dispatchSend(payInGroup: SendGroup): Promise<string>;
-  protected abstract topUpCoin(payInGroup: SendGroup, amount: number): Promise<string>;
-  protected abstract getAvailableCoin(payInGroup: SendGroup): Promise<number>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     const groups = this.groupPayInsByAddressAndAsset(payIns, type);
@@ -33,16 +31,12 @@ export abstract class EvmStrategy extends SendStrategy {
     for (const payInGroup of [...groups.values()]) {
       try {
         const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
-        const requiredNativeEthBalance = Util.round(nativeFee * 1.3, 12);
         const totalGroupAmount = this.getTotalGroupAmount(payInGroup);
 
         CryptoInput.verifyEstimatedFee(targetFee, totalGroupAmount);
 
-        if (await this.isEnoughEth(payInGroup, requiredNativeEthBalance)) {
-          await this.dispatch(payInGroup, type);
-        } else {
-          await this.topUpEth(payInGroup, requiredNativeEthBalance);
-        }
+        await this.topUpCoinAndWait(payInGroup, Util.round(nativeFee * 1.2, 12));
+        await this.dispatch(payInGroup, type);
       } catch (e) {
         console.error(
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}`,
@@ -161,10 +155,10 @@ export abstract class EvmStrategy extends SendStrategy {
     return Util.sumObj<CryptoInput>(payInGroup.payIns, 'amount');
   }
 
-  private async isEnoughEth(payInGroup: SendGroup, requiredNativeEthBalance: number): Promise<boolean> {
-    const balance = await this.getAvailableCoin(payInGroup);
+  protected topUpCoinAndWait(payInGroup: SendGroup, amount: number): Promise<string> {
+    const { sourceAddress } = payInGroup;
 
-    return balance > requiredNativeEthBalance;
+    return this.payInEvmService.sendNativeCoinFromDexAndWait(sourceAddress, amount);
   }
 
   private async dispatch(payInGroup: SendGroup, type: SendType): Promise<void> {
@@ -175,20 +169,8 @@ export abstract class EvmStrategy extends SendStrategy {
     await this.saveUpdatedPayIns(updatedPayIns);
   }
 
-  private async topUpEth(payInGroup: SendGroup, requiredNativeEthBalance: number): Promise<void> {
-    const transferTxId = await this.topUpCoin(payInGroup, requiredNativeEthBalance);
-
-    const updatedPayIns = this.updatePayInsWithEthTransferData(payInGroup, transferTxId);
-
-    await this.saveUpdatedPayIns(updatedPayIns);
-  }
-
   private updatePayInsWithSendData(payInGroup: SendGroup, outTxId: string, type: SendType): CryptoInput[] {
     return payInGroup.payIns.map((p) => this.updatePayInWithSendData(p, type, outTxId)).filter((p) => p != null);
-  }
-
-  private updatePayInsWithEthTransferData(payInGroup: SendGroup, transferTxId: string): CryptoInput[] {
-    return payInGroup.payIns.map((p) => p.preparing(transferTxId));
   }
 
   private async saveUpdatedPayIns(payIns: CryptoInput[]): Promise<void> {
