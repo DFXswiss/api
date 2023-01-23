@@ -79,6 +79,10 @@ export interface CfpResult {
   endDate: string;
 }
 
+interface Masternodes {
+  [id: string]: { ownerAuthAddress: string };
+}
+
 @Injectable()
 export class CfpService implements OnModuleInit {
   private readonly myDefichainUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
@@ -89,7 +93,7 @@ export class CfpService implements OnModuleInit {
   private settings: CfpSettings;
   private cfpResults: CfpResult[];
   private masternodeCount: number;
-  private allMasternodes;
+  private allMasternodes: Masternodes;
   private lockMasternodes: string[];
   private cakeMasternodes: [{ address: string }];
   constructor(
@@ -113,7 +117,7 @@ export class CfpService implements OnModuleInit {
       if (this.settings.inProgress) {
         // update masternodes
         this.allMasternodes = await this.callApi<any>(this.myDefichainUrl);
-        //this.lockMasternodes = await this.callApi<any>(this.lockUrl);
+        this.lockMasternodes = await this.callApi<any>(this.lockUrl);
         this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
 
         // update cfp results
@@ -157,7 +161,7 @@ export class CfpService implements OnModuleInit {
 
   private getVotes(proposalVote: ProposalVote[]): Vote[] {
     return proposalVote.map((m) => ({
-      address: this.allMasternodes[m.masternodeId]['ownerAuthAddress'],
+      address: this.allMasternodes[m.masternodeId].ownerAuthAddress,
       cfpId: m.proposalId,
       vote: m.vote,
       isCake:
@@ -193,7 +197,7 @@ export class CfpService implements OnModuleInit {
       number: proposal.proposalId,
       type: proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? VotingType.CFP : VotingType.DFIP,
       dfiAmount: proposal.amount,
-      htmlUrl: proposal.contextHash,
+      htmlUrl: proposal.context,
       currentResult: currentResult,
       totalVotes: {
         total: proposalVotes.length,
