@@ -31,6 +31,12 @@ export class OptimismCoinStrategy extends EvmStrategy {
     );
   }
 
+  protected topUpCoin(payInGroup: SendGroup, amount: number): Promise<string> {
+    const { sourceAddress } = payInGroup;
+
+    return this.optimismService.sendNativeCoinFromDex(sourceAddress, amount);
+  }
+
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.optimism.optimismWalletAddress, Blockchain.OPTIMISM);
   }

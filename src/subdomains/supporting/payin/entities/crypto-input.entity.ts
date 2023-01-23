@@ -20,6 +20,7 @@ export enum PayInStatus {
   RETURNING = 'Returning',
   RETURNED = 'Returned',
   ACKNOWLEDGED = 'Acknowledged',
+  PREPARING = 'Preparing',
   FORWARDING = 'Forwarding',
   FORWARDED = 'Forwarded',
   WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
@@ -41,6 +42,9 @@ export class CryptoInput extends IEntity {
 
   @Column({ nullable: true })
   returnTxId: string;
+
+  @Column({ nullable: true })
+  prepareTxId: string;
 
   @Column()
   txType: string;
@@ -151,6 +155,13 @@ export class CryptoInput extends IEntity {
     this.route = route;
     this.status = PayInStatus.TO_RETURN;
     this.destinationAddress = returnAddress;
+
+    return this;
+  }
+
+  preparing(prepareTxId: string): this {
+    this.prepareTxId = prepareTxId;
+    this.status = PayInStatus.PREPARING;
 
     return this;
   }

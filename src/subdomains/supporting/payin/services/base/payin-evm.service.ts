@@ -20,6 +20,10 @@ export abstract class PayInEvmService {
     return this.#client.sendNativeCoinFromAddress(addressFrom, withPrivateKey, addressTo, amount);
   }
 
+  async sendNativeCoinFromDex(addressTo: string, amount: number): Promise<string> {
+    return this.#client.sendNativeCoinFromDex(addressTo, amount);
+  }
+
   async sendToken(
     addressFrom: string,
     withPrivateKey: string,
@@ -35,6 +39,10 @@ export abstract class PayInEvmService {
     const allTokenTransactions = await this.#client.getERC20Transactions(address, fromBlock);
 
     return [allCoinTransactions, allTokenTransactions];
+  }
+
+  async getNativeCoinBalance(address: string): Promise<number> {
+    return this.#client.getNativeCoinBalanceForAddress(address);
   }
 
   convertToEthLikeDenomination(value: number, decimals?: number): number {

@@ -24,22 +24,25 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   protected abstract dispatchSend(payInGroup: SendGroup): Promise<string>;
+  protected abstract topUpCoin(payInGroup: SendGroup, amount: number): Promise<string>;
+  protected abstract getAvailableCoin(payInGroup: SendGroup): Promise<number>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     const groups = this.groupPayInsByAddressAndAsset(payIns, type);
 
     for (const payInGroup of [...groups.values()]) {
       try {
-        const estimatedFee = await this.getEstimatedFee(payInGroup);
+        const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
+        const requiredNativeEthBalance = Util.round(nativeFee * 1.3, 12);
         const totalGroupAmount = this.getTotalGroupAmount(payInGroup);
 
-        CryptoInput.verifyEstimatedFee(estimatedFee, totalGroupAmount);
+        CryptoInput.verifyEstimatedFee(targetFee, totalGroupAmount);
 
-        const outTxId = await this.dispatchSend(payInGroup);
-
-        const updatedPayIns = this.updatePayInsWithSendData(payInGroup, outTxId, type);
-
-        await this.saveUpdatedPayIns(updatedPayIns);
+        if (await this.isEnoughEth(payInGroup, requiredNativeEthBalance)) {
+          await this.dispatch(payInGroup, type);
+        } else {
+          await this.topUpEth(payInGroup, requiredNativeEthBalance);
+        }
       } catch (e) {
         console.error(
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}`,
@@ -58,8 +61,6 @@ export abstract class EvmStrategy extends SendStrategy {
       this.designateSend(payIn, type);
 
       const { address, destinationAddress, asset } = payIn;
-
-      // TODO - get private key here
 
       const group = groups.get(this.getPayInGroupKey(payIn));
 
@@ -85,11 +86,13 @@ export abstract class EvmStrategy extends SendStrategy {
     return `${payIn.address.address}&${payIn.destinationAddress.address}&&${payIn.asset.dexName}&${payIn.asset.type}`;
   }
 
-  private async getEstimatedFee(payInGroup: SendGroup): Promise<number> {
+  private async getEstimatedFee(payInGroup: SendGroup): Promise<{ nativeFee: number; targetFee: number }> {
     const feeRequest = await this.createFeeRequest(payInGroup.asset);
 
-    const nativeCoinFee = await this.payoutService.estimateFee(feeRequest);
-    return this.getFeeAmountForInPayInGroup(payInGroup, nativeCoinFee);
+    const nativeFee = await this.payoutService.estimateFee(feeRequest);
+    const targetFee = await this.getFeeAmountForInPayInGroup(payInGroup, nativeFee);
+
+    return { nativeFee: nativeFee.amount, targetFee };
   }
 
   private async createFeeRequest(asset: Asset): Promise<FeeRequest> {
@@ -158,8 +161,34 @@ export abstract class EvmStrategy extends SendStrategy {
     return Util.sumObj<CryptoInput>(payInGroup.payIns, 'amount');
   }
 
+  private async isEnoughEth(payInGroup: SendGroup, requiredNativeEthBalance: number): Promise<boolean> {
+    const balance = await this.getAvailableCoin(payInGroup);
+
+    return balance > requiredNativeEthBalance;
+  }
+
+  private async dispatch(payInGroup: SendGroup, type: SendType): Promise<void> {
+    const outTxId = await this.dispatchSend(payInGroup);
+
+    const updatedPayIns = this.updatePayInsWithSendData(payInGroup, outTxId, type);
+
+    await this.saveUpdatedPayIns(updatedPayIns);
+  }
+
+  private async topUpEth(payInGroup: SendGroup, requiredNativeEthBalance: number): Promise<void> {
+    const transferTxId = await this.topUpCoin(payInGroup, requiredNativeEthBalance);
+
+    const updatedPayIns = this.updatePayInsWithEthTransferData(payInGroup, transferTxId);
+
+    await this.saveUpdatedPayIns(updatedPayIns);
+  }
+
   private updatePayInsWithSendData(payInGroup: SendGroup, outTxId: string, type: SendType): CryptoInput[] {
-    return payInGroup.payIns.map((p) => this.updatePayInWithSendData(p, type, outTxId)).filter((p) => !!p);
+    return payInGroup.payIns.map((p) => this.updatePayInWithSendData(p, type, outTxId)).filter((p) => p != null);
+  }
+
+  private updatePayInsWithEthTransferData(payInGroup: SendGroup, transferTxId: string): CryptoInput[] {
+    return payInGroup.payIns.map((p) => p.preparing(transferTxId));
   }
 
   private async saveUpdatedPayIns(payIns: CryptoInput[]): Promise<void> {
