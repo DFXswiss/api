@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RouteType } from 'src/mix/models/route/deposit-route.entity';
+import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
@@ -49,24 +50,47 @@ export class BuyFiatRegistrationService {
 
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
     for (const [payIn, sellRoute] of payInsPairs) {
-      const existingBuyFiat = await this.buyFiatRepo.findOne({ cryptoInput: payIn });
+      try {
+        const existingBuyFiat = await this.buyFiatRepo.findOne({ cryptoInput: payIn });
 
-      if (existingBuyFiat) {
+        if (existingBuyFiat) {
+          await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+          continue;
+        }
+
+        // ignore DeFiChain AccountToUtxos for sell
+        if (sellRoute.type === RouteType.SELL && payIn.txType === 'AccountToUtxos') {
+          console.log('Ignoring AccountToUtxos DeFiChain input on sell route. Pay-in:', payIn);
+          await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
+          continue;
+        }
+
+        await this.createNewBuyFiatAndAck(payIn, sellRoute);
+
+        const newBuyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
+
         await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
-        continue;
+        await this.buyFiatRepo.save(newBuyFiat);
+      } catch (e) {
+        console.error(`Error occurred during pay-in registration at buy-fiat. Pay-in ID: ${payIn.id}`, e);
       }
+    }
+  }
 
-      // ignore DeFiChain AccountToUtxos for sell
-      if (sellRoute.type === RouteType.SELL && payIn.txType === 'AccountToUtxos') {
-        console.log('Ignoring AccountToUtxos DeFiChain input on sell route. Pay-in:', payIn);
-        await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
-        continue;
-      }
-
+  private async createNewBuyFiatAndAck(payIn: CryptoInput, sellRoute: Sell): Promise<void> {
+    try {
       const newBuyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
 
-      await this.buyFiatRepo.save(newBuyFiat);
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+      await this.buyFiatRepo.save(newBuyFiat);
+    } catch (e) {
+      if (e instanceof SmallAmountException) {
+        await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
+
+        return;
+      }
+
+      throw e;
     }
   }
 }

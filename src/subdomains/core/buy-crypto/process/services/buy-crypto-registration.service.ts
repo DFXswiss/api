@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
 import { CryptoRouteRepository } from 'src/mix/models/crypto-route/crypto-route.repository';
+import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { IsNull, Not } from 'typeorm';
@@ -48,17 +49,35 @@ export class BuyCryptoRegistrationService {
 
   private async createBuyCryptosAndAckPayIns(payInsPairs: [CryptoInput, CryptoRoute][]): Promise<void> {
     for (const [payIn, cryptoRoute] of payInsPairs) {
-      const existingPayIn = await this.buyCryptoRepo.findOne({ cryptoInput: payIn });
+      try {
+        const existingBuyCrypto = await this.buyCryptoRepo.findOne({ cryptoInput: payIn });
 
-      if (existingPayIn) {
-        await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
-        continue;
+        if (existingBuyCrypto) {
+          await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
+          continue;
+        }
+
+        await this.createNewBuyCryptoAndAck(payIn, cryptoRoute);
+      } catch (e) {
+        console.error(`Error occurred during pay-in registration at buy-crypto. Pay-in ID: ${payIn.id}`, e);
       }
+    }
+  }
 
+  private async createNewBuyCryptoAndAck(payIn: CryptoInput, cryptoRoute: CryptoRoute): Promise<void> {
+    try {
       const newBuyCrypto = BuyCrypto.createFromPayIn(payIn, cryptoRoute);
 
-      await this.buyCryptoRepo.save(newBuyCrypto);
       await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.BUY_CRYPTO, cryptoRoute);
+      await this.buyCryptoRepo.save(newBuyCrypto);
+    } catch (e) {
+      if (e instanceof SmallAmountException) {
+        await this.payInService.ignorePayIn(payIn, PayInPurpose.BUY_CRYPTO, cryptoRoute);
+
+        return;
+      }
+
+      throw e;
     }
   }
 }

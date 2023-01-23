@@ -13,6 +13,7 @@ import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
 import { Buy } from '../../route/buy.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
 
 export enum BuyCryptoStatus {
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
@@ -134,6 +135,8 @@ export class BuyCrypto extends IEntity {
 
     entity.cryptoInput = payIn;
     entity.cryptoRoute = cryptoRoute;
+
+    BuyCryptoInitSpecification.isSatisfiedBy(entity);
 
     return entity;
   }

@@ -7,6 +7,7 @@ import { AmlReason } from '../../buy-crypto/process/enums/aml-reason.enum';
 import { FiatOutput } from '../../../supporting/bank/fiat-output/fiat-output.entity';
 import { Sell } from '../route/sell.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specification';
 
 @Entity()
 export class BuyFiat extends IEntity {
@@ -145,6 +146,8 @@ export class BuyFiat extends IEntity {
 
     entity.cryptoInput = payIn;
     entity.sell = sellRoute;
+
+    BuyFiatInitSpecification.isSatisfiedBy(entity);
 
     return entity;
   }
