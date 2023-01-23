@@ -1,19 +1,18 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { CfpService } from './cfp.service';
-import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
+import { NodeService } from 'src/integration/blockchain/ain/node/node.service';
 
 describe('CfpService', () => {
   let service: CfpService;
   let settingService: SettingService;
-  let masternodeService: MasternodeService;
+  let nodeService: NodeService;
 
   beforeEach(async () => {
     settingService = createMock<SettingService>();
-    masternodeService = createMock<MasternodeService>();
+    nodeService = createMock<NodeService>();
 
     jest.spyOn(settingService, 'getObj').mockResolvedValueOnce({});
 
@@ -21,9 +20,8 @@ describe('CfpService', () => {
       providers: [
         CfpService,
         { provide: HttpService, useValue: {} },
-        { provide: CryptoService, useValue: {} },
         { provide: SettingService, useValue: settingService },
-        { provide: MasternodeService, useValue: masternodeService },
+        { provide: NodeService, useValue: nodeService },
         { provide: 'VALID_MNS', useValue: [] },
       ],
     }).compile();

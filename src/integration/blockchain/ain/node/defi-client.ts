@@ -1,9 +1,46 @@
 import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
+import { ProposalStatus, ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import BigNumber from 'bignumber.js';
 import { HttpService } from 'src/shared/services/http.service';
-import { Proposal, ProposalVote } from 'src/subdomains/core/statistic/cfp.service';
 import { NodeClient, NodeCommand, NodeMode } from './node-client';
+
+export interface Proposal {
+  proposalId: string;
+  title: string;
+  context: string;
+  contextHash: string;
+  status: ProposalStatus;
+  type: ProposalType;
+  amount: number;
+  payoutAddress: string;
+  currentCycle: number;
+  totalCycles: number;
+  cycleEndHeight: number;
+  proposalEndHeight: number;
+  votingPeriod: number;
+  quorum: string;
+  votesPossible: number;
+  votesPresent: number;
+  votesPresentPct: string;
+  votesYes: number;
+  votesYesPct: string;
+  approvalThreshold: string;
+  fee: number;
+}
+
+enum VoteResult {
+  YES = 'YES',
+  NO = 'NO',
+  NEUTRAL = 'NEUTRAL',
+}
+
+export interface ProposalVote {
+  proposalId: string;
+  masternodeId: string;
+  cycle: number;
+  vote: VoteResult;
+}
 
 export class DeFiClient extends NodeClient {
   constructor(http: HttpService, url: string, scheduler: SchedulerRegistry, mode: NodeMode) {

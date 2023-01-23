@@ -27,7 +27,7 @@
     "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",
     "@defichain/jellyfish-api-core": "^2.70.0",
     "@defichain/jellyfish-api-jsonrpc": "^2.70.0",
-    "@defichain/jellyfish-network": "^2.18.3",
+    "@defichain/jellyfish-network": "^2.70.0",
     "@defichain/whale-api-client": "^0.33.4",
     "@nestjs-modules/mailer": "^1.6.1",
     "@nestjs/axios": "^0.0.5",

@@ -5,8 +5,8 @@ import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
-import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
-import { ProposalStatus, ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
+import { DeFiClient, Proposal, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
+import { ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { HttpService } from 'src/shared/services/http.service';
 
 export interface CfpSettings {
@@ -15,44 +15,6 @@ export interface CfpSettings {
   currentRound: string;
   startDate: string;
   endDate: string;
-}
-
-export interface Proposal {
-  proposalId: string;
-  title: string;
-  context: string;
-  contextHash: string;
-  status: ProposalStatus;
-  type: ProposalType;
-  amount: number;
-  payoutAddress: string;
-  currentCycle: number;
-  totalCycles: number;
-  cycleEndHeight: number;
-  proposalEndHeight: number;
-  votingPeriod: number;
-  quorum: string;
-  votesPossible: number;
-  votesPresent: number;
-  votesPresentPct: string;
-  votesYes: number;
-  votesYesPct: string;
-  approvalThreshold: string;
-  fee: number;
-  proposalVotes: Vote[];
-}
-
-export interface ProposalVote {
-  proposalId: string;
-  masternodeId: string;
-  cycle: number;
-  vote: VoteResult;
-}
-
-enum VoteResult {
-  YES = 'YES',
-  NO = 'NO',
-  NEUTRAL = 'NEUTRAL',
 }
 
 enum ResultStatus {
@@ -65,7 +27,7 @@ enum VotingType {
   DFIP = 'dfip',
 }
 
-interface Vote {
+export interface Vote {
   address: string;
   cfpId: string;
   vote: string;
@@ -76,7 +38,7 @@ interface Vote {
 }
 
 export interface CfpResult {
-  number?: number;
+  number: string;
   title: string;
   type: VotingType;
   dfiAmount: number;
@@ -91,6 +53,12 @@ export interface CfpResult {
     no: number;
   };
   cakeVotes?: {
+    total: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  dfxVotes?: {
     total: number;
     yes: number;
     neutral: number;
@@ -114,7 +82,7 @@ export interface CfpResult {
 @Injectable()
 export class CfpService implements OnModuleInit {
   private readonly myDefichainUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
-  private readonly lockUrl = 'https://api.lock.space/v1/analytics/staking/masternodes';
+  private readonly lockUrl = 'https://api.lock.space/v1/masternode';
   private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
 
   private client: DeFiClient;
@@ -141,18 +109,19 @@ export class CfpService implements OnModuleInit {
     try {
       // update settings
       this.settings = await this.settingService.getObj<CfpSettings>('cfp');
-      // update masternodes
-      this.allMasternodes = await this.callApi<any>(this.myDefichainUrl);
-      try {
-        this.lockMasternodes = await this.callApi<any>(this.lockUrl);
-        this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
-      } catch (e) {
-        console.error('Failed to get lock/cake masternodes', e);
-      }
-      // update cfp results
+
       if (this.settings.inProgress) {
-        const allProposal = await this.getCurrentProposals();
-        this.cfpResults = await Promise.all(allProposal.map((cfp) => this.getCfpResult(cfp)));
+        // update masternodes
+        this.allMasternodes = await this.callApi<any>(this.myDefichainUrl);
+        //this.lockMasternodes = await this.callApi<any>(this.lockUrl);
+        this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
+
+        // update cfp results
+        const currentProposals = await this.client.listProposal();
+        this.masternodeCount = await this.client
+          .getProposal(currentProposals[0].proposalId)
+          .then((p) => p.votesPossible);
+        this.cfpResults = await Promise.all(currentProposals.map((cfp) => this.getCfpResult(cfp)));
       }
     } catch (e) {
       console.error('Exception during CFP update:', e);
@@ -165,17 +134,6 @@ export class CfpService implements OnModuleInit {
       cfpList.push(this.settings.currentRound);
 
     return cfpList.reverse();
-  }
-
-  async getCurrentProposals(): Promise<Proposal[]> {
-    const currentProposals = await this.client.listProposal();
-    this.masternodeCount = await this.client.getProposal(currentProposals[0].proposalId).then((p) => p.votesPossible);
-
-    for (const proposal of currentProposals) {
-      proposal.proposalVotes = await this.getVotes(await this.client.listVotes(proposal.proposalId));
-    }
-
-    return currentProposals;
   }
 
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
@@ -197,26 +155,32 @@ export class CfpService implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
-  private async getVotes(proposalVote: ProposalVote[]): Promise<Vote[]> {
-    return Promise.all(
-      proposalVote.map(async (m) => ({
-        address: this.allMasternodes[m.masternodeId]['ownerAuthAddress'],
-        cfpId: m.proposalId,
-        vote: m.vote,
-        isCake:
-          Object.values(this.cakeMasternodes).find(
-            (n) => n.address === this.allMasternodes[m.masternodeId]['ownerAuthAddress'],
-          ) != null,
-        isLock:
-          this.lockMasternodes.find((mn) => mn === this.allMasternodes[m.masternodeId]['ownerAuthAddress']) != null,
-      })),
-    );
+  private getVotes(proposalVote: ProposalVote[]): Vote[] {
+    return proposalVote.map((m) => ({
+      address: this.allMasternodes[m.masternodeId]['ownerAuthAddress'],
+      cfpId: m.proposalId,
+      vote: m.vote,
+      isCake:
+        this.cakeMasternodes.find((n) => n.address === this.allMasternodes[m.masternodeId].ownerAuthAddress) != null,
+      isLock: this.lockMasternodes.find((mn) => mn === this.allMasternodes[m.masternodeId].ownerAuthAddress) != null,
+    }));
   }
 
   private async getCfpResult(proposal: Proposal): Promise<CfpResult> {
-    const yesVotes = proposal.proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
-    const noVotes = proposal.proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('no'));
-    const neutralVotes = proposal.proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
+    const proposalVotes = await this.getVotes(await this.client.listVotes(proposal.proposalId));
+    const yesVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
+    const noVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('no'));
+    const neutralVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
+
+    const cakeVotes = proposalVotes.filter((v) => v.isCake);
+    const yesVotesCake = yesVotes.filter((v) => v.isCake);
+    const noVotesCake = noVotes.filter((v) => v.isCake);
+    const neutralVotesCake = neutralVotes.filter((v) => v.isCake);
+
+    const lockVotes = proposalVotes.filter((v) => v.isLock);
+    const yesVotesLock = yesVotes.filter((v) => v.isLock);
+    const noVotesLock = noVotes.filter((v) => v.isLock);
+    const neutralVotesLock = neutralVotes.filter((v) => v.isLock);
 
     const requiredVotes = proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? 1 / 2 : 2 / 3;
     const currentResult =
@@ -226,20 +190,30 @@ export class CfpService implements OnModuleInit {
 
     return {
       title: proposal.title,
+      number: proposal.proposalId,
       type: proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? VotingType.CFP : VotingType.DFIP,
       dfiAmount: proposal.amount,
       htmlUrl: proposal.contextHash,
       currentResult: currentResult,
       totalVotes: {
-        total: proposal.proposalVotes.length,
+        total: proposalVotes.length,
         possible: this.masternodeCount,
-        turnout: Util.round(
-          (proposal.proposalVotes.length / this.masternodeCount) * 100,
-          Config.defaultPercentageDecimal,
-        ),
+        turnout: Util.round((proposalVotes.length / this.masternodeCount) * 100, Config.defaultPercentageDecimal),
         yes: yesVotes.length,
         neutral: neutralVotes.length,
         no: noVotes.length,
+      },
+      cakeVotes: {
+        total: cakeVotes.length,
+        yes: yesVotesCake.length,
+        neutral: neutralVotesCake.length,
+        no: noVotesCake.length,
+      },
+      dfxVotes: {
+        total: lockVotes.length,
+        yes: yesVotesLock.length,
+        neutral: neutralVotesLock.length,
+        no: noVotesLock.length,
       },
       voteDetails: {
         yes: yesVotes,
@@ -252,6 +226,6 @@ export class CfpService implements OnModuleInit {
   }
 
   private async callApi<T>(url: string): Promise<T> {
-    return this.http.get<T>(`${url}`, { headers: { Authorization: `Bearer DFX` } });
+    return this.http.get<T>(`${url}`);
   }
 }
