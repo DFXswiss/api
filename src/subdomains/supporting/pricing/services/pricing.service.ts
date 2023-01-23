@@ -104,10 +104,13 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.FIAT_TO_BTC, [
         new PriceStep({
-          fallbackPrimaryTo: 'BTC',
-          providers: {
-            primary: [this.krakenService],
-            reference: [this.binanceService, this.bitstampService, this.bitpandaService],
+          primary: {
+            overwrite: 'BTC',
+            providers: [this.krakenService],
+          },
+          reference: {
+            overwrite: 'BTC',
+            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -116,9 +119,13 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.ALTCOIN_TO_BTC, [
         new PriceStep({
-          providers: {
-            primary: [this.binanceService],
-            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+          primary: {
+            fallback: 'BTC',
+            providers: [this.binanceService],
+          },
+          reference: {
+            fallback: 'BTC',
+            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -128,16 +135,20 @@ export class PricingService {
       new PricePath(PricingPathAlias.FIAT_TO_ALTCOIN, [
         new PriceStep({
           to: 'BTC',
-          providers: {
-            primary: [this.krakenService],
-            reference: [this.binanceService, this.bitstampService, this.bitpandaService],
+          primary: {
+            providers: [this.krakenService],
+          },
+          reference: {
+            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
           },
         }),
         new PriceStep({
           from: 'BTC',
-          providers: {
-            primary: [this.binanceService],
-            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+          primary: {
+            providers: [this.binanceService],
+          },
+          reference: {
+            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -147,16 +158,20 @@ export class PricingService {
       new PricePath(PricingPathAlias.ALTCOIN_TO_ALTCOIN, [
         new PriceStep({
           to: 'BTC',
-          providers: {
-            primary: [this.binanceService],
-            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+          primary: {
+            providers: [this.binanceService],
+          },
+          reference: {
+            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
         new PriceStep({
           from: 'BTC',
-          providers: {
-            primary: [this.binanceService],
-            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+          primary: {
+            providers: [this.binanceService],
+          },
+          reference: {
+            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -165,9 +180,11 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.BTC_TO_ALTCOIN, [
         new PriceStep({
-          providers: {
-            primary: [this.binanceService],
-            reference: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
+          primary: {
+            providers: [this.binanceService],
+          },
+          reference: {
+            providers: [this.ftxService, this.krakenService, this.bitstampService, this.bitpandaService],
           },
         }),
       ]),
@@ -184,11 +201,13 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.NON_MATCHING_FIAT_TO_USD_STABLE_COIN, [
         new PriceStep({
-          overwriteReferenceTo: 'USD',
-          fallbackPrimaryTo: 'USDT',
-          providers: {
-            primary: [this.krakenService],
-            reference: [this.fixerService, this.currencyService],
+          primary: {
+            fallback: 'USDT',
+            providers: [this.krakenService],
+          },
+          reference: {
+            overwrite: 'USD',
+            providers: [this.fixerService, this.currencyService],
           },
         }),
       ]),
@@ -206,16 +225,20 @@ export class PricingService {
       new PricePath(PricingPathAlias.FIAT_TO_DFI, [
         new PriceStep({
           to: 'BTC',
-          providers: {
-            primary: [this.krakenService],
-            reference: [this.binanceService, this.bitstampService, this.bitpandaService],
+          primary: {
+            providers: [this.krakenService],
+          },
+          reference: {
+            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
           },
         }),
         new PriceStep({
           from: 'BTC',
-          providers: {
-            primary: [this.dfiDexService],
-            reference: [],
+          primary: {
+            providers: [this.dfiDexService],
+          },
+          reference: {
+            providers: [],
           },
         }),
       ]),
@@ -226,9 +249,11 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.DFI_TO_NON_FIAT, [
         new PriceStep({
-          providers: {
-            primary: [this.dfiDexService],
-            reference: [],
+          primary: {
+            providers: [this.dfiDexService],
+          },
+          reference: {
+            providers: [],
           },
         }),
       ]),
@@ -237,9 +262,11 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.NON_FIAT_TO_DFI, [
         new PriceStep({
-          providers: {
-            primary: [this.dfiDexService],
-            reference: [],
+          primary: {
+            providers: [this.dfiDexService],
+          },
+          reference: {
+            providers: [],
           },
         }),
       ]),
@@ -248,9 +275,11 @@ export class PricingService {
     this.addPath(
       new PricePath(PricingPathAlias.ALTCOIN_TO_USD_STABLE_COIN, [
         new PriceStep({
-          providers: {
-            primary: [this.binanceService],
-            reference: [],
+          primary: {
+            providers: [this.binanceService],
+          },
+          reference: {
+            providers: [],
           },
         }),
       ]),
