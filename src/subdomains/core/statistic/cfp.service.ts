@@ -122,7 +122,7 @@ export class CfpService implements OnModuleInit {
   private cfpResults: CfpResult[];
   private masternodeCount: number;
   private allMasternodes;
-  private lockMasternodes: [{ owner: string }];
+  private lockMasternodes: string[];
   private cakeMasternodes: [{ address: string }];
   constructor(
     nodeService: NodeService,
@@ -208,7 +208,7 @@ export class CfpService implements OnModuleInit {
             (n) => n.address === this.allMasternodes[m.masternodeId]['ownerAuthAddress'],
           ) != null,
         isLock:
-          this.lockMasternodes.find((n) => n.owner === this.allMasternodes[m.masternodeId]['ownerAuthAddress']) != null,
+          this.lockMasternodes.find((mn) => mn === this.allMasternodes[m.masternodeId]['ownerAuthAddress']) != null,
       })),
     );
   }
