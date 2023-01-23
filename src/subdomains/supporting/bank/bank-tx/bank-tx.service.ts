@@ -35,15 +35,18 @@ export class BankTxService {
   @Interval(60000)
   async checkTransactions(): Promise<void> {
     try {
-      const settingKey = 'lastBankDate';
-      const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
+      // Get settings
+      const settingKeyFrick = 'lastBankFrickDate';
+      const settingKeyOlky = 'lastBankFrickDate';
+      const lastModificationTimeFrick = await this.settingService.get(settingKeyFrick, new Date(0).toISOString());
+      const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
 
-      const transactions = await Promise.all([
-        this.olkyService.getOlkyTransactions(lastModificationTime),
-        this.frickService.getFrickTransactions(lastModificationTime),
-      ]).then(([olky, frick]) => olky.concat(frick));
+      // Get bank transactions
+      const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTimeFrick);
+      const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky);
+      const allTransactions = olkyTransactions.concat(frickTransactions);
 
-      for (const bankTx of transactions) {
+      for (const bankTx of allTransactions) {
         try {
           await this.create(bankTx);
         } catch (e) {
@@ -52,7 +55,8 @@ export class BankTxService {
       }
 
       const newModificationTime = new Date().toISOString();
-      await this.settingService.set(settingKey, newModificationTime);
+      if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
+      if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
     } catch (e) {
       console.error(`Failed to check bank transactions:`, e);
     }
