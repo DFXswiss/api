@@ -67,6 +67,7 @@ export class BuyCryptoBatchService {
       const txWithAssets = await this.defineAssetPair(txInput);
       const referencePrices = await this.getReferencePrices(txWithAssets);
       const txWithReferenceAmount = await this.defineReferenceAmount(txWithAssets, referencePrices);
+      console.info('BC-DBG - Tx with Ref:', txWithReferenceAmount);
       const batches = await this.createBatches(txWithReferenceAmount);
 
       for (const batch of batches) {
@@ -151,6 +152,7 @@ export class BuyCryptoBatchService {
 
     batches = this.batchTransactions(transactions);
     batches = await this.filterOutExistingBatches(batches);
+    console.info('BC-DBG - Batches:', batches);
     batches = await this.optimizeBatches(batches);
 
     return batches;
