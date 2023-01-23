@@ -37,7 +37,7 @@ export class BankTxService {
     try {
       // Get settings
       const settingKeyFrick = 'lastBankFrickDate';
-      const settingKeyOlky = 'lastBankFrickDate';
+      const settingKeyOlky = 'lastBankOlkyDate';
       const lastModificationTimeFrick = await this.settingService.get(settingKeyFrick, new Date(0).toISOString());
       const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
 
