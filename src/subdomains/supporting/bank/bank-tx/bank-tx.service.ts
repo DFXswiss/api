@@ -40,6 +40,7 @@ export class BankTxService {
       const settingKeyOlky = 'lastBankOlkyDate';
       const lastModificationTimeFrick = await this.settingService.get(settingKeyFrick, new Date(0).toISOString());
       const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
+      const newModificationTime = new Date().toISOString();
 
       // Get bank transactions
       const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTimeFrick);
@@ -54,7 +55,6 @@ export class BankTxService {
         }
       }
 
-      const newModificationTime = new Date().toISOString();
       if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
       if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
     } catch (e) {
