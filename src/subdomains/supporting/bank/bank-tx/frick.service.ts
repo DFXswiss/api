@@ -210,6 +210,7 @@ export class FrickService {
       txCurrency: tx.currency,
       chargeCurrency: tx.currency,
       ...this.getCustomerInformation(tx),
+      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       remittanceInfo: tx.reference,
       type: tx.type === TransactionType.INTERNAL ? BankTxType.INTERNAL : null,
       accountIban: tx.direction == TransactionDirection.OUTGOING ? tx.debitor.iban : tx.creditor.iban,
@@ -233,7 +234,6 @@ export class FrickService {
   private getCustomerInformation(tx: Transaction): {
     name?: string;
     addressLine1?: string;
-    creditDebitIndicator: BankTxIndicator;
     iban: string;
     aba: string;
     country: string;
@@ -249,7 +249,6 @@ export class FrickService {
       addressLine1: account.address,
       bankName: account.creditInstitution,
       bic: account.bic,
-      creditDebitIndicator: tx.amount > 0 ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       country: account.country,
       city: account.city,
       iban: account.iban,
