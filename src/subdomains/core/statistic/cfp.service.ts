@@ -27,7 +27,7 @@ enum VotingType {
   DFIP = 'dfip',
 }
 
-export interface Vote {
+interface Vote {
   address: string;
   cfpId: string;
   vote: string;
