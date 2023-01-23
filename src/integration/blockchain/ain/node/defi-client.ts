@@ -77,7 +77,12 @@ export class DeFiClient extends NodeClient {
         ],
         'number',
       ),
-    ).then((r: string) => this.parseAmount(r).amount);
+    )
+      .then((r: string) => this.parseAmount(r).amount)
+      .catch((e) => {
+        console.error(`Test swap from ${amount} ${tokenFrom} to ${tokenTo} failed`);
+        throw e;
+      });
   }
 
   async compositeSwap(
