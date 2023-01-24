@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { FiatDtoMapper } from './dto/fiat-dto.mapper';
 import { FiatController } from './fiat.controller';
 import { Fiat } from './fiat.entity';
 import { FiatService } from './fiat.service';

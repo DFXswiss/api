@@ -8,6 +8,7 @@ import { CfpService } from 'src/subdomains/core/statistic/cfp.service';
 import { StatisticService } from './statistic.service';
 import { BuyCryptoService } from '../buy-crypto/process/services/buy-crypto.service';
 import { CfpResult } from './dto/cfp.dto';
+import { SettingStatus, StatisticDto, TransactionStatisticDto } from './dto/statistic.dto';
 
 @ApiTags('Statistic')
 @Controller('statistic')
@@ -23,20 +24,23 @@ export class StatisticController {
   ) {}
 
   @Get()
-  @ApiOkResponse()
-  async getAll(): Promise<any> {
+  @ApiOkResponse({ type: StatisticDto })
+  async getAll(): Promise<StatisticDto> {
     return this.statisticService.getAll();
   }
 
   @Get('status')
-  @ApiOkResponse()
-  async getStatus(): Promise<any> {
+  @ApiOkResponse({ type: SettingStatus })
+  async getStatus(): Promise<SettingStatus> {
     return this.statisticService.getStatus();
   }
 
   @Get('transactions')
-  @ApiOkResponse()
-  async getTransactions(@Query('dateFrom') dateFrom: Date, @Query('dateTo') dateTo: Date): Promise<any> {
+  @ApiOkResponse({ type: TransactionStatisticDto })
+  async getTransactions(
+    @Query('dateFrom') dateFrom: Date,
+    @Query('dateTo') dateTo: Date,
+  ): Promise<TransactionStatisticDto> {
     return {
       buy: await this.buyCryptoService.getTransactions(dateFrom, dateTo),
       sell: await this.buyFiatService.getTransactions(dateFrom, dateTo),

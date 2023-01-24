@@ -4,6 +4,7 @@ import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
 import { Sell } from '../../../../subdomains/core/sell-crypto/sell/sell.entity';
 import { PayoutType } from '../../staking-reward/staking-reward.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 
 export class StakingDto {
   @ApiProperty()
@@ -15,22 +16,22 @@ export class StakingDto {
   @ApiProperty({ type: Deposit })
   deposit: Deposit;
 
-  @ApiProperty({ enum: PayoutType, enumName: 'PayoutType' })
+  @ApiProperty({ enum: PayoutType })
   rewardType: PayoutType;
 
   @ApiPropertyOptional({ type: Sell })
   rewardSell?: Sell;
 
-  @ApiPropertyOptional({ type: Asset })
+  @ApiPropertyOptional({ type: AssetDto })
   rewardAsset?: Asset;
 
-  @ApiProperty({ enum: PayoutType, enumName: 'PayoutType' })
+  @ApiProperty({ enum: PayoutType })
   paybackType: PayoutType;
 
   @ApiPropertyOptional({ type: Sell })
   paybackSell?: Sell;
 
-  @ApiPropertyOptional({ type: Asset })
+  @ApiPropertyOptional({ type: AssetDto })
   paybackAsset?: Asset;
 
   @ApiProperty()

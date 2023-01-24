@@ -13,7 +13,7 @@ export class CryptoRouteDto {
   @ApiProperty()
   active: boolean;
 
-  @ApiProperty({ enum: BuyType, enumName: 'BuyType' })
+  @ApiProperty({ enum: BuyType })
   type: BuyType;
 
   @ApiProperty({ type: AssetDto })
@@ -34,7 +34,7 @@ export class CryptoRouteDto {
   @ApiProperty({ type: StakingDto })
   staking: StakingDto;
 
-  @ApiProperty({ enum: Blockchain, enumName: 'Blockchain' })
+  @ApiProperty({ enum: Blockchain })
   blockchain: Blockchain;
 
   @ApiProperty({ type: MinDeposit, isArray: true })

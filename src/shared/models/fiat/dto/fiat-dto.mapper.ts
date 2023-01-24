@@ -14,6 +14,6 @@ export class FiatDtoMapper {
   }
 
   static entitiesToDto(fiatList: Fiat[]): FiatDto[] {
-    return fiatList.map(this.entityToDto);
+    return fiatList.map(FiatDtoMapper.entityToDto);
   }
 }

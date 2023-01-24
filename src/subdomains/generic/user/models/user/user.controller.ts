@@ -85,7 +85,7 @@ export class UserController {
   @Put('apiFilter/CT')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse({ type: HistoryFilter, isArray: true })
+  @ApiOkResponse({ type: String, isArray: true })
   async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> {
     return this.userService.updateApiFilter(jwt.id, filter);
   }

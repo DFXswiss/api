@@ -18,16 +18,16 @@ export class AssetDto {
   @ApiProperty()
   description: string;
 
-  @ApiProperty({ enum: AssetType, enumName: 'AssetType' })
+  @ApiProperty({ enum: AssetType })
   type: AssetType;
 
-  @ApiProperty({ enum: AssetCategory, enumName: 'AssetCategory' })
+  @ApiProperty({ enum: AssetCategory })
   category: AssetCategory;
 
   @ApiProperty()
   dexName: string;
 
-  @ApiProperty({ enum: FeeTier, enumName: 'FeeTier' })
+  @ApiProperty({ enum: FeeTier })
   feeTier: FeeTier;
 
   @ApiProperty()
@@ -39,6 +39,6 @@ export class AssetDto {
   @ApiProperty()
   sellable: boolean;
 
-  @ApiProperty({ enum: Blockchain, enumName: 'Blockchain' })
+  @ApiProperty({ enum: Blockchain })
   blockchain: Blockchain;
 }

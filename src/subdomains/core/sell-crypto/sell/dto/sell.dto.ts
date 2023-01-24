@@ -29,7 +29,7 @@ export class SellDto {
   @ApiProperty()
   isInUse: boolean;
 
-  @ApiProperty({ enum: Blockchain, enumName: 'Blockchain' })
+  @ApiProperty({ enum: Blockchain })
   blockchain: Blockchain;
 
   @ApiProperty({ type: MinDeposit, isArray: true })

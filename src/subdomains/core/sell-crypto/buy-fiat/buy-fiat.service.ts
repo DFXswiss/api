@@ -18,6 +18,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -233,10 +234,7 @@ export class BuyFiatService {
 
   // Statistics
 
-  async getTransactions(
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+  async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyFiats = await this.buyFiatRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
       relations: ['cryptoInput'],

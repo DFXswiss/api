@@ -127,7 +127,7 @@ export class CfpResult {
   @ApiProperty()
   title: string;
 
-  @ApiProperty({ enum: VotingType, enumName: 'VotingType' })
+  @ApiProperty({ enum: VotingType })
   type: VotingType;
 
   @ApiProperty()
@@ -136,7 +136,7 @@ export class CfpResult {
   @ApiProperty()
   htmlUrl: string;
 
-  @ApiProperty({ enum: ResultStatus, enumName: 'ResultStatus' })
+  @ApiProperty({ enum: ResultStatus })
   currentResult: ResultStatus;
 
   @ApiProperty({ type: TotalVotesDto })

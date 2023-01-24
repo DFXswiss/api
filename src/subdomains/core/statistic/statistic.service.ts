@@ -9,6 +9,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BuyService } from '../buy-crypto/route/buy.service';
+import { SettingStatus, StatisticDto } from './dto/statistic.dto';
 
 @Injectable()
 export class StatisticService implements OnModuleInit {
@@ -51,14 +52,14 @@ export class StatisticService implements OnModuleInit {
     }
   }
 
-  async getStatus(): Promise<any> {
+  async getStatus(): Promise<SettingStatus> {
     const settings = await this.settingService.getAll();
     return settings
       .filter((s) => s.key.endsWith('Status'))
       .reduce((prev, curr) => ({ ...prev, [curr.key.replace('Status', '')]: curr.value }), {});
   }
 
-  async getAll(): Promise<any> {
+  getAll(): StatisticDto {
     return this.statistic;
   }
 }

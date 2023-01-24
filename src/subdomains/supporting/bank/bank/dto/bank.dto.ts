@@ -5,7 +5,7 @@ export class BankDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty({ enum: BankName, enumName: 'BankName' })
+  @ApiProperty({ enum: BankName })
   name: BankName;
 
   @ApiProperty()
