@@ -20,8 +20,6 @@ export class PayInBitcoinService extends PayInJellyfishService {
   }
 
   async getUTXO(): Promise<UTXO[]> {
-    await this.client.checkSync();
-
     return this.client.getUtxo();
   }
 

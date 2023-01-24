@@ -5,7 +5,6 @@ import { StakingReward } from '../entities/staking-reward.entity';
 import { StakingRewardRepository } from '../repositories/staking-reward.repository';
 
 import { Util } from 'src/shared/utils/util';
-import { CryptoStakingService } from './crypto-staking.service';
 import { Config } from 'src/config/config';
 import { StakingRepository } from '../repositories/staking.repository';
 import { StakingService } from './staking.service';
@@ -16,7 +15,6 @@ export class StakingRewardService {
     private readonly stakingRewardRepo: StakingRewardRepository,
     private readonly stakingRepo: StakingRepository,
     private readonly stakingService: StakingService,
-    private readonly cryptoStakingService: CryptoStakingService,
   ) {}
 
   async updateVolumes(): Promise<void> {

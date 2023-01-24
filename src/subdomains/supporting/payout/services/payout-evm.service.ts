@@ -12,7 +12,7 @@ export abstract class PayoutEvmService {
   }
 
   async sendNativeCoin(address: string, amount: number): Promise<string> {
-    return this.#client.sendNativeCoinFromDexAndWait(address, amount);
+    return this.#client.sendNativeCoinFromDex(address, amount);
   }
 
   async sendToken(address: string, tokenName: Asset, amount: number): Promise<string> {

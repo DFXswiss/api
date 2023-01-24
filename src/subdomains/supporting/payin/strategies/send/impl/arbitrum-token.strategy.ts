@@ -32,12 +32,6 @@ export class ArbitrumTokenStrategy extends EvmStrategy {
     );
   }
 
-  protected topUpCoinAndWait(payInGroup: SendGroup, amount: number): Promise<string> {
-    const { sourceAddress } = payInGroup;
-
-    return this.arbitrumService.sendNativeCoinFromDexAndWait(sourceAddress, amount);
-  }
-
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.arbitrum.arbitrumWalletAddress, Blockchain.ARBITRUM);
   }

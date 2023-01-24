@@ -37,7 +37,7 @@ export class BuyCryptoInitSpecification {
     return true;
   }
 
-  private static throw(cryptoInput: CryptoInput) {
+  private static throw(cryptoInput: CryptoInput): never {
     const { asset, amount } = cryptoInput;
 
     throw new SmallAmountException(

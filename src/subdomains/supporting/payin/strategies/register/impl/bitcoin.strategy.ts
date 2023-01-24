@@ -125,6 +125,8 @@ export class BitcoinStrategy extends JellyfishStrategy {
   }
 
   private async getNewEntries(): Promise<PayInEntry[]> {
+    await this.bitcoinService.checkHealthOrThrow();
+
     const allUtxos = await this.bitcoinService.getUTXO();
     const newUtxos = await this.filterOutExistingUtxos(allUtxos);
 
@@ -135,17 +137,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
     const inputs = [];
 
     for (const utxo of allUtxos) {
-      const assetEntity = await this.assetService.getBtcCoin();
-
-      if (!assetEntity) {
-        console.error(`Failed to process Bitcoin input. No asset BTC found. UTXO:`, utxo);
-        continue;
-      }
-
       const existingInput = await this.payInRepository.findOne({
         inTxId: utxo.txid,
         txSequence: utxo.vout,
-        asset: assetEntity,
+        address: { address: utxo.address },
       });
 
       if (existingInput) continue;

@@ -1,7 +1,7 @@
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { FeeRequest, FeeResult } from 'src/subdomains/supporting/payout/interfaces';
@@ -26,17 +26,32 @@ export abstract class EvmStrategy extends SendStrategy {
   protected abstract dispatchSend(payInGroup: SendGroup): Promise<string>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    const groups = this.groupPayInsByAddressAndAsset(payIns, type);
+    const groups = this.groupPayIns(payIns, type);
 
     for (const payInGroup of [...groups.values()]) {
       try {
+        if (payInGroup.status === PayInStatus.PREPARING) {
+          const isReady = await this.checkPreparation(payInGroup);
+
+          if (!isReady) continue;
+        }
+
         const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
         const totalGroupAmount = this.getTotalGroupAmount(payInGroup);
 
         CryptoInput.verifyEstimatedFee(targetFee, totalGroupAmount);
 
-        await this.topUpCoinAndWait(payInGroup, Util.round(nativeFee * 1.2, 12));
-        await this.dispatch(payInGroup, type);
+        if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
+          await this.prepare(payInGroup, nativeFee);
+
+          continue;
+        }
+
+        if (payInGroup.status === PayInStatus.PREPARED) {
+          await this.dispatch(payInGroup, type);
+
+          continue;
+        }
       } catch (e) {
         console.error(
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}`,
@@ -48,13 +63,37 @@ export abstract class EvmStrategy extends SendStrategy {
 
   //*** HELPER METHODS ***//
 
-  private groupPayInsByAddressAndAsset(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
+  private async prepare(payInGroup: SendGroup, nativeFee: number): Promise<void> {
+    const prepareTxId = await this.topUpCoin(payInGroup, Util.round(nativeFee * 1.2, 12));
+
+    for (const payIn of payInGroup.payIns) {
+      payIn.preparing(prepareTxId);
+      await this.payInRepo.save(payIn);
+    }
+  }
+
+  private async checkPreparation(payInGroup: SendGroup): Promise<boolean> {
+    const result = [];
+    /**
+     * @note
+     * should be only one transaction for group, but with very low probability can be more
+     */
+    const prepareTxIds = [...new Set(payInGroup.payIns.map((p) => p.prepareTxId))];
+
+    for (const txId of prepareTxIds) {
+      result.push(await this.payInEvmService.checkTransactionCompletion(txId));
+    }
+
+    return result.every((tsStatus) => !!tsStatus);
+  }
+
+  private groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
     const groups = new Map<SendGroupKey, SendGroup>();
 
     for (const payIn of payIns) {
       this.designateSend(payIn, type);
 
-      const { address, destinationAddress, asset } = payIn;
+      const { address, destinationAddress, asset, status } = payIn;
 
       const group = groups.get(this.getPayInGroupKey(payIn));
 
@@ -63,7 +102,8 @@ export abstract class EvmStrategy extends SendStrategy {
           sourceAddress: address.address,
           privateKey: Util.decrypt(payIn.route.deposit.key, Config.blockchain.evm.encryptionKey),
           destinationAddress: destinationAddress.address,
-          asset: asset,
+          asset,
+          status,
           payIns: [payIn],
         });
 
@@ -77,7 +117,7 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private getPayInGroupKey(payIn: CryptoInput): SendGroupKey {
-    return `${payIn.address.address}&${payIn.destinationAddress.address}&&${payIn.asset.dexName}&${payIn.asset.type}`;
+    return `${payIn.address.address}&${payIn.destinationAddress.address}&&${payIn.asset.dexName}&${payIn.asset.type}&${payIn.status}`;
   }
 
   private async getEstimatedFee(payInGroup: SendGroup): Promise<{ nativeFee: number; targetFee: number }> {
@@ -155,10 +195,10 @@ export abstract class EvmStrategy extends SendStrategy {
     return Util.sumObj<CryptoInput>(payInGroup.payIns, 'amount');
   }
 
-  protected topUpCoinAndWait(payInGroup: SendGroup, amount: number): Promise<string> {
+  protected topUpCoin(payInGroup: SendGroup, amount: number): Promise<string> {
     const { sourceAddress } = payInGroup;
 
-    return this.payInEvmService.sendNativeCoinFromDexAndWait(sourceAddress, amount);
+    return this.payInEvmService.sendNativeCoinFromDex(sourceAddress, amount);
   }
 
   private async dispatch(payInGroup: SendGroup, type: SendType): Promise<void> {

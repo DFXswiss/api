@@ -36,12 +36,12 @@ export class BuyCryptoRegistrationService {
   private pairRoutesWithPayIns(routes: CryptoRoute[], allPayIns: CryptoInput[]): [CryptoInput, CryptoRoute][] {
     const result = [];
 
-    for (const route of routes) {
-      const relevantPayIn = allPayIns.find(
-        (p) => p.address.address === route.deposit.address && p.address.blockchain === route.deposit.blockchain,
+    for (const payIn of allPayIns) {
+      const relevantRoute = routes.find(
+        (r) => payIn.address.address === r.deposit.address && payIn.address.blockchain === r.deposit.blockchain,
       );
 
-      relevantPayIn && result.push([relevantPayIn, route]);
+      relevantRoute && result.push([payIn, relevantRoute]);
     }
 
     return result;

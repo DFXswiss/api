@@ -83,11 +83,13 @@ export class StakingRefRewardService {
   }
 
   // --- Tasks --- //
+  /*
   @Interval(900000)
   async doTasks(): Promise<void> {
     await this.sendRewards();
     await this.sendMails();
   }
+  */
 
   private async sendRewards(): Promise<void> {
     try {

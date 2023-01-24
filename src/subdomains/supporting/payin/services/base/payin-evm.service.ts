@@ -20,8 +20,8 @@ export abstract class PayInEvmService {
     return this.#client.sendNativeCoinFromAddress(addressFrom, withPrivateKey, addressTo, amount);
   }
 
-  async sendNativeCoinFromDexAndWait(addressTo: string, amount: number): Promise<string> {
-    return this.#client.sendNativeCoinFromDexAndWait(addressTo, amount);
+  async sendNativeCoinFromDex(addressTo: string, amount: number): Promise<string> {
+    return this.#client.sendNativeCoinFromDex(addressTo, amount);
   }
 
   async sendToken(
@@ -32,6 +32,10 @@ export abstract class PayInEvmService {
     amount: number,
   ): Promise<string> {
     return this.#client.sendTokenFromAddress(addressFrom, withPrivateKey, addressTo, tokenName, amount);
+  }
+
+  async checkTransactionCompletion(txHash: string): Promise<boolean> {
+    return this.#client.isTxComplete(txHash);
   }
 
   async getHistory(address: string, fromBlock: number): Promise<[EvmCoinHistoryEntry[], EvmTokenHistoryEntry[]]> {

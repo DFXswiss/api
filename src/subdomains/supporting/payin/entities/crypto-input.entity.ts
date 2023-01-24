@@ -21,6 +21,7 @@ export enum PayInStatus {
   RETURNED = 'Returned',
   ACKNOWLEDGED = 'Acknowledged',
   PREPARING = 'Preparing',
+  PREPARED = 'Prepared',
   FORWARDING = 'Forwarding',
   FORWARDED = 'Forwarded',
   WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
@@ -73,6 +74,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, default: AmlCheck.FAIL })
   amlCheck: AmlCheck;
 
+  // TODO -> rename from type.
   @Column({ nullable: true })
   purpose: PayInPurpose;
 
@@ -84,8 +86,6 @@ export class CryptoInput extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   usdtAmount?: number;
-
-  // TODO -> maybe add Ignored status and comment
 
   //*** FACTORY METHODS ***//
 
@@ -177,6 +177,7 @@ export class CryptoInput extends IEntity {
     this.outTxId = outTxId;
     this.forwardFeeAmount = forwardFeeAmount;
     this.status = PayInStatus.FORWARDED;
+    this.isConfirmed = true;
 
     return this;
   }

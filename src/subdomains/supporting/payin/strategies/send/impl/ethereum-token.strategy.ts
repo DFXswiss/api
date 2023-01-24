@@ -32,12 +32,6 @@ export class EthereumTokenStrategy extends EvmStrategy {
     );
   }
 
-  protected topUpCoinAndWait(payInGroup: SendGroup, amount: number): Promise<string> {
-    const { sourceAddress } = payInGroup;
-
-    return this.ethereumService.sendNativeCoinFromDexAndWait(sourceAddress, amount);
-  }
-
   protected getForwardAddress(): BlockchainAddress {
     return BlockchainAddress.create(Config.blockchain.ethereum.ethWalletAddress, Blockchain.ETHEREUM);
   }

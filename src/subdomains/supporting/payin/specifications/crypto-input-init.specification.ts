@@ -17,12 +17,6 @@ export class CryptoInputInitSpecification {
             throw new Error(`Ignoring too small DeFiChain input (${amount} ${asset}). Pay-in: ${input}`);
           }
         }
-
-        case Blockchain.BITCOIN: {
-          if (amount < Config.blockchain.default.minDeposit.Bitcoin.BTC) {
-            throw new Error(`Ignoring too small Bitcoin input (${amount} ${asset}). Pay-in: ${input}`);
-          }
-        }
       }
     }
 

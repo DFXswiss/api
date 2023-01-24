@@ -96,8 +96,8 @@ export abstract class EvmClient {
     return this.sendNativeCoin(wallet, fromAddress, toAddress, amount);
   }
 
-  async sendNativeCoinFromDexAndWait(toAddress: string, amount: number): Promise<string> {
-    return this.sendNativeCoinAndWait(this.#wallet, this.#dfxAddress, toAddress, amount);
+  async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
+    return this.sendNativeCoin(this.#wallet, this.#dfxAddress, toAddress, amount);
   }
 
   async sendTokenFromAddress(
@@ -193,28 +193,6 @@ export abstract class EvmClient {
       // has to be provided as a number for BSC
       gasLimit: this.#sendCoinGasLimit,
     });
-
-    return tx.hash;
-  }
-
-  private async sendNativeCoinAndWait(
-    wallet: ethers.Wallet,
-    fromAddress: string,
-    toAddress: string,
-    amount: number,
-  ): Promise<string> {
-    const gasPrice = await this.getGasPrice();
-
-    const tx = await wallet.sendTransaction({
-      from: fromAddress,
-      to: toAddress,
-      value: this.convertToWeiLikeDenomination(amount, 'ether'),
-      gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
-    });
-
-    await tx.wait();
 
     return tx.hash;
   }

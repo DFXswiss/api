@@ -57,6 +57,7 @@ export class PayInService {
 
   async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | CryptoRoute): Promise<void> {
     const payIn = await this.payInRepository.findOne(payInId);
+
     const amlCheck = await this.doAmlCheck(payIn, route);
 
     payIn.acknowledge(purpose, route, amlCheck);
@@ -160,7 +161,7 @@ export class PayInService {
 
   //*** HELPER METHODS ***//
 
-  private async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
+  async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
     try {
       const strategy = this.registerStrategies.getRegisterStrategy(payIn.asset);
       return strategy.doAmlCheck(payIn, route);
@@ -172,7 +173,7 @@ export class PayInService {
   private async forwardPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
       where: {
-        status: PayInStatus.ACKNOWLEDGED,
+        status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
         outTxId: IsNull(),
         amlCheck: AmlCheck.PASS,
       },
@@ -193,7 +194,7 @@ export class PayInService {
 
   private async returnPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
-      where: { status: PayInStatus.TO_RETURN, returnTxId: IsNull() },
+      where: { status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]), returnTxId: IsNull() },
       relations: ['route'],
     });
 
