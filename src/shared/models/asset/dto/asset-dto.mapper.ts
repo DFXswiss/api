@@ -23,10 +23,6 @@ export class AssetDtoMapper {
   }
 
   static entitiesToDto(assets: Asset[]): AssetDto[] {
-    const dto: AssetDto[] = [];
-    for (const asset of assets) {
-      dto.push(this.entityToDto(asset));
-    }
-    return dto;
+    return assets.map(this.entityToDto);
   }
 }

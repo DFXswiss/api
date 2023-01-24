@@ -17,6 +17,6 @@ export class FiatController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: FiatDto, isArray: true })
   async getAllFiat(): Promise<FiatDto[]> {
-    return FiatDtoMapper.entitiesToDto(await this.fiatService.getAllFiat());
+    return this.fiatService.getAllFiat().then(FiatDtoMapper.entitiesToDto);
   }
 }

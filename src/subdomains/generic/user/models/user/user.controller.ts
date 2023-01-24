@@ -94,7 +94,7 @@ export class UserController {
   @Get('cfpVotes')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse()
+  @ApiExcludeEndpoint()
   async getCfpVotes(@GetJwt() jwt: JwtPayload): Promise<CfpVotes> {
     return this.userService.getCfpVotes(jwt.id);
   }
@@ -102,7 +102,7 @@ export class UserController {
   @Put('cfpVotes')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiOkResponse()
+  @ApiExcludeEndpoint()
   async updateCfpVotes(@GetJwt() jwt: JwtPayload, @Body() votes: CfpVotes): Promise<CfpVotes> {
     return this.userService.updateCfpVotes(jwt.id, votes);
   }

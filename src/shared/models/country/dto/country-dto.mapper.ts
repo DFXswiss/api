@@ -14,10 +14,6 @@ export class CountryDtoMapper {
   }
 
   static entitiesToDto(countries: Country[]): CountryDto[] {
-    const dto: CountryDto[] = [];
-    for (const country of countries) {
-      dto.push(this.entityToDto(country));
-    }
-    return dto;
+    return countries.map(this.entityToDto);
   }
 }

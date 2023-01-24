@@ -15,10 +15,6 @@ export class LanguageDtoMapper {
   }
 
   static entitiesToDto(languages: Language[]): LanguageDto[] {
-    const dto: LanguageDto[] = [];
-    for (const language of languages) {
-      dto.push(this.entityToDto(language));
-    }
-    return dto;
+    return languages.map(this.entityToDto);
   }
 }

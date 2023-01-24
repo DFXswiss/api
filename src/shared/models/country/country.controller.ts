@@ -12,6 +12,6 @@ export class CountryController {
   @Get()
   @ApiOkResponse({ type: CountryDto, isArray: true })
   async getAllCountry(): Promise<CountryDto[]> {
-    return CountryDtoMapper.entitiesToDto(await this.countryService.getAllCountry());
+    return this.countryService.getAllCountry().then(CountryDtoMapper.entitiesToDto);
   }
 }

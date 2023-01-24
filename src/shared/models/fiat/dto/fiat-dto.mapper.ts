@@ -14,10 +14,6 @@ export class FiatDtoMapper {
   }
 
   static entitiesToDto(fiatList: Fiat[]): FiatDto[] {
-    const dto: FiatDto[] = [];
-    for (const fiat of fiatList) {
-      dto.push(this.entityToDto(fiat));
-    }
-    return dto;
+    return fiatList.map(this.entityToDto);
   }
 }

@@ -17,6 +17,6 @@ export class BankController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiOkResponse({ type: BankDto, isArray: true })
   async getAllBanks(): Promise<BankDto[]> {
-    return BankDtoMapper.entitiesToDto(await this.bankService.getAllBanks());
+    return this.bankService.getAllBanks().then(BankDtoMapper.entitiesToDto);
   }
 }

@@ -19,8 +19,6 @@ export class AssetController {
   @ApiOkResponse({ type: AssetDto, isArray: true })
   async getAllAsset(@GetJwt() jwt?: JwtPayload, @Query('blockchains') blockchains?: string): Promise<AssetDto[]> {
     const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
-    return AssetDtoMapper.entitiesToDto(
-      await this.assetService.getAllAsset(queryBlockchains ?? jwt?.blockchains ?? []),
-    );
+    return this.assetService.getAllAsset(queryBlockchains ?? jwt?.blockchains ?? []).then(AssetDtoMapper.entitiesToDto);
   }
 }

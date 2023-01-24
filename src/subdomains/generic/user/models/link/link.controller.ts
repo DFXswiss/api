@@ -13,12 +13,12 @@ export class LinkController {
   @Get(':authentication')
   @ApiOkResponse({ type: LinkAddressDto })
   async getLinkAddress(@Param('authentication') authentication: string): Promise<LinkAddressDto> {
-    return LinkAddressDtoMapper.entityToDto(await this.linkService.getLinkAddress(authentication));
+    return this.linkService.getLinkAddress(authentication).then(LinkAddressDtoMapper.entityToDto);
   }
 
   @Post(':authentication')
   @ApiCreatedResponse({ type: LinkAddressDto })
   async executeLinkAddress(@Param('authentication') authentication: string): Promise<LinkAddressDto> {
-    return LinkAddressDtoMapper.entityToDto(await this.linkService.executeLinkAddress(authentication));
+    return this.linkService.executeLinkAddress(authentication).then(LinkAddressDtoMapper.entityToDto);
   }
 }

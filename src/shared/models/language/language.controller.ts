@@ -12,6 +12,6 @@ export class LanguageController {
   @Get()
   @ApiOkResponse({ type: LanguageDto, isArray: true })
   async getAllLanguage(): Promise<LanguageDto[]> {
-    return LanguageDtoMapper.entitiesToDto(await this.languageService.getAllLanguage());
+    return this.languageService.getAllLanguage().then(LanguageDtoMapper.entitiesToDto);
   }
 }
