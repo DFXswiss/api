@@ -1,10 +1,10 @@
 import { Column, ManyToOne, ChildEntity, OneToMany } from 'typeorm';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.entity';
 import { BankAccount } from '../../../supporting/bank/bank-account/bank-account.entity';
 import { BuyFiat } from '../process/buy-fiat.entity';
-import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 
 @ChildEntity()
 export class Sell extends DepositRoute {

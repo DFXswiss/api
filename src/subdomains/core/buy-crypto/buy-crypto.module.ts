@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { MixModule } from 'src/mix/mix.module';
+import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
@@ -20,13 +20,17 @@ import { BuyCryptoOutService } from './process/services/buy-crypto-out.service';
 import { BuyCryptoPricingService } from './process/services/buy-crypto-pricing.service';
 import { BuyCryptoRegistrationService } from './process/services/buy-crypto-registration.service';
 import { BuyCryptoService } from './process/services/buy-crypto.service';
-import { BuyController } from './route/buy.controller';
-import { BuyRepository } from './route/buy.repository';
-import { BuyService } from './route/buy.service';
+import { CryptoRouteController } from './routes/crypto-route/crypto-route.controller';
+import { BuyRepository } from './routes/buy/buy.repository';
+import { BuyController } from './routes/buy/buy.controller';
+import { CryptoRouteService } from './routes/crypto-route/crypto-route.service';
+import { BuyService } from './routes/buy/buy.service';
+import { StakingModule } from '../staking/staking.module';
+import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BuyCryptoRepository, BuyCryptoBatchRepository, BuyRepository]),
+    TypeOrmModule.forFeature([BuyCryptoRepository, BuyCryptoBatchRepository, BuyRepository, CryptoRouteRepository]),
     SharedModule,
     DexModule,
     PricingModule,
@@ -35,11 +39,13 @@ import { BuyService } from './route/buy.service';
     NotificationModule,
     UserModule,
     BankModule,
-    forwardRef(() => MixModule),
     forwardRef(() => SellCryptoModule),
+    forwardRef(() => StakingModule),
+    forwardRef(() => AddressPoolModule),
   ],
-  controllers: [BuyCryptoController, BuyController],
+  controllers: [BuyCryptoController, BuyController, CryptoRouteController],
   providers: [
+    CryptoRouteController,
     BuyController,
     BuyCryptoService,
     BuyCryptoBatchService,
@@ -49,7 +55,8 @@ import { BuyService } from './route/buy.service';
     BuyCryptoNotificationService,
     BuyCryptoOutService,
     BuyService,
+    CryptoRouteService,
   ],
-  exports: [BuyController, BuyCryptoService, BuyService],
+  exports: [BuyController, CryptoRouteController, BuyCryptoService, BuyService],
 })
 export class BuyCryptoModule {}

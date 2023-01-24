@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Lock } from 'src/shared/utils/lock';
 import { Config, Process } from 'src/config/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -20,6 +20,7 @@ export class EthereumStrategy extends EvmStrategy {
 
   constructor(
     dexService: DexService,
+    @Inject(forwardRef(() => PayInService))
     payInService: PayInService,
     ethereumService: PayInEthereumService,
     payInFactory: PayInFactory,

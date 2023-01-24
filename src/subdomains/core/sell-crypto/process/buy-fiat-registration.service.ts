@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RouteType } from 'src/mix/models/route/deposit-route.entity';
+import { RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';

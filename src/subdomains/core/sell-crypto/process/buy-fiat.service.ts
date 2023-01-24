@@ -1,7 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { BuyFiat } from './buy-fiat.entity';
 import { BuyFiatRepository } from './buy-fiat.repository';
-import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.entity';
 import { Sell } from '../route/sell.entity';
 import { Between, In, IsNull } from 'typeorm';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
@@ -29,6 +28,7 @@ export class BuyFiatService {
     private readonly userService: UserService,
     private readonly sellRepo: SellRepository,
     private readonly sellService: SellService,
+    @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly settingService: SettingService,

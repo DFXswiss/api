@@ -1,6 +1,6 @@
-import { Deposit } from 'src/mix/models/deposit/deposit.entity';
-import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
-import { StakingReward } from 'src/mix/models/staking-reward/staking-reward.entity';
+import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { StakingReward } from 'src/subdomains/core/staking/entities/staking-reward.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { ManyToOne, ChildEntity, Column, OneToMany } from 'typeorm';

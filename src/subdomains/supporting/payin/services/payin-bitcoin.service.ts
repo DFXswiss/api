@@ -1,6 +1,5 @@
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { BtcClient } from 'src/integration/blockchain/ain/node/btc-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { BtcFeeService } from 'src/integration/blockchain/ain/services/btc-fee.service';
@@ -12,8 +11,8 @@ export class PayInBitcoinService extends PayInJellyfishService {
   private client: BtcClient;
 
   constructor(private readonly feeService: BtcFeeService, nodeService: NodeService) {
-    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.client = client));
     super();
+    nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((client) => (this.client = client));
   }
 
   async checkHealthOrThrow(): Promise<void> {

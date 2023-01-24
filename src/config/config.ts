@@ -6,7 +6,7 @@ import * as path from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { Asset, FeeTier } from 'src/shared/models/asset/asset.entity';
-import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
+import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 
 export enum Process {

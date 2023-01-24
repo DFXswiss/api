@@ -1,31 +1,21 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { In, Raw } from 'typeorm';
-import { Deposit } from '../deposit/deposit.entity';
-import { DepositService } from '../deposit/deposit.service';
-import { Sell } from '../../../subdomains/core/sell-crypto/route/sell.entity';
-import { KycCompleted } from '../../../subdomains/generic/user/models/user-data/user-data.entity';
-import { CreateStakingDto } from './dto/create-staking.dto';
-import { PayoutType } from '../staking-reward/staking-reward.entity';
-import { StakingDto } from './dto/staking.dto';
-import { UpdateStakingDto } from './dto/update-staking.dto';
-import { Staking } from './staking.entity';
-import { StakingRepository } from './staking.repository';
-import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { AssetService } from 'src/shared/models/asset/asset.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { In } from 'typeorm';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { CryptoStakingRepository } from '../crypto-staking/crypto-staking.repository';
-import { UserStatus } from 'src/subdomains/generic/user/models/user/user.entity';
-import { StakingRefRewardService } from '../staking-ref-reward/staking-ref-reward.service';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { BuyService } from 'src/subdomains/core/buy-crypto/route/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { StakingReturnService } from './staking-return.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Lock } from 'src/shared/utils/lock';
+import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
+import { Sell } from '../../sell-crypto/route/sell.entity';
+import { StakingDto } from '../dto/staking.dto';
+import { PayoutType } from '../entities/staking-reward.entity';
+import { Staking } from '../entities/staking.entity';
+import { CryptoStakingRepository } from '../repositories/crypto-staking.repository';
+import { StakingRepository } from '../repositories/staking.repository';
+import { StakingRefRewardService } from './staking-ref-reward.service';
 
 @Injectable()
 export class StakingService {
@@ -33,13 +23,10 @@ export class StakingService {
 
   constructor(
     private readonly stakingRepo: StakingRepository,
-    private readonly depositService: DepositService,
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     private readonly stakingReturnService: StakingReturnService,
-    private readonly userDataService: UserDataService,
     private readonly cryptoStakingRepo: CryptoStakingRepository,
-    private readonly assetService: AssetService,
     private readonly buyService: BuyService,
     private readonly userService: UserService,
     private readonly stakingRefRewardService: StakingRefRewardService,
@@ -94,105 +81,12 @@ export class StakingService {
     return await this.stakingRepo.find({ where: { deposit: { address: In(addresses) } }, relations: ['deposit'] });
   }
 
-  async createStaking(userId: number, dto: CreateStakingDto): Promise<Staking> {
-    // KYC check
-    const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
-    if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
-
-    const { status } = await this.userService.getUser(userId);
-    if (status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
-
-    // max. 10 routes
-    const routeCount = await this.stakingRepo.count({ user: { id: userId } });
-    if (routeCount >= 10) throw new BadRequestException('Max. 10 staking routes allowed');
-
-    const staking = await this.createEntity(userId, dto);
-
-    // check if exists
-    const existingInactive = await this.stakingRepo.findOne({
-      where: {
-        rewardDeposit: {
-          id: dto.rewardType === PayoutType.REINVEST ? Raw('depositId') : staking.rewardDeposit?.id ?? null,
-        },
-        paybackDeposit: {
-          id: dto.paybackType === PayoutType.REINVEST ? Raw('depositId') : staking.paybackDeposit?.id ?? null,
-        },
-        rewardAsset: { id: dto.rewardType === PayoutType.WALLET ? staking.rewardAsset.id : null },
-        paybackAsset: { id: dto.paybackType === PayoutType.WALLET ? staking.paybackAsset.id : null },
-        user: { id: userId },
-        active: false,
-      },
-      relations: ['rewardDeposit', 'paybackDeposit', 'rewardAsset', 'paybackAsset'],
-    });
-
-    if (existingInactive) {
-      existingInactive.active = true;
-      return this.stakingRepo.save(existingInactive);
-    }
-
-    return this.stakingRepo.save(staking);
-  }
-
-  async updateStaking(userId: number, stakingId: number, dto: UpdateStakingDto): Promise<Staking> {
-    const staking = await this.stakingRepo.findOne({ id: stakingId, user: { id: userId } });
-    if (!staking) throw new NotFoundException('Staking route not found');
-
-    const update = await this.createEntity(userId, dto, staking);
-    return await this.stakingRepo.save(update);
-  }
-
-  private async createEntity(
-    userId: number,
-    dto: CreateStakingDto | UpdateStakingDto,
-    staking?: Staking,
-  ): Promise<Staking> {
-    staking ??= this.stakingRepo.create({
-      user: { id: userId },
-      deposit: await this.depositService.getNextDeposit(Blockchain.DEFICHAIN),
-    });
-
-    staking.rewardDeposit =
-      dto.rewardType === PayoutType.REINVEST
-        ? staking.deposit
-        : dto.rewardType === PayoutType.BANK_ACCOUNT
-        ? ({ id: await this.getDepositId(userId, dto.rewardSell?.id) } as Deposit)
-        : null;
-    staking.paybackDeposit =
-      dto.paybackType === PayoutType.REINVEST
-        ? staking.deposit
-        : dto.paybackType === PayoutType.BANK_ACCOUNT
-        ? ({ id: await this.getDepositId(userId, dto.paybackSell?.id) } as Deposit)
-        : null;
-
-    staking.rewardAsset = dto.rewardType === PayoutType.WALLET ? await this.getAsset(dto.rewardAsset?.id) : null;
-    staking.paybackAsset = dto.paybackType === PayoutType.WALLET ? await this.getAsset(dto.paybackAsset?.id) : null;
-
-    if ('active' in dto && dto.active != null) staking.active = dto.active;
-
-    return staking;
-  }
-
   async getAllIds(): Promise<number[]> {
     return this.stakingRepo.find({ select: ['id'] }).then((results) => results.map((r) => r.id));
   }
 
   async updateRewardVolume(stakingId: number, volume: number): Promise<void> {
     await this.stakingRepo.update(stakingId, { rewardVolume: Util.round(volume, Config.defaultVolumeDecimal) });
-  }
-
-  // --- HELPER METHODS --- //
-  private async getDepositId(userId: number, sellId?: number): Promise<number> {
-    const sell = await this.sellService
-      .getSellRepo()
-      .findOne({ where: { id: sellId, user: { id: userId } }, relations: ['deposit'] });
-    if (!sell) throw new BadRequestException('Missing sell route');
-
-    return sell.deposit.id;
-  }
-
-  private async getAsset(assetId?: number): Promise<Asset | null> {
-    const asset: Asset = await this.assetService.getAssetById(assetId);
-    return asset && asset.buyable ? asset : await this.assetService.getDfiCoin();
   }
 
   // --- BALANCE --- //

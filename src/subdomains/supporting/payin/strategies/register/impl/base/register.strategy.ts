@@ -9,9 +9,9 @@ import { PayInEntry } from 'src/subdomains/supporting/payin/interfaces';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { Staking } from 'src/mix/models/staking/staking.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 
 export interface PayInInputLog {
   recoveredRecords: { address: string; txId: string }[];

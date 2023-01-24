@@ -2,7 +2,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { createCustomCryptoInput } from '../../../../../mix/models/crypto-input/__mocks__/crypto-input.entity.mock';
 import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { BuyFiat } from '../buy-fiat.entity';
@@ -14,6 +13,9 @@ import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 
 enum MockBuyData {
   DEFAULT,
@@ -33,6 +35,8 @@ describe('BuyFiatService', () => {
   let bankTxService: BankTxService;
   let fiatOutputService: FiatOutputService;
   let buyCryptoService: BuyCryptoService;
+  let buyFiatRegistrationService: BuyFiatRegistrationService;
+  let settingService: SettingService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -43,6 +47,8 @@ describe('BuyFiatService', () => {
     bankTxService = createMock<BankTxService>();
     fiatOutputService = createMock<FiatOutputService>();
     buyCryptoService = createMock<BuyCryptoService>();
+    buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
+    settingService = createMock<SettingService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -56,6 +62,8 @@ describe('BuyFiatService', () => {
         { provide: BankTxService, useValue: bankTxService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
+        { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
+        { provide: SettingService, useValue: settingService },
       ],
     }).compile();
 

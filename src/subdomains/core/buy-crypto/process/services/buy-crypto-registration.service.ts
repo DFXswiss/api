@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { CryptoRouteRepository } from 'src/mix/models/crypto-route/crypto-route.repository';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
 import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';

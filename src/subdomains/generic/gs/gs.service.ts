@@ -1,10 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CryptoInputService } from 'src/mix/models/crypto-input/crypto-input.service';
-import { CryptoStakingService } from 'src/mix/models/crypto-staking/crypto-staking.service';
-import { StakingRefRewardService } from 'src/mix/models/staking-ref-reward/staking-ref-reward.service';
-import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';
+import { CryptoStakingService } from 'src/subdomains/core/staking/services/crypto-staking.service';
+import { StakingRefRewardService } from 'src/subdomains/core/staking/services/staking-ref-reward.service';
+import { StakingRewardService } from 'src/subdomains/core/staking/services/staking-reward.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
-import { BuyService } from 'src/subdomains/core/buy-crypto/route/buy.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -17,6 +15,8 @@ import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto } from './dto/db-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
+import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 
 @Injectable()
 export class GsService {
@@ -30,7 +30,7 @@ export class GsService {
     private readonly cryptoStakingService: CryptoStakingService,
     private readonly stakingRewardService: StakingRewardService,
     private readonly stakingRefRewardService: StakingRefRewardService,
-    private readonly cryptoInputService: CryptoInputService,
+    private readonly payInService: PayInService,
     private readonly buyFiatService: BuyFiatService,
     private readonly refRewardService: RefRewardService,
     private readonly bankTxRepeatService: BankTxRepeatService,
@@ -89,7 +89,7 @@ export class GsService {
       staking: await this.cryptoStakingService.getUserTransactions(userIds),
       stakingReward: await this.stakingRewardService.getAllUserRewards(userIds),
       stakingRefReward: await this.stakingRefRewardService.getAllUserRewards(userIds),
-      cryptoInput: await this.cryptoInputService.getAllUserTransactions(userIds),
+      cryptoInput: await this.payInService.getAllUserTransactions(userIds),
       bankTxRepeat: await this.bankTxRepeatService.getAllUserRepeats(userIds),
     };
   }

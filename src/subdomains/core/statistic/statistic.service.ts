@@ -1,14 +1,14 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
+import { MasternodeService } from 'src/subdomains/supporting/masternode/masternode.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { StakingRewardService } from 'src/mix/models/staking-reward/staking-reward.service';
-import { StakingService } from 'src/mix/models/staking/staking.service';
+import { StakingRewardService } from 'src/subdomains/core/staking/services/staking-reward.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { BuyService } from '../buy-crypto/route/buy.service';
+import { BuyService } from '../buy-crypto/routes/buy/buy.service';
+import { StakingService } from '../staking/services/staking.service';
 
 @Injectable()
 export class StatisticService implements OnModuleInit {

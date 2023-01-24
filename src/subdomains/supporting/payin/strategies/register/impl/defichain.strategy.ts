@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Config, Process } from 'src/config/config';
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -14,11 +14,11 @@ import { AccountHistory, PayInDeFiChainService } from '../../../services/payin-d
 import { PayInService } from '../../../services/payin.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { Staking } from 'src/mix/models/staking/staking.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 
 @Injectable()
 export class DeFiChainStrategy extends RegisterStrategy {
@@ -29,6 +29,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
     private readonly assetService: AssetService,
     private readonly deFiChainService: PayInDeFiChainService,
     protected readonly dexService: DexService,
+    @Inject(forwardRef(() => PayInService))
     protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,

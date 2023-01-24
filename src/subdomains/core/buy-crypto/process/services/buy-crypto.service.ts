@@ -13,25 +13,24 @@ import { Lock } from 'src/shared/utils/lock';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
-import { Cron, CronExpression, Interval } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyCryptoBatchService } from './buy-crypto-batch.service';
 import { BuyCryptoOutService } from './buy-crypto-out.service';
 import { BuyCryptoDexService } from './buy-crypto-dex.service';
 import { BuyCryptoNotificationService } from './buy-crypto-notification.service';
 import { AmlCheck } from '../enums/aml-check.enum';
-import { CryptoInput } from 'src/mix/models/crypto-input/crypto-input.entity';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { CryptoRouteService } from 'src/mix/models/crypto-route/crypto-route.service';
-import { CryptoHistoryDto } from 'src/mix/models/crypto-route/dto/crypto-history.dto';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
+import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
+import { CryptoHistoryDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/crypto-history.dto';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
-import { Buy } from '../../route/buy.entity';
-import { BuyRepository } from '../../route/buy.repository';
-import { BuyService } from '../../route/buy.service';
-import { BuyHistoryDto } from '../../route/dto/buy-history.dto';
+import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/buy-fiat.service';
 import { BuyCryptoRegistrationService } from './buy-crypto-registration.service';
+import { Buy } from '../../routes/buy/buy.entity';
+import { BuyRepository } from '../../routes/buy/buy.repository';
+import { BuyService } from '../../routes/buy/buy.service';
 
 @Injectable()
 export class BuyCryptoService {
@@ -72,6 +71,7 @@ export class BuyCryptoService {
     return await this.buyCryptoRepo.save(entity);
   }
 
+  // TODO -> remove commented code
   // async createFromCrypto(cryptoInput: CryptoInput): Promise<BuyCrypto> {
   //   const entity = this.buyCryptoRepo.create();
 

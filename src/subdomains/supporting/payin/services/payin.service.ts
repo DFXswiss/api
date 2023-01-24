@@ -16,12 +16,12 @@ import { Price } from 'src/integration/exchange/dto/price.dto';
 import { PriceRequest, PriceResult } from '../../pricing/interfaces';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { PriceRequestContext } from '../../pricing/enums';
-import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { RegisterStrategiesFacade } from '../strategies/register/register.facade';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { Staking } from 'src/mix/models/staking/staking.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 
 @Injectable()
 export class PayInService {

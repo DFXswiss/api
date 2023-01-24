@@ -35,10 +35,6 @@ export abstract class EvmClient {
 
   //*** PUBLIC API ***//
 
-  getRandomWallet(): ethers.Wallet {
-    return ethers.Wallet.createRandom();
-  }
-
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
     const params = {
       ...this.getTransactionHistoryCommonParams(walletAddress, fromBlock),

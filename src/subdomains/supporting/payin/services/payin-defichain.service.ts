@@ -3,14 +3,12 @@ import {
   AccountResult,
 } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { RouteType } from 'src/mix/models/route/deposit-route.entity';
-import { Staking } from 'src/mix/models/staking/staking.entity';
-import { StakingService } from 'src/mix/models/staking/staking.service';
+import { RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -18,6 +16,9 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
 import { PayInJellyfishService } from './base/payin-jellyfish.service';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
+import { Interval } from '@nestjs/schedule';
 
 interface HistoryAmount {
   amount: number;
@@ -42,12 +43,13 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   constructor(
     private readonly assetService: AssetService,
     private readonly sellService: SellService,
+    @Inject(forwardRef(() => StakingService))
     private readonly stakingService: StakingService,
     protected readonly payInRepo: PayInRepository,
     nodeService: NodeService,
   ) {
-    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
     super();
+    nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
   async checkHealthOrThrow(): Promise<void> {
@@ -94,6 +96,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     });
   }
 
+  @Interval(900000)
   async convertTokens(): Promise<void> {
     try {
       await this.checkNodeInSync(this.client);

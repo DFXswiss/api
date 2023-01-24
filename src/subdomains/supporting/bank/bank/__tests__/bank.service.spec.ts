@@ -6,8 +6,6 @@ import { createCustomCountry } from 'src/shared/models/country/__mocks__/country
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankSelectorInput, BankService } from '../bank.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { StakingRepository } from 'src/mix/models/staking/staking.repository';
-import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BankAccount } from 'src/subdomains/supporting/bank/bank-account/bank-account.entity';
 import { createDefaultBankAccount } from 'src/subdomains/supporting/bank/bank-account/__mocks__/bank-account.entity.mock';
@@ -25,6 +23,8 @@ import {
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { StakingRepository } from 'src/subdomains/core/staking/repositories/staking.repository';
+import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 
 function createBankSelectorInput(
   currency = 'EUR',

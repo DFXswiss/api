@@ -8,8 +8,8 @@ import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
-import { Masternode } from 'src/mix/models/masternode/masternode.entity';
+import { MasternodeService } from 'src/subdomains/supporting/masternode/masternode.service';
+import { Masternode } from 'src/subdomains/supporting/masternode/masternode.entity';
 
 export interface CfpSettings {
   inProgress: boolean;

@@ -1,4 +1,4 @@
-import { DepositRoute } from 'src/mix/models/route/deposit-route.entity';
+import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
@@ -28,7 +28,7 @@ export enum PayInStatus {
 
 @Entity()
 export class CryptoInput extends IEntity {
-  @Column({ nullable: false })
+  @Column({ nullable: true })
   status: PayInStatus;
 
   @Column({ nullable: true })
@@ -46,7 +46,7 @@ export class CryptoInput extends IEntity {
   @Column({ nullable: true })
   prepareTxId: string;
 
-  @Column()
+  @Column({ nullable: true })
   txType: string;
 
   @Column(() => BlockchainAddress)
@@ -176,6 +176,7 @@ export class CryptoInput extends IEntity {
   forward(outTxId: string, forwardFeeAmount: number = null): this {
     this.outTxId = outTxId;
     this.forwardFeeAmount = forwardFeeAmount;
+    this.status = PayInStatus.FORWARDED;
 
     return this;
   }

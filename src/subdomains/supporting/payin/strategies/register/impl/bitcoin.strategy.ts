@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Lock } from 'src/shared/utils/lock';
 import { Config, Process } from 'src/config/config';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
@@ -15,12 +15,12 @@ import { PayInService } from '../../../services/payin.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { Staking } from 'src/mix/models/staking/staking.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { ChainalysisService } from 'src/integration/chainalysis/services/chainalysis.service';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 
 @Injectable()
 export class BitcoinStrategy extends JellyfishStrategy {
@@ -31,6 +31,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
     private readonly bitcoinService: PayInBitcoinService,
     private readonly chainalysisService: ChainalysisService,
     protected readonly dexService: DexService,
+    @Inject(forwardRef(() => PayInService))
     protected readonly payInService: PayInService,
     protected readonly payInFactory: PayInFactory,
     protected readonly payInRepository: PayInRepository,

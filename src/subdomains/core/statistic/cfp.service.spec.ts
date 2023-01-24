@@ -4,7 +4,7 @@ import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.se
 import { HttpService } from 'src/shared/services/http.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { CfpService } from './cfp.service';
-import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
+import { MasternodeService } from 'src/subdomains/supporting/masternode/masternode.service';
 
 describe('CfpService', () => {
   let service: CfpService;

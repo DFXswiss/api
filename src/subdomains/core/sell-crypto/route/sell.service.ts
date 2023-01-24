@@ -11,9 +11,8 @@ import { UpdateSellDto } from 'src/subdomains/core/sell-crypto/route/dto/update-
 import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Sell } from './sell.entity';
-import { DepositService } from '../../../../mix/models/deposit/deposit.service';
+import { DepositService } from '../../../supporting/address-pool/deposit/deposit.service';
 import { User } from '../../../generic/user/models/user/user.entity';
-import { StakingService } from '../../../../mix/models/staking/staking.service';
 import { Util } from 'src/shared/utils/util';
 import { KycService } from 'src/subdomains/generic/user/models/kyc/kyc.service';
 import { Not, Repository } from 'typeorm';
@@ -21,6 +20,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankAccountService } from '../../../supporting/bank/bank-account/bank-account.service';
 import { Config } from 'src/config/config';
+import { StakingService } from '../../staking/services/staking.service';
 
 @Injectable()
 export class SellService {

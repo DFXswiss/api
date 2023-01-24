@@ -11,7 +11,7 @@ import { BuyFiatInitSpecification } from './specifications/buy-fiat-init.specifi
 
 @Entity()
 export class BuyFiat extends IEntity {
-  @OneToOne(() => CryptoInput, { nullable: true })
+  @OneToOne(() => CryptoInput, { nullable: false })
   @JoinColumn()
   cryptoInput: CryptoInput;
 

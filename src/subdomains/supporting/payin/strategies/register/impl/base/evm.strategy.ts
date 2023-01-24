@@ -1,7 +1,7 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
-import { DepositRouteRepository } from 'src/mix/models/route/deposit-route.repository';
+import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { getCustomRepository } from 'typeorm';
@@ -15,9 +15,9 @@ import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
-import { Staking } from 'src/mix/models/staking/staking.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(

@@ -9,11 +9,11 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { AmlReason } from '../enums/aml-reason.enum';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
 import { Price } from 'src/integration/exchange/dto/price.dto';
-import { CryptoRoute } from 'src/mix/models/crypto-route/crypto-route.entity';
+import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { BankTx } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.entity';
-import { Buy } from '../../route/buy.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { BuyCryptoInitSpecification } from '../specifications/buy-crypto-init.specification';
+import { Buy } from '../../routes/buy/buy.entity';
 
 export enum BuyCryptoStatus {
   WAITING_FOR_LOWER_FEE = 'WaitingForLowerFee',
