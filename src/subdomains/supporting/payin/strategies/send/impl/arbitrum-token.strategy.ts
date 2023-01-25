@@ -6,11 +6,10 @@ import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInArbitrumService } from '../../../services/payin-arbitrum.service';
-import { EvmStrategy } from './base/evm.strategy';
-import { SendGroup } from './base/send.strategy';
+import { EvmTokenStrategy } from './base/evm.token.strategy';
 
 @Injectable()
-export class ArbitrumTokenStrategy extends EvmStrategy {
+export class ArbitrumTokenStrategy extends EvmTokenStrategy {
   constructor(
     protected readonly pricingService: PricingService,
     protected readonly payoutService: PayoutService,
@@ -18,18 +17,6 @@ export class ArbitrumTokenStrategy extends EvmStrategy {
     payInRepo: PayInRepository,
   ) {
     super(pricingService, payoutService, arbitrumService, payInRepo, Blockchain.ARBITRUM);
-  }
-
-  protected dispatchSend(payInGroup: SendGroup): Promise<string> {
-    const { sourceAddress, privateKey, destinationAddress, asset } = payInGroup;
-
-    return this.arbitrumService.sendToken(
-      sourceAddress,
-      privateKey,
-      destinationAddress,
-      asset,
-      this.getTotalGroupAmount(payInGroup),
-    );
   }
 
   protected getForwardAddress(): BlockchainAddress {

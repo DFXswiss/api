@@ -6,11 +6,10 @@ import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInOptimismService } from '../../../services/payin-optimism.service';
-import { EvmStrategy } from './base/evm.strategy';
-import { SendGroup } from './base/send.strategy';
+import { EvmTokenStrategy } from './base/evm.token.strategy';
 
 @Injectable()
-export class OptimismTokenStrategy extends EvmStrategy {
+export class OptimismTokenStrategy extends EvmTokenStrategy {
   constructor(
     protected readonly pricingService: PricingService,
     protected readonly payoutService: PayoutService,
@@ -18,18 +17,6 @@ export class OptimismTokenStrategy extends EvmStrategy {
     payInRepo: PayInRepository,
   ) {
     super(pricingService, payoutService, optimismService, payInRepo, Blockchain.OPTIMISM);
-  }
-
-  protected dispatchSend(payInGroup: SendGroup): Promise<string> {
-    const { sourceAddress, privateKey, destinationAddress, asset } = payInGroup;
-
-    return this.optimismService.sendToken(
-      sourceAddress,
-      privateKey,
-      destinationAddress,
-      asset,
-      this.getTotalGroupAmount(payInGroup),
-    );
   }
 
   protected getForwardAddress(): BlockchainAddress {

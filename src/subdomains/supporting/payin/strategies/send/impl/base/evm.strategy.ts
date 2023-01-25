@@ -23,7 +23,9 @@ export abstract class EvmStrategy extends SendStrategy {
     super();
   }
 
-  protected abstract dispatchSend(payInGroup: SendGroup): Promise<string>;
+  protected abstract dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string>;
+  protected abstract prepareSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<void>;
+  protected abstract checkPreparation(payInGroup: SendGroup): Promise<boolean>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     const groups = this.groupPayIns(payIns, type);
@@ -42,13 +44,13 @@ export abstract class EvmStrategy extends SendStrategy {
         CryptoInput.verifyEstimatedFee(targetFee, totalGroupAmount);
 
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
-          await this.prepare(payInGroup, nativeFee);
+          await this.prepareSend(payInGroup, nativeFee);
 
           continue;
         }
 
         if (payInGroup.status === PayInStatus.PREPARED) {
-          await this.dispatch(payInGroup, type);
+          await this.dispatch(payInGroup, type, nativeFee);
 
           continue;
         }
@@ -70,21 +72,6 @@ export abstract class EvmStrategy extends SendStrategy {
       payIn.preparing(prepareTxId);
       await this.payInRepo.save(payIn);
     }
-  }
-
-  private async checkPreparation(payInGroup: SendGroup): Promise<boolean> {
-    const result = [];
-    /**
-     * @note
-     * should be only one transaction for group, but with very low probability can be more
-     */
-    const prepareTxIds = [...new Set(payInGroup.payIns.map((p) => p.prepareTxId))];
-
-    for (const txId of prepareTxIds) {
-      result.push(await this.payInEvmService.checkTransactionCompletion(txId));
-    }
-
-    return result.every((tsStatus) => !!tsStatus);
   }
 
   private groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
@@ -201,8 +188,8 @@ export abstract class EvmStrategy extends SendStrategy {
     return this.payInEvmService.sendNativeCoinFromDex(sourceAddress, amount);
   }
 
-  private async dispatch(payInGroup: SendGroup, type: SendType): Promise<void> {
-    const outTxId = await this.dispatchSend(payInGroup);
+  private async dispatch(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<void> {
+    const outTxId = await this.dispatchSend(payInGroup, estimatedNativeFee);
 
     const updatedPayIns = this.updatePayInsWithSendData(payInGroup, outTxId, type);
 
