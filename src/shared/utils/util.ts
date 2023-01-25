@@ -92,7 +92,8 @@ export class Util {
   // --- ENCRYPTION --- //
 
   static encrypt(input: string, key: string): string {
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key), null);
+    const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(key, 'GfG', 32), Buffer.alloc(16, 0));
+
     let encrypted = cipher.update(input);
     encrypted = Buffer.concat([encrypted, cipher.final()]);
 
@@ -101,7 +102,7 @@ export class Util {
 
   static decrypt(input: string, key: string): string {
     const encryptedText = Buffer.from(input, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key), null);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', crypto.scryptSync(key, 'GfG', 32), Buffer.alloc(16, 0));
 
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
