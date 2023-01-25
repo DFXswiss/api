@@ -188,7 +188,7 @@ export class HistoryService {
       .filter(
         (c) =>
           c.amlCheck === AmlCheck.PASS &&
-          c.fiatOutput.bankTxId &&
+          c.fiatOutput.bankTx &&
           c.cryptoInput &&
           c.outputAmount &&
           c.outputAsset &&
