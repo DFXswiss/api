@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from 'src/integration/blockchain/shared/evm/interfaces';
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { getCustomRepository } from 'typeorm';
 import { PayInFactory } from '../../../../factories/payin.factory';
@@ -106,7 +106,12 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
       amount: this.payInEvmService.convertToEthLikeDenomination(parseFloat(tx.value)),
-      asset: this.assetService.getByNameSync(supportedAssets, this.nativeCoin, this.blockchain) ?? null,
+      asset:
+        this.assetService.getByQuerySync(supportedAssets, {
+          dexName: this.nativeCoin,
+          blockchain: this.blockchain,
+          type: AssetType.COIN,
+        }) ?? null,
     }));
   }
 
@@ -117,7 +122,12 @@ export abstract class EvmStrategy extends RegisterStrategy {
       txType: null,
       blockHeight: parseInt(tx.blockNumber),
       amount: this.payInEvmService.convertToEthLikeDenomination(parseFloat(tx.value), parseInt(tx.tokenDecimal)),
-      asset: this.assetService.getByNameSync(supportedAssets, tx.tokenSymbol, this.blockchain) ?? null,
+      asset:
+        this.assetService.getByQuerySync(supportedAssets, {
+          dexName: tx.tokenSymbol,
+          blockchain: this.blockchain,
+          type: AssetType.TOKEN,
+        }) ?? null,
     }));
   }
 
@@ -152,7 +162,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
           log.recoveredRecords.push({ address, txId: tx.txId });
         }
       } catch (e) {
-        console.error('Did not register pay-in: ', e);
+        console.log('Did not register pay-in: ', e);
         continue;
       }
     }

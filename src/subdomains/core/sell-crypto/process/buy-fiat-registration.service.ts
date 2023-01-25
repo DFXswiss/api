@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { SmallAmountException } from 'src/shared/exceptions/small-amount.exception';
 import { CryptoInput, PayInPurpose } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
@@ -23,13 +22,23 @@ export class BuyFiatRegistrationService {
     if (newPayIns.length === 0) return;
 
     const sellPayIns = await this.filterSellPayIns(newPayIns);
+
+    sellPayIns.length > 0 &&
+      console.log(
+        `Registering ${sellPayIns.length} new buy-fiat(s) from crypto pay-in(s) ID(s):`,
+        sellPayIns.map((s) => s[0].id),
+      );
+
     await this.createBuyFiatsAndAckPayIns(sellPayIns);
   }
 
   //*** HELPER METHODS ***//
 
   private async filterSellPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, Sell][]> {
-    const routes = await this.sellRepository.find({ where: { deposit: Not(IsNull()) }, relations: ['deposit'] });
+    const routes = await this.sellRepository.find({
+      where: { deposit: Not(IsNull()) },
+      relations: ['deposit', 'user', 'user.userData'],
+    });
 
     return this.pairRoutesWithPayIns(routes, allPayIns);
   }
@@ -39,7 +48,9 @@ export class BuyFiatRegistrationService {
 
     for (const payIn of allPayIns) {
       const relevantRoute = routes.find(
-        (r) => payIn.address.address === r.deposit.address && payIn.address.blockchain === r.deposit.blockchain,
+        (r) =>
+          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
+          payIn.address.blockchain === r.deposit.blockchain,
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);
@@ -51,26 +62,25 @@ export class BuyFiatRegistrationService {
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
     for (const [payIn, sellRoute] of payInsPairs) {
       try {
-        const existingBuyFiat = await this.buyFiatRepo.findOne({ cryptoInput: payIn });
+        const existingBuyFiat = await this.buyFiatRepo.findOne({ cryptoInput: { id: payIn.id } });
 
         if (existingBuyFiat) {
-          await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+          const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+          existingBuyFiat.addAmlCheck(amlCheck);
+
+          await this.buyFiatRepo.save(existingBuyFiat);
+
           continue;
         }
 
         // ignore DeFiChain AccountToUtxos for sell
-        if (sellRoute.type === RouteType.SELL && payIn.txType === 'AccountToUtxos') {
+        if (payIn.txType === 'AccountToUtxos') {
           console.log('Ignoring AccountToUtxos DeFiChain input on sell route. Pay-in:', payIn);
           await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
           continue;
         }
 
         await this.createNewBuyFiatAndAck(payIn, sellRoute);
-
-        const newBuyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
-
-        await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
-        await this.buyFiatRepo.save(newBuyFiat);
       } catch (e) {
         console.error(`Error occurred during pay-in registration at buy-fiat. Pay-in ID: ${payIn.id}`, e);
       }
@@ -81,7 +91,10 @@ export class BuyFiatRegistrationService {
     try {
       const newBuyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
 
-      await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+      const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+
+      newBuyFiat.addAmlCheck(amlCheck);
+
       await this.buyFiatRepo.save(newBuyFiat);
     } catch (e) {
       if (e instanceof SmallAmountException) {

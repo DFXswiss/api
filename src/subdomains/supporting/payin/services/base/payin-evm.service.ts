@@ -16,8 +16,9 @@ export abstract class PayInEvmService {
     withPrivateKey: string,
     addressTo: string,
     amount: number,
+    feeLimit?: number,
   ): Promise<string> {
-    return this.#client.sendNativeCoinFromAddress(addressFrom, withPrivateKey, addressTo, amount);
+    return this.#client.sendNativeCoinFromAddress(addressFrom, withPrivateKey, addressTo, amount, feeLimit);
   }
 
   async sendNativeCoinFromDex(addressTo: string, amount: number): Promise<string> {

@@ -10,7 +10,7 @@ import { PayInEntry } from '../../../interfaces';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { RegisterStrategy } from './base/register.strategy';
 import { PayInFactory } from '../../../factories/payin.factory';
-import { AccountHistory, PayInDeFiChainService } from '../../../services/payin-defichain.service';
+import { HistoryAmount, PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInService } from '../../../services/payin.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
@@ -19,6 +19,7 @@ import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { KycStatus } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 
 @Injectable()
 export class DeFiChainStrategy extends RegisterStrategy {
@@ -122,7 +123,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
         await this.createPayInAndSave(entry);
         log.newRecords.push({ address: entry.address.address, txId: entry.txId });
       } catch (e) {
-        console.error('Did not register pay-in: ', e);
+        console.log('Did not register pay-in: ', e);
         continue;
       }
     }
@@ -138,20 +139,40 @@ export class DeFiChainStrategy extends RegisterStrategy {
   }
 
   private mapHistoriesToEntries(histories: AccountHistory[], supportedAssets: Asset[]): PayInEntry[] {
-    return histories
-      .map((h) => ({
-        address: BlockchainAddress.create(h.owner, Blockchain.DEFICHAIN),
-        txId: h.txid,
-        txType: h.type,
-        blockHeight: h.blockHeight,
-        amount: h.amount,
-        asset: this.assetService.getByNameSync(supportedAssets, h.asset, Blockchain.DEFICHAIN) ?? null,
-      }))
-      .map((h) => this.filterOutNonSellableAndPullPairs(h))
-      .filter((p) => p != null);
+    const inputs = [];
+
+    for (const history of histories) {
+      try {
+        const amounts = this.deFiChainService.getAmounts(history);
+        for (const amount of amounts) {
+          inputs.push(this.createEntry(history, amount, supportedAssets));
+        }
+      } catch (e) {
+        console.error(`Failed to create DeFiChain input ${history.txid}:`, e);
+      }
+    }
+
+    return inputs.map((h) => this.filterOutNonSellableAndPoolPairs(h)).filter((p) => p != null);
   }
 
-  private filterOutNonSellableAndPullPairs(p: PayInEntry): PayInEntry | null {
+  private createEntry(
+    history: AccountHistory,
+    { amount, asset, type }: HistoryAmount,
+    supportedAssets: Asset[],
+  ): PayInEntry {
+    return {
+      address: BlockchainAddress.create(history.owner, Blockchain.DEFICHAIN),
+      txId: history.txid,
+      txType: history.type,
+      blockHeight: history.blockHeight,
+      amount: amount,
+      asset:
+        this.assetService.getByQuerySync(supportedAssets, { dexName: asset, type, blockchain: Blockchain.DEFICHAIN }) ??
+        null,
+    };
+  }
+
+  private filterOutNonSellableAndPoolPairs(p: PayInEntry): PayInEntry | null {
     if (p.asset && (!p.asset.sellable || p.asset.category === AssetCategory.POOL_PAIR)) {
       console.log(`Ignoring unsellable DeFiChain input (${p.amount} ${p.asset}). PayIn entry:`, p);
       return null;

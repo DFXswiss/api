@@ -2,12 +2,12 @@ import { v4 as uuid } from 'uuid';
 import { Injectable } from '@nestjs/common';
 import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../repositories/payin.repository';
-import { CryptoInput, PayInPurpose, PayInStatus } from '../entities/crypto-input.entity';
+import { CryptoInput, PayInPurpose, PayInSendType, PayInStatus } from '../entities/crypto-input.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { SendStrategiesFacade } from '../strategies/send/send.facade';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { In, IsNull } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -55,7 +55,11 @@ export class PayInService {
     });
   }
 
-  async acknowledgePayIn(payInId: number, purpose: PayInPurpose, route: Staking | Sell | CryptoRoute): Promise<void> {
+  async acknowledgePayIn(
+    payInId: number,
+    purpose: PayInPurpose,
+    route: Staking | Sell | CryptoRoute,
+  ): Promise<AmlCheck> {
     const payIn = await this.payInRepository.findOne(payInId);
 
     const amlCheck = await this.doAmlCheck(payIn, route);
@@ -63,6 +67,8 @@ export class PayInService {
     payIn.acknowledge(purpose, route, amlCheck);
 
     await this.payInRepository.save(payIn);
+
+    return amlCheck;
   }
 
   async returnPayIn(
@@ -174,6 +180,7 @@ export class PayInService {
     const payIns = await this.payInRepository.find({
       where: {
         status: In([PayInStatus.ACKNOWLEDGED, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        sendType: PayInSendType.FORWARD,
         outTxId: IsNull(),
         amlCheck: AmlCheck.PASS,
       },
@@ -194,7 +201,11 @@ export class PayInService {
 
   private async returnPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
-      where: { status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]), returnTxId: IsNull() },
+      where: {
+        status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        sendType: PayInSendType.RETURN,
+        returnTxId: IsNull(),
+      },
       relations: ['route'],
     });
 

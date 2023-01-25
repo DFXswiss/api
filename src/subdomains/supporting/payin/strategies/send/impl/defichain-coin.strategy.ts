@@ -17,11 +17,15 @@ export class DeFiChainCoinStrategy extends SendStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
-    await this.deFiChainService.checkHealthOrThrow();
+    const currentHeight = await this.deFiChainService.getCurrentHeight();
 
     for (const payIn of payIns) {
       try {
+        // only forward block rewards, which are older than 100 blocks
+        if (payIn.txType === 'blockReward' && currentHeight <= payIn.blockHeight + 100) continue;
+
         this.designateSend(payIn, type);
+
         const { outTxId, feeAmount } = await this.deFiChainService.sendUtxo(payIn);
         this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 

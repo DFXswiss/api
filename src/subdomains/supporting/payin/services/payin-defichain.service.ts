@@ -1,7 +1,4 @@
-import {
-  AccountHistory as JellyAccountHistory,
-  AccountResult,
-} from '@defichain/jellyfish-api-core/dist/category/account';
+import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
@@ -20,18 +17,17 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 import { Interval } from '@nestjs/schedule';
 
-interface HistoryAmount {
+export interface HistoryAmount {
   amount: number;
   asset: string;
+  type: AssetType;
 }
-
-export type AccountHistory = Omit<JellyAccountHistory & HistoryAmount & { assetType: AssetType }, 'amounts'>;
 
 @Injectable()
 export class PayInDeFiChainService extends PayInJellyfishService {
   private client: DeFiClient;
 
-  private readonly utxoTxTypes = ['receive', 'AccountToUtxos'];
+  private readonly utxoTxTypes = ['receive', 'AccountToUtxos', 'blockReward'];
   private readonly tokenTxTypes = [
     'AccountToAccount',
     'AnyAccountsToAccounts',
@@ -56,23 +52,21 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     await this.checkNodeInSync(this.client);
   }
 
+  async getCurrentHeight(): Promise<number> {
+    const { blocks: currentHeight } = await this.client.checkSync();
+
+    return currentHeight;
+  }
+
   async getNewTransactionsHistorySince(lastHeight: number): Promise<AccountHistory[]> {
     const { blocks: currentHeight } = await this.client.checkSync();
 
-    const utxos = await this.client.getUtxo();
-    const tokens = await this.client.getToken();
-
-    return (
-      this.getAddressesWithFunds(utxos, tokens)
-        .then((i) => i.filter((e) => e != Config.blockchain.default.utxoSpenderAddress))
-        // get receive history
-        .then((a) => this.client.getHistories(a, lastHeight + 1, currentHeight))
-        .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
-        .then((i) => i.filter((h) => h.blockHeight > lastHeight))
-        .then((i) => this.splitHistories(i))
-        .then((i) => i.filter((a) => this.isDFI(a) || this.isDUSD(a)))
-        .then((i) => i.map((a) => ({ ...a, amount: Math.abs(a.amount) })))
-    );
+    return await this.client
+      .getHistory(lastHeight + 1, currentHeight)
+      .then((i) => i.filter((h) => [...this.utxoTxTypes, ...this.tokenTxTypes].includes(h.type)))
+      // get receive history
+      .then((i) => i.filter((h) => h.blockHeight > lastHeight))
+      .then((i) => i.filter((h) => h.owner != Config.blockchain.default.utxoSpenderAddress));
   }
 
   async sendUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
@@ -183,34 +177,6 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     return [...new Set(utxoAddresses.concat(tokenAddresses))];
   }
 
-  // TODO -> why do we need this?
-  private splitHistories(histories: JellyAccountHistory[]): AccountHistory[] {
-    return histories
-      .map((h) => h.amounts.map((a) => ({ ...h, ...this.parseAmount(a), assetType: this.getAssetType(h) })))
-      .reduce((prev, curr) => prev.concat(curr), []);
-  }
-
-  private getAssetType(history: JellyAccountHistory): AssetType | undefined {
-    if (this.utxoTxTypes.includes(history.type)) return AssetType.COIN;
-    if (this.tokenTxTypes.includes(history.type)) return AssetType.TOKEN;
-  }
-
-  private isDFI(history: AccountHistory): boolean {
-    return (
-      history.assetType === AssetType.COIN &&
-      history.asset === 'DFI' &&
-      Math.abs(history.amount) >= Config.payIn.min.DeFiChain.DFI
-    );
-  }
-
-  private isDUSD(history: AccountHistory): boolean {
-    return (
-      history.assetType === AssetType.TOKEN &&
-      history.asset === 'DUSD' &&
-      history.amount >= Config.payIn.min.DeFiChain.DUSD
-    );
-  }
-
   private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
     const feeUtxo = await this.getFeeUtxo(addressFrom);
     feeUtxo ? await this.tokenTx(addressFrom, tx, feeUtxo) : void this.tokenTx(addressFrom, tx); // no waiting;
@@ -255,8 +221,16 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     );
   }
 
-  private parseAmount(amount: string): HistoryAmount {
-    return { ...this.client.parseAmount(amount) };
+  getAmounts(history: AccountHistory): HistoryAmount[] {
+    const amounts = this.utxoTxTypes.includes(history.type)
+      ? history.amounts.map((a) => this.parseAmount(a, AssetType.COIN))
+      : history.amounts.map((a) => this.parseAmount(a, AssetType.TOKEN)).filter((a) => a.amount > 0);
+
+    return amounts.map((a) => ({ ...a, amount: Math.abs(a.amount) }));
+  }
+
+  private parseAmount(amount: string, type: AssetType): HistoryAmount {
+    return { ...this.client.parseAmount(amount), type };
   }
 
   private async getDepositRoute(address: string): Promise<Sell | Staking> {

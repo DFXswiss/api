@@ -35,7 +35,11 @@ export abstract class EvmStrategy extends SendStrategy {
         if (payInGroup.status === PayInStatus.PREPARING) {
           const isReady = await this.checkPreparation(payInGroup);
 
-          if (!isReady) continue;
+          if (isReady) {
+            payInGroup.status = PayInStatus.PREPARED;
+          } else {
+            continue;
+          }
         }
 
         const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
@@ -64,15 +68,6 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   //*** HELPER METHODS ***//
-
-  private async prepare(payInGroup: SendGroup, nativeFee: number): Promise<void> {
-    const prepareTxId = await this.topUpCoin(payInGroup, Util.round(nativeFee * 1.2, 12));
-
-    for (const payIn of payInGroup.payIns) {
-      payIn.preparing(prepareTxId);
-      await this.payInRepo.save(payIn);
-    }
-  }
 
   private groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
     const groups = new Map<SendGroupKey, SendGroup>();

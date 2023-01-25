@@ -15,22 +15,27 @@ export class BuyCryptoInitSpecification {
     switch (asset.blockchain) {
       case Blockchain.BITCOIN: {
         if (btcAmount < Config.blockchain.default.minDeposit.Bitcoin.BTC) this.throw(cryptoInput);
+        break;
       }
 
       case Blockchain.ETHEREUM: {
         if (usdtAmount < Config.blockchain.ethereum.minDeposit.USD) this.throw(cryptoInput);
+        break;
       }
 
       case Blockchain.BINANCE_SMART_CHAIN: {
         if (usdtAmount < Config.blockchain.bsc.minDeposit.USD) this.throw(cryptoInput);
+        break;
       }
 
       case Blockchain.ARBITRUM: {
         if (usdtAmount < Config.blockchain.arbitrum.minDeposit.USD) this.throw(cryptoInput);
+        break;
       }
 
       case Blockchain.OPTIMISM: {
         if (usdtAmount < Config.blockchain.optimism.minDeposit.USD) this.throw(cryptoInput);
+        break;
       }
     }
 

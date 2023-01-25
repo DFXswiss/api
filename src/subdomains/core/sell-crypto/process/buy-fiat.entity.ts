@@ -152,6 +152,12 @@ export class BuyFiat extends IEntity {
     return entity;
   }
 
+  addAmlCheck(amlCheck: AmlCheck): this {
+    this.amlCheck = amlCheck;
+
+    return this;
+  }
+
   offRampInitiated(recipientMail: string): UpdateResult<BuyFiat> {
     this.recipientMail = recipientMail;
     this.mail1SendDate = new Date();

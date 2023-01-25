@@ -22,13 +22,23 @@ export class BuyCryptoRegistrationService {
     if (newPayIns.length === 0) return;
 
     const buyCryptoPayIns = await this.filterBuyCryptoPayIns(newPayIns);
+
+    buyCryptoPayIns.length > 0 &&
+      console.log(
+        `Registering ${buyCryptoPayIns.length} new buy-crypto(s) from crypto pay-in(s) ID(s):`,
+        buyCryptoPayIns.map((s) => s[0].id),
+      );
+
     await this.createBuyCryptosAndAckPayIns(buyCryptoPayIns);
   }
 
   //*** HELPER METHODS ***//
 
   private async filterBuyCryptoPayIns(allPayIns: CryptoInput[]): Promise<[CryptoInput, CryptoRoute][]> {
-    const routes = await this.cryptoRouteRepository.find({ where: { deposit: Not(IsNull()) }, relations: ['deposit'] });
+    const routes = await this.cryptoRouteRepository.find({
+      where: { deposit: Not(IsNull()) },
+      relations: ['deposit', 'user', 'user.userData'],
+    });
 
     return this.pairRoutesWithPayIns(routes, allPayIns);
   }
@@ -38,7 +48,9 @@ export class BuyCryptoRegistrationService {
 
     for (const payIn of allPayIns) {
       const relevantRoute = routes.find(
-        (r) => payIn.address.address === r.deposit.address && payIn.address.blockchain === r.deposit.blockchain,
+        (r) =>
+          payIn.address.address.toLowerCase() === r.deposit.address.toLowerCase() &&
+          payIn.address.blockchain === r.deposit.blockchain,
       );
 
       relevantRoute && result.push([payIn, relevantRoute]);

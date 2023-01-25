@@ -1,6 +1,7 @@
 import { BigNumber, Contract, ethers } from 'ethers';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import * as ERC20_ABI from './abi/erc20.abi.json';
 import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
@@ -90,14 +91,15 @@ export abstract class EvmClient {
     privateKey: string,
     toAddress: string,
     amount: number,
+    feeLimit?: number,
   ): Promise<string> {
     const wallet = new ethers.Wallet(privateKey, this.#provider);
 
-    return this.sendNativeCoin(wallet, fromAddress, toAddress, amount);
+    return this.sendNativeCoin(wallet, fromAddress, toAddress, amount, feeLimit);
   }
 
-  async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
-    return this.sendNativeCoin(this.#wallet, this.#dfxAddress, toAddress, amount);
+  async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number): Promise<string> {
+    return this.sendNativeCoin(this.#wallet, this.#dfxAddress, toAddress, amount, feeLimit);
   }
 
   async sendTokenFromAddress(
@@ -161,6 +163,15 @@ export abstract class EvmClient {
     return this.convertToEthLikeDenomination(outputAmounts[1], decimals);
   }
 
+  async tokenTestSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
+    const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
+    const decimals = await contract.decimals();
+    const inputAmount = this.convertToWeiLikeDenomination(sourceAmount, decimals);
+    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
+
+    return this.convertToEthLikeDenomination(outputAmounts[1], decimals);
+  }
+
   //*** GETTERS ***//
 
   get sendCoinGasLimit(): number {
@@ -182,13 +193,20 @@ export abstract class EvmClient {
     fromAddress: string,
     toAddress: string,
     amount: number,
+    feeLimit?: number,
   ): Promise<string> {
-    const gasPrice = await this.getGasPrice();
+    const gasPrice =
+      feeLimit != null
+        ? this.convertToWeiLikeDenomination(Util.round(feeLimit / this.#sendCoinGasLimit, 0), 'ether')
+        : await this.getGasPrice();
+
+    const nonce = this.#provider.getTransactionCount(fromAddress);
 
     const tx = await wallet.sendTransaction({
       from: fromAddress,
       to: toAddress,
       value: this.convertToWeiLikeDenomination(amount, 'ether'),
+      nonce,
       gasPrice,
       // has to be provided as a number for BSC
       gasLimit: this.#sendCoinGasLimit,

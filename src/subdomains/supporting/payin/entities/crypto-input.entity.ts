@@ -12,18 +12,21 @@ export enum PayInPurpose {
   BUY_CRYPTO = 'BuyCrypto',
 }
 
+export enum PayInSendType {
+  FORWARD = 'Forward',
+  RETURN = 'Return',
+}
+
 export enum PayInStatus {
   CREATED = 'Created',
   FAILED = 'Failed',
   IGNORED = 'Ignored',
   TO_RETURN = 'ToReturn',
-  RETURNING = 'Returning',
   RETURNED = 'Returned',
   ACKNOWLEDGED = 'Acknowledged',
+  FORWARDED = 'Forwarded',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
-  FORWARDING = 'Forwarding',
-  FORWARDED = 'Forwarded',
   WAITING_FOR_PRICE_REFERENCE = 'WaitingForPriceReference',
 }
 
@@ -49,6 +52,9 @@ export class CryptoInput extends IEntity {
 
   @Column({ nullable: true })
   txType: string;
+
+  @Column({ nullable: true })
+  sendType: string;
 
   @Column(() => BlockchainAddress)
   address: BlockchainAddress;
@@ -131,6 +137,7 @@ export class CryptoInput extends IEntity {
     this.route = route;
     this.amlCheck = amlCheck;
     this.status = PayInStatus.ACKNOWLEDGED;
+    this.sendType = PayInSendType.FORWARD;
 
     return this;
   }
@@ -154,12 +161,13 @@ export class CryptoInput extends IEntity {
     this.purpose = purpose;
     this.route = route;
     this.status = PayInStatus.TO_RETURN;
+    this.sendType = PayInSendType.RETURN;
     this.destinationAddress = returnAddress;
 
     return this;
   }
 
-  preparing(prepareTxId: string): this {
+  preparing(prepareTxId: string | null): this {
     this.prepareTxId = prepareTxId;
     this.status = PayInStatus.PREPARING;
 
@@ -167,7 +175,6 @@ export class CryptoInput extends IEntity {
   }
 
   designateForward(forwardAddress: BlockchainAddress): this {
-    this.status = PayInStatus.FORWARDING;
     this.destinationAddress = forwardAddress;
 
     return this;
@@ -183,7 +190,7 @@ export class CryptoInput extends IEntity {
   }
 
   designateReturn(): this {
-    this.status = PayInStatus.RETURNING;
+    /** do nothing */
 
     return this;
   }

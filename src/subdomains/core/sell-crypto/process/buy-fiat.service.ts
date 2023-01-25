@@ -75,15 +75,6 @@ export class BuyFiatService {
     }
   }
 
-  // async create(cryptoInput: CryptoInput): Promise<BuyFiat> {
-  //   const entity = this.buyFiatRepo.create();
-
-  //   entity.cryptoInput = cryptoInput;
-  //   entity.sell = cryptoInput.route as Sell;
-
-  //   return await this.buyFiatRepo.save(entity);
-  // }
-
   async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne(id, { relations: ['sell', 'sell.user'] });
     if (!entity) throw new NotFoundException('Buy fiat not found');

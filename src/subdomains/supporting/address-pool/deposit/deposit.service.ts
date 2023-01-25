@@ -41,9 +41,7 @@ export class DepositService {
     }
 
     const { address, privateKey } = EvmUtil.getRandomWallet();
-    console.log('address:', address, 'privateKey:', privateKey);
     const deposit = Deposit.create(address, Util.encrypt(privateKey, Config.blockchain.evm.encryptionKey), blockchain);
-    console.log('deposit:', deposit);
 
     await this.depositRepo.save(deposit);
   }
