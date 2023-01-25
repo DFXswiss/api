@@ -171,7 +171,7 @@ export class CfpService implements OnModuleInit {
   }
 
   private async getCfpResult(proposal: Proposal): Promise<CfpResult> {
-    const proposalVotes = await this.getVotes(await this.client.listVotes(proposal.proposalId));
+    const proposalVotes = this.getVotes(await this.client.listVotes(proposal.proposalId));
     const yesVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
     const noVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('no'));
     const neutralVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
@@ -213,7 +213,7 @@ export class CfpService implements OnModuleInit {
         neutral: neutralVotesCake.length,
         no: noVotesCake.length,
       },
-      dfxVotes: {
+      lockVotes: {
         total: lockVotes.length,
         yes: yesVotesLock.length,
         neutral: neutralVotesLock.length,
