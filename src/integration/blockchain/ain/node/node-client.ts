@@ -8,6 +8,7 @@ import { Config } from 'src/config/config';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -40,6 +41,11 @@ export class NodeClient {
   }
 
   // common
+
+  async listMasternodes(): Promise<MasternodeResult<MasternodeInfo>> {
+    return this.callNode((c) => c.masternode.listMasternodes());
+  }
+
   async getInfo(): Promise<BlockchainInfo> {
     return this.callNode((c) => c.blockchain.getBlockchainInfo());
   }

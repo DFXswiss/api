@@ -85,7 +85,6 @@ interface Masternodes {
 
 @Injectable()
 export class CfpService implements OnModuleInit {
-  private readonly myDefichainUrl = 'https://api.mydeficha.in/v1/listmasternodes/';
   private readonly lockUrl = 'https://api.lock.space/v1/masternode';
   private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
 
@@ -116,7 +115,7 @@ export class CfpService implements OnModuleInit {
 
       if (this.settings.inProgress) {
         // update masternodes
-        this.allMasternodes = await this.callApi<any>(this.myDefichainUrl);
+        this.allMasternodes = await this.client.listMasternodes();
         this.lockMasternodes = await this.callApi<any>(this.lockUrl);
         this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
 
