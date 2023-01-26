@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
+import { CakeFlow, CakeFlowDto } from './dto/cake-flow.dto';
 import { FrontendSettings } from './dto/frontend-settings.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
@@ -22,6 +23,11 @@ export class SettingController {
     return { cfpVotingOpen: cfpSettings.votingOpen };
   }
 
+  @Get('cake')
+  async getCakeFlowSettings(): Promise<CakeFlow> {
+    return this.settingService.getCakeFlow();
+  }
+
   // --- ADMIN --- //
   @Get()
   @ApiBearerAuth()
@@ -29,6 +35,14 @@ export class SettingController {
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
   async getSettings(): Promise<Setting[]> {
     return this.settingService.getAll();
+  }
+
+  @Put('cakeFlow')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+  async updateCakeFlowSetting(@Body() dto: CakeFlowDto): Promise<void> {
+    return this.settingService.setCakeFlow(dto);
   }
 
   @Put(':key')
