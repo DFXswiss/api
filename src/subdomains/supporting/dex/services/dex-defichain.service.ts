@@ -172,7 +172,6 @@ export class DexDeFiChainService {
       return Util.round(swapAmount + swapAmount * 0.05, 8);
     }
 
-    console.info(`BC-DBG - Purchase amount: ${referenceAmount} ${referenceAsset.dexName} => ${swapAsset.dexName}`);
     return this.#dexClient.testCompositeSwap(referenceAsset.dexName, swapAsset.dexName, referenceAmount);
   }
 
@@ -189,7 +188,6 @@ export class DexDeFiChainService {
   // *** HELPER METHODS *** //
 
   private async getTargetAmount(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
-    console.info(`BC-DBG - Target amount: ${sourceAmount} ${sourceAsset.dexName} => ${targetAsset.dexName}`);
     return targetAsset.dexName === sourceAsset.dexName
       ? sourceAmount
       : await this.#dexClient.testCompositeSwap(sourceAsset.dexName, targetAsset.dexName, sourceAmount);
@@ -219,8 +217,8 @@ export class DexDeFiChainService {
   private async getPurchasableAmount(swapAsset: Asset, targetAsset: Asset): Promise<number> {
     try {
       const availableAmount = await this.getAssetAvailability(swapAsset);
+      if (availableAmount === 0) return 0;
 
-      console.info(`BC-DBG - Purchasable amount: ${availableAmount} ${swapAsset.dexName} => ${targetAsset.dexName}`);
       return this.#dexClient.testCompositeSwap(swapAsset.dexName, targetAsset.dexName, availableAmount);
     } catch (e) {
       console.warn(
@@ -286,7 +284,6 @@ export class DexDeFiChainService {
 
   private async calculatePrice(sourceAsset: Asset, targetAsset: Asset): Promise<number> {
     // how much of sourceAsset you going to pay for 1 unit of targetAsset, caution - only indicative calculation
-    console.info(`BC-DBG - Price: ${this.getMinimalPriceReferenceAmount(sourceAsset.dexName)} ${sourceAsset.dexName} => ${targetAsset.dexName}`);
     return (
       1 /
       ((await this.#dexClient.testCompositeSwap(

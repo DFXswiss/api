@@ -5,6 +5,7 @@ import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
+import { IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
 import { BuyType } from './buy-type.enum';
 
 export class CreateBuyDto {
@@ -12,6 +13,7 @@ export class CreateBuyDto {
   @IsNotEmpty()
   // @IsIBAN()
   @Transform(Util.trimIban)
+  @IsDfxIban()
   iban: string;
 
   @ApiProperty()
