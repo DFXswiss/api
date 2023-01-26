@@ -18,6 +18,8 @@ import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 @ApiTags('sell')
 @Controller('sell')
@@ -85,7 +87,7 @@ export class SellController {
       fee: undefined,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),
-      minDeposits: Config.transaction.minVolume.getMany(sell.fiat),
+      minDeposits: [this.getMinDeposit(sell)],
     };
   }
 
@@ -94,7 +96,7 @@ export class SellController {
       ...(await this.getFee(userId, dto.asset)),
       depositAddress: sell.deposit.address,
       blockchain: sell.deposit.blockchain,
-      minDeposit: Config.transaction.minVolume.get(sell.fiat, sell.fiat.name),
+      minDeposit: this.getMinDeposit(sell),
     };
   }
 
@@ -102,5 +104,13 @@ export class SellController {
   async getFee(userId: number, asset: Asset): Promise<{ fee: number }> {
     asset = await this.assetService.getAssetById(asset.id);
     return this.userService.getUserSellFee(userId, asset);
+  }
+
+  private getMinDeposit(sell: Sell): MinDeposit {
+    // TODO: refactor transaction volume calculation (DEV-1195)
+    if (sell.deposit.blockchain === Blockchain.BITCOIN && sell.fiat.name !== 'USD')
+      return { amount: Config.blockchain.default.minDeposit.Bitcoin.BTC, asset: 'BTC' };
+
+    return Config.transaction.minVolume.get(sell.fiat, sell.fiat.name);
   }
 }
