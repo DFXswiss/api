@@ -18,6 +18,6 @@ export class BankDtoMapper {
   }
 
   static entitiesToDto(banks: Bank[]): BankDto[] {
-    return banks.map(this.entityToDto);
+    return banks.map(BankDtoMapper.entityToDto);
   }
 }

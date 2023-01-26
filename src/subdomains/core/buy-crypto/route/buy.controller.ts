@@ -34,6 +34,7 @@ import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
 import { Staking } from 'src/mix/models/staking/staking.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BuyCryptoService } from '../process/services/buy-crypto.service';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 
 @ApiTags('Buy')
 @Controller('buy')
@@ -105,6 +106,7 @@ export class BuyController {
     return {
       type: buy.deposit != null ? BuyType.STAKING : BuyType.WALLET,
       ...buy,
+      asset: AssetDtoMapper.entityToDto(buy.asset),
       staking: await this.getStaking(userId, buy.deposit, stakingRoutes),
       ...fee,
       minDeposits: Config.transaction.minVolume.getMany(buy.asset),

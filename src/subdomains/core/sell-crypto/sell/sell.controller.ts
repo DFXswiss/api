@@ -18,6 +18,8 @@ import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
+import { DepositDtoMapper } from 'src/mix/models/deposit/dto/deposit-dto.mapper';
 
 @ApiTags('Sell')
 @Controller('sell')
@@ -86,6 +88,8 @@ export class SellController {
 
     return {
       ...sell,
+      fiat: FiatDtoMapper.entityToDto(sell.fiat),
+      deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),

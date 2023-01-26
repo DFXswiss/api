@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { BuyType } from 'src/subdomains/core/buy-crypto/route/dto/buy-type.enum';
 import { MinDeposit } from '../../deposit/dto/min-deposit.dto';
@@ -17,7 +16,7 @@ export class CryptoRouteDto {
   type: BuyType;
 
   @ApiProperty({ type: AssetDto })
-  asset: Asset;
+  asset: AssetDto;
 
   @ApiProperty()
   volume: number;

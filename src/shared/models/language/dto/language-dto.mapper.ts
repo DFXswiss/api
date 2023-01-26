@@ -15,6 +15,6 @@ export class LanguageDtoMapper {
   }
 
   static entitiesToDto(languages: Language[]): LanguageDto[] {
-    return languages.map(this.entityToDto);
+    return languages.map(LanguageDtoMapper.entityToDto);
   }
 }

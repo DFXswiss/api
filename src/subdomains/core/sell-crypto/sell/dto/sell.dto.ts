@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Fiat } from 'src/shared/models/fiat/fiat.entity';
-import { Deposit } from '../../../../../mix/models/deposit/deposit.entity';
+import { DepositDto } from 'src/mix/models/deposit/dto/deposit.dto';
+import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { MinDeposit } from '../../../../../mix/models/deposit/dto/min-deposit.dto';
 
 export class SellDto {
@@ -11,14 +11,14 @@ export class SellDto {
   @ApiProperty()
   active: boolean;
 
-  @ApiProperty({ type: Deposit })
-  deposit: Deposit;
+  @ApiProperty({ type: DepositDto })
+  deposit: DepositDto;
 
   @ApiProperty()
   iban: string;
 
-  @ApiProperty({ type: Fiat })
-  fiat: Fiat;
+  @ApiProperty({ type: FiatDto })
+  fiat: FiatDto;
 
   @ApiProperty()
   volume: number;

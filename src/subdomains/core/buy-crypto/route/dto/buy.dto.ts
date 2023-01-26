@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { BuyType } from './buy-type.enum';
 
@@ -19,7 +18,7 @@ export class BuyDto {
   type: BuyType;
 
   @ApiProperty({ type: AssetDto })
-  asset: Asset;
+  asset: AssetDto;
 
   @ApiProperty({ type: StakingDto })
   staking: StakingDto;

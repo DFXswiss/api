@@ -14,6 +14,6 @@ export class CountryDtoMapper {
   }
 
   static entitiesToDto(countries: Country[]): CountryDto[] {
-    return countries.map(this.entityToDto);
+    return countries.map(CountryDtoMapper.entityToDto);
   }
 }

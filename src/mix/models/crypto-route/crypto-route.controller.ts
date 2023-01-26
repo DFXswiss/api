@@ -25,6 +25,7 @@ import { CryptoPaymentInfoDto } from './dto/crypto-payment-info.dto';
 import { GetCryptoPaymentInfoDto } from './dto/get-crypto-payment-info.dto';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyType } from 'src/subdomains/core/buy-crypto/route/dto/buy-type.enum';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 
 @ApiTags('CryptoRoute')
 @Controller('cryptoRoute')
@@ -107,6 +108,7 @@ export class CryptoRouteController {
 
     return {
       ...crypto,
+      asset: AssetDtoMapper.entityToDto(crypto.asset),
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),

@@ -23,6 +23,6 @@ export class AssetDtoMapper {
   }
 
   static entitiesToDto(assets: Asset[]): AssetDto[] {
-    return assets.map(this.entityToDto);
+    return assets.map(AssetDtoMapper.entityToDto);
   }
 }
