@@ -1,4 +1,3 @@
-import { DepositRouteDtoMapper } from '../../route/dto/deposit-route-dto.mapper';
 import { Deposit } from '../deposit.entity';
 import { DepositDto } from './deposit.dto';
 
@@ -8,7 +7,6 @@ export class DepositDtoMapper {
       id: deposit.id,
       blockchain: deposit.blockchain,
       address: deposit.address,
-      route: deposit.route ? DepositRouteDtoMapper.entityToDto(deposit.route) : undefined,
     };
 
     return Object.assign(new DepositDto(), dto);
