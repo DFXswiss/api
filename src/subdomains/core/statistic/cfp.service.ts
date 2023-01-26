@@ -158,15 +158,17 @@ export class CfpService implements OnModuleInit {
 
   // --- HELPER METHODS --- //
 
-  private getVotes(proposalVote: ProposalVote[]): Vote[] {
-    return proposalVote.map((m) => ({
-      address: this.allMasternodes[m.masternodeId].ownerAuthAddress,
-      cfpId: m.proposalId,
-      vote: m.vote,
-      isCake:
-        this.cakeMasternodes.find((n) => n.address === this.allMasternodes[m.masternodeId].ownerAuthAddress) != null,
-      isLock: this.lockMasternodes.find((mn) => mn === this.allMasternodes[m.masternodeId].ownerAuthAddress) != null,
-    }));
+  private getVotes(proposalVotes: ProposalVote[]): Vote[] {
+    return proposalVotes
+      .filter((v) => this.allMasternodes[v.masternodeId] != null)
+      .map((v) => ({
+        address: this.allMasternodes[v.masternodeId].ownerAuthAddress,
+        cfpId: v.proposalId,
+        vote: v.vote,
+        isCake:
+          this.cakeMasternodes.find((n) => n.address === this.allMasternodes[v.masternodeId].ownerAuthAddress) != null,
+        isLock: this.lockMasternodes.find((mn) => mn === this.allMasternodes[v.masternodeId].ownerAuthAddress) != null,
+      }));
   }
 
   private async getCfpResult(proposal: Proposal): Promise<CfpResult> {

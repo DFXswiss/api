@@ -43,7 +43,7 @@ export class NodeClient {
   // common
 
   async listMasternodes(): Promise<MasternodeResult<MasternodeInfo>> {
-    return this.callNode((c) => c.masternode.listMasternodes());
+    return this.callNode((c) => c.masternode.listMasternodes({ limit: 1000000 }));
   }
 
   async getInfo(): Promise<BlockchainInfo> {

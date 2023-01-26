@@ -200,7 +200,7 @@ export class DeFiClient extends NodeClient {
   //Voting
 
   async listProposal(): Promise<Proposal[]> {
-    return this.callNode((c) => c.call('listgovproposals', ['all', 'voting'], 'number'), true);
+    return this.callNode((c) => c.call('listgovproposals', ['all', 'voting', 0, { limit: 1000000 }], 'number'), true);
   }
 
   async getProposal(proposalId: string): Promise<Proposal> {
@@ -208,6 +208,9 @@ export class DeFiClient extends NodeClient {
   }
 
   async listVotes(proposalId: string): Promise<ProposalVote[]> {
-    return this.callNode((c) => c.call('listgovproposalvotes', [proposalId, 'all', 0], 'number'), true);
+    return this.callNode(
+      (c) => c.call('listgovproposalvotes', [proposalId, 'all', 0, { limit: 1000000 }], 'number'),
+      true,
+    );
   }
 }
