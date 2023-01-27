@@ -30,6 +30,6 @@ export class BitcoinStrategy extends SendStrategy {
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.btcCollectorAddress, Blockchain.BITCOIN);
+    return BlockchainAddress.create(Config.blockchain.default.btcOutWalletAddress, Blockchain.BITCOIN);
   }
 }

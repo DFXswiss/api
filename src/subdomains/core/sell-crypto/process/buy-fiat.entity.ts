@@ -199,8 +199,9 @@ export class BuyFiat extends IEntity {
   }
 
   get translationKey(): string {
+    if (!this.mail1SendDate) return 'mail.payment.withdrawal.offRampInitiated';
+
     if (this.amlCheck === AmlCheck.PASS) {
-      if (!this.mail1SendDate) return 'mail.payment.withdrawal.offRampInitiated';
       if (!this.mail2SendDate) return 'mail.payment.withdrawal.cryptoExchangedToFiat';
       return 'mail.payment.withdrawal.fiatToBankTransferInitiated';
     } else if (this.amlCheck === AmlCheck.PENDING) {

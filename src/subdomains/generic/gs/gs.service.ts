@@ -177,7 +177,15 @@ export class GsService {
 
     return buyCryptoData
       .concat(buyFiatData, bankTxRestData)
-      .sort((a, b) => (dbQuery.sorting == 'ASC' ? a.bank_tx_id - b.bank_tx_id : b.bank_tx_id - a.bank_tx_id));
+      .sort((a, b) =>
+        dbQuery.sorting == 'ASC'
+          ? dbQuery.select
+            ? a.id - b.id
+            : a.bank_tx_id - b.bank_tx_id
+          : dbQuery.select
+          ? b.id - a.id
+          : b.bank_tx_id - a.bank_tx_id,
+      );
   }
 
   private transformResultArray(

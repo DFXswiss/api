@@ -50,7 +50,7 @@ export class CryptoInput extends IEntity {
   @Column({ nullable: true })
   prepareTxId: string;
 
-  @Column({ nullable: true })
+  @Column({ length: 256, nullable: true })
   txType: string;
 
   @Column({ nullable: true })

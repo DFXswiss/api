@@ -6,11 +6,12 @@ import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-f
 import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposit/deposit.repository';
 import { StakingRefRewardRepository } from 'src/subdomains/core/staking/repositories/staking-ref-reward.repository';
 import { StakingRewardRepository } from 'src/subdomains/core/staking/repositories/staking-reward.repository';
-import { getCustomRepository, IsNull, Not } from 'typeorm';
+import { getCustomRepository, In, IsNull, Not } from 'typeorm';
 import { BankTxRepository } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.repository';
 import { AmlCheck } from '../../buy-crypto/process/enums/aml-check.enum';
 import { BuyCryptoRepository } from '../../buy-crypto/process/repositories/buy-crypto.repository';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 
 interface PaymentData {
   lastOutputDates: LastOutputDates;
@@ -61,21 +62,9 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .where('route.id IS NULL')
         .getCount(),
       unhandledCryptoInputs: await getCustomRepository(PayInRepository).count({
-        where: [
-          {
-            // type: Not(In([CryptoInputType.CRYPTO_CRYPTO, CryptoInputType.CRYPTO_STAKING])),
-            buyFiat: { id: IsNull() },
-            cryptoStaking: { id: IsNull() },
-            buyCrypto: { id: IsNull() },
-          },
-          // ignore staking deposits with failed AML check
-          {
-            // type: CryptoInputType.CRYPTO_STAKING,
-            cryptoStaking: { id: IsNull() },
-            amlCheck: AmlCheck.PASS,
-          },
-        ],
-        relations: ['buyFiat', 'cryptoStaking', 'buyCrypto'],
+        where: {
+          status: In([PayInStatus.WAITING_FOR_PRICE_REFERENCE, PayInStatus.FAILED]),
+        },
       }),
     };
   }

@@ -5,7 +5,7 @@ import { BankTxBatch } from './bank-tx-batch.entity';
 import { SepaParser } from './sepa-parser.service';
 import { In } from 'typeorm';
 import { UpdateBankTxDto } from './dto/update-bank-tx.dto';
-import { BankTx, BankTxType } from './bank-tx.entity';
+import { BankTx, BankTxType, BankTxTypeCompleted } from './bank-tx.entity';
 import { Interval } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FrickService } from './frick.service';
@@ -35,15 +35,19 @@ export class BankTxService {
   @Interval(60000)
   async checkTransactions(): Promise<void> {
     try {
-      const settingKey = 'lastBankDate';
-      const lastModificationTime = await this.settingService.get(settingKey, new Date(0).toISOString());
+      // Get settings
+      const settingKeyFrick = 'lastBankFrickDate';
+      const settingKeyOlky = 'lastBankOlkyDate';
+      const lastModificationTimeFrick = await this.settingService.get(settingKeyFrick, new Date(0).toISOString());
+      const lastModificationTimeOlky = await this.settingService.get(settingKeyOlky, new Date(0).toISOString());
+      const newModificationTime = new Date().toISOString();
 
-      const transactions = await Promise.all([
-        this.olkyService.getOlkyTransactions(lastModificationTime),
-        this.frickService.getFrickTransactions(lastModificationTime),
-      ]).then(([olky, frick]) => olky.concat(frick));
+      // Get bank transactions
+      const frickTransactions = await this.frickService.getFrickTransactions(lastModificationTimeFrick);
+      const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky);
+      const allTransactions = olkyTransactions.concat(frickTransactions);
 
-      for (const bankTx of transactions) {
+      for (const bankTx of allTransactions) {
         try {
           await this.create(bankTx);
         } catch (e) {
@@ -51,8 +55,8 @@ export class BankTxService {
         }
       }
 
-      const newModificationTime = new Date().toISOString();
-      await this.settingService.set(settingKey, newModificationTime);
+      if (frickTransactions.length > 0) await this.settingService.set(settingKeyFrick, newModificationTime);
+      if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
     } catch (e) {
       console.error(`Failed to check bank transactions:`, e);
     }
@@ -74,24 +78,23 @@ export class BankTxService {
   async update(bankTxId: number, dto: UpdateBankTxDto): Promise<BankTx> {
     const bankTx = await this.bankTxRepo.findOne(bankTxId);
     if (!bankTx) throw new NotFoundException('BankTx not found');
-    // TODO später auskommentieren
-    // if (bankTx.type && bankTx.type != BankTxType.UNKNOWN) throw new ConflictException('BankTx Type already set');
+    if (dto.type && dto.type != bankTx.type) {
+      if (BankTxTypeCompleted(bankTx.type)) throw new ConflictException('BankTx type already set');
 
-    bankTx.type = dto.type;
-
-    switch (bankTx.type) {
-      case BankTxType.BUY_CRYPTO:
-        await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
-        break;
-      case BankTxType.BANK_TX_RETURN:
-        await this.bankTxReturnService.create(bankTx);
-        break;
-      case BankTxType.BANK_TX_REPEAT:
-        await this.bankTxRepeatService.create(bankTx);
-        break;
+      switch (dto.type) {
+        case BankTxType.BUY_CRYPTO:
+          await this.buyCryptoService.createFromFiat(bankTxId, dto.buyId);
+          break;
+        case BankTxType.BANK_TX_RETURN:
+          await this.bankTxReturnService.create(bankTx);
+          break;
+        case BankTxType.BANK_TX_REPEAT:
+          await this.bankTxRepeatService.create(bankTx);
+          break;
+      }
     }
 
-    return await this.bankTxRepo.save(bankTx);
+    return await this.bankTxRepo.save({ ...bankTx, ...dto });
   }
 
   // --- HELPER METHODS --- //

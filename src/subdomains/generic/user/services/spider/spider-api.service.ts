@@ -21,6 +21,7 @@ import {
   SubmitResponse,
   DocumentVersionPart,
   Risk,
+  DocumentInfo,
 } from './dto/spider.dto';
 
 @Injectable()
@@ -177,6 +178,41 @@ export class SpiderApiService {
   }
 
   // --- DOCUMENTS --- //
+  async getDocumentInfos(customerId: number, isOrganization: boolean): Promise<DocumentInfo[]> {
+    const { id: kycId } = await this.getCustomer(customerId);
+
+    const documentList: DocumentInfo[] = [];
+
+    const documents = (await this.getDocuments(customerId, isOrganization)) ?? [];
+    for (const document of documents) {
+      const versions = (await this.getDocumentVersions(customerId, isOrganization, document)) ?? [];
+      for (const version of versions) {
+        const parts = (await this.getDocumentVersionParts(customerId, isOrganization, document, version.name)) ?? [];
+
+        documentList.push(
+          ...parts.map((part) => ({
+            document,
+            version: version.name,
+            part: part.name,
+            state: version.state,
+            creationTime: new Date(part.creationTime),
+            modificationTime: new Date(part.modificationTime),
+            label: part.label,
+            fileName: part.fileName,
+            contentType: part.contentType,
+            url: this.getDocumentUrl(kycId, document, version.name, part.name),
+          })),
+        );
+      }
+    }
+
+    return documentList;
+  }
+
+  async getDocuments(customerId: number, isOrganization: boolean): Promise<KycDocument[]> {
+    return this.callApi(`customers/${this.reference(customerId, isOrganization)}/documents`);
+  }
+
   async getDocument<T>(
     customerId: number,
     isOrganization: boolean,
@@ -313,6 +349,10 @@ export class SpiderApiService {
     );
 
     return result === 'done';
+  }
+
+  getDocumentUrl(kycCustomerId: number, document: KycDocument, version: string, part: string): string {
+    return `https://kyc.eurospider.com/toolbox/rest/customer-resource/customer/${kycCustomerId}/doctype/${document}/version/${version}/part/${part}`;
   }
 
   // --- IDENTIFICATION --- //

@@ -2185,5 +2185,30 @@
       }
     ],
     "tests": []
+  },
+  {
+    "_id": "91e84792-a622-4d94-8e1c-f06ac12959fe",
+    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+    "containerId": "fe3ad847-35d2-43de-8187-dfe1d838b38b",
+    "name": "Get Document Infos",
+    "url": "{{url}}/v1/admin/documents?id=332&isOrganization=false",
+    "method": "GET",
+    "sortNum": 360000,
+    "created": "2023-01-17T13:04:51.327Z",
+    "modified": "2023-01-17T13:10:43.221Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "id",
+        "value": "332",
+        "isPath": false
+      },
+      {
+        "name": "isOrganization",
+        "value": "false",
+        "isPath": false
+      }
+    ],
+    "tests": []
   }
 ]

@@ -16,4 +16,7 @@ export class BankAccountDto {
 
   @ApiProperty()
   sepaInstant: boolean;
+
+  @ApiProperty()
+  active: boolean;
 }

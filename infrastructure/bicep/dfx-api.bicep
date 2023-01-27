@@ -37,7 +37,6 @@ param outWalletAddress string
 param intWalletAddress string
 param stakingWalletAddress string
 param utxoSpenderAddress string
-param btcCollectorAddress string
 param btcOutWalletAddress string
 
 param ethWalletAddress string
@@ -147,6 +146,9 @@ param azureTenantId string
 param azureClientId string
 @secure()
 param azureClientSecret string
+
+@secure()
+param taliumApiKey string
 
 // --- VARIABLES --- //
 var compName = 'dfx'
@@ -641,10 +643,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
           value: bscSwapTokenAddress
         }
         {
-          name: 'BTC_COLLECTOR_ADDRESS'
-          value: btcCollectorAddress
-        }
-        {
           name: 'BTC_OUT_WALLET_ADDRESS'
           value: btcOutWalletAddress
         }
@@ -791,6 +789,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'AZURE_CLIENT_SECRET'
           value: azureClientSecret
+        }
+        {
+          name: 'TALIUM_API_KEY'
+          value: taliumApiKey
         }
       ]
     }

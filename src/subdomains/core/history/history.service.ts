@@ -33,6 +33,7 @@ export class HistoryService {
     userId: number,
     userAddress: string,
     query: HistoryQuery,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     timeout?: number,
   ): Promise<CoinTrackingHistory[]> {
     const all =

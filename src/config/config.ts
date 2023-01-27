@@ -90,8 +90,6 @@ export class Configuration {
     },
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
-    signMessageWallet:
-      'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageGeneral:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
   };
@@ -150,6 +148,9 @@ export class Configuration {
     'LOCK.space STG': {
       apiKey: process.env.LOCK_API_KEY,
     },
+    Talium: {
+      apiKey: process.env.TALIUM_API_KEY,
+    },
   };
 
   mail: MailOptions = {
@@ -205,6 +206,20 @@ export class Configuration {
         },
       },
       BinanceSmartChain: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
+      Arbitrum: {
+        default: {
+          USD: 10,
+          CHF: 10,
+          EUR: 10,
+        },
+      },
+      Optimism: {
         default: {
           USD: 10,
           CHF: 10,
@@ -281,7 +296,6 @@ export class Configuration {
       outWalletAddress: process.env.OUT_WALLET_ADDRESS,
       intWalletAddress: process.env.INT_WALLET_ADDRESS,
       stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
-      btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
       btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
       minTxAmount: 0.00000297,
       minDeposit: {
@@ -478,6 +492,7 @@ export class Configuration {
     return {
       apiKey: process.env.KRAKEN_KEY,
       secret: process.env.KRAKEN_SECRET,
+      nonce: () => Date.now(),
       ...this.exchange,
     };
   }
@@ -493,11 +508,15 @@ export class Configuration {
   get addressFormat(): RegExp {
     return this.environment === 'prd'
       ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
-      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/;
+      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54})$/;
   }
 
   get signatureFormat(): RegExp {
-    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132})$/;
+    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582})$/;
+  }
+
+  get keyFormat(): RegExp {
+    return /^[a-f0-9]{84}$/;
   }
 
   get configuredFeeLimit(): number | null {

@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { IsNull, Not } from 'typeorm';
-import { User } from '../../../../generic/user/models/user/user.entity';
+import { User, UserStatus } from '../../../../generic/user/models/user/user.entity';
 import { Util } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Config } from 'src/config/config';
@@ -82,6 +82,9 @@ export class CryptoRouteService {
     // KYC check
     const { kycStatus } = await this.userDataService.getUserDataByUser(userId);
     if (!KycCompleted(kycStatus)) throw new BadRequestException('Missing KYC');
+
+    const { status } = await this.userService.getUser(userId);
+    if (status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
 
     // check asset
     const asset =

@@ -1,4 +1,4 @@
-import { AccountHistory, AccountResult } from '@defichain/jellyfish-api-core/dist/category/account';
+import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
 import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
@@ -167,15 +167,6 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   }
 
   //*** HELPER METHODS ***//
-
-  async getAddressesWithFunds(utxo: UTXO[], token: AccountResult<string, string>[]): Promise<string[]> {
-    const utxoAddresses = utxo
-      .filter((u) => u.amount.toNumber() >= Config.blockchain.default.minDeposit.DeFiChain.DFI)
-      .map((u) => u.address);
-    const tokenAddresses = token.map((t) => t.owner);
-
-    return [...new Set(utxoAddresses.concat(tokenAddresses))];
-  }
 
   private async doTokenTx(addressFrom: string, tx: (utxo: UTXO) => Promise<string>): Promise<void> {
     const feeUtxo = await this.getFeeUtxo(addressFrom);

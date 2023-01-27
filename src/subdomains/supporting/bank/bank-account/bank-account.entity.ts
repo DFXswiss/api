@@ -116,4 +116,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
 
   @Column({ nullable: true })
   ibanWwwOccurrences: number;
+
+  @Column({ default: true })
+  active: boolean;
 }

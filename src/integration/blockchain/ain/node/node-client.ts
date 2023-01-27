@@ -8,6 +8,7 @@ import { Config } from 'src/config/config';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
+import { MasternodeInfo, MasternodeResult } from '@defichain/jellyfish-api-core/dist/category/masternode';
 
 export enum NodeCommand {
   UNLOCK = 'walletpassphrase',
@@ -40,6 +41,11 @@ export class NodeClient {
   }
 
   // common
+
+  async listMasternodes(): Promise<MasternodeResult<MasternodeInfo>> {
+    return this.callNode((c) => c.masternode.listMasternodes({ limit: 1000000 }));
+  }
+
   async getInfo(): Promise<BlockchainInfo> {
     return this.callNode((c) => c.blockchain.getBlockchainInfo());
   }
@@ -132,8 +138,17 @@ export class NodeClient {
     );
   }
 
-  private call<T>(call: (client: ApiClient) => Promise<T>): Promise<T> {
-    return this.queue.handle(() => call(this.client));
+  private async call<T>(call: (client: ApiClient) => Promise<T>, tryCount = 3): Promise<T> {
+    try {
+      return await this.queue.handle(() => call(this.client));
+    } catch (e) {
+      if (e instanceof SyntaxError && tryCount > 1) {
+        console.log('Retrying node call ...');
+        return this.call<T>(call, tryCount - 1);
+      }
+
+      throw e;
+    }
   }
 
   private createJellyfishClient(): ApiClient {

@@ -16,6 +16,7 @@ import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/service
 import { BuyFiatRegistrationService } from '../buy-fiat-registration.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 
 enum MockBuyData {
   DEFAULT,
@@ -37,6 +38,7 @@ describe('BuyFiatService', () => {
   let buyCryptoService: BuyCryptoService;
   let buyFiatRegistrationService: BuyFiatRegistrationService;
   let settingService: SettingService;
+  let webhookService: WebhookService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -49,6 +51,7 @@ describe('BuyFiatService', () => {
     buyCryptoService = createMock<BuyCryptoService>();
     buyFiatRegistrationService = createMock<BuyFiatRegistrationService>();
     settingService = createMock<SettingService>();
+    webhookService = createMock<WebhookService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -64,6 +67,7 @@ describe('BuyFiatService', () => {
         { provide: BuyCryptoService, useValue: buyCryptoService },
         { provide: BuyFiatRegistrationService, useValue: buyFiatRegistrationService },
         { provide: SettingService, useValue: settingService },
+        { provide: WebhookService, useValue: webhookService },
       ],
     }).compile();
 

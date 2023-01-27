@@ -14,7 +14,7 @@ export class DeFiChainUtil {
       const { height } = await client.getBlock(transaction.blockhash);
 
       return client
-        .getHistories([Config.blockchain.default.dexWalletAddress], height, height + 1)
+        .getHistory(height, height + 1, Config.blockchain.default.dexWalletAddress)
         .then((histories) =>
           histories
             .map((h) => ({ txId: h.txid, blockHeight: h.blockHeight, amounts: h.amounts }))
