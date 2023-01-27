@@ -1,16 +1,17 @@
 import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
-import { CakeSettings, CakeFlowDto } from './dto/cake-flow.dto';
+import { CakeFlowDto, CakeSettings } from './dto/cake-flow.dto';
+import { CfpSettings } from 'src/subdomains/core/statistic/dto/cfp.dto';
 import { FrontendSettings } from './dto/frontend-settings.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
 
-@ApiTags('setting')
+@ApiTags('Setting')
 @Controller('setting')
+@ApiExcludeController()
 export class SettingController {
   constructor(private readonly settingService: SettingService) {}
 

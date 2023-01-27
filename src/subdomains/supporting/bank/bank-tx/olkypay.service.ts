@@ -124,7 +124,7 @@ export class OlkypayService {
     switch (tx.codeInterbancaireInterne) {
       case TransactionType.SENT:
         return {
-          name: tx.line1.split('Virement Inst Client : ')[1],
+          name: tx.line1.split('Virement Inst Client : ')[1] ?? tx.line1.split('Virement SEPA Client : ')[1],
         };
       case TransactionType.RECEIVED:
         return {

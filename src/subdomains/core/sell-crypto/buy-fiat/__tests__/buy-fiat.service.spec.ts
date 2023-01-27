@@ -15,6 +15,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.se
 import { FiatOutputService } from 'src/subdomains/supporting/bank/fiat-output/fiat-output.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
+import { createCustomFiatOutput } from 'src/subdomains/supporting/bank/fiat-output/__mocks__/fiat-output.entity.mock';
 
 enum MockBuyData {
   DEFAULT,
@@ -94,12 +95,12 @@ describe('BuyFiatService', () => {
         case MockBuyData.BUY_HISTORY:
           wantedData = [
             createCustomBuyFiat({
-              outputDate: date,
+              fiatOutput: createCustomFiatOutput({outputDate: date}),
               cryptoInput: createCustomCryptoInput({ inTxId: 'IN_TX_ID_0' }),
               ...txOne,
             }),
             createCustomBuyFiat({
-              outputDate: date,
+              fiatOutput: createCustomFiatOutput({outputDate: date}),
               cryptoInput: createCustomCryptoInput({ inTxId: 'IN_TX_ID_1' }),
               ...txTwo,
             }),
@@ -108,7 +109,7 @@ describe('BuyFiatService', () => {
         case MockBuyData.BUY_HISTORY_SMALL:
           wantedData = [
             createCustomBuyFiat({
-              outputDate: date,
+              fiatOutput: createCustomFiatOutput({outputDate: date}),
               cryptoInput: createCustomCryptoInput({ created: date, inTxId: 'IN_TX_ID_0' }),
               ...txSmallAmount,
             }),

@@ -24,6 +24,7 @@ import { Util } from 'src/shared/utils/util';
 import { Interval } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
+import { ChallengeDto } from './dto/challenge.dto';
 
 export interface ChallengeData {
   created: Date;
@@ -95,7 +96,7 @@ export class AuthService {
     return { accessToken: this.generateCompanyToken(wallet) };
   }
 
-  async getCompanyChallenge(address: string): Promise<{ challenge: string }> {
+  async getCompanyChallenge(address: string): Promise<ChallengeDto> {
     const wallet = await this.walletRepo.findOne({ where: { address: address } });
     if (!wallet || !wallet.isKycClient) throw new BadRequestException('Wallet not found/invalid');
 
