@@ -60,6 +60,7 @@ export class SellService {
     // check fiat
     const fiat = await this.fiatService.getFiat(dto.fiat.id);
     if (!fiat) throw new BadRequestException('Fiat not found');
+    if (!fiat.sellable || !fiat.enable) throw new BadRequestException('Fiat not buyable');
 
     // check if exists
     const existing = await this.sellRepo.findOne({

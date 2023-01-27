@@ -215,6 +215,13 @@ export class KycService {
     const hasKyc = await this.userDataService.isKnownKycUser(user);
     if (hasKyc) throw new ConflictException('User already has completed KYC');
 
+    // check if user country is enabled
+    if (!user.country.isEnabled(user.kycType)) throw new ConflictException('User country is not supported');
+
+    // check if organization country is enabled
+    if (user.organizationCountry && !user.organizationCountry.isEnabled(user.kycType))
+      throw new ConflictException('Organization country is not supported');
+
     // update
     user = await this.startKyc(user);
     await this.userDataRepo.save(user);
