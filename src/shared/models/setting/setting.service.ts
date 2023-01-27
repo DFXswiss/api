@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CakeFlow, CakeFlowDto } from './dto/cake-flow.dto';
+import { CakeSettings, CakeFlowDto } from './dto/cake-flow.dto';
 import { Setting } from './setting.entity';
 import { SettingRepository } from './setting.repository';
 
@@ -11,11 +11,6 @@ export class SettingService {
     return this.settingRepo.find();
   }
 
-  async getCakeFlow(): Promise<CakeFlow> {
-    const t = await this.settingRepo.findOne({ key: 'CakeFlow' });
-    return t ? (JSON.parse(t.value) as CakeFlow) : undefined;
-  }
-
   async get(key: string, defaultValue?: string): Promise<string | undefined> {
     return this.settingRepo.findOne({ key: key }).then((d) => d?.value ?? defaultValue);
   }
@@ -25,12 +20,11 @@ export class SettingService {
   }
 
   async setCakeFlow(dto: CakeFlowDto): Promise<void> {
-    let currentCakeFlow = await this.getCakeFlow();
-    currentCakeFlow ??= { assets: {} };
+    const cakeSettings = await this.getObj<CakeSettings>('cake', { assets: {} });
 
-    currentCakeFlow.assets[dto.asset] = { direction: dto.direction, threshold: dto.threshold };
+    cakeSettings.assets[dto.asset] = { direction: dto.direction, threshold: dto.threshold };
 
-    await this.settingRepo.save({ key: 'CakeFlow', value: JSON.stringify(currentCakeFlow) });
+    await this.setObj('cake', cakeSettings);
   }
 
   async getObj<T>(key: string, defaultValue?: T): Promise<T | undefined> {

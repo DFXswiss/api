@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
-import { CakeFlow, CakeFlowDto } from './dto/cake-flow.dto';
+import { CakeSettings, CakeFlowDto } from './dto/cake-flow.dto';
 import { FrontendSettings } from './dto/frontend-settings.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
@@ -24,8 +24,8 @@ export class SettingController {
   }
 
   @Get('cake')
-  async getCakeFlowSettings(): Promise<CakeFlow> {
-    return this.settingService.getCakeFlow();
+  async getCakeSettings(): Promise<CakeSettings> {
+    return this.settingService.getObj<CakeSettings>('cake');
   }
 
   // --- ADMIN --- //
