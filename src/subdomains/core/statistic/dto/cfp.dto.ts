@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CfpSettings {
   @ApiProperty()
@@ -45,14 +45,27 @@ export enum VotingType {
   DFIP = 'dfip',
 }
 
-export interface Vote {
+export class Vote {
+  @ApiProperty()
   address: string;
-  signature: string;
+
+  @ApiProperty()
   cfpId: string;
+
+  @ApiProperty()
   vote: string;
-  createdAt: string;
-  isCake: boolean;
-  isDfx: boolean;
+
+  @ApiPropertyOptional()
+  signature?: string;
+
+  @ApiPropertyOptional()
+  createdAt?: string;
+
+  @ApiPropertyOptional()
+  isCake?: boolean;
+
+  @ApiPropertyOptional()
+  isLock?: boolean;
 }
 
 export interface MasterNode {
@@ -81,21 +94,7 @@ class TotalVotesDto {
   no: number;
 }
 
-class CakeVotesDto {
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  yes: number;
-
-  @ApiProperty()
-  neutral: number;
-
-  @ApiProperty()
-  no: number;
-}
-
-class DfxVotesDto {
+class ServiceVotesDto {
   @ApiProperty()
   total: number;
 
@@ -110,19 +109,19 @@ class DfxVotesDto {
 }
 
 class VoteDetailsDto {
-  @ApiProperty()
+  @ApiProperty({ type: Vote, isArray: true })
   yes: Vote[];
 
-  @ApiProperty()
+  @ApiProperty({ type: Vote, isArray: true })
   neutral: Vote[];
 
-  @ApiProperty()
+  @ApiProperty({ type: Vote, isArray: true })
   no: Vote[];
 }
 
 export class CfpResult {
   @ApiProperty()
-  number: number;
+  number: string;
 
   @ApiProperty()
   title: string;
@@ -142,11 +141,14 @@ export class CfpResult {
   @ApiProperty({ type: TotalVotesDto })
   totalVotes: TotalVotesDto;
 
-  @ApiProperty({ type: CakeVotesDto })
-  cakeVotes: CakeVotesDto;
+  @ApiPropertyOptional({ type: ServiceVotesDto })
+  cakeVotes?: ServiceVotesDto;
 
-  @ApiProperty({ type: DfxVotesDto })
-  dfxVotes: DfxVotesDto;
+  @ApiPropertyOptional({ type: ServiceVotesDto })
+  dfxVotes?: ServiceVotesDto;
+
+  @ApiPropertyOptional({ type: ServiceVotesDto })
+  lockVotes?: ServiceVotesDto;
 
   @ApiProperty({ type: VoteDetailsDto })
   voteDetails: VoteDetailsDto;
