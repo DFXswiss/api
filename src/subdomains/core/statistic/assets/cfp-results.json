@@ -1,9 +1,11 @@
 {
+  "2301": [],
   "2211": [
     {
       "title": "CFP-2211-15: Krypto-Sprungbrett & dfidex.live by ChristophG ( 5 000 DFI )",
       "number": 243,
       "type": "cfp",
+      "dfiAmount": 5000,
       "htmlUrl": "https://github.com/DeFiCh/dfips/issues/243",
       "currentResult": "Approved",
       "totalVotes": {

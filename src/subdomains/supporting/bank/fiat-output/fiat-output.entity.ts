@@ -1,12 +1,17 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Entity, OneToOne, Column } from 'typeorm';
+import { Entity, OneToOne, Column, JoinColumn } from 'typeorm';
 import { BuyFiat } from '../../../core/sell-crypto/buy-fiat/buy-fiat.entity';
+import { BankTx } from '../bank-tx/bank-tx.entity';
 import { TransactionCharge } from '../bank-tx/frick.service';
 
 @Entity()
 export class FiatOutput extends IEntity {
   @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.fiatOutput, { nullable: true })
   buyFiat?: BuyFiat;
+
+  @OneToOne(() => BankTx, { nullable: true })
+  @JoinColumn()
+  bankTx: BankTx;
 
   @Column({ length: 256, nullable: false })
   type: string;
@@ -100,7 +105,4 @@ export class FiatOutput extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   outputDate?: Date;
-
-  @Column({ type: 'integer', nullable: true })
-  bankTxId?: number;
 }

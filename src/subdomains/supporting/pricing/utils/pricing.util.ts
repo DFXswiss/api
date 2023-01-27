@@ -1,4 +1,4 @@
-import { Altcoin, Fiat, USDStableCoin } from '../enums';
+import { Altcoin, Bitcoin, Fiat, USDStableCoin } from '../enums';
 
 export class PricingUtil {
   static isFiat(asset: string): boolean {
@@ -6,7 +6,7 @@ export class PricingUtil {
   }
 
   static isBTC(asset: string): boolean {
-    return asset === 'BTC';
+    return Object.values(Bitcoin).includes(asset as unknown as Bitcoin);
   }
 
   static isAltcoin(asset: string): boolean {

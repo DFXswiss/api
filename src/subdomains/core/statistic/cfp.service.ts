@@ -1,8 +1,4 @@
-import { Inject, Injectable, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
-import { CryptoService } from 'src/integration/blockchain/ain/services/crypto.service';
-import { HttpService } from '../../../shared/services/http.service';
-import * as MasterNodes from './assets/master-nodes.json';
-import * as CakeMasterNodes from './assets/cake-mn.json';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import * as CfpResults from './assets/cfp-results.json';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
@@ -21,31 +17,103 @@ import {
   Vote,
   VotingType,
 } from './dto/cfp.dto';
+import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
+import { DeFiClient, Proposal, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
+import { ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
+import { HttpService } from 'src/shared/services/http.service';
+
+export interface CfpSettings {
+  inProgress: boolean;
+  votingOpen: boolean;
+  currentRound: string;
+  startDate: string;
+  endDate: string;
+}
+
+enum ResultStatus {
+  APPROVED = 'Approved',
+  NOT_APPROVED = 'Not approved',
+}
+
+enum VotingType {
+  CFP = 'cfp',
+  DFIP = 'dfip',
+}
+
+interface Vote {
+  address: string;
+  cfpId: string;
+  vote: string;
+  signature?: string;
+  createdAt?: string;
+  isCake?: boolean;
+  isLock?: boolean;
+}
+
+export interface CfpResult {
+  number: string;
+  title: string;
+  type: VotingType;
+  dfiAmount: number;
+  htmlUrl: string;
+  currentResult: ResultStatus;
+  totalVotes: {
+    total: number;
+    possible: number;
+    turnout: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  cakeVotes?: {
+    total: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  dfxVotes?: {
+    total: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  lockVotes?: {
+    total: number;
+    yes: number;
+    neutral: number;
+    no: number;
+  };
+  voteDetails: {
+    yes: Vote[];
+    neutral: Vote[];
+    no: Vote[];
+  };
+  startDate: string;
+  endDate: string;
+}
+
+interface Masternodes {
+  [id: string]: { ownerAuthAddress: string };
+}
 
 @Injectable()
 export class CfpService implements OnModuleInit {
-  private readonly issuesUrl = 'https://api.github.com/repos/DeFiCh/dfips/issues';
+  private readonly lockUrl = 'https://api.lock.space/v1/masternode';
+  private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
 
+  private client: DeFiClient;
   private settings: CfpSettings;
   private cfpResults: CfpResult[];
-
-  private readonly masternodeCount: number;
-  private readonly masternodes: Map<string, MasterNode>;
-  private dfxMasternodes: Masternode[];
-
+  private masternodeCount: number;
+  private allMasternodes: Masternodes;
+  private lockMasternodes: string[];
+  private cakeMasternodes: [{ address: string }];
   constructor(
-    private readonly http: HttpService,
-    private readonly cryptoService: CryptoService,
+    nodeService: NodeService,
     private readonly settingService: SettingService,
-    private readonly masterNodeService: MasternodeService,
-    @Optional() @Inject('VALID_MNS') readonly validMasterNodes?: MasterNode[],
+    private readonly http: HttpService,
   ) {
-    validMasterNodes ??= Object.values(MasterNodes).filter(
-      (node) => node.state === State.ENABLED && node.mintedBlocks > 0,
-    ) as MasterNode[];
-
-    this.masternodeCount = validMasterNodes.length;
-    this.masternodes = Util.toMap(validMasterNodes, 'ownerAuthAddress');
+    nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
   onModuleInit() {
@@ -58,18 +126,18 @@ export class CfpService implements OnModuleInit {
       // update settings
       this.settings = await this.settingService.getObj<CfpSettings>('cfp');
 
-      // update cfp results
       if (this.settings.inProgress) {
-        this.dfxMasternodes = await this.masterNodeService.get();
+        // update masternodes
+        this.allMasternodes = await this.client.listMasternodes();
+        this.lockMasternodes = await this.callApi<any>(this.lockUrl);
+        this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
 
-        let allCfp = await this.callApi<CfpResponse[]>(this.issuesUrl, ``);
-        allCfp = allCfp.filter(
-          (cfp) =>
-            cfp.labels.find((l) => [VotingType.CFP.toString(), VotingType.DFIP.toString()].includes(l.name)) &&
-            cfp.labels.find((l) => l.name === `round/${this.settings.currentRound}`),
-        );
-
-        this.cfpResults = await Promise.all(allCfp.map((cfp) => this.getCfp(cfp)));
+        // update cfp results
+        const currentProposals = await this.client.listProposal();
+        this.masternodeCount = await this.client
+          .getProposal(currentProposals[0].proposalId)
+          .then((p) => p.votesPossible);
+        this.cfpResults = await Promise.all(currentProposals.map((cfp) => this.getCfpResult(cfp)));
       }
     } catch (e) {
       console.error('Exception during CFP update:', e);
@@ -87,7 +155,7 @@ export class CfpService implements OnModuleInit {
   async getCfpResults(cfpId: string): Promise<CfpResult[]> {
     if (['latest', this.settings.currentRound].includes(cfpId)) {
       if (this.settings.inProgress) {
-        // return current data from GitHub
+        // return current data from node (on-chain)
         return this.cfpResults;
       }
 
@@ -102,62 +170,53 @@ export class CfpService implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
-  private async getCfp(cfp: CfpResponse): Promise<CfpResult> {
-    const batchSize = 100;
-    const batchCount = Math.ceil(cfp.comments / batchSize);
-    const commentBatches = await Promise.all(
-      [...Array(batchCount).keys()].map((_, i) =>
-        this.callApi<CommentsResponse[]>(this.issuesUrl, `/${cfp.number}/comments?per_page=${batchSize}&page=${i + 1}`),
-      ),
-    );
-    const comments = commentBatches.reduce((prev, curr) => prev.concat(curr), []);
 
-    return this.getCfpResult(cfp, comments);
+  private getVotes(proposalVotes: ProposalVote[]): Vote[] {
+    return proposalVotes
+      .filter((v) => this.allMasternodes[v.masternodeId] != null)
+      .map((v) => ({
+        address: this.allMasternodes[v.masternodeId].ownerAuthAddress,
+        cfpId: v.proposalId,
+        vote: v.vote,
+        isCake:
+          this.cakeMasternodes.find((n) => n.address === this.allMasternodes[v.masternodeId].ownerAuthAddress) != null,
+        isLock: this.lockMasternodes.find((mn) => mn === this.allMasternodes[v.masternodeId].ownerAuthAddress) != null,
+      }));
   }
 
-  private async getCfpResult(cfp: CfpResponse, comments: CommentsResponse[]): Promise<CfpResult> {
-    const type = cfp.labels.map((a) => a.name).includes(VotingType.CFP) ? VotingType.CFP : VotingType.DFIP;
+  private async getCfpResult(proposal: Proposal): Promise<CfpResult> {
+    const proposalVotes = this.getVotes(await this.client.listVotes(proposal.proposalId));
+    const yesVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
+    const noVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('no'));
+    const neutralVotes = proposalVotes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
 
-    const validVotes = comments
-      .map((c) => this.getCommentVotes(type, c))
-      .reduce((prev, curr) => prev.concat(curr), [])
-      .filter((v) => this.verifyVote(cfp, v));
-
-    const votes = Array.from(Util.toMap(validVotes, 'address').values()); // remove duplicate votes
-    const yesVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('yes'));
-    const noVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('no'));
-    const neutralVotes = votes.filter((v) => v.vote.toLowerCase().endsWith('neutral'));
-
-    const cakeVotes = votes.filter((v) => v.isCake);
+    const cakeVotes = proposalVotes.filter((v) => v.isCake);
     const yesVotesCake = yesVotes.filter((v) => v.isCake);
     const noVotesCake = noVotes.filter((v) => v.isCake);
     const neutralVotesCake = neutralVotes.filter((v) => v.isCake);
 
-    const dfxVotes = votes.filter((v) => v.isDfx);
-    const yesVotesDfx = yesVotes.filter((v) => v.isDfx);
-    const noVotesDfx = noVotes.filter((v) => v.isDfx);
-    const neutralVotesDfx = neutralVotes.filter((v) => v.isDfx);
+    const lockVotes = proposalVotes.filter((v) => v.isLock);
+    const yesVotesLock = yesVotes.filter((v) => v.isLock);
+    const noVotesLock = noVotes.filter((v) => v.isLock);
+    const neutralVotesLock = neutralVotes.filter((v) => v.isLock);
 
-    const requiredVotes = type === VotingType.CFP ? 1 / 2 : 2 / 3;
+    const requiredVotes = proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? 1 / 2 : 2 / 3;
     const currentResult =
       yesVotes.length / (yesVotes.length + noVotes.length) > requiredVotes
         ? ResultStatus.APPROVED
         : ResultStatus.NOT_APPROVED;
 
-    const amountMatches = /\(([\d,. ]*)DFI\)/g.exec(cfp.title);
-    const amount = amountMatches ? +amountMatches[1].replace(/[',. ]/g, '') : undefined;
-
     return {
-      title: cfp.title,
-      number: cfp.number,
-      type: type,
-      dfiAmount: amount,
-      htmlUrl: cfp.html_url,
+      title: proposal.title,
+      number: proposal.proposalId,
+      type: proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? VotingType.CFP : VotingType.DFIP,
+      dfiAmount: proposal.amount,
+      htmlUrl: proposal.context,
       currentResult: currentResult,
       totalVotes: {
-        total: votes.length,
+        total: proposalVotes.length,
         possible: this.masternodeCount,
-        turnout: Util.round((votes.length / this.masternodeCount) * 100, Config.defaultPercentageDecimal),
+        turnout: Util.round((proposalVotes.length / this.masternodeCount) * 100, Config.defaultPercentageDecimal),
         yes: yesVotes.length,
         neutral: neutralVotes.length,
         no: noVotes.length,
@@ -168,11 +227,11 @@ export class CfpService implements OnModuleInit {
         neutral: neutralVotesCake.length,
         no: noVotesCake.length,
       },
-      dfxVotes: {
-        total: dfxVotes.length,
-        yes: yesVotesDfx.length,
-        neutral: neutralVotesDfx.length,
-        no: noVotesDfx.length,
+      lockVotes: {
+        total: lockVotes.length,
+        yes: yesVotesLock.length,
+        neutral: neutralVotesLock.length,
+        no: noVotesLock.length,
       },
       voteDetails: {
         yes: yesVotes,
@@ -184,44 +243,7 @@ export class CfpService implements OnModuleInit {
     };
   }
 
-  private getCommentVotes(type: VotingType, commentResponse: CommentsResponse): Vote[] {
-    const matches = [];
-
-    let match;
-    const regExp = this.getRegExp(this.settings.currentRound, type);
-
-    while ((match = regExp.exec(commentResponse.body)) !== null) {
-      matches.push(match);
-    }
-
-    return matches.map((m) => ({
-      address: m[1],
-      signature: m[4],
-      cfpId: m[3],
-      vote: m[2],
-      createdAt: commentResponse.created_at,
-      isCake: Object.values(CakeMasterNodes).find((n) => n.address === m[1]) != null,
-      isDfx: this.dfxMasternodes.find((n) => n.owner === m[1]) != null,
-    }));
-  }
-
-  private getRegExp(votingRound: string, type: VotingType): RegExp {
-    return new RegExp(
-      `signmessage\\s"?(\\w*)"?\\s"?((?:${type}|${type.toUpperCase()})-(${votingRound}-\\w*)-\\w*)"?\\s+(\\S{87}=)(?:\\s|$)+`,
-      'gm',
-    );
-  }
-
-  private verifyVote(cfp: CfpResponse, vote: Vote): boolean {
-    return (
-      this.masternodes.get(vote.address) &&
-      cfp.title.toLowerCase().includes(vote.cfpId.toLowerCase()) &&
-      new Date(vote.createdAt) < new Date(this.settings.endDate) &&
-      this.cryptoService.verifySignature(vote.vote, vote.address, vote.signature)
-    );
-  }
-
-  private async callApi<T>(baseUrl: string, url: string): Promise<T> {
-    return this.http.get<T>(`${baseUrl}${url}`, { headers: { Authorization: `Bearer ${Config.githubToken}` } });
+  private async callApi<T>(url: string): Promise<T> {
+    return this.http.get<T>(`${url}`);
   }
 }

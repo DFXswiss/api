@@ -13,7 +13,7 @@ export class PriceStepInitSpecification {
       throw new StepMisconfiguredException(`Wrong 'to' option: ${_options.to}`);
     }
 
-    if (_options.fixedPrice === undefined && _options.providers.primary.length === 0) {
+    if (_options.fixedPrice === undefined && _options.primary.providers.length === 0) {
       throw new StepMisconfiguredException('No primary price providers specified');
     }
 
@@ -25,7 +25,7 @@ export class PriceStepInitSpecification {
 
     if (
       _options.fixedPrice !== undefined &&
-      (_options.providers.primary.length > 0 || _options.providers.reference.length > 0)
+      (_options.primary.providers.length > 0 || _options.reference.providers.length > 0)
     ) {
       console.warn(`Ignoring providers for PriceStep, step configured as fixed price`);
     }
