@@ -6,6 +6,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { AssetService } from './asset.service';
 import { AssetDtoMapper } from './dto/asset-dto.mapper';
+import { AssetQueryDto } from './dto/asset-query.dto';
 import { AssetDto } from './dto/asset.dto';
 
 @ApiTags('Asset')
@@ -17,7 +18,7 @@ export class AssetController {
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: AssetDto, isArray: true })
-  async getAllAsset(@GetJwt() jwt?: JwtPayload, @Query('blockchains') blockchains?: string): Promise<AssetDto[]> {
+  async getAllAsset(@Query() { blockchains }: AssetQueryDto, @GetJwt() jwt?: JwtPayload): Promise<AssetDto[]> {
     const queryBlockchains = blockchains?.split(',').map((value) => value as Blockchain);
     return this.assetService.getAllAsset(queryBlockchains ?? jwt?.blockchains ?? []).then(AssetDtoMapper.entitiesToDto);
   }
