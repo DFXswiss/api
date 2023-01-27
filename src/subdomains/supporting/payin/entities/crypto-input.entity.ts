@@ -3,7 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity } from 'src/shared/models/entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { CryptoInputInitSpecification } from '../specifications/crypto-input-init.specification';
 
 export enum PayInPurpose {
@@ -31,11 +31,14 @@ export enum PayInStatus {
 }
 
 @Entity()
+@Index('txAssetRouteTxSequence', (input: CryptoInput) => [input.inTxId, input.asset, input.route, input.txSequence], {
+  unique: true,
+})
 export class CryptoInput extends IEntity {
   @Column({ nullable: true })
   status: PayInStatus;
 
-  @Column({ nullable: true })
+  @Column({ length: 256 })
   inTxId: string;
 
   @Column({ type: 'integer', nullable: true })
@@ -44,7 +47,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   outTxId: string;
 
-  @Column({ nullable: true })
+  @Column({ length: 256, nullable: true })
   returnTxId: string;
 
   @Column({ nullable: true })
