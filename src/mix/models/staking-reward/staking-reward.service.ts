@@ -9,6 +9,7 @@ import { StakingService } from '../staking/staking.service';
 import { Util } from 'src/shared/utils/util';
 import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
 import { Config } from 'src/config/config';
+import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 
 @Injectable()
 export class StakingRewardService {
@@ -115,10 +116,7 @@ export class StakingRewardService {
     }
   }
 
-  async getTransactions(
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+  async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const stakingRewards = await this.stakingRewardRepo.find({
       where: { outputDate: Between(dateFrom, dateTo) },
     });

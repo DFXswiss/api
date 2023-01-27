@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
-import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { SellService } from './sell.service';
 import { CreateSellDto } from './dto/create-sell.dto';
@@ -18,10 +18,12 @@ import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
+import { DepositDtoMapper } from 'src/mix/models/deposit/dto/deposit-dto.mapper';
 import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
-@ApiTags('sell')
+@ApiTags('Sell')
 @Controller('sell')
 export class SellController {
   constructor(
@@ -34,6 +36,7 @@ export class SellController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async getAllSell(@GetJwt() jwt: JwtPayload): Promise<SellDto[]> {
     return this.sellService.getUserSells(jwt.id).then((l) => this.toDtoList(jwt.id, l));
   }
@@ -41,6 +44,7 @@ export class SellController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async createSell(@GetJwt() jwt: JwtPayload, @Body() dto: CreateSellDto): Promise<SellDto> {
     return this.sellService.createSell(jwt.id, dto).then((s) => this.toDto(jwt.id, s));
   }
@@ -48,7 +52,7 @@ export class SellController {
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 200, type: SellPaymentInfoDto })
+  @ApiOkResponse({ type: SellPaymentInfoDto })
   async createSellWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
@@ -61,6 +65,7 @@ export class SellController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
     return this.sellService.updateSell(jwt.id, +id, dto).then((s) => this.toDto(jwt.id, s));
   }
@@ -68,6 +73,7 @@ export class SellController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellHistoryDto[]> {
     return this.buyFiatService.getSellHistory(jwt.id, +id);
   }
@@ -84,6 +90,8 @@ export class SellController {
 
     return {
       ...sell,
+      fiat: FiatDtoMapper.entityToDto(sell.fiat),
+      deposit: DepositDtoMapper.entityToDto(sell.deposit),
       fee: undefined,
       blockchain: sell.deposit.blockchain,
       isInUse: sellDepositsInUse.includes(sell.deposit.id),

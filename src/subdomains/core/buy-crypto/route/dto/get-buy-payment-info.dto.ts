@@ -15,7 +15,7 @@ export class GetBuyPaymentInfoDto {
   @IsDfxIban()
   iban: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
@@ -26,7 +26,7 @@ export class GetBuyPaymentInfoDto {
   @IsNumber()
   amount: number;
 
-  @ApiProperty()
+  @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)

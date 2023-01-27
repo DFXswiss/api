@@ -10,7 +10,7 @@ export class UpdateBankAccountDto {
   @IsString()
   label: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: EntityDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)

@@ -18,6 +18,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { BuyCryptoService } from '../../buy-crypto/process/services/buy-crypto.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { TransactionDetailsDto } from '../../statistic/dto/statistic.dto';
 
 @Injectable()
 export class BuyFiatService {
@@ -139,7 +140,7 @@ export class BuyFiatService {
   ): Promise<BuyFiat[]> {
     return await this.buyFiatRepo.find({
       where: { sell: { user: { id: userId } }, outputDate: Between(dateFrom, dateTo) },
-      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user'],
+      relations: ['cryptoInput', 'bankTx', 'sell', 'sell.user', 'fiatOutput'],
     });
   }
 
@@ -156,7 +157,7 @@ export class BuyFiatService {
     return this.buyFiatRepo
       .find({
         where: { sell: where },
-        relations: ['sell', 'sell.user', 'cryptoInput'],
+        relations: ['sell', 'sell.user', 'cryptoInput', 'fiatOutput'],
       })
       .then((buyFiats) => buyFiats.map(this.toHistoryDto));
   }
@@ -169,7 +170,7 @@ export class BuyFiatService {
       outputAmount: buyFiat.outputAmount,
       outputAsset: buyFiat.outputAsset,
       txId: buyFiat.cryptoInput.inTxId,
-      date: buyFiat.outputDate,
+      date: buyFiat.fiatOutput?.outputDate,
       amlCheck: buyFiat.amlCheck,
       isComplete: buyFiat.isComplete,
     };
@@ -233,10 +234,7 @@ export class BuyFiatService {
 
   // Statistics
 
-  async getTransactions(
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+  async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const buyFiats = await this.buyFiatRepo.find({
       where: { outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
       relations: ['cryptoInput'],

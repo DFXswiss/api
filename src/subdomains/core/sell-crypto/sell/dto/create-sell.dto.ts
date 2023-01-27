@@ -15,13 +15,13 @@ export class CreateSellDto {
   @IsDfxIban()
   iban: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   fiat: Fiat;
 
-  @ApiProperty()
+  @ApiProperty({ enum: Blockchain, default: Blockchain.DEFICHAIN })
   @IsNotEmpty()
   @IsEnum(Blockchain)
   blockchain: Blockchain = Blockchain.DEFICHAIN;
