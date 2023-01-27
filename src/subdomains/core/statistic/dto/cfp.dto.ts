@@ -1,43 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class CfpSettings {
-  @ApiProperty()
+export interface CfpSettings {
   inProgress: boolean;
-
-  @ApiProperty()
   votingOpen: boolean;
-
-  @ApiProperty()
   currentRound: string;
-
-  @ApiProperty()
   startDate: string;
-
-  @ApiProperty()
   endDate: string;
-}
-
-export interface CfpResponse {
-  number: number;
-  title: string;
-  html_url: string;
-  labels: { name: string }[];
-  comments: number;
-}
-
-export interface CommentsResponse {
-  body: string;
-  created_at: string;
 }
 
 export enum ResultStatus {
   APPROVED = 'Approved',
   NOT_APPROVED = 'Not approved',
-}
-
-export enum State {
-  ENABLED = 'ENABLED',
-  PRE_ENABLED = 'PRE_ENABLED',
 }
 
 export enum VotingType {
@@ -66,12 +39,6 @@ export class Vote {
 
   @ApiPropertyOptional()
   isLock?: boolean;
-}
-
-export interface MasterNode {
-  ownerAuthAddress: string;
-  mintedBlocks: number;
-  state: State;
 }
 
 class TotalVotesDto {
@@ -120,7 +87,7 @@ class VoteDetailsDto {
 }
 
 export class CfpResult {
-  @ApiProperty()
+  @ApiProperty({ description: 'Proposal ID' })
   number: string;
 
   @ApiProperty()
