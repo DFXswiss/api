@@ -8,4 +8,8 @@ export class CreateFiatOutputDto {
   @IsNotEmpty()
   @IsString()
   type: string;
+
+  @IsOptional()
+  @IsNumber()
+  originEntityId?: number;
 }
