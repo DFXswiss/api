@@ -1,5 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -12,7 +12,7 @@ import { User } from '../user/user.entity';
 import { KycDataDto } from './dto/kyc-data.dto';
 import { WebhookService } from '../../services/webhook/webhook.service';
 
-@ApiTags('wallet')
+@ApiTags('Wallet')
 @Controller('wallet')
 export class WalletController {
   constructor(private readonly walletService: WalletService, private readonly webhookService: WebhookService) {}
@@ -20,6 +20,7 @@ export class WalletController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiOkResponse({ type: WalletDto, isArray: true })
   async getAllExternalService(): Promise<WalletDto[]> {
     return this.walletService.getAllExternalServices().then((l) => this.toDtoList(l));
   }
@@ -27,6 +28,7 @@ export class WalletController {
   @Get('kycData')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.KYC_CLIENT_COMPANY))
+  @ApiOkResponse({ type: KycDataDto, isArray: true })
   async getAllKycData(@GetJwt() jwt: JwtPayload): Promise<KycDataDto[]> {
     return this.walletService.getAllKycData(jwt.id).then((l) => this.toKycDataDtoList(l));
   }
@@ -43,10 +45,7 @@ export class WalletController {
   private async toKycDataDto(user: User): Promise<KycDataDto> {
     return {
       address: user.address,
-      kycStatus: this.webhookService.getKycWebhookStatus(
-        user.userData.kycStatus,
-        user.userData.kycType,
-      ),
+      kycStatus: this.webhookService.getKycWebhookStatus(user.userData.kycStatus, user.userData.kycType),
       kycHash: user.userData.kycHash,
     };
   }

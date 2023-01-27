@@ -33,6 +33,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.se
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { PaymentWebhookState } from 'src/subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
+import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 
 @Injectable()
 export class BuyCryptoService {
@@ -83,7 +84,15 @@ export class BuyCryptoService {
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
-      relations: ['buy', 'buy.user', 'buy.user.wallet', 'cryptoRoute', 'cryptoRoute.user', 'cryptoRoute.user.wallet', 'bankTx'],
+      relations: [
+        'buy',
+        'buy.user',
+        'buy.user.wallet',
+        'cryptoRoute',
+        'cryptoRoute.user',
+        'cryptoRoute.user.wallet',
+        'bankTx',
+      ],
     });
     if (!entity) throw new NotFoundException('Buy crypto not found');
 
@@ -338,10 +347,7 @@ export class BuyCryptoService {
 
   // Statistics
 
-  async getTransactions(
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+  async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     // TODO Add cryptoInput buyCryptos, consultation with Daniel regarding statistic data
     const buyCryptos = await this.buyCryptoRepo.find({
       where: { buy: { id: Not(IsNull()) }, outputDate: Between(dateFrom, dateTo), amlCheck: AmlCheck.PASS },
