@@ -71,6 +71,7 @@ export abstract class RegisterStrategy {
   ): Promise<void> {
     if (entry instanceof CryptoInput) {
       entry.addReferenceAmounts(btcAmount, usdtAmount);
+      await this.payInRepository.save(entry);
     } else {
       entry.btcAmount = btcAmount;
       entry.usdtAmount = usdtAmount;

@@ -31,8 +31,9 @@ export abstract class PayInEvmService {
     addressTo: string,
     tokenName: Asset,
     amount: number,
+    feeLimit?: number,
   ): Promise<string> {
-    return this.#client.sendTokenFromAddress(addressFrom, withPrivateKey, addressTo, tokenName, amount);
+    return this.#client.sendTokenFromAddress(addressFrom, withPrivateKey, addressTo, tokenName, amount, feeLimit);
   }
 
   async checkTransactionCompletion(txHash: string): Promise<boolean> {

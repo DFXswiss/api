@@ -11,7 +11,6 @@ import { StakingRewardRepository } from '../repositories/staking-reward.reposito
 import { PayoutType } from '../entities/staking-reward.entity';
 import { Util } from 'src/shared/utils/util';
 import { StakingRefRewardRepository } from '../repositories/staking-ref-reward.repository';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayoutCryptoStakingDto } from '../dto/payout-crypto-staking.dto';
 import { ReadyCryptoStakingDto } from '../dto/ready-crypto-staking.dto';

@@ -36,7 +36,7 @@ export abstract class PayoutEvmService {
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
     const gasPrice = await this.#client.getGasPrice();
-    const gasLimit = await this.#client.getTokenGasLimit(token);
+    const gasLimit = await this.#client.getTokenGasLimitForAsset(token);
     const gasInWei = BigNumber.from(+gasPrice * +gasLimit);
 
     return Util.round(this.#client.convertToEthLikeDenomination(gasInWei), 8);

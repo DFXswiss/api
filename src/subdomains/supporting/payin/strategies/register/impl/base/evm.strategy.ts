@@ -18,6 +18,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { Config } from 'src/config/config';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(
@@ -67,11 +68,15 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
     for (const address of addresses) {
       const [coinHistory, tokenHistory] = await this.payInEvmService.getHistory(address, blockHeight);
+
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
 
-      await this.addReferenceAmounts(entries);
-      await this.verifyLastBlockEntries(address, entries, blockHeight, log);
-      await this.processNewEntries(entries, blockHeight, log);
+      if (entries.length === 0) return;
+
+      const relevantEntries = this.filterOutDustEntries(entries);
+
+      await this.verifyLastBlockEntries(address, relevantEntries, blockHeight, log);
+      await this.processNewEntries(relevantEntries, blockHeight, log);
     }
 
     this.printInputLog(log, blockHeight, this.blockchain);
@@ -131,6 +136,15 @@ export abstract class EvmStrategy extends RegisterStrategy {
     }));
   }
 
+  private filterOutDustEntries(entries: PayInEntry[]): PayInEntry[] {
+    /**
+     * @note
+     * same check exists in CryptoInputInitSpecification it should always be there,
+     * but it should be also used here to avoid unnecessary reference values calculation (better performance)
+     */
+    return entries.filter((e) => e.amount >= Config.blockchain.evm.coinMinimalRegisteredInput);
+  }
+
   private async verifyLastBlockEntries(
     address: string,
     allTransactions: PayInEntry[],
@@ -146,7 +160,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
   private async checkIfAllEntriesRecorded(
     address: string,
-    transactions: PayInEntry[],
+    entries: PayInEntry[],
     blockHeight: number,
     log: PayInInputLog,
   ): Promise<void> {
@@ -155,12 +169,21 @@ export abstract class EvmStrategy extends RegisterStrategy {
       blockHeight,
     });
 
-    for (const tx of transactions) {
+    const lostEntries = entries.filter((e) => !recordedLastBlockPayIns.find((p) => p.inTxId === e.txId));
+
+    if (lostEntries.length === 0) return;
+
+    await this.addReferenceAmounts(lostEntries);
+
+    console.log(
+      `Recreating ${lostEntries.length} lost entries for ${this.blockchain} from block ${blockHeight}. TxId(s):`,
+      lostEntries.map((e) => e.txId),
+    );
+
+    for (const tx of lostEntries) {
       try {
-        if (!recordedLastBlockPayIns.find((p) => p.inTxId === tx.txId)) {
-          await this.createPayInAndSave(tx);
-          log.recoveredRecords.push({ address, txId: tx.txId });
-        }
+        await this.createPayInAndSave(tx);
+        log.recoveredRecords.push({ address, txId: tx.txId });
       } catch (e) {
         console.log('Did not register pay-in: ', e);
         continue;
@@ -168,13 +191,17 @@ export abstract class EvmStrategy extends RegisterStrategy {
     }
   }
 
-  private async processNewEntries(allTransactions: PayInEntry[], blockHeight: number, log: PayInInputLog) {
-    const newTransactions = allTransactions.filter((t) => t.blockHeight > blockHeight);
+  private async processNewEntries(allEntries: PayInEntry[], blockHeight: number, log: PayInInputLog) {
+    const newEntries = allEntries.filter((t) => t.blockHeight > blockHeight);
 
-    for (const tx of newTransactions) {
+    if (newEntries.length === 0) return;
+
+    await this.addReferenceAmounts(newEntries);
+
+    for (const entry of newEntries) {
       try {
-        await this.createPayInAndSave(tx);
-        log.newRecords.push({ address: tx.address.address, txId: tx.txId });
+        await this.createPayInAndSave(entry);
+        log.newRecords.push({ address: entry.address.address, txId: entry.txId });
       } catch (e) {
         console.error('Did not register pay-in: ', e);
         continue;

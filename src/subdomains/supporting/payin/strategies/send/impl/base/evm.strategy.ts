@@ -43,6 +43,7 @@ export abstract class EvmStrategy extends SendStrategy {
         }
 
         const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
+
         const totalGroupAmount = this.getTotalGroupAmount(payInGroup);
 
         CryptoInput.verifyEstimatedFee(targetFee, totalGroupAmount);

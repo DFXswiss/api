@@ -7,7 +7,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { SendStrategiesFacade } from '../strategies/send/send.facade';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { In, IsNull, Not } from 'typeorm';
+import { In, IsNull } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -187,6 +187,8 @@ export class PayInService {
       relations: ['route'],
     });
 
+    if (payIns.length === 0) return;
+
     const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
 
     for (const group of groups.entries()) {
@@ -209,12 +211,34 @@ export class PayInService {
       relations: ['route'],
     });
 
+    if (payIns.length === 0) return;
+
     const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
 
     for (const group of groups.entries()) {
       try {
         const strategy = this.sendStrategies.getSendStrategy(group[0]);
         await strategy.doSend(group[1], SendType.RETURN);
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  private async retryPayIns(): Promise<void> {
+    const payIns = await this.payInRepository.find({
+      where: { status: PayInStatus.WAITING_FOR_PRICE_REFERENCE },
+      relations: ['route'],
+    });
+
+    if (payIns.length === 0) return;
+
+    const groups = this.groupByStrategies(payIns, this.registerStrategies.getRegisterStrategyAlias);
+
+    for (const group of groups.entries()) {
+      try {
+        const strategy = this.registerStrategies.getRegisterStrategy(group[0]);
+        await strategy.addReferenceAmounts(group[1]);
       } catch {
         continue;
       }
@@ -239,24 +263,6 @@ export class PayInService {
     }
 
     return groups;
-  }
-
-  private async retryPayIns(): Promise<void> {
-    const payIns = await this.payInRepository.find({
-      where: { status: PayInStatus.WAITING_FOR_PRICE_REFERENCE },
-      relations: ['route'],
-    });
-
-    const groups = this.groupByStrategies(payIns, this.registerStrategies.getRegisterStrategyAlias);
-
-    for (const group of groups.entries()) {
-      try {
-        const strategy = this.registerStrategies.getRegisterStrategy(group[0]);
-        await strategy.addReferenceAmounts(group[1]);
-      } catch {
-        continue;
-      }
-    }
   }
 
   private createPriceRequest(currencyPair: string[]): PriceRequest {

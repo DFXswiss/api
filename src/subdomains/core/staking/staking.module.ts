@@ -7,7 +7,6 @@ import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { CryptoStakingController } from './controllers/crypto-staking.controller';

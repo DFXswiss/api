@@ -14,9 +14,23 @@ export class CryptoInputInitSpecification {
             (asset.dexName === 'DFI' && amount < Config.blockchain.default.minDeposit.DeFiChain.DFI) ||
             (asset.dexName !== 'DFI' && usdtAmount < Config.blockchain.default.minDeposit.DeFiChain.USD * 0.4)
           ) {
-            throw new Error(`Ignoring too small DeFiChain input (${amount} ${asset}). Pay-in: ${input}`);
+            throw new Error(`Ignoring too small DeFiChain input (${amount} ${asset.dexName})`);
           }
+
+          break;
         }
+
+        case Blockchain.ETHEREUM:
+        case Blockchain.BINANCE_SMART_CHAIN:
+        case Blockchain.ARBITRUM:
+        case Blockchain.OPTIMISM:
+          {
+            if (amount < Config.blockchain.evm.coinMinimalRegisteredInput) {
+              throw new Error(`Ignoring too small EVM input (${amount} ${asset.dexName})`);
+            }
+          }
+
+          break;
       }
     }
 

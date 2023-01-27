@@ -3,7 +3,6 @@ import { Between, In, IsNull, Not } from 'typeorm';
 import { StakingRefRewardRepository } from '../repositories/staking-ref-reward.repository';
 import { StakingRefReward, StakingRefType } from '../entities/staking-ref-reward.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Interval } from '@nestjs/schedule';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Config } from 'src/config/config';
 import { ConversionService } from 'src/integration/exchange/services/conversion.service';
@@ -83,13 +82,16 @@ export class StakingRefRewardService {
   }
 
   // --- Tasks --- //
-  /*
-  @Interval(900000)
-  async doTasks(): Promise<void> {
-    await this.sendRewards();
-    await this.sendMails();
-  }
-  */
+  /**
+   * @note
+   * loop is disabled until further refactoring.
+   * 
+   @Interval(900000)
+   async doTasks(): Promise<void> {
+     await this.sendRewards();
+     await this.sendMails();
+   }
+   */
 
   private async sendRewards(): Promise<void> {
     try {

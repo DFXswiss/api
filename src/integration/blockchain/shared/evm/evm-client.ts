@@ -80,9 +80,13 @@ export abstract class EvmClient {
     return this.#provider.getGasPrice();
   }
 
-  async getTokenGasLimit(token: Asset): Promise<BigNumber> {
+  async getTokenGasLimitForAsset(token: Asset): Promise<BigNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
+    return this.getTokenGasLimitForContact(contract);
+  }
+
+  async getTokenGasLimitForContact(contract: Contract): Promise<BigNumber> {
     return contract.estimateGas.transfer(this.#randomReceiverAddress, 1);
   }
 
@@ -108,6 +112,7 @@ export abstract class EvmClient {
     toAddress: string,
     token: Asset,
     amount: number,
+    feeLimit?: number,
   ): Promise<string> {
     /**
      * @note
@@ -115,20 +120,26 @@ export abstract class EvmClient {
      */
     const contract = this.getERC20ContractForAddress(privateKey, token.chainId);
 
-    return this.sendToken(contract, toAddress, amount);
+    return this.sendToken(contract, toAddress, amount, feeLimit);
   }
 
-  async sendTokenFromDex(toAddress: string, token: Asset, amount: number): Promise<string> {
+  async sendTokenFromDex(toAddress: string, token: Asset, amount: number, feeLimit?: number): Promise<string> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.sendToken(contract, toAddress, amount);
+    return this.sendToken(contract, toAddress, amount, feeLimit);
   }
 
-  private async sendToken(contract: Contract, toAddress: string, amount: number): Promise<string> {
+  private async sendToken(contract: Contract, toAddress: string, amount: number, feeLimit?: number): Promise<string> {
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
+    const gasPrice =
+      feeLimit != null
+        ? Util.round(+this.convertToWeiLikeDenomination(feeLimit, 'ether') / gasLimit, 0)
+        : await this.getGasPrice();
+
     const decimals = await contract.decimals();
     const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
 
-    const tx = await contract.transfer(toAddress, targetAmount);
+    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice });
 
     return tx.hash;
   }
@@ -164,12 +175,20 @@ export abstract class EvmClient {
   }
 
   async tokenTestSwap(sourceToken: Asset, sourceAmount: number, targetToken: Asset): Promise<number> {
-    const contract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
-    const decimals = await contract.decimals();
-    const inputAmount = this.convertToWeiLikeDenomination(sourceAmount, decimals);
-    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [sourceToken.chainId, targetToken.chainId]);
+    const sourceContract = new ethers.Contract(sourceToken.chainId, ERC20_ABI, this.#wallet);
+    const sourceTokenDecimals = await sourceContract.decimals();
 
-    return this.convertToEthLikeDenomination(outputAmounts[1], decimals);
+    const targetContract = new ethers.Contract(targetToken.chainId, ERC20_ABI, this.#wallet);
+    const targetTokenDecimals = await targetContract.decimals();
+
+    const inputAmount = this.convertToWeiLikeDenomination(sourceAmount, sourceTokenDecimals);
+    const outputAmounts = await this.#router.getAmountsOut(inputAmount, [
+      sourceToken.chainId,
+      this.#swapTokenAddress,
+      targetToken.chainId,
+    ]);
+
+    return this.convertToEthLikeDenomination(outputAmounts[2], targetTokenDecimals);
   }
 
   //*** GETTERS ***//
@@ -197,7 +216,7 @@ export abstract class EvmClient {
   ): Promise<string> {
     const gasPrice =
       feeLimit != null
-        ? this.convertToWeiLikeDenomination(Util.round(feeLimit / this.#sendCoinGasLimit, 0), 'ether')
+        ? Util.round(+this.convertToWeiLikeDenomination(feeLimit, 'ether') / this.#sendCoinGasLimit, 0)
         : await this.getGasPrice();
 
     const nonce = this.#provider.getTransactionCount(fromAddress);
@@ -243,8 +262,8 @@ export abstract class EvmClient {
   }
 
   private convertToWeiLikeDenomination(amountEthLike: number, decimals: number | 'ether'): BigNumber {
-    const amount = decimals === 'ether' ? amountEthLike : amountEthLike.toFixed(decimals);
+    const amount = decimals === 'ether' ? amountEthLike.toFixed(16) : amountEthLike.toFixed(decimals);
 
-    return ethers.utils.parseUnits(`${amount}`, decimals);
+    return ethers.utils.parseUnits(amount, decimals);
   }
 }

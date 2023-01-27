@@ -211,6 +211,13 @@ export class CryptoInput extends IEntity {
     this.btcAmount = btcAmount;
     this.usdtAmount = usdtAmount;
 
+    /**
+     * @note
+     * setting status to Created when reference amounts are added
+     * done here in addition to factory method for a retry getting reference amounts case and changing WAITING_FOR_PRICE_REFERENCE status
+     */
+    this.status = PayInStatus.CREATED;
+
     return this;
   }
 }

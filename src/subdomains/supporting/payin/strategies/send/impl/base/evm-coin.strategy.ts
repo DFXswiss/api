@@ -40,7 +40,11 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
       sourceAddress,
       privateKey,
       destinationAddress,
-      Util.round(this.getTotalGroupAmount(payInGroup) - estimatedNativeFee, 12),
+      /**
+       * @note
+       * subtracting a fraction more from sent amount to compensate possible rounding issues.
+       * */
+      Util.round(this.getTotalGroupAmount(payInGroup) - estimatedNativeFee * 1.0000001, 12),
       estimatedNativeFee,
     );
   }
