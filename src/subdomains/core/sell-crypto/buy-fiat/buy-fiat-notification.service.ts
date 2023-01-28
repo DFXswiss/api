@@ -118,10 +118,10 @@ export class BuyFiatNotificationService {
       where: {
         mail2SendDate: Not(IsNull()),
         mail3SendDate: IsNull(),
-        fiatOutput: { bankTxId: Not(IsNull()), remittanceInfo: Not(IsNull()) },
+        fiatOutput: { bankTx: Not(IsNull()), remittanceInfo: Not(IsNull()) },
         amlCheck: AmlCheck.PASS,
       },
-      relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput'],
+      relations: ['sell', 'sell.user', 'sell.user.userData', 'fiatOutput', 'fiatOutput.bankTx'],
     });
 
     entities.length > 0 && console.log(`Sending ${entities.length} 'fiat to bank transfer' email(s)`);
