@@ -6,12 +6,12 @@ import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
 export class GetCryptoPaymentInfoDto {
-  @ApiProperty({ description: 'Source blockchain' })
+  @ApiProperty({ enum: Blockchain, description: 'Source blockchain' })
   @IsNotEmpty()
   @IsEnum(Blockchain)
   blockchain: Blockchain;
 
-  @ApiProperty({ description: 'Target asset' })
+  @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)

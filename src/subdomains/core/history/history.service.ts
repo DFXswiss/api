@@ -189,13 +189,13 @@ export class HistoryService {
       .filter(
         (c) =>
           c.amlCheck === AmlCheck.PASS &&
-          c.bankTx &&
+          c.fiatOutput.bankTx &&
           c.cryptoInput &&
           c.outputAmount &&
           c.outputAsset &&
           c.inputAmount &&
-          c.remittanceInfo &&
-          c.outputDate,
+          c.fiatOutput.remittanceInfo &&
+          c.fiatOutput.outputDate,
       )
       .map((c) => [
         {
@@ -225,8 +225,8 @@ export class HistoryService {
           exchange: 'DFX',
           tradeGroup: null,
           comment: 'DFX Sale',
-          date: c.outputDate ? c.outputDate : null,
-          txid: c.remittanceInfo,
+          date: c.fiatOutput.outputDate ? c.fiatOutput.outputDate : null,
+          txid: c.fiatOutput.remittanceInfo,
           buyValueInEur: null,
           sellValueInEur: c.amountInEur,
         },
