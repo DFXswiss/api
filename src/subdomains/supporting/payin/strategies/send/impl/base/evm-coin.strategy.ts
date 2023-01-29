@@ -26,9 +26,9 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
     return true;
   }
 
-  protected async prepareSend(payInGroup: SendGroup, _: number): Promise<void> {
+  protected async prepareSend(payInGroup: SendGroup, nativeFee: number): Promise<void> {
     for (const payIn of payInGroup.payIns) {
-      payIn.preparing(null);
+      payIn.preparing(null, Util.round(nativeFee / payInGroup.payIns.length, 16));
       await this.payInRepo.save(payIn);
     }
   }

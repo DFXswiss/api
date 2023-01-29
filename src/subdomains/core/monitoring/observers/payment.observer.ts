@@ -63,7 +63,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .getCount(),
       unhandledCryptoInputs: await getCustomRepository(PayInRepository).count({
         where: {
-          status: In([PayInStatus.WAITING_FOR_PRICE_REFERENCE, PayInStatus.FAILED]),
+          status: In([PayInStatus.CREATED, PayInStatus.PREPARING, PayInStatus.WAITING_FOR_PRICE_REFERENCE]),
         },
       }),
     };

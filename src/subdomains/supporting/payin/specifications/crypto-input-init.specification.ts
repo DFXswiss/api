@@ -25,7 +25,7 @@ export class CryptoInputInitSpecification {
         case Blockchain.ARBITRUM:
         case Blockchain.OPTIMISM:
           {
-            if (amount < Config.blockchain.evm.coinMinimalRegisteredInput) {
+            if (amount < Config.blockchain.evm.minimalRegisteredCoinInput) {
               throw new Error(`Ignoring too small EVM input (${amount} ${asset.dexName})`);
             }
           }

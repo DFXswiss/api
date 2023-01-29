@@ -27,7 +27,7 @@ export abstract class PayoutEvmService {
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {
-    const gasPrice = await this.#client.getGasPrice();
+    const gasPrice = await this.#client.getCurrentGasPrice();
     const gasLimit = this.#client.sendCoinGasLimit;
     const gasInWei = BigNumber.from(+gasPrice * gasLimit);
 
@@ -35,7 +35,7 @@ export abstract class PayoutEvmService {
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    const gasPrice = await this.#client.getGasPrice();
+    const gasPrice = await this.#client.getCurrentGasPrice();
     const gasLimit = await this.#client.getTokenGasLimitForAsset(token);
     const gasInWei = BigNumber.from(+gasPrice * +gasLimit);
 

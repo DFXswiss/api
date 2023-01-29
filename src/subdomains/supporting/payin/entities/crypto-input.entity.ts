@@ -170,8 +170,9 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  preparing(prepareTxId: string | null): this {
+  preparing(prepareTxId: string | null, forwardFeeAmount: number): this {
     this.prepareTxId = prepareTxId;
+    this.forwardFeeAmount = forwardFeeAmount;
     this.status = PayInStatus.PREPARING;
 
     return this;
@@ -183,9 +184,13 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  forward(outTxId: string, forwardFeeAmount: number = null): this {
+  forward(outTxId: string, forwardFeeAmount?: number): this {
     this.outTxId = outTxId;
-    this.forwardFeeAmount = forwardFeeAmount;
+
+    if (forwardFeeAmount != null) {
+      this.forwardFeeAmount = forwardFeeAmount;
+    }
+
     this.status = PayInStatus.FORWARDED;
     this.isConfirmed = true;
 

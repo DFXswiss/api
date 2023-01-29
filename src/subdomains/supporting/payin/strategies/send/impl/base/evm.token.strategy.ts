@@ -37,7 +37,7 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
     const prepareTxId = await this.topUpCoin(payInGroup, Util.round(nativeFee * 1.2, 12));
 
     for (const payIn of payInGroup.payIns) {
-      payIn.preparing(prepareTxId);
+      payIn.preparing(prepareTxId, Util.round(nativeFee / payInGroup.payIns.length, 16));
       await this.payInRepo.save(payIn);
     }
   }

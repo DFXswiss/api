@@ -44,20 +44,27 @@ export abstract class EvmStrategy extends SendStrategy {
           }
         }
 
-        const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
-
-        const totalGroupAmount = this.getTotalGroupAmount(payInGroup);
-
-        CryptoInput.verifyEstimatedFee(targetFee, totalGroupAmount);
-
         if ([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN].includes(payInGroup.status)) {
-          await this.prepareSend(payInGroup, nativeFee);
+          const { nativeFee, targetFee } = await this.getEstimatedFee(payInGroup);
+
+          /**
+           * @note
+           * setting to some default minimal amount in case estimated fees go very low.
+           */
+          const effectivePreparationFee =
+            nativeFee > Config.blockchain.evm.minimalPreparationFee
+              ? nativeFee
+              : Config.blockchain.evm.minimalPreparationFee;
+
+          CryptoInput.verifyEstimatedFee(targetFee, this.getTotalGroupAmount(payInGroup));
+
+          await this.prepareSend(payInGroup, effectivePreparationFee);
 
           continue;
         }
 
         if (payInGroup.status === PayInStatus.PREPARED) {
-          await this.dispatch(payInGroup, type, nativeFee);
+          await this.dispatch(payInGroup, type, this.getTotalSendFee(payInGroup));
 
           continue;
         }
@@ -66,6 +73,8 @@ export abstract class EvmStrategy extends SendStrategy {
           `Failed to send ${this.blockchain} input(s) ${this.getPayInsIdentityKey(payInGroup)} of type ${type}`,
           e,
         );
+
+        continue;
       }
     }
   }
@@ -73,9 +82,11 @@ export abstract class EvmStrategy extends SendStrategy {
   //*** HELPER METHODS ***//
 
   private logInput(payIns: CryptoInput[], type: SendType): void {
-    payIns.length > 0 &&
+    const newPayIns = payIns.filter((p) => p.status !== PayInStatus.PREPARING);
+
+    newPayIns.length > 0 &&
       console.log(
-        `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} ${this.blockchain} ${
+        `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${newPayIns.length} ${this.blockchain} ${
           payIns[0].asset.type
         } input(s).`,
       );
@@ -187,6 +198,10 @@ export abstract class EvmStrategy extends SendStrategy {
 
   protected getTotalGroupAmount(payInGroup: SendGroup): number {
     return Util.sumObj<CryptoInput>(payInGroup.payIns, 'amount');
+  }
+
+  protected getTotalSendFee(payInGroup: SendGroup): number {
+    return Util.sumObj<CryptoInput>(payInGroup.payIns, 'forwardFeeAmount');
   }
 
   protected topUpCoin(payInGroup: SendGroup, amount: number): Promise<string> {

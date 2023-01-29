@@ -142,7 +142,7 @@ export abstract class EvmStrategy extends RegisterStrategy {
      * same check exists in CryptoInputInitSpecification it should always be there,
      * but it should be also used here to avoid unnecessary reference values calculation (better performance)
      */
-    return entries.filter((e) => e.amount >= Config.blockchain.evm.coinMinimalRegisteredInput);
+    return entries.filter((e) => e.amount >= Config.blockchain.evm.minimalRegisteredCoinInput);
   }
 
   private async verifyLastBlockEntries(
