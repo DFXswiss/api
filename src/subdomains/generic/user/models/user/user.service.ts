@@ -16,11 +16,10 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
-import { CfpSettings } from 'src/subdomains/core/statistic/cfp.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Config } from 'src/config/config';
-import { ApiKey } from './dto/api-key.dto';
+import { ApiKeyDto } from './dto/api-key.dto';
 import { KycService } from '../kyc/kyc.service';
 import { RefInfoQuery } from './dto/ref-info-query.dto';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
@@ -35,6 +34,7 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { CfpSettings } from 'src/subdomains/core/statistic/dto/cfp.dto';
 
 @Injectable()
 export class UserService {
@@ -400,7 +400,7 @@ export class UserService {
   }
 
   // --- API KEY --- //
-  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKey> {
+  async createApiKey(userId: number, filter: HistoryFilter): Promise<ApiKeyDto> {
     const user = await this.userRepo.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
     if (user.apiKeyCT) throw new ConflictException('API key already exists');

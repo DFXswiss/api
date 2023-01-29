@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards, Post, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -26,8 +26,9 @@ import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { StakingRepository } from 'src/subdomains/core/staking/repositories/staking.repository';
 import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 import { StakingDto } from 'src/subdomains/core/staking/dto/staking.dto';
+import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 
-@ApiTags('cryptoRoute')
+@ApiTags('CryptoRoute')
 @Controller('cryptoRoute')
 export class CryptoRouteController {
   constructor(
@@ -40,6 +41,7 @@ export class CryptoRouteController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async getAllCrypto(@GetJwt() jwt: JwtPayload): Promise<CryptoRouteDto[]> {
     return this.cryptoRouteService.getUserCryptos(jwt.id).then((l) => this.toDtoList(jwt.id, l));
   }
@@ -47,14 +49,18 @@ export class CryptoRouteController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  createCrypto(@GetJwt() jwt: JwtPayload, @Body() createCryptoDto: CreateCryptoRouteDto): Promise<CryptoRouteDto> {
+  @ApiExcludeEndpoint()
+  async createCrypto(
+    @GetJwt() jwt: JwtPayload,
+    @Body() createCryptoDto: CreateCryptoRouteDto,
+  ): Promise<CryptoRouteDto> {
     return this.cryptoRouteService.createCrypto(jwt.id, createCryptoDto).then((b) => this.toDto(jwt.id, b));
   }
 
   @Put('/paymentInfos')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  @ApiResponse({ status: 200, type: CryptoPaymentInfoDto })
+  @ApiOkResponse({ type: CryptoPaymentInfoDto })
   async createCryptoWithPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetCryptoPaymentInfoDto,
@@ -67,6 +73,7 @@ export class CryptoRouteController {
   @Put(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async updateCryptoRoute(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -78,6 +85,7 @@ export class CryptoRouteController {
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+  @ApiExcludeEndpoint()
   async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoHistoryDto[]> {
     return this.buyCryptoService.getCryptoHistory(jwt.id, +id);
   }
@@ -102,6 +110,7 @@ export class CryptoRouteController {
 
     return {
       ...crypto,
+      asset: AssetDtoMapper.entityToDto(crypto.asset),
       type: crypto.targetDeposit != null ? BuyType.STAKING : BuyType.WALLET,
       blockchain: crypto.deposit.blockchain,
       staking: await this.getStaking(userId, crypto.targetDeposit, stakingRoutes),

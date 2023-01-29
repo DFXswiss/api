@@ -11,24 +11,23 @@ import { BuyType } from './buy-type.enum';
 export class CreateBuyDto {
   @ApiProperty()
   @IsNotEmpty()
-  // @IsIBAN()
   @Transform(Util.trimIban)
   @IsDfxIban()
   iban: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: BuyType })
   @IsNotEmpty()
   @IsEnum(BuyType)
   type: BuyType;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: EntityDto })
   @ValidateIf((b: CreateBuyDto) => b.type === BuyType.WALLET)
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   asset?: Asset;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: EntityDto })
   @ValidateIf((b: CreateBuyDto) => b.type === BuyType.STAKING)
   @IsNotEmptyObject()
   @ValidateNested()

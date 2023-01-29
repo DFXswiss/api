@@ -1,20 +1,17 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { SellController } from '../../../core/sell-crypto/route/sell.controller';
-import { SellDto } from '../../../core/sell-crypto/route/dto/sell.dto';
-import { CryptoRouteController } from '../../../core/buy-crypto/routes/crypto-route/crypto-route.controller';
-import { CryptoRouteDto } from '../../../core/buy-crypto/routes/crypto-route/dto/crypto-route.dto';
-import { BuyDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy.dto';
+import { RouteDto } from 'src/shared/dto/route.dto';
 import { BuyController } from 'src/subdomains/core/buy-crypto/routes/buy/buy.controller';
-import { StakingDto } from 'src/subdomains/core/staking/dto/staking.dto';
+import { CryptoRouteController } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.controller';
+import { SellController } from 'src/subdomains/core/sell-crypto/route/sell.controller';
 import { StakingController } from 'src/subdomains/core/staking/controllers/staking.controller';
 
-@ApiTags('route')
+@ApiTags('Route')
 @Controller('route')
 export class RouteController {
   constructor(
@@ -27,9 +24,8 @@ export class RouteController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getAllRoutes(
-    @GetJwt() jwt: JwtPayload,
-  ): Promise<{ buy: BuyDto[]; sell: SellDto[]; staking: StakingDto[]; crypto: CryptoRouteDto[] }> {
+  @ApiOkResponse({ type: RouteDto })
+  async getAllRoutes(@GetJwt() jwt: JwtPayload): Promise<RouteDto> {
     return Promise.all([
       this.buyController.getAllBuy(jwt),
       this.sellController.getAllSell(jwt),

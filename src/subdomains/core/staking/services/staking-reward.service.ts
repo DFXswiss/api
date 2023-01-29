@@ -6,6 +6,7 @@ import { StakingRewardRepository } from '../repositories/staking-reward.reposito
 
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
+import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { StakingRepository } from '../repositories/staking.repository';
 import { StakingService } from './staking.service';
 
@@ -58,10 +59,7 @@ export class StakingRewardService {
     }
   }
 
-  async getTransactions(
-    dateFrom: Date = new Date(0),
-    dateTo: Date = new Date(),
-  ): Promise<{ fiatAmount: number; fiatCurrency: string; date: Date; cryptoAmount: number; cryptoCurrency: string }[]> {
+  async getTransactions(dateFrom: Date = new Date(0), dateTo: Date = new Date()): Promise<TransactionDetailsDto[]> {
     const stakingRewards = await this.stakingRewardRepo.find({
       where: { outputDate: Between(dateFrom, dateTo) },
     });

@@ -16,19 +16,19 @@ export class GetSellPaymentInfoDto {
   @IsDfxIban()
   iban: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   currency: Fiat;
 
-  @ApiProperty()
+  @ApiProperty({ type: EntityDto })
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   asset: Asset;
 
-  @ApiProperty()
+  @ApiProperty({ enum: Blockchain, default: Blockchain.DEFICHAIN })
   @IsNotEmpty()
   @IsEnum(Blockchain)
   blockchain: Blockchain = Blockchain.DEFICHAIN;

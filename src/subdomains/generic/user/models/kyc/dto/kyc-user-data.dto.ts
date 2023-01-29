@@ -48,7 +48,7 @@ export class KycUserDataDto {
   @IsString()
   zip: string;
 
-  @ApiPropertyOptional({ type: Country })
+  @ApiPropertyOptional({ type: EntityDto })
   @ValidateIf((d: KycUserDataDto) => d.country !== undefined)
   @IsNotEmptyObject()
   @ValidateNested()
@@ -99,7 +99,7 @@ export class KycUserDataDto {
   @IsString()
   organizationZip: string;
 
-  @ApiPropertyOptional({ type: Country })
+  @ApiPropertyOptional({ type: EntityDto })
   @ValidateIf((d: KycUserDataDto) => d.accountType && d.organizationCountry && d.accountType !== AccountType.PERSONAL)
   @IsNotEmptyObject()
   @ValidateNested()

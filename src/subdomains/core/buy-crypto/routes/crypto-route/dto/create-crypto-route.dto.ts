@@ -8,24 +8,24 @@ import { BuyType } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-type.
 import { StakingDto } from 'src/subdomains/core/staking/dto/staking.dto';
 
 export class CreateCryptoRouteDto {
-  @ApiProperty()
+  @ApiProperty({ enum: BuyType })
   @IsNotEmpty()
   @IsEnum(BuyType)
   type: BuyType;
 
-  @ApiProperty()
+  @ApiProperty({ enum: Blockchain })
   @IsNotEmpty()
   @IsEnum(Blockchain)
   blockchain: Blockchain;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: EntityDto })
   @ValidateIf((b: CreateCryptoRouteDto) => b.type === BuyType.WALLET)
   @IsNotEmptyObject()
   @ValidateNested()
   @Type(() => EntityDto)
   asset: Asset;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: EntityDto })
   @ValidateIf((b: CreateCryptoRouteDto) => b.type === BuyType.STAKING)
   @IsNotEmptyObject()
   @ValidateNested()

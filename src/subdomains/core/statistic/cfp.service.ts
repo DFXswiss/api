@@ -4,80 +4,11 @@ import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { CfpResult, CfpSettings, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient, Proposal, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
 import { ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { HttpService } from 'src/shared/services/http.service';
-
-export interface CfpSettings {
-  inProgress: boolean;
-  votingOpen: boolean;
-  currentRound: string;
-  startDate: string;
-  endDate: string;
-}
-
-enum ResultStatus {
-  APPROVED = 'Approved',
-  NOT_APPROVED = 'Not approved',
-}
-
-enum VotingType {
-  CFP = 'cfp',
-  DFIP = 'dfip',
-}
-
-interface Vote {
-  address: string;
-  cfpId: string;
-  vote: string;
-  signature?: string;
-  createdAt?: string;
-  isCake?: boolean;
-  isLock?: boolean;
-}
-
-export interface CfpResult {
-  number: string;
-  title: string;
-  type: VotingType;
-  dfiAmount: number;
-  htmlUrl: string;
-  currentResult: ResultStatus;
-  totalVotes: {
-    total: number;
-    possible: number;
-    turnout: number;
-    yes: number;
-    neutral: number;
-    no: number;
-  };
-  cakeVotes?: {
-    total: number;
-    yes: number;
-    neutral: number;
-    no: number;
-  };
-  dfxVotes?: {
-    total: number;
-    yes: number;
-    neutral: number;
-    no: number;
-  };
-  lockVotes?: {
-    total: number;
-    yes: number;
-    neutral: number;
-    no: number;
-  };
-  voteDetails: {
-    yes: Vote[];
-    neutral: Vote[];
-    no: Vote[];
-  };
-  startDate: string;
-  endDate: string;
-}
 
 interface Masternodes {
   [id: string]: { ownerAuthAddress: string };
