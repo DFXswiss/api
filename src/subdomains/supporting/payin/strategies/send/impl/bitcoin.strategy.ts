@@ -14,6 +14,8 @@ export class BitcoinStrategy extends SendStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
+    console.log(`${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} Bitcoin input(s).`);
+
     await this.bitcoinService.checkHealthOrThrow();
 
     for (const payIn of payIns) {

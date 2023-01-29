@@ -17,6 +17,8 @@ export class DeFiChainCoinStrategy extends SendStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
+    console.log(`${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Coin input(s).`);
+
     const currentHeight = await this.deFiChainService.getCurrentHeight();
 
     for (const payIn of payIns) {

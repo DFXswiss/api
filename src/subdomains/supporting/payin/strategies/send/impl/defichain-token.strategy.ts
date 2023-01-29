@@ -17,6 +17,8 @@ export class DeFiChainTokenStrategy extends SendStrategy {
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
+    console.log(`${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} DeFiChain Token input(s).`);
+
     await this.deFiChainService.checkHealthOrThrow();
 
     for (const payIn of payIns) {

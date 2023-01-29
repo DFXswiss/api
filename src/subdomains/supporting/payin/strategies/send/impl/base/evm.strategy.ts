@@ -28,6 +28,8 @@ export abstract class EvmStrategy extends SendStrategy {
   protected abstract checkPreparation(payInGroup: SendGroup): Promise<boolean>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
+    this.logInput(payIns, type);
+
     const groups = this.groupPayIns(payIns, type);
 
     for (const payInGroup of [...groups.values()]) {
@@ -69,6 +71,15 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   //*** HELPER METHODS ***//
+
+  private logInput(payIns: CryptoInput[], type: SendType): void {
+    payIns.length > 0 &&
+      console.log(
+        `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${payIns.length} ${this.blockchain} ${
+          payIns[0].asset.type
+        } input(s).`,
+      );
+  }
 
   private groupPayIns(payIns: CryptoInput[], type: SendType): Map<SendGroupKey, SendGroup> {
     const groups = new Map<SendGroupKey, SendGroup>();
