@@ -74,6 +74,9 @@
     "utxoSpenderAddress": {
       "value": "xxx"
     },
+    "evmEncryptionKey": {
+      "value": "xxx"
+    },
     "ethWalletAddress": {
       "value": "xxx"
     },
@@ -91,6 +94,12 @@
     },
     "ethSwapTokenAddress": {
       "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    },
+    "ethScanApiUrl": {
+      "value": "https://api.etherscan.io/api"
+    },
+    "ethScanApiKey": {
+      "value": "xxx"
     },
     "optimismWalletAddress": {
       "value": "xxx"
@@ -110,6 +119,12 @@
     "optimismSwapTokenAddress": {
       "value": ""
     },
+    "optimismScanApiUrl": {
+      "value": "https://api-optimistic.etherscan.io/api"
+    },
+    "optimismScanApiKey": {
+      "value": "xxx"
+    },
     "arbitrumWalletAddress": {
       "value": "xxx"
     },
@@ -128,6 +143,12 @@
     "arbitrumSwapTokenAddress": {
       "value": ""
     },
+    "arbitrumScanApiUrl": {
+      "value": "https://api.arbiscan.io/api"
+    },
+    "arbitrumScanApiKey": {
+      "value": "xxx"
+    },
     "bscWalletAddress": {
       "value": "xxx"
     },
@@ -142,6 +163,12 @@
     },
     "bscSwapTokenAddress": {
       "value": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+    },
+    "bscScanApiUrl": {
+      "value": "https://api.bscscan.com/api"
+    },
+    "bscScanApiKey": {
+      "value": "xxx"
     },
     "btcOutWalletAddress": {
       "value": "xxx"
