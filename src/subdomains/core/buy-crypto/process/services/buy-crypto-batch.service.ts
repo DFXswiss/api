@@ -19,6 +19,7 @@ import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
 import { PriceResult, PriceRequest } from 'src/subdomains/supporting/pricing/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FeeLimitExceededException } from '../exceptions/fee-limit-exceeded.exception';
+import { Util } from 'src/shared/utils/util';
 
 @Injectable()
 export class BuyCryptoBatchService {
@@ -376,26 +377,37 @@ export class BuyCryptoBatchService {
   ): Promise<void> {
     try {
       const {
-        target: { availableAmount, maxPurchasableAmount: maxPurchasableTargetAmount },
-        reference: { maxPurchasableAmount: maxPurchasableReferenceAmount },
+        target: {
+          amount: targetAmount,
+          availableAmount: availableTargetAmount,
+          maxPurchasableAmount: maxPurchasableTargetAmount,
+        },
+        reference: { availableAmount: availableReferenceAmount, maxPurchasableAmount: maxPurchasableReferenceAmount },
       } = liquidity;
 
       const { outputReferenceAmount, outputAsset: oa, outputReferenceAsset: ora, transactions } = batch;
 
-      const maxPurchasableTargetAmountMessage = maxPurchasableTargetAmount
-        ? `${maxPurchasableTargetAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.`
-        : 'zero or unknown';
+      const targetDeficit = Util.round(targetAmount - availableTargetAmount, 8);
+      const referenceDeficit = Util.round(outputReferenceAmount - availableReferenceAmount, 8);
 
-      const maxPurchasableReferenceAmountMessage = maxPurchasableReferenceAmount
-        ? `${maxPurchasableReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.`
-        : 'zero or unknown';
+      const maxPurchasableTargetAmountMessage =
+        maxPurchasableTargetAmount != null
+          ? `Could be additionally swapped from other available assets: ${maxPurchasableTargetAmount}`
+          : '';
+
+      const maxPurchasableReferenceAmountMessage =
+        maxPurchasableReferenceAmount != null
+          ? `Could be additionally swapped from other available assets: ${maxPurchasableReferenceAmount}`
+          : '';
 
       const message = `
         ${error.message}
-        Required reference amount: ${outputReferenceAmount} ${ora.dexName} ${ora.type} ${ora.blockchain}.
-        Available amount: ${availableAmount} ${oa.dexName} ${oa.type} ${oa.blockchain}.
-        Maximum purchasable amount (target asset, approximately): ${maxPurchasableTargetAmountMessage}.
-        Maximum purchasable amount (reference asset, approximately): ${maxPurchasableReferenceAmountMessage}.
+        Details:
+        In target asset (${oa.uniqueName}): 
+         - Required amount: ${targetAmount}, available amount: ${availableTargetAmount}, deficit: ${targetDeficit}. ${maxPurchasableTargetAmountMessage}
+
+        In reference asset (${ora.uniqueName} ):
+         - Required amount: ${outputReferenceAmount}, available amount: ${availableReferenceAmount}, deficit: ${referenceDeficit}. ${maxPurchasableReferenceAmountMessage}
       `;
 
       await this.buyCryptoNotificationService.sendMissingLiquidityError(
