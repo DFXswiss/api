@@ -11,6 +11,12 @@ export class GetCryptoPaymentInfoDto {
   @IsEnum(Blockchain)
   blockchain: Blockchain;
 
+  @ApiProperty({ type: EntityDto, description: 'Source asset' })
+  @IsNotEmptyObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  sourceAsset: Asset;
+
   @ApiProperty({ type: EntityDto, description: 'Target asset' })
   @IsNotEmptyObject()
   @ValidateNested()

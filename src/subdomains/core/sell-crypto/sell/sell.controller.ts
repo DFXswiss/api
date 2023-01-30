@@ -22,6 +22,7 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { DepositDtoMapper } from 'src/mix/models/deposit/dto/deposit-dto.mapper';
 import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 
 @ApiTags('Sell')
 @Controller('sell')
@@ -31,6 +32,7 @@ export class SellController {
     private readonly userService: UserService,
     private readonly buyFiatService: BuyFiatService,
     private readonly assetService: AssetService,
+    private readonly paymentInfoService: PaymentInfoService,
   ) {}
 
   @Get()
@@ -57,6 +59,7 @@ export class SellController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
+    await this.paymentInfoService.sellPaymentInfoCheck(dto);
     return this.sellService
       .createSell(jwt.id, { ...dto, fiat: dto.currency }, true)
       .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));

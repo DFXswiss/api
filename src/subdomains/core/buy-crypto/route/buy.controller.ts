@@ -35,6 +35,7 @@ import { Staking } from 'src/mix/models/staking/staking.entity';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BuyCryptoService } from '../process/services/buy-crypto.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 
 @ApiTags('Buy')
 @Controller('buy')
@@ -44,8 +45,8 @@ export class BuyController {
     private readonly userService: UserService,
     private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
-    private readonly fiatService: FiatService,
     private readonly bankService: BankService,
+    private readonly paymentInfoService: PaymentInfoService,
   ) {}
 
   @Get()
@@ -72,6 +73,7 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
+    await this.paymentInfoService.buyPaymentInfoCheck(dto);
     return this.buyService
       .createBuy(jwt.id, jwt.address, { ...dto, type: BuyType.WALLET }, true)
       .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));
@@ -142,9 +144,6 @@ export class BuyController {
   }
 
   private async getBankInfo(buy: Buy, dto: GetBuyPaymentInfoDto): Promise<BankInfoDto> {
-    dto.currency = await this.fiatService.getFiat(dto.currency.id);
-    if (!dto.currency) throw new NotFoundException('Currency not found');
-
     const bank = await this.bankService.getBank({
       amount: dto.amount,
       currency: dto.currency.name,
