@@ -7,7 +7,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { SendStrategiesFacade } from '../strategies/send/send.facade';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config, Process } from 'src/config/config';
-import { In, IsNull } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -183,6 +183,7 @@ export class PayInService {
         sendType: PayInSendType.FORWARD,
         outTxId: IsNull(),
         amlCheck: AmlCheck.PASS,
+        asset: Not(IsNull()),
       },
       relations: ['route'],
     });
@@ -207,6 +208,7 @@ export class PayInService {
         status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
         sendType: PayInSendType.RETURN,
         returnTxId: IsNull(),
+        asset: Not(IsNull()),
       },
       relations: ['route'],
     });
@@ -227,7 +229,7 @@ export class PayInService {
 
   private async retryPayIns(): Promise<void> {
     const payIns = await this.payInRepository.find({
-      where: { status: PayInStatus.WAITING_FOR_PRICE_REFERENCE },
+      where: { status: PayInStatus.WAITING_FOR_PRICE_REFERENCE, asset: Not(IsNull()) },
       relations: ['route'],
     });
 

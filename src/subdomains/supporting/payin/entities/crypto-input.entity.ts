@@ -129,6 +129,7 @@ export class CryptoInput extends IEntity {
   //*** UTILITY METHODS ***//
 
   static verifyEstimatedFee(estimatedFeeInPayInAsset: number, totalAmount: number): void {
+    if (estimatedFeeInPayInAsset == null) throw new Error('No fee estimation provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
     if (estimatedFeeInPayInAsset / totalAmount > 0.005) throw new Error('Forward fee is too hight');
   }

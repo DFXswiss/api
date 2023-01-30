@@ -8,6 +8,7 @@ export interface AssetQuery {
   dexName: string;
   blockchain: string;
   type: AssetType;
+  chainId?: string | null;
 }
 
 @Injectable()
@@ -30,8 +31,13 @@ export class AssetService {
 
   //*** UTILITY METHODS ***//
 
-  getByQuerySync(assets: Asset[], { dexName, blockchain, type }: AssetQuery): Asset | undefined {
-    return assets.find((a) => a.dexName === dexName && a.blockchain === blockchain && a.type === type);
+  getByQuerySync(assets: Asset[], { dexName, blockchain, type, chainId }: AssetQuery): Asset | undefined {
+    return assets.find((a) => {
+      const queryMatch = a.dexName === dexName && a.blockchain === blockchain && a.type === type;
+      const chainIdMatch = !a.chainId ? true : chainId ? a.chainId.toLowerCase() === chainId.toLowerCase() : true;
+
+      return queryMatch && chainIdMatch;
+    });
   }
 
   async getDfiCoin(): Promise<Asset> {

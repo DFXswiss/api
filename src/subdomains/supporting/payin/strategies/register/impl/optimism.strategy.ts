@@ -56,8 +56,16 @@ export class OptimismStrategy extends EvmStrategy {
 
     for (const entry of entries) {
       try {
-        const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
-        const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
+        if (!entry.asset) throw new Error('No asset identified for Optimism pay-in');
+
+        const sourceAssetRepresentation = await this.assetService.getAssetByQuery({
+          dexName: entry.asset.dexName,
+          blockchain: Blockchain.ETHEREUM,
+          type: entry.asset.type,
+        });
+
+        const btcAmount = await this.getReferenceAmount(sourceAssetRepresentation, entry.amount, btc);
+        const usdtAmount = await this.getReferenceAmount(sourceAssetRepresentation, entry.amount, usdt);
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
@@ -65,6 +73,17 @@ export class OptimismStrategy extends EvmStrategy {
         continue;
       }
     }
+  }
+
+  //*** HELPER METHODS ***//
+
+  /**
+   * @note
+   * this is needed to skip registering inputs from own address
+   * cannot be filtered as a dust input, because fees can go high
+   */
+  protected getOwnAddresses(): string[] {
+    return [Config.blockchain.optimism.optimismWalletAddress];
   }
 
   //*** JOBS ***//

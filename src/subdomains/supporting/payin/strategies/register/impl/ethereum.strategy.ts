@@ -56,6 +56,8 @@ export class EthereumStrategy extends EvmStrategy {
 
     for (const entry of entries) {
       try {
+        if (!entry.asset) throw new Error('No asset identified for Ethereum pay-in');
+
         const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
         const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
 
@@ -65,6 +67,17 @@ export class EthereumStrategy extends EvmStrategy {
         continue;
       }
     }
+  }
+
+  //*** HELPER METHODS ***//
+
+  /**
+   * @note
+   * this is needed to skip registering inputs from own address
+   * cannot be filtered as a dust input, because fees can go high
+   */
+  protected getOwnAddresses(): string[] {
+    return [Config.blockchain.ethereum.ethWalletAddress];
   }
 
   //*** JOBS ***//

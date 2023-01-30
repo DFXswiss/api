@@ -1,3 +1,4 @@
+import { v4 as uuid } from 'uuid';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { SendGroup, SendGroupKey, SendStrategy, SendType } from './send.strategy';
@@ -6,15 +7,15 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { FeeRequest, FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Util } from 'src/shared/utils/util';
-import { PriceRequest, PriceResult } from 'src/subdomains/supporting/pricing/interfaces';
-import { PriceRequestContext } from 'src/subdomains/supporting/pricing/enums';
 import { Config } from 'src/config/config';
+import { CheckLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
+import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 
 export abstract class EvmStrategy extends SendStrategy {
   constructor(
-    protected readonly pricingService: PricingService,
+    protected readonly dexService: DexService,
     protected readonly payoutService: PayoutService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInRepo: PayInRepository,
@@ -26,6 +27,7 @@ export abstract class EvmStrategy extends SendStrategy {
   protected abstract dispatchSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<string>;
   protected abstract prepareSend(payInGroup: SendGroup, estimatedNativeFee: number): Promise<void>;
   protected abstract checkPreparation(payInGroup: SendGroup): Promise<boolean>;
+  protected abstract getAssetRepresentationForFee(asset: Asset): Promise<Asset>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     this.logInput(payIns, type);
@@ -89,6 +91,7 @@ export abstract class EvmStrategy extends SendStrategy {
         `${type === SendType.FORWARD ? 'Forwarding' : 'Returning'} ${newPayIns.length} ${this.blockchain} ${
           payIns[0].asset.type
         } input(s).`,
+        newPayIns.map((p) => p.id),
       );
   }
 
@@ -142,11 +145,9 @@ export abstract class EvmStrategy extends SendStrategy {
   }
 
   private async getFeeAmountForInPayInGroup(payInGroup: SendGroup, nativeFee: FeeResult): Promise<number> {
-    const payInIdStrings = this.getPayInsIdentityKey(payInGroup);
-    const priceRequestCorrelationId = `PayIn_ConvertEstimatedForwardFee_${payInIdStrings}`;
-    const errorMessage = `Could not get price for pay-in forwarding fee calculation. Ignoring fee estimate. Native fee asset: ${nativeFee.asset.dexName}, pay-in asset: ${payInGroup.asset.dexName}`;
+    const errorMessage = `Could not get fee in target asset. Ignoring fee estimate. Native fee asset: ${nativeFee.asset.dexName}, pay-in asset: ${payInGroup.asset.dexName}`;
 
-    return this.getFeeAmountInPayInAsset(payInGroup.asset, nativeFee, priceRequestCorrelationId, errorMessage);
+    return this.getFeeAmountInPayInAsset(payInGroup.asset, nativeFee, errorMessage);
   }
 
   private getPayInsIdentityKey(payInGroup: SendGroup): string {
@@ -156,13 +157,10 @@ export abstract class EvmStrategy extends SendStrategy {
   private async getFeeAmountInPayInAsset(
     asset: Asset,
     nativeFee: FeeResult,
-    priceRequestCorrelationId: string,
     errorMessage: string,
   ): Promise<number | null> {
     try {
-      return nativeFee.amount
-        ? await this.convertToTargetAsset(nativeFee.asset, nativeFee.amount, asset, priceRequestCorrelationId)
-        : 0;
+      return nativeFee.amount ? await this.convertToTargetAsset(nativeFee.asset, nativeFee.amount, asset) : 0;
     } catch (e) {
       console.error(errorMessage, e);
 
@@ -170,30 +168,42 @@ export abstract class EvmStrategy extends SendStrategy {
     }
   }
 
-  private async convertToTargetAsset(
-    sourceAsset: Asset,
-    sourceAmount: number,
-    targetAsset: Asset,
-    correlationId: string,
-  ): Promise<number> {
-    const priceRequest = this.createPriceRequest([sourceAsset.dexName, targetAsset.dexName], correlationId);
+  private async convertToTargetAsset(sourceAsset: Asset, sourceAmount: number, targetAsset: Asset): Promise<number> {
+    const sourceAssetRepresentation = await this.getAssetRepresentationForFee(sourceAsset);
+    const targetAssetRepresentation = await this.getAssetRepresentationForFee(targetAsset);
 
-    const result = (await this.pricingService.getPrice(priceRequest).catch((e) => {
-      console.error('Failed to get price:', e);
-      return undefined;
-    })) as PriceResult | undefined;
-
-    if (!result) {
+    if (!sourceAssetRepresentation)
       throw new Error(
-        `Could not get price from source asset: ${sourceAsset.dexName} to target asset: ${targetAsset.dexName}`,
+        `Cannot proceed with fee conversion, could not find source asset representation for asset ${sourceAsset.dexName} ${sourceAsset.blockchain}`,
       );
-    }
 
-    return result.price.price ? Util.round(sourceAmount / result.price.price, 8) : 0;
+    if (!targetAssetRepresentation)
+      throw new Error(
+        `Cannot proceed with fee conversion, could not find target asset representation for asset ${targetAsset.dexName} ${targetAsset.blockchain}`,
+      );
+
+    return await this.getFeeReferenceAmount(sourceAsset, sourceAmount, targetAssetRepresentation);
   }
 
-  private createPriceRequest(currencyPair: string[], correlationId: string): PriceRequest {
-    return { context: PriceRequestContext.PAY_IN, correlationId, from: currencyPair[0], to: currencyPair[1] };
+  private async getFeeReferenceAmount(fromAsset: Asset, fromAmount: number, toAsset: Asset): Promise<number> {
+    const request = this.createLiquidityRequest(fromAsset, fromAmount, toAsset);
+    const liquidity = await this.dexService.checkLiquidity(request);
+
+    return liquidity.target.amount;
+  }
+
+  private createLiquidityRequest(
+    referenceAsset: Asset,
+    referenceAmount: number,
+    targetAsset: Asset,
+  ): CheckLiquidityRequest {
+    return {
+      context: LiquidityOrderContext.PAY_IN,
+      correlationId: uuid(),
+      referenceAsset,
+      referenceAmount,
+      targetAsset,
+    };
   }
 
   protected getTotalGroupAmount(payInGroup: SendGroup): number {

@@ -18,7 +18,6 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
-import { Config } from 'src/config/config';
 
 export abstract class EvmStrategy extends RegisterStrategy {
   constructor(
@@ -33,6 +32,8 @@ export abstract class EvmStrategy extends RegisterStrategy {
   ) {
     super(dexService, payInFactory, payInRepository);
   }
+
+  protected abstract getOwnAddresses(): string[];
 
   doAmlCheck(_: CryptoInput, route: Staking | Sell | CryptoRoute): AmlCheck {
     return route.user.userData.kycStatus === KycStatus.REJECTED ? AmlCheck.FAIL : AmlCheck.PASS;
@@ -71,25 +72,23 @@ export abstract class EvmStrategy extends RegisterStrategy {
 
       const entries = this.mapHistoryToPayInEntries(address, coinHistory, tokenHistory, supportedAssets);
 
-      if (entries.length === 0) return;
+      if (entries.length === 0) continue;
 
-      const relevantEntries = this.filterOutDustEntries(entries);
-
-      await this.verifyLastBlockEntries(address, relevantEntries, blockHeight, log);
-      await this.processNewEntries(relevantEntries, blockHeight, log);
+      await this.verifyLastBlockEntries(address, entries, blockHeight, log);
+      await this.processNewEntries(entries, blockHeight, log);
     }
 
     this.printInputLog(log, blockHeight, this.blockchain);
   }
 
   private mapHistoryToPayInEntries(
-    address: string,
+    toAddress: string,
     coinHistory: EvmCoinHistoryEntry[],
     tokenHistory: EvmTokenHistoryEntry[],
     supportedAssets: Asset[],
   ): PayInEntry[] {
-    const relevantCoinEntries = this.filterEntriesByReceiverAddress(address, coinHistory);
-    const relevantTokenEntries = this.filterEntriesByReceiverAddress(address, tokenHistory);
+    const relevantCoinEntries = this.filterEntriesByRelevantAddresses(this.getOwnAddresses(), toAddress, coinHistory);
+    const relevantTokenEntries = this.filterEntriesByRelevantAddresses(this.getOwnAddresses(), toAddress, tokenHistory);
 
     return [
       ...this.mapCoinEntries(relevantCoinEntries, supportedAssets),
@@ -97,11 +96,16 @@ export abstract class EvmStrategy extends RegisterStrategy {
     ];
   }
 
-  private filterEntriesByReceiverAddress<T extends EvmCoinHistoryEntry | EvmTokenHistoryEntry>(
-    address: string,
+  private filterEntriesByRelevantAddresses<T extends EvmCoinHistoryEntry | EvmTokenHistoryEntry>(
+    fromAddresses: string[],
+    toAddress: string,
     transactions: T[],
   ): T[] {
-    return transactions.filter((tx) => tx.to.toLowerCase() === address.toLowerCase());
+    const notFromOwnAddresses = transactions.filter(
+      (tx) => !fromAddresses.map((a) => a.toLowerCase()).includes(tx.from.toLowerCase()),
+    );
+
+    return notFromOwnAddresses.filter((tx) => tx.to.toLowerCase() === toAddress.toLowerCase());
   }
 
   private mapCoinEntries(coinTransactions: EvmCoinHistoryEntry[], supportedAssets: Asset[]): PayInEntry[] {
@@ -132,17 +136,9 @@ export abstract class EvmStrategy extends RegisterStrategy {
           dexName: tx.tokenSymbol,
           blockchain: this.blockchain,
           type: AssetType.TOKEN,
+          chainId: tx.contractAddress,
         }) ?? null,
     }));
-  }
-
-  private filterOutDustEntries(entries: PayInEntry[]): PayInEntry[] {
-    /**
-     * @note
-     * same check exists in CryptoInputInitSpecification it should always be there,
-     * but it should be also used here to avoid unnecessary reference values calculation (better performance)
-     */
-    return entries.filter((e) => e.amount >= Config.blockchain.evm.minimalRegisteredCoinInput);
   }
 
   private async verifyLastBlockEntries(

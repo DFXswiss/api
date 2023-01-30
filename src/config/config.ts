@@ -310,8 +310,7 @@ export class Configuration {
     },
     evm: {
       encryptionKey: process.env.EVM_ENCRYPTION_KEY,
-      minimalRegisteredCoinInput: 0.0000001,
-      minimalPreparationFee: 0.0000000001,
+      minimalPreparationFee: 0.00000001,
     },
     ethereum: {
       ethScanApiUrl: process.env.ETH_SCAN_API_URL,

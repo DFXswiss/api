@@ -19,18 +19,6 @@ export class CryptoInputInitSpecification {
 
           break;
         }
-
-        case Blockchain.ETHEREUM:
-        case Blockchain.BINANCE_SMART_CHAIN:
-        case Blockchain.ARBITRUM:
-        case Blockchain.OPTIMISM:
-          {
-            if (amount < Config.blockchain.evm.minimalRegisteredCoinInput) {
-              throw new Error(`Ignoring too small EVM input (${amount} ${asset.dexName})`);
-            }
-          }
-
-          break;
       }
     }
 

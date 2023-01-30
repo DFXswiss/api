@@ -1,21 +1,21 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
+import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmStrategy } from './evm.strategy';
 import { SendGroup } from './send.strategy';
 
 export abstract class EvmCoinStrategy extends EvmStrategy {
   constructor(
-    protected readonly pricingService: PricingService,
+    protected readonly dexService: DexService,
     protected readonly payoutService: PayoutService,
     protected readonly payInEvmService: PayInEvmService,
     protected readonly payInRepo: PayInRepository,
     protected readonly blockchain: Blockchain,
   ) {
-    super(pricingService, payoutService, payInEvmService, payInRepo, blockchain);
+    super(dexService, payoutService, payInEvmService, payInRepo, blockchain);
   }
 
   protected async checkPreparation(_: SendGroup): Promise<boolean> {
@@ -44,7 +44,7 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
        * @note
        * subtracting a fraction more from sent amount to compensate possible rounding issues.
        * */
-      Util.round(this.getTotalGroupAmount(payInGroup) - estimatedNativeFee * 1.0000001, 12),
+      Util.round(this.getTotalGroupAmount(payInGroup) - estimatedNativeFee * 1.00001, 12),
       estimatedNativeFee,
     );
   }

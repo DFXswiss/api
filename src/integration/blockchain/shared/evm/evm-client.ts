@@ -144,7 +144,9 @@ export abstract class EvmClient {
     const decimals = await contract.decimals();
     const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
 
-    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, nonce });
+    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce });
+
+    this.#nonce.set(fromAddress, nonce + 1);
 
     return tx.hash;
   }
@@ -232,6 +234,8 @@ export abstract class EvmClient {
       gasLimit: this.#sendCoinGasLimit,
     });
 
+    this.#nonce.set(fromAddress, nonce + 1);
+
     return tx.hash;
   }
 
@@ -249,9 +253,7 @@ export abstract class EvmClient {
     const blockchainNonce = await this.#provider.getTransactionCount(address);
     const cachedNonce = this.#nonce.get(address) ?? 0;
 
-    const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce + 1;
-
-    this.#nonce.set(address, currentNonce);
+    const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce;
 
     return currentNonce;
   }
