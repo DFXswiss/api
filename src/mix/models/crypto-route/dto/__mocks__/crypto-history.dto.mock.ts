@@ -9,6 +9,7 @@ const defaultCryptoHistory: CryptoHistoryDto = {
   date: new Date(),
   isComplete: false,
   txId: 'TX_INPUT_ID_01',
+  txUrl: 'explorer/tx',
   amlCheck: AmlCheck.PASS,
 };
 
