@@ -17,7 +17,6 @@ import { Config } from 'src/config/config';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { DepositDtoMapper } from 'src/mix/models/deposit/dto/deposit-dto.mapper';
 import { MinDeposit } from 'src/mix/models/deposit/dto/min-deposit.dto';
@@ -31,7 +30,6 @@ export class SellController {
     private readonly sellService: SellService,
     private readonly userService: UserService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly assetService: AssetService,
     private readonly paymentInfoService: PaymentInfoService,
   ) {}
 
@@ -113,7 +111,6 @@ export class SellController {
 
   // --- HELPER-METHODS --- //
   async getFee(userId: number, asset: Asset): Promise<{ fee: number }> {
-    asset = await this.assetService.getAssetById(asset.id);
     return this.userService.getUserSellFee(userId, asset);
   }
 
