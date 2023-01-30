@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Put,
-  UseGuards,
-  Post,
-  Param,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards, Post, Param, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Config } from 'src/config/config';
@@ -27,7 +17,6 @@ import { CreateBuyDto } from './dto/create-buy.dto';
 import { UpdateBuyDto } from './dto/update-buy.dto';
 import { BankInfoDto, BuyPaymentInfoDto } from './dto/buy-payment-info.dto';
 import { GetBuyPaymentInfoDto } from './dto/get-buy-payment-info.dto';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { Deposit } from 'src/mix/models/deposit/deposit.entity';
 import { StakingDto } from 'src/mix/models/staking/dto/staking.dto';
@@ -73,7 +62,7 @@ export class BuyController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetBuyPaymentInfoDto,
   ): Promise<BuyPaymentInfoDto> {
-    await this.paymentInfoService.buyPaymentInfoCheck(dto);
+    await this.paymentInfoService.buyCheck(dto);
     return this.buyService
       .createBuy(jwt.id, jwt.address, { ...dto, type: BuyType.WALLET }, true)
       .then((buy) => this.toPaymentInfoDto(jwt.id, buy, dto));

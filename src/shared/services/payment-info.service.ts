@@ -9,7 +9,7 @@ import { FiatService } from '../models/fiat/fiat.service';
 export class PaymentInfoService {
   constructor(private readonly fiatService: FiatService, private readonly assetService: AssetService) {}
 
-  async buyPaymentInfoCheck(dto: GetBuyPaymentInfoDto): Promise<void> {
+  async buyCheck(dto: GetBuyPaymentInfoDto): Promise<GetBuyPaymentInfoDto> {
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
     if (!dto.currency) throw new NotFoundException('Currency not found');
     if (!dto.currency.sellable) throw new BadRequestException('Currency not sellable');
@@ -17,9 +17,11 @@ export class PaymentInfoService {
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
     if (!dto.asset) throw new NotFoundException('Asset not found');
     if (!dto.asset.buyable) throw new BadRequestException('Asset not buyable');
+
+    return dto;
   }
 
-  async sellPaymentInfoCheck(dto: GetSellPaymentInfoDto): Promise<void> {
+  async sellCheck(dto: GetSellPaymentInfoDto): Promise<GetSellPaymentInfoDto> {
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
     if (!dto.asset) throw new NotFoundException('Asset not found');
     if (!dto.asset.sellable) throw new BadRequestException('Asset not sellable');
@@ -27,9 +29,11 @@ export class PaymentInfoService {
     dto.currency = await this.fiatService.getFiat(dto.currency.id);
     if (!dto.currency) throw new NotFoundException('Currency not found');
     if (!dto.currency.buyable) throw new BadRequestException('Currency not buyable');
+
+    return dto;
   }
 
-  async cryptoPaymentInfoCheck(dto: GetCryptoPaymentInfoDto): Promise<void> {
+  async cryptoCheck(dto: GetCryptoPaymentInfoDto): Promise<GetCryptoPaymentInfoDto> {
     dto.asset = await this.assetService.getAssetById(dto.asset.id);
     if (!dto.asset) throw new NotFoundException('Target asset not found');
     if (!dto.asset.buyable) throw new BadRequestException('Target asset not buyable');
@@ -37,5 +41,7 @@ export class PaymentInfoService {
     dto.sourceAsset = await this.assetService.getAssetById(dto.sourceAsset.id);
     if (!dto.sourceAsset) throw new NotFoundException('Source asset not found');
     if (!dto.sourceAsset.sellable) throw new BadRequestException('Source asset not sellable');
+
+    return dto;
   }
 }
