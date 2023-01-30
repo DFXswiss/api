@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Between, In, IsNull, Not } from 'typeorm';
-import { Util } from 'src/shared/utils/util';
+import { Util, KeyType } from 'src/shared/utils/util';
 import { Lock } from 'src/shared/utils/lock';
 import { BuyCrypto } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
@@ -147,6 +147,22 @@ export class BuyCryptoService {
     await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
+  }
+
+  async getBuyCryptoByParam(paramName: KeyType<BuyCrypto, any>, param: BuyCrypto[keyof BuyCrypto]): Promise<BuyCrypto> {
+    return this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('buyCrypto')
+      .leftJoinAndSelect('buyCrypto.buy', 'buy')
+      .leftJoinAndSelect('buyCrypto.cryptoRoute', 'cryptoRoute')
+      .leftJoinAndSelect('buy.user', 'user')
+      .leftJoinAndSelect('cryptoRoute.user', 'cryptoRouteUser')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('cryptoRouteUser.userData', 'cryptoRouteUserData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('cryptoRouteUserData.users', 'cryptoRouteUsers')
+      .where(`buyCrypto.${paramName} = :param`, { param: param })
+      .getOne();
   }
 
   @Interval(60000)

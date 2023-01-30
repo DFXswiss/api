@@ -15,6 +15,7 @@ import { MailType } from 'src/subdomains/supporting/notification/enums';
 import { BankTxReturnService } from '../bank-tx-return/bank-tx-return.service';
 import { BankTxRepeatService } from '../bank-tx-repeat/bank-tx-repeat.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { KeyType } from 'src/shared/utils/util';
 
 @Injectable()
 export class BankTxService {
@@ -95,6 +96,24 @@ export class BankTxService {
     }
 
     return await this.bankTxRepo.save({ ...bankTx, ...dto });
+  }
+
+  async getBankTxByParam(paramName: KeyType<BankTx, any>, param: BankTx[keyof BankTx]): Promise<BankTx> {
+    return this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx')
+      .leftJoinAndSelect('bankTx.buyCrypto', 'buyCrypto')
+      .leftJoinAndSelect('bankTx.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyCrypto.buy', 'buy')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('buy.user', 'user')
+      .leftJoinAndSelect('sell.user', 'sellUser')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('sellUser.userData', 'sellUserData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .leftJoinAndSelect('sellUserData.users', 'sellUsers')
+      .where(`bankTx.${paramName} = :param`, { param: param })
+      .getOne();
   }
 
   // --- HELPER METHODS --- //

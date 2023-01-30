@@ -5,7 +5,7 @@ import { CryptoInput } from '../../../../mix/models/crypto-input/crypto-input.en
 import { Sell } from '../sell/sell.entity';
 import { Between, In, IsNull } from 'typeorm';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
-import { Util } from 'src/shared/utils/util';
+import { Util, KeyType } from 'src/shared/utils/util';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { SellRepository } from '../sell/sell.repository';
 import { SellService } from '../sell/sell.service';
@@ -117,6 +117,18 @@ export class BuyFiatService {
     await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
     return entity;
+  }
+
+  async getBuyFiatByParam(paramName: KeyType<BuyFiat, any>, param: BuyFiat[keyof BuyFiat]): Promise<BuyFiat> {
+    return this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('buyFiat')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`buyFiat.${paramName} = :param`, { param: param })
+      .getOne();
   }
 
   async updateVolumes(): Promise<void> {

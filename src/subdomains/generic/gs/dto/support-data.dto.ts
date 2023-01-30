@@ -40,4 +40,49 @@ export class SupportDataQuery {
 
   @IsOptional()
   bankUsage: string;
+
+  @IsOptional()
+  kycFileId: number;
+
+  @IsOptional()
+  mail: string;
+
+  @IsOptional()
+  kycCustomerId: number;
+
+  @IsOptional()
+  kycHash: string;
+
+  @IsOptional()
+  buyCryptoId: number;
+
+  @IsOptional()
+  buyCryptoTxId: string;
+
+  @IsOptional()
+  bankTxId: number;
+
+  @IsOptional()
+  bankTxEndToEndId: string;
+
+  @IsOptional()
+  bankTxInstructionId: string;
+
+  @IsOptional()
+  bankTxRemittanceInfo: string;
+
+  @IsOptional()
+  cryptoInputId: number;
+
+  @IsOptional()
+  cryptoInputInTxId: string;
+
+  @IsOptional()
+  cryptoInputOutTxId: string;
+
+  @IsOptional()
+  fiatOutputId: number;
+
+  @IsOptional()
+  buyFiatId: number;
 }

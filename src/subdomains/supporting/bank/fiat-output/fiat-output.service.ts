@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { KeyType } from 'src/shared/utils/util';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.repository';
 import { BankTxService } from '../bank-tx/bank-tx.service';
 import { CreateFiatOutputDto } from './dto/create-fiat-output.dto';
@@ -35,5 +36,21 @@ export class FiatOutputService {
     }
 
     return await this.fiatOutputRepo.save({ ...entity, ...dto });
+  }
+
+  async getFiatOutputByParam(
+    paramName: KeyType<FiatOutput, any>,
+    param: FiatOutput[keyof FiatOutput],
+  ): Promise<FiatOutput> {
+    return this.fiatOutputRepo
+      .createQueryBuilder('fiatOutput')
+      .select('fiatOutput')
+      .leftJoinAndSelect('fiatOutput.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyFiat.sell', 'sell')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`fiatOutput.${paramName} = :param`, { param: param })
+      .getOne();
   }
 }

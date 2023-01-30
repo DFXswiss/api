@@ -4,6 +4,7 @@ import { CryptoInputRepository } from './crypto-input.repository';
 import { In } from 'typeorm';
 import { UpdateCryptoInputDto } from './dto/update-crypto-input.dto';
 import { NodeClient } from 'src/integration/blockchain/ain/node/node-client';
+import { KeyType } from 'src/shared/utils/util';
 
 @Injectable()
 export class CryptoInputService {
@@ -21,6 +22,21 @@ export class CryptoInputService {
       where: { route: { user: { id: In(userIds) } } },
       relations: ['buyFiat', 'cryptoStaking', 'route', 'route.user'],
     });
+  }
+
+  async getCryptoInputByParam(
+    paramName: KeyType<CryptoInput, any>,
+    param: CryptoInput[keyof CryptoInput],
+  ): Promise<CryptoInput> {
+    return this.cryptoInputRepo
+      .createQueryBuilder('cryptoInput')
+      .select('cryptoInput')
+      .leftJoinAndSelect('cryptoInput.route', 'route')
+      .leftJoinAndSelect('route.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .leftJoinAndSelect('userData.users', 'users')
+      .where(`cryptoInput.${paramName} = :param`, { param: param })
+      .getOne();
   }
 
   // --- HELPER METHODS --- //
