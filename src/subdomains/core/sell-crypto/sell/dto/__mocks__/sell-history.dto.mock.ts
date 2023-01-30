@@ -9,6 +9,7 @@ const defaultSellHistory: SellHistoryDto = {
   date: new Date(),
   isComplete: false,
   txId: 'TX_ID_01',
+  txUrl: 'url/txId',
   amlCheck: AmlCheck.PASS,
 };
 
