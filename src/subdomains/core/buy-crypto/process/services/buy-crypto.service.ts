@@ -234,7 +234,10 @@ export class BuyCryptoService {
       outputAmount: buyCrypto.outputAmount,
       outputAsset: buyCrypto.outputAsset?.dexName,
       txId: buyCrypto.txId,
-      txUrl: `${BlockchainExplorerUrls[buyCrypto.outputAsset.blockchain]}/${buyCrypto.txId}`,
+      txUrl:
+        buyCrypto.outputAsset && buyCrypto.txId
+          ? `${BlockchainExplorerUrls[buyCrypto.outputAsset.blockchain]}/${buyCrypto.txId}`
+          : undefined,
       isComplete: buyCrypto.isComplete,
       date: buyCrypto.outputDate,
     };
