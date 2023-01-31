@@ -11,6 +11,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { createDefaultCryptoRoute } from '../__mocks__/crypto-route.entity.mock';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 
 describe('CryptoRouteController', () => {
   let controller: CryptoRouteController;
@@ -20,6 +21,7 @@ describe('CryptoRouteController', () => {
   let stakingRepo: StakingRepository;
   let stakingService: StakingService;
   let buyCryptoService: BuyCryptoService;
+  let paymentInfoService: PaymentInfoService;
 
   beforeEach(async () => {
     cryptoRouteService = createMock<CryptoRouteService>();
@@ -27,6 +29,7 @@ describe('CryptoRouteController', () => {
     stakingRepo = createMock<StakingRepository>();
     stakingService = createMock<StakingService>();
     buyCryptoService = createMock<BuyCryptoService>();
+    paymentInfoService = createMock<PaymentInfoService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -37,6 +40,7 @@ describe('CryptoRouteController', () => {
         { provide: StakingRepository, useValue: stakingRepo },
         { provide: StakingService, useValue: stakingService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
+        { provide: PaymentInfoService, useValue: paymentInfoService },
         TestUtil.provideConfig(),
       ],
     }).compile();

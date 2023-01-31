@@ -25,6 +25,7 @@ import { ConfigModule } from 'src/config/config.module';
 import { I18nModule } from 'nestjs-i18n';
 import { SettingController } from './models/setting/setting.controller';
 import { ApiKeyService } from './services/api-key.service';
+import { PaymentInfoService } from './services/payment-info.service';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ApiKeyService } from './services/api-key.service';
     SettingService,
     JwtStrategy,
     ApiKeyService,
+    PaymentInfoService,
   ],
   exports: [
     PassportModule,
@@ -64,6 +66,7 @@ import { ApiKeyService } from './services/api-key.service';
     LanguageService,
     SettingService,
     ApiKeyService,
+    PaymentInfoService,
   ],
 })
 export class SharedModule {}
