@@ -69,7 +69,7 @@ export class CryptoRouteController {
   ): Promise<CryptoPaymentInfoDto> {
     await this.paymentInfoService.cryptoCheck(dto);
     return this.cryptoRouteService
-      .createCrypto(jwt.id, { ...dto, type: BuyType.WALLET }, true)
+      .createCrypto(jwt.id, { ...dto, type: BuyType.WALLET, blockchain: dto.sourceAsset.blockchain }, true)
       .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
   }
 
