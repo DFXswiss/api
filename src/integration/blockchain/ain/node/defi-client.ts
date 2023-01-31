@@ -10,6 +10,7 @@ export interface Proposal {
   title: string;
   context: string;
   contextHash: string;
+  creationHeight: number;
   status: ProposalStatus;
   type: ProposalType;
   amount: number;
@@ -200,7 +201,7 @@ export class DeFiClient extends NodeClient {
   //Voting
 
   async listProposal(): Promise<Proposal[]> {
-    return this.callNode((c) => c.call('listgovproposals', ['all', 'voting', 0, { limit: 1000000 }], 'number'), true);
+    return this.callNode((c) => c.call('listgovproposals', ['all', 'all', 0, { limit: 1000000 }], 'number'), true);
   }
 
   async getProposal(proposalId: string): Promise<Proposal> {

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/buy-fiat/buy-fiat.service';
 import { MasternodeService } from 'src/mix/models/masternode/masternode.service';
@@ -56,15 +56,9 @@ export class StatisticController {
     return masternodes.map((a) => a.owner);
   }
 
-  @Get('cfp')
-  @ApiOkResponse({ type: String, isArray: true })
-  async getCfpList(): Promise<string[]> {
-    return this.cfpService.getCfpList();
-  }
-
-  @Get('cfp/:id')
+  @Get('cfp/latest')
   @ApiOkResponse({ type: CfpResult, isArray: true })
-  async getCfpResults(@Param('id') cfpId: string): Promise<CfpResult[]> {
-    return this.cfpService.getCfpResults(cfpId);
+  async getCfpResults(): Promise<CfpResult[]> {
+    return this.cfpService.getCfpResults();
   }
 }
