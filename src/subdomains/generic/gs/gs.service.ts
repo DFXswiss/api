@@ -124,7 +124,7 @@ export class GsService {
     } else if (query.buyCryptoId) {
       return await this.buyCryptoService
         .getBuyCryptoByParam('id', query.buyCryptoId)
-        .then((buyCrypto) => buyCrypto?.buy.user.userData);
+        .then((buyCrypto) => (buyCrypto?.buy ? buyCrypto?.buy.user.userData : buyCrypto?.cryptoRoute?.user.userData));
     } else if (query.buyCryptoTxId) {
       return await this.buyCryptoService
         .getBuyCryptoByParam('txId', query.buyCryptoTxId)
