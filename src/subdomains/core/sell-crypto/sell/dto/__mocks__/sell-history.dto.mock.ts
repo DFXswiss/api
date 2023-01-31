@@ -9,7 +9,7 @@ const defaultSellHistory: SellHistoryDto = {
   date: new Date(),
   isComplete: false,
   txId: 'TX_ID_01',
-  txUrl: 'url/txId',
+  txUrl: `https://defiscan.live/transactions/TX_ID_01`,
   amlCheck: AmlCheck.PASS,
 };
 

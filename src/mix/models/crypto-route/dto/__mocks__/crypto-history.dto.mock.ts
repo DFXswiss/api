@@ -9,7 +9,7 @@ const defaultCryptoHistory: CryptoHistoryDto = {
   date: new Date(),
   isComplete: false,
   txId: 'TX_INPUT_ID_01',
-  txUrl: 'explorer/tx',
+  txUrl: 'https://defiscan.live/transactions/TX_ID_01',
   amlCheck: AmlCheck.PASS,
 };
 
