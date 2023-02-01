@@ -14,7 +14,7 @@ export class LiquidityManagementRuleFactory {
     firstDeficitAction: LiquidityManagementAction,
     firstRedundancyAction: LiquidityManagementAction,
   ): LiquidityManagementRule {
-    const { context, minimal, optimal, maximal } = dto;
+    const { context, minimal, optimal, maximal, reactivationTime } = dto;
 
     return LiquidityManagementRule.create(
       context,
@@ -25,6 +25,7 @@ export class LiquidityManagementRuleFactory {
       maximal,
       firstDeficitAction,
       firstRedundancyAction,
+      reactivationTime,
     );
   }
 }

@@ -16,6 +16,7 @@ import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action
 import { LiquidityManagementRuleStatus } from '../enums';
 import { IsNull, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { LiquidityManagementRuleSettingsDto } from '../dto/input/liquidity-management-settings.dto';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -79,6 +80,21 @@ export class LiquidityManagementRuleService {
     if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
 
     rule.reactivate();
+
+    return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
+  }
+
+  async updateRuleSettings(
+    id: number,
+    dto: LiquidityManagementRuleSettingsDto,
+  ): Promise<LiquidityManagementRuleOutputDto> {
+    const rule = await this.ruleRepo.findOne({ id });
+
+    if (!rule) throw new NotFoundException(`Rule with id: ${id} not found.`);
+
+    const { reactivationTime } = dto;
+
+    rule.updateRuleSettings(reactivationTime);
 
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
   }
