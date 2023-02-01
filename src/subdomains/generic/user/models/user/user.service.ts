@@ -34,7 +34,6 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { CfpSettings } from 'src/subdomains/core/statistic/dto/cfp.dto';
 
 @Injectable()
 export class UserService {
@@ -484,13 +483,5 @@ export class UserService {
     return this.userRepo
       .findOne({ id }, { select: ['id', 'cfpVotes'] })
       .then((u) => (u.cfpVotes ? JSON.parse(u.cfpVotes) : {}));
-  }
-
-  async updateCfpVotes(id: number, votes: CfpVotes): Promise<CfpVotes> {
-    const isVotingOpen = await this.settingService.getObj<CfpSettings>('cfp').then((s) => s.votingOpen);
-    if (!isVotingOpen) throw new BadRequestException('Voting is currently not allowed');
-
-    await this.userRepo.update(id, { cfpVotes: JSON.stringify(votes) });
-    return votes;
   }
 }
