@@ -1,14 +1,6 @@
 import { ProposalStatus } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export interface CfpSettings {
-  inProgress: boolean;
-  votingOpen: boolean;
-  currentRound: string;
-  startDate: string;
-  endDate: string;
-}
-
 export enum ResultStatus {
   APPROVED = 'Approved',
   NOT_APPROVED = 'Not approved',
