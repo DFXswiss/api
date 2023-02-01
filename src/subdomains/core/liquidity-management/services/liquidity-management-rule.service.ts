@@ -14,6 +14,8 @@ import { LiquidityManagementRuleOutputDtoMapper } from '../dto/output/mappers/li
 import { LiquidityManagementRuleCreationDto } from '../dto/input/liquidity-management-rule-creation.dto';
 import { LiquidityActionIntegrationFactory } from '../factories/liquidity-action-integration.factory';
 import { LiquidityManagementRuleStatus } from '../enums';
+import { IsNull, Not } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class LiquidityManagementRuleService {
@@ -79,6 +81,23 @@ export class LiquidityManagementRuleService {
     rule.reactivate();
 
     return LiquidityManagementRuleOutputDtoMapper.entityToDto(await this.ruleRepo.save(rule));
+  }
+
+  //*** JOBS ***//
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async reactivateRules(): Promise<void> {
+    const rules = await this.ruleRepo.find({
+      status: LiquidityManagementRuleStatus.PAUSED,
+      reactivationTime: Not(IsNull()),
+    });
+
+    for (const rule of rules) {
+      if (rule.shouldReactivate()) {
+        rule.reactivate();
+        await this.ruleRepo.save(rule);
+      }
+    }
   }
 
   //*** HELPER METHODS ***//
