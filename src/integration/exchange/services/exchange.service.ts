@@ -4,6 +4,8 @@ import { TradeResponse, PartialTradeResponse } from '../dto/trade-response.dto';
 import { Price } from '../dto/price.dto';
 import { Util } from 'src/shared/utils/util';
 import { PriceProvider } from 'src/subdomains/supporting/pricing/interfaces';
+import { QueueHandler } from 'src/shared/utils/queue-handler';
+import { SchedulerRegistry } from '@nestjs/schedule';
 
 export enum OrderSide {
   BUY = 'buy',
@@ -19,7 +21,11 @@ enum OrderStatus {
 export class ExchangeService implements PriceProvider {
   private markets: Market[];
 
-  constructor(private readonly exchange: Exchange) {}
+  private readonly queue: QueueHandler;
+
+  constructor(private readonly exchange: Exchange, readonly scheduler: SchedulerRegistry) {
+    this.queue = new QueueHandler(scheduler, 60000);
+  }
 
   get name(): string {
     return this.exchange.name;
@@ -47,12 +53,12 @@ export class ExchangeService implements PriceProvider {
 
   async getTrades(from?: string, to?: string): Promise<Trade[]> {
     const pair = from && to && (await this.getPair(from, to));
-    return this.exchange.fetchMyTrades(pair);
+    return this.callApi((e) => e.fetchMyTrades(pair));
   }
 
   async getOpenTrades(from?: string, to?: string): Promise<Order[]> {
     const pair = from && to && (await this.getPair(from, to));
-    return this.exchange.fetchOpenOrders(pair);
+    return this.callApi((e) => e.fetchOpenOrders(pair));
   }
 
   async trade(from: string, to: string, amount: number): Promise<TradeResponse> {
@@ -123,7 +129,7 @@ export class ExchangeService implements PriceProvider {
   private async fetchLastOrderPrice(from: string, to: string): Promise<number> {
     const pair = await this.getPair(from, to);
 
-    const trades = await this.exchange.fetchTrades(pair);
+    const trades = await this.callApi((e) => e.fetchTrades(pair));
     if (trades.length === 0) throw new Error(`No trades found for ${pair}`);
 
     return trades.sort((a, b) => b.timestamp - a.timestamp)[0].price;
@@ -259,9 +265,11 @@ export class ExchangeService implements PriceProvider {
 
   // other
   private async callApi<T>(action: (exchange: Exchange) => Promise<T>): Promise<T> {
-    return action(this.exchange).catch((e: ExchangeError) => {
-      throw new ServiceUnavailableException(e.message);
-    });
+    return this.queue
+      .handle(() => action(this.exchange))
+      .catch((e: ExchangeError) => {
+        throw new ServiceUnavailableException(e.message);
+      });
   }
 
   getWeightedAveragePrice(list: PartialTradeResponse[]): { price: number; amountSum: number; feeSum: number } {
