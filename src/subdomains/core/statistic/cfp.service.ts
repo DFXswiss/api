@@ -131,10 +131,7 @@ export class CfpService implements OnModuleInit {
       quorum,
       endDate: Util.daysAfter((proposal.proposalEndHeight - this.blockInfo.blocks) / 2880),
       endHeight: proposal.proposalEndHeight,
-<<<<<<< HEAD
       creationHeight: proposal.creationHeight,
-=======
->>>>>>> 7bc145ed1028a44bfda610348abf6fa24a83b911
     };
   }
 
