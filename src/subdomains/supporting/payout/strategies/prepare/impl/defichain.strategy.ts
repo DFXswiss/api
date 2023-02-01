@@ -2,11 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { PayoutOrder } from '../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PrepareStrategy } from './base/prepare.strategy';
+import { Util } from 'src/shared/utils/util';
+import { PayoutUtils } from '../../../utils/payout-utils';
+import { TransferNotRequiredException } from 'src/subdomains/supporting/dex/exceptions/transfer-not-required.exception';
 
 @Injectable()
 export class DeFiChainStrategy extends PrepareStrategy {
@@ -19,28 +22,22 @@ export class DeFiChainStrategy extends PrepareStrategy {
     super();
   }
 
-  async preparePayout(order: PayoutOrder): Promise<void> {
-    try {
-      const { asset, amount, context } = order;
+  async preparePayout(orders: PayoutOrder[]): Promise<void> {
+    const groups = PayoutUtils.groupOrdersByContext(orders);
 
-      if (!(await this.defichainService.isHealthy(context))) return;
+    for (const [context, group] of [...groups.entries()]) {
+      try {
+        if (!(await this.defichainService.isHealthy(context))) continue;
 
-      const destinationAddress = this.defichainService.getWalletAddress(context);
-      const request = { asset, amount, destinationAddress };
-
-      const transferTxId = await this.dexService.transferLiquidity(request);
-
-      order.pendingPreparation(transferTxId);
-    } catch (e) {
-      console.error(`Error in transferring liquidity for payout order. Order ID: ${order.id}`, e);
-      return;
-    }
-
-    try {
-      await this.payoutOrderRepo.save(order);
-    } catch (e) {
-      // db failure case, internal transfer - just logging is sufficient
-      console.error(`Error in saving liquidity transfer txId to payout order. Order ID: ${order.id}`, e);
+        await this.preparePayoutForContext(context, group);
+      } catch (e) {
+        console.error(
+          'Error while preparing new payout orders',
+          group.map((o) => o.id),
+          e,
+        );
+        continue;
+      }
     }
   }
 
@@ -67,5 +64,60 @@ export class DeFiChainStrategy extends PrepareStrategy {
 
   protected getFeeAsset(): Promise<Asset> {
     return this.assetService.getDfiCoin();
+  }
+
+  //*** HELPER METHODS ***//
+
+  private async preparePayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    const { asset, amount } = this.getTransferRequestData(orders);
+
+    const destinationAddress = this.defichainService.getWalletAddress(context);
+    const request = { asset, amount, destinationAddress };
+
+    try {
+      const transferTxId = await this.dexService.transferLiquidity(request);
+      await this.recordPendingPreparation(orders, transferTxId);
+    } catch (e) {
+      if (e instanceof TransferNotRequiredException) {
+        await this.autoCompletePreparation(orders);
+      }
+
+      throw e;
+    }
+  }
+
+  private async recordPendingPreparation(orders: PayoutOrder[], transferTxId: string): Promise<void> {
+    for (const order of orders) {
+      order.pendingPreparation(transferTxId);
+
+      await this.payoutOrderRepo.save(order);
+    }
+  }
+
+  private async autoCompletePreparation(orders: PayoutOrder[]): Promise<void> {
+    for (const order of orders) {
+      order.preparationConfirmed();
+
+      await this.payoutOrderRepo.save(order);
+    }
+  }
+
+  private getTransferRequestData(orders: PayoutOrder[]): { asset: Asset; amount: number } {
+    if (!orders.every((o) => o.asset === orders[0].asset)) {
+      throw new Error('Cannot proceed with payout orders preparation, group contains orders of different statuses');
+    }
+
+    if (!orders.every((o) => o.status === orders[0].status)) {
+      throw new Error('Cannot proceed with payout orders preparation, group contains orders of different statuses');
+    }
+
+    if (!orders.every((o) => o.context === orders[0].context)) {
+      throw new Error('Cannot proceed with payout orders preparation, group contains orders of different contexts');
+    }
+
+    return {
+      asset: orders[0].asset,
+      amount: Util.sumObj(orders, 'amount'),
+    };
   }
 }

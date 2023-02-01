@@ -102,8 +102,8 @@ export class DexDeFiChainService {
     return this.#dexClient.addPoolLiquidity(Config.blockchain.default.dexWalletAddress, poolPair);
   }
 
-  async transferLiquidity(addressTo: string, asset: string, amount: number): Promise<string> {
-    return this.#dexClient.sendToken(Config.blockchain.default.dexWalletAddress, addressTo, asset, amount);
+  async transferLiquidity(addressFrom: string, addressTo: string, asset: string, amount: number): Promise<string> {
+    return this.#dexClient.sendToken(addressFrom, addressTo, asset, amount);
   }
 
   async transferMinimalUtxo(address: string): Promise<string> {
@@ -183,6 +183,12 @@ export class DexDeFiChainService {
     const availableAmount = await this.deFiChainUtil.getAvailableTokenAmount(asset.dexName, this.#dexClient);
 
     return Util.round(availableAmount - pendingAmount, 8);
+  }
+
+  //*** GETTERS ***//
+
+  get dexWalletAddress(): string {
+    return Config.blockchain.default.dexWalletAddress;
   }
 
   // *** HELPER METHODS *** //

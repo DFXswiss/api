@@ -9,7 +9,7 @@ export abstract class PrepareStrategy {
     return (this._feeAsset ??= await this.getFeeAsset());
   }
 
-  abstract preparePayout(order: PayoutOrder): Promise<void>;
+  abstract preparePayout(orders: PayoutOrder[]): Promise<void>;
   abstract checkPreparationCompletion(order: PayoutOrder): Promise<void>;
   abstract estimateFee(asset: Asset): Promise<FeeResult>;
   protected abstract getFeeAsset(): Promise<Asset>;
