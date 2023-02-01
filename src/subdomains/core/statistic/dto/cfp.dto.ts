@@ -1,12 +1,5 @@
+import { ProposalStatus } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export interface CfpSettings {
-  inProgress: boolean;
-  votingOpen: boolean;
-  currentRound: string;
-  startDate: string;
-  endDate: string;
-}
 
 export enum ResultStatus {
   APPROVED = 'Approved',
@@ -100,10 +93,16 @@ export class CfpResult {
   dfiAmount: number;
 
   @ApiProperty()
+  quorum: number;
+
+  @ApiProperty()
   htmlUrl: string;
 
   @ApiProperty({ enum: ResultStatus })
   currentResult: ResultStatus;
+
+  @ApiProperty({ enum: ProposalStatus })
+  status: ProposalStatus;
 
   @ApiProperty({ type: TotalVotesDto })
   totalVotes: TotalVotesDto;
@@ -121,8 +120,8 @@ export class CfpResult {
   voteDetails: VoteDetailsDto;
 
   @ApiProperty()
-  startDate: string;
+  endDate: Date;
 
   @ApiProperty()
-  endDate: string;
+  endHeight: number;
 }

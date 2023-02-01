@@ -87,12 +87,13 @@ export class CryptoRouteService {
     if (status !== UserStatus.ACTIVE) throw new BadRequestException('Missing bank transaction');
 
     // check asset
-    const asset =
+    const targetAsset =
       dto.type === BuyType.WALLET
         ? await this.assetService.getAssetById(dto.asset.id)
         : await this.assetService.getDfiCoin();
 
-    if (!asset) throw new BadRequestException('Asset not found');
+    if (!targetAsset) throw new BadRequestException('Asset not found');
+    if (!targetAsset.buyable) throw new BadRequestException('Asset not buyable');
 
     // check staking
     const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;
@@ -102,7 +103,7 @@ export class CryptoRouteService {
     const existing = await this.cryptoRepo.findOne({
       where: {
         ...(dto.type === BuyType.WALLET
-          ? { asset: asset, targetDeposit: IsNull() }
+          ? { asset: targetAsset, targetDeposit: IsNull() }
           : { targetDeposit: staking.deposit }),
         user: { id: userId },
         deposit: { blockchain: dto.blockchain },
@@ -125,7 +126,7 @@ export class CryptoRouteService {
     // create the entity
     const crypto = this.cryptoRepo.create();
     crypto.user = { id: userId } as User;
-    crypto.asset = asset;
+    crypto.asset = targetAsset;
     crypto.targetDeposit = staking?.deposit ?? null;
     crypto.deposit = await this.depositService.getNextDeposit(dto.blockchain);
 

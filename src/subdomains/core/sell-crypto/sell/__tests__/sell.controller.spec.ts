@@ -9,9 +9,9 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomSell, createDefaultSell } from '../__mocks__/sell.entity.mock';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { createCustomDeposit } from 'src/mix/models/deposit/__mocks__/deposit.entity.mock';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 
 describe('SellController', () => {
   let controller: SellController;
@@ -19,13 +19,13 @@ describe('SellController', () => {
   let sellService: SellService;
   let userService: UserService;
   let buyFiatService: BuyFiatService;
-  let assetService: AssetService;
+  let paymentInfoService: PaymentInfoService;
 
   beforeEach(async () => {
     sellService = createMock<SellService>();
     userService = createMock<UserService>();
     buyFiatService = createMock<BuyFiatService>();
-    assetService = createMock<AssetService>();
+    paymentInfoService = createMock<PaymentInfoService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -34,7 +34,7 @@ describe('SellController', () => {
         { provide: SellService, useValue: sellService },
         { provide: UserService, useValue: userService },
         { provide: BuyFiatService, useValue: buyFiatService },
-        { provide: AssetService, useValue: assetService },
+        { provide: PaymentInfoService, useValue: paymentInfoService },
         TestUtil.provideConfig(),
       ],
     }).compile();

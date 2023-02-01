@@ -11,9 +11,7 @@ import { GetBuyPaymentInfoDto } from '../dto/get-buy-payment-info.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { CountryService } from 'src/shared/models/country/country.service';
-import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { createDefaultCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -21,6 +19,7 @@ import { StakingRepository } from 'src/mix/models/staking/staking.repository';
 import { StakingService } from 'src/mix/models/staking/staking.service';
 import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/bank-account.service';
 import { BuyCryptoService } from '../../process/services/buy-crypto.service';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 
 function createBuyPaymentInfoDto(amount = 1, currency: Fiat = { id: 1 } as Fiat): GetBuyPaymentInfoDto {
   return {
@@ -48,10 +47,10 @@ describe('BuyController', () => {
   let stakingRepo: StakingRepository;
   let stakingService: StakingService;
   let buyCryptoService: BuyCryptoService;
-  let fiatService: FiatService;
   let countryService: CountryService;
   let bankAccountService: BankAccountService;
   let bankService: BankService;
+  let paymentInfoService: PaymentInfoService;
 
   beforeEach(async () => {
     buyService = createMock<BuyService>();
@@ -59,10 +58,10 @@ describe('BuyController', () => {
     stakingRepo = createMock<StakingRepository>();
     stakingService = createMock<StakingService>();
     buyCryptoService = createMock<BuyCryptoService>();
-    fiatService = createMock<FiatService>();
     countryService = createMock<CountryService>();
     bankAccountService = createMock<BankAccountService>();
     bankService = createMock<BankService>();
+    paymentInfoService = createMock<PaymentInfoService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -73,10 +72,10 @@ describe('BuyController', () => {
         { provide: StakingRepository, useValue: stakingRepo },
         { provide: StakingService, useValue: stakingService },
         { provide: BuyCryptoService, useValue: buyCryptoService },
-        { provide: FiatService, useValue: fiatService },
         { provide: CountryService, useValue: countryService },
         { provide: BankAccountService, useValue: bankAccountService },
         { provide: BankService, useValue: bankService },
+        { provide: PaymentInfoService, useValue: paymentInfoService },
 
         TestUtil.provideConfig(),
       ],
@@ -105,7 +104,6 @@ describe('BuyController', () => {
 
   it('should return DFX address info', async () => {
     jest.spyOn(buyService, 'createBuy').mockResolvedValue(createDefaultBuy());
-    jest.spyOn(fiatService, 'getFiat').mockResolvedValue(createDefaultFiat());
     jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(createDefaultCountry());
 
     const dto = createBuyPaymentInfoDto();

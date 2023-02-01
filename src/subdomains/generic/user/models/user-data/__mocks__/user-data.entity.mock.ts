@@ -43,6 +43,7 @@ export function createUserDataFor(mock: MockUserData): UserData | undefined {
         kycHash: kycHashFor(mock),
         kycState: KycState.NA,
         kycStatus: mock === MockUserData.STARTED ? KycStatus.CHATBOT : KycStatus.NA,
+        kycType: KycType.DFX,
         firstname: 'FirstUserName',
         surname: 'SurUsername',
         country: createDefaultCountry(),

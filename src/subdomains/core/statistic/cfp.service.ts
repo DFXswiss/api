@@ -1,14 +1,13 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import * as CfpResults from './assets/cfp-results.json';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Util } from 'src/shared/utils/util';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/models/setting/setting.service';
-import { CfpResult, CfpSettings, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
+import { CfpResult, ResultStatus, Vote, VotingType } from './dto/cfp.dto';
 import { NodeService, NodeType } from 'src/integration/blockchain/ain/node/node.service';
 import { DeFiClient, Proposal, ProposalVote } from 'src/integration/blockchain/ain/node/defi-client';
 import { ProposalType } from '@defichain/jellyfish-api-core/dist/category/governance';
 import { HttpService } from 'src/shared/services/http.service';
+import { BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
 
 interface Masternodes {
   [id: string]: { ownerAuthAddress: string };
@@ -20,17 +19,13 @@ export class CfpService implements OnModuleInit {
   private readonly cakeUrl = 'https://api.cakedefi.com/nodes?order=status&orderBy=DESC';
 
   private client: DeFiClient;
-  private settings: CfpSettings;
   private cfpResults: CfpResult[];
   private masternodeCount: number;
   private allMasternodes: Masternodes;
   private lockMasternodes: string[];
   private cakeMasternodes: [{ address: string }];
-  constructor(
-    nodeService: NodeService,
-    private readonly settingService: SettingService,
-    private readonly http: HttpService,
-  ) {
+  private blockInfo: BlockchainInfo;
+  constructor(nodeService: NodeService, private readonly http: HttpService) {
     nodeService.getConnectedNode(NodeType.REF).subscribe((client) => (this.client = client));
   }
 
@@ -41,50 +36,24 @@ export class CfpService implements OnModuleInit {
   @Interval(600000)
   async doUpdate(): Promise<void> {
     try {
-      // update settings
-      this.settings = await this.settingService.getObj<CfpSettings>('cfp');
+      // update masternodes
+      this.allMasternodes = await this.client.listMasternodes();
+      this.lockMasternodes = await this.callApi<any>(this.lockUrl);
+      this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
 
-      if (this.settings.inProgress) {
-        // update masternodes
-        this.allMasternodes = await this.client.listMasternodes();
-        this.lockMasternodes = await this.callApi<any>(this.lockUrl);
-        this.cakeMasternodes = await this.callApi<any>(this.cakeUrl);
-
-        // update cfp results
-        const currentProposals = await this.client.listProposal();
-        this.masternodeCount = await this.client
-          .getProposal(currentProposals[0].proposalId)
-          .then((p) => p.votesPossible);
-        this.cfpResults = await Promise.all(currentProposals.map((cfp) => this.getCfpResult(cfp)));
-      }
+      // update cfp results
+      this.blockInfo = await this.client.getInfo();
+      const currentProposals = await this.client.listProposal();
+      this.masternodeCount = await this.client.getProposal(currentProposals[0].proposalId).then((p) => p.votesPossible);
+      const filterProposal = currentProposals.filter((p) => this.blockInfo.blocks < p.proposalEndHeight + 20160);
+      this.cfpResults = await Promise.all(filterProposal.map((cfp) => this.getCfpResult(cfp)));
     } catch (e) {
       console.error('Exception during CFP update:', e);
     }
   }
 
-  getCfpList(): string[] {
-    const cfpList = Object.keys(CfpResults);
-    if (this.settings.currentRound && !cfpList.includes(this.settings.currentRound))
-      cfpList.push(this.settings.currentRound);
-
-    return cfpList.reverse();
-  }
-
-  async getCfpResults(cfpId: string): Promise<CfpResult[]> {
-    if (['latest', this.settings.currentRound].includes(cfpId)) {
-      if (this.settings.inProgress) {
-        // return current data from node (on-chain)
-        return this.cfpResults;
-      }
-
-      // return newest cached data
-      cfpId = Object.keys(CfpResults).pop();
-    }
-
-    const results = CfpResults[cfpId];
-    if (!results) throw new NotFoundException('CFP not found');
-
-    return results;
+  async getCfpResults(): Promise<CfpResult[]> {
+    return this.cfpResults;
   }
 
   // --- HELPER METHODS --- //
@@ -118,9 +87,11 @@ export class CfpService implements OnModuleInit {
     const noVotesLock = noVotes.filter((v) => v.isLock);
     const neutralVotesLock = neutralVotes.filter((v) => v.isLock);
 
-    const requiredVotes = proposal.type === ProposalType.COMMUNITY_FUND_REQUEST ? 1 / 2 : 2 / 3;
+    const requiredVotes = parseFloat(proposal.approvalThreshold) / 100;
+    const quorum = parseFloat(proposal.quorum) / 100;
+
     const currentResult =
-      yesVotes.length / (yesVotes.length + noVotes.length) > requiredVotes
+      proposalVotes.length / this.masternodeCount > quorum && yesVotes.length / proposalVotes.length > requiredVotes
         ? ResultStatus.APPROVED
         : ResultStatus.NOT_APPROVED;
 
@@ -131,6 +102,7 @@ export class CfpService implements OnModuleInit {
       dfiAmount: proposal.amount,
       htmlUrl: proposal.context,
       currentResult: currentResult,
+      status: proposal.status,
       totalVotes: {
         total: proposalVotes.length,
         possible: this.masternodeCount,
@@ -156,8 +128,9 @@ export class CfpService implements OnModuleInit {
         neutral: neutralVotes,
         no: noVotes,
       },
-      startDate: this.settings.startDate,
-      endDate: this.settings.endDate,
+      quorum,
+      endDate: Util.daysAfter((proposal.proposalEndHeight - this.blockInfo.blocks) / 2880),
+      endHeight: proposal.proposalEndHeight,
     };
   }
 
