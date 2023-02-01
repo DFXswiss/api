@@ -1,3 +1,5 @@
+import { createMock } from '@golevelup/ts-jest';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { kraken } from 'ccxt';
 import { PartialTradeResponse } from '../dto/trade-response.dto';
 import { ExchangeService, OrderSide } from './exchange.service';
@@ -5,8 +7,12 @@ import { ExchangeService, OrderSide } from './exchange.service';
 describe('ExchangeService', () => {
   let service: ExchangeService;
 
+  let scheduler: SchedulerRegistry;
+
   beforeEach(async () => {
-    service = new ExchangeService(new kraken({}));
+    scheduler = createMock<SchedulerRegistry>();
+
+    service = new ExchangeService(new kraken({}), scheduler);
   });
 
   it('should be defined', () => {
