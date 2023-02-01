@@ -16,7 +16,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { Between, Like, Not } from 'typeorm';
 import { AccountType } from '../user-data/account-type.enum';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfiTaxService } from 'src/integration/blockchain/ain/services/dfi-tax.service';
 import { Config } from 'src/config/config';
 import { ApiKeyDto } from './dto/api-key.dto';
@@ -42,7 +41,6 @@ export class UserService {
     private readonly userDataService: UserDataService,
     private readonly kycService: KycService,
     private readonly walletService: WalletService,
-    private readonly settingService: SettingService,
     private readonly dfiTaxService: DfiTaxService,
     private readonly apiKeyService: ApiKeyService,
     private readonly geoLocationService: GeoLocationService,
