@@ -109,7 +109,7 @@ export class CfpResult {
   @ApiProperty({ enum: ResultStatus })
   currentResult: ResultStatus;
 
-  @ApiPropertyOptional({ enum: ProposalStatus })
+  @ApiProperty({ enum: ProposalStatus })
   status: ProposalStatus;
 
   @ApiProperty({ type: TotalVotesDto })
