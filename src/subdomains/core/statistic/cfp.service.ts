@@ -91,8 +91,7 @@ export class CfpService implements OnModuleInit {
     const quorum = parseFloat(proposal.quorum) / 100;
 
     const currentResult =
-      Util.round((proposalVotes.length / this.masternodeCount) * 100, Config.defaultPercentageDecimal) > quorum &&
-      yesVotes.length / (yesVotes.length + noVotes.length + neutralVotes.length) > requiredVotes
+      proposalVotes.length / this.masternodeCount > quorum && yesVotes.length / proposalVotes.length > requiredVotes
         ? ResultStatus.APPROVED
         : ResultStatus.NOT_APPROVED;
 
