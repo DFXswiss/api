@@ -132,4 +132,7 @@ export class CfpResult {
 
   @ApiProperty()
   endHeight: number;
+
+  @ApiProperty()
+  creationHeight: number;
 }
