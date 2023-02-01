@@ -8,11 +8,18 @@ describe('ExchangeService', () => {
   let service: ExchangeService;
 
   let scheduler: SchedulerRegistry;
+  let interval: NodeJS.Timer;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     scheduler = createMock<SchedulerRegistry>();
 
+    jest.spyOn(scheduler, 'addInterval').mockImplementation((_, int: NodeJS.Timer) => (interval = int));
+
     service = new ExchangeService(new kraken({}), scheduler);
+  });
+
+  afterEach(() => {
+    clearInterval(interval);
   });
 
   it('should be defined', () => {
