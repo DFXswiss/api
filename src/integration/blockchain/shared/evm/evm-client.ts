@@ -92,6 +92,22 @@ export abstract class EvmClient {
     return contract.estimateGas.transfer(this.randomReceiverAddress, 1);
   }
 
+  async sendRawTransaction(
+    request: ethers.providers.TransactionRequest,
+  ): Promise<ethers.providers.TransactionResponse> {
+    const wallet = new ethers.Wallet(privateKey, this.#provider);
+
+    await wallet.sendTransaction({
+      from: fromAddress,
+      to: toAddress,
+      value: this.convertToWeiLikeDenomination(amount, 'ether'),
+      nonce,
+      gasPrice,
+      // has to be provided as a number for BSC
+      gasLimit: this.#sendCoinGasLimit,
+    });
+  }
+
   async sendNativeCoinFromAddress(
     fromAddress: string,
     privateKey: string,
