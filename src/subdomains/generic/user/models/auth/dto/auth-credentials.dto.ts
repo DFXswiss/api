@@ -7,19 +7,19 @@ export class AuthCredentialsDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(GetConfig().addressFormat)
+  @Matches(GetConfig().formats.address)
   address: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(GetConfig().signatureFormat)
+  @Matches(GetConfig().formats.signature)
   signature: string;
 
   @ApiPropertyOptional()
   @IsNotEmpty()
   @IsString()
-  @Matches(GetConfig().keyFormat)
+  @Matches(GetConfig().formats.key)
   @ValidateIf((dto: AuthCredentialsDto) => CryptoService.isCardanoAddress(dto.address))
   key?: string;
 }
