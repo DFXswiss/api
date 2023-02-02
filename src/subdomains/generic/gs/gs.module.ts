@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { LetterModule } from 'src/integration/letter/letter.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
@@ -9,12 +10,15 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { UserModule } from '../user/user.module';
+import { GsEvmController } from './gs-evm.controller';
+import { GsEvmService } from './gs-evm.service';
 import { GsController } from './gs.controller';
 import { GsService } from './gs.service';
 
 @Module({
   imports: [
     SharedModule,
+    BlockchainModule,
     ReferralModule,
     BuyCryptoModule,
     SellCryptoModule,
@@ -25,8 +29,8 @@ import { GsService } from './gs.service';
     BankModule,
     PayInModule,
   ],
-  controllers: [GsController],
-  providers: [GsService],
+  controllers: [GsController, GsEvmController],
+  providers: [GsService, GsEvmService],
   exports: [],
 })
 export class GsModule {}

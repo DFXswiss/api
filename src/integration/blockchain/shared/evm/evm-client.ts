@@ -35,7 +35,7 @@ export abstract class EvmClient {
     this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.#wallet);
   }
 
-  //*** PUBLIC API ***//
+  //*** PUBLIC API - GETTERS ***//
 
   async getNativeCoinTransactions(walletAddress: string, fromBlock: number): Promise<EvmCoinHistoryEntry[]> {
     const params = {
@@ -91,19 +91,38 @@ export abstract class EvmClient {
     return contract.estimateGas.transfer(this.#randomReceiverAddress, 1);
   }
 
-  async sendRawTransaction(
+  //*** PUBLIC API - WRITE TRANSACTIONS ***//
+
+  async sendRawTransactionFromAddress(
+    privateKey: string,
     request: ethers.providers.TransactionRequest,
   ): Promise<ethers.providers.TransactionResponse> {
     const wallet = new ethers.Wallet(privateKey, this.#provider);
 
-    await wallet.sendTransaction({
-      from: fromAddress,
-      to: toAddress,
-      value: this.convertToWeiLikeDenomination(amount, 'ether'),
+    return this.sendRawTransaction(wallet, request);
+  }
+
+  async sendRawTransactionFromDex(
+    request: ethers.providers.TransactionRequest,
+  ): Promise<ethers.providers.TransactionResponse> {
+    return this.sendRawTransaction(this.#wallet, request);
+  }
+
+  async sendRawTransaction(
+    wallet: ethers.Wallet,
+    request: ethers.providers.TransactionRequest,
+  ): Promise<ethers.providers.TransactionResponse> {
+    let { nonce, gasPrice, value } = request;
+
+    nonce = nonce ?? (await this.getNonce(request.from));
+    gasPrice = gasPrice ?? +(await this.getCurrentGasPrice());
+    value = this.convertToWeiLikeDenomination(value as number, 'ether');
+
+    return await wallet.sendTransaction({
+      ...request,
       nonce,
       gasPrice,
-      // has to be provided as a number for BSC
-      gasLimit: this.#sendCoinGasLimit,
+      value,
     });
   }
 
@@ -167,6 +186,8 @@ export abstract class EvmClient {
     return tx.hash;
   }
 
+  //*** PUBLIC API - UTILITY ***//
+
   async isTxComplete(txHash: string): Promise<boolean> {
     const transaction = await this.getTx(txHash);
 
@@ -218,6 +239,10 @@ export abstract class EvmClient {
 
   get sendCoinGasLimit(): number {
     return this.#sendCoinGasLimit;
+  }
+
+  get dfxAddress(): string {
+    return this.#dfxAddress;
   }
 
   //*** PUBLIC HELPER METHODS ***//

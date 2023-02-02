@@ -6,6 +6,7 @@ import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposi
 import { Util } from 'src/shared/utils/util';
 import { Deposit } from './deposit.entity';
 import { RandomDepositDto } from './dto/random-deposit.dto';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 
 @Injectable()
 export class DepositService {
@@ -13,6 +14,18 @@ export class DepositService {
 
   async getDeposit(id: number): Promise<Deposit> {
     return this.depositRepo.findOne(id);
+  }
+
+  async getDepositByAddress({ address, blockchain }: BlockchainAddress): Promise<Deposit> {
+    return this.depositRepo.findOne({ address, blockchain });
+  }
+
+  async getDepositKey(address: BlockchainAddress): Promise<string> {
+    const deposit = await this.getDepositByAddress(address);
+
+    if (!deposit) return null;
+
+    return Util.decrypt(deposit.key, Config.blockchain.evm.encryptionKey);
   }
 
   async getAllDeposit(): Promise<Deposit[]> {
