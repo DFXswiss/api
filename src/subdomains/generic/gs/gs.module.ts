@@ -6,6 +6,7 @@ import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.modul
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { StakingModule } from 'src/subdomains/core/staking/staking.module';
+import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
@@ -19,6 +20,7 @@ import { GsService } from './gs.service';
   imports: [
     SharedModule,
     BlockchainModule,
+    AddressPoolModule,
     ReferralModule,
     BuyCryptoModule,
     SellCryptoModule,
