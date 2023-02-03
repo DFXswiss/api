@@ -16,4 +16,20 @@ export class PayoutUtils {
 
     return groups;
   }
+
+  static groupOrdersByAssetId(orders: PayoutOrder[]): Map<number, PayoutOrder[]> {
+    const groups = new Map<number, PayoutOrder[]>();
+
+    orders.forEach((order) => {
+      const existingGroup = groups.get(order.asset.id);
+
+      if (existingGroup) {
+        existingGroup.push(order);
+      } else {
+        groups.set(order.asset.id, [order]);
+      }
+    });
+
+    return groups;
+  }
 }

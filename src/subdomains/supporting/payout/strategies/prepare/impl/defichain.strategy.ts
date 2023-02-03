@@ -26,18 +26,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
     const groups = PayoutUtils.groupOrdersByContext(orders);
 
     for (const [context, group] of [...groups.entries()]) {
-      try {
-        if (!(await this.defichainService.isHealthy(context))) continue;
-
-        await this.preparePayoutForContext(context, group);
-      } catch (e) {
-        console.error(
-          'Error while preparing new payout orders',
-          group.map((o) => o.id),
-          e,
-        );
-        continue;
-      }
+      await this.preparePayoutForContext(context, group);
     }
   }
 
@@ -69,7 +58,26 @@ export class DeFiChainStrategy extends PrepareStrategy {
   //*** HELPER METHODS ***//
 
   private async preparePayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    const { asset, amount } = this.getTransferRequestData(orders);
+    const groups = PayoutUtils.groupOrdersByAssetId(orders);
+
+    for (const [assetId, group] of [...groups.entries()]) {
+      try {
+        if (!(await this.defichainService.isHealthy(context))) continue;
+
+        await this.preparePayoutForAsset(context, group);
+      } catch (e) {
+        console.error(
+          `Error while preparing new payout orders for context ${context} and assetId ${assetId}`,
+          group.map((o) => o.id),
+          e,
+        );
+        continue;
+      }
+    }
+  }
+
+  private async preparePayoutForAsset(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
+    const { amount, asset } = this.getTransferRequestData(orders);
 
     const destinationAddress = this.defichainService.getWalletAddress(context);
     const request = { asset, amount, destinationAddress };
@@ -80,6 +88,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
     } catch (e) {
       if (e instanceof TransferNotRequiredException) {
         await this.autoCompletePreparation(orders);
+        return;
       }
 
       throw e;
@@ -103,8 +112,8 @@ export class DeFiChainStrategy extends PrepareStrategy {
   }
 
   private getTransferRequestData(orders: PayoutOrder[]): { asset: Asset; amount: number } {
-    if (!orders.every((o) => o.asset === orders[0].asset)) {
-      throw new Error('Cannot proceed with payout orders preparation, group contains orders of different statuses');
+    if (!orders.every((o) => o.asset.id === orders[0].asset.id)) {
+      throw new Error('Cannot proceed with payout orders preparation, group contains orders of different assets');
     }
 
     if (!orders.every((o) => o.status === orders[0].status)) {
@@ -117,7 +126,7 @@ export class DeFiChainStrategy extends PrepareStrategy {
 
     return {
       asset: orders[0].asset,
-      amount: Util.sumObj(orders, 'amount'),
+      amount: Util.round(Util.sumObj(orders, 'amount'), 8),
     };
   }
 }
