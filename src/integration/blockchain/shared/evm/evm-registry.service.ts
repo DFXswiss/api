@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { ArbitrumService } from '../../arbitrum/arbitrum.service';
 import { BscService } from '../../bsc/bsc.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
@@ -5,6 +6,7 @@ import { OptimismService } from '../../optimism/optimism.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmClient } from './evm-client';
 
+@Injectable()
 export class EvmRegistryService {
   constructor(
     private readonly ethereumService: EthereumService,
