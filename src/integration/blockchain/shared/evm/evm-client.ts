@@ -7,15 +7,16 @@ import * as UNISWAP_ROUTER_02_ABI from './abi/uniswap-router02.abi.json';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
 export abstract class EvmClient {
-  #dfxAddress: string;
-  #provider: ethers.providers.JsonRpcProvider;
+  protected provider: ethers.providers.JsonRpcProvider;
+  protected randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
+  protected dfxAddress: string;
+
   #wallet: ethers.Wallet;
   #router: Contract;
   #erc20Tokens: Map<string, Contract> = new Map();
   #swapTokenAddress: string;
 
   #sendCoinGasLimit = 21000;
-  #randomReceiverAddress = '0x4975f78e8903548bD33aF404B596690D47588Ff5';
   #nonce = new Map<string, number>();
 
   constructor(
@@ -28,9 +29,9 @@ export abstract class EvmClient {
     swapContractAddress: string,
     swapTokenAddress: string,
   ) {
-    this.#provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
-    this.#wallet = new ethers.Wallet(privateKey, this.#provider);
-    this.#dfxAddress = dfxAddress;
+    this.provider = new ethers.providers.JsonRpcProvider(gatewayUrl);
+    this.#wallet = new ethers.Wallet(privateKey, this.provider);
+    this.dfxAddress = dfxAddress;
     this.#swapTokenAddress = swapTokenAddress;
     this.#router = new ethers.Contract(swapContractAddress, UNISWAP_ROUTER_02_ABI, this.#wallet);
   }
@@ -56,15 +57,15 @@ export abstract class EvmClient {
   }
 
   async getNativeCoinBalance(): Promise<number> {
-    return this.getNativeCoinBalanceOfAddress(this.#dfxAddress);
+    return this.getNativeCoinBalanceOfAddress(this.dfxAddress);
   }
 
   async getTokenBalance(token: Asset): Promise<number> {
-    return this.getTokenBalanceOfAddress(this.#dfxAddress, token);
+    return this.getTokenBalanceOfAddress(this.dfxAddress, token);
   }
 
   async getNativeCoinBalanceOfAddress(address: string): Promise<number> {
-    const balance = await this.#provider.getBalance(address);
+    const balance = await this.provider.getBalance(address);
 
     return this.convertToEthLikeDenomination(balance);
   }
@@ -78,7 +79,7 @@ export abstract class EvmClient {
   }
 
   async getCurrentGasPrice(): Promise<BigNumber> {
-    return this.#provider.getGasPrice();
+    return this.provider.getGasPrice();
   }
 
   async getTokenGasLimitForAsset(token: Asset): Promise<BigNumber> {
@@ -88,7 +89,7 @@ export abstract class EvmClient {
   }
 
   async getTokenGasLimitForContact(contract: Contract): Promise<BigNumber> {
-    return contract.estimateGas.transfer(this.#randomReceiverAddress, 1);
+    return contract.estimateGas.transfer(this.randomReceiverAddress, 1);
   }
 
   async sendNativeCoinFromAddress(
@@ -98,13 +99,13 @@ export abstract class EvmClient {
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
-    const wallet = new ethers.Wallet(privateKey, this.#provider);
+    const wallet = new ethers.Wallet(privateKey, this.provider);
 
     return this.sendNativeCoin(wallet, fromAddress, toAddress, amount, feeLimit);
   }
 
   async sendNativeCoinFromDex(toAddress: string, amount: number, feeLimit?: number): Promise<string> {
-    return this.sendNativeCoin(this.#wallet, this.#dfxAddress, toAddress, amount, feeLimit);
+    return this.sendNativeCoin(this.#wallet, this.dfxAddress, toAddress, amount, feeLimit);
   }
 
   async sendTokenFromAddress(
@@ -127,7 +128,7 @@ export abstract class EvmClient {
   async sendTokenFromDex(toAddress: string, token: Asset, amount: number, feeLimit?: number): Promise<string> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.sendToken(contract, this.#dfxAddress, toAddress, amount, feeLimit);
+    return this.sendToken(contract, this.dfxAddress, toAddress, amount, feeLimit);
   }
 
   private async sendToken(
@@ -152,17 +153,17 @@ export abstract class EvmClient {
   }
 
   async isTxComplete(txHash: string): Promise<boolean> {
-    const transaction = await this.getTx(txHash);
+    const transaction = await this.getTxReceipt(txHash);
 
-    return transaction && transaction.confirmations > 0;
+    return transaction && transaction.confirmations > 0 && transaction.status === 1;
   }
 
   async getTx(txHash: string): Promise<ethers.providers.TransactionResponse> {
-    return this.#provider.getTransaction(txHash);
+    return this.provider.getTransaction(txHash);
   }
 
   async getTxReceipt(txHash: string): Promise<ethers.providers.TransactionReceipt> {
-    return this.#provider.getTransactionReceipt(txHash);
+    return this.provider.getTransactionReceipt(txHash);
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
@@ -250,7 +251,7 @@ export abstract class EvmClient {
   }
 
   private async getNonce(address: string): Promise<number> {
-    const blockchainNonce = await this.#provider.getTransactionCount(address);
+    const blockchainNonce = await this.provider.getTransactionCount(address);
     const cachedNonce = this.#nonce.get(address) ?? 0;
 
     const currentNonce = blockchainNonce > cachedNonce ? blockchainNonce : cachedNonce;
@@ -269,7 +270,7 @@ export abstract class EvmClient {
   }
 
   private getERC20ContractForAddress(privateKey: string, tokenAddress: string): Contract {
-    const wallet = new ethers.Wallet(privateKey, this.#provider);
+    const wallet = new ethers.Wallet(privateKey, this.provider);
 
     return new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
   }
