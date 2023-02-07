@@ -8,6 +8,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { SpiderSyncService } from 'src/subdomains/generic/user/services/spider/spider-sync.service';
 import { SpiderService } from 'src/subdomains/generic/user/services/spider/spider.service';
+import { SpiderApiService } from '../../services/spider/spider-api.service';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { LinkService } from '../link/link.service';
 import { AccountType } from '../user-data/account-type.enum';
@@ -44,6 +45,7 @@ describe('KycService', () => {
   let httpService: HttpService;
   let walletService: WalletService;
   let webhookService: WebhookService;
+  let spiderApiService: SpiderApiService;
 
   const defaultCountry = createDefaultCountry();
 
@@ -133,6 +135,7 @@ describe('KycService', () => {
     userDataService = createMock<UserDataService>();
     userDataRepo = createMock<UserDataRepository>();
     spiderService = createMock<SpiderService>();
+    spiderApiService = createMock<SpiderApiService>();
     spiderSyncService = createMock<SpiderSyncService>();
     countryService = createMock<CountryService>();
     kycProcess = createMock<KycProcessService>();
@@ -149,6 +152,7 @@ describe('KycService', () => {
         { provide: UserDataService, useValue: userDataService },
         { provide: UserDataRepository, useValue: userDataRepo },
         { provide: SpiderService, useValue: spiderService },
+        { provide: SpiderApiService, useValue: spiderApiService },
         { provide: SpiderSyncService, useValue: spiderSyncService },
         { provide: CountryService, useValue: countryService },
         { provide: KycProcessService, useValue: kycProcess },
