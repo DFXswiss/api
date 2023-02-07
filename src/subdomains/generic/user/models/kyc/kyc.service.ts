@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -33,6 +34,8 @@ import { WalletService } from '../wallet/wallet.service';
 import { KycInfo } from './dto/kyc-info.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { WebhookService } from '../../services/webhook/webhook.service';
+import { KycFilesDto } from '../wallet/dto/kyc-files.dto';
+import { SpiderApiService } from '../../services/spider/spider-api.service';
 
 @Injectable()
 export class KycService {
@@ -43,6 +46,7 @@ export class KycService {
     private readonly walletRepo: WalletRepository,
     private readonly walletService: WalletService,
     private readonly spiderService: SpiderService,
+    private readonly spiderApiService: SpiderApiService,
     private readonly spiderSyncService: SpiderSyncService,
     private readonly countryService: CountryService,
     private readonly kycProcess: KycProcessService,
@@ -286,5 +290,66 @@ export class KycService {
     });
     if (!userData) throw new NotFoundException('User not found');
     return userData;
+  }
+
+  // --- GET COMPANY KCY //
+
+  async getKycFiles(userId: number, walletId: number): Promise<KycFilesDto> {
+    const wallet = await this.walletRepo.findOne({ where: { id: walletId } });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'wallet'] });
+    if (user.wallet.id != wallet.id) throw new ForbiddenException('User not from wallet');
+
+    const customerInfos = await this.spiderApiService.getDocumentInfos(
+      user.userData.id,
+      user.userData.accountType != AccountType.PERSONAL,
+    );
+
+    return {
+      documents: customerInfos
+        .filter(
+          (document) =>
+            ([KycDocument.ONLINE_IDENTIFICATION, KycDocument.CHATBOT_ONBOARDING].includes(document.document) &&
+              document.label == 'Report') ||
+            document.document == KycDocument.INCORPORATION_CERTIFICATE,
+        )
+        .map((d) => d.document),
+    };
+  }
+
+  async getKycFile(userId: number, walletId: number, kycDocument: KycDocument): Promise<any> {
+    const wallet = await this.walletRepo.findOne({ where: { id: walletId } });
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['userData', 'wallet'] });
+    if (user.wallet.id != wallet.id) throw new ForbiddenException('User not from wallet');
+
+    const customerInfos = await this.spiderApiService.getDocumentInfos(
+      user.userData.id,
+      user.userData.accountType != AccountType.PERSONAL,
+    );
+
+    if ([KycDocument.ONLINE_IDENTIFICATION, KycDocument.CHATBOT_ONBOARDING].includes(kycDocument)) {
+      const documentInfo = customerInfos.filter(
+        (document) => kycDocument == document.document && document.label == 'Report',
+      )[0];
+      return await this.spiderApiService.getDocument<string>(
+        user.userData.id,
+        false,
+        documentInfo.document,
+        documentInfo.version,
+        documentInfo.part,
+      );
+    }
+
+    if ([KycDocument.INCORPORATION_CERTIFICATE].includes(kycDocument)) {
+      const documentInfo = customerInfos.filter((document) => kycDocument == document.document)[0];
+      return await this.spiderApiService.getDocument<string>(
+        user.userData.id,
+        false,
+        documentInfo.document,
+        documentInfo.version,
+        documentInfo.part,
+      );
+    }
+
+    throw new NotFoundException('Document not found');
   }
 }
