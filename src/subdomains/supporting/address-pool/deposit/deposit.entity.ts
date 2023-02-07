@@ -4,7 +4,7 @@ import { Entity, Column, OneToOne, Index } from 'typeorm';
 import { DepositRoute } from '../route/deposit-route.entity';
 
 @Entity()
-@Index('oneDepositPerBlockchain', (deposit: Deposit) => [deposit.address, deposit.blockchain], { unique: true })
+@Index((deposit: Deposit) => [deposit.address, deposit.blockchain], { unique: true })
 export class Deposit extends IEntity {
   @Column({ length: 256 })
   address: string;
@@ -20,12 +20,12 @@ export class Deposit extends IEntity {
 
   //*** FACTORY METHODS ***//
 
-  static create(address: string, key: string, blockchain: Blockchain): Deposit {
+  static create(address: string, blockchain: Blockchain, key?: string): Deposit {
     const entity = new Deposit();
 
     entity.address = address;
-    entity.key = key;
     entity.blockchain = blockchain;
+    entity.key = key;
 
     return entity;
   }

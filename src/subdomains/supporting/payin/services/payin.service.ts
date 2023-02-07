@@ -11,9 +11,7 @@ import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { PayInEntry } from '../interfaces';
-import { Price } from 'src/integration/exchange/dto/price.dto';
-import { PriceRequest, PriceResult } from '../../pricing/interfaces';
+import { PriceRequest } from '../../pricing/interfaces';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { PriceRequestContext } from '../../pricing/enums';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
@@ -46,12 +44,10 @@ export class PayInService {
     return this.payInRepository.find({ status: PayInStatus.CREATED, address: { blockchain } });
   }
 
-  // TODO -> Question -> how buyFiat and cryptoStaking are used?
   async getAllUserTransactions(userIds: number[]): Promise<CryptoInput[]> {
     return await this.payInRepository.find({
       where: { route: { user: { id: In(userIds) } } },
       relations: ['route', 'route.user'],
-      // relations: ['buyFiat', 'cryptoStaking', 'route', 'route.user'],
     });
   }
 
@@ -98,27 +94,6 @@ export class PayInService {
     _payIn.ignore(purpose, route);
 
     await this.payInRepository.save(_payIn);
-  }
-
-  //*** PUBLIC HELPER METHODS ***//
-
-  async getReferencePricesLegacy(entries: PayInEntry[] | CryptoInput[]): Promise<Price[]> {
-    const referenceAssetPairs = [
-      ...new Set([...entries.map((p) => `${p.asset.dexName}/BTC`), ...entries.map((p) => `${p.asset.dexName}/USDT`)]),
-    ].map((assets) => assets.split('/'));
-
-    const prices = await Promise.all<PriceResult>(
-      referenceAssetPairs.map(async (pair) => {
-        const priceRequest = this.createPriceRequest(pair);
-
-        return this.pricingService.getPrice(priceRequest).catch((e) => {
-          console.error('Failed to get price:', e);
-          return undefined;
-        });
-      }),
-    );
-
-    return prices.filter((p) => p).map((p) => p.price);
   }
 
   //*** JOBS ***//

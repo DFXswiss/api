@@ -53,10 +53,8 @@ export abstract class EvmStrategy extends SendStrategy {
            * @note
            * setting to some default minimal amount in case estimated fees go very low.
            */
-          const effectivePreparationFee =
-            nativeFee > Config.blockchain.evm.minimalPreparationFee
-              ? nativeFee
-              : Config.blockchain.evm.minimalPreparationFee;
+
+          const effectivePreparationFee = Math.max(nativeFee, Config.blockchain.evm.minimalPreparationFee);
 
           CryptoInput.verifyEstimatedFee(targetFee, this.getTotalGroupAmount(payInGroup));
 

@@ -34,7 +34,7 @@ export class AssetService {
   getByQuerySync(assets: Asset[], { dexName, blockchain, type, chainId }: AssetQuery): Asset | undefined {
     return assets.find((a) => {
       const queryMatch = a.dexName === dexName && a.blockchain === blockchain && a.type === type;
-      const chainIdMatch = !a.chainId ? true : chainId ? a.chainId.toLowerCase() === chainId.toLowerCase() : true;
+      const chainIdMatch = a.chainId && chainId ? a.chainId.toLowerCase() === chainId.toLowerCase() : true;
 
       return queryMatch && chainIdMatch;
     });

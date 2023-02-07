@@ -2,7 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoRouteRepository } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.repository';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
-import { createCustomCryptoHistory } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/__mocks__/crypto-history.dto.mock';
+import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -211,7 +211,7 @@ describe('BuyCryptoService', () => {
     setup(MockBuyData.CRYPTO_HISTORY, date);
 
     await expect(service.getCryptoHistory(1, 1)).resolves.toStrictEqual([
-      createCustomCryptoHistory({
+      createCustomHistory({
         date: date,
         ...txCrypto,
       }),

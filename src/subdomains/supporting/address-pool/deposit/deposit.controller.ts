@@ -15,7 +15,7 @@ export class DepositController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
-  async createRandomDeposit(@Body() dto: RandomDepositDto): Promise<void> {
-    await this.depositService.createRandomDeposit(dto);
+  async createRandomDeposits(@Body() dto: RandomDepositDto): Promise<void> {
+    await this.depositService.createRandomDeposits(dto);
   }
 }

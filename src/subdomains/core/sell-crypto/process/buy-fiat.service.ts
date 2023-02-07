@@ -180,7 +180,6 @@ export class BuyFiatService {
       inputAsset: buyFiat.inputAsset,
       outputAmount: buyFiat.outputAmount,
       outputAsset: buyFiat.outputAsset,
-      // txId: buyFiat.cryptoInput.inTxId,
       txId: buyFiat.cryptoInput.inTxId,
       txUrl: `${BlockchainExplorerUrls[buyFiat.cryptoInput.asset.blockchain]}/${buyFiat.cryptoInput.inTxId}`,
       date: buyFiat.fiatOutput?.outputDate,
@@ -258,8 +257,6 @@ export class BuyFiatService {
       fiatAmount: v.amountInEur,
       fiatCurrency: 'EUR',
       date: v.outputDate,
-      // cryptoAmount: v.cryptoInput?.amount,
-      // cryptoCurrency: v.cryptoInput?.asset?.name,
       cryptoAmount: v.cryptoInput?.amount,
       cryptoCurrency: v.cryptoInput?.asset?.name,
     }));

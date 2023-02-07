@@ -14,7 +14,6 @@ import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInService } from '../../../services/payin.service';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -60,24 +59,10 @@ export class BitcoinStrategy extends JellyfishStrategy {
    * accepting CryptoInput (PayIn) entities for retry mechanism (see PayInService -> #retryGettingReferencePrices())
    */
   async addReferenceAmounts(entries: PayInEntry[] | CryptoInput[]): Promise<void> {
-    const btc = await this.assetService.getAssetByQuery({
-      dexName: 'BTC',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.TOKEN,
-    });
-
-    const usdt = await this.assetService.getAssetByQuery({
-      dexName: 'USDT',
-      blockchain: Blockchain.DEFICHAIN,
-      type: AssetType.TOKEN,
-    });
-
     for (const entry of entries) {
       try {
         const btcAmount = entry.amount;
-
-        // TODO -> not sure if we should restrict this for Bitcoin (what if defichain node is OFF)
-        const usdtAmount = await this.getReferenceAmount(btc, entry.amount, usdt);
+        const usdtAmount = null;
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
@@ -127,7 +112,7 @@ export class BitcoinStrategy extends JellyfishStrategy {
   private async getNewEntries(): Promise<PayInEntry[]> {
     await this.bitcoinService.checkHealthOrThrow();
 
-    const allUtxos = await this.bitcoinService.getUTXO();
+    const allUtxos = await this.bitcoinService.getUtxo();
     const newUtxos = await this.filterOutExistingUtxos(allUtxos);
 
     return this.mapUtxosToEntries(newUtxos);
@@ -154,13 +139,16 @@ export class BitcoinStrategy extends JellyfishStrategy {
   private async mapUtxosToEntries(utxos: UTXO[]): Promise<PayInEntry[]> {
     const asset = await this.assetService.getBtcCoin();
 
-    return utxos.map((u) => ({
-      address: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
-      txId: u.txid,
-      txType: null,
-      blockHeight: null,
-      amount: u.amount.toNumber(),
-      asset,
-    }));
+    return utxos
+      .map((u) => ({
+        address: BlockchainAddress.create(u.address, Blockchain.BITCOIN),
+        txId: u.txid,
+        txType: null,
+        blockHeight: null,
+        amount: u.amount.toNumber(),
+        asset,
+      }))
+      .map((h) => this.filterOutNonSellable(h))
+      .filter((p) => p != null);
   }
 }

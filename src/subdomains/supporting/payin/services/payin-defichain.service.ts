@@ -12,7 +12,6 @@ import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { CryptoInput } from '../entities/crypto-input.entity';
 import { PayInRepository } from '../repositories/payin.repository';
-import { PayInJellyfishService } from './base/payin-jellyfish.service';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 import { Interval } from '@nestjs/schedule';
@@ -24,7 +23,7 @@ export interface HistoryAmount {
 }
 
 @Injectable()
-export class PayInDeFiChainService extends PayInJellyfishService {
+export class PayInDeFiChainService {
   private client: DeFiClient;
 
   private readonly utxoTxTypes = ['receive', 'AccountToUtxos', 'blockReward'];
@@ -44,12 +43,11 @@ export class PayInDeFiChainService extends PayInJellyfishService {
     protected readonly payInRepo: PayInRepository,
     nodeService: NodeService,
   ) {
-    super();
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
   async checkHealthOrThrow(): Promise<void> {
-    await this.checkNodeInSync(this.client);
+    await this.client.checkSync();
   }
 
   async getCurrentHeight(): Promise<number> {
@@ -93,7 +91,7 @@ export class PayInDeFiChainService extends PayInJellyfishService {
   @Interval(900000)
   async convertTokens(): Promise<void> {
     try {
-      await this.checkNodeInSync(this.client);
+      await this.client.checkSync();
 
       const tokens = await this.client.getToken();
 

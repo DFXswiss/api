@@ -50,7 +50,6 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
 
   // *** HELPER METHODS *** //
 
-  // TODO -> clarify this method with Matthias
   private async getPayment(): Promise<PaymentData> {
     return {
       lastOutputDates: await this.getLastOutputDates(),
@@ -63,7 +62,7 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         .getCount(),
       unhandledCryptoInputs: await getCustomRepository(PayInRepository).count({
         where: {
-          status: In([PayInStatus.CREATED, PayInStatus.PREPARING, PayInStatus.WAITING_FOR_PRICE_REFERENCE]),
+          status: Not(In([PayInStatus.FAILED, PayInStatus.IGNORED, PayInStatus.RETURNED, PayInStatus.FORWARDED])),
         },
       }),
     };

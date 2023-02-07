@@ -331,9 +331,6 @@ export class Configuration {
       ethApiKey: process.env.ETH_API_KEY,
       uniswapV2Router02Address: process.env.ETH_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.ETH_SWAP_TOKEN_ADDRESS,
-      minDeposit: {
-        USD: 1000,
-      },
     },
     bsc: {
       bscScanApiUrl: process.env.BSC_SCAN_API_URL,
@@ -343,9 +340,6 @@ export class Configuration {
       bscGatewayUrl: process.env.BSC_GATEWAY_URL,
       pancakeRouterAddress: process.env.BSC_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.BSC_SWAP_TOKEN_ADDRESS,
-      minDeposit: {
-        USD: 10,
-      },
     },
     optimism: {
       optimismScanApiUrl: process.env.OPTIMISM_SCAN_API_URL,
@@ -356,9 +350,6 @@ export class Configuration {
       optimismApiKey: process.env.OPTIMISM_API_KEY,
       pancakeRouterAddress: process.env.OPTIMISM_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.OPTIMISM_SWAP_TOKEN_ADDRESS,
-      minDeposit: {
-        USD: 10,
-      },
     },
     arbitrum: {
       arbitrumScanApiUrl: process.env.ARBITRUM_SCAN_API_URL,
@@ -369,9 +360,6 @@ export class Configuration {
       arbitrumApiKey: process.env.ARBITRUM_API_KEY,
       pancakeRouterAddress: process.env.ARBITRUM_SWAP_CONTRACT_ADDRESS,
       swapTokenAddress: process.env.ARBITRUM_SWAP_TOKEN_ADDRESS,
-      minDeposit: {
-        USD: 10,
-      },
     },
   };
 
@@ -413,15 +401,6 @@ export class Configuration {
         [FeeTier.TIER2]: 0.0199,
         [FeeTier.TIER3]: 0.0275,
         [FeeTier.TIER4]: 0.0349,
-      },
-    },
-  };
-
-  payIn = {
-    min: {
-      DeFiChain: {
-        DFI: 0.0001,
-        DUSD: 0.0001,
       },
     },
   };

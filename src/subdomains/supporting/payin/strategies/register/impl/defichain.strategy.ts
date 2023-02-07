@@ -1,6 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Config, Process } from 'src/config/config';
-import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -64,10 +64,7 @@ export class DeFiChainStrategy extends RegisterStrategy {
     for (const entry of entries) {
       try {
         const btcAmount = await this.getReferenceAmount(entry.asset, entry.amount, btc);
-        const usdtAmount =
-          entry.asset.dexName === 'DUSD'
-            ? entry.amount
-            : await this.getReferenceAmount(entry.asset, entry.amount, usdt);
+        const usdtAmount = await this.getReferenceAmount(entry.asset, entry.amount, usdt);
 
         await this.addReferenceAmountsToEntry(entry, btcAmount, usdtAmount);
       } catch (e) {
@@ -155,6 +152,15 @@ export class DeFiChainStrategy extends RegisterStrategy {
     return inputs.map((h) => this.filterOutNonSellableAndPoolPairs(h)).filter((p) => p != null);
   }
 
+  private filterOutNonSellableAndPoolPairs(_entry: PayInEntry): PayInEntry | null {
+    let entry: PayInEntry | null = null;
+
+    entry = this.filterOutNonSellable(_entry);
+    entry = this.filterOutPoolPairs(entry);
+
+    return entry;
+  }
+
   private createEntry(
     history: AccountHistory,
     { amount, asset, type }: HistoryAmount,
@@ -170,14 +176,5 @@ export class DeFiChainStrategy extends RegisterStrategy {
         this.assetService.getByQuerySync(supportedAssets, { dexName: asset, type, blockchain: Blockchain.DEFICHAIN }) ??
         null,
     };
-  }
-
-  private filterOutNonSellableAndPoolPairs(p: PayInEntry): PayInEntry | null {
-    if (p.asset && (!p.asset.sellable || p.asset.category === AssetCategory.POOL_PAIR)) {
-      console.log(`Ignoring unsellable DeFiChain input (${p.amount} ${p.asset}). PayIn entry:`, p);
-      return null;
-    }
-
-    return p;
   }
 }

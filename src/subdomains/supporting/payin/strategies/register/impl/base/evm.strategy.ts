@@ -93,7 +93,9 @@ export abstract class EvmStrategy extends RegisterStrategy {
     return [
       ...this.mapCoinEntries(relevantCoinEntries, supportedAssets),
       ...this.mapTokenEntries(relevantTokenEntries, supportedAssets),
-    ];
+    ]
+      .map((h) => this.filterOutNonSellable(h))
+      .filter((p) => p != null);
   }
 
   private filterEntriesByRelevantAddresses<T extends EvmCoinHistoryEntry | EvmTokenHistoryEntry>(
@@ -165,7 +167,10 @@ export abstract class EvmStrategy extends RegisterStrategy {
       blockHeight,
     });
 
-    const lostEntries = entries.filter((e) => !recordedLastBlockPayIns.find((p) => p.inTxId === e.txId));
+    const lostEntries = entries
+      .filter((e) => !recordedLastBlockPayIns.find((p) => p.inTxId === e.txId))
+      .map((h) => this.filterOutNonSellable(h))
+      .filter((p) => p != null);
 
     if (lostEntries.length === 0) return;
 

@@ -5,6 +5,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { CryptoInputInitSpecification } from '../specifications/crypto-input-init.specification';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 export enum PayInPurpose {
   STAKING = 'Staking',
@@ -31,7 +32,7 @@ export enum PayInStatus {
 }
 
 @Entity()
-@Index('txAssetRouteTxSequence', (input: CryptoInput) => [input.inTxId, input.asset, input.route, input.txSequence], {
+@Index((input: CryptoInput) => [input.inTxId, input.asset, input.route, input.txSequence], {
   unique: true,
 })
 export class CryptoInput extends IEntity {
@@ -83,7 +84,6 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, default: AmlCheck.FAIL })
   amlCheck: AmlCheck;
 
-  // TODO -> rename from type.
   @Column({ nullable: true })
   purpose: PayInPurpose;
 
@@ -212,7 +212,7 @@ export class CryptoInput extends IEntity {
   }
 
   addReferenceAmounts(btcAmount: number, usdtAmount: number): this {
-    if (btcAmount == null || usdtAmount == null) {
+    if (btcAmount == null || (usdtAmount == null && this.address.blockchain !== Blockchain.BITCOIN)) {
       this.status = PayInStatus.WAITING_FOR_PRICE_REFERENCE;
       return this;
     }

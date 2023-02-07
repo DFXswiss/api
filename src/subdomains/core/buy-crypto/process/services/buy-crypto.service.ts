@@ -22,7 +22,6 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { AmlCheck } from '../enums/aml-check.enum';
 import { CryptoRoute } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.entity';
 import { CryptoRouteService } from 'src/subdomains/core/buy-crypto/routes/crypto-route/crypto-route.service';
-import { CryptoHistoryDto } from 'src/subdomains/core/buy-crypto/routes/crypto-route/dto/crypto-history.dto';
 import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
 import { BankTxService } from 'src/subdomains/supporting/bank/bank-tx/bank-tx.service';
@@ -39,7 +38,7 @@ import { BlockchainExplorerUrls } from 'src/integration/blockchain/shared/enums/
 @Injectable()
 export class BuyCryptoService {
   private readonly registerLock = new Lock(1800);
-  private readonly processLock = new Lock(1800);
+  private readonly processLock = new Lock(7200);
 
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
@@ -75,16 +74,6 @@ export class BuyCryptoService {
 
     return await this.buyCryptoRepo.save(entity);
   }
-
-  // TODO -> remove commented code
-  // async createFromCrypto(cryptoInput: CryptoInput): Promise<BuyCrypto> {
-  //   const entity = this.buyCryptoRepo.create();
-
-  //   entity.cryptoInput = cryptoInput;
-  //   entity.cryptoRoute = cryptoInput.route as CryptoRoute;
-
-  //   return await this.buyCryptoRepo.save(entity);
-  // }
 
   async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne(id, {
@@ -230,7 +219,7 @@ export class BuyCryptoService {
       .then((buyCryptos) => buyCryptos.map(this.toHistoryDto));
   }
 
-  async getCryptoHistory(userId: number, routeId?: number): Promise<CryptoHistoryDto[]> {
+  async getCryptoHistory(userId: number, routeId?: number): Promise<HistoryDto[]> {
     const where = { user: { id: userId }, id: routeId };
     Util.removeNullFields(where);
     return this.buyCryptoRepo

@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetCategory } from 'src/shared/models/asset/asset.entity';
 import { LiquidityOrderContext } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { CheckLiquidityRequest } from 'src/subdomains/supporting/dex/interfaces';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -76,6 +76,28 @@ export abstract class RegisterStrategy {
       entry.btcAmount = btcAmount;
       entry.usdtAmount = usdtAmount;
     }
+  }
+
+  protected filterOutPoolPairs(p: PayInEntry): PayInEntry | null {
+    if (p == null) return null;
+
+    if (p.asset && p.asset.category === AssetCategory.POOL_PAIR) {
+      console.log(`Ignoring pool-pair input (${p.amount} ${p.asset}). PayIn entry:`, p);
+      return null;
+    }
+
+    return p;
+  }
+
+  protected filterOutNonSellable(p: PayInEntry): PayInEntry | null {
+    if (p == null) return null;
+
+    if (p.asset && !p.asset.sellable) {
+      console.log(`Ignoring unsellable input (${p.amount} ${p.asset}). PayIn entry:`, p);
+      return null;
+    }
+
+    return p;
   }
 
   private createLiquidityRequest(

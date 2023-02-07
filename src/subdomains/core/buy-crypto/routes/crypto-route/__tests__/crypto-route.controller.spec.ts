@@ -52,7 +52,7 @@ describe('CryptoRouteController', () => {
     expect(controller).toBeDefined();
   });
 
-  it.skip('should return a min deposit of 0.0005 for a default crypto route', async () => {
+  it('should return a min deposit of 0.0005 for a default crypto route', async () => {
     jest.spyOn(cryptoRouteService, 'getUserCryptos').mockResolvedValue([createDefaultCryptoRoute()]);
 
     await expect(

@@ -62,15 +62,10 @@ export class BuyFiatRegistrationService {
   private async createBuyFiatsAndAckPayIns(payInsPairs: [CryptoInput, Sell][]): Promise<void> {
     for (const [payIn, sellRoute] of payInsPairs) {
       try {
-        const existingBuyFiat = await this.buyFiatRepo.findOne({ cryptoInput: { id: payIn.id } });
+        let buyFiat = await this.buyFiatRepo.findOne({ cryptoInput: { id: payIn.id } });
 
-        if (existingBuyFiat) {
-          const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
-          existingBuyFiat.addAmlCheck(amlCheck);
-
-          await this.buyFiatRepo.save(existingBuyFiat);
-
-          continue;
+        if (!buyFiat) {
+          buyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
         }
 
         // ignore DeFiChain AccountToUtxos for sell
@@ -80,30 +75,19 @@ export class BuyFiatRegistrationService {
           continue;
         }
 
-        await this.createNewBuyFiatAndAck(payIn, sellRoute);
+        const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
+        buyFiat.addAmlCheck(amlCheck);
+
+        await this.buyFiatRepo.save(buyFiat);
       } catch (e) {
+        if (e instanceof SmallAmountException) {
+          await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
+
+          continue;
+        }
+
         console.error(`Error occurred during pay-in registration at buy-fiat. Pay-in ID: ${payIn.id}`, e);
       }
-    }
-  }
-
-  private async createNewBuyFiatAndAck(payIn: CryptoInput, sellRoute: Sell): Promise<void> {
-    try {
-      const newBuyFiat = BuyFiat.createFromPayIn(payIn, sellRoute);
-
-      const amlCheck = await this.payInService.acknowledgePayIn(payIn.id, PayInPurpose.SELL_CRYPTO, sellRoute);
-
-      newBuyFiat.addAmlCheck(amlCheck);
-
-      await this.buyFiatRepo.save(newBuyFiat);
-    } catch (e) {
-      if (e instanceof SmallAmountException) {
-        await this.payInService.ignorePayIn(payIn, PayInPurpose.SELL_CRYPTO, sellRoute);
-
-        return;
-      }
-
-      throw e;
     }
   }
 }

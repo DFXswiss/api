@@ -20,8 +20,8 @@ module.exports = class payInModule1674808936701 {
         await queryRunner.query(`ALTER TABLE "crypto_input" DROP CONSTRAINT "FK_fd82f69592380d0a2bc557cf0d7"`);
         await queryRunner.query(`ALTER TABLE "crypto_input" ALTER COLUMN "assetId" int`);
         await queryRunner.query(`ALTER TABLE "crypto_input" ALTER COLUMN "routeId" int`);
-        await queryRunner.query(`CREATE UNIQUE INDEX "oneDepositPerBlockchain" ON "deposit" ("address", "blockchain") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "txAssetRouteTxSequence" ON "crypto_input" ("inTxId", "assetId", "routeId", "txSequence") `);
+        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_aecce3384ad7ae9c11aeb502e4" ON "deposit" ("address", "blockchain") `);
+        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_6aec38e5c6f47a65ffe49b2c2e" ON "crypto_input" ("inTxId", "assetId", "routeId", "txSequence") `);
         await queryRunner.query(`ALTER TABLE "crypto_input" ADD CONSTRAINT "FK_3e0f683d5bf0777f30b143db787" FOREIGN KEY ("assetId") REFERENCES "asset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "crypto_input" ADD CONSTRAINT "FK_fd82f69592380d0a2bc557cf0d7" FOREIGN KEY ("routeId") REFERENCES "deposit_route"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
     }
@@ -29,8 +29,8 @@ module.exports = class payInModule1674808936701 {
     async down(queryRunner) {
         await queryRunner.query(`ALTER TABLE "crypto_input" DROP CONSTRAINT "FK_fd82f69592380d0a2bc557cf0d7"`);
         await queryRunner.query(`ALTER TABLE "crypto_input" DROP CONSTRAINT "FK_3e0f683d5bf0777f30b143db787"`);
-        await queryRunner.query(`DROP INDEX "txAssetRouteTxSequence" ON "crypto_input"`);
-        await queryRunner.query(`DROP INDEX "oneDepositPerBlockchain" ON "deposit"`);
+        await queryRunner.query(`DROP INDEX "IDX_6aec38e5c6f47a65ffe49b2c2e" ON "crypto_input"`);
+        await queryRunner.query(`DROP INDEX "IDX_aecce3384ad7ae9c11aeb502e4" ON "deposit"`);
         await queryRunner.query(`ALTER TABLE "crypto_input" ALTER COLUMN "routeId" int NOT NULL`);
         await queryRunner.query(`ALTER TABLE "crypto_input" ALTER COLUMN "assetId" int NOT NULL`);
         await queryRunner.query(`ALTER TABLE "crypto_input" ADD CONSTRAINT "FK_fd82f69592380d0a2bc557cf0d7" FOREIGN KEY ("routeId") REFERENCES "deposit_route"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);

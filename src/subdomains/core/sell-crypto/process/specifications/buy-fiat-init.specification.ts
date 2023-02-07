@@ -18,22 +18,22 @@ export class BuyFiatInitSpecification {
       }
 
       case Blockchain.ETHEREUM: {
-        if (usdtAmount < Config.blockchain.ethereum.minDeposit.USD) this.throw(cryptoInput);
+        if (usdtAmount < Config.transaction.minVolume.Ethereum.default.USD) this.throw(cryptoInput);
         break;
       }
 
       case Blockchain.BINANCE_SMART_CHAIN: {
-        if (usdtAmount < Config.blockchain.bsc.minDeposit.USD) this.throw(cryptoInput);
+        if (usdtAmount < Config.transaction.minVolume.BinanceSmartChain.default.USD) this.throw(cryptoInput);
         break;
       }
 
       case Blockchain.ARBITRUM: {
-        if (usdtAmount < Config.blockchain.arbitrum.minDeposit.USD) this.throw(cryptoInput);
+        if (usdtAmount < Config.transaction.minVolume.Arbitrum.default.USD) this.throw(cryptoInput);
         break;
       }
 
       case Blockchain.OPTIMISM: {
-        if (usdtAmount < Config.blockchain.optimism.minDeposit.USD) this.throw(cryptoInput);
+        if (usdtAmount < Config.transaction.minVolume.Optimism.default.USD) this.throw(cryptoInput);
         break;
       }
     }

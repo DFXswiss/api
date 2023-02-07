@@ -31,7 +31,7 @@ export class DepositService {
     return deposit;
   }
 
-  async createRandomDeposit({ blockchain }: RandomDepositDto): Promise<void> {
+  async createRandomDeposits({ blockchain, count }: RandomDepositDto): Promise<void> {
     const { ARBITRUM, OPTIMISM, ETHEREUM, BINANCE_SMART_CHAIN } = Blockchain;
 
     if (![ARBITRUM, OPTIMISM, ETHEREUM, BINANCE_SMART_CHAIN].includes(blockchain)) {
@@ -40,8 +40,16 @@ export class DepositService {
       );
     }
 
+    for (const _ of new Array(count)) {
+      await this.createRandomDeposit(blockchain);
+    }
+  }
+
+  //*** HELPER METHODS ***//
+
+  private async createRandomDeposit(blockchain: Blockchain): Promise<void> {
     const { address, privateKey } = EvmUtil.getRandomWallet();
-    const deposit = Deposit.create(address, Util.encrypt(privateKey, Config.blockchain.evm.encryptionKey), blockchain);
+    const deposit = Deposit.create(address, blockchain, Util.encrypt(privateKey, Config.blockchain.evm.encryptionKey));
 
     await this.depositRepo.save(deposit);
   }

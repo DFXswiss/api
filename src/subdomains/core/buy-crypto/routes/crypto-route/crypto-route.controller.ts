@@ -13,8 +13,7 @@ import { CreateCryptoRouteDto } from './dto/create-crypto-route.dto';
 import { UpdateCryptoRouteDto } from './dto/update-crypto-route.dto';
 import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.entity';
 
-import { getCustomRepository, In } from 'typeorm';
-import { CryptoHistoryDto } from './dto/crypto-history.dto';
+import { getCustomRepository } from 'typeorm';
 import { Config } from 'src/config/config';
 import { MinDeposit } from '../../../../supporting/address-pool/deposit/dto/min-deposit.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -28,6 +27,7 @@ import { StakingService } from 'src/subdomains/core/staking/services/staking.ser
 import { StakingDto } from 'src/subdomains/core/staking/dto/staking.dto';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
+import { HistoryDto } from 'src/subdomains/core/history/dto/history.dto';
 
 @ApiTags('CryptoRoute')
 @Controller('cryptoRoute')
@@ -89,7 +89,7 @@ export class CryptoRouteController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<CryptoHistoryDto[]> {
+  async getCryptoRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDto[]> {
     return this.buyCryptoService.getCryptoHistory(jwt.id, +id);
   }
 
@@ -97,9 +97,8 @@ export class CryptoRouteController {
   private async toDtoList(userId: number, cryptos: CryptoRoute[]): Promise<CryptoRouteDto[]> {
     const fees = await this.getFees(userId);
 
-    const stakingRoutes = await getCustomRepository(StakingRepository).find({
-      deposit: { id: In(cryptos.map((b) => b.targetDeposit?.id)) },
-    });
+    const stakingRoutes = await this.stakingService.getStakingByCryptoRoute(cryptos);
+
     return Promise.all(cryptos.map((b) => this.toDto(userId, b, fees, stakingRoutes)));
   }
 

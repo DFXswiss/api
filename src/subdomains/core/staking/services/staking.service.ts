@@ -16,6 +16,7 @@ import { Staking } from '../entities/staking.entity';
 import { CryptoStakingRepository } from '../repositories/crypto-staking.repository';
 import { StakingRepository } from '../repositories/staking.repository';
 import { StakingRefRewardService } from './staking-ref-reward.service';
+import { CryptoRoute } from '../../buy-crypto/routes/crypto-route/crypto-route.entity';
 
 @Injectable()
 export class StakingService {
@@ -61,7 +62,6 @@ export class StakingService {
       .getOne();
   }
 
-  // stay
   async getStaking(id: number, userId: number): Promise<Staking> {
     const staking = await this.stakingRepo.findOne({ where: { id, user: { id: userId } } });
     if (!staking) throw new NotFoundException('Staking route not found');
@@ -79,6 +79,12 @@ export class StakingService {
 
   async getStakingByDepositAddresses(addresses: string[]): Promise<Staking[]> {
     return await this.stakingRepo.find({ where: { deposit: { address: In(addresses) } }, relations: ['deposit'] });
+  }
+
+  async getStakingByCryptoRoute(cryptos: CryptoRoute[]) {
+    return await this.stakingRepo.find({
+      deposit: { id: In(cryptos.map((b) => b.targetDeposit?.id)) },
+    });
   }
 
   async getAllIds(): Promise<number[]> {
