@@ -1,3 +1,5 @@
+import { createMock } from '@golevelup/ts-jest';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { kraken } from 'ccxt';
 import { PartialTradeResponse } from '../dto/trade-response.dto';
 import { ExchangeService, OrderSide } from './exchange.service';
@@ -5,8 +7,19 @@ import { ExchangeService, OrderSide } from './exchange.service';
 describe('ExchangeService', () => {
   let service: ExchangeService;
 
-  beforeEach(async () => {
-    service = new ExchangeService(new kraken({}));
+  let scheduler: SchedulerRegistry;
+  let interval: NodeJS.Timer;
+
+  beforeEach(() => {
+    scheduler = createMock<SchedulerRegistry>();
+
+    jest.spyOn(scheduler, 'addInterval').mockImplementation((_, int: NodeJS.Timer) => (interval = int));
+
+    service = new ExchangeService(new kraken({}), scheduler);
+  });
+
+  afterEach(() => {
+    clearInterval(interval);
   });
 
   it('should be defined', () => {

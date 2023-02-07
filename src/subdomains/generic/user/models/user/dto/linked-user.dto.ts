@@ -7,7 +7,7 @@ export class LinkedUserInDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  @Matches(GetConfig().addressFormat)
+  @Matches(GetConfig().formats.address)
   address: string;
 }
 

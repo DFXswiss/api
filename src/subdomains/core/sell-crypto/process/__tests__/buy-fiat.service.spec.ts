@@ -103,12 +103,12 @@ describe('BuyFiatService', () => {
         case MockBuyData.BUY_HISTORY:
           wantedData = [
             createCustomBuyFiat({
-              fiatOutput: createCustomFiatOutput({outputDate: date}),
+              fiatOutput: createCustomFiatOutput({ outputDate: date }),
               cryptoInput: createCustomCryptoInput({ inTxId: 'IN_TX_ID_0' }),
               ...txOne,
             }),
             createCustomBuyFiat({
-              fiatOutput: createCustomFiatOutput({outputDate: date}),
+              fiatOutput: createCustomFiatOutput({ outputDate: date }),
               cryptoInput: createCustomCryptoInput({ inTxId: 'IN_TX_ID_1' }),
               ...txTwo,
             }),
@@ -117,7 +117,7 @@ describe('BuyFiatService', () => {
         case MockBuyData.BUY_HISTORY_SMALL:
           wantedData = [
             createCustomBuyFiat({
-              fiatOutput: createCustomFiatOutput({outputDate: date}),
+              fiatOutput: createCustomFiatOutput({ outputDate: date }),
               cryptoInput: createCustomCryptoInput({ created: date, inTxId: 'IN_TX_ID_0' }),
               ...txSmallAmount,
             }),
@@ -146,11 +146,13 @@ describe('BuyFiatService', () => {
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
+        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
         ...txOne,
       }),
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_1',
+        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_1',
         ...txTwo,
       }),
     ]);
@@ -164,6 +166,7 @@ describe('BuyFiatService', () => {
       createCustomSellHistory({
         date: date,
         txId: 'IN_TX_ID_0',
+        txUrl: 'https://defiscan.live/transactions/IN_TX_ID_0',
         ...txSmallAmount,
       }),
     ]);

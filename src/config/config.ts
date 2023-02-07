@@ -30,7 +30,7 @@ export class Configuration {
   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
-  defaultDailyTradingLimit = 1000; // EUR
+  defaultDailyTradingLimit = 990; // EUR
   apiKeyVersionCT = '0'; // single digit hex number
   azureIpSubstring = '169.254';
 
@@ -39,6 +39,16 @@ export class Configuration {
     red: '#F5516C',
     lightBlue: '#0A355C',
     darkBlue: '#072440',
+  };
+
+  formats = {
+    address:
+      this.environment === 'prd'
+        ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
+        : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54})$/,
+    signature: /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582})$/,
+    key: /^[a-f0-9]{84}$/,
+    ref: /^(\w{1,3}-\w{1,3})$/,
   };
 
   database: TypeOrmModuleOptions = {
@@ -503,20 +513,6 @@ export class Configuration {
       secret: process.env.BINANCE_SECRET,
       ...this.exchange,
     };
-  }
-
-  get addressFormat(): RegExp {
-    return this.environment === 'prd'
-      ? /^(8\w{33}|d\w{33}|d\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39})$/
-      : /^((7|8)\w{33}|(t|d)\w{33}|(t|d)\w{41}|0x\w{40}|(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}|stake[a-z0-9]{54})$/;
-  }
-
-  get signatureFormat(): RegExp {
-    return /^(.{87}=|[a-f0-9]{130}|[a-f0-9x]{132}|[a-f0-9]{582})$/;
-  }
-
-  get keyFormat(): RegExp {
-    return /^[a-f0-9]{84}$/;
   }
 
   get configuredFeeLimit(): number | null {

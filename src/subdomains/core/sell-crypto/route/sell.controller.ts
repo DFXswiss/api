@@ -17,11 +17,11 @@ import { Config } from 'src/config/config';
 import { GetSellPaymentInfoDto } from './dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from './dto/sell-payment-info.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { MinDeposit } from 'src/subdomains/supporting/address-pool/deposit/dto/min-deposit.dto';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 
 @ApiTags('Sell')
 @Controller('sell')
@@ -30,7 +30,7 @@ export class SellController {
     private readonly sellService: SellService,
     private readonly userService: UserService,
     private readonly buyFiatService: BuyFiatService,
-    private readonly assetService: AssetService,
+    private readonly paymentInfoService: PaymentInfoService,
   ) {}
 
   @Get()
@@ -57,6 +57,7 @@ export class SellController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetSellPaymentInfoDto,
   ): Promise<SellPaymentInfoDto> {
+    dto = await this.paymentInfoService.sellCheck(dto);
     return this.sellService
       .createSell(jwt.id, { ...dto, fiat: dto.currency }, true)
       .then((sell) => this.toPaymentInfoDto(jwt.id, sell, dto));
@@ -110,7 +111,6 @@ export class SellController {
 
   // --- HELPER-METHODS --- //
   async getFee(userId: number, asset: Asset): Promise<{ fee: number }> {
-    asset = await this.assetService.getAssetById(asset.id);
     return this.userService.getUserSellFee(userId, asset);
   }
 

@@ -4,8 +4,6 @@ import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CakeFlowDto, CakeSettings } from './dto/cake-flow.dto';
-import { CfpSettings } from 'src/subdomains/core/statistic/dto/cfp.dto';
-import { FrontendSettings } from './dto/frontend-settings.dto';
 import { Setting } from './setting.entity';
 import { SettingService } from './setting.service';
 
@@ -14,15 +12,6 @@ import { SettingService } from './setting.service';
 @ApiExcludeController()
 export class SettingController {
   constructor(private readonly settingService: SettingService) {}
-
-  @Get('frontend')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
-  async getFrontendSettings(): Promise<FrontendSettings> {
-    const cfpSettings = await this.settingService.getObj<CfpSettings>('cfp');
-
-    return { cfpVotingOpen: cfpSettings.votingOpen };
-  }
 
   @Get('cake')
   async getCakeSettings(): Promise<CakeSettings> {

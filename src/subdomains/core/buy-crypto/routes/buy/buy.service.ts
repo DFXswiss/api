@@ -79,6 +79,7 @@ export class BuyService {
         : await this.assetService.getDfiCoin();
 
     if (!asset) throw new BadRequestException('Asset not found');
+    if (!asset.buyable) throw new BadRequestException('Asset not buyable');
 
     // check staking
     const staking = dto.type === BuyType.STAKING ? await this.stakingService.getStaking(dto.staking.id, userId) : null;

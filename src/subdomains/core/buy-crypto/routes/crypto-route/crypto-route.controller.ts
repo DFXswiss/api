@@ -27,6 +27,7 @@ import { StakingRepository } from 'src/subdomains/core/staking/repositories/stak
 import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 import { StakingDto } from 'src/subdomains/core/staking/dto/staking.dto';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 
 @ApiTags('CryptoRoute')
 @Controller('cryptoRoute')
@@ -36,6 +37,7 @@ export class CryptoRouteController {
     private readonly userService: UserService,
     private readonly stakingService: StakingService,
     private readonly buyCryptoService: BuyCryptoService,
+    private readonly paymentInfoService: PaymentInfoService,
   ) {}
 
   @Get()
@@ -65,8 +67,9 @@ export class CryptoRouteController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: GetCryptoPaymentInfoDto,
   ): Promise<CryptoPaymentInfoDto> {
+    dto = await this.paymentInfoService.cryptoCheck(dto);
     return this.cryptoRouteService
-      .createCrypto(jwt.id, { ...dto, type: BuyType.WALLET }, true)
+      .createCrypto(jwt.id, { ...dto, type: BuyType.WALLET, blockchain: dto.sourceAsset.blockchain }, true)
       .then((crypto) => this.toPaymentInfoDto(jwt.id, crypto));
   }
 
