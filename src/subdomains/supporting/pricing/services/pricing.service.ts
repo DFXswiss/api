@@ -110,7 +110,7 @@ export class PricingService {
           },
           reference: {
             overwrite: 'BTC',
-            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
+            providers: [this.binanceService, this.bitstampService],
           },
         }),
       ]),
@@ -139,7 +139,7 @@ export class PricingService {
             providers: [this.krakenService],
           },
           reference: {
-            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
+            providers: [this.binanceService, this.bitstampService],
           },
         }),
         new PriceStep({
@@ -229,7 +229,7 @@ export class PricingService {
             providers: [this.krakenService],
           },
           reference: {
-            providers: [this.binanceService, this.bitstampService, this.bitpandaService],
+            providers: [this.binanceService, this.bitstampService],
           },
         }),
         new PriceStep({
