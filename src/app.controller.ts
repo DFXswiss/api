@@ -10,6 +10,7 @@ import { Util } from './shared/utils/util';
 import { AnnouncementDto } from './shared/dto/announcement.dto';
 import { FlagDto } from './shared/dto/flag.dto';
 import { RefService } from './subdomains/core/referral/process/ref.service';
+import { Config } from './config/config';
 
 enum App {
   DFI = 'dfi',
@@ -95,11 +96,12 @@ export class AppController {
   @ApiExcludeEndpoint()
   async createRefNew(
     @RealIP() ip: string,
-    @Query('code') ref: string,
+    @Query('code') code: string,
     @Query('orig') origin: string,
     @Res() res: Response,
   ): Promise<void> {
-    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
+    const ref = await this.getRef(code);
+    if (ref || origin) await this.refService.addOrUpdate(ip, code, origin);
     res.redirect(307, this.homepageUrl);
   }
 
@@ -108,13 +110,12 @@ export class AppController {
   async redirectToStore(
     @RealIP() ip: string,
     @Param('app') app: App,
-    @Query('code') refKey: string,
+    @Query('code') code: string,
     @Query('orig') origin: string,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const keys = await this.settingService.getObj('ref-keys', {});
-    const ref = keys[refKey];
+    const ref = await this.getRef(code);
     if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
 
     // redirect user depending on app and platform
@@ -126,6 +127,12 @@ export class AppController {
     }
 
     res.redirect(307, url ?? this.homepageUrl);
+  }
+
+  private async getRef(code: string): Promise<string | undefined> {
+    const keys = await this.settingService.getObj('ref-keys', {});
+
+    return Config.formats.ref.test(code) ? code : keys[code];
   }
 
   // --- HELPER METHODS --- //
