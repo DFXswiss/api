@@ -1,5 +1,5 @@
 import { AccountHistory } from '@defichain/jellyfish-api-core/dist/category/account';
-import { UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DeFiClient } from 'src/integration/blockchain/ain/node/defi-client';
@@ -15,6 +15,7 @@ import { PayInRepository } from '../repositories/payin.repository';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { StakingService } from 'src/subdomains/core/staking/services/staking.service';
 import { Interval } from '@nestjs/schedule';
+import { PayInJellyfishService } from './base/payin-jellyfish.service';
 
 export interface HistoryAmount {
   amount: number;
@@ -23,7 +24,7 @@ export interface HistoryAmount {
 }
 
 @Injectable()
-export class PayInDeFiChainService {
+export class PayInDeFiChainService extends PayInJellyfishService {
   private client: DeFiClient;
 
   private readonly utxoTxTypes = ['receive', 'AccountToUtxos', 'blockReward'];
@@ -43,6 +44,7 @@ export class PayInDeFiChainService {
     protected readonly payInRepo: PayInRepository,
     nodeService: NodeService,
   ) {
+    super();
     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
   }
 
@@ -65,6 +67,10 @@ export class PayInDeFiChainService {
       // get receive history
       .then((i) => i.filter((h) => h.blockHeight > lastHeight))
       .then((i) => i.filter((h) => h.owner != Config.blockchain.default.utxoSpenderAddress));
+  }
+
+  async getTx(outTxId: string): Promise<InWalletTransaction> {
+    return this.client.getTx(outTxId);
   }
 
   async sendUtxo(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {

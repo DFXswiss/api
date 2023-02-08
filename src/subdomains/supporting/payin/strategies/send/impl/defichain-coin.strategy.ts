@@ -5,15 +5,16 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../repositories/payin.repository';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
-import { SendStrategy, SendType } from './base/send.strategy';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
+import { SendType } from './base/send.strategy';
 
 @Injectable()
-export class DeFiChainCoinStrategy extends SendStrategy {
+export class DeFiChainCoinStrategy extends JellyfishStrategy {
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
   ) {
-    super();
+    super(deFiChainService, payInRepo, 60, Blockchain.DEFICHAIN);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {

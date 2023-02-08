@@ -20,6 +20,8 @@ export enum SendType {
 
 export abstract class SendStrategy {
   abstract doSend(payIns: CryptoInput[], type: SendType): Promise<void>;
+  abstract checkConfirmations(payIns: CryptoInput[]): Promise<void>;
+
   protected abstract getForwardAddress(): BlockchainAddress;
 
   protected updatePayInWithSendData(

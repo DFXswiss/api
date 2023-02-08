@@ -1,4 +1,3 @@
-import { v4 as uuid } from 'uuid';
 import { Injectable } from '@nestjs/common';
 import { Lock } from 'src/shared/utils/lock';
 import { PayInRepository } from '../repositories/payin.repository';
@@ -11,9 +10,6 @@ import { In, IsNull, Not } from 'typeorm';
 import { AmlCheck } from 'src/subdomains/core/buy-crypto/process/enums/aml-check.enum';
 import { SendType } from '../strategies/send/impl/base/send.strategy';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
-import { PriceRequest } from '../../pricing/interfaces';
-import { PricingService } from '../../pricing/services/pricing.service';
-import { PriceRequestContext } from '../../pricing/enums';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { RegisterStrategiesFacade } from '../strategies/register/register.facade';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -26,9 +22,9 @@ export class PayInService {
   private readonly forwardLock = new Lock(7200);
   private readonly returnLock = new Lock(7200);
   private readonly retryLock = new Lock(7200);
+  private readonly confirmationLock = new Lock(7200);
 
   constructor(
-    private readonly pricingService: PricingService,
     private readonly payInRepository: PayInRepository,
     private readonly sendStrategies: SendStrategiesFacade,
     private readonly registerStrategies: RegisterStrategiesFacade,
@@ -140,6 +136,20 @@ export class PayInService {
     }
   }
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  async checkSendConfirmations(): Promise<void> {
+    if (Config.processDisabled(Process.PAY_IN)) return;
+    if (!this.confirmationLock.acquire()) return;
+
+    try {
+      await this.checkConfirmations();
+    } catch (e) {
+      console.error('Exception during checking confirmations for pay-ins:', e);
+    } finally {
+      this.confirmationLock.release();
+    }
+  }
+
   //*** HELPER METHODS ***//
 
   async doAmlCheck(payIn: CryptoInput, route: Staking | Sell | CryptoRoute): Promise<AmlCheck> {
@@ -222,6 +232,28 @@ export class PayInService {
     }
   }
 
+  private async checkConfirmations(): Promise<void> {
+    const payIns = await this.payInRepository.find({
+      where: {
+        status: In([PayInStatus.FORWARDED, PayInStatus.RETURNED]),
+      },
+      relations: ['route'],
+    });
+
+    if (payIns.length === 0) return;
+
+    const groups = this.groupByStrategies(payIns, this.sendStrategies.getSendStrategyAlias);
+
+    for (const group of groups.entries()) {
+      try {
+        const strategy = this.sendStrategies.getSendStrategy(group[0]);
+        await strategy.checkConfirmations(group[1]);
+      } catch {
+        continue;
+      }
+    }
+  }
+
   private groupByStrategies<T>(payIns: CryptoInput[], getter: (asset: Asset) => T): Map<T, CryptoInput[]> {
     const groups = new Map<T, CryptoInput[]>();
 
@@ -240,10 +272,5 @@ export class PayInService {
     }
 
     return groups;
-  }
-
-  private createPriceRequest(currencyPair: string[]): PriceRequest {
-    const correlationId = 'PayIn' + uuid();
-    return { context: PriceRequestContext.PAY_IN, correlationId, from: currencyPair[0], to: currencyPair[1] };
   }
 }

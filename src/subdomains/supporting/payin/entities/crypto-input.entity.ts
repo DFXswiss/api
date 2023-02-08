@@ -193,6 +193,11 @@ export class CryptoInput extends IEntity {
     }
 
     this.status = PayInStatus.FORWARDED;
+
+    return this;
+  }
+
+  confirm(): this {
     this.isConfirmed = true;
 
     return this;

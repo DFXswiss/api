@@ -1,19 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { PayInDeFiChainService } from '../../../services/payin-defichain.service';
 import { PayInRepository } from '../../../repositories/payin.repository';
-import { SendStrategy, SendType } from './base/send.strategy';
+import { SendType } from './base/send.strategy';
 import { CryptoInput } from '../../../entities/crypto-input.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { JellyfishStrategy } from './base/jellyfish.strategy';
 
 @Injectable()
-export class DeFiChainTokenStrategy extends SendStrategy {
+export class DeFiChainTokenStrategy extends JellyfishStrategy {
   constructor(
     protected readonly deFiChainService: PayInDeFiChainService,
     protected readonly payInRepo: PayInRepository,
   ) {
-    super();
+    super(deFiChainService, payInRepo, 60, Blockchain.DEFICHAIN);
   }
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {

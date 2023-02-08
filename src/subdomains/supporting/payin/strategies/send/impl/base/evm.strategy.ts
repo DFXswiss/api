@@ -79,6 +79,20 @@ export abstract class EvmStrategy extends SendStrategy {
     }
   }
 
+  async checkConfirmations(payIns: CryptoInput[]): Promise<void> {
+    /**
+     * @autoconfirm
+     */
+    for (const payIn of payIns) {
+      try {
+        payIn.confirm();
+        await this.payInRepo.save(payIn);
+      } catch (e) {
+        console.error(`Failed to check confirmations of ${this.blockchain} input ${payIn.id}:`, e);
+      }
+    }
+  }
+
   //*** HELPER METHODS ***//
 
   private logInput(payIns: CryptoInput[], type: SendType): void {
