@@ -8,7 +8,6 @@ import { PayoutOrderRepository } from '../../../../repositories/payout-order.rep
 import { PayoutStrategy } from './payout.strategy';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { PayoutUtils } from 'src/subdomains/supporting/payout/utils/payout-utils';
 
 export abstract class JellyfishStrategy extends PayoutStrategy {
   constructor(
@@ -21,9 +20,9 @@ export abstract class JellyfishStrategy extends PayoutStrategy {
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     try {
-      const groups = PayoutUtils.groupOrdersByContext(orders);
+      const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
-      for (const [context, group] of [...groups.entries()]) {
+      for (const [context, group] of groups.entries()) {
         if (!(await this.jellyfishService.isHealthy(context))) continue;
 
         await this.doPayoutForContext(context, group);

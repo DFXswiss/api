@@ -8,7 +8,6 @@ import { PayoutOrderRepository } from '../../../repositories/payout-order.reposi
 import { PayoutDeFiChainService } from '../../../services/payout-defichain.service';
 import { PrepareStrategy } from './base/prepare.strategy';
 import { Util } from 'src/shared/utils/util';
-import { PayoutUtils } from '../../../utils/payout-utils';
 import { TransferNotRequiredException } from 'src/subdomains/supporting/dex/exceptions/transfer-not-required.exception';
 
 @Injectable()
@@ -23,9 +22,9 @@ export class DeFiChainStrategy extends PrepareStrategy {
   }
 
   async preparePayout(orders: PayoutOrder[]): Promise<void> {
-    const groups = PayoutUtils.groupOrdersByContext(orders);
+    const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
-    for (const [context, group] of [...groups.entries()]) {
+    for (const [context, group] of groups.entries()) {
       await this.preparePayoutForContext(context, group);
     }
   }
@@ -58,9 +57,9 @@ export class DeFiChainStrategy extends PrepareStrategy {
   //*** HELPER METHODS ***//
 
   private async preparePayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    const groups = PayoutUtils.groupOrdersByAssetId(orders);
+    const groups = Util.groupBy<PayoutOrder, number>(orders, 'id');
 
-    for (const [assetId, group] of [...groups.entries()]) {
+    for (const [assetId, group] of groups.entries()) {
       try {
         if (!(await this.defichainService.isHealthy(context))) continue;
 
