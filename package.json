@@ -46,7 +46,7 @@
     "bcrypt": "^5.0.1",
     "bignumber.js": "^9.0.2",
     "bitcoinjs-message": "^2.2.0",
-    "ccxt": "^1.73.31",
+    "ccxt": "^2.7.66",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.13.2",
     "cors": "^2.8.5",
