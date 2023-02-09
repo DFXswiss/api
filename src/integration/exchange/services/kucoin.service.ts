@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeService } from './exchange.service';
-import { ftx } from 'ccxt';
+import { kucoin } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 
 @Injectable()
-export class FtxService extends ExchangeService {
+export class KucoinService extends ExchangeService {
   constructor(readonly scheduler: SchedulerRegistry) {
-    super(new ftx(GetConfig().exchange), scheduler);
+    super(new kucoin(GetConfig().exchange), scheduler);
   }
 }
