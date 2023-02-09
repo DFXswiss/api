@@ -31,14 +31,8 @@ export class AuthController {
     return this.authService.getSignInfo(address);
   }
 
-  @Post('company/signIn')
-  @ApiCreatedResponse({ type: AuthResponseDto })
-  signInCompany(@Body() credentials: AuthCredentialsDto): Promise<AuthResponseDto> {
-    return this.authService.companySignIn(credentials);
-  }
-
-  @Post('company/challenge')
-  @ApiOkResponse({ type: ChallengeDto })
+  @Get('challenge')
+  @ApiCreatedResponse({ type: ChallengeDto })
   companyChallenge(@Query('address') address: string): Promise<ChallengeDto> {
     return this.authService.getCompanyChallenge(address);
   }
