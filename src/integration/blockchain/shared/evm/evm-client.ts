@@ -138,7 +138,11 @@ export abstract class EvmClient {
     amount: number,
     feeLimit?: number,
   ): Promise<string> {
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
+    /**
+     * @note
+     * adding a cap to make sure gas limit is sufficient
+     */
+    const gasLimit = Util.round(+(await this.getTokenGasLimitForContact(contract)) * 1.5, 0);
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
 
@@ -203,6 +207,14 @@ export abstract class EvmClient {
 
   get sendCoinGasLimit(): number {
     return this.#sendCoinGasLimit;
+  }
+
+  get dummyTokenPayload(): string {
+    const method = 'a9059cbb000000000000000000000000';
+    const destination = this.randomReceiverAddress.slice(2);
+    const value = '00000000000000000000000000000000000000000000000000000fcc44ae0400';
+
+    return '0x' + method + destination + value;
   }
 
   //*** PUBLIC HELPER METHODS ***//

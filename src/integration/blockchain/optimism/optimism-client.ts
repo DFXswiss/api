@@ -35,16 +35,10 @@ export class OptimismClient extends EvmClient {
   }
 
   async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    const method = 'a9059cbb000000000000000000000000';
-    const destination = this.randomReceiverAddress.slice(2);
-    const value = '00000000000000000000000000000000000000000000000000000fcc44ae0400';
-
-    const dummyTokenPayload = '0x' + method + destination + value;
-
     const totalGasCost = await estimateTotalGasCost(asL2Provider(this.provider), {
       from: this.dfxAddress,
       to: token.chainId,
-      data: dummyTokenPayload,
+      data: this.dummyTokenPayload,
     });
 
     return this.convertToEthLikeDenomination(totalGasCost);
