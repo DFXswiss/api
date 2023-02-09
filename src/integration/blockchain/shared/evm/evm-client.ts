@@ -142,14 +142,16 @@ export abstract class EvmClient {
      * @note
      * adding a cap to make sure gas limit is sufficient
      */
-    const gasLimit = Util.round(+(await this.getTokenGasLimitForContact(contract)) * 1.5, 0);
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract));
     const gasPrice = await this.getGasPrice(gasLimit, feeLimit);
     const nonce = await this.getNonce(fromAddress);
+
+    const effectiveGasLimit = Util.round(gasLimit * 1.5, 0);
 
     const decimals = await contract.decimals();
     const targetAmount = this.convertToWeiLikeDenomination(amount, decimals);
 
-    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce });
+    const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit: effectiveGasLimit, nonce });
 
     this.#nonce.set(fromAddress, nonce + 1);
 
