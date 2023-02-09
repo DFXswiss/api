@@ -10,7 +10,7 @@ export abstract class PrepareStrategy {
   }
 
   abstract preparePayout(orders: PayoutOrder[]): Promise<void>;
-  abstract checkPreparationCompletion(order: PayoutOrder): Promise<void>;
+  abstract checkPreparationCompletion(orders: PayoutOrder[]): Promise<void>;
   abstract estimateFee(asset: Asset): Promise<FeeResult>;
   protected abstract getFeeAsset(): Promise<Asset>;
 }

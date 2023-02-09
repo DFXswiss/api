@@ -25,24 +25,19 @@ export class DeFiChainStrategy extends PrepareStrategy {
     const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
     for (const [context, group] of groups.entries()) {
+      if (!(await this.defichainService.isHealthy(context))) continue;
+
       await this.preparePayoutForContext(context, group);
     }
   }
 
-  async checkPreparationCompletion(order: PayoutOrder): Promise<void> {
-    try {
-      if (!(await this.defichainService.isHealthy(order.context))) return;
+  async checkPreparationCompletion(orders: PayoutOrder[]): Promise<void> {
+    const groups = Util.groupBy<PayoutOrder, PayoutOrderContext>(orders, 'context');
 
-      const isTransferComplete = await this.dexService.checkTransferCompletion(order.transferTxId);
+    for (const [context, group] of groups.entries()) {
+      if (!(await this.defichainService.isHealthy(context))) continue;
 
-      if (isTransferComplete) {
-        order.preparationConfirmed();
-        order.recordPreparationFee(await this.feeAsset(), 0);
-
-        await this.payoutOrderRepo.save(order);
-      }
-    } catch (e) {
-      console.error(`Error in checking completion of funds transfer for payout order. Order ID: ${order.id}`, e);
+      await this.checkPreparationCompletionForContext(context, group);
     }
   }
 
@@ -57,16 +52,34 @@ export class DeFiChainStrategy extends PrepareStrategy {
   //*** HELPER METHODS ***//
 
   private async preparePayoutForContext(context: PayoutOrderContext, orders: PayoutOrder[]): Promise<void> {
-    const groups = Util.groupBy<PayoutOrder, number>(orders, 'id');
+    const groups = Util.groupByAccessor<PayoutOrder, number>(orders, (o) => o.asset.id);
 
     for (const [assetId, group] of groups.entries()) {
       try {
-        if (!(await this.defichainService.isHealthy(context))) continue;
-
         await this.preparePayoutForAsset(context, group);
       } catch (e) {
         console.error(
           `Error while preparing new payout orders for context ${context} and assetId ${assetId}`,
+          group.map((o) => o.id),
+          e,
+        );
+        continue;
+      }
+    }
+  }
+
+  private async checkPreparationCompletionForContext(
+    context: PayoutOrderContext,
+    orders: PayoutOrder[],
+  ): Promise<void> {
+    const groups = Util.groupBy<PayoutOrder, string>(orders, 'transferTxId');
+
+    for (const [transferTxId, group] of groups.entries()) {
+      try {
+        await this.checkPreparationCompletionForTx(context, group, transferTxId);
+      } catch (e) {
+        console.error(
+          `Error while checking preparation status of payout orders for context ${context} and transferTxId ${transferTxId}`,
           group.map((o) => o.id),
           e,
         );
@@ -91,6 +104,23 @@ export class DeFiChainStrategy extends PrepareStrategy {
       }
 
       throw e;
+    }
+  }
+
+  private async checkPreparationCompletionForTx(
+    _: PayoutOrderContext,
+    orders: PayoutOrder[],
+    transferTxId: string,
+  ): Promise<void> {
+    const isTransferComplete = await this.dexService.checkTransferCompletion(transferTxId);
+
+    if (isTransferComplete) {
+      for (const order of orders) {
+        order.preparationConfirmed();
+        order.recordPreparationFee(await this.feeAsset(), 0);
+
+        await this.payoutOrderRepo.save(order);
+      }
     }
   }
 

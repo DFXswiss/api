@@ -56,6 +56,13 @@ export class Util {
     );
   }
 
+  static groupByAccessor<T, U>(list: T[], accessor: (item: T) => U): Map<U, T[]> {
+    return list.reduce(
+      (map, item) => map.set(accessor(item), (map.get(accessor(item)) ?? []).concat(item)),
+      new Map<U, T[]>(),
+    );
+  }
+
   static randomId(): number {
     return Math.round(Math.random() * 1000000000);
   }
