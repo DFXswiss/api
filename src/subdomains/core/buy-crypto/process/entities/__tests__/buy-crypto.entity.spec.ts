@@ -1,5 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { createCustomBuy } from 'src/subdomains/core/buy-crypto/route/__mocks__/buy.entity.mock';
+import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { Price } from 'src/integration/exchange/dto/price.dto';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
